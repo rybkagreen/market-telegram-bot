@@ -64,3 +64,6 @@ src/static/
 # OS
 .DS_Store
 Thumbs.db
+
+# Qwen Code
+.python-version
