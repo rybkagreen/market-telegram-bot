@@ -25,6 +25,24 @@ aiofiles = "^24.1.0"
 psycopg2-binary = "^2.9.10"
 reportlab = "^4.3.1"
 
+# Telegram Parser
+telethon = "^1.36.0"
+
+# Content Filter
+pymorphy3 = "^2.0.0"
+rapidfuzz = "^3.6.0"
+
+# AI Services
+anthropic = "^0.18.0"
+openai = "^1.12.0"
+
+# TGStat Parser
+beautifulsoup4 = "^4.12.3"
+httpx = "^0.27.0"
+
+# Payments
+yookassa = "^3.2.0"
+
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.9.3"
 mypy = "^1.14.1"
