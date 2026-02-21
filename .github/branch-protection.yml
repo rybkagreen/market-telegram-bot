@@ -1,0 +1,130 @@
+# Branch Protection Rules Configuration
+# Этот файл документирует правила защиты веток для репозитория market-telegram-bot
+# Для применения правил используйте: make protect-branches
+#
+# Примечание: GitHub не читает этот файл автоматически.
+# Правила применяются через scripts/apply_branch_protection.sh
+
+repository: rybkagreen/market-telegram-bot
+
+# =============================================================================
+# MAIN BRANCH (production) — максимальная защита
+# =============================================================================
+branches:
+  - name: main
+    protection:
+      # Запрет прямых пушей — только через PR
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: true
+        require_last_push_approval: false
+
+      # Обязательные CI-чеки перед мёржем
+      required_status_checks:
+        strict: true  # require branches up-to-date before merging
+        contexts:
+          - lint
+          - typecheck
+          - test
+
+      # Запрет пушей для всех, кроме указанных пользователей
+      restrictions: null  # не ограничиваем по пользователям (т.к. публичный репо)
+
+      # Дополнительные требования
+      enforce_admins: true           # правила применяются и к администраторам
+      required_linear_history: true  # запрет merge commits
+      allow_force_pushes: false
+      allow_deletions: false
+      block_creations: false
+      required_conversation_resolution: true
+      lock_branch: false
+      allow_fork_syncing: false
+
+# =============================================================================
+# DEVELOP BRANCH (integration) — стандартная защита
+# =============================================================================
+  - name: develop
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: false
+        require_last_push_approval: false
+
+      required_status_checks:
+        strict: true
+        contexts:
+          - lint
+          - typecheck
+          - test
+
+      restrictions: null
+
+      enforce_admins: true
+      required_linear_history: false  # разрешить merge commits
+      allow_force_pushes: false
+      allow_deletions: false
+      required_conversation_resolution: true
+      lock_branch: false
+
+# =============================================================================
+# DEVELOPER BRANCHES — лёгкая защита (только CI при PR)
+# =============================================================================
+  - name: developer2/belin
+    protection:
+      required_pull_request_reviews: null  # PR не обязателен
+
+      required_status_checks:
+        strict: false
+        contexts:
+          - lint
+          - typecheck
+
+      restrictions: null
+
+      enforce_admins: false
+      required_linear_history: false
+      allow_force_pushes: true
+      allow_deletions: true
+      lock_branch: false
+
+  - name: developer1/tsaguria
+    protection:
+      required_pull_request_reviews: null
+
+      required_status_checks:
+        strict: false
+        contexts:
+          - lint
+          - typecheck
+
+      restrictions: null
+
+      enforce_admins: false
+      required_linear_history: false
+      allow_force_pushes: true
+      allow_deletions: true
+      lock_branch: false
+
+# =============================================================================
+# FEATURE BRANCHES — минимальная защита (через pattern)
+# =============================================================================
+  - name_pattern: feature/*
+    protection:
+      required_pull_request_reviews: null
+
+      required_status_checks:
+        strict: false
+        contexts:
+          - lint
+          - typecheck
+          - test
+
+      restrictions: null
+
+      enforce_admins: false
+      required_linear_history: false
+      allow_force_pushes: true
+      allow_deletions: true
+      lock_branch: false
