@@ -6,7 +6,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ARRAY, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import ARRAY, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -80,7 +80,7 @@ class ContentFlag(Base, TimestampMixin):
     )
 
     # Помеченные фрагменты (JSONB)
-    flagged_fragments: Mapped[Optional[dict]] = mapped_column(
+    flagged_fragments: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
         doc="JSONB с помеченными фрагментами текста",
@@ -96,14 +96,14 @@ class ContentFlag(Base, TimestampMixin):
     )
 
     # Модератор
-    reviewed_by_id: Mapped[Optional[int]] = mapped_column(
+    reviewed_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         doc="ID модератора (админа)",
     )
 
-    review_comment: Mapped[Optional[str]] = mapped_column(
+    review_comment: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Комментарий модератора",
@@ -117,13 +117,13 @@ class ContentFlag(Base, TimestampMixin):
     )
 
     # LLM анализ
-    llm_analysis: Mapped[Optional[str]] = mapped_column(
+    llm_analysis: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Результат анализа LLM",
     )
 
-    llm_categories: Mapped[Optional[list[str]]] = mapped_column(
+    llm_categories: Mapped[list[str] | None] = mapped_column(
         ARRAY(String(50)),
         nullable=True,
         doc="Категории от LLM",

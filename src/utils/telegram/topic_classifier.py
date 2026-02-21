@@ -4,9 +4,7 @@ Topic Classifier для классификации Telegram-каналов по 
 """
 
 import logging
-import re
 from dataclasses import dataclass
-from typing import Optional
 
 try:
     from rapidfuzz import fuzz, process
@@ -664,16 +662,15 @@ class TopicClassifier:
         text_lower = text.lower()
         best_match: tuple[str, float] | None = None
 
-        for topic in self._keywords_cache.keys():
+        for topic in self._keywords_cache:
             if topic == "other":
                 continue
 
             # Сравниваем с каждым ключевым словом
             for keyword in self._keywords_cache[topic]:
                 ratio = fuzz.partial_ratio(text_lower, keyword)
-                if ratio > 80:  # Порог fuzzy matching
-                    if best_match is None or ratio > best_match[1]:
-                        best_match = (topic, ratio)
+                if ratio > 80 and (best_match is None or ratio > best_match[1]):  # Порог fuzzy matching
+                    best_match = (topic, ratio)
 
         if best_match and best_match[1] > 80:
             return best_match[0]
@@ -737,13 +734,13 @@ class TopicClassifier:
         """
         return [
             topic
-            for topic in self._keywords_cache.keys()
+            for topic in self._keywords_cache
             if topic != "other"
         ]
 
 
 # Глобальный экземпляр
-_classifier: Optional[TopicClassifier] = None
+_classifier: TopicClassifier | None = None
 
 
 def get_classifier() -> TopicClassifier:

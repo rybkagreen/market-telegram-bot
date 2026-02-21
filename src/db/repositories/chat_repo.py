@@ -3,11 +3,11 @@ Chat Repository для работы с Telegram-чатами.
 Расширяет BaseRepository специфичными методами для Chat.
 """
 
-from datetime import datetime, timezone
 from dataclasses import dataclass
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import Select, and_, func, select, update
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.chat import Chat
@@ -104,7 +104,7 @@ class ChatRepository(BaseRepository[Chat]):
                 rating=chat_data.rating,
                 avg_post_reach=chat_data.avg_post_reach,
                 posts_per_day=chat_data.posts_per_day,
-                last_checked=datetime.now(tz=timezone.utc),
+                last_checked=datetime.now(tz=UTC),
             )
 
             if update_existing:
@@ -226,7 +226,7 @@ class ChatRepository(BaseRepository[Chat]):
         """
         await self.update(
             chat_id,
-            {"last_checked": datetime.now(tz=timezone.utc)},
+            {"last_checked": datetime.now(tz=UTC)},
         )
         return await self.get_by_id(chat_id)
 
@@ -279,7 +279,7 @@ class ChatRepository(BaseRepository[Chat]):
             Список чатов.
         """
         # Чаты, которые не проверялись больше 7 дней
-        seven_days_ago = datetime.now(tz=timezone.utc).replace(
+        seven_days_ago = datetime.now(tz=UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         seven_days_ago = seven_days_ago.replace(

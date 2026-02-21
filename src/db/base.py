@@ -3,7 +3,7 @@
 DeclarativeBase и TimestampMixin для всех моделей.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import DateTime, func
@@ -13,13 +13,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 class Base(DeclarativeBase):
     """
     Базовый класс для всех SQLAlchemy моделей.
-    
+
     Использует snake_case для именования таблиц автоматически.
     """
 
     # Автоматическое именование таблиц в snake_case
     @declared_attr.directive
-    def __tablename__(cls) -> str:
+    @classmethod
+    def __tablename__(cls) -> str:  # noqa: N805
         """Генерирует имя таблицы из имени класса в snake_case."""
         name = cls.__name__
         # Добавляем 's' для множественного числа и конвертируем в snake_case
@@ -47,7 +48,7 @@ class Base(DeclarativeBase):
 class TimestampMixin:
     """
     Миксин для добавления временных меток created_at и updated_at.
-    
+
     Все модели с этим миксином будут автоматически отслеживать
     время создания и последнего обновления записи.
     """

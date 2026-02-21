@@ -4,6 +4,7 @@ Celery приложение для асинхронных задач.
 """
 
 import logging
+
 from celery import Celery, Task
 from celery.schedules import crontab
 

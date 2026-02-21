@@ -4,6 +4,7 @@ Notification tasks для уведомлений пользователей.
 
 import asyncio
 import logging
+from decimal import Decimal
 from typing import Any
 
 from src.db.repositories.user_repo import UserRepository
@@ -42,7 +43,6 @@ async def _check_low_balance_async() -> dict[str, Any]:
     """
     from decimal import Decimal
 
-    from src.db.models.user import User
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)

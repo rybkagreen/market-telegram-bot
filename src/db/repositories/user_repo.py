@@ -4,7 +4,7 @@ User Repository для работы с пользователями.
 """
 
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -160,7 +160,7 @@ class UserRepository(BaseRepository[User]):
                 .values(balance=balance_after)
                 .returning(User.balance)
             )
-            result = await self.session.execute(stmt)
+            await self.session.execute(stmt)
             await self.session.flush()
 
             # Обновляем локальный объект

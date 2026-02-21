@@ -43,7 +43,7 @@ async_session_factory: Final = async_sessionmaker(
 )
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession]:
     """
     Dependency для получения сессии БД.
     Используется в FastAPI и других местах.
@@ -63,7 +63,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         await session.close()
 
 
-async def get_session_no_commit() -> AsyncGenerator[AsyncSession, None]:
+async def get_session_no_commit() -> AsyncGenerator[AsyncSession]:
     """
     Dependency для получения сессии БД без автоматического коммита.
     Коммит должен быть вызван явно.

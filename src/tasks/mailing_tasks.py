@@ -4,6 +4,7 @@ Mailing Celery tasks для отправки кампаний.
 
 import asyncio
 import logging
+from datetime import UTC
 from typing import Any
 
 from src.db.repositories.campaign_repo import CampaignRepository
@@ -29,7 +30,6 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
 
     try:
         # Импортируем mailing_service здесь чтобы избежать circular imports
-        from src.core.services.mailing_service import MailingService
 
         stats = asyncio.run(_run_campaign_async(campaign_id))
 
@@ -38,7 +38,7 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Campaign {campaign_id} failed: {e}")
-        raise self.retry(exc=e, countdown=60)
+        raise self.retry(exc=e, countdown=60) from e
 
 
 async def _run_campaign_async(campaign_id: int) -> dict[str, Any]:
@@ -96,7 +96,7 @@ async def _check_scheduled_async() -> dict[str, Any]:
     Returns:
         Статистика.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from src.db.models.campaign import CampaignStatus
 
@@ -104,7 +104,7 @@ async def _check_scheduled_async() -> dict[str, Any]:
         campaign_repo = CampaignRepository(session)
 
         # Получаем кампании, готовые к запуску
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         campaigns = await campaign_repo.get_scheduled_due(now)
 
         stats = {

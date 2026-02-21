@@ -5,7 +5,7 @@
 
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -59,26 +59,26 @@ class User(Base, TimestampMixin):
         doc="Telegram ID пользователя",
     )
 
-    username: Mapped[Optional[str]] = mapped_column(
+    username: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         index=True,
         doc="Username пользователя в Telegram",
     )
 
-    first_name: Mapped[Optional[str]] = mapped_column(
+    first_name: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         doc="Имя пользователя",
     )
 
-    last_name: Mapped[Optional[str]] = mapped_column(
+    last_name: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         doc="Фамилия пользователя",
     )
 
-    language_code: Mapped[Optional[str]] = mapped_column(
+    language_code: Mapped[str | None] = mapped_column(
         String(10),
         nullable=True,
         default="ru",
@@ -110,7 +110,7 @@ class User(Base, TimestampMixin):
         doc="Уникальный реферальный код пользователя",
     )
 
-    referred_by_id: Mapped[Optional[int]] = mapped_column(
+    referred_by_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         index=True,

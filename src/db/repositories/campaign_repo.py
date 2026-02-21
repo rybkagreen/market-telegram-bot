@@ -3,8 +3,8 @@ Campaign Repository для работы с рекламными кампания
 Расширяет BaseRepository специфичными методами для Campaign.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,10 +97,10 @@ class CampaignRepository(BaseRepository[Campaign]):
         update_data: dict[str, Any] = {"status": status}
 
         if status == CampaignStatus.RUNNING and campaign.started_at is None:
-            update_data["started_at"] = datetime.now(tz=timezone.utc)
+            update_data["started_at"] = datetime.now(tz=UTC)
 
         if status in (CampaignStatus.DONE, CampaignStatus.ERROR, CampaignStatus.CANCELLED):
-            update_data["completed_at"] = datetime.now(tz=timezone.utc)
+            update_data["completed_at"] = datetime.now(tz=UTC)
 
         if error_message is not None:
             update_data["error_message"] = error_message
@@ -124,7 +124,7 @@ class CampaignRepository(BaseRepository[Campaign]):
             Список кампаний для запуска.
         """
         if now is None:
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=UTC)
 
         query = select(Campaign).where(
             and_(
