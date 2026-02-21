@@ -4,6 +4,7 @@ Cleanup tasks для очистки и архивации данных.
 
 import asyncio
 import logging
+from datetime import UTC
 from typing import Any
 
 from src.db.session import async_session_factory
@@ -45,14 +46,14 @@ async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
     Returns:
         Статистика.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from sqlalchemy import delete
 
     from src.db.models.mailing_log import MailingLog
 
     async with async_session_factory() as session:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.now(tz=UTC) - timedelta(days=days)
 
         stmt = delete(MailingLog).where(MailingLog.created_at < cutoff_date)
         result = await session.execute(stmt)
@@ -99,14 +100,14 @@ async def _archive_old_campaigns_async(months: int = 12) -> dict[str, Any]:
     Returns:
         Статистика.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from sqlalchemy import update
 
     from src.db.models.campaign import Campaign, CampaignStatus
 
     async with async_session_factory() as session:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=months * 30)
+        cutoff_date = datetime.now(tz=UTC) - timedelta(days=months * 30)
 
         # Находим завершенные кампании старше cutoff_date
         stmt = (
@@ -157,14 +158,13 @@ async def _cleanup_expired_sessions_async() -> dict[str, Any]:
     Returns:
         Статистика.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    from sqlalchemy import delete
 
     # Здесь можно добавить модель UserSession если нужна
     # Пока заглушка для будущей реализации
 
     return {
         "deleted_count": 0,
-        "cleaned_at": datetime.now(tz=timezone.utc).isoformat(),
+        "cleaned_at": datetime.now(tz=UTC).isoformat(),
     }

@@ -4,9 +4,18 @@
 """
 
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db.base import Base, TimestampMixin
@@ -57,14 +66,14 @@ class Chat(Base, TimestampMixin):
         doc="Заголовок чата/канала",
     )
 
-    username: Mapped[Optional[str]] = mapped_column(
+    username: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         index=True,
         doc="Username чата (@channel_name)",
     )
 
-    description: Mapped[Optional[str]] = mapped_column(
+    description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Описание чата",
@@ -79,7 +88,7 @@ class Chat(Base, TimestampMixin):
         doc="Количество участников",
     )
 
-    topic: Mapped[Optional[str]] = mapped_column(
+    topic: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         index=True,
@@ -131,20 +140,20 @@ class Chat(Base, TimestampMixin):
         doc="Рейтинг чата (0.0 - 10.0)",
     )
 
-    last_checked: Mapped[Optional[datetime]] = mapped_column(
+    last_checked: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         index=True,
         doc="Время последней проверки чата",
     )
 
-    last_message_date: Mapped[Optional[datetime]] = mapped_column(
+    last_message_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         doc="Дата последнего сообщения",
     )
 
-    avg_post_reach: Mapped[Optional[int]] = mapped_column(
+    avg_post_reach: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         doc="Средний охват поста",
@@ -164,7 +173,7 @@ class Chat(Base, TimestampMixin):
         doc="Количество ошибок при отправке",
     )
 
-    deactivate_reason: Mapped[Optional[str]] = mapped_column(
+    deactivate_reason: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         doc="Причина деактивации чата",

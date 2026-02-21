@@ -12,7 +12,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 try:
     import pymorphy3
@@ -35,7 +34,7 @@ class FilterResult:
     level1_score: float = 0.0  # Оценка уровня 1 (regex)
     level2_score: float = 0.0  # Оценка уровня 2 (morph)
     level3_score: float = 0.0  # Оценка уровня 3 (LLM)
-    llm_analysis: Optional[str] = None  # Результат LLM анализа
+    llm_analysis: str | None = None  # Результат LLM анализа
 
 
 # Пороги для перехода между уровнями
@@ -55,7 +54,7 @@ class ContentFilter:
             print(f"Заблокировано: {result.categories}")
     """
 
-    def __init__(self, stopwords_path: Optional[str] = None) -> None:
+    def __init__(self, stopwords_path: str | None = None) -> None:
         """
         Инициализация фильтра.
 
@@ -77,7 +76,7 @@ class ContentFilter:
     def _load_stopwords(self, path: str) -> None:
         """Загрузить стоп-слова из JSON файла."""
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self._stopwords = json.load(f)
             logger.info(f"Loaded {len(self._stopwords)} categories from {path}")
         except Exception as e:
@@ -246,9 +245,6 @@ class ContentFilter:
                 flagged.extend(category_matches[:3])
 
         # Вычисляем score
-        total_matches = sum(
-            1 for cat in categories for _ in range(len(cat))
-        )
         score = min(1.0, len(categories) * 0.2 + len(flagged) * 0.05)
 
         return FilterResult(
@@ -419,7 +415,7 @@ class ContentFilter:
 
 
 # Глобальный экземпляр
-_filter: Optional[ContentFilter] = None
+_filter: ContentFilter | None = None
 
 
 def get_filter() -> ContentFilter:

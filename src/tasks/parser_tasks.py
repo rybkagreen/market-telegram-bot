@@ -4,7 +4,6 @@ Parser Celery tasks для обновления базы данных чатов
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory
@@ -231,22 +230,21 @@ async def _refresh_chats_async() -> dict:
                     stats["errors"] += 1
 
         # 2. Парсим через TGStat
-        async with TGStatParser() as tgstat_parser:
-            async with TelegramParser() as telegram_parser:
-                for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
-                    try:
-                        count = await _parse_tgstat_and_save(
-                            tgstat_parser, telegram_parser, chat_repo, topic
-                        )
-                        stats["tgstat"] += count
-                        stats["total"] += count
+        async with TGStatParser() as tgstat_parser, TelegramParser() as telegram_parser:
+            for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
+                try:
+                    count = await _parse_tgstat_and_save(
+                        tgstat_parser, telegram_parser, chat_repo, topic
+                    )
+                    stats["tgstat"] += count
+                    stats["total"] += count
 
-                        # Задержка между запросами
-                        await asyncio.sleep(2)
+                    # Задержка между запросами
+                    await asyncio.sleep(2)
 
-                    except Exception as e:
-                        logger.error(f"Error in TGStat parsing for '{topic}': {e}")
-                        stats["errors"] += 1
+                except Exception as e:
+                    logger.error(f"Error in TGStat parsing for '{topic}': {e}")
+                    stats["errors"] += 1
 
     return stats
 

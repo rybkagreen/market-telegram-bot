@@ -4,9 +4,10 @@ Mailing Log Repository для работы с логами рассылок.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.mailing_log import MailingLog, MailingStatus
@@ -241,11 +242,11 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         Returns:
             Количество удаленных логов.
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from sqlalchemy import delete
 
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.now(tz=UTC) - timedelta(days=days)
 
         stmt = delete(MailingLog).where(MailingLog.created_at < cutoff_date)
         result = await self.session.execute(stmt)

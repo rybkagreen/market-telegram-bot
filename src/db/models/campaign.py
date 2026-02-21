@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -79,7 +79,7 @@ class Campaign(Base, TimestampMixin):
         doc="Текст рекламного сообщения",
     )
 
-    ai_description: Mapped[Optional[str]] = mapped_column(
+    ai_description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Описание для ИИ-генерации",
@@ -95,34 +95,34 @@ class Campaign(Base, TimestampMixin):
     )
 
     # Фильтры таргетинга (JSONB)
-    filters_json: Mapped[Optional[dict]] = mapped_column(
+    filters_json: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
         doc="JSONB с фильтрами таргетинга (темы, размер чатов, blacklist)",
     )
 
     # Планирование
-    scheduled_at: Mapped[Optional[datetime]] = mapped_column(
+    scheduled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         index=True,
         doc="Запланированное время запуска",
     )
 
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         doc="Фактическое время начала рассылки",
     )
 
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         doc="Время завершения рассылки",
     )
 
     # Ошибки
-    error_message: Mapped[Optional[str]] = mapped_column(
+    error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Сообщение об ошибке",

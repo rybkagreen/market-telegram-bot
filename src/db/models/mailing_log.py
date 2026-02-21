@@ -6,7 +6,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -55,7 +55,7 @@ class MailingLog(Base, TimestampMixin):
         doc="ID кампании",
     )
 
-    chat_id: Mapped[Optional[int]] = mapped_column(
+    chat_id: Mapped[int | None] = mapped_column(
         ForeignKey("chats.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -80,14 +80,14 @@ class MailingLog(Base, TimestampMixin):
     )
 
     # Ошибки
-    error_msg: Mapped[Optional[str]] = mapped_column(
+    error_msg: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Сообщение об ошибке",
     )
 
     # Telegram message
-    message_id: Mapped[Optional[int]] = mapped_column(
+    message_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         doc="ID отправленного сообщения в Telegram",
@@ -147,4 +147,3 @@ class MailingLog(Base, TimestampMixin):
 
 
 # Import BigInteger для корректной работы
-from sqlalchemy import BigInteger  # noqa: E402, F811

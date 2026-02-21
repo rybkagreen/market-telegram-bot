@@ -4,9 +4,9 @@ TGStat.ru Parser для получения каталогов Telegram-кана�
 """
 
 import asyncio
+import contextlib
 import logging
 import re
-from typing import Optional
 
 import httpx
 from bs4 import BeautifulSoup
@@ -39,7 +39,7 @@ class TGStatParser:
 
     def __init__(self) -> None:
         """Инициализация парсера."""
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Получить или создать HTTP клиент."""
@@ -227,20 +227,16 @@ class TGStatParser:
                     num_match = re.search(r"([\d\s,\.]+)", text)
                     if num_match:
                         num_str = num_match.group(1).replace(",", "").replace(" ", "")
-                        try:
+                        with contextlib.suppress(ValueError):
                             stats["subscribers"] = int(float(num_str))
-                        except ValueError:
-                            pass
 
                 # Охват
                 if "охват" in text or "reach" in text:
                     num_match = re.search(r"([\d\s,\.]+)", text)
                     if num_match:
                         num_str = num_match.group(1).replace(",", "").replace(" ", "")
-                        try:
+                        with contextlib.suppress(ValueError):
                             stats["avg_post_reach"] = int(float(num_str))
-                        except ValueError:
-                            pass
 
         except Exception as e:
             logger.error(f"Error parsing channel stats: {e}")

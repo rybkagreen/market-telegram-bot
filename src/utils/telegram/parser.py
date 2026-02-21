@@ -6,24 +6,18 @@ Telegram Parser для поиска и валидации публичных ч�
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from datetime import UTC
 
 from telethon import TelegramClient
 from telethon.errors import (
     ChannelInvalidError,
     ChannelPrivateError,
-    ChatAdminRequiredError,
     FloodWaitError,
-    UserBannedInChannelError,
 )
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import (
     Channel,
-    ChannelFull,
     Chat,
-    ChatFull,
-    TypeInputChannel,
-    User,
 )
 
 from src.config.settings import settings
@@ -37,14 +31,14 @@ class ChatInfo:
 
     telegram_id: int
     title: str
-    username: Optional[str]
-    description: Optional[str]
+    username: str | None
+    description: str | None
     member_count: int
     is_verified: bool
     is_scam: bool
     is_fake: bool
     is_broadcast: bool
-    linked_chat_id: Optional[int] = None
+    linked_chat_id: int | None = None
     can_view_participants: bool = False
     can_send_messages: bool = False
 
@@ -55,19 +49,19 @@ class ChatDetails:
 
     telegram_id: int
     title: str
-    username: Optional[str]
-    description: Optional[str]
+    username: str | None
+    description: str | None
     member_count: int
-    topic: Optional[str]
+    topic: str | None
     is_verified: bool
     is_scam: bool
     is_fake: bool
     is_broadcast: bool
     is_active: bool
     rating: float
-    avg_post_reach: Optional[int]
+    avg_post_reach: int | None
     posts_per_day: float
-    last_checked: Optional[float] = None
+    last_checked: float | None = None
 
 
 class TelegramParser:
@@ -83,7 +77,7 @@ class TelegramParser:
 
     def __init__(self) -> None:
         """Инициализация парсера."""
-        self._client: Optional[TelegramClient] = None
+        self._client: TelegramClient | None = None
         self._is_started = False
 
     async def start(self) -> None:
@@ -302,7 +296,7 @@ class TelegramParser:
         Returns:
             ChatDetails.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         full_chat = full_channel.full_chat
 
@@ -329,7 +323,7 @@ class TelegramParser:
             rating=5.0,  # Default rating
             avg_post_reach=None,  # Может быть обновлен позже
             posts_per_day=0.0,  # Может быть обновлен позже
-            last_checked=datetime.now(tz=timezone.utc).timestamp(),
+            last_checked=datetime.now(tz=UTC).timestamp(),
         )
 
     async def get_chat_members_count(self, chat_id: int) -> int:

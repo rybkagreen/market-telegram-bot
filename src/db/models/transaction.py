@@ -6,7 +6,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -77,7 +77,7 @@ class Transaction(Base, TimestampMixin):
     )
 
     # Платежные данные
-    payment_id: Mapped[Optional[str]] = mapped_column(
+    payment_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         unique=True,
@@ -85,34 +85,34 @@ class Transaction(Base, TimestampMixin):
         doc="ID платежа в платежной системе",
     )
 
-    payment_status: Mapped[Optional[str]] = mapped_column(
+    payment_status: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         doc="Статус платежа в платежной системе",
     )
 
-    payment_method: Mapped[Optional[str]] = mapped_column(
+    payment_method: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         doc="Метод платежа (bank_card, sbp, yoomoney, и т.д.)",
     )
 
     # Описание
-    description: Mapped[Optional[str]] = mapped_column(
+    description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Описание транзакции",
     )
 
     # Метаданные (JSONB)
-    meta_json: Mapped[Optional[dict]] = mapped_column(
+    meta_json: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
         doc="Дополнительные данные (JSONB)",
     )
 
     # Временные метки
-    processed_at: Mapped[Optional[datetime]] = mapped_column(
+    processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         index=True,
@@ -133,14 +133,14 @@ class Transaction(Base, TimestampMixin):
     )
 
     # Связь с кампанией
-    campaign_id: Mapped[Optional[int]] = mapped_column(
+    campaign_id: Mapped[int | None] = mapped_column(
         nullable=True,
         index=True,
         doc="ID связанной кампании (если списание за кампанию)",
     )
 
     # Ошибки
-    error_message: Mapped[Optional[str]] = mapped_column(
+    error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         doc="Сообщение об ошибке",
