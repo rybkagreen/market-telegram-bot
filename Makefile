@@ -1,18 +1,19 @@
-.PHONY: help run test lint typecheck migrate shell clean install update
+.PHONY: help run test lint typecheck migrate shell clean install update protect-branches
 
 # Default target
 help:
 	@echo "Market Telegram Bot - Available Commands"
 	@echo "========================================="
-	@echo "  make install     - Install all dependencies"
-	@echo "  make update      - Update dependencies"
-	@echo "  make run         - Run the bot"
-	@echo "  make test        - Run tests"
-	@echo "  make lint        - Run linter (ruff)"
-	@echo "  make typecheck   - Run type checker (mypy)"
-	@echo "  make migrate     - Run database migrations"
-	@echo "  make shell       - Open Python shell with DB session"
-	@echo "  make clean       - Clean temporary files"
+	@echo "  make install           - Install all dependencies"
+	@echo "  make update            - Update dependencies"
+	@echo "  make run               - Run the bot"
+	@echo "  make test              - Run tests"
+	@echo "  make lint              - Run linter (ruff)"
+	@echo "  make typecheck         - Run type checker (mypy)"
+	@echo "  make migrate           - Run database migrations"
+	@echo "  make shell             - Open Python shell with DB session"
+	@echo "  make clean             - Clean temporary files"
+	@echo "  make protect-branches  - Apply branch protection rules (requires gh CLI)"
 	@echo ""
 
 # Installation
@@ -80,6 +81,14 @@ docker-ps:
 
 docker-restart:
 	docker compose restart
+
+# Branch Protection Rules
+# Requires: gh CLI installed and authenticated (gh auth login)
+# Token must have admin:repo or admin permissions
+protect-branches:
+	@echo "Applying branch protection rules..."
+	@chmod +x scripts/apply_branch_protection.sh
+	@./scripts/apply_branch_protection.sh
 
 # Clean
 clean:

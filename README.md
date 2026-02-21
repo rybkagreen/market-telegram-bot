@@ -45,7 +45,7 @@ Market Telegram Bot — это платформа для запуска рекл
 
 1. Клонировать репозиторий:
 ```bash
-git clone https://github.com/your-org/market-telegram-bot.git
+git clone https://github.com/rybkagreen/market-telegram-bot.git
 cd market-telegram-bot
 ```
 
@@ -99,6 +99,113 @@ market-telegram-bot/
 ```bash
 poetry run pytest
 ```
+
+## 🔀 Git Workflow
+
+Проект использует **Git Flow** упрощённую модель:
+
+```
+main ────────────────●───────────────→ production (стабильные релизы)
+                      ╲
+develop ──────────────●──────────────→ integration (фичи сливаются сюда)
+                       ╲
+feature/* ─────────────●─────────────→ временные ветки для задач
+```
+
+### Ветки и их назначение
+
+| Ветка | Назначение | Защита |
+|-------|------------|--------|
+| `main` | Production релизы | 🔒 PR + 1 review + CI (lint, typecheck, test) |
+| `develop` | Интеграция фич | 🔒 PR + 1 review + CI (lint, typecheck, test) |
+| `developer/*` | Ветки разработчиков | ⚠️ CI при PR (lint, typecheck) |
+| `feature/*` | Временные фичи | ⚠️ CI при PR (lint, typecheck, test) |
+
+### Процесс разработки
+
+1. **Создайте ветку от `develop`:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Вносите изменения и делайте коммиты:**
+   ```bash
+   git add .
+   git commit -m "feat: add new feature"
+   ```
+
+3. **Отправьте ветку и создайте PR:**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+   Создайте Pull Request на GitHub: `feature/*` → `develop`
+
+4. **Пройдите Code Review:**
+   - Минимум 1 approval от ревьюера
+   - Все CI чеки должны проходить (lint, typecheck, test)
+
+5. **После мержа в `develop`:**
+   - Протестируйте изменения
+   - При готовности создайте PR `develop` → `main` для релиза
+
+## 📋 Contributing
+
+### Требования к коду
+
+- **Code style:** ruff (PEP 8 + project rules)
+- **Type hints:** mypy strict mode
+- **Tests:** pytest с покрытием критических путей
+
+### Пре-коммит хуки
+
+Проект использует pre-commit для автоматических проверок:
+
+```bash
+# Установка
+pre-commit install
+
+# Запуск вручную
+pre-commit run --all-files
+```
+
+### CI/CD Pipeline
+
+При создании PR автоматически запускаются:
+
+- **lint** — ruff check + ruff format
+- **typecheck** — mypy
+- **test** — pytest
+
+Все чеки должны проходить зелёным перед мёржем.
+
+### Code Owners
+
+| Путь | Владелец |
+|------|----------|
+| `src/bot/` | @rybkagreen |
+| `src/api/` | @rybkagreen |
+| `src/db/` | @rybkagreen |
+| `docker-compose.yml`, `Dockerfile*` | @rybkagreen |
+| `.github/` | @rybkagreen |
+
+См. [`.github/CODEOWNERS`](.github/CODEOWNERS) для деталей.
+
+### Применение правил защиты веток
+
+Для настройки branch protection rules (требуется admin доступ):
+
+```bash
+# Через Makefile
+make protect-branches
+
+# Или напрямую
+./scripts/apply_branch_protection.sh
+```
+
+⚠️ **Важно:** Не вносите изменения напрямую в `main` или `develop` — это нарушит правила защиты.
 
 ## 📝 Лицензия
 
