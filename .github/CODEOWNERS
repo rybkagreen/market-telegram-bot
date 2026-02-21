@@ -1,0 +1,80 @@
+# CODEOWNERS — владельцы кода для репозитория market-telegram-bot
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Формат:
+#   path_pattern @username1 @username2
+#
+# Примечание: В публичных репозиториях CODEOWNERS требует review только
+# если включено в настройках branch protection (require_code_owner_reviews: true)
+
+# =============================================================================
+# Глобальные владельцы
+# =============================================================================
+# Владелец репозитория — получает уведомления обо всех PR
+* @rybkagreen
+
+# =============================================================================
+# Bot — Telegram бот на aiogram
+# =============================================================================
+# Ответственный: developer2/belin
+src/bot/ @rybkagreen
+src/bot/handlers/ @rybkagreen
+src/bot/keyboards/ @rybkagreen
+src/bot/middlewares/ @rybkagreen
+src/bot/states/ @rybkagreen
+
+# =============================================================================
+# API — FastAPI для Mini App
+# =============================================================================
+# Ответственный: developer2/belin
+src/api/ @rybkagreen
+
+# =============================================================================
+# Database — модели, репозитории, миграции
+# =============================================================================
+# Ответственный: developer1/tsaguria
+src/db/ @rybkagreen
+src/db/models/ @rybkagreen
+src/db/repositories/ @rybkagreen
+src/db/migrations/ @rybkagreen
+
+# =============================================================================
+# Config — настройки и конфигурация
+# =============================================================================
+src/config/ @rybkagreen
+
+# =============================================================================
+# Infrastructure — Docker, Nginx, CI/CD
+# =============================================================================
+# Ответственный: rybkagreen (owner)
+docker-compose.yml @rybkagreen
+Dockerfile* @rybkagreen
+.github/ @rybkagreen
+.github/workflows/ @rybkagreen
+nginx/ @rybkagreen
+
+# =============================================================================
+# Project Configuration
+# =============================================================================
+pyproject.toml @rybkagreen
+Makefile @rybkagreen
+.pre-commit-config.yaml @rybkagreen
+
+# =============================================================================
+# Documentation
+# =============================================================================
+README.md @rybkagreen
+*.md @rybkagreen
+MarketTelegramBot_ProjectPlan.docx @rybkagreen
+belin_implementation_guide.md @rybkagreen
+tsaguria_implementation_guide.md @rybkagreen
+
+# =============================================================================
+# Frontend — Mini App (React + TypeScript)
+# =============================================================================
+mini_app/ @rybkagreen
+
+# =============================================================================
+# Tests
+# =============================================================================
+tests/ @rybkagreen
