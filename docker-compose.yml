@@ -99,6 +99,12 @@ services:
     networks:
       - market_bot_network
     command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery Beat — планировщик задач
   celery_beat:
@@ -117,8 +123,10 @@ services:
     volumes:
       - ./src:/app/src
     depends_on:
-      - redis
-      - worker
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
     networks:
       - market_bot_network
     command: celery -A src.tasks.celery_app beat --loglevel=info
@@ -176,7 +184,8 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/:/etc/nginx/conf.d/:ro
       - ./mini_app/dist:/app/static:ro
     depends_on:
       - bot
