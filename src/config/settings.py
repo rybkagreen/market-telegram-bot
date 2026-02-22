@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     yookassa_secret_key: str | None = Field(None, alias="YOOKASSA_SECRET_KEY")
 
     # Admin IDs
-    admin_ids: list[int] = Field(default_factory=list, alias="ADMIN_IDS")
+    admin_ids_raw: str = Field("", alias="ADMIN_IDS")
 
     # Webhook & Mini App
     webhook_url: str | None = Field(None, alias="WEBHOOK_URL")
@@ -72,15 +72,12 @@ class Settings(BaseSettings):
     # Sentry
     sentry_dsn: str | None = Field(None, alias="SENTRY_DSN")
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, value: str | list[int]) -> list[int]:
+    @property
+    def admin_ids(self) -> list[int]:
         """Парсит ADMIN_IDS из строки в список целых чисел."""
-        if isinstance(value, list):
-            return value
-        if not value or value == "":
+        if not self.admin_ids_raw:
             return []
-        return [int(x.strip()) for x in value.split(",") if x.strip().isdigit()]
+        return [int(x.strip()) for x in self.admin_ids_raw.split(",") if x.strip().isdigit()]
 
     @property
     def is_development(self) -> bool:

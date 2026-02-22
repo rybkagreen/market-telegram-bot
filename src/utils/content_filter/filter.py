@@ -87,11 +87,25 @@ class ContentFilter:
         for category, words in self._stopwords.items():
             patterns = []
             for word in words:
-                # Экранируем специальные символы и создаем паттерн
+                # Пропускаем пустые слова
+                if not word or not word.strip():
+                    continue
+                word = word.strip()
+                # Экранируем специальные символы
                 escaped = re.escape(word)
+                # Удаляем trailing regex квантификаторы (*, +, ?) после экранирования
+                escaped = re.sub(r'([\\][*+?])+$', '', escaped)
+                # Пропускаем если после обработки пусто
+                if not escaped:
+                    continue
                 # Паттерн ищет слово в любой форме (часть слова)
-                pattern = re.compile(rf"\b?{escaped}\w*", re.IGNORECASE | re.UNICODE)
-                patterns.append(pattern)
+                # Используем (?<!\w) вместо \b? так как к \b нельзя применять ?
+                try:
+                    pattern = re.compile(rf"(?<!\w){escaped}\w*", re.IGNORECASE | re.UNICODE)
+                    patterns.append(pattern)
+                except re.error:
+                    # Пропускаем слова которые не могут быть скомпилированы
+                    continue
             self._regex_patterns[category] = patterns
 
     def check(self, text: str) -> FilterResult:
