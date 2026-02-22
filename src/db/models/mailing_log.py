@@ -3,6 +3,7 @@
 Хранит историю отправок сообщений по кампаниям.
 """
 
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
@@ -98,6 +99,13 @@ class MailingLog(Base, TimestampMixin):
         default=0,
         nullable=False,
         doc="Количество попыток отправки",
+    )
+
+    # Время отправки
+    sent_at: Mapped[datetime | None] = mapped_column(
+        nullable=True,
+        index=True,
+        doc="Время отправки сообщения",
     )
 
     cost: Mapped[float] = mapped_column(

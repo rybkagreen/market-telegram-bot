@@ -1,8 +1,9 @@
-version: '3.9'
+version: "3.8"
 
 services:
+  # PostgreSQL — база данных
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: market_bot_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-market_bot}
@@ -11,166 +12,182 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-market_bot} -d ${POSTGRES_DB:-market_bot_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
     networks:
       - market_bot_network
 
+  # Redis — кэш и брокер для Celery
   redis:
-    image: redis:7
+    image: redis:7-alpine
     container_name: market_bot_redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
     networks:
       - market_bot_network
 
+  # Bot — aiogram бот (polling для разработки)
   bot:
     build:
       context: .
-      dockerfile: Dockerfile.bot
-    container_name: market_bot_worker
-    env_file:
-      - .env
+      dockerfile: docker/Dockerfile.bot
+    container_name: market_bot_bot
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
-      - REDIS_URL=redis://redis:6379/0
+      ENVIRONMENT: development
+      BOT_TOKEN: ${BOT_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      ADMIN_IDS: ${ADMIN_IDS}
+      AI_COST_PER_GENERATION: ${AI_COST_PER_GENERATION:-10}
+    volumes:
+      - ./src:/app/src
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
     networks:
       - market_bot_network
-    restart: unless-stopped
+    command: poetry run python -m src.bot.main
 
-  celery_worker:
+  # Worker — Celery worker
+  worker:
     build:
       context: .
-      dockerfile: Dockerfile.bot
-    container_name: market_bot_celery_worker
-    env_file:
-      - .env
+      dockerfile: docker/Dockerfile.worker
+    container_name: market_bot_worker
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
-      - REDIS_URL=redis://redis:6379/0
-    command: celery -A src.celery_app worker --loglevel=info --concurrency=4
+      ENVIRONMENT: development
+      BOT_TOKEN: ${BOT_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      ADMIN_IDS: ${ADMIN_IDS}
+      AI_COST_PER_GENERATION: ${AI_COST_PER_GENERATION:-10}
+    volumes:
+      - ./src:/app/src
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
     networks:
       - market_bot_network
-    restart: unless-stopped
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser
 
+  # Celery Beat — планировщик задач
   celery_beat:
     build:
       context: .
-      dockerfile: Dockerfile.bot
+      dockerfile: docker/Dockerfile.worker
     container_name: market_bot_celery_beat
-    env_file:
-      - .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
-      - REDIS_URL=redis://redis:6379/0
-    command: celery -A src.celery_app beat --loglevel=info
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      ENVIRONMENT: development
+      BOT_TOKEN: ${BOT_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
     volumes:
       - ./src:/app/src
-      - ./logs:/app/logs
-    networks:
-      - market_bot_network
-    restart: unless-stopped
-
-  fastapi:
-    build:
-      context: .
-      dockerfile: Dockerfile.bot
-    container_name: market_bot_api
-    env_file:
-      - .env
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
-      - REDIS_URL=redis://redis:6379/0
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    ports:
-      - "${API_PORT:-8000}:8000"
-    volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
+      - redis
+      - worker
     networks:
       - market_bot_network
-    restart: unless-stopped
+    command: celery -A src.tasks.celery_app beat --loglevel=info
 
+  # Flower — мониторинг Celery
   flower:
     build:
       context: .
-      dockerfile: Dockerfile.bot
+      dockerfile: docker/Dockerfile.worker
     container_name: market_bot_flower
-    env_file:
-      - .env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - FLOWER_PORT=5555
-    command: celery -A src.celery_app flower --port=5555
-    depends_on:
-      redis:
-        condition: service_healthy
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
     ports:
-      - "${FLOWER_PORT:-5555}:5555"
+      - "5555:5555"
+    depends_on:
+      - worker
     networks:
       - market_bot_network
-    restart: unless-stopped
+    command: celery -A src.tasks.celery_app flower --port=5555
 
+  # API — FastAPI для Mini App
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: market_bot_api
+    environment:
+      ENVIRONMENT: development
+      BOT_TOKEN: ${BOT_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      AI_COST_PER_GENERATION: ${AI_COST_PER_GENERATION:-10}
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - market_bot_network
+    command: poetry run uvicorn src.api.main:app --host 0.0.0.0 --port 8001 --reload
+
+  # Nginx — reverse proxy
   nginx:
     image: nginx:alpine
     container_name: market_bot_nginx
     ports:
-      - "${NGINX_PORT:-80}:80"
+      - "8080:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./logs/nginx:/var/log/nginx
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./mini_app/dist:/app/static:ro
     depends_on:
-      - fastapi
-      - flower
+      - bot
+      - api
     networks:
       - market_bot_network
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
 
 networks:
   market_bot_network:
     driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
