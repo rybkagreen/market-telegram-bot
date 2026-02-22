@@ -21,9 +21,6 @@ wheels/
 .installed.cfg
 *.egg
 
-# Poetry
-poetry.lock
-
 # Environment
 .env
 .env.local
