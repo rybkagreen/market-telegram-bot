@@ -7,10 +7,10 @@ import logging
 from dataclasses import dataclass
 
 try:
-    from rapidfuzz import fuzz, process
+    from rapidfuzz import fuzz, process  # type: ignore[assignment]
 except ImportError:
-    fuzz = None
-    process = None
+    fuzz = None  # type: ignore[assignment]
+    process = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
