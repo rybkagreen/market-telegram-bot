@@ -125,3 +125,4 @@ logs/nginx/
 .env.development
 .env.test
 .env.production
+docker-compose.override.yml
