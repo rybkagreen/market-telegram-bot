@@ -62,6 +62,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./alembic.ini:/app/alembic.ini:ro
+      - ./alembic_sync.ini:/app/alembic_sync.ini:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
     depends_on:
       postgres:
