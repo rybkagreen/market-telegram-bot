@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.mailing_log import MailingLog, MailingStatus
@@ -117,10 +117,14 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         """
         query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
-            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
-            func.sum(and_(MailingLog.status == MailingStatus.SKIPPED, 1)).label("skipped"),
-            func.sum(and_(MailingLog.status == MailingStatus.PENDING, 1)).label("pending"),
+            func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+            func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label("failed"),
+            func.sum(case((MailingLog.status == MailingStatus.SKIPPED, 1), else_=0)).label(
+                "skipped"
+            ),
+            func.sum(case((MailingLog.status == MailingStatus.PENDING, 1), else_=0)).label(
+                "pending"
+            ),
             func.coalesce(func.sum(MailingLog.cost), 0).label("total_cost"),
         ).where(MailingLog.campaign_id == campaign_id)
 
@@ -244,7 +248,7 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         result = await self.session.execute(stmt)
         await self.session.flush()
 
-        return result.rowcount or 0
+        return result.rowcount  # type: ignore
 
     async def get_logs_for_campaign(
         self,
@@ -304,8 +308,8 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         """
         query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
-            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
+            func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+            func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label("failed"),
             func.avg(MailingLog.cost).label("avg_cost"),
         ).where(MailingLog.chat_telegram_id == chat_telegram_id)
 

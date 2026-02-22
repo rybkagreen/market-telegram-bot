@@ -59,7 +59,7 @@ async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
         result = await session.execute(stmt)
         await session.commit()
 
-        deleted_count = result.rowcount or 0
+        deleted_count = result.rowcount  # type: ignore
 
         return {
             "deleted_count": deleted_count,
@@ -123,7 +123,7 @@ async def _archive_old_campaigns_async(months: int = 12) -> dict[str, Any]:
         result = await session.execute(stmt)
         await session.commit()
 
-        archived_count = result.rowcount or 0
+        archived_count = result.rowcount  # type: ignore
 
         return {
             "archived_count": archived_count,

@@ -383,7 +383,11 @@ class ContentFilter:
 
             import json
 
-            result = json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            if content is None:
+                return FilterResult(passed=True, score=0.0)
+
+            result = json.loads(content)
 
             return FilterResult(
                 passed=result.get("passed", True),

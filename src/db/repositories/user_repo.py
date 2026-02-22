@@ -6,7 +6,7 @@ User Repository для работы с пользователями.
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.user import User
@@ -186,15 +186,15 @@ class UserRepository(BaseRepository[User]):
         stats_query = select(
             func.count(Campaign.id).label("total_campaigns"),
             func.sum(
-                and_(
-                    Campaign.status == CampaignStatus.RUNNING,
-                    1,
+                case(
+                    (Campaign.status == CampaignStatus.RUNNING, 1),
+                    else_=0,
                 )
             ).label("active_campaigns"),
             func.sum(
-                and_(
-                    Campaign.status == CampaignStatus.DONE,
-                    1,
+                case(
+                    (Campaign.status == CampaignStatus.DONE, 1),
+                    else_=0,
                 )
             ).label("completed_campaigns"),
             func.coalesce(func.sum(Campaign.cost), 0).label("total_spent"),
