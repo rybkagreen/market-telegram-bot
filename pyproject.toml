@@ -76,6 +76,7 @@ python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
+disable_error_code = ["misc", "untyped-decorator"]  # SQLAlchemy DeclarativeBase issues
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
