@@ -112,3 +112,14 @@ pre-commit-install:
 
 pre-commit-run:
 	pre-commit run --all-files
+
+# Full pre-commit check (lint + format + typecheck + tests)
+check:
+	@echo "Running full pre-commit checks..."
+	@echo ""
+	poetry run ruff check src/ tests/
+	poetry run ruff format --check src/ tests/
+	poetry run mypy src/
+	poetry run pytest tests/ --tb=short -v
+	@echo ""
+	@echo "✓ All checks passed!"
