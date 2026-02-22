@@ -4,10 +4,10 @@ Mailing Log Repository для работы с логами рассылок.
 """
 
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import Date, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.mailing_log import MailingLog, MailingStatus
@@ -329,3 +329,148 @@ class MailingLogRepository(BaseRepository[MailingLog]):
             "success_rate": round(success_rate, 2),
             "avg_cost": float(stats.avg_cost or 0),
         }
+
+    async def get_campaign_stats(
+        self,
+        campaign_id: int,
+    ) -> dict[str, Any]:
+        """
+        Получить полную статистику кампании с охватом.
+
+        Args:
+            campaign_id: ID кампании.
+
+        Returns:
+            Словарь со статистикой включая reach_estimate.
+        """
+        # Базовая статистика
+        base_stats = await self.get_stats_by_campaign(campaign_id)
+
+        # Получаем оценку охвата (сумма member_count чатов)
+        from src.db.models.chat import Chat
+
+        reach_query = (
+            select(func.coalesce(func.sum(Chat.member_count), 0))
+            .select_from(MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id))
+            .where(MailingLog.campaign_id == campaign_id)
+        )
+
+        result = await self.session.execute(reach_query)
+        reach_estimate = result.scalar_one() or 0
+
+        base_stats["reach_estimate"] = reach_estimate
+        return base_stats
+
+    async def get_top_chats(
+        self,
+        user_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Получить лучшие чаты по success rate.
+
+        Args:
+            user_id: ID пользователя (опционально).
+            limit: Количество чатов.
+
+        Returns:
+            Список чатов со статистикой.
+        """
+        from src.db.models.campaign import Campaign
+        from src.db.models.chat import Chat
+
+        # Фильтр по пользователю
+        filters = []
+        if user_id is not None:
+            filters.append(Campaign.user_id == user_id)
+
+        query = (
+            select(
+                Chat.telegram_id.label("chat_telegram_id"),
+                Chat.title.label("chat_title"),
+                func.count(MailingLog.id).label("total_sent"),
+                func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+                func.avg(Chat.rating).label("avg_rating"),
+            )
+            .select_from(
+                MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id)
+                .join(Campaign, MailingLog.campaign_id == Campaign.id)
+            )
+            .where(*filters)
+            .group_by(Chat.telegram_id, Chat.title, Chat.rating)
+            .order_by(func.avg(Chat.rating).desc())
+            .limit(limit)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        top_chats = []
+        for row in rows:
+            total = row.total_sent or 0
+            sent = row.sent or 0
+            success_rate = (sent / total * 100) if total > 0 else 0.0
+
+            top_chats.append({
+                "chat_telegram_id": row.chat_telegram_id,
+                "chat_title": row.chat_title or "",
+                "total_sent": total,
+                "success_rate": round(success_rate, 2),
+                "avg_rating": float(row.avg_rating or 0),
+            })
+
+        return top_chats
+
+    async def get_daily_stats(
+        self,
+        user_id: int,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> list[dict[str, Any]]:
+        """
+        Получить ежедневную статистику.
+
+        Args:
+            user_id: ID пользователя.
+            start_date: Начало периода.
+            end_date: Конец периода.
+
+        Returns:
+            Список статистик по дням.
+        """
+        from src.db.models.campaign import Campaign
+
+        query = (
+            select(
+                cast(MailingLog.sent_at, Date).label("date"),
+                func.count(MailingLog.id).label("total"),
+                func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+                func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label("failed"),
+                func.coalesce(func.sum(MailingLog.cost), 0).label("total_cost"),
+            )
+            .select_from(
+                MailingLog.__table__.join(Campaign, MailingLog.campaign_id == Campaign.id)
+            )
+            .where(
+                Campaign.user_id == user_id,
+                MailingLog.sent_at >= start_date,
+                MailingLog.sent_at <= end_date,
+            )
+            .group_by(cast(MailingLog.sent_at, Date))
+            .order_by(cast(MailingLog.sent_at, Date).desc())
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        daily_stats = []
+        for row in rows:
+            daily_stats.append({
+                "date": str(row.date),
+                "total": row.total or 0,
+                "sent": row.sent or 0,
+                "failed": row.failed or 0,
+                "total_cost": float(row.total_cost or 0),
+            })
+
+        return daily_stats
