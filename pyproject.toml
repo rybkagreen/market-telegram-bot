@@ -55,7 +55,6 @@ types-aiofiles = "^24.1.0.20240626"
 types-redis = "^4.6.0.20241004"
 types-python-jose = "^3.3.4.20240106"
 types-reportlab = "^4.0.1.20241205"
-types-pyjwt = "^2.8.0.20240101"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

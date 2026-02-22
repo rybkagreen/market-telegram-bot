@@ -43,6 +43,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.bot
+    env_file:
+      - .env
     container_name: market_bot_bot
     environment:
       ENVIRONMENT: development
@@ -59,6 +61,8 @@ services:
       AI_COST_PER_GENERATION: ${AI_COST_PER_GENERATION:-10}
     volumes:
       - ./src:/app/src
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
     depends_on:
       postgres:
         condition: service_healthy
