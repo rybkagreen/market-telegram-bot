@@ -255,9 +255,7 @@ class ChatRepository(BaseRepository[Chat]):
         # Если слишком много ошибок, деактивируем чат
         if new_error_count >= 5:
             update_data["is_active"] = False
-            update_data["deactivate_reason"] = (
-                error_msg or "Слишком много ошибок при отправке"
-            )
+            update_data["deactivate_reason"] = error_msg or "Слишком много ошибок при отправке"
 
         await self.update(chat_id, update_data)
         await self.refresh(chat)
@@ -279,22 +277,15 @@ class ChatRepository(BaseRepository[Chat]):
             Список чатов.
         """
         # Чаты, которые не проверялись больше 7 дней
-        seven_days_ago = datetime.now(tz=UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        seven_days_ago = seven_days_ago.replace(
-            day=seven_days_ago.day - 7
-        )
+        seven_days_ago = datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        seven_days_ago = seven_days_ago.replace(day=seven_days_ago.day - 7)
 
         query = (
             select(Chat)
             .where(
                 and_(
                     Chat.is_active == True,  # noqa: E712
-                    and_(
-                        Chat.last_checked.is_(None)
-                        | (Chat.last_checked < seven_days_ago)
-                    ),
+                    and_(Chat.last_checked.is_(None) | (Chat.last_checked < seven_days_ago)),
                 )
             )
             .order_by(Chat.last_checked.asc().nullsfirst())

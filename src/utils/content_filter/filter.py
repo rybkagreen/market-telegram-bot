@@ -15,9 +15,10 @@ from pathlib import Path
 
 try:
     import pymorphy3
+
     MORPH_AVAILABLE = True
 except ImportError:
-    pymorphy3 = None  # type: ignore
+    pymorphy3 = None
     MORPH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -62,12 +63,10 @@ class ContentFilter:
             stopwords_path: Путь к JSON файлу со стоп-словами.
         """
         if stopwords_path is None:
-            stopwords_path = str(
-                Path(__file__).parent / "stopwords_ru.json"
-            )
+            stopwords_path = str(Path(__file__).parent / "stopwords_ru.json")
 
         self._stopwords: dict[str, list[str]] = {}
-        self._regex_patterns: dict[str, list[re.Pattern]] = {}
+        self._regex_patterns: dict[str, list[re.Pattern[str]]] = {}
         self._morph = pymorphy3.MorphAnalyzer() if MORPH_AVAILABLE else None
 
         self._load_stopwords(stopwords_path)
@@ -234,9 +233,7 @@ class ContentFilter:
             for i, norm_word in enumerate(normalized_words):
                 for stopword in stopwords:
                     # Проверяем точное совпадение или частичное
-                    if norm_word == stopword or (
-                        len(stopword) > 3 and stopword in norm_word
-                    ):
+                    if norm_word == stopword or (len(stopword) > 3 and stopword in norm_word):
                         category_matches.append(words[i])
                         break
 

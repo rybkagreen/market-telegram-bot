@@ -146,9 +146,7 @@ class UserRepository(BaseRepository[User]):
         balance_after = balance_before + delta
 
         if balance_after < Decimal("0.00"):
-            raise ValueError(
-                f"Insufficient balance: {balance_before} + {delta} = {balance_after}"
-            )
+            raise ValueError(f"Insufficient balance: {balance_before} + {delta} = {balance_after}")
 
         if not dry_run:
             # Атомарное обновление через SQL

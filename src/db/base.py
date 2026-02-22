@@ -10,7 +10,7 @@ from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 
-class Base(DeclarativeBase):  # type: ignore[misc]
+class Base(DeclarativeBase):
     """
     Базовый класс для всех SQLAlchemy моделей.
 
@@ -18,9 +18,9 @@ class Base(DeclarativeBase):  # type: ignore[misc]
     """
 
     # Автоматическое именование таблиц в snake_case
-    @declared_attr.directive  # type: ignore[misc]
+    @declared_attr.directive
     @classmethod
-    def __tablename__(cls) -> str:  # noqa: N805
+    def __tablename__(cls) -> str:
         """Генерирует имя таблицы из имени класса в snake_case."""
         name = cls.__name__
         # Добавляем 's' для множественного числа и конвертируем в snake_case

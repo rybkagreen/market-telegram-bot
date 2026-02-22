@@ -4,6 +4,7 @@ Celery приложение для асинхронных задач.
 """
 
 import logging
+from typing import Any
 
 from celery import Celery, Task
 from celery.schedules import crontab
@@ -76,7 +77,7 @@ def create_celery_app() -> Celery:
     return app
 
 
-def get_beat_schedule() -> dict:
+def get_beat_schedule() -> dict[str, Any]:
     """
     Получить расписание периодических задач Celery Beat.
 
@@ -116,7 +117,7 @@ celery_app = create_celery_app()
 
 
 # Decorator для регистрации задач
-def register_task(name: str | None = None, **kwargs):
+def register_task(name: str | None = None, **kwargs: Any) -> Any:
     """
     Декоратор для регистрации Celery задач.
 
@@ -139,7 +140,14 @@ class BaseTask(Task):
 
     abstract = True
 
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
+    def on_failure(
+        self,
+        exc: Exception,
+        task_id: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        einfo: Any,
+    ) -> None:
         """Логирование ошибки задачи."""
         logger.error(
             f"Task {self.name} failed: {exc}",
@@ -151,11 +159,20 @@ class BaseTask(Task):
             },
         )
 
-    def on_success(self, retval, task_id, args, kwargs):
+    def on_success(
+        self, retval: Any, task_id: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> None:
         """Логирование успеха задачи."""
         logger.info(f"Task {self.name} completed successfully", extra={"task_id": task_id})
 
-    def on_retry(self, exc, task_id, args, kwargs, einfo):
+    def on_retry(
+        self,
+        exc: Exception,
+        task_id: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        einfo: Any,
+    ) -> None:
         """Логирование повторной попытки."""
         logger.warning(
             f"Task {self.name} retrying: {exc}",

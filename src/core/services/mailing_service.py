@@ -97,9 +97,7 @@ class MailingService:
             }
 
         # Обновляем общее количество чатов
-        await self.campaign_repo.update_statistics(
-            campaign_id, total_chats=len(chats)
-        )
+        await self.campaign_repo.update_statistics(campaign_id, total_chats=len(chats))
 
         # Отправляем сообщения
         sent_count = 0
@@ -187,12 +185,10 @@ class MailingService:
             "sent_count": sent_count,
             "failed_count": failed_count,
             "skipped_count": skipped_count,
-            "success_rate": round(
-                (sent_count / len(chats) * 100) if chats else 0, 2
-            ),
+            "success_rate": round((sent_count / len(chats) * 100) if chats else 0, 2),
         }
 
-    async def select_chats(self, campaign) -> list:
+    async def select_chats(self, campaign: Any) -> list[Any]:
         """
         Выбрать чаты для кампании.
 

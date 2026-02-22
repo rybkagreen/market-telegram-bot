@@ -203,12 +203,7 @@ class Chat(Base, TimestampMixin):
     @property
     def is_eligible_for_mailing(self) -> bool:
         """Проверяет, подходит ли чат для рассылки."""
-        return (
-            self.is_active
-            and not self.is_scam
-            and not self.is_fake
-            and self.error_count < 5
-        )
+        return self.is_active and not self.is_scam and not self.is_fake and self.error_count < 5
 
     def increment_error(self) -> None:
         """Увеличивает счетчик ошибок."""
@@ -226,4 +221,8 @@ class Chat(Base, TimestampMixin):
 
     def mark_checked(self) -> None:
         """Отмечает чат как проверенный."""
-        self.last_checked = datetime.now(tz=self.last_checked.tzinfo) if self.last_checked else datetime.now(tz=None)
+        self.last_checked = (
+            datetime.now(tz=self.last_checked.tzinfo)
+            if self.last_checked
+            else datetime.now(tz=None)
+        )
