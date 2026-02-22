@@ -1,0 +1,14 @@
+{
+  "experimental": {
+    "skills": {
+      "enabled": true
+    }
+  },
+  "context": {
+    "fileName": [
+      "QWEN.md"
+    ],
+    "loadFromIncludeDirectories": true
+  },
+  "$version": 3
+}

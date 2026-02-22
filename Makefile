@@ -1,4 +1,4 @@
-.PHONY: help run test lint typecheck migrate shell clean install update protect-branches
+.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  make shell             - Open Python shell with DB session"
 	@echo "  make clean             - Clean temporary files"
 	@echo "  make protect-branches  - Apply branch protection rules (requires gh CLI)"
+	@echo "  make ci                - Run all CI checks locally (lint + format + typecheck)"
 	@echo ""
 
 # Installation
@@ -47,6 +48,12 @@ lint-fix:
 # Type checking
 typecheck:
 	poetry run mypy src/
+
+# CI checks (run all checks locally before pushing)
+ci: lint format typecheck
+	@echo ""
+	@echo "✓ All CI checks passed locally!"
+	@echo ""
 
 # Database migrations
 migrate:
@@ -105,3 +112,14 @@ pre-commit-install:
 
 pre-commit-run:
 	pre-commit run --all-files
+
+# Full pre-commit check (lint + format + typecheck + tests)
+check:
+	@echo "Running full pre-commit checks..."
+	@echo ""
+	poetry run ruff check src/ tests/
+	poetry run ruff format --check src/ tests/
+	poetry run mypy src/
+	poetry run pytest tests/ --tb=short -v
+	@echo ""
+	@echo "✓ All checks passed!"

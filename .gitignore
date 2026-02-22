@@ -21,9 +21,6 @@ wheels/
 .installed.cfg
 *.egg
 
-# Poetry
-poetry.lock
-
 # Environment
 .env
 .env.local
@@ -67,3 +64,64 @@ Thumbs.db
 
 # Qwen Code
 .python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Flower
+flower_data/
+*.db
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# Telegram session files (Telethon)
+*.session
+*.session-journal
+
+# AI/ML
+*.pkl
+*.h5
+*.onnx
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Backup files
+*.backup
+*.swp
+*.swo
+
+# Sentry
+.sentry/
+
+# Coverage
+coverage.xml
+*.cover
+
+# mypy
+.dmypy.pid
+
+# Ruff
+.ruff_cache/
+
+# Alembic
+src/db/migrations/versions/*.pyc
+src/db/migrations/__pycache__/
+
+# Static files (production)
+src/static/mini_app/
+
+# Nginx
+logs/nginx/
+
+# Local development overrides
+.env.development
+.env.test
+.env.production
