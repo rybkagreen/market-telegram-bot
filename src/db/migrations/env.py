@@ -8,7 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import AsyncConnection, async_engine_from_config
 
 from src.config.settings import settings
 from src.db.base import Base
@@ -68,17 +68,20 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    async def run_async_migrations(connection: Connection) -> None:
+    async def run_async_migrations(connection: AsyncConnection) -> None:
         """Run migrations asynchronously."""
-        await connection.run_sync(
-            lambda conn: context.configure(
+
+        def do_configure(conn: Connection) -> None:
+            """Configure context."""
+            context.configure(
                 connection=conn,
                 target_metadata=target_metadata,
                 compare_type=True,
                 compare_server_default=True,
                 include_schemas=True,
             )
-        )
+
+        await connection.run_sync(do_configure)
 
         with context.begin_transaction():
             context.run_migrations()

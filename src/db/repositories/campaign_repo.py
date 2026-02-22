@@ -6,7 +6,7 @@ Campaign Repository для работы с рекламными кампания
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -56,11 +56,11 @@ class CampaignRepository(BaseRepository[Campaign]):
         if status is not None:
             filters.append(Campaign.status == status)
 
-        query = select(func.count(Campaign.id)).where(*filters)
-        total_result = await self.session.execute(query)
+        total_query = select(func.count(Campaign.id)).where(*filters)
+        total_result = await self.session.execute(total_query)
         total = total_result.scalar_one()
 
-        query = (
+        query: Select[tuple[Campaign]] = (
             select(Campaign)
             .where(*filters)
             .order_by(Campaign.created_at.desc())
@@ -165,9 +165,11 @@ class CampaignRepository(BaseRepository[Campaign]):
 
         stats_query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
-            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
-            func.sum(and_(MailingLog.status == MailingStatus.SKIPPED, 1)).label("skipped"),
+            func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+            func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label("failed"),
+            func.sum(case((MailingLog.status == MailingStatus.SKIPPED, 1), else_=0)).label(
+                "skipped"
+            ),
         ).where(MailingLog.campaign_id == campaign_id)
 
         result = await self.session.execute(stats_query)

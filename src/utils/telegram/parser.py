@@ -342,8 +342,9 @@ class TelegramParser:
         """
         try:
             entity = await self.client.get_entity(chat_id)
-            if isinstance(entity, (Channel, Chat)):
-                return getattr(entity, "participants_count", 0)
+            match entity:
+                case Channel() | Chat():
+                    return getattr(entity, "participants_count", 0)
         except Exception as e:
             logger.error(f"Error getting members count for {chat_id}: {e}")
         return 0

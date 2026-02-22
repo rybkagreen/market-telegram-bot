@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.chat import Chat
@@ -305,13 +305,13 @@ class ChatRepository(BaseRepository[Chat]):
         query = select(
             func.count(Chat.id).label("total"),
             func.sum(
-                and_(Chat.is_active == True, 1)  # noqa: E712
+                case((Chat.is_active == True, 1), else_=0)  # noqa: E712
             ).label("active"),
             func.sum(
-                and_(Chat.is_scam == True, 1)  # noqa: E712
+                case((Chat.is_scam == True, 1), else_=0)  # noqa: E712
             ).label("scam"),
             func.sum(
-                and_(Chat.is_fake == True, 1)  # noqa: E712
+                case((Chat.is_fake == True, 1), else_=0)  # noqa: E712
             ).label("fake"),
             func.avg(Chat.member_count).label("avg_members"),
             func.avg(Chat.rating).label("avg_rating"),

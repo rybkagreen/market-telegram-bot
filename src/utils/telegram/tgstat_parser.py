@@ -146,7 +146,7 @@ class TGStatParser:
             )
 
             for card in channel_cards:
-                href = card.get("href", "")
+                href = str(card.get("href") or "")
                 # Извлекаем username из URL /channel/@username или /channel/username
                 match = re.search(r"/channel/@?([a-zA-Z0-9_]+)", href)
                 if match:
@@ -161,7 +161,7 @@ class TGStatParser:
             )
 
             for link in channel_links:
-                url = link.get("data-channel-url", "")
+                url = str(link.get("data-channel-url") or "")
                 match = re.search(r"/channel/@?([a-zA-Z0-9_]+)", url)
                 if match:
                     username = match.group(1)
@@ -287,7 +287,7 @@ class TGStatParser:
             )
 
             for link in topic_links:
-                href = link.get("href", "")
+                href = str(link.get("href") or "")
                 match = re.search(r"/catalog/([a-z-]+)", href)
                 if match:
                     topic = match.group(1)
