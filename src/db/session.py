@@ -4,7 +4,7 @@
 """
 
 from collections.abc import AsyncGenerator
-from typing import Final
+from typing import Any, Final
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -100,3 +100,41 @@ async def dispose_db() -> None:
     Вызывается при остановке приложения.
     """
     await async_engine.dispose()
+
+
+def get_async_engine(connection_url: str) -> Any:
+    """
+    Создать асинхронный движок для указанного URL.
+    Используется в тестах с testcontainers.
+
+    Args:
+        connection_url: URL подключения к БД.
+
+    Returns:
+        AsyncEngine: Движок SQLAlchemy.
+    """
+    return create_async_engine(
+        connection_url,
+        echo=False,
+        pool_size=5,
+        max_overflow=2,
+    )
+
+
+def async_sessionmaker(engine: Any) -> Any:
+    """
+    Создать фабрику сессий для указанного движка.
+
+    Args:
+        engine: Движок SQLAlchemy.
+
+    Returns:
+        Фабрика сессий.
+    """
+    return async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
