@@ -45,10 +45,10 @@ app.add_middleware(
 )
 
 # Роутеры
-app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])  # type: ignore[attr-defined]
-app.include_router(campaigns.router, prefix="/api/campaigns", tags=["Campaigns"])  # type: ignore[attr-defined]
-app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])  # type: ignore[attr-defined]
-app.include_router(billing.router, prefix="/api/billing", tags=["Billing"])  # type: ignore[attr-defined]
+app.include_router(auth, prefix="/api/auth", tags=["Auth"])
+app.include_router(campaigns, prefix="/api/campaigns", tags=["Campaigns"])
+app.include_router(analytics, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(billing, prefix="/api/billing", tags=["Billing"])
 
 
 @app.get("/health")
