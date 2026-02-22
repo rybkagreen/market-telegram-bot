@@ -215,8 +215,8 @@ async def check_payment(
 @router.post("/spend")
 async def spend_balance(  # noqa: B008
     current_user: CurrentUser,
-    amount: Decimal = Field(..., gt=0),
-    description: str = "",
+    amount: Decimal = Query(..., gt=0, description="Сумма для списания"),
+    description: str = Query("", description="Описание списания"),
 ):
     """
     Списать средства с баланса.
