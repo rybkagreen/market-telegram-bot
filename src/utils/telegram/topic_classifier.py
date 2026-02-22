@@ -9,8 +9,8 @@ from dataclasses import dataclass
 try:
     from rapidfuzz import fuzz, process
 except ImportError:
-    fuzz = None  # type: ignore
-    process = None  # type: ignore
+    fuzz = None
+    process = None
 
 logger = logging.getLogger(__name__)
 
@@ -582,16 +582,12 @@ class TopicClassifier:
     def _build_keywords_cache(self) -> None:
         """Построить кэш всех ключевых слов."""
         for topic, keywords in TOPIC_KEYWORDS.items():
-            self._keywords_cache[topic] = [
-                kw.lower() for kw in keywords
-            ]
+            self._keywords_cache[topic] = [kw.lower() for kw in keywords]
 
         # Добавляем синонимы
         for topic, synonyms in TOPIC_SYNONYMS.items():
             if topic in self._keywords_cache:
-                self._keywords_cache[topic].extend(
-                    [syn.lower() for syn in synonyms]
-                )
+                self._keywords_cache[topic].extend([syn.lower() for syn in synonyms])
 
     def classify(
         self,
@@ -640,9 +636,9 @@ class TopicClassifier:
 
         # Если не нашли по ключевым словам, используем fuzzy matching
         if fuzz is not None and process is not None:
-            topic = self._fuzzy_classify(title)
-            if topic:
-                return topic
+            fuzzy_topic = self._fuzzy_classify(title)
+            if fuzzy_topic:
+                return fuzzy_topic
 
         return "other"
 
@@ -669,7 +665,9 @@ class TopicClassifier:
             # Сравниваем с каждым ключевым словом
             for keyword in self._keywords_cache[topic]:
                 ratio = fuzz.partial_ratio(text_lower, keyword)
-                if ratio > 80 and (best_match is None or ratio > best_match[1]):  # Порог fuzzy matching
+                if ratio > 80 and (
+                    best_match is None or ratio > best_match[1]
+                ):  # Порог fuzzy matching
                     best_match = (topic, ratio)
 
         if best_match and best_match[1] > 80:
@@ -690,10 +688,7 @@ class TopicClassifier:
         Returns:
             Список тематик.
         """
-        return [
-            self.classify(title, description)
-            for title, description in channels
-        ]
+        return [self.classify(title, description) for title, description in channels]
 
     def get_topic_description(self, topic: str) -> str:
         """
@@ -732,11 +727,7 @@ class TopicClassifier:
         Returns:
             Список тематик.
         """
-        return [
-            topic
-            for topic in self._keywords_cache
-            if topic != "other"
-        ]
+        return [topic for topic in self._keywords_cache if topic != "other"]
 
 
 # Глобальный экземпляр

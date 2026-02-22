@@ -4,6 +4,7 @@ Parser Celery tasks для обновления базы данных чатов
 
 import asyncio
 import logging
+from typing import Any
 
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory
@@ -150,9 +151,7 @@ async def _parse_tgstat_and_save(
             return 0
 
         # Валидируем через Telegram
-        chat_details_list = await telegram_parser.batch_validate(
-            usernames, semaphore_count=5
-        )
+        chat_details_list = await telegram_parser.batch_validate(usernames, semaphore_count=5)
 
         if not chat_details_list:
             logger.info(f"No valid chats found for topic '{topic}'")
@@ -163,9 +162,7 @@ async def _parse_tgstat_and_save(
 
         for chat_details in chat_details_list:
             # Классифицируем тематику (может быть более точной)
-            topic_classified = classify_topic(
-                chat_details.title, chat_details.description
-            )
+            topic_classified = classify_topic(chat_details.title, chat_details.description)
 
             chat_data = ChatData(
                 telegram_id=chat_details.telegram_id,
@@ -195,7 +192,7 @@ async def _parse_tgstat_and_save(
         return 0
 
 
-async def _refresh_chats_async() -> dict:
+async def _refresh_chats_async() -> dict[str, Any]:
     """
     Асинхронная функция для обновления базы чатов.
 
@@ -216,9 +213,7 @@ async def _refresh_chats_async() -> dict:
         async with TelegramParser() as parser:
             for query in SEARCH_QUERIES:
                 try:
-                    count = await _parse_and_save_chats(
-                        parser, chat_repo, query, limit=30
-                    )
+                    count = await _parse_and_save_chats(parser, chat_repo, query, limit=30)
                     stats["telegram_search"] += count
                     stats["total"] += count
 
@@ -253,7 +248,7 @@ async def _refresh_chats_async() -> dict:
 # Импортируем celery_app динамически чтобы избежать circular imports
 
 
-def refresh_chat_database() -> dict:
+def refresh_chat_database() -> dict[str, Any]:
     """
     Celery задача для обновления базы данных чатов.
 
@@ -283,7 +278,7 @@ def refresh_chat_database() -> dict:
         return {"error": str(e)}
 
 
-async def _validate_username_async(username: str) -> dict | None:
+async def _validate_username_async(username: str) -> dict[str, Any] | None:
     """
     Асинхронная валидация username.
 
@@ -327,7 +322,7 @@ async def _validate_username_async(username: str) -> dict | None:
             return {"telegram_id": chat_details.telegram_id, "title": chat_details.title}
 
 
-def validate_username(username: str) -> dict | None:
+def validate_username(username: str) -> dict[str, Any] | None:
     """
     Проверить и сохранить информацию о канале.
 

@@ -117,18 +117,10 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         """
         query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.SENT, 1)
-            ).label("sent"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.FAILED, 1)
-            ).label("failed"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.SKIPPED, 1)
-            ).label("skipped"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.PENDING, 1)
-            ).label("pending"),
+            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
+            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
+            func.sum(and_(MailingLog.status == MailingStatus.SKIPPED, 1)).label("skipped"),
+            func.sum(and_(MailingLog.status == MailingStatus.PENDING, 1)).label("pending"),
             func.coalesce(func.sum(MailingLog.cost), 0).label("total_cost"),
         ).where(MailingLog.campaign_id == campaign_id)
 
@@ -312,12 +304,8 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         """
         query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.SENT, 1)
-            ).label("sent"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.FAILED, 1)
-            ).label("failed"),
+            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
+            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
             func.avg(MailingLog.cost).label("avg_cost"),
         ).where(MailingLog.chat_telegram_id == chat_telegram_id)
 

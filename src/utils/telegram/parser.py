@@ -7,6 +7,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC
+from typing import Any
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -114,7 +115,9 @@ class TelegramParser:
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any
+    ) -> None:
         """Async context manager exit."""
         await self.stop()
 
@@ -241,7 +244,7 @@ class TelegramParser:
 
         return results
 
-    async def _process_entity(self, entity) -> ChatInfo | None:
+    async def _process_entity(self, entity: Any) -> ChatInfo | None:
         """
         Обработать entity и вернуть ChatInfo.
 
@@ -274,7 +277,8 @@ class TelegramParser:
                 is_broadcast=entity.broadcast,
                 linked_chat_id=getattr(full_channel.full_chat, "linked_chat_id", None),
                 can_view_participants=True,
-                can_send_messages=getattr(full_channel.full_chat, "participants_admin_rights", None) is None,
+                can_send_messages=getattr(full_channel.full_chat, "participants_admin_rights", None)
+                is None,
             )
 
         except Exception as e:

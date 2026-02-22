@@ -7,6 +7,7 @@ import asyncio
 import contextlib
 import logging
 import re
+from typing import Any
 
 import httpx
 from bs4 import BeautifulSoup
@@ -61,7 +62,9 @@ class TGStatParser:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any
+    ) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -170,7 +173,7 @@ class TGStatParser:
 
         return usernames
 
-    async def fetch_channel_stats(self, username: str) -> dict:
+    async def fetch_channel_stats(self, username: str) -> dict[str, Any]:
         """
         Получить статистику канала с TGStat.
 
@@ -193,7 +196,7 @@ class TGStatParser:
             logger.error(f"Error fetching stats for @{username}: {e}")
             return {}
 
-    def _parse_channel_stats(self, html: str) -> dict:
+    def _parse_channel_stats(self, html: str) -> dict[str, Any]:
         """
         Распарсить статистику канала.
 

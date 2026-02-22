@@ -116,9 +116,7 @@ async def _check_scheduled_async() -> dict[str, Any]:
         for campaign in campaigns:
             try:
                 # Обновляем статус на running
-                await campaign_repo.update_status(
-                    campaign.id, CampaignStatus.RUNNING
-                )
+                await campaign_repo.update_status(campaign.id, CampaignStatus.RUNNING)
 
                 # Запускаем рассылку
                 send_campaign.delay(campaign.id)
@@ -127,14 +125,10 @@ async def _check_scheduled_async() -> dict[str, Any]:
                 logger.info(f"Launched scheduled campaign {campaign.id}")
 
             except Exception as e:
-                logger.error(
-                    f"Error launching scheduled campaign {campaign.id}: {e}"
-                )
+                logger.error(f"Error launching scheduled campaign {campaign.id}: {e}")
                 stats["errors"] += 1
 
                 # Обновляем статус на error
-                await campaign_repo.update_status(
-                    campaign.id, CampaignStatus.ERROR, str(e)
-                )
+                await campaign_repo.update_status(campaign.id, CampaignStatus.ERROR, str(e))
 
         return stats

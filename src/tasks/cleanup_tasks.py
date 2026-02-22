@@ -160,7 +160,6 @@ async def _cleanup_expired_sessions_async() -> dict[str, Any]:
     """
     from datetime import datetime
 
-
     # Здесь можно добавить модель UserSession если нужна
     # Пока заглушка для будущей реализации
 

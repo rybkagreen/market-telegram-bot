@@ -143,9 +143,7 @@ class CampaignRepository(BaseRepository[Campaign]):
         Returns:
             Список активных кампаний.
         """
-        query = select(Campaign).where(
-            Campaign.status == CampaignStatus.RUNNING
-        )
+        query = select(Campaign).where(Campaign.status == CampaignStatus.RUNNING)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -167,15 +165,9 @@ class CampaignRepository(BaseRepository[Campaign]):
 
         stats_query = select(
             func.count(MailingLog.id).label("total"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.SENT, 1)
-            ).label("sent"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.FAILED, 1)
-            ).label("failed"),
-            func.sum(
-                and_(MailingLog.status == MailingStatus.SKIPPED, 1)
-            ).label("skipped"),
+            func.sum(and_(MailingLog.status == MailingStatus.SENT, 1)).label("sent"),
+            func.sum(and_(MailingLog.status == MailingStatus.FAILED, 1)).label("failed"),
+            func.sum(and_(MailingLog.status == MailingStatus.SKIPPED, 1)).label("skipped"),
         ).where(MailingLog.campaign_id == campaign_id)
 
         result = await self.session.execute(stats_query)
@@ -195,7 +187,7 @@ class CampaignRepository(BaseRepository[Campaign]):
         title: str,
         text: str,
         ai_description: str | None = None,
-        filters_json: dict | None = None,
+        filters_json: dict[str, Any] | None = None,
         scheduled_at: datetime | None = None,
     ) -> Campaign:
         """
@@ -214,9 +206,7 @@ class CampaignRepository(BaseRepository[Campaign]):
         Returns:
             Созданная кампания.
         """
-        status = (
-            CampaignStatus.QUEUED if scheduled_at else CampaignStatus.DRAFT
-        )
+        status = CampaignStatus.QUEUED if scheduled_at else CampaignStatus.DRAFT
 
         return await self.create(
             {
@@ -321,6 +311,4 @@ class CampaignRepository(BaseRepository[Campaign]):
         Returns:
             SQLAlchemy Select query.
         """
-        return select(self.model).options(
-            selectinload(Campaign.mailing_logs)
-        )
+        return select(self.model).options(selectinload(Campaign.mailing_logs))

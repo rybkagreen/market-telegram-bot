@@ -43,7 +43,6 @@ async def _check_low_balance_async() -> dict[str, Any]:
     """
     from decimal import Decimal
 
-
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
 

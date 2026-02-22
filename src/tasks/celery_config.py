@@ -3,6 +3,8 @@ Celery конфигурация и дополнительные настройк
 Вынесено в отдельный модуль для удобства импорта.
 """
 
+from typing import Any
+
 from celery.schedules import crontab
 
 # =============================================================================
@@ -190,7 +192,7 @@ SECURITY_CONFIG = {
 # =============================================================================
 
 
-def get_task_schedule(task_name: str) -> dict | None:
+def get_task_schedule(task_name: str) -> dict[str, Any] | None:
     """
     Получить расписание для задачи.
 
@@ -236,7 +238,7 @@ def get_task_time_limit(task_name: str) -> int:
     return TASK_TIME_LIMITS.get(task_name, 300)  # Default 5 минут
 
 
-def get_retry_policy(task_name: str) -> dict:
+def get_retry_policy(task_name: str) -> dict[str, Any]:
     """
     Получить политику retry для задачи.
 
