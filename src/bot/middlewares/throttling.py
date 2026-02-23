@@ -68,6 +68,7 @@ class ThrottlingMiddleware(BaseMiddleware):
             return
 
         # Устанавливаем ключ с TTL
-        # Redis setex принимает TTL в секундах (целое число)
-        await self.redis.setex(key, int(THROTTLE_TIME * 1000), "1")
+        # Redis setex принимает TTL в секундах
+        # THROTTLE_TIME = 0.5 секунды, округляем до 1 секунды для надёжности
+        await self.redis.setex(key, 1, "1")
         return await handler(event, data)
