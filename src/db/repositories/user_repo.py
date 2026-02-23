@@ -223,6 +223,31 @@ class UserRepository(BaseRepository[User]):
         """
         return await self.find_one(User.referral_code == referral_code)
 
+    async def get_referrers_count(self, user_id: int) -> int:
+        """
+        Получить количество рефералов пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Количество рефералов.
+        """
+        return await self.count(User.referred_by_id == user_id)
+
+    async def get_referrers(self, user_id: int, limit: int = 100) -> list[User]:
+        """
+        Получить список рефералов пользователя.
+
+        Args:
+            user_id: ID пользователя.
+            limit: Максимальное количество результатов.
+
+        Returns:
+            Список рефералов.
+        """
+        return await self.find_many(User.referred_by_id == user_id, limit=limit)
+
     async def generate_unique_referral_code(
         self,
         telegram_id: int,

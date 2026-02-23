@@ -75,8 +75,6 @@ async def main() -> None:
     """
     import asyncio
 
-    from src.bot.handlers.cabinet import set_bot_username
-
     # Создаем Redis клиент
     redis = Redis.from_url(
         str(settings.redis_url),
@@ -88,10 +86,9 @@ async def main() -> None:
     bot = create_bot()
     dp = create_dispatcher(redis)
 
-    # Получаем username бота для реферальных ссылок
+    # Получаем username бота
     try:
         bot_info = await bot.get_me()
-        set_bot_username(bot_info.username)
         logger.info(f"Bot username: @{bot_info.username}")
     except Exception as e:
         logger.error(f"Failed to get bot username: {e}")

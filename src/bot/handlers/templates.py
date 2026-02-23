@@ -4,7 +4,7 @@ Handlers для работы с шаблонами рекламных текст
 
 import logging
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "templates"))
+@router.callback_query(MainMenuCB.filter(F.action == "templates"))
 async def handle_templates_menu(callback: CallbackQuery) -> None:
     """
     Показать меню категорий шаблонов.
@@ -53,7 +53,7 @@ async def handle_templates_menu(callback: CallbackQuery) -> None:
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "template_category"))
+@router.callback_query(CampaignCB.filter(F.action == "template_category"))
 async def handle_category_selected(callback: CallbackQuery, callback_data: CampaignCB) -> None:
     """
     Показать шаблоны выбранной категории.
@@ -86,7 +86,7 @@ async def handle_category_selected(callback: CallbackQuery, callback_data: Campa
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "template_preview"))
+@router.callback_query(CampaignCB.filter(F.action == "template_preview"))
 async def handle_template_preview(callback: CallbackQuery, callback_data: CampaignCB) -> None:
     """
     Показать превью шаблона.
@@ -126,7 +126,7 @@ async def handle_template_preview(callback: CallbackQuery, callback_data: Campai
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "template_back"))
+@router.callback_query(CampaignCB.filter(F.action == "template_back"))
 async def handle_template_back(callback: CallbackQuery, callback_data: CampaignCB) -> None:
     """
     Вернуться к списку категорий.
@@ -156,7 +156,7 @@ async def handle_template_back(callback: CallbackQuery, callback_data: CampaignC
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "template_use"))
+@router.callback_query(CampaignCB.filter(F.action == "template_use"))
 async def handle_use_template(
     callback: CallbackQuery,
     callback_data: CampaignCB,

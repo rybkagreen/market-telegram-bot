@@ -38,7 +38,7 @@ router = Router()
 # ==================== СТАРТ WIZARD'А ====================
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "create_campaign"))
+@router.callback_query(MainMenuCB.filter(F.action == "create_campaign"))
 async def start_campaign_wizard(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Начать wizard создания кампании.
@@ -106,7 +106,7 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
 # ==================== ШАГ 2: ВЫБОР ТИПА ТЕКСТА ====================
 
 
-@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(lambda cb: cb.action == "back"))
+@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "back"))
 async def back_from_text_type(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Вернуться к шагу названия.
@@ -127,7 +127,7 @@ async def back_from_text_type(callback: CallbackQuery, state: FSMContext) -> Non
     await state.set_state(CampaignStates.waiting_title)
 
 
-@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(lambda cb: cb.action == "manual_text"))
+@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "manual_text"))
 async def select_manual_text(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Выбран ручной ввод текста.
@@ -149,7 +149,7 @@ async def select_manual_text(callback: CallbackQuery, state: FSMContext) -> None
     await state.update_data(step="manual_text")
 
 
-@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(lambda cb: cb.action == "ai_text"))
+@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "ai_text"))
 async def select_ai_text(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Выбрана ИИ-генерация текста.
@@ -258,7 +258,7 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
         await state.set_state(CampaignStates.waiting_ai_description)
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "ai_variant"))
+@router.callback_query(CampaignCB.filter(F.action == "ai_variant"))
 async def select_ai_variant(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
     """
     Выбрать вариант ИИ-текста.
@@ -369,7 +369,7 @@ async def show_topic_selection(target: Message | CallbackQuery, state: FSMContex
 # ==================== ШАГ 3: ВЫБОР ТЕМАТИКИ ====================
 
 
-@router.callback_query(CampaignStates.waiting_topic, CampaignCB.filter(lambda cb: cb.action == "back"))
+@router.callback_query(CampaignStates.waiting_topic, CampaignCB.filter(F.action == "back"))
 async def back_from_topic(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Вернуться к выбору типа текста.
@@ -398,7 +398,7 @@ async def back_from_topic(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(step="text_type" if text_type == "ai" else "manual_text")
 
 
-@router.callback_query(CampaignStates.waiting_topic, CampaignCB.filter(lambda cb: cb.action == "topic"))
+@router.callback_query(CampaignStates.waiting_topic, CampaignCB.filter(F.action == "topic"))
 async def select_topic(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
     """
     Выбрать тематику кампании.
@@ -426,7 +426,7 @@ async def select_topic(callback: CallbackQuery, callback_data: CampaignCB, state
 # ==================== ШАГ 4: ВЫБОР РАЗМЕРА АУДИТОРИИ ====================
 
 
-@router.callback_query(CampaignStates.waiting_member_count, CampaignCB.filter(lambda cb: cb.action == "back"))
+@router.callback_query(CampaignStates.waiting_member_count, CampaignCB.filter(F.action == "back"))
 async def back_from_member_count(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Вернуться к выбору тематики.
@@ -446,7 +446,7 @@ async def back_from_member_count(callback: CallbackQuery, state: FSMContext) -> 
     await state.update_data(step="topic")
 
 
-@router.callback_query(CampaignStates.waiting_member_count, CampaignCB.filter(lambda cb: cb.action == "members"))
+@router.callback_query(CampaignStates.waiting_member_count, CampaignCB.filter(F.action == "members"))
 async def select_member_count(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
     """
     Выбрать размер аудитории.
@@ -487,7 +487,7 @@ async def select_member_count(callback: CallbackQuery, callback_data: CampaignCB
 # ==================== ШАГ 5: ВЫБОР РАСПИСАНИЯ ====================
 
 
-@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(lambda cb: cb.action == "back"))
+@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(F.action == "back"))
 async def back_from_schedule(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Вернуться к выбору размера аудитории.
@@ -507,7 +507,7 @@ async def back_from_schedule(callback: CallbackQuery, state: FSMContext) -> None
     await state.update_data(step="member_count")
 
 
-@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(lambda cb: cb.action == "schedule_now"))
+@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(F.action == "schedule_now"))
 async def select_schedule_now(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Запустить кампанию сейчас.
@@ -520,7 +520,7 @@ async def select_schedule_now(callback: CallbackQuery, state: FSMContext) -> Non
     await show_confirmation(callback, state)
 
 
-@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(lambda cb: cb.action == "schedule_later"))
+@router.callback_query(CampaignStates.waiting_schedule, CampaignCB.filter(F.action == "schedule_later"))
 async def select_schedule_later(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Запланировать кампанию на потом.
@@ -641,7 +641,7 @@ async def show_confirmation(target: Message | CallbackQuery, state: FSMContext) 
         await target.answer(text, reply_markup=get_campaign_confirm_kb())
 
 
-@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(lambda cb: cb.action == "back"))
+@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(F.action == "back"))
 async def back_from_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Вернуться к выбору расписания.
@@ -661,7 +661,7 @@ async def back_from_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(step="schedule")
 
 
-@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(lambda cb: cb.action == "confirm_edit"))
+@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(F.action == "confirm_edit"))
 async def confirm_edit(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Редактировать кампанию (вернуться к тексту).
@@ -681,7 +681,7 @@ async def confirm_edit(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(step="manual_text")
 
 
-@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(lambda cb: cb.action == "confirm_draft"))
+@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(F.action == "confirm_draft"))
 async def confirm_draft(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Сохранить как черновик.
@@ -724,7 +724,7 @@ async def confirm_draft(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance))
 
 
-@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(lambda cb: cb.action == "confirm_launch"))
+@router.callback_query(CampaignStates.waiting_confirm, CampaignCB.filter(F.action == "confirm_launch"))
 async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Запустить кампанию.
@@ -810,7 +810,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
 # ==================== ОТМЕНА ====================
 
 
-@router.callback_query(CampaignCB.filter(lambda cb: cb.action == "cancel"))
+@router.callback_query(CampaignCB.filter(F.action == "cancel"))
 async def cancel_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Отменить создание кампании.
