@@ -1,6 +1,7 @@
 # Bot handlers
 
 from src.bot.handlers import (
+    admin,
     analytics,
     billing,
     cabinet,
@@ -11,6 +12,7 @@ from src.bot.handlers import (
 )
 
 __all__ = [
+    "admin",
     "analytics",
     "billing",
     "cabinet",

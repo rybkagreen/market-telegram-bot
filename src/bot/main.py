@@ -11,6 +11,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
 from src.bot.handlers import (
+    admin,
     analytics,
     billing,
     cabinet,
@@ -55,7 +56,8 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.message.middleware(ThrottlingMiddleware(redis))
     dp.callback_query.middleware(ThrottlingMiddleware(redis))
 
-    # Регистрация роутеров
+    # Регистрация роутеров — admin первым!
+    dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(cabinet.router)
     dp.include_router(campaigns.router)
