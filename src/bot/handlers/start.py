@@ -5,7 +5,7 @@ Handlers для команд /start и /help.
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
@@ -18,23 +18,19 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-@router.message(CommandStart())
-async def handle_start(message: Message, state: FSMContext) -> None:
+@router.message(Command("start"))
+async def handle_start(message: Message, state: FSMContext, command: CommandObject) -> None:
     """
     Обработчик команды /start.
+    """
+    await _handle_start(message, state, command.args if command.args else None)
 
-    Создает или обновляет пользователя, обрабатывает реферальный код,
-    показывает главное меню.
 
-    Args:
-        message: Сообщение от пользователя.
-        state: FSM контекст.
+async def _handle_start(message: Message, state: FSMContext, ref_code: str | None) -> None:
+    """
+    Общая логика обработки /start.
     """
     await state.clear()
-
-    # Парсим аргументы команды (реферальный код)
-    args = message.text.split(maxsplit=1) if message.text else []
-    ref_code = args[1] if len(args) > 1 and args[1].startswith("ref_") else None
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -74,7 +70,7 @@ async def handle_start(message: Message, state: FSMContext) -> None:
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
     else:
-        # Возвращающийся пользователь
+        # Возвращающийся пользователь или с рефералом
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
             f"💳 Баланс: <b>{user.balance}₽</b>\n"
