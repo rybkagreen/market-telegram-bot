@@ -1,17 +1,21 @@
 """
-AI Service для генерации рекламных текстов через Claude API.
-Поддерживает кэширование в Redis, A/B тестирование и fallback на OpenAI.
+AI Service — провайдер-агностичный сервис генерации текста.
+
+Переключение между провайдерами через AI_PROVIDER в .env:
+  groq      — бесплатный, рекомендован для разработки
+  openai    — production
+  anthropic — production
+  mock      — заглушка для тестов без API
 """
 
 import asyncio
 import hashlib
 import json
 import logging
+from abc import ABC, abstractmethod
 from decimal import Decimal
 
 import redis.asyncio as redis
-from anthropic import AsyncAnthropic, RateLimitError
-from openai import AsyncOpenAI
 
 from src.config.settings import settings
 from src.db.repositories.user_repo import UserRepository
@@ -24,6 +28,247 @@ DEFAULT_CACHE_TTL = 3600  # 1 час
 DEFAULT_TIMEOUT = 30  # секунд
 MAX_RETRIES = 3
 
+
+# ─────────────────────────────────────────────
+# Base Provider Interface
+# ─────────────────────────────────────────────
+
+class BaseLLMProvider(ABC):
+    """Базовый интерфейс для всех LLM провайдеров."""
+
+    @abstractmethod
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """Сгенерировать текст по промту."""
+
+    @abstractmethod
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """Сгенерировать несколько вариантов текста."""
+
+
+# ─────────────────────────────────────────────
+# Groq Provider (бесплатный)
+# ─────────────────────────────────────────────
+
+class GroqProvider(BaseLLMProvider):
+    """Groq API провайдер — бесплатный LLM API."""
+
+    def __init__(self) -> None:
+        from groq import AsyncGroq
+        self._client = AsyncGroq(api_key=settings.groq_api_key)
+        self._model = settings.ai_model
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """
+        Сгенерировать текст через Groq API.
+
+        Args:
+            prompt: Пользовательский промпт.
+            system: Системный промпт (опционально).
+
+        Returns:
+            Сгенерированный текст.
+        """
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            max_tokens=settings.ai_max_tokens,
+            temperature=settings.ai_temperature,
+        )
+        return response.choices[0].message.content.strip()
+
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """
+        Сгенерировать A/B варианты текста.
+
+        Args:
+            prompt: Описание продукта/услуги.
+            count: Количество вариантов.
+
+        Returns:
+            Список вариантов текстов.
+        """
+        system = (
+            "Ты профессиональный копирайтер рекламных текстов для Telegram. "
+            "Пиши короткие (2-4 предложения), цепляющие тексты на русском языке. "
+            "Используй 2-3 эмодзи. Добавляй призыв к действию."
+        )
+        full_prompt = (
+            f"Напиши {count} разных варианта рекламного текста для Telegram.\n"
+            f"Тема: {prompt}\n\n"
+            f"Формат ответа — каждый вариант с новой строки через разделитель '---'"
+        )
+        raw = await self.generate(full_prompt, system=system)
+        return self._parse_variants(raw, count)
+
+    @staticmethod
+    def _parse_variants(raw: str, count: int) -> list[str]:
+        """
+        Разбить ответ LLM на отдельные варианты.
+
+        Args:
+            raw: Сырой ответ от LLM.
+            count: Ожидаемое количество вариантов.
+
+        Returns:
+            Список вариантов.
+        """
+        # Сначала пробуем разделить по ---
+        variants = [v.strip() for v in raw.split("---") if v.strip()]
+
+        # Если не сработало — разбиваем по нумерации
+        if len(variants) < count:
+            lines = [line.strip() for line in raw.split("\n") if line.strip()]
+            variants = []
+            current = []
+            for line in lines:
+                if line[:2] in ("1.", "2.", "3.", "4.", "5."):
+                    if current:
+                        variants.append(" ".join(current))
+                    current = [line[2:].strip()]
+                else:
+                    current.append(line)
+            if current:
+                variants.append(" ".join(current))
+
+        # Если всё ещё мало — разбиваем по пустым строкам
+        if len(variants) < count:
+            variants = [v.strip() for v in raw.split("\n\n") if v.strip()]
+
+        return variants[:count] if variants else [raw]
+
+
+# ─────────────────────────────────────────────
+# OpenAI Provider (для production)
+# ─────────────────────────────────────────────
+
+class OpenAIProvider(BaseLLMProvider):
+    """OpenAI API провайдер для production."""
+
+    def __init__(self) -> None:
+        from openai import AsyncOpenAI
+        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self._model = settings.ai_model or "gpt-4o-mini"
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """Сгенерировать текст через OpenAI API."""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            max_tokens=settings.ai_max_tokens,
+        )
+        return response.choices[0].message.content.strip()
+
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """Сгенерировать A/B варианты через OpenAI."""
+        result = await self.generate(
+            f"Напиши {count} варианта рекламного текста для Telegram по теме: {prompt}"
+        )
+        return GroqProvider._parse_variants(result, count)
+
+
+# ─────────────────────────────────────────────
+# Anthropic Provider (для production)
+# ─────────────────────────────────────────────
+
+class AnthropicProvider(BaseLLMProvider):
+    """Anthropic Claude API провайдер для production."""
+
+    def __init__(self) -> None:
+        from anthropic import AsyncAnthropic
+        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._model = "claude-3-sonnet-20240229"
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """Сгенерировать текст через Anthropic API."""
+        response = await self._client.messages.create(
+            model=self._model,
+            max_tokens=settings.ai_max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """Сгенерировать A/B варианты через Anthropic."""
+        result = await self.generate(
+            f"Напиши {count} варианта рекламного текста для Telegram по теме: {prompt}",
+            system="Ты профессиональный копирайтер для Telegram.",
+        )
+        return GroqProvider._parse_variants(result, count)
+
+
+# ─────────────────────────────────────────────
+# Mock Provider (для тестов)
+# ─────────────────────────────────────────────
+
+class MockProvider(BaseLLMProvider):
+    """Mock провайдер для тестов без API ключа."""
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """Вернуть заглушку вместо реального ответа."""
+        return f"[MOCK] Сгенерированный текст для: {prompt}"
+
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """Вернуть mock варианты."""
+        return [
+            f"🚀 {prompt} — лучшее предложение месяца! Нажмите здесь.",
+            f"💡 Откройте для себя {prompt}. Только сейчас со скидкой!",
+            f"⭐ {prompt} — выбор тысяч клиентов. Попробуйте бесплатно!",
+        ][:count]
+
+
+# ─────────────────────────────────────────────
+# Factory — выбор провайдера из .env
+# ─────────────────────────────────────────────
+
+def get_ai_provider() -> BaseLLMProvider:
+    """
+    Создать провайдер на основе настроек.
+
+    Returns:
+        Экземпляр провайдера.
+    """
+    provider = settings.ai_provider.lower()
+
+    if provider == "groq":
+        if not settings.groq_api_key:
+            logger.warning("GROQ_API_KEY не задан, используется Mock провайдер")
+            return MockProvider()
+        return GroqProvider()
+
+    elif provider == "openai":
+        if not settings.openai_api_key:
+            logger.warning("OPENAI_API_KEY не задан, используется Mock провайдер")
+            return MockProvider()
+        return OpenAIProvider()
+
+    elif provider == "anthropic":
+        if not settings.anthropic_api_key:
+            logger.warning("ANTHROPIC_API_KEY не задан, используется Mock провайдер")
+            return MockProvider()
+        return AnthropicProvider()
+
+    elif provider == "mock":
+        return MockProvider()
+
+    else:
+        logger.warning(f"Неизвестный AI_PROVIDER: {provider}, используется Mock")
+        return MockProvider()
+
+
+# ─────────────────────────────────────────────
+# Public API сервиса
+# ─────────────────────────────────────────────
 
 class AIService:
     """
@@ -38,27 +283,9 @@ class AIService:
 
     def __init__(self) -> None:
         """Инициализация AI сервиса."""
-        self._anthropic_client: AsyncAnthropic | None = None
-        self._openai_client: AsyncOpenAI | None = None
+        self._provider = get_ai_provider()
         self._redis: redis.Redis | None = None
-
-    @property
-    def anthropic_client(self) -> AsyncAnthropic:
-        """Ленивая инициализация Anthropic клиента."""
-        if self._anthropic_client is None:
-            if not settings.anthropic_api_key:
-                raise ValueError("ANTHROPIC_API_KEY not set")
-            self._anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        return self._anthropic_client
-
-    @property
-    def openai_client(self) -> AsyncOpenAI:
-        """Ленивая инициализация OpenAI клиента."""
-        if self._openai_client is None:
-            if not settings.openai_api_key:
-                raise ValueError("OPENAI_API_KEY not set")
-            self._openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
-        return self._openai_client
+        logger.info(f"AI Service инициализирован: {type(self._provider).__name__}")
 
     @property
     async def redis_client(self) -> redis.Redis:
@@ -72,27 +299,11 @@ class AIService:
         return self._redis
 
     def _get_cache_key(self, prompt: str) -> str:
-        """
-        Получить ключ кэша для промпта.
-
-        Args:
-            prompt: Текст промпта.
-
-        Returns:
-            MD5 хэш промпта.
-        """
+        """Получить ключ кэша для промпта."""
         return f"ai_cache:{hashlib.md5(prompt.encode()).hexdigest()}"
 
     async def _check_cache(self, key: str) -> str | None:
-        """
-        Проверить кэш.
-
-        Args:
-            key: Ключ кэша.
-
-        Returns:
-            Значение из кэша или None.
-        """
+        """Проверить кэш."""
         try:
             redis_client = await self.redis_client
             return await redis_client.get(key)
@@ -101,91 +312,12 @@ class AIService:
             return None
 
     async def _set_cache(self, key: str, value: str, ttl: int = DEFAULT_CACHE_TTL) -> None:
-        """
-        Сохранить в кэш.
-
-        Args:
-            key: Ключ кэша.
-            value: Значение.
-            ttl: Время жизни в секундах.
-        """
+        """Сохранить в кэш."""
         try:
             redis_client = await self.redis_client
             await redis_client.setex(key, ttl, value)
         except Exception as e:
             logger.error(f"Cache set error: {e}")
-
-    async def _call_claude(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        max_tokens: int = 1000,
-    ) -> str:
-        """
-        Вызвать Claude API.
-
-        Args:
-            system_prompt: Системный промпт.
-            user_prompt: Пользовательский промпт.
-            max_tokens: Максимальное количество токенов.
-
-        Returns:
-            Ответ от Claude.
-        """
-        for attempt in range(MAX_RETRIES):
-            try:
-                response = await self.anthropic_client.messages.create(
-                    model="claude-3-sonnet-20240229",
-                    max_tokens=max_tokens,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                    timeout=DEFAULT_TIMEOUT,
-                )
-                return response.content[0].text
-
-            except RateLimitError:
-                logger.warning(f"Claude rate limit exceeded, attempt {attempt + 1}")
-                if attempt == MAX_RETRIES - 1:
-                    # Fallback на OpenAI
-                    return await self._call_openai(system_prompt, user_prompt, max_tokens)
-                await asyncio.sleep(2 ** attempt)
-
-            except Exception as e:
-                logger.error(f"Claude API error (attempt {attempt + 1}): {e}")
-                if attempt == MAX_RETRIES - 1:
-                    raise
-                await asyncio.sleep(2 ** attempt)
-
-        # Должны вернуться из цикла раньше
-        raise RuntimeError("Unexpected error in Claude API call")
-
-    async def _call_openai(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        max_tokens: int = 1000,
-    ) -> str:
-        """
-        Вызвать OpenAI GPT-4o API (fallback).
-
-        Args:
-            system_prompt: Системный промпт.
-            user_prompt: Пользовательский промпт.
-            max_tokens: Максимальное количество токенов.
-
-        Returns:
-            Ответ от GPT-4o.
-        """
-        response = await self.openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=max_tokens,
-            timeout=DEFAULT_TIMEOUT,
-        )
-        return response.choices[0].message.content or ""
 
     async def _deduct_balance(self, user_id: int, amount: Decimal) -> bool:
         """
@@ -226,8 +358,8 @@ class AIService:
         Args:
             user_id: ID пользователя.
             description: Описание продукта/услуги.
-            tone: Тон текста (нейтральный, дружеский, официальный).
-            length: Длина текста (короткий, средний, длинный).
+            tone: Тон текста.
+            length: Длина текста.
             audience: Целевая аудитория.
 
         Returns:
@@ -240,7 +372,7 @@ class AIService:
             logger.info(f"AI cache hit for user {user_id}")
             return cached
 
-        # Проверяем и списываем баланс
+        # Списываем баланс
         cost = settings.ai_cost_per_generation
         if not await self._deduct_balance(user_id, Decimal(str(cost))):
             raise ValueError(f"Insufficient balance. Required: {cost} RUB")
@@ -249,7 +381,7 @@ class AIService:
         system_prompt = (
             "Ты профессиональный копирайтер рекламных текстов для Telegram. "
             "Создавай цепляющие, лаконичные тексты с эмодзи. "
-            "Избегай запрещённых тем (лекарства, политика, 18+)."
+            "Избегай запрещённых тем."
         )
 
         # Пользовательский промпт
@@ -269,7 +401,7 @@ class AIService:
         )
 
         # Генерация
-        result = await self._call_claude(system_prompt, user_prompt, max_tokens=500)
+        result = await self._provider.generate(user_prompt, system_prompt)
 
         # Кэширование
         await self._set_cache(cache_key, result)
@@ -306,21 +438,8 @@ class AIService:
         if not await self._deduct_balance(user_id, Decimal(str(cost))):
             raise ValueError(f"Insufficient balance. Required: {cost} RUB")
 
-        system_prompt = (
-            "Ты профессиональный копирайтер. Создавай разные варианты текстов "
-            "для A/B тестирования. Каждый вариант должен быть уникальным по стилю."
-        )
-
-        user_prompt = (
-            f"Создай {count} различных варианта рекламного текста для A/B теста.\n\n"
-            f"Описание: {description}\n\n"
-            f"Раздели варианты разделителем '---' на отдельной строке."
-        )
-
-        result = await self._call_claude(system_prompt, user_prompt, max_tokens=1500)
-
-        # Парсим варианты по разделителю
-        variants = [v.strip() for v in result.split("\n---\n") if v.strip()]
+        # Генерация
+        variants = await self._provider.generate_variants(description, count)
 
         # Кэширование
         await self._set_cache(cache_key, "\n---\n".join(variants))
@@ -340,7 +459,7 @@ class AIService:
         Args:
             user_id: ID пользователя.
             original: Исходный текст.
-            improvement_type: Тип улучшения (shorter, more_engaging, formal, casual).
+            improvement_type: Тип улучшения.
 
         Returns:
             Улучшенный текст.
@@ -371,7 +490,7 @@ class AIService:
             f"Исходный текст:\n{original}"
         )
 
-        result = await self._call_claude(system_prompt, user_prompt, max_tokens=1000)
+        result = await self._provider.generate(user_prompt, system_prompt)
 
         # Кэширование
         await self._set_cache(cache_key, result)
@@ -403,7 +522,7 @@ class AIService:
             logger.info(f"AI hashtags cache hit for user {user_id}")
             return json.loads(cached)
 
-        # Списываем баланс (50% от стоимости генерации)
+        # Списываем баланс (50% от стоимости)
         cost = settings.ai_cost_per_generation * 0.5
         if not await self._deduct_balance(user_id, Decimal(str(cost))):
             raise ValueError(f"Insufficient balance. Required: {cost} RUB")
@@ -418,7 +537,7 @@ class AIService:
             f"Верни только список хэштегов через запятую, без пояснений."
         )
 
-        result = await self._call_claude(system_prompt, user_prompt, max_tokens=200)
+        result = await self._provider.generate(user_prompt, system_prompt)
 
         # Парсим хэштеги
         hashtags = [h.strip() for h in result.replace("#", "").split(",") if h.strip()]
@@ -429,6 +548,29 @@ class AIService:
 
         logger.info(f"Generated {len(hashtags)} hashtags for user {user_id}")
         return hashtags
+
+    async def check_text_quality(self, text: str) -> dict:
+        """
+        Оценить качество рекламного текста (0-100).
+
+        Args:
+            text: Текст для оценки.
+
+        Returns:
+            Словарь с оценкой и текстом.
+        """
+        prompt = (
+            f"Оцени качество рекламного текста для Telegram по шкале 0-100.\n"
+            f"Критерии: цепляемость, призыв к действию, эмодзи, длина.\n"
+            f"Текст: {text}\n\n"
+            f"Ответь только числом от 0 до 100."
+        )
+        try:
+            result = await self._provider.generate(prompt)
+            score = int("".join(filter(str.isdigit, result))[:3])
+            return {"score": min(100, max(0, score)), "text": text}
+        except Exception:
+            return {"score": 50, "text": text}
 
 
 # Глобальный экземпляр
