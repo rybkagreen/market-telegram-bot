@@ -30,6 +30,7 @@ def create_celery_app() -> Celery:
             "src.tasks.parser_tasks",
             "src.tasks.mailing_tasks",
             "src.tasks.cleanup_tasks",
+            "src.tasks.notification_tasks",
         ],
     )
 
@@ -87,25 +88,25 @@ def get_beat_schedule() -> dict[str, Any]:
     return {
         # Обновление базы чатов — каждые 24 часа в 3:00 UTC
         "refresh-chat-database": {
-            "task": "src.tasks.parser_tasks.refresh_chat_database",
+            "task": "parser:refresh_chat_database",
             "schedule": crontab(hour=3, minute=0),
             "options": {"queue": "parser"},
         },
         # Проверка запланированных кампаний — каждые 5 минут
         "check-scheduled-campaigns": {
-            "task": "src.tasks.mailing_tasks.check_scheduled_campaigns",
+            "task": "mailing:check_scheduled_campaigns",
             "schedule": crontab(minute="*/5"),
             "options": {"queue": "mailing"},
         },
         # Удаление старых логов — каждое воскресенье в 3:00 UTC
         "delete-old-logs": {
-            "task": "src.tasks.cleanup_tasks.delete_old_logs",
+            "task": "cleanup:delete_old_logs",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),
             "options": {"queue": "cleanup"},
         },
         # Проверка низкого баланса — каждый час
         "check-low-balance": {
-            "task": "src.tasks.notification_tasks.check_low_balance",
+            "task": "mailing:check_low_balance",
             "schedule": crontab(minute=0),
             "options": {"queue": "mailing"},
         },

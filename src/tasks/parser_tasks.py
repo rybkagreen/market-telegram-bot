@@ -8,6 +8,7 @@ from typing import Any
 
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory
+from src.tasks.celery_app import BaseTask, celery_app
 from src.utils.telegram.parser import TelegramParser
 from src.utils.telegram.tgstat_parser import POPULAR_TOPICS, TGStatParser
 from src.utils.telegram.topic_classifier import classify_topic
@@ -248,7 +249,8 @@ async def _refresh_chats_async() -> dict[str, Any]:
 # Импортируем celery_app динамически чтобы избежать circular imports
 
 
-def refresh_chat_database() -> dict[str, Any]:
+@celery_app.task(bind=True, base=BaseTask, name="parser:refresh_chat_database")
+def refresh_chat_database(self) -> dict[str, Any]:
     """
     Celery задача для обновления базы данных чатов.
 
