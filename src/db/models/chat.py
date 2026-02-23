@@ -4,6 +4,7 @@
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -16,9 +17,12 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.mailing_log import MailingLog
 
 
 class Chat(Base, TimestampMixin):
@@ -188,6 +192,14 @@ class Chat(Base, TimestampMixin):
         {
             "comment": "Telegram чаты для рассылки",
         },
+    )
+
+    # Отношения
+    mailing_logs: Mapped[list["MailingLog"]] = relationship(
+        back_populates="chat",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        doc="Логи рассылки для этого чата",
     )
 
     def __repr__(self) -> str:
