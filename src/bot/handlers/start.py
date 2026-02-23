@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from src.bot.keyboards.main_menu import get_main_menu
-from src.db.repositories.user import UserRepository
+from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
