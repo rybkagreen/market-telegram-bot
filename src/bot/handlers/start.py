@@ -44,6 +44,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             language_code=message.from_user.language_code,
         )
 
+        # Коммитим сессию чтобы сохранить пользователя
+        await session.commit()
+
         # Обработка реферального кода для новых пользователей
         if ref_code and user.created_at == user.updated_at:  # Только что создан
             referrer = await user_repo.get_by_referral_code(ref_code)
