@@ -41,7 +41,7 @@ TRANSACTION_EMOJI = {
 }
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "balance"))
+@router.callback_query(MainMenuCB.filter(F.action == "balance"))
 async def show_balance(callback: CallbackQuery) -> None:
     """
     Показать баланс пользователя.
@@ -66,7 +66,7 @@ async def show_balance(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=get_amount_kb())
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "topup"))
+@router.callback_query(BillingCB.filter(F.action == "topup"))
 async def topup_selected(callback: CallbackQuery, callback_data: BillingCB, state: FSMContext) -> None:
     """
     Выбрана сумма пополнения.
@@ -218,7 +218,7 @@ async def process_topup(
             await target.answer(text, reply_markup=get_amount_kb())
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "check_payment"))
+@router.callback_query(BillingCB.filter(F.action == "check_payment"))
 async def check_payment_status(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """
     Проверить статус платежа.
@@ -294,7 +294,7 @@ async def check_payment_status(callback: CallbackQuery, callback_data: BillingCB
         await callback.answer(f"❌ Ошибка проверки: {e}", show_alert=True)
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "history"))
+@router.callback_query(BillingCB.filter(F.action == "history"))
 async def show_transaction_history(callback: CallbackQuery) -> None:
     """
     Показать историю транзакций.
@@ -392,7 +392,7 @@ async def show_transactions_list(callback: CallbackQuery, page: int = 1) -> None
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(PaginationCB.filter(lambda cb: cb.prefix == "transactions"))
+@router.callback_query(PaginationCB.filter(F.prefix == "transactions"))
 async def transactions_pagination_callback(callback: CallbackQuery, callback_data: PaginationCB) -> None:
     """
     Callback handler для пагинации транзакций.
@@ -404,7 +404,7 @@ async def transactions_pagination_callback(callback: CallbackQuery, callback_dat
     await show_transactions_list(callback, page=callback_data.page)
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "plan"))
+@router.callback_query(BillingCB.filter(F.action == "plan"))
 async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """
     Выбран тарифный план.
@@ -428,27 +428,29 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
 
     name, price, limits = plans_info[plan]
 
+    # Извлекаем цену из строки (например "299₽/мес" -> 299)
+    price_value = int(price.replace("₽/мес", "").replace("₽", ""))
+
     text = (
         f"📦 <b>Смена тарифа</b>\n\n"
         f"Вы выбрали: <b>{name}</b>\n"
         f"Стоимость: <b>{price}</b>\n"
         f"Лимиты: {limits}\n\n"
-        f"В production здесь будет интеграция с платежной системой\n"
-        f"для списания абонентской платы."
+        f"Для активации тарифа необходимо оплатить {price_value}₽."
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Подтвердить", callback_data=BillingCB(action="plan_confirm", value=plan))
+    builder.button(text="💳 Оплатить и подключить", callback_data=BillingCB(action="plan_pay", value=plan))
     builder.button(text="🔙 Назад", callback_data=BillingCB(action="plans", value="0"))
     builder.adjust(2)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "plan_confirm"))
-async def plan_confirm(callback: CallbackQuery, callback_data: BillingCB) -> None:
+@router.callback_query(BillingCB.filter(F.action == "plan_pay"))
+async def plan_pay(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """
-    Подтверждение смены тарифа.
+    Оплата и подключение тарифа.
 
     Args:
         callback: Callback query.
@@ -456,24 +458,76 @@ async def plan_confirm(callback: CallbackQuery, callback_data: BillingCB) -> Non
     """
     plan = callback_data.value
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    # Цены тарифов
+    plan_prices = {
+        "free": 0,
+        "starter": 299,
+        "pro": 999,
+        "business": 2999,
+    }
 
-        if not user:
-            await callback.answer("❌ Пользователь не найден", show_alert=True)
-            return
+    if plan not in plan_prices:
+        await callback.answer("❌ Неверный тариф", show_alert=True)
+        return
 
-        # В production здесь будет проверка оплаты и смена тарифа
-        # Для now просто меняем тариф
-        await user_repo.update(user.id, {"plan": plan})
-        await user_repo.refresh(user)
+    price = plan_prices[plan]
 
-    text = (
-        f"✅ <b>Тариф изменён!</b>\n\n"
-        f"Ваш новый тариф: <b>{plan}</b>\n\n"
-        f"В production здесь потребовалась бы оплата абонентской платы."
-    )
+    if price == 0:
+        # Бесплатный тариф - меняем сразу
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+            if not user:
+                await callback.answer("❌ Пользователь не найден", show_alert=True)
+                return
+
+            await user_repo.update(user.id, {"plan": plan})
+            await user_repo.refresh(user)
+
+        text = (
+            f"✅ <b>Тариф изменён!</b>\n\n"
+            f"Ваш новый тариф: <b>{plan}</b>"
+        )
+    else:
+        # Создаём платёж
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+            if not user:
+                await callback.answer("❌ Пользователь не найден", show_alert=True)
+                return
+
+            from src.core.services.billing_service import billing_service
+            from decimal import Decimal
+
+            payment_data = await billing_service.create_payment(
+                user_id=user.id,
+                amount=Decimal(price),
+                payment_method="yookassa",
+            )
+
+            payment_url = payment_data["payment_url"]
+            payment_id = payment_data["payment_id"]
+
+        text = (
+            f"💳 <b>Оплата тарифа {plan}</b>\n\n"
+            f"Сумма: <b>{price}₽</b>\n\n"
+            f"Нажмите «Оплатить» для перехода к платежу."
+        )
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💳 Оплатить", url=payment_url)
+        builder.button(
+            text="🔄 Проверить статус",
+            callback_data=BillingCB(action="check_payment", value=payment_id)
+        )
+        builder.button(text="🔙 Отмена", callback_data=MainMenuCB(action="cabinet"))
+        builder.adjust(2, 1)
+
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        return
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 В кабинет", callback_data=MainMenuCB(action="cabinet"))

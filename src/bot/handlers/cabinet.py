@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -88,7 +88,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         await answer_method(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(action="cabinet"))
+@router.callback_query(MainMenuCB.filter(F.action == "cabinet"))
 async def cabinet_callback(callback: CallbackQuery) -> None:
     """
     Callback handler для открытия кабинета.
@@ -99,7 +99,7 @@ async def cabinet_callback(callback: CallbackQuery) -> None:
     await show_cabinet(callback)
 
 
-@router.callback_query(BillingCB.filter(BillingCB.action == "referral"))
+@router.callback_query(BillingCB.filter(F.action == "referral"))
 async def referral_callback(callback: CallbackQuery) -> None:
     """
     Показать реферальную информацию.
@@ -115,18 +115,28 @@ async def referral_callback(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        # Считаем количество рефералов (заглушка - нужен отдельный метод в репозитории)
-        referrer_count = 0  # TODO: реализовать user_repo.get_referrers_count(user.id)
+        # Получаем количество рефералов
+        referrer_count = await user_repo.get_referrers_count(user.id)
+
+        # Получаем список рефералов для отображения
+        referrers = await user_repo.get_referrers(user.id, limit=5)
+        referrers_text = ""
+        if referrers:
+            referrers_text = "\n\n" + "\n".join([f"• {r.full_name or r.username or 'User'}" for r in referrers])
+            if referrer_count > 5:
+                referrers_text += f"\n... и ещё {referrer_count - 5}"
 
         # Реферальная ссылка
-        ref_link = f"https://t.me/{bot_username}?start=ref_{user.referral_code}" if bot_username else f"t.me/yourbot?start=ref_{user.referral_code}"
+        bot_info = await callback.bot.get_me()
+        ref_link = f"https://t.me/{bot_info.username}?start=ref_{user.referral_code}"
 
         text = (
             f"👥 <b>Реферальная программа</b>\n\n"
             f"Ваша ссылка:\n"
             f"<code>{ref_link}</code>\n\n"
             f"🎁 Бонус за каждого друга: <b>50₽</b>\n"
-            f"👥 Приглашено пользователей: <b>{referrer_count}</b>\n\n"
+            f"👥 Приглашено пользователей: <b>{referrer_count}</b>"
+            f"{referrers_text}\n\n"
             f"💡 <b>Как это работает:</b>\n"
             f"1. Отправьте ссылку другу\n"
             f"2. Друг нажимает /start и регистрируется\n"
@@ -143,7 +153,7 @@ async def referral_callback(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "plans"))
+@router.callback_query(BillingCB.filter(F.action == "plans"))
 async def plans_callback(callback: CallbackQuery) -> None:
     """
     Показать тарифные планы.
@@ -171,7 +181,7 @@ async def plans_callback(callback: CallbackQuery) -> None:
     await callback.message.edit_text(text, reply_markup=get_plans_kb())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "my_campaigns"))
+@router.callback_query(MainMenuCB.filter(F.action == "my_campaigns"))
 async def my_campaigns_callback(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Показать список кампаний пользователя.
@@ -262,7 +272,7 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(PaginationCB.filter(lambda cb: cb.prefix == "campaigns"))
+@router.callback_query(PaginationCB.filter(F.prefix == "campaigns"))
 async def campaigns_pagination_callback(callback: CallbackQuery, callback_data: PaginationCB) -> None:
     """
     Callback handler для пагинации кампаний.
@@ -272,18 +282,3 @@ async def campaigns_pagination_callback(callback: CallbackQuery, callback_data: 
         callback_data: Данные пагинации.
     """
     await show_campaigns_list(callback, page=callback_data.page)
-
-
-# Глобальная переменная для bot_username (заполняется при старте)
-bot_username: str = ""
-
-
-def set_bot_username(username: str) -> None:
-    """
-    Установить username бота для генерации реферальных ссылок.
-
-    Args:
-        username: Username бота.
-    """
-    global bot_username
-    bot_username = username

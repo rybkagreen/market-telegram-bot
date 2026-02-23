@@ -4,7 +4,7 @@ Handlers для аналитики и статистики.
 
 import logging
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -34,7 +34,7 @@ def make_progress_bar(percent: float, length: int = 10) -> str:
     return "█" * filled + "░" * (length - filled) + f" {percent:.0f}%"
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "analytics"))
+@router.callback_query(MainMenuCB.filter(F.action == "analytics"))
 async def show_analytics_menu(callback: CallbackQuery) -> None:
     """
     Показать меню аналитики.
@@ -72,7 +72,7 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "user_summary"))
+@router.callback_query(MainMenuCB.filter(F.action == "user_summary"))
 async def handle_user_summary(callback: CallbackQuery) -> None:
     """
     Показать сводную аналитику пользователя за 30 дней.
@@ -123,7 +123,7 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "campaigns_stats"))
+@router.callback_query(MainMenuCB.filter(F.action == "campaigns_stats"))
 async def handle_campaigns_stats(callback: CallbackQuery) -> None:
     """
     Показать статистику по кампаниям.
@@ -195,7 +195,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "campaign_stats"))
+@router.callback_query(MainMenuCB.filter(F.action == "campaign_stats"))
 async def handle_single_campaign_stats(callback: CallbackQuery) -> None:
     """
     Показать детальную статистику одной кампании.
@@ -208,7 +208,7 @@ async def handle_single_campaign_stats(callback: CallbackQuery) -> None:
     await callback.answer("🚧 Функция в разработке", show_alert=True)
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "top_chats"))
+@router.callback_query(MainMenuCB.filter(F.action == "top_chats"))
 async def handle_top_chats(callback: CallbackQuery) -> None:
     """
     Показать топ-5 чатов по эффективности.
@@ -278,7 +278,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "download_report"))
+@router.callback_query(MainMenuCB.filter(F.action == "download_report"))
 async def handle_download_report(callback: CallbackQuery) -> None:
     """
     Обработать запрос на скачивание отчёта.
