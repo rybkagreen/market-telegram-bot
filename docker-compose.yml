@@ -48,7 +48,7 @@ services:
     container_name: market_bot_bot
     environment:
       ENVIRONMENT: development
-      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_TOKEN: 7562867307:AAEIzuEqqRDV0kixpFHXIpVDgxaq0Xq_F_k
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
       REDIS_URL: redis://redis:6379/0
       API_ID: ${API_ID}
