@@ -88,7 +88,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         await answer_method(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(MainMenuCB.filter(lambda cb: cb.action == "cabinet"))
+@router.callback_query(MainMenuCB.filter(action="cabinet"))
 async def cabinet_callback(callback: CallbackQuery) -> None:
     """
     Callback handler для открытия кабинета.
@@ -99,7 +99,7 @@ async def cabinet_callback(callback: CallbackQuery) -> None:
     await show_cabinet(callback)
 
 
-@router.callback_query(BillingCB.filter(lambda cb: cb.action == "referral"))
+@router.callback_query(BillingCB.filter(BillingCB.action == "referral"))
 async def referral_callback(callback: CallbackQuery) -> None:
     """
     Показать реферальную информацию.
