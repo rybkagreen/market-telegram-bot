@@ -6,7 +6,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -54,33 +54,43 @@ class Settings(BaseSettings):
     # AI Services
     anthropic_api_key: str | None = Field(None, alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
+    groq_api_key: str | None = Field(None, alias="GROQ_API_KEY")
+    openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
+
+    # AI Provider настройки
+    ai_provider: str = Field("groq", alias="AI_PROVIDER")  # groq | openai | openrouter | mock
+    ai_model: str = Field("llama-3.3-70b-versatile", alias="AI_MODEL")
+
+    # OpenRouter модель (для админов — Claude Sonnet)
+    openrouter_model: str = Field("anthropic/claude-sonnet-4-20250514", alias="OPENROUTER_MODEL")
+
+    # AI параметры генерации
+    ai_max_tokens: int = Field(1024, alias="AI_MAX_TOKENS")
+    ai_temperature: float = Field(0.7, alias="AI_TEMPERATURE")
+
+    # AI Cost
+    ai_cost_per_generation: float = Field(10.0, alias="AI_COST_PER_GENERATION")
 
     # Payments
     yookassa_shop_id: str | None = Field(None, alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str | None = Field(None, alias="YOOKASSA_SECRET_KEY")
 
     # Admin IDs
-    admin_ids: list[int] = Field(default_factory=list, alias="ADMIN_IDS")
+    admin_ids_raw: str = Field("", alias="ADMIN_IDS")
 
     # Webhook & Mini App
     webhook_url: str | None = Field(None, alias="WEBHOOK_URL")
     mini_app_url: str | None = Field(None, alias="MINI_APP_URL")
 
-    # AI Cost
-    ai_cost_per_generation: float = Field(10.0, alias="AI_COST_PER_GENERATION")
-
     # Sentry
     sentry_dsn: str | None = Field(None, alias="SENTRY_DSN")
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, value: str | list[int]) -> list[int]:
+    @property
+    def admin_ids(self) -> list[int]:
         """Парсит ADMIN_IDS из строки в список целых чисел."""
-        if isinstance(value, list):
-            return value
-        if not value or value == "":
+        if not self.admin_ids_raw:
             return []
-        return [int(x.strip()) for x in value.split(",") if x.strip().isdigit()]
+        return [int(x.strip()) for x in self.admin_ids_raw.split(",") if x.strip().isdigit()]
 
     @property
     def is_development(self) -> bool:

@@ -4,11 +4,17 @@ Parser Celery tasks для обновления базы данных чатов
 
 import asyncio
 import logging
+from datetime import date
 from typing import Any
 
+from src.db.models.analytics import ChatType
+from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.chat_repo import ChatData, ChatRepository
-from src.db.session import async_session_factory
-from src.utils.telegram.parser import TelegramParser
+from src.db.session import async_session_factory, get_session
+from src.tasks.celery_app import BaseTask, celery_app
+from src.utils.telegram.parser import ChatFullInfo, TelegramParser
+# TGStatParser используется только в legacy-задаче refresh_chat_database
+# В новых задачах (collect_all_chats_stats, parse_single_chat) не используется
 from src.utils.telegram.tgstat_parser import POPULAR_TOPICS, TGStatParser
 from src.utils.telegram.topic_classifier import classify_topic
 
@@ -241,6 +247,9 @@ async def _refresh_chats_async() -> dict[str, Any]:
                     logger.error(f"Error in TGStat parsing for '{topic}': {e}")
                     stats["errors"] += 1
 
+        # Коммитим все изменения
+        await session.commit()
+
     return stats
 
 
@@ -248,7 +257,8 @@ async def _refresh_chats_async() -> dict[str, Any]:
 # Импортируем celery_app динамически чтобы избежать circular imports
 
 
-def refresh_chat_database() -> dict[str, Any]:
+@celery_app.task(bind=True, base=BaseTask, name="parser:refresh_chat_database")
+def refresh_chat_database(self) -> dict[str, Any]:
     """
     Celery задача для обновления базы данных чатов.
 
@@ -398,3 +408,191 @@ def update_chat_rating(chat_id: int) -> float | None:
     except Exception as e:
         logger.error(f"Error updating rating for chat {chat_id}: {e}")
         return None
+
+
+# ──────────────────────────────────────────────────────
+# Analytics Chat Parser Tasks
+# ──────────────────────────────────────────────────────
+
+
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="parser:collect_all_chats_stats",
+    queue="parser",
+    max_retries=3,
+    default_retry_delay=300,  # 5 минут между retry
+    soft_time_limit=6 * 3600,  # 6 часов максимум
+)
+def collect_all_chats_stats(self) -> dict[str, Any]:
+    """
+    Главная задача: собрать статистику всех активных чатов.
+    Нарезает чаты на батчи по 50 и запускает sub-задачи.
+    """
+    return asyncio.get_event_loop().run_until_complete(
+        _collect_all_chats_stats_async(self)
+    )
+
+
+async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
+    """Асинхронная реализация collect_all_chats_stats."""
+    async with get_session() as session:
+        repo = ChatAnalyticsRepository(session)
+        chats = await repo.get_all_active()
+
+    if not chats:
+        logger.info("Нет активных чатов для парсинга")
+        return {"total": 0, "processed": 0, "errors": 0}
+
+    logger.info(f"Начинаю парсинг {len(chats)} чатов")
+
+    # Нарезаем на батчи по 50
+    batch_size = 50
+    batches = [chats[i : i + batch_size] for i in range(0, len(chats), batch_size)]
+
+    total_processed = 0
+    total_errors = 0
+
+    for batch_num, batch in enumerate(batches, 1):
+        logger.info(f"Батч {batch_num}/{len(batches)}: {len(batch)} чатов")
+        usernames = [c.username for c in batch]
+        chat_ids = {c.username: c.id for c in batch}
+
+        # Запустить парсинг батча
+        result = await _process_batch(usernames, chat_ids)
+        total_processed += result["processed"]
+        total_errors += result["errors"]
+
+        logger.info(
+            f"Батч {batch_num} завершён: "
+            f"{result['processed']} OK, {result['errors']} ошибок"
+        )
+
+    logger.info(
+        f"Парсинг завершён. Всего: {len(chats)}, "
+        f"успешно: {total_processed}, ошибок: {total_errors}"
+    )
+    return {"total": len(chats), "processed": total_processed, "errors": total_errors}
+
+
+async def _process_batch(
+    usernames: list[str], chat_ids: dict[str, int]
+) -> dict[str, int]:
+    """Обработать один батч чатов и сохранить в БД."""
+    today = date.today()
+    processed = 0
+    errors = 0
+
+    def log_progress(done: int, total: int) -> None:
+        logger.debug(f"  Прогресс батча: {done}/{total}")
+
+    async with TelegramParser() as parser:
+        metrics_list = await parser.parse_chats_batch(usernames, on_progress=log_progress)
+
+    async with get_session() as session:
+        repo = ChatAnalyticsRepository(session)
+
+        for metrics in metrics_list:
+            chat_id = chat_ids.get(metrics.username)
+            if not chat_id:
+                continue
+
+            if metrics.error:
+                await repo.mark_parse_error(chat_id, metrics.error)
+                errors += 1
+                continue
+
+            # Обновить мета-данные чата
+            await repo.update_chat_meta(
+                chat_id,
+                telegram_id=metrics.telegram_id,
+                title=metrics.title,
+                description=metrics.description,
+                chat_type=ChatType(metrics.chat_type),
+                can_post=metrics.can_post,
+                is_public=metrics.is_public,
+                last_subscribers=metrics.subscribers,
+                last_avg_views=metrics.avg_views,
+                last_er=metrics.er,
+                last_post_frequency=metrics.post_frequency,
+            )
+
+            # Сохранить снимок за сегодня
+            await repo.upsert_snapshot(
+                chat_id=chat_id,
+                snapshot_date=today,
+                subscribers=metrics.subscribers,
+                avg_views=metrics.avg_views,
+                max_views=metrics.max_views,
+                min_views=metrics.min_views,
+                posts_analyzed=metrics.posts_analyzed,
+                er=metrics.er,
+                post_frequency=metrics.post_frequency,
+                posts_last_30d=metrics.posts_last_30d,
+                can_post=metrics.can_post,
+            )
+            processed += 1
+
+        await session.commit()
+
+    return {"processed": processed, "errors": errors}
+
+
+@celery_app.task(bind=True, base=BaseTask, name="parser:parse_single_chat", queue="parser")
+def parse_single_chat(self, username: str) -> dict[str, Any]:
+    """
+    Парсинг одного чата по запросу пользователя (не по расписанию).
+    Используется когда пользователь добавляет новый чат через бота.
+    """
+    return asyncio.get_event_loop().run_until_complete(
+        _parse_single_chat_async(username)
+    )
+
+
+async def _parse_single_chat_async(username: str) -> dict[str, Any]:
+    """Асинхронная реализация parse_single_chat."""
+    async with TelegramParser() as parser:
+        metrics = await parser.parse_chat_metrics(username)
+
+    if metrics.error:
+        return {"success": False, "error": metrics.error}
+
+    async with get_session() as session:
+        repo = ChatAnalyticsRepository(session)
+        chat, is_new = await repo.get_or_create_chat(username)
+        await repo.update_chat_meta(
+            chat.id,
+            telegram_id=metrics.telegram_id,
+            title=metrics.title,
+            description=metrics.description,
+            chat_type=ChatType(metrics.chat_type),
+            can_post=metrics.can_post,
+            is_public=metrics.is_public,
+            last_subscribers=metrics.subscribers,
+            last_avg_views=metrics.avg_views,
+            last_er=metrics.er,
+            last_post_frequency=metrics.post_frequency,
+        )
+        await repo.upsert_snapshot(
+            chat_id=chat.id,
+            snapshot_date=date.today(),
+            subscribers=metrics.subscribers,
+            avg_views=metrics.avg_views,
+            max_views=metrics.max_views,
+            min_views=metrics.min_views,
+            posts_analyzed=metrics.posts_analyzed,
+            er=metrics.er,
+            post_frequency=metrics.post_frequency,
+            posts_last_30d=metrics.posts_last_30d,
+            can_post=metrics.can_post,
+        )
+        await session.commit()
+
+    return {
+        "success": True,
+        "is_new": is_new,
+        "title": metrics.title,
+        "subscribers": metrics.subscribers,
+        "er": metrics.er,
+        "can_post": metrics.can_post,
+    }
