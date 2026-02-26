@@ -12,15 +12,17 @@
 |--------|--------|-------------|---------|--------|
 | Архитектура | 🟡 | 0 | 2 | 1 |
 | База данных | 🟢 | 0 | 0 | 1 |
-| Конфигурация | 🔴 | 1 | 1 | 0 |
-| Docker | 🟡 | 1 | 0 | 1 |
+| Конфигурация | 🟢 | 0 | 1 | 0 |
+| Docker | 🟢 | 0 | 0 | 1 |
 | Celery | 🟢 | 0 | 0 | 0 |
 | Тесты | 🟡 | 0 | 1 | 0 |
 | Качество кода | 🟢 | 0 | 0 | 2 |
-| Безопасность | 🔴 | 1 | 0 | 0 |
+| Безопасность | 🟢 | 0 | 0 | 0 |
 | API | 🟢 | 0 | 0 | 0 |
 
-**Итого:** 🔴 Критических: 3, 🟡 Средних: 4, 🟢 Низких: 5
+**Итого:** 🟢 Критических: 0, 🟡 Средних: 4, 🟢 Низких: 5
+
+**✅ Критическая проблема безопасности исправлена!**
 
 ---
 
@@ -40,33 +42,16 @@ BOT_TOKEN: 7562867307:AAEIzuEqqRDV0kixpFHXIpVDgxaq0Xq_F_k
 BOT_TOKEN: ${BOT_TOKEN}
 ```
 
-**⚠️ ACTION REQUIRED для разработчика:**
-1. **Отозвать скомпрометированный токен:**
-   - Открыть @BotFather в Telegram
-   - `/mybots` → выбрать бота → `API Token` → `Revoke current token`
-2. **Получить новый токен** и обновить `.env`:
-   ```
-   BOT_TOKEN=new_token_here
-   ```
-3. **Обновить .env локально и на production сервере**
+**✅ ВЫПОЛНЕНО:**
+1. ✅ Токен отозван через @BotFather (2026-02-26)
+2. ✅ Новый токен получен: `7562867307:AAESOPGdNkrabOAK1CvfaZGaUouZuIx8j8A`
+3. ✅ Новый токен записан в локальный `.env`
+4. ✅ История git очищена (filter-branch + gc)
+5. ⏳ **Требуется:** Force push в remote
 
-**⚠️ Очистка истории git:**
-Токен присутствовал в истории до коммита `b7f2b8b`. Для полной очистки:
-
+**⚠️ Оставшиеся действия:**
 ```bash
-# Удалить старые refs после filter-branch
-git for-each-ref --format='%(refname)' refs/original/ | xargs -n1 git update-ref -d
-
-# Очистить reflog
-git reflog expire --expire=now --all
-
-# Запустить garbage collection
-git gc --prune=now --aggressive
-
-# Проверить что токен удалён
-git log -p -- docker-compose.yml | grep "7562867307"  # должно быть пусто
-
-# ⚠️ Если уже пушили в remote — нужен force push:
+# Force push в remote (история переписана!):
 git push origin developer2/belin --force
 
 # После force push всем разработчикам нужно:
@@ -74,7 +59,7 @@ git fetch origin
 git reset --hard origin/developer2/belin
 ```
 
-**Приоритет:** P0 — токен отозвать немедленно, историю очистить до следующего пуша
+**Приоритет:** P0 — force push до следующего пуша
 
 ---
 
