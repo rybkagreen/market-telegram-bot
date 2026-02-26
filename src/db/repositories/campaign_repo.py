@@ -266,6 +266,15 @@ class CampaignRepository(BaseRepository[Campaign]):
             order_by=Campaign.created_at.desc(),
         )
 
+    def get_query_with_logs(self) -> Select[tuple[Campaign]]:
+        """
+        Получить query с подгрузкой mailing_logs.
+
+        Returns:
+            SQLAlchemy Select query.
+        """
+        return select(self.model).options(selectinload(Campaign.mailing_logs))
+
     async def update_statistics(
         self,
         campaign_id: int,
@@ -305,12 +314,3 @@ class CampaignRepository(BaseRepository[Campaign]):
         await self.refresh(campaign)
 
         return campaign
-
-    def get_query_with_logs(self) -> Select[tuple[Campaign]]:
-        """
-        Получить query с подгрузкой mailing_logs.
-
-        Returns:
-            SQLAlchemy Select query.
-        """
-        return select(self.model).options(selectinload(Campaign.mailing_logs))

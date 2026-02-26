@@ -427,9 +427,10 @@ def collect_all_chats_stats(self) -> dict[str, Any]:
 
 async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
     """Асинхронная реализация collect_all_chats_stats."""
-    async with get_session() as session:
+    async for session in get_session():
         repo = ChatAnalyticsRepository(session)
         chats = await repo.get_all_active()
+        break  # Выходим после первого yield
 
     if not chats:
         logger.info("Нет активных чатов для парсинга")
@@ -476,51 +477,50 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
     async with TelegramParser() as parser:
         metrics_list = await parser.parse_chats_batch(usernames, on_progress=log_progress)
 
-    async with get_session() as session:
+    async for session in get_session():
         repo = ChatAnalyticsRepository(session)
+        break  # Выходим после первого yield
 
-        for metrics in metrics_list:
-            chat_id = chat_ids.get(metrics.username)
-            if not chat_id:
-                continue
+    for metrics in metrics_list:
+        chat_id = chat_ids.get(metrics.username)
+        if not chat_id:
+            continue
 
-            if metrics.error:
-                await repo.mark_parse_error(chat_id, metrics.error)
-                errors += 1
-                continue
+        if metrics.error:
+            await repo.mark_parse_error(chat_id, metrics.error)
+            errors += 1
+            continue
 
-            # Обновить мета-данные чата
-            await repo.update_chat_meta(
-                chat_id,
-                telegram_id=metrics.telegram_id,
-                title=metrics.title,
-                description=metrics.description,
-                chat_type=ChatType(metrics.chat_type),
-                can_post=metrics.can_post,
-                is_public=metrics.is_public,
-                last_subscribers=metrics.subscribers,
-                last_avg_views=metrics.avg_views,
-                last_er=metrics.er,
-                last_post_frequency=metrics.post_frequency,
-            )
+        # Обновить мета-данные чата
+        await repo.update_chat_meta(
+            chat_id,
+            telegram_id=metrics.telegram_id,
+            title=metrics.title,
+            description=metrics.description,
+            chat_type=ChatType(metrics.chat_type),
+            can_post=metrics.can_post,
+            is_public=metrics.is_public,
+            last_subscribers=metrics.subscribers,
+            last_avg_views=metrics.avg_views,
+            last_er=metrics.er,
+            last_post_frequency=metrics.post_frequency,
+        )
 
-            # Сохранить снимок за сегодня
-            await repo.upsert_snapshot(
-                chat_id=chat_id,
-                snapshot_date=today,
-                subscribers=metrics.subscribers,
-                avg_views=metrics.avg_views,
-                max_views=metrics.max_views,
-                min_views=metrics.min_views,
-                posts_analyzed=metrics.posts_analyzed,
-                er=metrics.er,
-                post_frequency=metrics.post_frequency,
-                posts_last_30d=metrics.posts_last_30d,
-                can_post=metrics.can_post,
-            )
-            processed += 1
-
-        await session.commit()
+        # Сохранить снимок за сегодня
+        await repo.upsert_snapshot(
+            chat_id=chat_id,
+            snapshot_date=today,
+            subscribers=metrics.subscribers,
+            avg_views=metrics.avg_views,
+            max_views=metrics.max_views,
+            min_views=metrics.min_views,
+            posts_analyzed=metrics.posts_analyzed,
+            er=metrics.er,
+            post_frequency=metrics.post_frequency,
+            posts_last_30d=metrics.posts_last_30d,
+            can_post=metrics.can_post,
+        )
+        processed += 1
 
     return {"processed": processed, "errors": errors}
 
@@ -542,36 +542,37 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
     if metrics.error:
         return {"success": False, "error": metrics.error}
 
-    async with get_session() as session:
+    async for session in get_session():
         repo = ChatAnalyticsRepository(session)
-        chat, is_new = await repo.get_or_create_chat(username)
-        await repo.update_chat_meta(
-            chat.id,
-            telegram_id=metrics.telegram_id,
-            title=metrics.title,
-            description=metrics.description,
-            chat_type=ChatType(metrics.chat_type),
-            can_post=metrics.can_post,
-            is_public=metrics.is_public,
-            last_subscribers=metrics.subscribers,
-            last_avg_views=metrics.avg_views,
-            last_er=metrics.er,
-            last_post_frequency=metrics.post_frequency,
-        )
-        await repo.upsert_snapshot(
-            chat_id=chat.id,
-            snapshot_date=date.today(),
-            subscribers=metrics.subscribers,
-            avg_views=metrics.avg_views,
-            max_views=metrics.max_views,
-            min_views=metrics.min_views,
-            posts_analyzed=metrics.posts_analyzed,
-            er=metrics.er,
-            post_frequency=metrics.post_frequency,
-            posts_last_30d=metrics.posts_last_30d,
-            can_post=metrics.can_post,
-        )
-        await session.commit()
+        break  # Выходим после первого yield
+
+    chat, is_new = await repo.get_or_create_chat(username)
+    await repo.update_chat_meta(
+        chat.id,
+        telegram_id=metrics.telegram_id,
+        title=metrics.title,
+        description=metrics.description,
+        chat_type=ChatType(metrics.chat_type),
+        can_post=metrics.can_post,
+        is_public=metrics.is_public,
+        last_subscribers=metrics.subscribers,
+        last_avg_views=metrics.avg_views,
+        last_er=metrics.er,
+        last_post_frequency=metrics.post_frequency,
+    )
+    await repo.upsert_snapshot(
+        chat_id=chat.id,
+        snapshot_date=date.today(),
+        subscribers=metrics.subscribers,
+        avg_views=metrics.avg_views,
+        max_views=metrics.max_views,
+        min_views=metrics.min_views,
+        posts_analyzed=metrics.posts_analyzed,
+        er=metrics.er,
+        post_frequency=metrics.post_frequency,
+        posts_last_30d=metrics.posts_last_30d,
+        can_post=metrics.can_post,
+    )
 
     return {
         "success": True,

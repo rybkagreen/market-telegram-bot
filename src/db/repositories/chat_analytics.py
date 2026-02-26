@@ -305,7 +305,8 @@ class ChatAnalyticsRepository:
         q = select(TelegramChat).where(TelegramChat.is_active == True)  # noqa: E712
         if topic:
             q = q.where(TelegramChat.topic == topic)
-        q = q.order_by(order_map.get(order_by, TelegramChat.last_subscribers.desc()))
+        order_expr = order_map.get(order_by, TelegramChat.last_subscribers.desc())
+        q = q.order_by(order_expr)  # type: ignore[arg-type]
         q = q.limit(limit)
         result = await self._session.execute(q)
         return list(result.scalars().all())
