@@ -8,7 +8,6 @@ AI Service — провайдер-агностичный сервис генер
   mock      — заглушка для тестов без API
 """
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -208,6 +207,46 @@ class AnthropicProvider(BaseLLMProvider):
 
 
 # ─────────────────────────────────────────────
+# OpenRouter Provider (универсальный доступ к моделям)
+# ─────────────────────────────────────────────
+
+class OpenRouterProvider(BaseLLMProvider):
+    """OpenRouter API провайдер — доступ к множеству моделей через единый API."""
+
+    def __init__(self) -> None:
+        from openai import AsyncOpenAI
+        # OpenRouter совместим с OpenAI API
+        self._client = AsyncOpenAI(
+            api_key=settings.openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
+        self._model = settings.ai_model or "meta-llama/llama-3-70b-instruct"
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """Сгенерировать текст через OpenRouter API."""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            max_tokens=settings.ai_max_tokens,
+            temperature=settings.ai_temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_variants(self, prompt: str, count: int = 3) -> list[str]:
+        """Сгенерировать A/B варианты через OpenRouter."""
+        result = await self.generate(
+            f"Напиши {count} варианта рекламного текста для Telegram по теме: {prompt}",
+            system="Ты профессиональный копирайтер для Telegram.",
+        )
+        return GroqProvider._parse_variants(result, count)
+
+
+# ─────────────────────────────────────────────
 # Mock Provider (для тестов)
 # ─────────────────────────────────────────────
 
@@ -258,6 +297,12 @@ def get_ai_provider() -> BaseLLMProvider:
             return MockProvider()
         return AnthropicProvider()
 
+    elif provider == "openrouter":
+        if not settings.openrouter_api_key:
+            logger.warning("OPENROUTER_API_KEY не задан, используется Mock провайдер")
+            return MockProvider()
+        return OpenRouterProvider()
+
     elif provider == "mock":
         return MockProvider()
 
@@ -275,6 +320,7 @@ class AIService:
     Сервис для генерации рекламных текстов с помощью ИИ.
 
     Методы:
+        generate: Базовая генерация текста
         generate_ad_text: Генерация рекламного текста
         generate_ab_variants: Генерация A/B вариантов
         improve_text: Улучшение текста
@@ -286,6 +332,19 @@ class AIService:
         self._provider = get_ai_provider()
         self._redis: redis.Redis | None = None
         logger.info(f"AI Service инициализирован: {type(self._provider).__name__}")
+
+    async def generate(self, prompt: str, system: str = "") -> str:
+        """
+        Базовая генерация текста через провайдер.
+
+        Args:
+            prompt: Пользовательский промпт.
+            system: Системный промпт (опционально).
+
+        Returns:
+            Сгенерированный текст.
+        """
+        return await self._provider.generate(prompt, system)
 
     @property
     async def redis_client(self) -> redis.Redis:
@@ -377,14 +436,44 @@ class AIService:
         if not await self._deduct_balance(user_id, Decimal(str(cost))):
             raise ValueError(f"Insufficient balance. Required: {cost} RUB")
 
-        # Системный промпт
+        # Генерируем
+        result = await self._generate_ad_text_internal(
+            description=description,
+            tone=tone,
+            length=length,
+            audience=audience,
+        )
+
+        # Кэширование
+        await self._set_cache(cache_key, result)
+        logger.info(f"Generated ad text for user {user_id}, cost: {cost} RUB")
+        return result
+
+    async def _generate_ad_text_internal(
+        self,
+        description: str,
+        tone: str = "нейтральный",
+        length: str = "средний",
+        audience: str = "широкая аудитория",
+    ) -> str:
+        """
+        Внутренний метод генерации (без проверки баланса и кэша).
+
+        Args:
+            description: Описание продукта/услуги.
+            tone: Тон текста.
+            length: Длина текста.
+            audience: Целевая аудитория.
+
+        Returns:
+            Сгенерированный текст.
+        """
         system_prompt = (
             "Ты профессиональный копирайтер рекламных текстов для Telegram. "
             "Создавай цепляющие, лаконичные тексты с эмодзи. "
             "Избегай запрещённых тем."
         )
 
-        # Пользовательский промпт
         length_map = {
             "короткий": "50-100 символов",
             "средний": "150-300 символов",
@@ -400,13 +489,44 @@ class AIService:
             f"Используй 2-3 эмодзи, добавь призыв к действию."
         )
 
-        # Генерация
-        result = await self._provider.generate(user_prompt, system_prompt)
+        return await self._provider.generate(user_prompt, system_prompt)
 
-        # Кэширование
+    async def _generate_with_cache(
+        self,
+        user_id: int,
+        description: str,
+        tone: str = "нейтральный",
+        length: str = "средний",
+        audience: str = "широкая аудитория",
+    ) -> str:
+        """
+        Генерировать текст с кэшированием (для AdminAIService).
+
+        Args:
+            user_id: ID пользователя.
+            description: Описание продукта/услуги.
+            tone: Тон текста.
+            length: Длина текста.
+            audience: Целевая аудитория.
+
+        Returns:
+            Сгенерированный текст.
+        """
+        cache_key = self._get_cache_key(f"{description}{tone}{length}{audience}")
+        cached = await self._check_cache(cache_key)
+        if cached:
+            logger.info(f"AI cache hit for user {user_id}")
+            return cached
+
+        result = await self._generate_ad_text_internal(
+            description=description,
+            tone=tone,
+            length=length,
+            audience=audience,
+        )
+
         await self._set_cache(cache_key, result)
-
-        logger.info(f"Generated ad text for user {user_id}, cost: {cost} RUB")
+        logger.info(f"Generated ad text for user {user_id} (free)")
         return result
 
     async def generate_ab_variants(
@@ -438,13 +558,58 @@ class AIService:
         if not await self._deduct_balance(user_id, Decimal(str(cost))):
             raise ValueError(f"Insufficient balance. Required: {cost} RUB")
 
-        # Генерация
-        variants = await self._provider.generate_variants(description, count)
+        # Генерируем
+        variants = await self._generate_ab_variants_internal(description, count)
 
         # Кэширование
         await self._set_cache(cache_key, "\n---\n".join(variants))
+        logger.info(f"Generated {len(variants)} A/B variants for user {user_id}, cost: {cost} RUB")
+        return variants
 
-        logger.info(f"Generated {len(variants)} A/B variants for user {user_id}")
+    async def _generate_ab_variants_internal(
+        self,
+        description: str,
+        count: int = 3,
+    ) -> list[str]:
+        """
+        Внутренний метод генерации A/B вариантов (без проверки баланса и кэша).
+
+        Args:
+            description: Описание продукта/услуги.
+            count: Количество вариантов.
+
+        Returns:
+            Список вариантов текстов.
+        """
+        return await self._provider.generate_variants(description, count)
+
+    async def _generate_ab_with_cache(
+        self,
+        user_id: int,
+        description: str,
+        count: int = 3,
+    ) -> list[str]:
+        """
+        Генерировать A/B варианты с кэшированием (для AdminAIService).
+
+        Args:
+            user_id: ID пользователя.
+            description: Описание продукта/услуги.
+            count: Количество вариантов.
+
+        Returns:
+            Список вариантов текстов.
+        """
+        cache_key = self._get_cache_key(f"ab_{description}_{count}")
+        cached = await self._check_cache(cache_key)
+        if cached:
+            logger.info(f"AI A/B cache hit for user {user_id}")
+            return cached.split("\n---\n")
+
+        variants = await self._generate_ab_variants_internal(description, count)
+
+        await self._set_cache(cache_key, "\n---\n".join(variants))
+        logger.info(f"Generated {len(variants)} A/B variants for user {user_id} (free)")
         return variants
 
     async def improve_text(
@@ -573,5 +738,86 @@ class AIService:
             return {"score": 50, "text": text}
 
 
-# Глобальный экземпляр
+# ─────────────────────────────────────────────
+# Admin AI Service (бесплатный для админов)
+# ─────────────────────────────────────────────
+
+class AdminAIService(AIService):
+    """
+    AI сервис для администраторов — все генерации бесплатные.
+
+    Наследуется от AIService, но не списывает средства с баланса.
+    """
+
+    async def _deduct_balance(self, user_id: int, amount: Decimal) -> bool:
+        """
+        Для админов списание всегда успешно (бесплатно).
+
+        Args:
+            user_id: ID пользователя.
+            amount: Сумма (игнорируется).
+
+        Returns:
+            True всегда.
+        """
+        logger.debug(f"Admin AI generation for user {user_id}: free (amount={amount})")
+        return True
+
+    async def generate_ad_text(
+        self,
+        user_id: int,
+        description: str,
+        tone: str = "нейтральный",
+        length: str = "средний",
+        audience: str = "широкая аудитория",
+    ) -> str:
+        """
+        Генерировать рекламный текст (бесплатно для админа).
+
+        Args:
+            user_id: ID пользователя.
+            description: Описание продукта/услуги.
+            tone: Тон текста.
+            length: Длина текста.
+            audience: Целевая аудитория.
+
+        Returns:
+            Сгенерированный текст.
+        """
+        # Пропускаем проверку баланса — сразу генерируем
+        return await self._generate_with_cache(
+            user_id=user_id,
+            description=description,
+            tone=tone,
+            length=length,
+            audience=audience,
+        )
+
+    async def generate_ab_variants(
+        self,
+        user_id: int,
+        description: str,
+        count: int = 3,
+    ) -> list[str]:
+        """
+        Генерировать A/B варианты (бесплатно для админа).
+
+        Args:
+            user_id: ID пользователя.
+            description: Описание.
+            count: Количество вариантов.
+
+        Returns:
+            Список сгенерированных вариантов.
+        """
+        # Пропускаем проверку баланса — сразу генерируем
+        return await self._generate_ab_with_cache(
+            user_id=user_id,
+            description=description,
+            count=count,
+        )
+
+
+# Глобальные экземпляры
 ai_service = AIService()
+admin_ai_service = AdminAIService()

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import BigInteger, Boolean, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.config.settings import settings
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -134,6 +135,19 @@ class User(Base, TimestampMixin):
         doc="Активен ли пользователь",
     )
 
+    # AI настройки пользователя
+    ai_provider: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        doc="AI провайдер пользователя (groq/openai/anthropic/openrouter)",
+    )
+
+    ai_model: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="AI модель пользователя",
+    )
+
     # Отношения
     campaigns: Mapped[list["Campaign"]] = relationship(
         back_populates="user",
@@ -196,3 +210,43 @@ class User(Base, TimestampMixin):
             UserPlan.BUSINESS: 1000,
         }
         return limits.get(self.plan, 0)
+
+    def get_ai_provider(self) -> str:
+        """
+        Возвращает AI провайдер для пользователя на основе тарифа.
+
+        Returns:
+            AI провайдер (groq/openai/openrouter).
+        """
+        # Если у пользователя установлен свой провайдер — используем его
+        if self.ai_provider:
+            return self.ai_provider
+
+        # Привязка провайдеров к тарифам
+        provider_map = {
+            UserPlan.FREE: "groq",  # Бесплатный тариф — базовый Groq
+            UserPlan.STARTER: "groq",  # STARTER — Groq
+            UserPlan.PRO: "openrouter",  # PRO — OpenRouter (Claude Sonnet)
+            UserPlan.BUSINESS: "openrouter",  # BUSINESS — OpenRouter (Claude Sonnet)
+        }
+        return provider_map.get(self.plan, "groq")
+
+    def get_ai_model(self) -> str:
+        """
+        Возвращает AI модель для пользователя на основе тарифа.
+
+        Returns:
+            AI модель.
+        """
+        # Если у пользователя установлена своя модель — используем её
+        if self.ai_model:
+            return self.ai_model
+
+        # Привязка моделей к тарифам
+        model_map = {
+            UserPlan.FREE: "llama-3.3-70b-versatile",  # Бесплатный — базовая Llama
+            UserPlan.STARTER: "llama-3.3-70b-versatile",  # STARTER — Llama 70B
+            UserPlan.PRO: settings.openrouter_model,  # PRO — Claude Sonnet через OpenRouter
+            UserPlan.BUSINESS: settings.openrouter_model,  # BUSINESS — Claude Sonnet через OpenRouter
+        }
+        return model_map.get(self.plan, "llama-3.3-70b-versatile")

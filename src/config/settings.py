@@ -6,7 +6,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -55,10 +55,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(None, alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
     groq_api_key: str | None = Field(None, alias="GROQ_API_KEY")
+    openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
 
     # AI Provider настройки
-    ai_provider: str = Field("groq", alias="AI_PROVIDER")  # groq | openai | anthropic | mock
+    ai_provider: str = Field("groq", alias="AI_PROVIDER")  # groq | openai | openrouter | mock
     ai_model: str = Field("llama-3.3-70b-versatile", alias="AI_MODEL")
+
+    # OpenRouter модель (для админов — Claude Sonnet)
+    openrouter_model: str = Field("anthropic/claude-sonnet-4-20250514", alias="OPENROUTER_MODEL")
 
     # AI параметры генерации
     ai_max_tokens: int = Field(1024, alias="AI_MAX_TOKENS")
