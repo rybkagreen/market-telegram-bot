@@ -12,8 +12,9 @@ from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
-from src.utils.chat_parser import TelegramChatParser, parse_chats_batch
-from src.utils.telegram.parser import TelegramParser
+from src.utils.telegram.parser import ChatFullInfo, TelegramParser
+# TGStatParser используется только в legacy-задаче refresh_chat_database
+# В новых задачах (collect_all_chats_stats, parse_single_chat) не используется
 from src.utils.telegram.tgstat_parser import POPULAR_TOPICS, TGStatParser
 from src.utils.telegram.topic_classifier import classify_topic
 
@@ -485,7 +486,8 @@ async def _process_batch(
     def log_progress(done: int, total: int) -> None:
         logger.debug(f"  Прогресс батча: {done}/{total}")
 
-    metrics_list = await parse_chats_batch(usernames, on_progress=log_progress)
+    async with TelegramParser() as parser:
+        metrics_list = await parser.parse_chats_batch(usernames, on_progress=log_progress)
 
     async with get_session() as session:
         repo = ChatAnalyticsRepository(session)
@@ -549,8 +551,8 @@ def parse_single_chat(self, username: str) -> dict[str, Any]:
 
 async def _parse_single_chat_async(username: str) -> dict[str, Any]:
     """Асинхронная реализация parse_single_chat."""
-    async with TelegramChatParser() as parser:
-        metrics = await parser.parse_chat(username)
+    async with TelegramParser() as parser:
+        metrics = await parser.parse_chat_metrics(username)
 
     if metrics.error:
         return {"success": False, "error": metrics.error}
