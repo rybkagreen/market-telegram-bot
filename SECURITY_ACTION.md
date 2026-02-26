@@ -26,20 +26,15 @@ BOT_TOKEN: ${BOT_TOKEN}  # ✅ Безопасно
 
 ### Шаг 1: Отозвать текущий токен
 
-1. Открой @BotFather в Telegram
-2. Отправь команду: `/mybots`
-3. Выбери своего бота
-4. Нажми `API Token`
-5. Нажми `Revoke current token`
+**✅ ВЫПОЛНЕНО:** Токен `7562867307:AAEIzuEqqRDV0kixpFHXIpVDgxaq0Xq_F_k` отозван через @BotFather.
 
-**⚠️ После этого старый токен перестанет работать!**
+**Новый токен:** `7562867307:AAESOPGdNkrabOAK1CvfaZGaUouZuIx8j8A`
 
 ---
 
 ### Шаг 2: Получить новый токен
 
-1. В @BotFather нажми `Create a new bot` или выбери существующего
-2. Скопируй новый токен (выглядит как `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`)
+**✅ ВЫПОЛНЕНО:** Новый токен получен и записан в локальный `.env`.
 
 ---
 
