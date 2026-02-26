@@ -13,6 +13,7 @@ from redis.asyncio import Redis
 from src.bot.handlers import (
     admin,
     analytics,
+    analytics_chats,
     billing,
     cabinet,
     campaigns,
@@ -65,6 +66,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(models.router)
     dp.include_router(notifications.router)
     dp.include_router(analytics.router)
+    dp.include_router(analytics_chats.router)
     dp.include_router(templates.router)
     dp.include_router(admin.router)
 
