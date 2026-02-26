@@ -2,13 +2,14 @@
 Тесты для Telegram Sender.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from src.utils.telegram.sender import (
-    TelegramSender,
     SendResult,
     SendStatus,
+    TelegramSender,
     create_sender,
 )
 

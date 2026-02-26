@@ -5,11 +5,10 @@ Revises: 9a7b3c4d5e6f
 Create Date: 2026-02-26 18:00:00.000000
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
@@ -22,10 +21,10 @@ def upgrade() -> None:
     """Добавить поля topic, header, image_file_id в таблицу campaigns."""
     # Добавляем поле topic
     op.add_column('campaigns', sa.Column('topic', sa.String(length=100), nullable=True))
-    
+
     # Добавляем поле header
     op.add_column('campaigns', sa.Column('header', sa.String(length=255), nullable=True))
-    
+
     # Добавляем поле image_file_id
     op.add_column('campaigns', sa.Column('image_file_id', sa.String(length=255), nullable=True))
 

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routers import auth, campaigns, analytics, billing
+from src.api.routers import analytics, auth, billing, campaigns
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)

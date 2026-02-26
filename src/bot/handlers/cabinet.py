@@ -3,18 +3,15 @@ Handlers личного кабинета пользователя.
 """
 
 import logging
-from datetime import datetime, timedelta
-from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.keyboards.billing import BillingCB, get_amount_kb, get_plans_kb
-from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
-from src.bot.keyboards.pagination import PaginationCB, get_pagination_kb
-from src.core.services.analytics_service import analytics_service
+from src.bot.keyboards.billing import BillingCB, get_plans_kb
+from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.keyboards.pagination import PaginationCB
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository

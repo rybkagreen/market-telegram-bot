@@ -12,7 +12,8 @@ from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
-from src.utils.telegram.parser import ChatFullInfo, TelegramParser
+from src.utils.telegram.parser import TelegramParser
+
 # TGStatParser используется только в legacy-задаче refresh_chat_database
 # В новых задачах (collect_all_chats_stats, parse_single_chat) не используется
 from src.utils.telegram.tgstat_parser import POPULAR_TOPICS, TGStatParser

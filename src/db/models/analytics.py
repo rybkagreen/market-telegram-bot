@@ -26,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base
 
 if TYPE_CHECKING:
-    from src.db.models.mailing_log import MailingLog
+    pass
 
 
 class ChatType(str, enum.Enum):

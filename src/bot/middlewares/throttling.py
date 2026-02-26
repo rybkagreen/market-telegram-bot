@@ -3,11 +3,12 @@ Middleware для защиты от спама (throttling) через Redis.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject, Update
 from redis.asyncio import Redis
-from typing import Any, Awaitable, Callable, Union
 
 logger = logging.getLogger(__name__)
 
