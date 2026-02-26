@@ -242,6 +242,9 @@ async def _refresh_chats_async() -> dict[str, Any]:
                     logger.error(f"Error in TGStat parsing for '{topic}': {e}")
                     stats["errors"] += 1
 
+        # Коммитим все изменения
+        await session.commit()
+
     return stats
 
 
