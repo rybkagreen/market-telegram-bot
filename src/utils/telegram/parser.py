@@ -7,13 +7,15 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC
-from typing import Any
+from typing import Any, Callable
 
 from telethon import TelegramClient
 from telethon.errors import (
     ChannelInvalidError,
     ChannelPrivateError,
     FloodWaitError,
+    UsernameInvalidError,
+    UsernameNotOccupiedError,
 )
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import (
@@ -63,6 +65,76 @@ class ChatDetails:
     avg_post_reach: int | None
     posts_per_day: float
     last_checked: float | None = None
+
+
+@dataclass
+class ChatFullInfo:
+    """
+    Унифицированная модель данных Telegram чата.
+    Объединяет поля ChatInfo + ChatDetails + ChatMetrics.
+    Используется во всех слоях: парсер → репозиторий → обработчик.
+    """
+
+    # Идентификация
+    telegram_id: int
+    username: str
+    title: str
+    description: str | None = None
+
+    # Тип и доступность
+    chat_type: str = "channel"  # channel | group | supergroup
+    is_public: bool = True
+    can_post: bool = False
+
+    # Метаданные TGStat/Telegram
+    is_verified: bool = False
+    is_scam: bool = False
+    is_fake: bool = False
+    rating: float = 0.0
+
+    # Метрики (заполняются при полном парсинге)
+    subscribers: int = 0
+    avg_views: int = 0
+    max_views: int = 0
+    min_views: int = 0
+    posts_analyzed: int = 0
+    er: float = 0.0
+    post_frequency: float = 0.0  # постов в день за 30 дней
+    posts_last_30d: int = 0
+
+    # Статус парсинга
+    error: str | None = None
+
+    @classmethod
+    def from_chat_info(cls, info: ChatInfo) -> "ChatFullInfo":
+        """Конвертер из ChatInfo (для обратной совместимости)."""
+        return cls(
+            telegram_id=info.telegram_id,
+            username=info.username or "",
+            title=info.title,
+            description=info.description,
+            is_verified=info.is_verified,
+            is_scam=info.is_scam,
+            is_fake=info.is_fake,
+            subscribers=info.member_count,
+        )
+
+    @classmethod
+    def from_chat_details(cls, details: ChatDetails) -> "ChatFullInfo":
+        """Конвертер из ChatDetails (для обратной совместимости)."""
+        return cls(
+            telegram_id=details.telegram_id,
+            username=details.username or "",
+            title=details.title,
+            description=details.description,
+            is_verified=details.is_verified,
+            is_scam=details.is_scam,
+            is_fake=details.is_fake,
+            rating=details.rating,
+            subscribers=details.member_count,
+            avg_views=details.avg_post_reach or 0,
+            post_frequency=details.posts_per_day,
+        )
 
 
 class TelegramParser:
@@ -348,3 +420,212 @@ class TelegramParser:
         except Exception as e:
             logger.error(f"Error getting members count for {chat_id}: {e}")
         return 0
+
+    # ──────────────────────────────────────────────────────
+    # Методы сбора метрик (из TelegramChatParser)
+    # ──────────────────────────────────────────────────────
+
+    # Константы для метрик
+    POSTS_SAMPLE: int = 30  # постов для расчёта avg_views
+    FREQUENCY_DAYS: int = 30  # дней для расчёта частоты публикаций
+    REQUEST_DELAY: float = 2.0  # секунд между запросами
+
+    async def parse_chat_metrics(self, username: str) -> ChatFullInfo:
+        """
+        Собрать полные метрики чата: подписчики, просмотры, ER, частота.
+        Включает FloodWait handling и retry логику.
+        Заменяет TelegramChatParser.parse_chat().
+
+        Args:
+            username: Username канала (с @ или без).
+
+        Returns:
+            ChatFullInfo с метриками или error полем.
+        """
+        username = username.lstrip("@").lower()
+        try:
+            return await self._collect_full_metrics(username)
+        except FloodWaitError as e:
+            wait_sec = e.seconds + 5
+            logger.warning(f"FloodWait {wait_sec}s для @{username}, жду...")
+            await asyncio.sleep(wait_sec)
+            try:
+                return await self._collect_full_metrics(username)
+            except Exception as retry_err:
+                return self._error_result(username, str(retry_err))
+        except (ChannelPrivateError, UsernameNotOccupiedError, UsernameInvalidError) as e:
+            return self._error_result(username, f"Недоступен: {type(e).__name__}")
+        except Exception as e:
+            logger.error(f"Ошибка парсинга @{username}: {e}")
+            return self._error_result(username, str(e)[:200])
+
+    async def _collect_full_metrics(self, username: str) -> ChatFullInfo:
+        """Внутренний метод: собрать все данные для одного чата."""
+        await self._rate_limit()
+        entity = await self.client.get_entity(username)
+        await self._rate_limit()
+
+        full = await self.client(GetFullChannelRequest(entity))
+        await self._rate_limit()
+
+        chat_type, can_post, is_public = self._detect_chat_type(entity, full)
+        subscribers = getattr(full.full_chat, "participants_count", 0) or 0
+        description = getattr(full.full_chat, "about", "") or ""
+        title = getattr(entity, "title", username)
+        telegram_id = entity.id
+
+        posts_data = await self._collect_posts_metrics(entity)
+        await self._rate_limit()
+        frequency, posts_30d = await self._collect_post_frequency(entity)
+
+        er = 0.0
+        if subscribers > 0 and posts_data["avg_views"] > 0:
+            er = round(posts_data["avg_views"] / subscribers * 100, 2)
+
+        return ChatFullInfo(
+            username=username,
+            telegram_id=telegram_id,
+            title=title,
+            description=description,
+            chat_type=chat_type,
+            is_public=is_public,
+            can_post=can_post,
+            subscribers=subscribers,
+            avg_views=posts_data["avg_views"],
+            max_views=posts_data["max_views"],
+            min_views=posts_data["min_views"],
+            posts_analyzed=posts_data["count"],
+            er=er,
+            post_frequency=frequency,
+            posts_last_30d=posts_30d,
+        )
+
+    async def _rate_limit(self) -> None:
+        """Пауза между запросами для соблюдения лимитов Telegram API."""
+        now = asyncio.get_event_loop().time()
+        elapsed = now - getattr(self, "_last_request_time", 0.0)
+        if elapsed < self.REQUEST_DELAY:
+            await asyncio.sleep(self.REQUEST_DELAY - elapsed)
+        self._last_request_time = asyncio.get_event_loop().time()
+
+    def _detect_chat_type(
+        self, entity: Channel | Chat, full: Any
+    ) -> tuple[str, bool, bool]:
+        """
+        Определить тип чата и возможность постинга.
+
+        Args:
+            entity: Channel или Chat entity.
+            full: Полная информация о канале.
+
+        Returns:
+            Кортеж (chat_type, can_post, is_public).
+        """
+        is_megagroup = getattr(entity, "megagroup", False)
+        is_broadcast = getattr(entity, "broadcast", False)
+        default_ban_rights = getattr(full.full_chat, "default_banned_rights", None)
+
+        if is_broadcast:
+            chat_type, can_post = "channel", False
+        elif is_megagroup:
+            chat_type = "supergroup"
+            can_post = (
+                not getattr(default_ban_rights, "send_messages", True)
+                if default_ban_rights
+                else True
+            )
+        else:
+            chat_type, can_post = "group", True
+
+        is_public = bool(getattr(entity, "username", None))
+        return chat_type, can_post, is_public
+
+    async def _collect_posts_metrics(self, entity: Channel | Chat) -> dict:
+        """
+        Собрать метрики просмотров по последним N постам.
+
+        Args:
+            entity: Channel или Chat entity.
+
+        Returns:
+            Dict с полями avg_views, max_views, min_views, count.
+        """
+        views_list = []
+        try:
+            async for message in self.client.iter_messages(
+                entity, limit=self.POSTS_SAMPLE
+            ):
+                if message.views and message.views > 0:
+                    views_list.append(message.views)
+        except Exception as e:
+            logger.debug(f"Не удалось получить посты: {e}")
+
+        if not views_list:
+            return {"avg_views": 0, "max_views": 0, "min_views": 0, "count": 0}
+
+        return {
+            "avg_views": int(sum(views_list) / len(views_list)),
+            "max_views": max(views_list),
+            "min_views": min(views_list),
+            "count": len(views_list),
+        }
+
+    async def _collect_post_frequency(
+        self, entity: Channel | Chat
+    ) -> tuple[float, int]:
+        """
+        Частота публикаций за последние 30 дней.
+
+        Args:
+            entity: Channel или Chat entity.
+
+        Returns:
+            Кортеж (posts_per_day, total_posts_30d).
+        """
+        from datetime import datetime, timedelta, timezone
+
+        since = datetime.now(tz=timezone.utc) - timedelta(days=self.FREQUENCY_DAYS)
+        count = 0
+        try:
+            async for message in self.client.iter_messages(entity):
+                if message.date < since:
+                    break
+                if not message.action:
+                    count += 1
+        except Exception as e:
+            logger.debug(f"Ошибка подсчёта частоты: {e}")
+        return round(count / self.FREQUENCY_DAYS, 2), count
+
+    async def parse_chats_batch(
+        self,
+        usernames: list[str],
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> list[ChatFullInfo]:
+        """
+        Парсить батч чатов через единый клиент.
+        Заменяет parse_chats_batch() из chat_parser.py.
+
+        Args:
+            usernames: Список username для парсинга.
+            on_progress: Callback(done, total) для логирования.
+
+        Returns:
+            Список ChatFullInfo.
+        """
+        results = []
+        for i, username in enumerate(usernames):
+            result = await self.parse_chat_metrics(username)
+            results.append(result)
+            if on_progress:
+                on_progress(i + 1, len(usernames))
+        return results
+
+    @staticmethod
+    def _error_result(username: str, error: str) -> ChatFullInfo:
+        """Создать ChatFullInfo с ошибкой."""
+        return ChatFullInfo(
+            username=username,
+            telegram_id=0,
+            title=username,
+            error=error,
+        )
