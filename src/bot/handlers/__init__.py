@@ -3,6 +3,7 @@
 from src.bot.handlers import (
     admin,
     analytics,
+    analytics_chats,
     billing,
     cabinet,
     campaigns,
@@ -14,6 +15,7 @@ from src.bot.handlers import (
 __all__ = [
     "admin",
     "analytics",
+    "analytics_chats",
     "billing",
     "cabinet",
     "campaigns",

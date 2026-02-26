@@ -3,6 +3,7 @@
 Все модели импортируются здесь для удобства и для Alembic.
 """
 
+from src.db.models.analytics import ChatSnapshot, ChatType, TelegramChat
 from src.db.models.campaign import Campaign, CampaignStatus
 from src.db.models.chat import Chat
 from src.db.models.content_flag import ContentFlag, ContentFlagCategory, ContentFlagDecision
@@ -24,4 +25,7 @@ __all__ = [
     "ContentFlag",
     "ContentFlagCategory",
     "ContentFlagDecision",
+    "TelegramChat",
+    "ChatSnapshot",
+    "ChatType",
 ]

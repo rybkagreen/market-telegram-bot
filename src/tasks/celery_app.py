@@ -92,6 +92,12 @@ def get_beat_schedule() -> dict[str, Any]:
             "schedule": crontab(hour=3, minute=0),
             "options": {"queue": "parser"},
         },
+        # Ежедневный сбор аналитики в 02:00 UTC
+        "collect-all-chats-stats-daily": {
+            "task": "parser:collect_all_chats_stats",
+            "schedule": crontab(hour=2, minute=0),
+            "options": {"queue": "parser"},
+        },
         # Проверка запланированных кампаний — каждые 5 минут
         "check-scheduled-campaigns": {
             "task": "mailing:check_scheduled_campaigns",
