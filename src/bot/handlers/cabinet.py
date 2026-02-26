@@ -63,7 +63,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
 
         # Формируем карточку кабинета
-        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
         text = (
             f"👤 <b>Ваш кабинет</b>\n\n"
             f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{plan_value}</b>\n"
@@ -77,7 +77,9 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         # Кнопки действий
         builder = InlineKeyboardBuilder()
         builder.button(text="💳 Пополнить", callback_data=BillingCB(action="topup", value="0"))
-        builder.button(text="📊 История транзакций", callback_data=BillingCB(action="history", value="0"))
+        builder.button(
+            text="📊 История транзакций", callback_data=BillingCB(action="history", value="0")
+        )
         builder.button(text="👥 Рефералы", callback_data=BillingCB(action="referral", value="0"))
         builder.button(text="🔄 Сменить тариф", callback_data=BillingCB(action="plans", value="0"))
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
@@ -120,7 +122,9 @@ async def referral_callback(callback: CallbackQuery) -> None:
         referrers = await user_repo.get_referrers(user.id, limit=5)
         referrers_text = ""
         if referrers:
-            referrers_text = "\n\n" + "\n".join([f"• {r.full_name or r.username or 'User'}" for r in referrers])
+            referrers_text = "\n\n" + "\n".join(
+                [f"• {r.full_name or r.username or 'User'}" for r in referrers]
+            )
             if referrer_count > 5:
                 referrers_text += f"\n... и ещё {referrer_count - 5}"
 
@@ -219,7 +223,9 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
         total_pages = max(1, (total + page_size - 1) // page_size)
 
         if not campaigns:
-            text = "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию через главное меню!"
+            text = (
+                "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию через главное меню!"
+            )
             builder = InlineKeyboardBuilder()
             builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
             builder.adjust(1)
@@ -249,19 +255,16 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
 
         if page > 1:
             builder.button(
-                text="◀ Пред",
-                callback_data=PaginationCB(prefix="campaigns", page=page - 1)
+                text="◀ Пред", callback_data=PaginationCB(prefix="campaigns", page=page - 1)
             )
 
         builder.button(
-            text=f"{page}/{total_pages}",
-            callback_data=PaginationCB(prefix="campaigns", page=page)
+            text=f"{page}/{total_pages}", callback_data=PaginationCB(prefix="campaigns", page=page)
         )
 
         if page < total_pages:
             builder.button(
-                text="След ▶",
-                callback_data=PaginationCB(prefix="campaigns", page=page + 1)
+                text="След ▶", callback_data=PaginationCB(prefix="campaigns", page=page + 1)
             )
 
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
@@ -271,7 +274,9 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
 
 
 @router.callback_query(PaginationCB.filter(F.prefix == "campaigns"))
-async def campaigns_pagination_callback(callback: CallbackQuery, callback_data: PaginationCB) -> None:
+async def campaigns_pagination_callback(
+    callback: CallbackQuery, callback_data: PaginationCB
+) -> None:
     """
     Callback handler для пагинации кампаний.
 

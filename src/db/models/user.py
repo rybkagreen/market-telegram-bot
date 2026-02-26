@@ -15,6 +15,7 @@ from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.campaign import Campaign
+    from src.db.models.notification import Notification
     from src.db.models.transaction import Transaction
 
 
@@ -161,6 +162,13 @@ class User(Base, TimestampMixin):
         lazy="selectin",
         cascade="all, delete-orphan",
         doc="Транзакции пользователя",
+    )
+
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        doc="Уведомления пользователя",
     )
 
     # Индексы

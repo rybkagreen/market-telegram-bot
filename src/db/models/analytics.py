@@ -1,6 +1,7 @@
 """
 Модели для хранения аналитики Telegram каналов и групп.
 """
+
 from __future__ import annotations
 
 import enum
@@ -73,9 +74,7 @@ class TelegramChat(Base):
     parse_error_count: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     # Связи
     snapshots: Mapped[list[ChatSnapshot]] = relationship(

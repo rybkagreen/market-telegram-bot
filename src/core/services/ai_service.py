@@ -32,6 +32,7 @@ MAX_RETRIES = 3
 # Base Provider Interface
 # ─────────────────────────────────────────────
 
+
 class BaseLLMProvider(ABC):
     """Базовый интерфейс для всех LLM провайдеров."""
 
@@ -48,11 +49,13 @@ class BaseLLMProvider(ABC):
 # Groq Provider (бесплатный)
 # ─────────────────────────────────────────────
 
+
 class GroqProvider(BaseLLMProvider):
     """Groq API провайдер — бесплатный LLM API."""
 
     def __init__(self) -> None:
         from groq import AsyncGroq
+
         self._client = AsyncGroq(api_key=settings.groq_api_key)
         self._model = settings.ai_model
 
@@ -145,11 +148,13 @@ class GroqProvider(BaseLLMProvider):
 # OpenAI Provider (для production)
 # ─────────────────────────────────────────────
 
+
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI API провайдер для production."""
 
     def __init__(self) -> None:
         from openai import AsyncOpenAI
+
         self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         self._model = settings.ai_model or "gpt-4o-mini"
 
@@ -179,11 +184,13 @@ class OpenAIProvider(BaseLLMProvider):
 # Anthropic Provider (для production)
 # ─────────────────────────────────────────────
 
+
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude API провайдер для production."""
 
     def __init__(self) -> None:
         from anthropic import AsyncAnthropic
+
         self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._model = "claude-3-sonnet-20240229"
 
@@ -210,15 +217,16 @@ class AnthropicProvider(BaseLLMProvider):
 # OpenRouter Provider (универсальный доступ к моделям)
 # ─────────────────────────────────────────────
 
+
 class OpenRouterProvider(BaseLLMProvider):
     """OpenRouter API провайдер — доступ к множеству моделей через единый API."""
 
     def __init__(self) -> None:
         from openai import AsyncOpenAI
+
         # OpenRouter совместим с OpenAI API
         self._client = AsyncOpenAI(
-            api_key=settings.openrouter_api_key,
-            base_url="https://openrouter.ai/api/v1"
+            api_key=settings.openrouter_api_key, base_url="https://openrouter.ai/api/v1"
         )
         self._model = settings.ai_model or "meta-llama/llama-3-70b-instruct"
 
@@ -250,6 +258,7 @@ class OpenRouterProvider(BaseLLMProvider):
 # Mock Provider (для тестов)
 # ─────────────────────────────────────────────
 
+
 class MockProvider(BaseLLMProvider):
     """Mock провайдер для тестов без API ключа."""
 
@@ -269,6 +278,7 @@ class MockProvider(BaseLLMProvider):
 # ─────────────────────────────────────────────
 # Factory — выбор провайдера из .env
 # ─────────────────────────────────────────────
+
 
 def get_ai_provider() -> BaseLLMProvider:
     """
@@ -314,6 +324,7 @@ def get_ai_provider() -> BaseLLMProvider:
 # ─────────────────────────────────────────────
 # Public API сервиса
 # ─────────────────────────────────────────────
+
 
 class AIService:
     """
@@ -741,6 +752,7 @@ class AIService:
 # ─────────────────────────────────────────────
 # Admin AI Service (бесплатный для админов)
 # ─────────────────────────────────────────────
+
 
 class AdminAIService(AIService):
     """

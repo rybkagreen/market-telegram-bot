@@ -430,9 +430,7 @@ def collect_all_chats_stats(self) -> dict[str, Any]:
     Главная задача: собрать статистику всех активных чатов.
     Нарезает чаты на батчи по 50 и запускает sub-задачи.
     """
-    return asyncio.get_event_loop().run_until_complete(
-        _collect_all_chats_stats_async(self)
-    )
+    return asyncio.get_event_loop().run_until_complete(_collect_all_chats_stats_async(self))
 
 
 async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
@@ -465,20 +463,16 @@ async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
         total_errors += result["errors"]
 
         logger.info(
-            f"Батч {batch_num} завершён: "
-            f"{result['processed']} OK, {result['errors']} ошибок"
+            f"Батч {batch_num} завершён: {result['processed']} OK, {result['errors']} ошибок"
         )
 
     logger.info(
-        f"Парсинг завершён. Всего: {len(chats)}, "
-        f"успешно: {total_processed}, ошибок: {total_errors}"
+        f"Парсинг завершён. Всего: {len(chats)}, успешно: {total_processed}, ошибок: {total_errors}"
     )
     return {"total": len(chats), "processed": total_processed, "errors": total_errors}
 
 
-async def _process_batch(
-    usernames: list[str], chat_ids: dict[str, int]
-) -> dict[str, int]:
+async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict[str, int]:
     """Обработать один батч чатов и сохранить в БД."""
     today = date.today()
     processed = 0
@@ -545,9 +539,7 @@ def parse_single_chat(self, username: str) -> dict[str, Any]:
     Парсинг одного чата по запросу пользователя (не по расписанию).
     Используется когда пользователь добавляет новый чат через бота.
     """
-    return asyncio.get_event_loop().run_until_complete(
-        _parse_single_chat_async(username)
-    )
+    return asyncio.get_event_loop().run_until_complete(_parse_single_chat_async(username))
 
 
 async def _parse_single_chat_async(username: str) -> dict[str, Any]:

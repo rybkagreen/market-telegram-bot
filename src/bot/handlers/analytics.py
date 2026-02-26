@@ -51,22 +51,10 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📈 Общая статистика",
-        callback_data=MainMenuCB(action="user_summary")
-    )
-    builder.button(
-        text="📋 Кампании",
-        callback_data=MainMenuCB(action="campaigns_stats")
-    )
-    builder.button(
-        text="🏆 Топ чатов",
-        callback_data=MainMenuCB(action="top_chats")
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="📈 Общая статистика", callback_data=MainMenuCB(action="user_summary"))
+    builder.button(text="📋 Кампании", callback_data=MainMenuCB(action="campaigns_stats"))
+    builder.button(text="🏆 Топ чатов", callback_data=MainMenuCB(action="top_chats"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 2)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -110,14 +98,8 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(
-            text="📄 Скачать отчёт",
-            callback_data=MainMenuCB(action="download_report")
-        )
-        builder.button(
-            text="🔙 В меню",
-            callback_data=MainMenuCB(action="main_menu")
-        )
+        builder.button(text="📄 Скачать отчёт", callback_data=MainMenuCB(action="download_report"))
+        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
         builder.adjust(2)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -149,13 +131,9 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
 
             builder = InlineKeyboardBuilder()
             builder.button(
-                text="🚀 Создать кампанию",
-                callback_data=MainMenuCB(action="create_campaign")
+                text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign")
             )
-            builder.button(
-                text="🔙 В меню",
-                callback_data=MainMenuCB(action="main_menu")
-            )
+            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
             builder.adjust(2)
 
             await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -186,10 +164,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
             )
 
         builder = InlineKeyboardBuilder()
-        builder.button(
-            text="🔙 В меню",
-            callback_data=MainMenuCB(action="main_menu")
-        )
+        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -236,13 +211,9 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
 
             builder = InlineKeyboardBuilder()
             builder.button(
-                text="🚀 Создать кампанию",
-                callback_data=MainMenuCB(action="create_campaign")
+                text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign")
             )
-            builder.button(
-                text="🔙 В меню",
-                callback_data=MainMenuCB(action="main_menu")
-            )
+            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
             builder.adjust(2)
 
             await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -269,10 +240,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(
-            text="🔙 В меню",
-            callback_data=MainMenuCB(action="main_menu")
-        )
+        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -288,7 +256,6 @@ async def handle_download_report(callback: CallbackQuery) -> None:
     """
     # В production здесь генерируется и отправляется PDF
     await callback.answer(
-        "🚧 Генерация PDF отчёта в разработке\n"
-        "Отчёт будет отправлен отдельным сообщением",
+        "🚧 Генерация PDF отчёта в разработке\nОтчёт будет отправлен отдельным сообщением",
         show_alert=True,
     )

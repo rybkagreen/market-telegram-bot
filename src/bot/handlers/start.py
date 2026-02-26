@@ -63,7 +63,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
     # Формируем приветственное сообщение
-    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
     if user.created_at == user.updated_at and ref_code is None:
         # Новый пользователь без реферала
@@ -150,6 +150,7 @@ async def handle_balance_command(message: Message) -> None:
                 f"Для пополнения нажмите «Пополнить» в главном меню."
             )
             from src.bot.keyboards.billing import get_amount_kb
+
             await message.answer(text, reply_markup=get_amount_kb())
         else:
             await message.answer("❌ Пользователь не найден. Нажмите /start")
@@ -171,7 +172,7 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
         text = (
             f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"

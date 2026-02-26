@@ -5,21 +5,20 @@ DEPRECATED: Этот файл устарел.
 
 Оставлен для обратной совместимости. Будет удалён в следующем спринте.
 """
+
 from __future__ import annotations
 
+import logging
 import warnings
+
+from src.utils.telegram.parser import ChatFullInfo as ChatMetrics  # noqa: F401
+from src.utils.telegram.parser import TelegramParser
 
 warnings.warn(
     "chat_parser.py устарел. Используй TelegramParser.parse_chat_metrics()",
     DeprecationWarning,
     stacklevel=2,
 )
-
-import logging
-
-# Импортируем новые классы для обратной совместимости
-from src.utils.telegram.parser import ChatFullInfo as ChatMetrics  # noqa: F401
-from src.utils.telegram.parser import TelegramParser
 
 logger = logging.getLogger(__name__)
 
