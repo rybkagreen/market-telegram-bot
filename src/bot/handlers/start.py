@@ -7,9 +7,9 @@ import logging
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.keyboards.main_menu import get_main_menu
+from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -63,6 +63,8 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
     # Формируем приветственное сообщение
+    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+
     if user.created_at == user.updated_at and ref_code is None:
         # Новый пользователь без реферала
         text = (
@@ -77,11 +79,11 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
             f"💳 Баланс: <b>{user.balance}₽</b>\n"
-            f"📦 Тариф: <b>{user.plan.value}</b>\n\n"
+            f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-    await message.answer(text, reply_markup=get_main_menu(user.balance))
+    await message.answer(text, reply_markup=get_main_menu(user.balance, user.id))
 
 
 @router.message(Command("help"))
@@ -151,3 +153,31 @@ async def handle_balance_command(message: Message) -> None:
             await message.answer(text, reply_markup=get_amount_kb())
         else:
             await message.answer("❌ Пользователь не найден. Нажмите /start")
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "main_menu"))
+async def main_menu_callback(callback: CallbackQuery) -> None:
+    """
+    Callback handler для кнопки «вернуться в меню».
+
+    Args:
+        callback: Callback query.
+    """
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+
+        text = (
+            f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"
+            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"📦 Тариф: <b>{plan_value}</b>\n\n"
+            f"Выберите действие в меню ниже:"
+        )
+
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
