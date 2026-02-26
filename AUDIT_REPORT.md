@@ -26,23 +26,55 @@
 
 ## 🔴 Критические проблемы (требуют исправления немедленно)
 
-### 1. Хардкод BOT_TOKEN в docker-compose.yml
-**Файл:** `docker-compose.yml`  
-**Строка:** 33  
-**Описание:** В docker-compose.yml захардкоден реальный BOT_TOKEN: `7562867307:AAEIzuEqqRDV0kixpFHXIpVDgxaq0Xq_F_k`
+### 1. ~~Хардкод BOT_TOKEN в docker-compose.yml~~ ✅ ИСПРАВЛЕНО
 
-**Риск:** Любой кто имеет доступ к репозиторию может увидеть токен бота и получить контроль над ним.
+**Статус:** ✅ **ИСПРАВЛЕНО** в коммите `b7f2b8b`
 
-**Решение:**
+**Было:**
 ```yaml
-# Было:
 BOT_TOKEN: 7562867307:AAEIzuEqqRDV0kixpFHXIpVDgxaq0Xq_F_k
+```
 
-# Стало:
+**Стало:**
+```yaml
 BOT_TOKEN: ${BOT_TOKEN}
 ```
 
-**Приоритет:** P0 — исправить до следующего коммита
+**⚠️ ACTION REQUIRED для разработчика:**
+1. **Отозвать скомпрометированный токен:**
+   - Открыть @BotFather в Telegram
+   - `/mybots` → выбрать бота → `API Token` → `Revoke current token`
+2. **Получить новый токен** и обновить `.env`:
+   ```
+   BOT_TOKEN=new_token_here
+   ```
+3. **Обновить .env локально и на production сервере**
+
+**⚠️ Очистка истории git:**
+Токен присутствовал в истории до коммита `b7f2b8b`. Для полной очистки:
+
+```bash
+# Удалить старые refs после filter-branch
+git for-each-ref --format='%(refname)' refs/original/ | xargs -n1 git update-ref -d
+
+# Очистить reflog
+git reflog expire --expire=now --all
+
+# Запустить garbage collection
+git gc --prune=now --aggressive
+
+# Проверить что токен удалён
+git log -p -- docker-compose.yml | grep "7562867307"  # должно быть пусто
+
+# ⚠️ Если уже пушили в remote — нужен force push:
+git push origin developer2/belin --force
+
+# После force push всем разработчикам нужно:
+git fetch origin
+git reset --hard origin/developer2/belin
+```
+
+**Приоритет:** P0 — токен отозвать немедленно, историю очистить до следующего пуша
 
 ---
 
