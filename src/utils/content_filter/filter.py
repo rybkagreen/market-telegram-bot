@@ -94,7 +94,7 @@ class ContentFilter:
                 # Экранируем специальные символы
                 escaped = re.escape(word)
                 # Удаляем trailing regex квантификаторы (*, +, ?) после экранирования
-                escaped = re.sub(r'([\\][*+?])+$', '', escaped)
+                escaped = re.sub(r"([\\][*+?])+$", "", escaped)
                 # Пропускаем если после обработки пусто
                 if not escaped:
                     continue

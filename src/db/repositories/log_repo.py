@@ -351,7 +351,9 @@ class MailingLogRepository(BaseRepository[MailingLog]):
 
         reach_query = (
             select(func.coalesce(func.sum(Chat.member_count), 0))
-            .select_from(MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id))
+            .select_from(
+                MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id)
+            )
             .where(MailingLog.campaign_id == campaign_id)
         )
 
@@ -393,8 +395,9 @@ class MailingLogRepository(BaseRepository[MailingLog]):
                 func.avg(Chat.rating).label("avg_rating"),
             )
             .select_from(
-                MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id)
-                .join(Campaign, MailingLog.campaign_id == Campaign.id)
+                MailingLog.__table__.join(
+                    Chat, MailingLog.chat_telegram_id == Chat.telegram_id
+                ).join(Campaign, MailingLog.campaign_id == Campaign.id)
             )
             .where(*filters)
             .group_by(Chat.telegram_id, Chat.title, Chat.rating)
@@ -411,13 +414,15 @@ class MailingLogRepository(BaseRepository[MailingLog]):
             sent = row.sent or 0
             success_rate = (sent / total * 100) if total > 0 else 0.0
 
-            top_chats.append({
-                "chat_telegram_id": row.chat_telegram_id,
-                "chat_title": row.chat_title or "",
-                "total_sent": total,
-                "success_rate": round(success_rate, 2),
-                "avg_rating": float(row.avg_rating or 0),
-            })
+            top_chats.append(
+                {
+                    "chat_telegram_id": row.chat_telegram_id,
+                    "chat_title": row.chat_title or "",
+                    "total_sent": total,
+                    "success_rate": round(success_rate, 2),
+                    "avg_rating": float(row.avg_rating or 0),
+                }
+            )
 
         return top_chats
 
@@ -445,12 +450,12 @@ class MailingLogRepository(BaseRepository[MailingLog]):
                 cast(MailingLog.sent_at, Date).label("date"),
                 func.count(MailingLog.id).label("total"),
                 func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
-                func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label("failed"),
+                func.sum(case((MailingLog.status == MailingStatus.FAILED, 1), else_=0)).label(
+                    "failed"
+                ),
                 func.coalesce(func.sum(MailingLog.cost), 0).label("total_cost"),
             )
-            .select_from(
-                MailingLog.__table__.join(Campaign, MailingLog.campaign_id == Campaign.id)
-            )
+            .select_from(MailingLog.__table__.join(Campaign, MailingLog.campaign_id == Campaign.id))
             .where(
                 Campaign.user_id == user_id,
                 MailingLog.sent_at >= start_date,
@@ -465,12 +470,14 @@ class MailingLogRepository(BaseRepository[MailingLog]):
 
         daily_stats = []
         for row in rows:
-            daily_stats.append({
-                "date": str(row.date),
-                "total": row.total or 0,
-                "sent": row.sent or 0,
-                "failed": row.failed or 0,
-                "total_cost": float(row.total_cost or 0),
-            })
+            daily_stats.append(
+                {
+                    "date": str(row.date),
+                    "total": row.total or 0,
+                    "sent": row.sent or 0,
+                    "failed": row.failed or 0,
+                    "total_cost": float(row.total_cost or 0),
+                }
+            )
 
         return daily_stats

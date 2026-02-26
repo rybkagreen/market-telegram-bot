@@ -23,14 +23,8 @@ def get_amount_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     for amount in ["100", "500", "1000"]:
-        builder.button(
-            text=f"{amount}₽",
-            callback_data=BillingCB(action="topup", value=amount)
-        )
-    builder.button(
-        text="Другая сумма",
-        callback_data=BillingCB(action="topup", value="custom")
-    )
+        builder.button(text=f"{amount}₽", callback_data=BillingCB(action="topup", value=amount))
+    builder.button(text="Другая сумма", callback_data=BillingCB(action="topup", value="custom"))
     builder.adjust(3, 1)
     return builder.as_markup()
 
@@ -50,10 +44,7 @@ def get_plans_kb() -> InlineKeyboardMarkup:
     ]
     builder = InlineKeyboardBuilder()
     for label, value in plans:
-        builder.button(
-            text=label,
-            callback_data=BillingCB(action="plan", value=value)
-        )
+        builder.button(text=label, callback_data=BillingCB(action="plan", value=value))
     builder.adjust(1)
     return builder.as_markup()
 
@@ -69,13 +60,9 @@ def get_payment_methods_kb(payment_url: str) -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с кнопкой оплаты.
     """
     builder = InlineKeyboardBuilder()
+    builder.button(text="💳 Оплатить", url=payment_url)
     builder.button(
-        text="💳 Оплатить",
-        url=payment_url
-    )
-    builder.button(
-        text="🔄 Проверить статус",
-        callback_data=BillingCB(action="check_payment", value="pending")
+        text="🔄 Проверить статус", callback_data=BillingCB(action="check_payment", value="pending")
     )
     builder.adjust(2)
     return builder.as_markup()

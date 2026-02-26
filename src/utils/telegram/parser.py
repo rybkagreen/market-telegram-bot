@@ -509,9 +509,7 @@ class TelegramParser:
             await asyncio.sleep(self.REQUEST_DELAY - elapsed)
         self._last_request_time = asyncio.get_event_loop().time()
 
-    def _detect_chat_type(
-        self, entity: Channel | Chat, full: Any
-    ) -> tuple[str, bool, bool]:
+    def _detect_chat_type(self, entity: Channel | Chat, full: Any) -> tuple[str, bool, bool]:
         """
         Определить тип чата и возможность постинга.
 
@@ -553,9 +551,7 @@ class TelegramParser:
         """
         views_list = []
         try:
-            async for message in self.client.iter_messages(
-                entity, limit=self.POSTS_SAMPLE
-            ):
+            async for message in self.client.iter_messages(entity, limit=self.POSTS_SAMPLE):
                 if message.views and message.views > 0:
                     views_list.append(message.views)
         except Exception as e:
@@ -571,9 +567,7 @@ class TelegramParser:
             "count": len(views_list),
         }
 
-    async def _collect_post_frequency(
-        self, entity: Channel | Chat
-    ) -> tuple[float, int]:
+    async def _collect_post_frequency(self, entity: Channel | Chat) -> tuple[float, int]:
         """
         Частота публикаций за последние 30 дней.
 

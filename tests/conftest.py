@@ -23,6 +23,7 @@ from src.db.base import Base
 # Event loop fixtures
 # ────────────────────────────────────────────
 
+
 @pytest.fixture(scope="session")
 def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
     """Использовать asyncio для всей сессии."""
@@ -32,6 +33,7 @@ def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
 # ────────────────────────────────────────────
 # Database fixtures
 # ────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Any:
@@ -79,6 +81,7 @@ async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession]:
 # Redis fixture
 # ────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def redis_client() -> Redis:
     """Redis клиент на тестовой БД (индекс 2)."""
@@ -108,6 +111,7 @@ async def mock_redis() -> Any:
 # API client fixture
 # ────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def api_client() -> AsyncGenerator[AsyncClient]:
     """HTTP клиент для тестирования FastAPI."""
@@ -123,6 +127,7 @@ async def api_client() -> AsyncGenerator[AsyncClient]:
 # ────────────────────────────────────────────
 # Bot mocks
 # ────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_bot() -> Any:
@@ -178,6 +183,7 @@ def mock_openai_client() -> Any:
 # AI Service fixtures
 # ────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_ai_service() -> Any:
     """
@@ -199,6 +205,7 @@ def mock_ai_service() -> Any:
 # ────────────────────────────────────────────
 # Test data helpers
 # ────────────────────────────────────────────
+
 
 @pytest.fixture
 def user_test_data() -> dict[str, Any]:

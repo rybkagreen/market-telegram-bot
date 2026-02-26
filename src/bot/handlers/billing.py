@@ -67,7 +67,9 @@ async def show_balance(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(BillingCB.filter(F.action == "topup"))
-async def topup_selected(callback: CallbackQuery, callback_data: BillingCB, state: FSMContext) -> None:
+async def topup_selected(
+    callback: CallbackQuery, callback_data: BillingCB, state: FSMContext
+) -> None:
     """
     Выбрана сумма пополнения.
 
@@ -119,24 +121,17 @@ async def handle_custom_amount(message: Message, state: FSMContext) -> None:
         amount = Decimal(amount_str)
     except Exception:
         await message.answer(
-            "❌ Неверный формат суммы.\n\n"
-            "Введите числовое значение (например, 500):"
+            "❌ Неверный формат суммы.\n\nВведите числовое значение (например, 500):"
         )
         return
 
     # Валидация диапазона
     if amount < 50:
-        await message.answer(
-            "❌ Минимальная сумма: 50₽\n\n"
-            "Введите сумму больше:"
-        )
+        await message.answer("❌ Минимальная сумма: 50₽\n\nВведите сумму больше:")
         return
 
     if amount > 100000:
-        await message.answer(
-            "❌ Максимальная сумма: 100 000₽\n\n"
-            "Введите сумму меньше:"
-        )
+        await message.answer("❌ Максимальная сумма: 100 000₽\n\nВведите сумму меньше:")
         return
 
     await state.clear()
@@ -191,7 +186,7 @@ async def process_topup(
         builder.button(text="💳 Оплатить", url=payment_url)
         builder.button(
             text="🔄 Проверить статус",
-            callback_data=BillingCB(action="check_payment", value=payment_id)
+            callback_data=BillingCB(action="check_payment", value=payment_id),
         )
         builder.button(text="🔙 Отмена", callback_data=MainMenuCB(action="balance"))
         builder.adjust(2, 1)
@@ -207,10 +202,7 @@ async def process_topup(
     except Exception as e:
         logger.error(f"Payment creation error: {e}")
 
-        text = (
-            "❌ Ошибка создания платежа\n\n"
-            "Попробуйте снова или выберите другую сумму."
-        )
+        text = "❌ Ошибка создания платежа\n\nПопробуйте снова или выберите другую сумму."
 
         if isinstance(target, CallbackQuery):
             await target.message.edit_text(text, reply_markup=get_amount_kb())
@@ -273,16 +265,14 @@ async def check_payment_status(callback: CallbackQuery, callback_data: BillingCB
             )
         else:
             text = (
-                f"❓ <b>Неизвестный статус платежа</b>\n\n"
-                f"Сумма: <b>{amount}₽</b>\n"
-                f"Статус: {status}"
+                f"❓ <b>Неизвестный статус платежа</b>\n\nСумма: <b>{amount}₽</b>\nСтатус: {status}"
             )
 
         builder = InlineKeyboardBuilder()
         if status not in ("succeeded", "cancelled"):
             builder.button(
                 text="🔄 Обновить",
-                callback_data=BillingCB(action="check_payment", value=payment_id)
+                callback_data=BillingCB(action="check_payment", value=payment_id),
             )
         builder.button(text="🔙 К балансу", callback_data=MainMenuCB(action="balance"))
         builder.adjust(2)
@@ -354,36 +344,32 @@ async def show_transactions_list(callback: CallbackQuery, page: int = 1) -> None
             created = tx.created_at.strftime("%d.%m.%Y %H:%M") if tx.created_at else "—"
 
             # Описание
-            description = tx.description or tx.meta_json.get("description", "") if tx.meta_json else ""
+            description = (
+                tx.description or tx.meta_json.get("description", "") if tx.meta_json else ""
+            )
             if not description and tx.type == TransactionType.SPEND:
                 description = "Списание за кампанию"
             elif not description and tx.type == TransactionType.BONUS:
                 description = tx.meta_json.get("type", "Бонус") if tx.meta_json else "Бонус"
 
-            text += (
-                f"{emoji} <b>{sign}{tx.amount}₽</b>\n"
-                f"   {description}\n"
-                f"   {created}\n\n"
-            )
+            text += f"{emoji} <b>{sign}{tx.amount}₽</b>\n   {description}\n   {created}\n\n"
 
         # Кнопки навигации
         builder = InlineKeyboardBuilder()
 
         if page > 1:
             builder.button(
-                text="◀ Пред",
-                callback_data=PaginationCB(prefix="transactions", page=page - 1)
+                text="◀ Пред", callback_data=PaginationCB(prefix="transactions", page=page - 1)
             )
 
         builder.button(
             text=f"{page}/{total_pages}",
-            callback_data=PaginationCB(prefix="transactions", page=page)
+            callback_data=PaginationCB(prefix="transactions", page=page),
         )
 
         if page < total_pages:
             builder.button(
-                text="След ▶",
-                callback_data=PaginationCB(prefix="transactions", page=page + 1)
+                text="След ▶", callback_data=PaginationCB(prefix="transactions", page=page + 1)
             )
 
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
@@ -393,7 +379,9 @@ async def show_transactions_list(callback: CallbackQuery, page: int = 1) -> None
 
 
 @router.callback_query(PaginationCB.filter(F.prefix == "transactions"))
-async def transactions_pagination_callback(callback: CallbackQuery, callback_data: PaginationCB) -> None:
+async def transactions_pagination_callback(
+    callback: CallbackQuery, callback_data: PaginationCB
+) -> None:
     """
     Callback handler для пагинации транзакций.
 
@@ -440,7 +428,9 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="💳 Оплатить и подключить", callback_data=BillingCB(action="plan_pay", value=plan))
+    builder.button(
+        text="💳 Оплатить и подключить", callback_data=BillingCB(action="plan_pay", value=plan)
+    )
     builder.button(text="🔙 Назад", callback_data=BillingCB(action="plans", value="0"))
     builder.adjust(2)
 
@@ -485,10 +475,7 @@ async def plan_pay(callback: CallbackQuery, callback_data: BillingCB) -> None:
             await user_repo.update(user.id, {"plan": plan})
             await user_repo.refresh(user)
 
-        text = (
-            f"✅ <b>Тариф изменён!</b>\n\n"
-            f"Ваш новый тариф: <b>{plan}</b>"
-        )
+        text = f"✅ <b>Тариф изменён!</b>\n\nВаш новый тариф: <b>{plan}</b>"
     else:
         # Создаём платёж
         async with async_session_factory() as session:
@@ -522,7 +509,7 @@ async def plan_pay(callback: CallbackQuery, callback_data: BillingCB) -> None:
         builder.button(text="💳 Оплатить", url=payment_url)
         builder.button(
             text="🔄 Проверить статус",
-            callback_data=BillingCB(action="check_payment", value=payment_id)
+            callback_data=BillingCB(action="check_payment", value=payment_id),
         )
         builder.button(text="🔙 Отмена", callback_data=MainMenuCB(action="cabinet"))
         builder.adjust(2, 1)

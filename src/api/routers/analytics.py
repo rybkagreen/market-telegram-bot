@@ -17,6 +17,7 @@ router = APIRouter()
 
 # === Pydantic схемы ===
 
+
 class CampaignStatsResponse(BaseModel):
     """Статистика кампании."""
 
@@ -68,6 +69,7 @@ class ComparisonReportResponse(BaseModel):
 
 
 # === Эндпоинты ===
+
 
 @router.get("/campaign/{campaign_id}", response_model=CampaignStatsResponse)
 async def get_campaign_stats(

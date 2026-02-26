@@ -1,6 +1,7 @@
 """
 Репозиторий для работы с аналитикой Telegram чатов.
 """
+
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -190,43 +191,46 @@ class ChatAnalyticsRepository:
         delta = subscribers - prev.subscribers if prev else 0
         delta_pct = (delta / prev.subscribers * 100) if prev and prev.subscribers else 0.0
 
-        stmt = pg_insert(ChatSnapshot).values(
-            chat_id=chat_id,
-            snapshot_date=snapshot_date,
-            subscribers=subscribers,
-            subscribers_delta=delta,
-            subscribers_delta_pct=round(delta_pct, 2),
-            avg_views=avg_views,
-            max_views=max_views,
-            min_views=min_views,
-            posts_analyzed=posts_analyzed,
-            er=round(er, 2),
-            post_frequency=round(post_frequency, 2),
-            posts_last_30d=posts_last_30d,
-            can_post=can_post,
-        ).on_conflict_do_update(
-            index_elements=["chat_id", "snapshot_date"],
-            set_={
-                "subscribers": subscribers,
-                "subscribers_delta": delta,
-                "subscribers_delta_pct": round(delta_pct, 2),
-                "avg_views": avg_views,
-                "max_views": max_views,
-                "min_views": min_views,
-                "posts_analyzed": posts_analyzed,
-                "er": round(er, 2),
-                "post_frequency": round(post_frequency, 2),
-                "posts_last_30d": posts_last_30d,
-                "can_post": can_post,
-            },
-        ).returning(ChatSnapshot)
+        stmt = (
+            pg_insert(ChatSnapshot)
+            .values(
+                chat_id=chat_id,
+                snapshot_date=snapshot_date,
+                subscribers=subscribers,
+                subscribers_delta=delta,
+                subscribers_delta_pct=round(delta_pct, 2),
+                avg_views=avg_views,
+                max_views=max_views,
+                min_views=min_views,
+                posts_analyzed=posts_analyzed,
+                er=round(er, 2),
+                post_frequency=round(post_frequency, 2),
+                posts_last_30d=posts_last_30d,
+                can_post=can_post,
+            )
+            .on_conflict_do_update(
+                index_elements=["chat_id", "snapshot_date"],
+                set_={
+                    "subscribers": subscribers,
+                    "subscribers_delta": delta,
+                    "subscribers_delta_pct": round(delta_pct, 2),
+                    "avg_views": avg_views,
+                    "max_views": max_views,
+                    "min_views": min_views,
+                    "posts_analyzed": posts_analyzed,
+                    "er": round(er, 2),
+                    "post_frequency": round(post_frequency, 2),
+                    "posts_last_30d": posts_last_30d,
+                    "can_post": can_post,
+                },
+            )
+            .returning(ChatSnapshot)
+        )
 
         result = await self._session.execute(stmt)
         return result.scalar_one()
 
-    async def _get_previous_snapshot(
-        self, chat_id: int, before_date: date
-    ) -> ChatSnapshot | None:
+    async def _get_previous_snapshot(self, chat_id: int, before_date: date) -> ChatSnapshot | None:
         """
         Получить предыдущий снимок для расчёта дельты.
 
@@ -250,9 +254,7 @@ class ChatAnalyticsRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_snapshots(
-        self, chat_id: int, days: int = 30
-    ) -> list[ChatSnapshot]:
+    async def get_snapshots(self, chat_id: int, days: int = 30) -> list[ChatSnapshot]:
         """
         История снимков за N дней — для построения графиков.
 
