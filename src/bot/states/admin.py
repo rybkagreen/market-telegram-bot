@@ -36,3 +36,14 @@ class AdminFreeCampaignStates(StatesGroup):
     waiting_member_count = State()
     waiting_schedule = State()
     waiting_confirm = State()
+
+
+class AdminAIGenerateStates(StatesGroup):
+    """Состояния для ИИ-генерации кампании администратором."""
+
+    waiting_description = State()  # описание для ИИ
+    waiting_variants = State()  # выбор варианта
+    waiting_topic = State()  # выбор тематики
+    waiting_member_count = State()  # лимиты чатов
+    waiting_schedule = State()  # расписание
+    waiting_confirm = State()  # подтверждение
