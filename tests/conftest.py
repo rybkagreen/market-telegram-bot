@@ -3,23 +3,35 @@
 """
 
 import asyncio
-from typing import Any, Generator
+from typing import Any, AsyncGenerator, Generator
 
 import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
+from src.config.settings import settings
+from src.db.base import Base
+
+
+# ────────────────────────────────────────────
+# Event loop fixtures
+# ────────────────────────────────────────────
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """
-    Создать event loop для сессии тестов.
+def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
+    """Использовать asyncio для всей сессии."""
+    return asyncio.DefaultEventLoopPolicy()
 
-    Yields:
-        asyncio.AbstractEventLoop: Event loop.
-    """
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
+# ────────────────────────────────────────────
+# Database fixtures
+# ────────────────────────────────────────────
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Any:
@@ -34,6 +46,83 @@ def postgres_container() -> Any:
     with PostgresContainer("postgres:16-alpine", driver="asyncpg") as postgres:
         yield postgres
 
+
+@pytest_asyncio.fixture(scope="session")
+async def test_engine() -> Any:
+    """Движок для тестовой БД."""
+    engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession, None]:
+    """Сессия БД с автоматическим rollback после каждого теста."""
+    async_session = async_sessionmaker(
+        test_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+    async with async_session() as session:
+        yield session
+        await session.rollback()
+
+
+# ────────────────────────────────────────────
+# Redis fixture
+# ────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def redis_client() -> Redis:
+    """Redis клиент на тестовой БД (индекс 2)."""
+    client = Redis.from_url("redis://localhost:6379/2", decode_responses=True)
+    yield client
+    await client.flushdb()
+    await client.aclose()
+
+
+@pytest_asyncio.fixture
+async def mock_redis() -> Any:
+    """
+    Мок Redis клиента для unit-тестов.
+
+    Returns:
+        MagicMock: Мок клиента.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    redis_client = MagicMock()
+    redis_client.get = AsyncMock(return_value=None)
+    redis_client.setex = AsyncMock()
+    return redis_client
+
+
+# ────────────────────────────────────────────
+# API client fixture
+# ────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def api_client() -> AsyncGenerator[AsyncClient, None]:
+    """HTTP клиент для тестирования FastAPI."""
+    from src.api.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+# ────────────────────────────────────────────
+# Bot mocks
+# ────────────────────────────────────────────
 
 @pytest.fixture
 def mock_bot() -> Any:
@@ -85,17 +174,62 @@ def mock_openai_client() -> Any:
     return client
 
 
+# ────────────────────────────────────────────
+# AI Service fixtures
+# ────────────────────────────────────────────
+
 @pytest.fixture
-def mock_redis() -> Any:
+def mock_ai_service() -> Any:
     """
-    Мок Redis клиента.
+    Мок AI Service для тестов.
 
     Returns:
-        MagicMock: Мок клиента.
+        MagicMock: Мок сервиса.
     """
     from unittest.mock import AsyncMock, MagicMock
 
-    redis_client = MagicMock()
-    redis_client.get = AsyncMock(return_value=None)
-    redis_client.setex = AsyncMock()
-    return redis_client
+    service = MagicMock()
+    service.generate_ad_text = AsyncMock(return_value="Generated ad text")
+    service.generate_ab_variants = AsyncMock(return_value=["Variant 1", "Variant 2"])
+    service.improve_text = AsyncMock(return_value="Improved text")
+    service.generate_hashtags = AsyncMock(return_value=["#tag1", "#tag2"])
+    return service
+
+
+# ────────────────────────────────────────────
+# Test data helpers
+# ────────────────────────────────────────────
+
+@pytest.fixture
+def user_test_data() -> dict[str, Any]:
+    """Тестовые данные для пользователя."""
+    return {
+        "telegram_id": 123456789,
+        "username": "test_user",
+        "first_name": "Test",
+        "last_name": "User",
+        "language_code": "ru",
+    }
+
+
+@pytest.fixture
+def campaign_test_data() -> dict[str, Any]:
+    """Тестовые данные для кампании."""
+    return {
+        "title": "Test Campaign",
+        "text": "Test ad text for campaign",
+        "ai_description": "AI generated description",
+        "filters_json": {"topics": ["business"], "min_members": 1000},
+    }
+
+
+@pytest.fixture
+def chat_test_data() -> dict[str, Any]:
+    """Тестовые данные для чата."""
+    return {
+        "telegram_id": -1001234567890,
+        "title": "Test Channel",
+        "username": "test_channel",
+        "member_count": 5000,
+        "topic": "business",
+    }
