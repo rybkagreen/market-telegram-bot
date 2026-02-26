@@ -11,9 +11,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.keyboards.billing import BillingCB, get_amount_kb, get_payment_methods_kb
-from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
-from src.bot.keyboards.pagination import PaginationCB, get_pagination_kb
+from src.bot.keyboards.billing import BillingCB, get_amount_kb
+from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.keyboards.pagination import PaginationCB
 from src.core.services.billing_service import billing_service
 from src.db.models.transaction import TransactionType
 from src.db.repositories.transaction_repo import TransactionRepository
@@ -208,8 +208,8 @@ async def process_topup(
         logger.error(f"Payment creation error: {e}")
 
         text = (
-            f"❌ Ошибка создания платежа\n\n"
-            f"Попробуйте снова или выберите другую сумму."
+            "❌ Ошибка создания платежа\n\n"
+            "Попробуйте снова или выберите другую сумму."
         )
 
         if isinstance(target, CallbackQuery):
@@ -499,8 +499,9 @@ async def plan_pay(callback: CallbackQuery, callback_data: BillingCB) -> None:
                 await callback.answer("❌ Пользователь не найден", show_alert=True)
                 return
 
-            from src.core.services.billing_service import billing_service
             from decimal import Decimal
+
+            from src.core.services.billing_service import billing_service
 
             payment_data = await billing_service.create_payment(
                 user_id=user.id,

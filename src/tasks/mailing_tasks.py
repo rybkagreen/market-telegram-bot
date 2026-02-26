@@ -4,6 +4,7 @@ Mailing Celery tasks.
 
 import asyncio
 import logging
+from datetime import UTC
 from typing import Any
 
 from src.db.repositories.campaign_repo import CampaignRepository
@@ -28,7 +29,6 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     logger.info(f"Starting campaign {campaign_id}")
 
     async def _send_async() -> dict[str, Any]:
-        from datetime import datetime, timezone
 
         from src.db.models.campaign import CampaignStatus
         from src.utils.telegram.sender import CampaignSender
@@ -124,7 +124,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
     logger.info("Checking scheduled campaigns")
 
     async def _check_async() -> dict[str, Any]:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.db.models.campaign import CampaignStatus
 
@@ -132,7 +132,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             campaign_repo = CampaignRepository(session)
 
             # Получаем кампании, готовые к запуску
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             campaigns = await campaign_repo.get_scheduled_due(now)
 
             stats = {
@@ -252,7 +252,6 @@ def notify_user(self, user_id: int, message: str) -> bool:
 
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
-            notification_repo = NotificationRepository(session)
 
             user = await user_repo.get_by_id(user_id)
             if not user:

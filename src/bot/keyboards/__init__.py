@@ -2,8 +2,8 @@
 
 from src.bot.keyboards.billing import BillingCB, get_amount_kb, get_payment_methods_kb, get_plans_kb
 from src.bot.keyboards.campaign import (
-    CampaignCB,
     TOPICS,
+    CampaignCB,
     get_campaign_confirm_kb,
     get_campaign_step_kb,
     get_member_count_kb,

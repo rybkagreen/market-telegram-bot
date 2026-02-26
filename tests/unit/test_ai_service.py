@@ -2,9 +2,10 @@
 Тесты для AI Service.
 """
 
-import pytest
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.core.services.ai_service import AIService
 

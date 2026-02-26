@@ -3,7 +3,8 @@
 """
 
 import asyncio
-from typing import Any, AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -17,7 +18,6 @@ from sqlalchemy.ext.asyncio import (
 
 from src.config.settings import settings
 from src.db.base import Base
-
 
 # ────────────────────────────────────────────
 # Event loop fixtures
@@ -63,7 +63,7 @@ async def test_engine() -> Any:
 
 
 @pytest_asyncio.fixture
-async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession]:
     """Сессия БД с автоматическим rollback после каждого теста."""
     async_session = async_sessionmaker(
         test_engine,
@@ -109,7 +109,7 @@ async def mock_redis() -> Any:
 # ────────────────────────────────────────────
 
 @pytest_asyncio.fixture
-async def api_client() -> AsyncGenerator[AsyncClient, None]:
+async def api_client() -> AsyncGenerator[AsyncClient]:
     """HTTP клиент для тестирования FastAPI."""
     from src.api.main import app
 

@@ -15,23 +15,7 @@ warnings.warn(
     stacklevel=2,
 )
 
-import asyncio
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
-
-from telethon import TelegramClient
-from telethon.errors import (
-    ChannelPrivateError,
-    FloodWaitError,
-    UsernameInvalidError,
-    UsernameNotOccupiedError,
-)
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.types import Channel, ChannelFull, Chat
-
-from src.config.settings import settings
 
 # Импортируем новые классы для обратной совместимости
 from src.utils.telegram.parser import ChatFullInfo as ChatMetrics  # noqa: F401
@@ -47,7 +31,7 @@ class TelegramChatParser:
     Оставлен для обратной совместимости.
     """
 
-    async def __aenter__(self) -> "TelegramChatParser":
+    async def __aenter__(self) -> TelegramChatParser:
         warnings.warn(
             "TelegramChatParser устарел, используй TelegramParser",
             DeprecationWarning,
