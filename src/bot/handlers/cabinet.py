@@ -66,9 +66,10 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
 
         # Формируем карточку кабинета
+        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
         text = (
             f"👤 <b>Ваш кабинет</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{user.plan.value}</b>\n"
+            f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{plan_value}</b>\n"
             f"📊 Кампаний: <b>{stats['total_campaigns']}</b>  |  🔄 Активных: <b>{stats['active_campaigns']}</b>\n"
             f"📅 Дата регистрации: <b>{created_at}</b>\n\n"
             f"👤 <b>Профиль:</b>\n"
