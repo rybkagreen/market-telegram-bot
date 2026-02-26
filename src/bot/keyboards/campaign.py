@@ -157,3 +157,24 @@ def get_campaign_confirm_kb() -> InlineKeyboardMarkup:
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2)
     return builder.as_markup()
+
+
+def get_image_upload_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для загрузки изображения.
+
+    Returns:
+        InlineKeyboardMarkup с вариантами: загрузить, пропустить.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📷 Загрузить фото",
+        callback_data=CampaignCB(action="image_upload")
+    )
+    builder.button(
+        text="⏭ Пропустить",
+        callback_data=CampaignCB(action="image_skip")
+    )
+    builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
+    builder.adjust(2, 1)
+    return builder.as_markup()
