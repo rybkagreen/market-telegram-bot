@@ -16,6 +16,7 @@ from src.bot.handlers import (
     billing,
     cabinet,
     campaigns,
+    models,
     notifications,
     start,
     templates,
@@ -56,15 +57,16 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.message.middleware(ThrottlingMiddleware(redis))
     dp.callback_query.middleware(ThrottlingMiddleware(redis))
 
-    # Регистрация роутеров — admin первым!
-    dp.include_router(admin.router)
+    # Регистрация роутеров — admin последним (у него глобальный фильтр)!
     dp.include_router(start.router)
     dp.include_router(cabinet.router)
     dp.include_router(campaigns.router)
     dp.include_router(billing.router)
+    dp.include_router(models.router)
     dp.include_router(notifications.router)
     dp.include_router(analytics.router)
     dp.include_router(templates.router)
+    dp.include_router(admin.router)
 
     return dp
 
@@ -75,7 +77,6 @@ async def main() -> None:
 
     Запускает polling для получения обновлений.
     """
-    import asyncio
 
     # Создаем Redis клиент
     redis = Redis.from_url(

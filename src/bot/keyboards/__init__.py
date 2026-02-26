@@ -11,11 +11,12 @@ from src.bot.keyboards.campaign import (
     get_text_type_kb,
     get_topics_kb,
 )
-from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
+from src.bot.keyboards.main_menu import MainMenuCB, ModelCB, get_main_menu
 from src.bot.keyboards.pagination import PaginationCB, get_pagination_kb
 
 __all__ = [
     "MainMenuCB",
+    "ModelCB",
     "get_main_menu",
     "CampaignCB",
     "TOPICS",

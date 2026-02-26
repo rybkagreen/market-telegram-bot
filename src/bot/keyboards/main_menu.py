@@ -8,6 +8,8 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.config.settings import settings
+
 
 class MainMenuCB(CallbackData, prefix="main"):
     """CallbackData для главного меню."""
@@ -15,12 +17,24 @@ class MainMenuCB(CallbackData, prefix="main"):
     action: str
 
 
-def get_main_menu(balance: Decimal) -> InlineKeyboardMarkup:
+class ModelCB(CallbackData, prefix="model"):
+    """CallbackData для выбора модели ИИ."""
+
+    provider: str
+
+
+def _is_admin(user_id: int) -> bool:
+    """Проверить, является ли пользователь админом."""
+    return user_id in settings.admin_ids
+
+
+def get_main_menu(balance: Decimal, user_id: int | None = None) -> InlineKeyboardMarkup:
     """
     Построить клавиатуру главного меню.
 
     Args:
         balance: Баланс пользователя.
+        user_id: ID пользователя (опционально, для определения админа).
 
     Returns:
         InlineKeyboardMarkup с кнопками меню.
@@ -47,6 +61,19 @@ def get_main_menu(balance: Decimal) -> InlineKeyboardMarkup:
         text="🤖 ИИ-генерация",
         callback_data=MainMenuCB(action="ai_gen")
     )
+
+    # Кнопка модели ИИ — разная для админов и пользователей
+    if user_id and _is_admin(user_id):
+        builder.button(
+            text="🎛 Модель ИИ (админ)",
+            callback_data=ModelCB(provider="select")
+        )
+    else:
+        builder.button(
+            text="ℹ️ Моя модель ИИ",
+            callback_data=ModelCB(provider="select")
+        )
+
     builder.button(
         text="📋 Шаблоны",
         callback_data=MainMenuCB(action="templates")
@@ -56,5 +83,5 @@ def get_main_menu(balance: Decimal) -> InlineKeyboardMarkup:
         callback_data=MainMenuCB(action="help")
     )
 
-    builder.adjust(2, 2, 2, 1)
+    builder.adjust(2, 2, 2, 1, 1)
     return builder.as_markup()
