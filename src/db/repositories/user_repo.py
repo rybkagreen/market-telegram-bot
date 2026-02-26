@@ -320,3 +320,22 @@ class UserRepository(BaseRepository[User]):
         from sqlalchemy.orm import selectinload
 
         return select(self.model).options(selectinload(User.campaigns))
+
+    async def get_users_with_low_balance(
+        self,
+        threshold: Decimal,
+    ) -> list[User]:
+        """
+        Получить пользователей с низким балансом.
+
+        Args:
+            threshold: Порог баланса.
+
+        Returns:
+            Список пользователей.
+        """
+        return await self.find_many(
+            User.is_active == True,  # noqa: E712
+            User.is_banned == False,  # noqa: E712
+            User.balance < threshold,
+        )
