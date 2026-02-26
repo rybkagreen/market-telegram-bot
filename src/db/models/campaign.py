@@ -73,10 +73,28 @@ class Campaign(Base, TimestampMixin):
         doc="Заголовок кампании",
     )
 
+    topic: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        doc="Тематика кампании",
+    )
+
+    header: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Заголовок рекламного текста (первая строка)",
+    )
+
     text: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         doc="Текст рекламного сообщения",
+    )
+
+    image_file_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Telegram file ID изображения (опционально)",
     )
 
     ai_description: Mapped[str | None] = mapped_column(
