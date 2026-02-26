@@ -26,6 +26,7 @@ def get_admin_main_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📊 Статистика", callback_data=AdminCB(action="stats"))
     builder.button(text="👥 Пользователи", callback_data=AdminCB(action="users"))
+    builder.button(text="🤖 ИИ-генерация", callback_data=AdminCB(action="ai_generate"))
     builder.button(text="📣 Кампания без оплаты", callback_data=AdminCB(action="free_campaign"))
     builder.button(text="💰 Баланс пользователя", callback_data=AdminCB(action="balance_manage"))
     builder.button(text="🚫 Бан пользователя", callback_data=AdminCB(action="ban_user"))

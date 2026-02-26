@@ -5,13 +5,12 @@ Handlers админ-панели бота.
 """
 
 import logging
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BotCommand, CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import func, select
 
@@ -31,13 +30,14 @@ from src.bot.keyboards.campaign import (
     get_topics_kb,
 )
 from src.bot.states.admin import (
+    AdminAIGenerateStates,
     AdminBalanceStates,
     AdminBanStates,
     AdminBroadcastStates,
     AdminFreeCampaignStates,
 )
 from src.config.settings import settings
-from src.core.services.billing_service import billing_service
+from src.core.services.ai_service import admin_ai_service
 from src.db.models.campaign import CampaignStatus
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
@@ -123,6 +123,197 @@ async def handle_admin_stats(callback: CallbackQuery) -> None:
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
+
+
+# ==================== ИИ-ГЕНЕРАЦИЯ КАМПАНИИ ====================
+
+
+@router.callback_query(AdminCB.filter(F.action == "ai_generate"))
+async def handle_ai_generate_start(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Начать ИИ-генерацию кампании.
+
+    Args:
+        callback: Callback query.
+        state: FSM контекст.
+    """
+    await state.clear()
+    await state.set_state(AdminAIGenerateStates.waiting_description)
+
+    await callback.message.edit_text(
+        "🤖 <b>ИИ-генерация кампании</b>\n\n"
+        "Опишите, о чём должна быть рекламная кампания.\n"
+        "ИИ сгенерирует название, текст и варианты A/B тестирования.\n\n"
+        "Пример: 'Продвижение онлайн-курса по программированию для начинающих'\n\n"
+        "Введите описание:",
+        reply_markup=get_back_kb(),
+    )
+    await callback.answer()
+
+
+@router.message(AdminAIGenerateStates.waiting_description)
+async def handle_ai_generate_description(message: Message, state: FSMContext) -> None:
+    """
+    Обработать описание для ИИ-генерации.
+
+    Args:
+        message: Сообщение с описанием.
+        state: FSM контекст.
+    """
+    description = message.text.strip()
+
+    if len(description) < 10 or len(description) > 500:
+        await message.answer("❌ Описание должно быть от 10 до 500 символов.")
+        return
+
+    await state.update_data(ai_description=description)
+
+    # Генерируем кампанию через ИИ (бесплатно для админа)
+    await message.answer("⏳ Генерирую кампанию через ИИ...")
+
+    try:
+        # Генерируем A/B варианты
+        variants = await admin_ai_service.generate_ab_variants(
+            user_id=message.from_user.id,
+            description=description,
+            count=3,
+        )
+
+        # Сохраняем варианты
+        await state.update_data(ai_variants=variants)
+
+        # Формируем текст с вариантами
+        text = "✅ <b>ИИ сгенерировал 3 варианта</b>\n\nВыберите лучший:\n\n"
+        for i, variant in enumerate(variants, 1):
+            text += f"<b>Вариант {i}:</b>\n{variant}\n\n"
+
+        builder = InlineKeyboardBuilder()
+        for i in range(1, 4):
+            builder.button(
+                text=f"Вариант {i}",
+                callback_data=AdminCB(action="ai_variant_select", value=str(i))
+            )
+        builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
+        builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+        builder.adjust(1, 1, 1)
+
+        await message.answer(text, reply_markup=builder.as_markup())
+
+    except Exception as e:
+        logger.error(f"AI generation error: {e}")
+        await message.answer(
+            "❌ Ошибка при генерации через ИИ.\n"
+            f"Попробуйте ещё раз или введите текст вручную.\n\n"
+            f"Ошибка: {str(e)}",
+            reply_markup=get_back_kb(),
+        )
+        await state.set_state(AdminAIGenerateStates.waiting_description)
+
+
+@router.callback_query(AdminCB.filter(F.action == "ai_regenerate"))
+async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Перегенерировать варианты через ИИ.
+
+    Args:
+        callback: Callback query.
+        state: FSM контекст.
+    """
+    data = await state.get_data()
+    description = data.get("ai_description", "")
+
+    await callback.message.edit_text("⏳ Перегенерирую варианты...")
+
+    try:
+        variants = await admin_ai_service.generate_ab_variants(
+            user_id=callback.from_user.id,
+            description=description,
+            count=3,
+        )
+        await state.update_data(ai_variants=variants)
+
+        text = "✅ <b>ИИ сгенерировал 3 варианта</b>\n\nВыберите лучший:\n\n"
+        for i, variant in enumerate(variants, 1):
+            text += f"<b>Вариант {i}:</b>\n{variant}\n\n"
+
+        builder = InlineKeyboardBuilder()
+        for i in range(1, 4):
+            builder.button(
+                text=f"Вариант {i}",
+                callback_data=AdminCB(action="ai_variant_select", value=str(i))
+            )
+        builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
+        builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+        builder.adjust(1, 1, 1)
+
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+    except Exception as e:
+        logger.error(f"AI regeneration error: {e}")
+        await callback.message.edit_text(
+            "❌ Ошибка при перегенерации.\nПопробуйте ещё раз.",
+            reply_markup=get_back_kb(),
+        )
+
+
+@router.callback_query(AdminCB.filter(F.action == "ai_variant_select"))
+async def handle_ai_variant_select(
+    callback: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+) -> None:
+    """
+    Выбрать вариант кампании.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+        state: FSM контекст.
+    """
+    variant_index = int(callback_data.value) - 1
+    data = await state.get_data()
+    variants = data.get("ai_variants", [])
+
+    if not variants or variant_index >= len(variants):
+        await callback.answer("❌ Вариант не найден", show_alert=True)
+        return
+
+    selected_text = variants[variant_index]
+    await state.update_data(text=selected_text, selected_variant=variant_index + 1)
+
+    # Генерируем название на основе описания (бесплатно для админа)
+    await callback.message.edit_text("⏳ Генерирую название...")
+
+    try:
+        title = await admin_ai_service.generate(
+            prompt=f"Придумай короткое название (2-4 слова) для рекламной кампании: {data.get('ai_description', '')}",
+            system="Ты профессиональный маркетолог. Придумай короткое и запоминающееся название для рекламной кампании.",
+        )
+        title = title.strip()[:100]
+        await state.update_data(title=title)
+
+        await state.set_state(AdminAIGenerateStates.waiting_topic)
+        await callback.message.edit_text(
+            f"✅ <b>Кампания сгенерирована!</b>\n\n"
+            f"📋 <b>Название:</b> {title}\n"
+            f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
+            f"Выберите тематику для рассылки:",
+            reply_markup=get_topics_kb(),
+        )
+
+    except Exception as e:
+        logger.error(f"AI title generation error: {e}")
+        # Используем дефолтное название
+        title = f"Кампания #{variant_index + 1}"
+        await state.update_data(title=title)
+        await state.set_state(AdminAIGenerateStates.waiting_topic)
+        await callback.message.edit_text(
+            f"✅ <b>Кампания сгенерирована!</b>\n\n"
+            f"📋 <b>Название:</b> {title}\n"
+            f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
+            f"Выберите тематику для рассылки:",
+            reply_markup=get_topics_kb(),
+        )
 
 
 # ==================== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ====================
@@ -215,6 +406,7 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
 
     ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
     created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
+    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
 
     text = (
         f"👤 <b>Профиль пользователя</b>\n\n"
@@ -222,7 +414,7 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
         f"Username: @{user.username or '—'}\n"
         f"Имя: {user.full_name}\n\n"
         f"💳 Баланс: <b>{user.balance}₽</b>\n"
-        f"📦 Тариф: <b>{user.plan.value}</b>\n"
+        f"📦 Тариф: <b>{plan_value}</b>\n"
         f"📊 Кампаний: <b>{campaign_count}</b>\n\n"
         f"📅 Регистрация: {created_at}\n"
         f"Статус: {ban_emoji}\n\n"
@@ -794,6 +986,196 @@ async def handle_free_campaign_confirm(callback: CallbackQuery, state: FSMContex
     await callback.answer()
 
 
+# ==================== ПРОДОЛЖЕНИЕ AI-ГЕНЕРАЦИИ ====================
+
+
+@router.callback_query(AdminAIGenerateStates.waiting_topic, CampaignCB.filter(F.action == "topic"))
+async def handle_ai_generate_topic(
+    callback: CallbackQuery,
+    callback_data: CampaignCB,
+    state: FSMContext,
+) -> None:
+    """
+    Обработать выбор тематики для AI-кампании.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+        state: FSM контекст.
+    """
+    await state.update_data(topic=callback_data.value)
+    await state.set_state(AdminAIGenerateStates.waiting_member_count)
+    await callback.message.edit_text(
+        "Выберите размер чатов для рассылки:",
+        reply_markup=get_member_count_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminAIGenerateStates.waiting_member_count, CampaignCB.filter(F.action == "members"))
+async def handle_ai_generate_member_count(
+    callback: CallbackQuery,
+    callback_data: CampaignCB,
+    state: FSMContext,
+) -> None:
+    """
+    Обработать выбор размера чатов.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+        state: FSM контекст.
+    """
+    value = callback_data.value
+    if value == "any":
+        min_members = 0
+        max_members = 1000000
+    else:
+        min_str, max_str = value.split("_")
+        min_members = int(min_str)
+        max_members = int(max_str)
+
+    await state.update_data(
+        min_members=min_members,
+        max_members=max_members,
+    )
+    await state.set_state(AdminAIGenerateStates.waiting_schedule)
+    await callback.message.edit_text(
+        "Когда запустить кампанию?",
+        reply_markup=get_schedule_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminAIGenerateStates.waiting_schedule, CampaignCB.filter(F.action.startswith("schedule_")))
+async def handle_ai_generate_schedule(
+    callback: CallbackQuery,
+    callback_data: CampaignCB,
+    state: FSMContext,
+) -> None:
+    """
+    Обработать выбор расписания.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+        state: FSM контекст.
+    """
+    schedule_value = "now" if callback_data.action == "schedule_now" else "later"
+    await state.update_data(schedule=schedule_value)
+    await state.set_state(AdminAIGenerateStates.waiting_confirm)
+    await show_ai_campaign_confirm(callback, state)
+    await callback.answer()
+
+
+async def show_ai_campaign_confirm(
+    callback: CallbackQuery | Message,
+    state: FSMContext,
+) -> None:
+    """
+    Показать подтверждение AI-кампании.
+
+    Args:
+        callback: Callback query или message.
+        state: FSM контекст.
+    """
+    data = await state.get_data()
+
+    text = (
+        "✅ <b>Подтверждение AI-кампании</b>\n\n"
+        f"📋 Название: {data.get('title')}\n"
+        f"📝 Текст: {data.get('text')[:200]}...\n"
+        f"📌 Тематика: {data.get('topic')}\n"
+        f"👥 Аудитория: {data.get('min_members')}-{data.get('max_members')}\n"
+        f"⏰ Запуск: {'Немедленно' if data.get('schedule') == 'now' else 'По расписанию'}\n\n"
+        f"🤖 Сгенерировано через ИИ"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✅ Запустить кампанию",
+        callback_data=AdminCB(action="ai_campaign_confirm"),
+    )
+    builder.button(text="❌ Отмена", callback_data=AdminCB(action="cancel"))
+    builder.adjust(2)
+
+    if isinstance(callback, CallbackQuery):
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    else:
+        await callback.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(AdminCB.filter(F.action == "ai_campaign_confirm"))
+async def handle_ai_campaign_confirm(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Создать и запустить AI-кампанию.
+
+    Args:
+        callback: Callback query.
+        state: FSM контекст.
+    """
+    data = await state.get_data()
+    admin_id = callback.from_user.id
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        admin_user = await user_repo.get_by_telegram_id(admin_id)
+
+        if not admin_user:
+            await callback.answer("❌ Администратор не найден", show_alert=True)
+            return
+
+        campaign_repo = CampaignRepository(session)
+
+        # Создаём кампанию
+        campaign = await campaign_repo.create({
+            "user_id": admin_user.id,
+            "title": data.get("title"),
+            "text": data.get("text"),
+            "ai_description": data.get("ai_description"),
+            "status": CampaignStatus.RUNNING,
+            "filters_json": {
+                "topics": [data.get("topic")],
+                "min_members": data.get("min_members", 0),
+                "max_members": data.get("max_members", 1000000),
+            },
+            "cost": 0.0,  # Бесплатно для админа
+        })
+
+    # Запускаем рассылку
+    send_campaign.delay(campaign.id)
+
+    logger.info(f"Admin {admin_id} created AI campaign {campaign.id}")
+
+    await callback.message.edit_text(
+        f"✅ <b>AI-кампания запущена!</b>\n\n"
+        f"📋 {campaign.title}\n"
+        f"🤖 Сгенерировано через ИИ\n"
+        f"💰 Стоимость: <b>0₽ (бесплатно)</b>\n\n"
+        f"Вы получите уведомление о завершении.",
+        reply_markup=get_admin_main_kb(),
+    )
+    await state.clear()
+    await callback.answer()
+
+
+@router.callback_query(AdminCB.filter(F.action == "cancel"))
+async def handle_admin_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Отменить создание кампании.
+
+    Args:
+        callback: Callback query.
+        state: FSM контекст.
+    """
+    await state.clear()
+    await callback.message.edit_text(
+        "✖ Создание кампании отменено.",
+        reply_markup=get_admin_main_kb(),
+    )
+    await callback.answer()
+
+
 # ==================== НАЗАД В ГЛАВНОЕ МЕНЮ ====================
 
 
@@ -829,7 +1211,7 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
 
     await callback.message.edit_text(
         "🔙 Возврат в главное меню",
-        reply_markup=get_main_menu(balance),
+        reply_markup=get_main_menu(balance, user.id),
     )
     await callback.answer()
 
