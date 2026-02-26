@@ -12,11 +12,7 @@ from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
-from src.utils.telegram.parser import TelegramParser
-
-# TGStatParser используется только в legacy-задаче refresh_chat_database
-# В новых задачах (collect_all_chats_stats, parse_single_chat) не используется
-from src.utils.telegram.tgstat_parser import POPULAR_TOPICS, TGStatParser
+from src.utils.telegram.parser import POPULAR_TOPICS, TelegramParser
 from src.utils.telegram.topic_classifier import classify_topic
 
 logger = logging.getLogger(__name__)
@@ -132,7 +128,6 @@ async def _parse_and_save_chats(
 
 
 async def _parse_tgstat_and_save(
-    tgstat_parser: TGStatParser,
     telegram_parser: TelegramParser,
     chat_repo: ChatRepository,
     topic: str,
@@ -141,7 +136,6 @@ async def _parse_tgstat_and_save(
     Распарсить TGStat и сохранить чаты.
 
     Args:
-        tgstat_parser: TGStatParser экземпляр.
         telegram_parser: TelegramParser экземпляр.
         chat_repo: ChatRepository экземпляр.
         topic: Тематика.
@@ -151,7 +145,7 @@ async def _parse_tgstat_and_save(
     """
     try:
         # Получаем username из TGStat
-        usernames = await tgstat_parser.fetch_tgstat_catalog(topic, max_pages=3)
+        usernames = await telegram_parser.fetch_tgstat_catalog(topic, max_pages=3)
 
         if not usernames:
             logger.info(f"No usernames found for topic '{topic}' on TGStat")
@@ -232,12 +226,10 @@ async def _refresh_chats_async() -> dict[str, Any]:
                     stats["errors"] += 1
 
         # 2. Парсим через TGStat
-        async with TGStatParser() as tgstat_parser, TelegramParser() as telegram_parser:
+        async with TelegramParser() as telegram_parser:
             for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
                 try:
-                    count = await _parse_tgstat_and_save(
-                        tgstat_parser, telegram_parser, chat_repo, topic
-                    )
+                    count = await _parse_tgstat_and_save(telegram_parser, chat_repo, topic)
                     stats["tgstat"] += count
                     stats["total"] += count
 
