@@ -13,9 +13,7 @@ from src.bot.keyboards.billing import BillingCB, get_plans_kb
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.db.models.campaign import CampaignStatus
-from src.db.repositories.campaign_repo import CampaignRepository
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -48,27 +46,20 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         telegram_id = message.from_user.id
         answer_method = message.answer
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(telegram_id)
+    async with get_user_service() as svc:
+        cabinet_data = await svc.get_cabinet_data(telegram_id)
+        user = await svc._user_repo.get_by_telegram_id(telegram_id)
 
         if not user:
             await answer_method("❌ Пользователь не найден. Нажмите /start")
             return
 
-        # Получаем статистику кампаний
-        stats = await user_repo.get_with_stats(user.id)
-
-        # Форматируем дату регистрации
-        created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
-
         # Формируем карточку кабинета
-        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
         text = (
             f"👤 <b>Ваш кабинет</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{plan_value}</b>\n"
-            f"📊 Кампаний: <b>{stats['total_campaigns']}</b>  |  🔄 Активных: <b>{stats['active_campaigns']}</b>\n"
-            f"📅 Дата регистрации: <b>{created_at}</b>\n\n"
+            f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{cabinet_data.plan}</b>\n"
+            f"📊 Кампаний: <b>{cabinet_data.total_campaigns}</b>  |  🔄 Активных: <b>{cabinet_data.active_campaigns}</b>\n"
+            f"📅 Дата регистрации: <b>{cabinet_data.created_at}</b>\n\n"
             f"👤 <b>Профиль:</b>\n"
             f"Имя: {user.full_name}\n"
             f"Telegram: @{user.username or 'не указан'}\n"
@@ -107,19 +98,18 @@ async def referral_callback(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
         # Получаем количество рефералов
-        referrer_count = await user_repo.get_referrers_count(user.id)
+        referrer_count = await svc._user_repo.get_referrers_count(user.id)
 
         # Получаем список рефералов для отображения
-        referrers = await user_repo.get_referrers(user.id, limit=5)
+        referrers = await svc._user_repo.get_referrers(user.id, limit=5)
         referrers_text = ""
         if referrers:
             referrers_text = "\n\n" + "\n".join(
@@ -205,19 +195,11 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
     """
     page_size = 5
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
-
-        if not user:
-            await callback.answer("❌ Пользователь не найден", show_alert=True)
-            return
-
-        campaign_repo = CampaignRepository(session)
-        campaigns, total = await campaign_repo.get_by_user(
-            user_id=user.id,
+    async with get_user_service() as svc:
+        campaigns, total = await svc.get_campaigns_page(
+            telegram_id=callback.from_user.id,
             page=page,
-            page_size=page_size,
+            per_page=page_size,
         )
 
         total_pages = max(1, (total + page_size - 1) // page_size)

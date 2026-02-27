@@ -16,9 +16,7 @@ from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.core.services.billing_service import billing_service
 from src.db.models.transaction import TransactionType
-from src.db.repositories.transaction_repo import TransactionRepository
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.services import get_billing_service, get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +47,8 @@ async def show_balance(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -137,9 +134,8 @@ async def handle_custom_amount(message: Message, state: FSMContext) -> None:
     await state.clear()
 
     # Создаем платеж
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(message.from_user.id)
 
         if not user:
             await message.answer("❌ Пользователь не найден")
@@ -222,9 +218,8 @@ async def check_payment_status(callback: CallbackQuery, callback_data: BillingCB
     payment_id = callback_data.value
 
     try:
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        async with get_user_service() as svc:
+            user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
             if not user:
                 await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -305,19 +300,11 @@ async def show_transactions_list(callback: CallbackQuery, page: int = 1) -> None
     """
     page_size = 10
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
-
-        if not user:
-            await callback.answer("❌ Пользователь не найден", show_alert=True)
-            return
-
-        transaction_repo = TransactionRepository(session)
-        transactions, total = await transaction_repo.get_by_user(
-            user_id=user.id,
+    async with get_billing_service() as svc:
+        transactions, total = await svc.get_history(
+            telegram_id=callback.from_user.id,
             page=page,
-            page_size=page_size,
+            per_page=page_size,
         )
 
         total_pages = max(1, (total + page_size - 1) // page_size)
@@ -464,31 +451,27 @@ async def plan_pay(callback: CallbackQuery, callback_data: BillingCB) -> None:
 
     if price == 0:
         # Бесплатный тариф - меняем сразу
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        async with get_user_service() as svc:
+            user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
             if not user:
                 await callback.answer("❌ Пользователь не найден", show_alert=True)
                 return
 
-            await user_repo.update(user.id, {"plan": plan})
-            await user_repo.refresh(user)
+            await svc._user_repo.update(user.id, {"plan": plan})
+            await svc._user_repo.refresh(user)
 
         text = f"✅ <b>Тариф изменён!</b>\n\nВаш новый тариф: <b>{plan}</b>"
     else:
         # Создаём платёж
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        async with get_user_service() as svc:
+            user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
             if not user:
                 await callback.answer("❌ Пользователь не найден", show_alert=True)
                 return
 
             from decimal import Decimal
-
-            from src.core.services.billing_service import billing_service
 
             payment_data = await billing_service.create_payment(
                 user_id=user.id,

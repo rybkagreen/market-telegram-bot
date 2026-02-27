@@ -10,8 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +31,8 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     """
     await state.clear()
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-
-        # Создаем или обновляем пользователя
-        user = await user_repo.create_or_update(
+    async with get_user_service() as svc:
+        user, is_new = await svc.get_or_create(
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
@@ -44,12 +40,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             language_code=message.from_user.language_code,
         )
 
-        # Коммитим сессию чтобы сохранить пользователя
-        await session.commit()
-
         # Обработка реферального кода для новых пользователей
-        if ref_code and user.created_at == user.updated_at:  # Только что создан
-            referrer = await user_repo.get_by_referral_code(ref_code)
+        if ref_code and is_new:
+            referrer = await svc._user_repo.get_by_referral_code(ref_code)
             if referrer and referrer.id != user.id:
                 # Начисляем реферальный бонус
                 from src.core.services.billing_service import billing_service
@@ -65,7 +58,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     # Формируем приветственное сообщение
     plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
-    if user.created_at == user.updated_at and ref_code is None:
+    if is_new and ref_code is None:
         # Новый пользователь без реферала
         text = (
             f"🚀 <b>Добро пожаловать в Market Bot!</b>\n\n"
@@ -139,9 +132,8 @@ async def handle_balance_command(message: Message) -> None:
     Args:
         message: Сообщение от пользователя.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(message.from_user.id)
 
         if user:
             text = (
@@ -164,9 +156,8 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)

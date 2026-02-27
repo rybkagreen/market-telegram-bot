@@ -10,8 +10,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.core.services.analytics_service import analytics_service
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.db.repositories.chat_analytics import ChatAnalyticsRepository
+from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +68,8 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -83,8 +82,9 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
             await callback.answer("❌ Не удалось загрузить аналитику", show_alert=True)
             return
 
-        # Получаем топ тематику (заглушка — в production будет из БД)
-        top_topic = "IT"  # TODO: получить из БД
+        # Получаем топ тематику из БД
+        analytics_repo = ChatAnalyticsRepository(svc._session)
+        top_topic = await analytics_repo.get_top_topic(user.id) or "Нет данных"
 
         text = (
             f"📊 <b>Ваша аналитика за 30 дней</b>\n\n"
@@ -113,18 +113,12 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
-
-        if not user:
-            await callback.answer("❌ Пользователь не найден", show_alert=True)
-            return
-
-        from src.db.repositories.campaign_repo import CampaignRepository
-
-        campaign_repo = CampaignRepository(session)
-        campaigns, total = await campaign_repo.get_by_user(user.id, page=1, page_size=10)
+    async with get_user_service() as svc:
+        campaigns, total = await svc.get_campaigns_page(
+            telegram_id=callback.from_user.id,
+            page=1,
+            per_page=10,
+        )
 
         if not campaigns:
             text = "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию!"
@@ -191,9 +185,8 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)

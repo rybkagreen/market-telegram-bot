@@ -42,11 +42,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile.bot
     env_file:
-      - .env
+      - .env.docker
     container_name: market_bot_bot
     environment:
       ENVIRONMENT: development
-      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_TOKEN: "7562867307:AAESOPGdNkrabOAK1CvfaZGaUouZuIx8j8A"
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
       REDIS_URL: redis://redis:6379/0
       API_ID: ${API_ID}
@@ -81,6 +81,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
+    env_file:
+      - .env.docker
     container_name: market_bot_worker
     environment:
       ENVIRONMENT: development
@@ -106,7 +108,7 @@ services:
         condition: service_healthy
     networks:
       - market_bot_network
-    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser,cleanup
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser,cleanup -E
     healthcheck:
       test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
       interval: 30s
@@ -119,6 +121,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
+    env_file:
+      - .env.docker
     container_name: market_bot_celery_beat
     environment:
       ENVIRONMENT: development
@@ -153,7 +157,7 @@ services:
       dockerfile: docker/Dockerfile.worker
     container_name: market_bot_flower
     env_file:
-      - .env
+      - .env.docker
     environment:
       ENVIRONMENT: development
       CELERY_BROKER_URL: redis://redis:6379/0
