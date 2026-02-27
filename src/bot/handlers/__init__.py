@@ -1,6 +1,6 @@
 # Bot handlers
 
-from src.bot.handlers import (
+from . import (
     admin,
     analytics,
     analytics_chats,

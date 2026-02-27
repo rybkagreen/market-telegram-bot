@@ -35,5 +35,11 @@ COPY pyproject.toml ./
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --only-root
 
+# Создать пользователя для запуска Celery (не root)
+RUN adduser --disabled-password --gecos '' --uid 1000 celeryuser \
+    && chown -R celeryuser:celeryuser /app
+
+USER celeryuser
+
 # Запускаем Celery worker
 CMD ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "-Q", "mailing,parser"]

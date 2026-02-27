@@ -5,11 +5,13 @@
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import desc
 
 from src.db.models.analytics import ChatSnapshot, ChatType, TelegramChat
+from src.db.models.campaign import Campaign
 
 
 class ChatAnalyticsRepository:
@@ -310,3 +312,27 @@ class ChatAnalyticsRepository:
         q = q.limit(limit)
         result = await self._session.execute(q)
         return list(result.scalars().all())
+
+    async def get_top_topic(self, user_id: int) -> str | None:
+        """
+        Получить тематику с наибольшим числом успешных кампаний у пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Топовая тематика или None.
+        """
+        result = await self._session.execute(
+            select(Campaign.topic, func.count(Campaign.id).label("cnt"))
+            .where(
+                Campaign.user_id == user_id,
+                Campaign.status == "done",
+                Campaign.topic.isnot(None),
+            )
+            .group_by(Campaign.topic)
+            .order_by(desc("cnt"))
+            .limit(1)
+        )
+        row = result.first()
+        return row[0] if row else None
