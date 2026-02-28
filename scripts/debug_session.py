@@ -126,15 +126,19 @@ async def main() -> None:
         print(f"   Тип доставки: {result.type.__class__.__name__}")
         
         # Расшифровка типа доставки
-        from telethon.tl.types import SentCodeTypeApp, SentCodeTypeSms, SentCodeTypeCall
-        if isinstance(result.type, SentCodeTypeApp):
-            print(f"   📱 Код отправлен в ПРИЛОЖЕНИЕ Telegram")
-            print(f"   👉 Открой Telegram → ЧАТЫ → найди 'Telegram' (синяя галочка)")
-            print(f"   👉 Или: Настройки → Устройства → Запросы на вход")
-        elif isinstance(result.type, SentCodeTypeSms):
-            print(f"   📳 Код отправлен по SMS (редко бывает)")
-        elif isinstance(result.type, SentCodeTypeCall):
-            print(f"   📞 Код будет продиктован голосовым звонком")
+        try:
+            from telethon.tl.types import SentCodeTypeApp, SentCodeTypeSms, SentCodeTypeCall
+            if isinstance(result.type, SentCodeTypeApp):
+                print(f"   📱 Код отправлен в ПРИЛОЖЕНИЕ Telegram")
+                print(f"   👉 Открой Telegram → ЧАТЫ → найди 'Telegram' (синяя галочка)")
+                print(f"   👉 Или: Настройки → Устройства → Запросы на вход")
+            elif isinstance(result.type, SentCodeTypeSms):
+                print(f"   📳 Код отправлен по SMS (редко бывает)")
+            elif isinstance(result.type, SentCodeTypeCall):
+                print(f"   📞 Код будет продиктован голосовым звонком")
+        except ImportError:
+            # Если не удалось импортировать типы
+            print(f"   📱 Код отправлен в приложение Telegram")
         
         if result.next_type:
             print(f"   Если код не пришёл, следующий способ: {result.next_type.__class__.__name__}")
