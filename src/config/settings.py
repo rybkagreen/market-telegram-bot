@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     api_id: int = Field(..., alias="API_ID", description="Telegram API ID для парсера")
     api_hash: str = Field(..., alias="API_HASH", description="Telegram API Hash для парсера")
 
+    # Telethon StringSession
+    telethon_session_string: str = Field(
+        "",
+        alias="TELETHON_SESSION_STRING",
+        description="Telethon StringSession для парсера",
+    )
+
     # PostgreSQL
     postgres_user: str = Field("market_bot", alias="POSTGRES_USER")
     postgres_password: str = Field("market_bot_pass", alias="POSTGRES_PASSWORD")

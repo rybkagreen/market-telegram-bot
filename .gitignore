@@ -126,3 +126,7 @@ logs/nginx/
 .env.test
 .env.production
 docker-compose.override.yml
+""  
+"# Telethon session files"  
+"parser_session.session"  
+"parser_session.session-journal" 

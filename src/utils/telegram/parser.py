@@ -24,6 +24,7 @@ from telethon.errors import (
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
+from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import (
     Channel,
@@ -176,12 +177,19 @@ class TelegramParser:
 
         Raises:
             RuntimeError: Если клиент уже запущен.
+            ValueError: Если TELETHON_SESSION_STRING не задан.
         """
         if self._is_started:
             raise RuntimeError("Parser already started")
 
+        if not settings.telethon_session_string:
+            raise ValueError(
+                "TELETHON_SESSION_STRING не задан в .env. "
+                "Запусти scripts/create_session.py для генерации."
+            )
+
         self._client = TelegramClient(
-            "market_bot_parser",
+            StringSession(settings.telethon_session_string),
             settings.api_id,
             settings.api_hash,
         )
