@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,8 +13,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
-    from src.db.models.chat import Chat
 
 
 class MailingStatus(str, Enum):
@@ -57,7 +57,7 @@ class MailingLog(Base, TimestampMixin):
     )
 
     chat_id: Mapped[int | None] = mapped_column(
-        ForeignKey("chats.id", ondelete="SET NULL"),
+        ForeignKey("telegram_chats.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         doc="ID чата",
@@ -120,7 +120,8 @@ class MailingLog(Base, TimestampMixin):
         lazy="selectin",
     )
 
-    chat: Mapped[Optional["Chat"]] = relationship(
+    chat: Mapped["TelegramChat | None"] = relationship(
+        "TelegramChat",
         back_populates="mailing_logs",
         lazy="selectin",
     )

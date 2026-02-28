@@ -336,3 +336,57 @@ class ChatAnalyticsRepository:
         )
         row = result.first()
         return row[0] if row else None
+
+    async def get_chats_for_mailing(
+        self,
+        topic: str | None = None,
+        min_members: int = 100,
+        max_members: int | None = None,
+        limit: int = 100,
+    ) -> list[TelegramChat]:
+        """
+        Выборка чатов для рассылки с фильтрами.
+        Заменяет ChatRepository.select_chats_for_mailing().
+
+        Args:
+            topic: Тематика для фильтрации.
+            min_members: Минимальное количество участников.
+            max_members: Максимальное количество участников.
+            limit: Максимальное количество результатов.
+
+        Returns:
+            Список чатов подходящих для рассылки.
+        """
+        q = (
+            select(TelegramChat)
+            .where(
+                TelegramChat.is_active,
+                TelegramChat.is_scam.is_(False),
+                TelegramChat.is_fake.is_(False),
+                TelegramChat.error_count < 5,
+                TelegramChat.member_count >= min_members,
+            )
+        )
+        if topic:
+            q = q.where(TelegramChat.topic == topic)
+        if max_members:
+            q = q.where(TelegramChat.member_count <= max_members)
+        q = q.order_by(TelegramChat.rating.desc()).limit(limit)
+        result = await self._session.execute(q)
+        return list(result.scalars().all())
+
+    async def increment_error(
+        self, chat_id: int, reason: str | None = None
+    ) -> None:
+        """
+        Увеличить счётчик ошибок.
+        После 5 ошибок — деактивировать чат.
+
+        Args:
+            chat_id: ID чата в БД.
+            reason: Причина ошибки.
+        """
+        chat = await self._session.get(TelegramChat, chat_id)
+        if chat:
+            chat.increment_error(reason)
+            await self._session.flush()
