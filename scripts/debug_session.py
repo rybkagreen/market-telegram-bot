@@ -90,17 +90,32 @@ async def main() -> None:
         return
 
     # Запросить номер телефона
-    phone = input("\nВведи номер телефона (формат: +7...): ").strip()
+    print("\n" + "=" * 60)
+    print("ВВОД НОМЕРА ТЕЛЕФОНА")
+    print("=" * 60)
+    print("Формат: +7XXXXXXXXXX (например: +79685418800)")
+    print("Можно также: 79685418800 или +7 968 541 8800")
+    print("Telethon сам нормализует номер")
+    print("=" * 60)
+    
+    phone = input("\nВведи номер телефона: ").strip()
+    
+    # Нормализация номера
+    phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     if not phone.startswith("+"):
         phone = "+" + phone
-
+    
+    print(f"\nНормализованный номер: {phone}")
     print(f"\nЗапрашиваю код для номера {phone}...")
-    print("⚠️  Код придёт в приложение Telegram — проверь диалог с 'Telegram'")
+    print("⚠️  Код придёт в ПРИЛОЖЕНИЕ Telegram (не SMS)!")
+    print("👉 Открой Telegram → найди диалог с 'Telegram' (сервисный аккаунт)")
+    print("   Сообщение: 'Login code: XXXXX. Do not give this code...'")
+    
     logger.debug(f"Отправка кода на номер: {phone}")
 
     try:
-        # ВАЖНО: force_sms НЕ передаётся — код идёт в Telegram
-        result = await client.send_code_request(phone)
+        # Явно указываем force_sms=False — код ТОЛЬКО в приложение Telegram
+        result = await client.send_code_request(phone, force_sms=False)
 
         logger.debug(f"Ответ send_code_request: {result}")
         logger.debug(f"phone_code_hash: {result.phone_code_hash[:8]}...")
@@ -109,10 +124,32 @@ async def main() -> None:
 
         print(f"\n✅ Запрос кода отправлен успешно!")
         print(f"   Тип доставки: {result.type.__class__.__name__}")
+        
+        # Расшифровка типа доставки
+        from telethon.tl.types import SentCodeTypeApp, SentCodeTypeSms, SentCodeTypeCall
+        if isinstance(result.type, SentCodeTypeApp):
+            print(f"   📱 Код отправлен в ПРИЛОЖЕНИЕ Telegram")
+            print(f"   👉 Открой Telegram → ЧАТЫ → найди 'Telegram' (синяя галочка)")
+            print(f"   👉 Или: Настройки → Устройства → Запросы на вход")
+        elif isinstance(result.type, SentCodeTypeSms):
+            print(f"   📳 Код отправлен по SMS (редко бывает)")
+        elif isinstance(result.type, SentCodeTypeCall):
+            print(f"   📞 Код будет продиктован голосовым звонком")
+        
         if result.next_type:
-            print(f"   Следующий способ (если первый не работает): {result.next_type.__class__.__name__}")
-        print(f"\n👉 Открой Telegram → найди диалог 'Telegram' → там должен быть код")
-        print(f"   Сообщение выглядит так: 'Login code: XXXXX. Do not give...'")
+            print(f"   Если код не пришёл, следующий способ: {result.next_type.__class__.__name__}")
+        
+        print(f"\n🔍 ГДЕ ИСКАТЬ КОД:")
+        print(f"   1. Открой Telegram (мобильное или десктоп)")
+        print(f"   2. Посмотри в ЧАТАХ — диалог 'Telegram' с синей галочкой")
+        print(f"   3. Если нет — Настройки → Приватность → Запросы на вход")
+        print(f"   4. Проверь АРХИВ чатов")
+        print(f"\n   Сообщение выглядит так:")
+        print(f"   ┌─────────────────────────────────────")
+        print(f"   │ Telegram [синяя галочка]")
+        print(f"   │ Login code: 12345")
+        print(f"   │ Do not give this code to anyone...")
+        print(f"   └─────────────────────────────────────")
 
     except PhoneNumberInvalidError:
         print(f"❌ Номер {phone} невалидный. Проверь формат (+7XXXXXXXXXX)")
