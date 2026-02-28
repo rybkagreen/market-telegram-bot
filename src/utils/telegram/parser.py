@@ -188,10 +188,17 @@ class TelegramParser:
                 "Запусти scripts/create_session.py для генерации."
             )
 
+        # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
+        # https://github.com/LonamiWebs/Telethon/issues/4730
         self._client = TelegramClient(
             StringSession(settings.telethon_session_string),
             settings.api_id,
             settings.api_hash,
+            device_model='Desktop',
+            system_version='Windows 10',
+            app_version='3.1.1 x64',
+            lang_code='en',
+            system_lang_code='en-US',
         )
 
         await self._client.start(bot_token=settings.bot_token)
