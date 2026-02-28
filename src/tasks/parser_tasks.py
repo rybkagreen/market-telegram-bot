@@ -4,18 +4,34 @@ Parser Celery tasks для обновления базы данных чатов
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from src.db.models.analytics import ChatType
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
-from src.db.repositories.chat_repo import ChatData, ChatRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
 from src.utils.telegram.parser import POPULAR_TOPICS, TelegramParser
 from src.utils.telegram.topic_classifier import classify_topic
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChatParseData:
+    """Данные чата для парсера."""
+    telegram_id: int
+    title: str
+    username: str | None
+    description: str | None
+    member_count: int
+    topic: str | None
+    is_verified: bool = False
+    is_scam: bool = False
+    is_fake: bool = False
+    rating: float = 5.0
+
 
 # Поисковые запросы для парсинга Telegram
 SEARCH_QUERIES = [
@@ -68,7 +84,7 @@ SEARCH_QUERIES = [
 
 async def _parse_and_save_chats(
     parser: TelegramParser,
-    chat_repo: ChatRepository,
+    chat_repo: ChatAnalyticsRepository,
     query: str,
     limit: int = 50,
 ) -> int:
@@ -77,7 +93,7 @@ async def _parse_and_save_chats(
 
     Args:
         parser: TelegramParser экземпляр.
-        chat_repo: ChatRepository экземпляр.
+        chat_repo: ChatAnalyticsRepository экземпляр.
         query: Поисковый запрос.
         limit: Максимальное количество результатов.
 
@@ -92,32 +108,38 @@ async def _parse_and_save_chats(
             logger.info(f"No chats found for query: {query}")
             return 0
 
-        # Конвертируем в ChatData
-        chat_data_list: list[ChatData] = []
-
+        # Сохраняем каждый чат отдельно
+        saved_count = 0
         for chat_info in chat_infos:
             # Классифицируем тематику
-            topic = classify_topic(chat_info.title, chat_info.description)
+            topic = classify_topic(chat_info.title, chat_info.description or "")
 
-            chat_data = ChatData(
-                telegram_id=chat_info.telegram_id,
-                title=chat_info.title,
-                username=chat_info.username,
-                description=chat_info.description,
-                member_count=chat_info.member_count,
-                topic=topic,
-                is_verified=chat_info.is_verified,
-                is_scam=chat_info.is_scam,
-                is_fake=chat_info.is_fake,
-                is_broadcast=chat_info.is_broadcast,
-                rating=7.0 if chat_info.is_verified else 5.0,
-                avg_post_reach=None,
-                posts_per_day=0.0,
-            )
-            chat_data_list.append(chat_data)
+            try:
+                # Получаем или создаём чат
+                username = chat_info.username or f"_{chat_info.telegram_id}"
+                chat, is_new = await chat_repo.get_or_create_chat(username)
 
-        # Сохраняем в БД
-        saved_count = await chat_repo.upsert_batch(chat_data_list, update_existing=True)
+                # Обновляем данные
+                chat.telegram_id = chat_info.telegram_id
+                chat.title = chat_info.title
+                chat.description = chat_info.description
+                chat.member_count = chat_info.member_count or 0
+                chat.topic = topic
+                chat.is_verified = chat_info.is_verified or False
+                chat.is_scam = chat_info.is_scam or False
+                chat.is_fake = chat_info.is_fake or False
+                chat.rating = 7.0 if chat.is_verified else 5.0
+                chat.last_subscribers = chat_info.member_count or 0
+                chat.last_parsed_at = date.today()
+
+                await chat_repo._session.flush()
+                saved_count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to save chat {chat_info.title}: {e}")
+                continue
+
+        await chat_repo._session.commit()
         logger.info(f"Saved {saved_count} chats for query '{query}'")
 
         return saved_count
@@ -129,7 +151,7 @@ async def _parse_and_save_chats(
 
 async def _parse_tgstat_and_save(
     telegram_parser: TelegramParser,
-    chat_repo: ChatRepository,
+    chat_repo: ChatAnalyticsRepository,
     topic: str,
 ) -> int:
     """
@@ -137,7 +159,7 @@ async def _parse_tgstat_and_save(
 
     Args:
         telegram_parser: TelegramParser экземпляр.
-        chat_repo: ChatRepository экземпляр.
+        chat_repo: ChatAnalyticsRepository экземпляр.
         topic: Тематика.
 
     Returns:
@@ -158,32 +180,36 @@ async def _parse_tgstat_and_save(
             logger.info(f"No valid chats found for topic '{topic}'")
             return 0
 
-        # Конвертируем в ChatData
-        chat_data_list: list[ChatData] = []
-
+        # Сохраняем каждый чат отдельно
+        saved_count = 0
         for chat_details in chat_details_list:
-            # Классифицируем тематику (может быть более точной)
-            topic_classified = classify_topic(chat_details.title, chat_details.description)
+            try:
+                # Получаем или создаём чат
+                username = chat_details.username or f"_{chat_details.telegram_id}"
+                chat, is_new = await chat_repo.get_or_create_chat(username)
 
-            chat_data = ChatData(
-                telegram_id=chat_details.telegram_id,
-                title=chat_details.title,
-                username=chat_details.username,
-                description=chat_details.description,
-                member_count=chat_details.member_count,
-                topic=topic_classified,
-                is_verified=chat_details.is_verified,
-                is_scam=chat_details.is_scam,
-                is_fake=chat_details.is_fake,
-                is_broadcast=chat_details.is_broadcast,
-                rating=chat_details.rating,
-                avg_post_reach=chat_details.avg_post_reach,
-                posts_per_day=chat_details.posts_per_day,
-            )
-            chat_data_list.append(chat_data)
+                # Обновляем данные
+                chat.telegram_id = chat_details.telegram_id
+                chat.title = chat_details.title
+                chat.description = chat_details.description
+                chat.member_count = chat_details.member_count or 0
+                chat.topic = topic
+                chat.is_verified = chat_details.is_verified or False
+                chat.is_scam = chat_details.is_scam or False
+                chat.is_fake = chat_details.is_fake or False
+                chat.rating = chat_details.rating or 5.0
+                chat.last_subscribers = chat_details.member_count or 0
+                chat.last_avg_views = chat_details.avg_post_reach or 0
+                chat.last_parsed_at = date.today()
 
-        # Сохраняем в БД
-        saved_count = await chat_repo.upsert_batch(chat_data_list, update_existing=True)
+                await chat_repo._session.flush()
+                saved_count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to save chat {chat_details.title}: {e}")
+                continue
+
+        await chat_repo._session.commit()
         logger.info(f"Saved {saved_count} chats from TGStat for topic '{topic}'")
 
         return saved_count
@@ -208,7 +234,7 @@ async def _refresh_chats_async() -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        chat_repo = ChatRepository(session)
+        chat_repo = ChatAnalyticsRepository(session)
 
         # 1. Парсим через Telegram search
         async with TelegramParser() as parser:
@@ -289,7 +315,7 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
         username: Username для проверки.
 
     Returns:
-        ChatData или None.
+        Данные чата или None.
     """
     async with TelegramParser() as parser:
         chat_details = await parser.resolve_and_validate(username)
@@ -298,31 +324,42 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
             return None
 
         async with async_session_factory() as session:
-            chat_repo = ChatRepository(session)
+            chat_repo = ChatAnalyticsRepository(session)
 
-            topic = classify_topic(chat_details.title, chat_details.description)
+            topic = classify_topic(chat_details.title, chat_details.description or "")
 
-            from src.db.repositories.chat_repo import ChatData
+            try:
+                # Получаем или создаём чат
+                username_clean = chat_details.username or f"_{chat_details.telegram_id}"
+                chat, is_new = await chat_repo.get_or_create_chat(username_clean)
 
-            chat_data = ChatData(
-                telegram_id=chat_details.telegram_id,
-                title=chat_details.title,
-                username=chat_details.username,
-                description=chat_details.description,
-                member_count=chat_details.member_count,
-                topic=topic,
-                is_verified=chat_details.is_verified,
-                is_scam=chat_details.is_scam,
-                is_fake=chat_details.is_fake,
-                is_broadcast=chat_details.is_broadcast,
-                rating=chat_details.rating,
-                avg_post_reach=chat_details.avg_post_reach,
-                posts_per_day=chat_details.posts_per_day,
-            )
+                # Обновляем данные
+                chat.telegram_id = chat_details.telegram_id
+                chat.title = chat_details.title
+                chat.description = chat_details.description
+                chat.member_count = chat_details.member_count or 0
+                chat.topic = topic
+                chat.is_verified = chat_details.is_verified or False
+                chat.is_scam = chat_details.is_scam or False
+                chat.is_fake = chat_details.is_fake or False
+                chat.rating = chat_details.rating or 5.0
+                chat.last_subscribers = chat_details.member_count or 0
+                chat.last_avg_views = chat_details.avg_post_reach or 0
+                chat.last_parsed_at = date.today()
 
-            await chat_repo.upsert_batch([chat_data], update_existing=True)
+                await chat_repo._session.commit()
 
-            return {"telegram_id": chat_details.telegram_id, "title": chat_details.title}
+                return {
+                    "telegram_id": chat.telegram_id,
+                    "title": chat.title,
+                    "username": chat.username,
+                    "member_count": chat.member_count,
+                    "topic": chat.topic,
+                }
+
+            except Exception as e:
+                logger.error(f"Failed to save chat {username}: {e}")
+                return None
 
 
 def validate_username(username: str) -> dict[str, Any] | None:
@@ -380,8 +417,17 @@ async def _update_chat_rating_async(chat_id: int) -> float | None:
         new_rating = max(0.0, min(10.0, base_rating))
 
         async with async_session_factory() as session:
-            chat_repo = ChatRepository(session)
-            await chat_repo.update_rating(chat_id, new_rating)
+            # Обновляем рейтинг напрямую через модель
+            from sqlalchemy import select
+
+            from src.db.models.analytics import TelegramChat
+            result = await session.execute(
+                select(TelegramChat).where(TelegramChat.telegram_id == chat_id)
+            )
+            chat = result.scalar_one_or_none()
+            if chat:
+                chat.rating = new_rating
+                await session.flush()
 
         return new_rating
 

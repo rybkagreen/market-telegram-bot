@@ -347,12 +347,12 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         base_stats = await self.get_stats_by_campaign(campaign_id)
 
         # Получаем оценку охвата (сумма member_count чатов)
-        from src.db.models.chat import Chat
+        from src.db.models.analytics import TelegramChat
 
         reach_query = (
-            select(func.coalesce(func.sum(Chat.member_count), 0))
+            select(func.coalesce(func.sum(TelegramChat.member_count), 0))
             .select_from(
-                MailingLog.__table__.join(Chat, MailingLog.chat_telegram_id == Chat.telegram_id)
+                MailingLog.__table__.join(TelegramChat, MailingLog.chat_telegram_id == TelegramChat.telegram_id)
             )
             .where(MailingLog.campaign_id == campaign_id)
         )
@@ -378,8 +378,8 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         Returns:
             Список чатов со статистикой.
         """
+        from src.db.models.analytics import TelegramChat
         from src.db.models.campaign import Campaign
-        from src.db.models.chat import Chat
 
         # Фильтр по пользователю
         filters = []
@@ -388,20 +388,20 @@ class MailingLogRepository(BaseRepository[MailingLog]):
 
         query = (
             select(
-                Chat.telegram_id.label("chat_telegram_id"),
-                Chat.title.label("chat_title"),
+                TelegramChat.telegram_id.label("chat_telegram_id"),
+                TelegramChat.title.label("chat_title"),
                 func.count(MailingLog.id).label("total_sent"),
                 func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
-                func.avg(Chat.rating).label("avg_rating"),
+                func.avg(TelegramChat.rating).label("avg_rating"),
             )
             .select_from(
                 MailingLog.__table__.join(
-                    Chat, MailingLog.chat_telegram_id == Chat.telegram_id
+                    TelegramChat, MailingLog.chat_telegram_id == TelegramChat.telegram_id
                 ).join(Campaign, MailingLog.campaign_id == Campaign.id)
             )
             .where(*filters)
-            .group_by(Chat.telegram_id, Chat.title, Chat.rating)
-            .order_by(func.avg(Chat.rating).desc())
+            .group_by(TelegramChat.telegram_id, TelegramChat.title, TelegramChat.rating)
+            .order_by(func.avg(TelegramChat.rating).desc())
             .limit(limit)
         )
 

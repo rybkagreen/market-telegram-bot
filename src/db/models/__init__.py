@@ -5,7 +5,6 @@
 
 from src.db.models.analytics import ChatSnapshot, ChatType, TelegramChat
 from src.db.models.campaign import Campaign, CampaignStatus
-from src.db.models.chat import Chat
 from src.db.models.content_flag import ContentFlag, ContentFlagCategory, ContentFlagDecision
 from src.db.models.mailing_log import MailingLog, MailingStatus
 from src.db.models.notification import Notification, NotificationType
@@ -18,7 +17,6 @@ __all__ = [
     "UserPlan",
     "Campaign",
     "CampaignStatus",
-    "Chat",
     "MailingLog",
     "MailingStatus",
     "Transaction",
