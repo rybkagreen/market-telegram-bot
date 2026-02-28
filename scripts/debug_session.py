@@ -50,10 +50,18 @@ async def main() -> None:
     print("=" * 60 + "\n")
 
     # Создать клиент с пустой StringSession
+    # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
+    # https://github.com/LonamiWebs/Telethon/issues/4730
     client = TelegramClient(
         session=StringSession(),
         api_id=settings.api_id,
         api_hash=settings.api_hash,
+        # Параметры для обхода блокировки кода
+        device_model='Desktop',
+        system_version='Windows 10',
+        app_version='3.1.1 x64',
+        lang_code='en',
+        system_lang_code='en-US',
         # Параметры для стабильного подключения
         connection_retries=5,
         retry_delay=2,

@@ -30,10 +30,17 @@ async def main() -> None:
         return
 
     # Создать клиент с пустой StringSession
+    # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
+    # https://github.com/LonamiWebs/Telethon/issues/4730
     client = TelegramClient(
         session=StringSession(),
         api_id=settings.api_id,
         api_hash=settings.api_hash,
+        device_model='Desktop',
+        system_version='Windows 10',
+        app_version='3.1.1 x64',
+        lang_code='en',
+        system_lang_code='en-US',
     )
 
     print("Авторизация в Telegram...")
