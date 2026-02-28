@@ -108,6 +108,12 @@ class TelegramChat(Base):
     snapshots: Mapped[list[ChatSnapshot]] = relationship(
         "ChatSnapshot", back_populates="chat", lazy="select"
     )
+    mailing_logs: Mapped[list["MailingLog"]] = relationship(
+        "MailingLog",
+        back_populates="chat",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<TelegramChat(id={self.id}, username={self.username!r}, title={self.title!r})>"

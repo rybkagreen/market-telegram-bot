@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config.settings import settings
-from src.db.session import get_session
+from src.db.session import async_session_factory
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 
 
@@ -77,11 +77,11 @@ async def seed_chats() -> None:
     total_added = 0
     total_existing = 0
 
-    async with get_session() as session:
+    async with async_session_factory() as session:
         repo = ChatAnalyticsRepository(session)
 
         for topic, usernames in SEED_CHATS.items():
-            print(f"\n📁 Тематика: {topic} ({len(usernames)} чатов)")
+            print(f"\nTopic: {topic} ({len(usernames)} chats)")
             for username in usernames:
                 chat, is_new = await repo.get_or_create_chat(username)
                 if is_new:
@@ -89,18 +89,18 @@ async def seed_chats() -> None:
                     chat.topic = topic
                     await session.flush()
                     total_added += 1
-                    print(f"  ✅ Добавлен: @{username}")
+                    print(f"  + Added: @{username}")
                 else:
                     total_existing += 1
-                    print(f"  ⏭️  Уже есть: @{username}")
+                    print(f"  - Exists: @{username}")
 
         await session.commit()
 
     print(f"\n{'='*50}")
-    print(f"Добавлено новых: {total_added}")
-    print(f"Уже существовало: {total_existing}")
-    print(f"Всего в списке: {total_added + total_existing}")
-    print(f"\nЧатов готово к парсингу. Запусти парсер:")
+    print(f"Added new: {total_added}")
+    print(f"Already existed: {total_existing}")
+    print(f"Total in list: {total_added + total_existing}")
+    print(f"\nChats ready for parsing. Run parser:")
     print("docker compose exec worker celery -A src.tasks.celery_app call \\")
     print("    tasks.parser_tasks:collect_all_chats_stats")
 
