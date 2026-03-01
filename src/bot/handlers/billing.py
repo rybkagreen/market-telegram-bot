@@ -194,7 +194,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder = InlineKeyboardBuilder()
     builder.button(
         text=f"💳 Оплатить {amount} {currency}",
-        callback_data=BillingCB(action="pay_crypto_url", value=f"{invoice.invoice_id}:{invoice.pay_url}")
+        callback_data=BillingCB(action="pay_crypto_url", value=f"{invoice.invoice_id}|{invoice.pay_url}")
     )
     builder.button(
         text="🔄 Проверить оплату",
@@ -211,7 +211,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
 @router.callback_query(BillingCB.filter(F.action == "pay_crypto_url"))
 async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """Отправить ссылку на оплату текстовым сообщением."""
-    parts = callback_data.value.split(":", 1)
+    parts = callback_data.value.split("|", 1)
     if len(parts) != 2:
         await callback.answer("❌ Ошибка формирования ссылки", show_alert=True)
         return
