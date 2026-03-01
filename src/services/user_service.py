@@ -55,8 +55,8 @@ class UserService:
         if not user:
             raise ValueError(f"User with telegram_id {telegram_id} not found")
 
-        total = await self._campaign_repo.count_by_user(user.id)
-        active = await self._campaign_repo.count_by_user(user.id, status="running")
+        total = await self._campaign_repo.get_user_campaigns_count(user.id)
+        active = await self._campaign_repo.get_user_campaigns_count(user.id, status="running")
 
         plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
@@ -69,9 +69,7 @@ class UserService:
             referral_code=user.referral_code or str(user.telegram_id),
         )
 
-    async def get_campaigns_page(
-        self, telegram_id: int, page: int = 1, per_page: int = 5
-    ):
+    async def get_campaigns_page(self, telegram_id: int, page: int = 1, per_page: int = 5):
         """Кампании пользователя с пагинацией."""
         user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not user:

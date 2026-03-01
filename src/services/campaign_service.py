@@ -150,6 +150,7 @@ class CampaignService:
         # Запускаем рассылку (если не запланирована)
         if not data.scheduled_at:
             from src.tasks.mailing_tasks import send_campaign
+
             send_campaign.delay(campaign.id)
 
         return CampaignValidationResult(

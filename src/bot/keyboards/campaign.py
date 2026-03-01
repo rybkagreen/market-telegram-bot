@@ -57,19 +57,14 @@ def get_text_type_kb(user_plan: str = "free") -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с выбором: вручную или ИИ.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="✏️ Ввести текст",
-        callback_data=CampaignCB(action="manual_text")
-    )
+    builder.button(text="✏️ Ввести текст", callback_data=CampaignCB(action="manual_text"))
     if user_plan != "free":
         builder.button(
-            text="🤖 Сгенерировать через ИИ (+10₽)",
-            callback_data=CampaignCB(action="ai_text")
+            text="🤖 Сгенерировать через ИИ (+10₽)", callback_data=CampaignCB(action="ai_text")
         )
     else:
         builder.button(
-            text="🤖 ИИ — доступно от STARTER",
-            callback_data=CampaignCB(action="ai_locked")
+            text="🤖 ИИ — доступно от STARTER", callback_data=CampaignCB(action="ai_locked")
         )
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))

@@ -73,7 +73,12 @@ def create_celery_app() -> Celery:
     app.conf.beat_schedule = get_beat_schedule()
 
     # Автообнаружение задач
-    app.autodiscover_tasks(packages=["src.tasks"], force=True)
+    app.autodiscover_tasks(
+        packages=[
+            "src.tasks",
+        ],
+        force=True,
+    )
 
     return app
 
@@ -81,15 +86,15 @@ def create_celery_app() -> Celery:
 def get_beat_schedule() -> dict[str, Any]:
     """
     Получить расписание периодических задач Celery Beat.
-    
+
     Парсинг настроен на ночное время (02:30-06:00 UTC = 05:30-09:00 MSK).
     Разбит на 7 слотов по 30 минут для соблюдения лимитов Telegram.
-    
+
     Telegram лимиты (User API):
     - Поиск каналов: ~10-20 запросов в минуту
     - Получение информации о канале: ~50-100 запросов в минуту
     - FloodWait: автоматически обрабатывается в парсере
-    
+
     Каждый слот обрабатывает ~20-25 поисковых запросов.
     Общее время: 3.5 часа для ~150 запросов.
 
@@ -172,11 +177,26 @@ def get_beat_schedule() -> dict[str, Any]:
             "schedule": crontab(minute=0),
             "options": {"queue": "mailing"},
         },
+        # ========== PLAN RENEWALS (ежедневно в 03:00 UTC) ==========
+        "check-plan-renewals": {
+            "task": "tasks.billing_tasks:check_plan_renewals",
+            "schedule": crontab(hour=settings.plan_renewal_check_hour, minute=0),
+            "options": {"queue": "default"},
+        },
+        # ========== CHECK PENDING INVOICES (каждые 5 минут) ==========
+        "check-pending-invoices": {
+            "task": "tasks.billing_tasks:check_pending_invoices",
+            "schedule": 300.0,  # 5 минут
+            "options": {"queue": "default"},
+        },
     }
 
 
 # Создаем глобальное приложение
 celery_app = create_celery_app()
+
+# Алиас для совместимости
+app = celery_app
 
 
 # Decorator для регистрации задач

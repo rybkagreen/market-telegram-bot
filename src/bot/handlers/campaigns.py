@@ -112,8 +112,7 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
 
     if len(title) < 3 or len(title) > 100:
         await message.answer(
-            "❌ Название должно быть от 3 до 100 символов.\n\n"
-            "Введите название кампании:"
+            "❌ Название должно быть от 3 до 100 символов.\n\nВведите название кампании:"
         )
         return
 
@@ -122,10 +121,7 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
     # Если текст уже задан (через шаблон) — переходим к размеру аудитории
     data = await state.get_data()
     if data.get("text"):
-        text = (
-            "👥 <b>Размер аудитории</b>\n\n"
-            "Шаг 5 из 7: Выберите размер чатов для рассылки."
-        )
+        text = "👥 <b>Размер аудитории</b>\n\nШаг 5 из 7: Выберите размер чатов для рассылки."
         await message.answer(text, reply_markup=get_member_count_kb())
         await state.set_state(CampaignStates.waiting_member_count)
     else:
@@ -136,10 +132,7 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
             user = await user_repo.get_by_telegram_id(message.from_user.id)
             user_plan = user.plan.value if user else "free"
 
-        text = (
-            "✍️ <b>Текст кампании</b>\n\n"
-            "Как вы хотите создать текст для рассылки?"
-        )
+        text = "✍️ <b>Текст кампании</b>\n\nКак вы хотите создать текст для рассылки?"
         await message.answer(text, reply_markup=get_text_type_kb(user_plan))
         await state.set_state(CampaignStates.waiting_text)
 
@@ -226,8 +219,7 @@ async def handle_ai_locked(callback: CallbackQuery) -> None:
     Уведомить что ИИ-генерация недоступна на FREE тарифе.
     """
     await callback.answer(
-        "🔒 ИИ-генерация доступна на тарифе STARTER и выше.\n"
-        "Перейдите в Кабинет → Сменить тариф.",
+        "🔒 ИИ-генерация доступна на тарифе STARTER и выше.\nПерейдите в Кабинет → Сменить тариф.",
         show_alert=True,
     )
 
@@ -722,7 +714,7 @@ async def confirm_draft(callback: CallbackQuery, state: FSMContext) -> None:
         f"Вы можете запустить её позже из личного кабинета."
     )
 
-    await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+    await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.callback_query(
@@ -807,7 +799,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
         # Запускаем рассылку через Celery
         send_campaign.delay(campaign.id)
 
-    await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+    await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 # ==================== ОТМЕНА ====================
@@ -827,7 +819,7 @@ async def cancel_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     text = "✖ Создание кампании отменено."
 
     if user:
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
     else:
         await callback.message.edit_text(text)
         await callback.answer("❌ Пользователь не найден. Нажмите /start")

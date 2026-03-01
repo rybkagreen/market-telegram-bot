@@ -1212,11 +1212,11 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
     async with async_session_factory() as session:
         user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
-    balance = user.balance if user else Decimal("0")
+    credits = user.credits if user else 0
 
     await callback.message.edit_text(
         "🔙 Возврат в главное меню",
-        reply_markup=get_main_menu(balance, user.id),
+        reply_markup=get_main_menu(credits, user.id if user else None),
     )
     await callback.answer()
 
