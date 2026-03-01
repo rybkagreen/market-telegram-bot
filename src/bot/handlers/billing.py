@@ -56,7 +56,10 @@ async def show_balance(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        plan_value = user.plan.value.upper()
+        # Конвертируем plan из строки в Enum если нужно
+        from src.db.models.user import UserPlan
+        plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
+        plan_value = plan.value.upper()
 
         # Информация о тарифе
         plan_expires = ""
