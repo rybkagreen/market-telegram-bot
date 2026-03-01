@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     api_id: int = Field(..., alias="API_ID", description="Telegram API ID для парсера")
     api_hash: str = Field(..., alias="API_HASH", description="Telegram API Hash для парсера")
 
+    # Telethon StringSession
+    telethon_session_string: str = Field(
+        "",
+        alias="TELETHON_SESSION_STRING",
+        description="Telethon StringSession для парсера",
+    )
+
     # PostgreSQL
     postgres_user: str = Field("market_bot", alias="POSTGRES_USER")
     postgres_password: str = Field("market_bot_pass", alias="POSTGRES_PASSWORD")
@@ -51,27 +58,44 @@ class Settings(BaseSettings):
     )
     debug: bool = Field(False, alias="DEBUG")
 
-    # AI Services
-    anthropic_api_key: str | None = Field(None, alias="ANTHROPIC_API_KEY")
-    openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
-    groq_api_key: str | None = Field(None, alias="GROQ_API_KEY")
+    # ══════════════════════════════════════════════════════════════
+    # OpenRouter — единственный AI провайдер
+    # Получить ключ: https://openrouter.ai/keys
+    # ══════════════════════════════════════════════════════════════
     openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
 
-    # AI Provider настройки
-    ai_provider: str = Field("groq", alias="AI_PROVIDER")  # groq | openai | openrouter | mock
-    ai_model: str = Field("llama-3.3-70b-versatile", alias="AI_MODEL")
+    # Модели (менять не рекомендуется — они привязаны к тарифам)
+    # FREE/STARTER → бесплатная Llama 4 Scout
+    model_free: str = Field("meta-llama/llama-4-scout:free", alias="MODEL_FREE")
+    # PRO/BUSINESS → Claude Sonnet 4.6
+    model_paid: str = Field("anthropic/claude-sonnet-4.6", alias="MODEL_PAID")
 
-    # OpenRouter модель (для админов — Claude Sonnet)
-    openrouter_model: str = Field("anthropic/claude-sonnet-4-20250514", alias="OPENROUTER_MODEL")
-
-    # AI параметры генерации
-    ai_max_tokens: int = Field(1024, alias="AI_MAX_TOKENS")
+    # Параметры генерации
+    ai_timeout: int = Field(60, alias="AI_TIMEOUT")
+    ai_max_tokens: int = Field(1500, alias="AI_MAX_TOKENS")
     ai_temperature: float = Field(0.7, alias="AI_TEMPERATURE")
 
-    # AI Cost
-    ai_cost_per_generation: float = Field(10.0, alias="AI_COST_PER_GENERATION")
+    # ========== CREDIT SYSTEM ==========
+    # CryptoBot
+    cryptobot_token: str | None = Field(None, alias="CRYPTOBOT_TOKEN")
+    stars_enabled: bool = Field(True, alias="STARS_ENABLED")
 
-    # Payments
+    # Credit rates (кредитов за 1 единицу валюты)
+    credits_per_usdt: int = Field(90, alias="CREDITS_PER_USDT")
+    credits_per_ton: int = Field(400, alias="CREDITS_PER_TON")
+    credits_per_btc: int = Field(9_000_000, alias="CREDITS_PER_BTC")
+    credits_per_eth: int = Field(300_000, alias="CREDITS_PER_ETH")
+    credits_per_ltc: int = Field(7_000, alias="CREDITS_PER_LTC")
+    credits_per_star: int = Field(2, alias="CREDITS_PER_STAR")
+
+    # Package bonuses
+    bonus_credits_standard: int = Field(100, alias="BONUS_CREDITS_STANDARD")
+    bonus_credits_business: int = Field(500, alias="BONUS_CREDITS_BUSINESS")
+
+    # Plan renewal
+    plan_renewal_check_hour: int = Field(3, alias="PLAN_RENEWAL_CHECK_HOUR")
+
+    # Payments (legacy)
     yookassa_shop_id: str | None = Field(None, alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str | None = Field(None, alias="YOOKASSA_SECRET_KEY")
 
@@ -118,6 +142,42 @@ class Settings(BaseSettings):
     def redis_url_sync(self) -> str:
         """Синхронная версия REDIS_URL."""
         return str(self.redis_url).replace("redis://", "redis://")
+
+    @property
+    def currency_rates(self) -> dict[str, int]:
+        """Словарь курсов конвертации валют в кредиты."""
+        return {
+            "USDT": self.credits_per_usdt,
+            "TON": self.credits_per_ton,
+            "BTC": self.credits_per_btc,
+            "ETH": self.credits_per_eth,
+            "LTC": self.credits_per_ltc,
+            "XUSDT": self.credits_per_usdt,  # alias для Stars
+        }
+
+    @property
+    def openrouter_base_url(self) -> str:
+        """Базовый URL для OpenRouter API."""
+        return "https://openrouter.ai/api/v1"
+
+    def get_model_for_plan(self, plan: str) -> str:
+        """
+        Вернуть модель OpenRouter для указанного тарифа.
+
+        FREE/STARTER → бесплатная модель
+        PRO/BUSINESS → платная модель
+
+        Args:
+            plan: Название тарифа (free, starter, pro, business).
+
+        Returns:
+            ID модели в формате OpenRouter.
+        """
+        paid_plans = {"pro", "business"}
+        plan_value = plan.lower() if isinstance(plan, str) else plan.value.lower()
+        if plan_value in paid_plans:
+            return self.model_paid
+        return self.model_free
 
 
 @lru_cache

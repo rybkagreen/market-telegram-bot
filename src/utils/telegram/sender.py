@@ -195,3 +195,126 @@ async def create_sender(bot_token: str) -> TelegramSender:
     """
     bot = Bot(token=bot_token)
     return TelegramSender(bot)
+
+
+class CampaignSender:
+    """
+    Сервис для отправки кампаний (рассылок) по чатам.
+
+    Методы:
+        send_campaign: Отправить кампанию по списку чатов
+        send_to_chat: Отправить сообщение в конкретный чат
+        get_chats_for_campaign: Получить чаты для кампании
+    """
+
+    def __init__(self, bot: Bot) -> None:
+        """
+        Инициализация отправителя кампаний.
+
+        Args:
+            bot: Экземпляр бота aiogram.
+        """
+        self.bot = bot
+        self.sender = TelegramSender(bot=bot)
+
+    async def send_to_chat(
+        self,
+        chat,
+        text: str,
+        parse_mode: str = "HTML",
+        image_file_id: str | None = None,
+    ) -> bool:
+        """
+        Отправить сообщение в чат.
+
+        Args:
+            chat: Объект чата или ID.
+            text: Текст сообщения.
+            parse_mode: Режим парсинга.
+            image_file_id: ID изображения (опционально).
+
+        Returns:
+            True если успешно.
+        """
+        chat_id = chat.telegram_id if hasattr(chat, "telegram_id") else chat
+
+        try:
+            if image_file_id:
+                await self.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=image_file_id,
+                    caption=text,
+                    parse_mode=parse_mode,
+                )
+            else:
+                await self.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode=parse_mode,
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Error sending to chat {chat_id}: {e}")
+            return False
+
+    async def send_campaign(
+        self,
+        chat_ids: list[int],
+        text: str,
+        parse_mode: str = "HTML",
+        image_file_id: str | None = None,
+    ) -> dict:
+        """
+        Отправить кампанию по списку чатов.
+
+        Args:
+            chat_ids: Список Telegram ID чатов.
+            text: Текст сообщения.
+            parse_mode: Режим парсинга.
+            image_file_id: ID изображения (опционально).
+
+        Returns:
+            Статистика отправки.
+        """
+        stats = {"sent": 0, "failed": 0, "skipped": 0}
+
+        for chat_id in chat_ids:
+            try:
+                success = await self.send_to_chat(
+                    chat=chat_id,
+                    text=text,
+                    parse_mode=parse_mode,
+                    image_file_id=image_file_id,
+                )
+
+                if success:
+                    stats["sent"] += 1
+                else:
+                    stats["failed"] += 1
+
+            except Exception as e:
+                logger.error(f"Error sending to {chat_id}: {e}")
+                stats["failed"] += 1
+
+            # Небольшая задержка между отправками
+            await asyncio.sleep(0.1)
+
+        return stats
+
+    async def get_chats_for_campaign(self, campaign) -> list:
+        """
+        Получить список чатов для кампании.
+
+        Args:
+            campaign: Объект кампании.
+
+        Returns:
+            Список чатов.
+        """
+        # Возвращаем пустой список по умолчанию
+        # Реальная логика должна быть в CampaignRepository
+        return []
+
+    async def close(self) -> None:
+        """Закрыть сессию бота."""
+        await self.sender.close()

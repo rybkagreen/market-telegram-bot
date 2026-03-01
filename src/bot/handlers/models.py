@@ -115,8 +115,7 @@ async def show_admin_models_menu(message: Message | CallbackQuery, user: User) -
     for provider_key, provider_info in AI_PROVIDERS.items():
         status = "✅" if provider_key == current_provider else "⚪"
         builder.button(
-            text=f"{status} {provider_info['name']}",
-            callback_data=ModelCB(provider=provider_key)
+            text=f"{status} {provider_info['name']}", callback_data=ModelCB(provider=provider_key)
         )
 
     builder.button(text="🔙 В меню", callback_data=ModelCB(provider="back"))
@@ -133,10 +132,10 @@ async def show_user_models_info(message: Message | CallbackQuery, user: User) ->
     user_provider = user.get_ai_provider()
     user_model = user.get_ai_model()
 
-    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
     # Преобразуем строку в Enum если нужно
-    user_plan = user.plan if hasattr(user.plan, 'value') else UserPlan(plan_value)
+    user_plan = user.plan if hasattr(user.plan, "value") else UserPlan(plan_value)
     tariff_info = TARIFF_MODELS.get(user_plan, TARIFF_MODELS[UserPlan.STARTER])
 
     text = (
@@ -150,8 +149,7 @@ async def show_user_models_info(message: Message | CallbackQuery, user: User) ->
     # Если у пользователя кастомные настройки
     if user.ai_provider or user.ai_model:
         text += (
-            "✨ <b>Персональные настройки:</b>\n"
-            "У вас установлены индивидуальные настройки ИИ.\n\n"
+            "✨ <b>Персональные настройки:</b>\nУ вас установлены индивидуальные настройки ИИ.\n\n"
         )
     else:
         text += (
@@ -238,19 +236,23 @@ async def models_back_callback(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
         text = (
             f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
-@router.callback_query(ModelCB.filter((F.provider != "select") & (F.provider != "back") & (F.provider != "tariff_info")))
+@router.callback_query(
+    ModelCB.filter(
+        (F.provider != "select") & (F.provider != "back") & (F.provider != "tariff_info")
+    )
+)
 async def model_provider_callback(callback: CallbackQuery, callback_data: ModelCB) -> None:
     """Callback handler для выбора провайдера (только админ)."""
     if not is_admin(callback.from_user.id):
@@ -292,7 +294,7 @@ async def model_provider_callback(callback: CallbackQuery, callback_data: ModelC
         is_current = "✅" if model == current_model and provider == current_provider else ""
         builder.button(
             text=f"{is_current} {model}",
-            callback_data=ModelCB(provider=f"model_{provider}_{model}")
+            callback_data=ModelCB(provider=f"model_{provider}_{model}"),
         )
 
     builder.button(text="🔙 К провайдерам", callback_data=ModelCB(provider="select"))

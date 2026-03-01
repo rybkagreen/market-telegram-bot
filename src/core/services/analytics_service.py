@@ -109,6 +109,7 @@ class AnalyticsService:
             data = await redis_client.get(key)
             if data:
                 import json
+
                 return json.loads(data)
             return None
         except Exception as e:
@@ -132,6 +133,7 @@ class AnalyticsService:
         try:
             redis_client = await self.redis_client
             import json
+
             await redis_client.setex(key, ttl, json.dumps(value, default=str))
         except Exception as e:
             logger.error(f"Cache set error: {e}")
@@ -185,15 +187,18 @@ class AnalyticsService:
             )
 
             # Кэширование
-            await self._set_cache(cache_key, {
-                "total_sent": sent,
-                "total_failed": failed,
-                "total_skipped": skipped,
-                "total_pending": pending,
-                "success_rate": success_rate,
-                "total_cost": str(total_cost),
-                "reach_estimate": reach_estimate,
-            })
+            await self._set_cache(
+                cache_key,
+                {
+                    "total_sent": sent,
+                    "total_failed": failed,
+                    "total_skipped": skipped,
+                    "total_pending": pending,
+                    "success_rate": success_rate,
+                    "total_cost": str(total_cost),
+                    "reach_estimate": reach_estimate,
+                },
+            )
 
             return result
 
@@ -256,14 +261,17 @@ class AnalyticsService:
             )
 
             # Кэширование
-            await self._set_cache(cache_key, {
-                "total_campaigns": total_campaigns,
-                "active_campaigns": active_campaigns,
-                "completed_campaigns": completed_campaigns,
-                "total_spent": str(total_spent),
-                "avg_success_rate": avg_success_rate,
-                "total_chats_reached": total_chats_reached,
-            })
+            await self._set_cache(
+                cache_key,
+                {
+                    "total_campaigns": total_campaigns,
+                    "active_campaigns": active_campaigns,
+                    "completed_campaigns": completed_campaigns,
+                    "total_spent": str(total_spent),
+                    "avg_success_rate": avg_success_rate,
+                    "total_chats_reached": total_chats_reached,
+                },
+            )
 
             return result
 
@@ -290,13 +298,15 @@ class AnalyticsService:
 
             result = []
             for chat_data in top_chats:
-                result.append(ChatPerformance(
-                    chat_telegram_id=chat_data.get("chat_telegram_id", 0),
-                    chat_title=chat_data.get("chat_title", ""),
-                    total_sent=chat_data.get("total_sent", 0),
-                    success_rate=chat_data.get("success_rate", 0.0),
-                    avg_rating=chat_data.get("avg_rating", 0.0),
-                ))
+                result.append(
+                    ChatPerformance(
+                        chat_telegram_id=chat_data.get("chat_telegram_id", 0),
+                        chat_title=chat_data.get("chat_title", ""),
+                        total_sent=chat_data.get("total_sent", 0),
+                        success_rate=chat_data.get("success_rate", 0.0),
+                        avg_rating=chat_data.get("avg_rating", 0.0),
+                    )
+                )
 
             return result
 
@@ -317,14 +327,16 @@ class AnalyticsService:
         for campaign_id in campaign_ids:
             stats = await self.get_campaign_stats(campaign_id)
             if stats:
-                results.append({
-                    "campaign_id": campaign_id,
-                    "total_sent": stats.total_sent,
-                    "total_failed": stats.total_failed,
-                    "success_rate": stats.success_rate,
-                    "total_cost": float(stats.total_cost),
-                    "reach_estimate": stats.reach_estimate,
-                })
+                results.append(
+                    {
+                        "campaign_id": campaign_id,
+                        "total_sent": stats.total_sent,
+                        "total_failed": stats.total_failed,
+                        "success_rate": stats.success_rate,
+                        "total_cost": float(stats.total_cost),
+                        "reach_estimate": stats.reach_estimate,
+                    }
+                )
 
         # Вычисляем средние значения
         if results:

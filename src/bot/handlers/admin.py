@@ -96,8 +96,12 @@ async def handle_admin_stats(callback: CallbackQuery) -> None:
         banned_users = await user_repo.count(User.is_banned == True)  # noqa: E712
 
         total_campaigns = await campaign_repo.count()
-        running_campaigns = await campaign_repo.count(CampaignRepository.model.status == CampaignStatus.RUNNING)
-        queued_campaigns = await campaign_repo.count(CampaignRepository.model.status == CampaignStatus.QUEUED)
+        running_campaigns = await campaign_repo.count(
+            CampaignRepository.model.status == CampaignStatus.RUNNING
+        )
+        queued_campaigns = await campaign_repo.count(
+            CampaignRepository.model.status == CampaignStatus.QUEUED
+        )
 
         # Общая выручка (сумма всех пополнений)
         revenue_query = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
@@ -190,8 +194,7 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
         builder = InlineKeyboardBuilder()
         for i in range(1, 4):
             builder.button(
-                text=f"Вариант {i}",
-                callback_data=AdminCB(action="ai_variant_select", value=str(i))
+                text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i))
             )
         builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
@@ -239,8 +242,7 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
         builder = InlineKeyboardBuilder()
         for i in range(1, 4):
             builder.button(
-                text=f"Вариант {i}",
-                callback_data=AdminCB(action="ai_variant_select", value=str(i))
+                text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i))
             )
         builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
@@ -357,10 +359,7 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
     for i, user in enumerate(users, 1):
         ban_emoji = "🚫 " if user.is_banned else "✅ "
         username = f"@{user.username}" if user.username else "—"
-        text += (
-            f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | "
-            f"{username} | {user.balance}₽\n"
-        )
+        text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.balance}₽\n"
 
     await callback.message.edit_text(
         text,
@@ -406,7 +405,7 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
 
     ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
     created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
-    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
     text = (
         f"👤 <b>Профиль пользователя</b>\n\n"
@@ -442,8 +441,7 @@ async def handle_ban_start(callback: CallbackQuery, state: FSMContext) -> None:
     """
     await state.set_state(AdminBanStates.waiting_user_id)
     await callback.message.edit_text(
-        "🚫 <b>Бан пользователя</b>\n\n"
-        "Введите Telegram ID пользователя:",
+        "🚫 <b>Бан пользователя</b>\n\nВведите Telegram ID пользователя:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -523,8 +521,7 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
         )
 
     await message.answer(
-        f"✅ Пользователь {action}\n"
-        f"Причина: {reason}",
+        f"✅ Пользователь {action}\nПричина: {reason}",
         reply_markup=get_admin_main_kb(),
     )
     await state.clear()
@@ -544,8 +541,7 @@ async def handle_balance_manage(callback: CallbackQuery, state: FSMContext) -> N
     """
     await state.set_state(AdminBalanceStates.waiting_user_id)
     await callback.message.edit_text(
-        "💰 <b>Изменение баланса пользователя</b>\n\n"
-        "Введите Telegram ID пользователя:",
+        "💰 <b>Изменение баланса пользователя</b>\n\nВведите Telegram ID пользователя:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -730,9 +726,7 @@ async def handle_broadcast_confirm(callback: CallbackQuery, state: FSMContext) -
             failed += 1
 
     await callback.message.edit_text(
-        f"✅ <b>Broadcast завершён</b>\n\n"
-        f"📤 Отправлено: <b>{sent}</b>\n"
-        f"❌ Ошибок: <b>{failed}</b>",
+        f"✅ <b>Broadcast завершён</b>\n\n📤 Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
         reply_markup=get_admin_main_kb(),
     )
     await callback.answer()
@@ -755,8 +749,7 @@ async def handle_free_campaign_start(callback: CallbackQuery, state: FSMContext)
     await state.set_state(AdminFreeCampaignStates.waiting_title)
 
     await callback.message.edit_text(
-        "📣 <b>Бесплатная кампания администратора</b>\n\n"
-        "Введите название кампании:",
+        "📣 <b>Бесплатная кампания администратора</b>\n\nВведите название кампании:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -808,7 +801,9 @@ async def handle_free_campaign_text(message: Message, state: FSMContext) -> None
     await message.answer("Выберите тематику:", reply_markup=get_topics_kb())
 
 
-@router.callback_query(AdminFreeCampaignStates.waiting_topic, CampaignCB.filter(F.action == "topic"))
+@router.callback_query(
+    AdminFreeCampaignStates.waiting_topic, CampaignCB.filter(F.action == "topic")
+)
 async def handle_free_campaign_topic(
     callback: CallbackQuery,
     callback_data: CampaignCB,
@@ -824,7 +819,9 @@ async def handle_free_campaign_topic(
     """
     await state.update_data(topic=callback_data.value)
     await state.set_state(AdminFreeCampaignStates.waiting_member_count)
-    await callback.message.edit_text("Выберите размер аудитории:", reply_markup=get_member_count_kb())
+    await callback.message.edit_text(
+        "Выберите размер аудитории:", reply_markup=get_member_count_kb()
+    )
     await callback.answer()
 
 
@@ -957,18 +954,20 @@ async def handle_free_campaign_confirm(callback: CallbackQuery, state: FSMContex
         campaign_repo = CampaignRepository(session)
 
         # Создаём кампанию
-        campaign = await campaign_repo.create({
-            "user_id": admin_user.id,
-            "title": data.get("title"),
-            "text": data.get("text"),
-            "status": CampaignStatus.RUNNING,
-            "filters_json": {
-                "topics": [data.get("topic")],
-                "min_members": data.get("min_members", 0),
-                "max_members": data.get("max_members", 1000000),
-            },
-            "cost": 0.0,  # Бесплатно
-        })
+        campaign = await campaign_repo.create(
+            {
+                "user_id": admin_user.id,
+                "title": data.get("title"),
+                "text": data.get("text"),
+                "status": CampaignStatus.RUNNING,
+                "filters_json": {
+                    "topics": [data.get("topic")],
+                    "min_members": data.get("min_members", 0),
+                    "max_members": data.get("max_members", 1000000),
+                },
+                "cost": 0.0,  # Бесплатно
+            }
+        )
 
     # Запускаем рассылку
     send_campaign.delay(campaign.id)
@@ -1012,7 +1011,9 @@ async def handle_ai_generate_topic(
     await callback.answer()
 
 
-@router.callback_query(AdminAIGenerateStates.waiting_member_count, CampaignCB.filter(F.action == "members"))
+@router.callback_query(
+    AdminAIGenerateStates.waiting_member_count, CampaignCB.filter(F.action == "members")
+)
 async def handle_ai_generate_member_count(
     callback: CallbackQuery,
     callback_data: CampaignCB,
@@ -1047,7 +1048,9 @@ async def handle_ai_generate_member_count(
     await callback.answer()
 
 
-@router.callback_query(AdminAIGenerateStates.waiting_schedule, CampaignCB.filter(F.action.startswith("schedule_")))
+@router.callback_query(
+    AdminAIGenerateStates.waiting_schedule, CampaignCB.filter(F.action.startswith("schedule_"))
+)
 async def handle_ai_generate_schedule(
     callback: CallbackQuery,
     callback_data: CampaignCB,
@@ -1128,19 +1131,21 @@ async def handle_ai_campaign_confirm(callback: CallbackQuery, state: FSMContext)
         campaign_repo = CampaignRepository(session)
 
         # Создаём кампанию
-        campaign = await campaign_repo.create({
-            "user_id": admin_user.id,
-            "title": data.get("title"),
-            "text": data.get("text"),
-            "ai_description": data.get("ai_description"),
-            "status": CampaignStatus.RUNNING,
-            "filters_json": {
-                "topics": [data.get("topic")],
-                "min_members": data.get("min_members", 0),
-                "max_members": data.get("max_members", 1000000),
-            },
-            "cost": 0.0,  # Бесплатно для админа
-        })
+        campaign = await campaign_repo.create(
+            {
+                "user_id": admin_user.id,
+                "title": data.get("title"),
+                "text": data.get("text"),
+                "ai_description": data.get("ai_description"),
+                "status": CampaignStatus.RUNNING,
+                "filters_json": {
+                    "topics": [data.get("topic")],
+                    "min_members": data.get("min_members", 0),
+                    "max_members": data.get("max_members", 1000000),
+                },
+                "cost": 0.0,  # Бесплатно для админа
+            }
+        )
 
     # Запускаем рассылку
     send_campaign.delay(campaign.id)
@@ -1207,11 +1212,11 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
     async with async_session_factory() as session:
         user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
-    balance = user.balance if user else Decimal("0")
+    credits = user.credits if user else 0
 
     await callback.message.edit_text(
         "🔙 Возврат в главное меню",
-        reply_markup=get_main_menu(balance, user.id),
+        reply_markup=get_main_menu(credits, user.id if user else None),
     )
     await callback.answer()
 

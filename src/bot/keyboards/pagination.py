@@ -29,21 +29,14 @@ def get_pagination_kb(page: int, total_pages: int, cb_prefix: str) -> InlineKeyb
     builder = InlineKeyboardBuilder()
 
     if page > 1:
-        builder.button(
-            text="◀ Пред",
-            callback_data=PaginationCB(prefix=cb_prefix, page=page - 1)
-        )
+        builder.button(text="◀ Пред", callback_data=PaginationCB(prefix=cb_prefix, page=page - 1))
 
     builder.button(
-        text=f"{page}/{total_pages}",
-        callback_data=PaginationCB(prefix=cb_prefix, page=page)
+        text=f"{page}/{total_pages}", callback_data=PaginationCB(prefix=cb_prefix, page=page)
     )
 
     if page < total_pages:
-        builder.button(
-            text="След ▶",
-            callback_data=PaginationCB(prefix=cb_prefix, page=page + 1)
-        )
+        builder.button(text="След ▶", callback_data=PaginationCB(prefix=cb_prefix, page=page + 1))
 
     builder.adjust(3)
     return builder.as_markup()

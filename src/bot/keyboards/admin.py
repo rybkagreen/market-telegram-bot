@@ -49,8 +49,7 @@ def get_admin_confirm_kb(action: str, value: str = "") -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Подтвердить",
-        callback_data=AdminCB(action=f"{action}_confirm", value=value)
+        text="✅ Подтвердить", callback_data=AdminCB(action=f"{action}_confirm", value=value)
     )
     builder.button(text="❌ Отмена", callback_data=AdminCB(action="cancel"))
     builder.adjust(2)
@@ -79,21 +78,19 @@ def get_users_list_kb(
         username = f"@{user.username}" if user.username else f"ID:{user.telegram_id}"
         builder.button(
             text=f"{ban_emoji}{username}",
-            callback_data=AdminCB(action="user_detail", value=str(user.id))
+            callback_data=AdminCB(action="user_detail", value=str(user.id)),
         )
     builder.adjust(1)
 
     # Пагинация
     if page > 1:
         builder.button(
-            text="◀ Пред",
-            callback_data=AdminCB(action="users_page", value=str(page - 1))
+            text="◀ Пред", callback_data=AdminCB(action="users_page", value=str(page - 1))
         )
     builder.button(text=f"{page}/{total_pages}", callback_data=AdminCB(action="noop"))
     if page < total_pages:
         builder.button(
-            text="След ▶",
-            callback_data=AdminCB(action="users_page", value=str(page + 1))
+            text="След ▶", callback_data=AdminCB(action="users_page", value=str(page + 1))
         )
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(3, 1)
@@ -113,17 +110,12 @@ def get_user_actions_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     ban_text = "🔓 Разбанить" if is_banned else "🚫 Забанить"
+    builder.button(text=ban_text, callback_data=AdminCB(action="toggle_ban", value=str(user_id)))
     builder.button(
-        text=ban_text,
-        callback_data=AdminCB(action="toggle_ban", value=str(user_id))
+        text="💰 Изменить баланс", callback_data=AdminCB(action="edit_balance", value=str(user_id))
     )
     builder.button(
-        text="💰 Изменить баланс",
-        callback_data=AdminCB(action="edit_balance", value=str(user_id))
-    )
-    builder.button(
-        text="📊 Кампании",
-        callback_data=AdminCB(action="user_campaigns", value=str(user_id))
+        text="📊 Кампании", callback_data=AdminCB(action="user_campaigns", value=str(user_id))
     )
     builder.button(text="🔙 К списку", callback_data=AdminCB(action="users"))
     builder.adjust(2, 2)

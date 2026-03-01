@@ -169,8 +169,7 @@ async def send_campaign_report(
             chat_id=user_id,
             document=pdf_file,
             caption=(
-                f"📊 <b>Отчёт по кампании #{campaign_id}</b>\n\n"
-                f"Файл сгенерирован автоматически."
+                f"📊 <b>Отчёт по кампании #{campaign_id}</b>\n\nФайл сгенерирован автоматически."
             ),
         )
 
@@ -239,14 +238,8 @@ async def notify_campaign_started(
     text = format_campaign_started(title, chat_count, estimate_min)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📊 Статистика",
-        callback_data=f"campaign_stats:{campaign_id}"
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="📊 Статистика", callback_data=f"campaign_stats:{campaign_id}")
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2)
 
     return await notify_user(bot, user_id, text, builder.as_markup())
@@ -277,18 +270,9 @@ async def notify_campaign_done(
     text = format_campaign_done(sent, total, rate)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📄 Скачать PDF",
-        callback_data=f"download_report:{campaign_id}"
-    )
-    builder.button(
-        text="📊 Статистика",
-        callback_data=f"campaign_stats:{campaign_id}"
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="📄 Скачать PDF", callback_data=f"download_report:{campaign_id}")
+    builder.button(text="📊 Статистика", callback_data=f"campaign_stats:{campaign_id}")
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 1)
 
     return await notify_user(bot, user_id, text, builder.as_markup())
@@ -315,10 +299,7 @@ async def notify_campaign_error(
     text = format_campaign_error(error_msg)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1)
 
     return await notify_user(bot, user_id, text, builder.as_markup())
@@ -345,14 +326,8 @@ async def notify_low_balance(
     text = format_low_balance(balance, threshold)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="💳 Пополнить",
-        callback_data="billing:topup:0"
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="💳 Пополнить", callback_data="billing:topup:0")
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2)
 
     return await notify_user(bot, user_id, text, builder.as_markup())
@@ -379,14 +354,8 @@ async def notify_referral_bonus(
     text = format_referral_bonus(bonus_amount, referred_user_id)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="👥 Рефералы",
-        callback_data="billing:referral:0"
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="👥 Рефералы", callback_data="billing:referral:0")
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2)
 
     return await notify_user(bot, user_id, text, builder.as_markup())

@@ -80,12 +80,9 @@ class TransactionRepository(BaseRepository[Transaction]):
         Returns:
             Общая сумма.
         """
-        query = (
-            select(func.coalesce(func.sum(Transaction.amount), 0))
-            .where(
-                Transaction.user_id == user_id,
-                Transaction.type == transaction_type,
-            )
+        query = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == transaction_type,
         )
 
         result = await self.session.execute(query)
@@ -112,10 +109,12 @@ class TransactionRepository(BaseRepository[Transaction]):
         Returns:
             Созданная транзакция.
         """
-        return await self.create({
-            "user_id": user_id,
-            "amount": amount,
-            "type": transaction_type,
-            "payment_id": payment_id,
-            "meta_json": meta_json,
-        })
+        return await self.create(
+            {
+                "user_id": user_id,
+                "amount": amount,
+                "type": transaction_type,
+                "payment_id": payment_id,
+                "meta_json": meta_json,
+            }
+        )

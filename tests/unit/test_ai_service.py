@@ -67,9 +67,7 @@ class TestAIServiceCache:
 
         await ai_service._set_cache("test_key", "test_value", ttl=7200)
 
-        mock_redis.setex.assert_called_once_with(
-            "test_key", 7200, "test_value"
-        )
+        mock_redis.setex.assert_called_once_with("test_key", 7200, "test_value")
 
 
 class TestAIServiceGeneration:
@@ -91,9 +89,7 @@ class TestAIServiceGeneration:
         ai_service._redis = mock_redis
 
         # Мок deduct_balance
-        with patch.object(
-            ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True
-        ):
+        with patch.object(ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True):
             result = await ai_service.generate_ad_text(
                 user_id=1,
                 description="Test product",
@@ -111,14 +107,14 @@ class TestAIServiceGeneration:
         mock_redis.get = AsyncMock(return_value=None)
         ai_service._redis = mock_redis
 
-        with patch.object(
-            ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=False
+        with (
+            patch.object(ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=False),
+            pytest.raises(ValueError, match="Insufficient balance"),
         ):
-            with pytest.raises(ValueError, match="Insufficient balance"):
-                await ai_service.generate_ad_text(
-                    user_id=1,
-                    description="Test product",
-                )
+            await ai_service.generate_ad_text(
+                user_id=1,
+                description="Test product",
+            )
 
     @pytest.mark.asyncio
     async def test_generate_ab_variants(
@@ -132,17 +128,17 @@ class TestAIServiceGeneration:
 
         # Мок _call_claude
         mock_response = "Variant 1\n---\nVariant 2\n---\nVariant 3"
-        with patch.object(
-            ai_service, "_call_claude", new_callable=AsyncMock, return_value=mock_response
+        with (
+            patch.object(
+                ai_service, "_call_claude", new_callable=AsyncMock, return_value=mock_response
+            ),
+            patch.object(ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True),
         ):
-            with patch.object(
-                ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True
-            ):
-                variants = await ai_service.generate_ab_variants(
-                    user_id=1,
-                    description="Test product",
-                    count=3,
-                )
+            variants = await ai_service.generate_ab_variants(
+                user_id=1,
+                description="Test product",
+                count=3,
+            )
 
         assert len(variants) == 3
         assert variants[0] == "Variant 1"
@@ -159,17 +155,17 @@ class TestAIServiceGeneration:
         mock_redis.get = AsyncMock(return_value=None)
         ai_service._redis = mock_redis
 
-        with patch.object(
-            ai_service, "_call_claude", new_callable=AsyncMock, return_value="Improved text"
+        with (
+            patch.object(
+                ai_service, "_call_claude", new_callable=AsyncMock, return_value="Improved text"
+            ),
+            patch.object(ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True),
         ):
-            with patch.object(
-                ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True
-            ):
-                result = await ai_service.improve_text(
-                    user_id=1,
-                    original="Original text",
-                    improvement_type="more_engaging",
-                )
+            result = await ai_service.improve_text(
+                user_id=1,
+                original="Original text",
+                improvement_type="more_engaging",
+            )
 
         assert result == "Improved text"
 
@@ -184,17 +180,17 @@ class TestAIServiceGeneration:
         ai_service._redis = mock_redis
 
         mock_response = "hashtag1, hashtag2, hashtag3, hashtag4, hashtag5"
-        with patch.object(
-            ai_service, "_call_claude", new_callable=AsyncMock, return_value=mock_response
+        with (
+            patch.object(
+                ai_service, "_call_claude", new_callable=AsyncMock, return_value=mock_response
+            ),
+            patch.object(ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True),
         ):
-            with patch.object(
-                ai_service, "_deduct_balance", new_callable=AsyncMock, return_value=True
-            ):
-                hashtags = await ai_service.generate_hashtags(
-                    user_id=1,
-                    text="Test text",
-                    count=5,
-                )
+            hashtags = await ai_service.generate_hashtags(
+                user_id=1,
+                text="Test text",
+                count=5,
+            )
 
         assert len(hashtags) == 5
         assert all(h.startswith("#") for h in hashtags)
@@ -224,9 +220,7 @@ class TestAIServiceDeductBalance:
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
             mock_user_repo.update_balance = AsyncMock()
 
-            with patch(
-                "src.core.services.ai_service.UserRepository", return_value=mock_user_repo
-            ):
+            with patch("src.core.services.ai_service.UserRepository", return_value=mock_user_repo):
                 result = await ai_service._deduct_balance(user_id=1, amount=Decimal("10.00"))
 
         assert result is True
@@ -245,9 +239,7 @@ class TestAIServiceDeductBalance:
             mock_user_repo = MagicMock()
             mock_user_repo.get_by_id = AsyncMock(return_value=None)
 
-            with patch(
-                "src.core.services.ai_service.UserRepository", return_value=mock_user_repo
-            ):
+            with patch("src.core.services.ai_service.UserRepository", return_value=mock_user_repo):
                 result = await ai_service._deduct_balance(user_id=1, amount=Decimal("10.00"))
 
         assert result is False
@@ -267,9 +259,7 @@ class TestAIServiceDeductBalance:
             mock_user.balance = Decimal("5.00")
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
 
-            with patch(
-                "src.core.services.ai_service.UserRepository", return_value=mock_user_repo
-            ):
+            with patch("src.core.services.ai_service.UserRepository", return_value=mock_user_repo):
                 result = await ai_service._deduct_balance(user_id=1, amount=Decimal("10.00"))
 
         assert result is False

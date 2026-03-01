@@ -106,6 +106,7 @@ async def login(request: LoginRequest):
 
     # Получаем user данные
     import json
+
     user_data = json.loads(data.get("user", "{}"))
     telegram_id = user_data.get("id")
 
@@ -123,14 +124,17 @@ async def login(request: LoginRequest):
         if not user:
             # Создаём нового
             import uuid
-            user = await user_repo.create({
-                "telegram_id": int(telegram_id),
-                "username": user_data.get("username"),
-                "first_name": user_data.get("first_name"),
-                "last_name": user_data.get("last_name"),
-                "language_code": user_data.get("language_code", "ru"),
-                "referral_code": str(uuid.uuid4())[:8],
-            })
+
+            user = await user_repo.create(
+                {
+                    "telegram_id": int(telegram_id),
+                    "username": user_data.get("username"),
+                    "first_name": user_data.get("first_name"),
+                    "last_name": user_data.get("last_name"),
+                    "language_code": user_data.get("language_code", "ru"),
+                    "referral_code": str(uuid.uuid4())[:8],
+                }
+            )
 
     # Создаём токен
     access_token = create_access_token(user.id, user.telegram_id)
