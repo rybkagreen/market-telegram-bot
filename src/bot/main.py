@@ -18,6 +18,7 @@ from src.bot.handlers import (
     billing,
     cabinet,
     campaigns,
+    feedback,
     models,
     notifications,
     start,
@@ -86,6 +87,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(analytics.router)
     dp.include_router(analytics_chats.router)
     dp.include_router(templates.router)
+    dp.include_router(feedback.router)
     dp.include_router(admin.router)
 
     return dp
