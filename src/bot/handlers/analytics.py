@@ -98,9 +98,8 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="📄 Скачать отчёт", callback_data=MainMenuCB(action="download_report"))
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
-        builder.adjust(2)
+        builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
@@ -237,18 +236,3 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
-
-
-@router.callback_query(MainMenuCB.filter(F.action == "download_report"))
-async def handle_download_report(callback: CallbackQuery) -> None:
-    """
-    Обработать запрос на скачивание отчёта.
-
-    Args:
-        callback: Callback query.
-    """
-    # В production здесь генерируется и отправляется PDF
-    await callback.answer(
-        "🚧 Генерация PDF отчёта в разработке\nОтчёт будет отправлен отдельным сообщением",
-        show_alert=True,
-    )

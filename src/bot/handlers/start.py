@@ -173,3 +173,34 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
         )
 
         await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "admin_panel"))
+async def admin_panel_redirect(callback: CallbackQuery) -> None:
+    """
+    Перенаправить в админ-панель через кнопку главного меню.
+    Только для пользователей из ADMIN_IDS.
+    """
+    from src.config.settings import settings
+
+    if callback.from_user.id not in settings.admin_ids:
+        await callback.answer("❌ Нет доступа", show_alert=True)
+        return
+
+    from src.bot.keyboards.admin import get_admin_main_kb
+
+    await callback.message.edit_text(
+        "🔐 <b>Панель администратора</b>\n\n"
+        f"Добро пожаловать, <b>{callback.from_user.first_name}</b>!",
+        reply_markup=get_admin_main_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "feedback"))
+async def feedback_redirect(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Перенаправить в меню обратной связи.
+    """
+    from src.bot.handlers.feedback import handle_feedback_menu
+    await handle_feedback_menu(callback, state)

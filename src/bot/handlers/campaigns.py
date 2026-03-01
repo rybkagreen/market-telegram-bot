@@ -100,6 +100,50 @@ async def topic_back(callback: CallbackQuery, state: FSMContext) -> None:
     await start_campaign_wizard(callback, state)
 
 
+# ==================== ОБРАБОТКА WAITING_TITLE (ДЛЯ FLOW ЧЕРЕЗ ШАБЛОНЫ) ====================
+
+
+@router.message(CampaignStates.waiting_title)
+async def handle_title_input(message: Message, state: FSMContext) -> None:
+    """
+    Обработать название кампании (для flow через шаблоны).
+    """
+    title = message.text.strip()
+
+    if len(title) < 3 or len(title) > 100:
+        await message.answer(
+            "❌ Название должно быть от 3 до 100 символов.\n\n"
+            "Введите название кампании:"
+        )
+        return
+
+    await state.update_data(header=title)
+
+    # Если текст уже задан (через шаблон) — переходим к размеру аудитории
+    data = await state.get_data()
+    if data.get("text"):
+        text = (
+            "👥 <b>Размер аудитории</b>\n\n"
+            "Шаг 5 из 7: Выберите размер чатов для рассылки."
+        )
+        await message.answer(text, reply_markup=get_member_count_kb())
+        await state.set_state(CampaignStates.waiting_member_count)
+    else:
+        # Стандартный flow — идём к выбору типа текста
+        # Получаем тариф пользователя
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)
+            user_plan = user.plan.value if user else "free"
+
+        text = (
+            "✍️ <b>Текст кампании</b>\n\n"
+            "Как вы хотите создать текст для рассылки?"
+        )
+        await message.answer(text, reply_markup=get_text_type_kb(user_plan))
+        await state.set_state(CampaignStates.waiting_text)
+
+
 # ==================== ШАГ 2: ЗАГОЛОВОК ====================
 
 
@@ -126,9 +170,15 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
 
     await state.update_data(header=header)
 
+    # Получаем тариф пользователя
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)
+        user_plan = user.plan.value if user else "free"
+
     text = "✍️ <b>Текст кампании</b>\n\nШаг 3 из 7: Как вы хотите создать текст для рассылки?"
 
-    await message.answer(text, reply_markup=get_text_type_kb())
+    await message.answer(text, reply_markup=get_text_type_kb(user_plan))
     await state.set_state(CampaignStates.waiting_text)
     await state.update_data(step="text_type")
 
@@ -168,6 +218,18 @@ async def select_manual_text(callback: CallbackQuery, state: FSMContext) -> None
     await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_text)
     await state.update_data(step="manual_text")
+
+
+@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "ai_locked"))
+async def handle_ai_locked(callback: CallbackQuery) -> None:
+    """
+    Уведомить что ИИ-генерация недоступна на FREE тарифе.
+    """
+    await callback.answer(
+        "🔒 ИИ-генерация доступна на тарифе STARTER и выше.\n"
+        "Перейдите в Кабинет → Сменить тариф.",
+        show_alert=True,
+    )
 
 
 @router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "ai_text"))

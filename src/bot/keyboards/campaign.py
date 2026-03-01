@@ -46,16 +46,31 @@ def get_campaign_step_kb(back: bool = True) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_text_type_kb() -> InlineKeyboardMarkup:
+def get_text_type_kb(user_plan: str = "free") -> InlineKeyboardMarkup:
     """
     Клавиатура выбора типа ввода текста.
+
+    Args:
+        user_plan: Тариф пользователя. FREE скрывает кнопку ИИ.
 
     Returns:
         InlineKeyboardMarkup с выбором: вручную или ИИ.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="✏️ Ввести текст", callback_data=CampaignCB(action="manual_text"))
-    builder.button(text="🤖 Сгенерировать (+10₽)", callback_data=CampaignCB(action="ai_text"))
+    builder.button(
+        text="✏️ Ввести текст",
+        callback_data=CampaignCB(action="manual_text")
+    )
+    if user_plan != "free":
+        builder.button(
+            text="🤖 Сгенерировать через ИИ (+10₽)",
+            callback_data=CampaignCB(action="ai_text")
+        )
+    else:
+        builder.button(
+            text="🤖 ИИ — доступно от STARTER",
+            callback_data=CampaignCB(action="ai_locked")
+        )
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2)
