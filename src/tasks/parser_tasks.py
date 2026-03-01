@@ -677,7 +677,7 @@ def collect_all_chats_stats(self) -> dict[str, Any]:
     Главная задача: собрать статистику всех активных чатов.
     Нарезает чаты на батчи по 50 и запускает sub-задачи.
     """
-    return asyncio.get_event_loop().run_until_complete(_collect_all_chats_stats_async(self))
+    return asyncio.run(_collect_all_chats_stats_async(self))
 
 
 async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
@@ -786,7 +786,7 @@ def parse_single_chat(self, username: str) -> dict[str, Any]:
     Парсинг одного чата по запросу пользователя (не по расписанию).
     Используется когда пользователь добавляет новый чат через бота.
     """
-    return asyncio.get_event_loop().run_until_complete(_parse_single_chat_async(username))
+    return asyncio.run(_parse_single_chat_async(username))
 
 
 async def _parse_single_chat_async(username: str) -> dict[str, Any]:
