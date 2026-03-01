@@ -34,17 +34,14 @@ async def handle_templates_menu(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    text = (
-        "📋 <b>Библиотека шаблонов</b>\n\n"
-        "Выберите категорию для просмотра шаблонов:\n\n"
-    )
+    text = "📋 <b>Библиотека шаблонов</b>\n\nВыберите категорию для просмотра шаблонов:\n\n"
 
     builder = InlineKeyboardBuilder()
     for category in CATEGORIES:
         count = len(TEMPLATES.get(category, []))
         builder.button(
             text=f"{category} ({count})",
-            callback_data=CampaignCB(action="template_category", value=category)
+            callback_data=CampaignCB(action="template_category", value=category),
         )
 
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
@@ -76,7 +73,7 @@ async def handle_category_selected(callback: CallbackQuery, callback_data: Campa
     for template in templates:
         builder.button(
             text=f"📄 {template['title']}",
-            callback_data=CampaignCB(action="template_preview", value=template["id"])
+            callback_data=CampaignCB(action="template_preview", value=template["id"]),
         )
 
     builder.button(text="← Назад", callback_data=CampaignCB(action="template_back"))
@@ -110,17 +107,10 @@ async def handle_template_preview(callback: CallbackQuery, callback_data: Campai
 
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Использовать",
-        callback_data=CampaignCB(action="template_use", value=template_id)
+        text="✅ Использовать", callback_data=CampaignCB(action="template_use", value=template_id)
     )
-    builder.button(
-        text="← Назад",
-        callback_data=CampaignCB(action="template_back")
-    )
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="← Назад", callback_data=CampaignCB(action="template_back"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 1)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -137,17 +127,14 @@ async def handle_template_back(callback: CallbackQuery, callback_data: CampaignC
     """
     # Получаем предыдущую категорию из данных состояния
     # Для простоты просто возвращаемся в меню шаблонов
-    text = (
-        "📋 <b>Библиотека шаблонов</b>\n\n"
-        "Выберите категорию:\n\n"
-    )
+    text = "📋 <b>Библиотека шаблонов</b>\n\nВыберите категорию:\n\n"
 
     builder = InlineKeyboardBuilder()
     for category in CATEGORIES:
         count = len(TEMPLATES.get(category, []))
         builder.button(
             text=f"{category} ({count})",
-            callback_data=CampaignCB(action="template_category", value=category)
+            callback_data=CampaignCB(action="template_category", value=category),
         )
 
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
@@ -208,10 +195,7 @@ async def handle_use_template(
         await state.update_data(step="title")
     else:
         # Продолжаем wizard — переходим к выбору тематики
-        text = (
-            f"✅ Шаблон «{template['title']}» выбран!\n\n"
-            f"Теперь выберите тематику кампании:"
-        )
+        text = f"✅ Шаблон «{template['title']}» выбран!\n\nТеперь выберите тематику кампании:"
 
         await callback.message.edit_text(text, reply_markup=get_topics_kb())
         await state.set_state(CampaignStates.waiting_topic)

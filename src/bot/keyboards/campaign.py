@@ -46,22 +46,26 @@ def get_campaign_step_kb(back: bool = True) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_text_type_kb() -> InlineKeyboardMarkup:
+def get_text_type_kb(user_plan: str = "free") -> InlineKeyboardMarkup:
     """
     Клавиатура выбора типа ввода текста.
+
+    Args:
+        user_plan: Тариф пользователя. FREE скрывает кнопку ИИ.
 
     Returns:
         InlineKeyboardMarkup с выбором: вручную или ИИ.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="✏️ Ввести текст",
-        callback_data=CampaignCB(action="manual_text")
-    )
-    builder.button(
-        text="🤖 Сгенерировать (+10₽)",
-        callback_data=CampaignCB(action="ai_text")
-    )
+    builder.button(text="✏️ Ввести текст", callback_data=CampaignCB(action="manual_text"))
+    if user_plan != "free":
+        builder.button(
+            text="🤖 Сгенерировать через ИИ (+10₽)", callback_data=CampaignCB(action="ai_text")
+        )
+    else:
+        builder.button(
+            text="🤖 ИИ — доступно от STARTER", callback_data=CampaignCB(action="ai_locked")
+        )
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2)
@@ -77,10 +81,7 @@ def get_topics_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     for topic in TOPICS:
-        builder.button(
-            text=topic,
-            callback_data=CampaignCB(action="topic", value=topic)
-        )
+        builder.button(text=topic, callback_data=CampaignCB(action="topic", value=topic))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(3, 3, 3, 2)
@@ -102,10 +103,7 @@ def get_member_count_kb() -> InlineKeyboardMarkup:
         ("Любой", "any"),
     ]
     for label, value in options:
-        builder.button(
-            text=label,
-            callback_data=CampaignCB(action="members", value=value)
-        )
+        builder.button(text=label, callback_data=CampaignCB(action="members", value=value))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2, 2)
@@ -120,14 +118,8 @@ def get_schedule_kb() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с выбором: сейчас или позже.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="▶️ Сейчас",
-        callback_data=CampaignCB(action="schedule_now")
-    )
-    builder.button(
-        text="⏰ Запланировать",
-        callback_data=CampaignCB(action="schedule_later")
-    )
+    builder.button(text="▶️ Сейчас", callback_data=CampaignCB(action="schedule_now"))
+    builder.button(text="⏰ Запланировать", callback_data=CampaignCB(action="schedule_later"))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2)
@@ -142,18 +134,9 @@ def get_campaign_confirm_kb() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с вариантами: запустить, изменить, черновик, отмена.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="✅ Запустить",
-        callback_data=CampaignCB(action="confirm_launch")
-    )
-    builder.button(
-        text="📝 Изменить",
-        callback_data=CampaignCB(action="confirm_edit")
-    )
-    builder.button(
-        text="💾 Черновик",
-        callback_data=CampaignCB(action="confirm_draft")
-    )
+    builder.button(text="✅ Запустить", callback_data=CampaignCB(action="confirm_launch"))
+    builder.button(text="📝 Изменить", callback_data=CampaignCB(action="confirm_edit"))
+    builder.button(text="💾 Черновик", callback_data=CampaignCB(action="confirm_draft"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
     builder.adjust(2, 2)
     return builder.as_markup()
@@ -167,14 +150,8 @@ def get_image_upload_kb() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с вариантами: загрузить, пропустить.
     """
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📷 Загрузить фото",
-        callback_data=CampaignCB(action="image_upload")
-    )
-    builder.button(
-        text="⏭ Пропустить",
-        callback_data=CampaignCB(action="image_skip")
-    )
+    builder.button(text="📷 Загрузить фото", callback_data=CampaignCB(action="image_upload"))
+    builder.button(text="⏭ Пропустить", callback_data=CampaignCB(action="image_skip"))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.adjust(2, 1)
     return builder.as_markup()

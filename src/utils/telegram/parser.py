@@ -4,11 +4,18 @@ Telegram Parser для поиска и валидации публичных ч�
 """
 
 import asyncio
+import contextlib
+import json
 import logging
-from dataclasses import dataclass
+import re
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from datetime import UTC
-from typing import Any, Callable
+from typing import Any
 
+import httpx
+from bs4 import BeautifulSoup
+from redis.asyncio import Redis
 from telethon import TelegramClient
 from telethon.errors import (
     ChannelInvalidError,
@@ -17,6 +24,7 @@ from telethon.errors import (
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
+from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import (
     Channel,
@@ -148,10 +156,20 @@ class TelegramParser:
         await parser.stop()
     """
 
-    def __init__(self) -> None:
-        """Инициализация парсера."""
+    # Кэширование в Redis
+    CACHE_TTL: int = 3600  # 1 час для метрик чатов
+    CACHE_TTL_LONG: int = 86400  # 24 часа для каталогов TGStat
+
+    def __init__(self, redis: Redis | None = None) -> None:
+        """
+        Инициализация парсера.
+
+        Args:
+            redis: Redis клиент для кэширования (опционально).
+        """
         self._client: TelegramClient | None = None
         self._is_started = False
+        self._redis: Redis | None = redis
 
     async def start(self) -> None:
         """
@@ -159,14 +177,28 @@ class TelegramParser:
 
         Raises:
             RuntimeError: Если клиент уже запущен.
+            ValueError: Если TELETHON_SESSION_STRING не задан.
         """
         if self._is_started:
             raise RuntimeError("Parser already started")
 
+        if not settings.telethon_session_string:
+            raise ValueError(
+                "TELETHON_SESSION_STRING не задан в .env. "
+                "Запусти scripts/create_session.py для генерации."
+            )
+
+        # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
+        # https://github.com/LonamiWebs/Telethon/issues/4730
         self._client = TelegramClient(
-            "market_bot_parser",
+            StringSession(settings.telethon_session_string),
             settings.api_id,
             settings.api_hash,
+            device_model="Desktop",
+            system_version="Windows 10",
+            app_version="3.1.1 x64",
+            lang_code="en",
+            system_lang_code="en-US",
         )
 
         await self._client.start(bot_token=settings.bot_token)
@@ -192,6 +224,62 @@ class TelegramParser:
     ) -> None:
         """Async context manager exit."""
         await self.stop()
+
+    # ──────────────────────────────────────────────────────
+    # Методы кэширования в Redis
+    # ──────────────────────────────────────────────────────
+
+    def _get_cache_key(self, prefix: str, identifier: str) -> str:
+        """Создать ключ кэша."""
+        return f"parser:{prefix}:{identifier.lower()}"
+
+    async def _cache_get(self, key: str) -> Any | None:
+        """Получить из кэша."""
+        if not self._redis:
+            return None
+        try:
+            data = await self._redis.get(key)
+            if data:
+                return json.loads(data)
+        except Exception as e:
+            logger.debug(f"Cache get error: {e}")
+        return None
+
+    async def _cache_set(self, key: str, value: Any, ttl: int | None = None) -> None:
+        """Сохранить в кэш."""
+        if not self._redis:
+            return
+        try:
+            ttl = ttl or self.CACHE_TTL
+            await self._redis.setex(key, ttl, json.dumps(value, default=str))
+        except Exception as e:
+            logger.debug(f"Cache set error: {e}")
+
+    async def _cache_delete(self, key: str) -> None:
+        """Удалить из кэша."""
+        if not self._redis:
+            return
+        try:
+            await self._redis.delete(key)
+        except Exception as e:
+            logger.debug(f"Cache delete error: {e}")
+
+    async def _cache_invalidate_pattern(self, pattern: str) -> None:
+        """Удалить ключи по паттерну."""
+        if not self._redis:
+            return
+        try:
+            keys = []
+            async for key in self._redis.scan_iter(f"parser:{pattern}*"):
+                keys.append(key)
+            if keys:
+                await self._redis.delete(*keys)
+        except Exception as e:
+            logger.debug(f"Cache invalidate error: {e}")
+
+    # ──────────────────────────────────────────────────────
+    # Методы поиска и валидации
+    # ──────────────────────────────────────────────────────
 
     @property
     def client(self) -> TelegramClient:
@@ -422,7 +510,7 @@ class TelegramParser:
         return 0
 
     # ──────────────────────────────────────────────────────
-    # Методы сбора метрик (из TelegramChatParser)
+    # Методы сбора метрик
     # ──────────────────────────────────────────────────────
 
     # Константы для метрик
@@ -434,7 +522,7 @@ class TelegramParser:
         """
         Собрать полные метрики чата: подписчики, просмотры, ER, частота.
         Включает FloodWait handling и retry логику.
-        Заменяет TelegramChatParser.parse_chat().
+        Кэширует результат в Redis на 1 час.
 
         Args:
             username: Username канала (с @ или без).
@@ -443,8 +531,22 @@ class TelegramParser:
             ChatFullInfo с метриками или error полем.
         """
         username = username.lstrip("@").lower()
+
+        # Проверяем кэш
+        cache_key = self._get_cache_key("metrics", username)
+        cached = await self._cache_get(cache_key)
+        if cached:
+            logger.debug(f"Cache hit for @{username}")
+            return ChatFullInfo(**cached)
+
         try:
-            return await self._collect_full_metrics(username)
+            result = await self._collect_full_metrics(username)
+
+            # Кэшируем только успешный результат
+            if not result.error:
+                await self._cache_set(cache_key, asdict(result), self.CACHE_TTL)
+
+            return result
         except FloodWaitError as e:
             wait_sec = e.seconds + 5
             logger.warning(f"FloodWait {wait_sec}s для @{username}, жду...")
@@ -508,9 +610,7 @@ class TelegramParser:
             await asyncio.sleep(self.REQUEST_DELAY - elapsed)
         self._last_request_time = asyncio.get_event_loop().time()
 
-    def _detect_chat_type(
-        self, entity: Channel | Chat, full: Any
-    ) -> tuple[str, bool, bool]:
+    def _detect_chat_type(self, entity: Channel | Chat, full: Any) -> tuple[str, bool, bool]:
         """
         Определить тип чата и возможность постинга.
 
@@ -552,9 +652,7 @@ class TelegramParser:
         """
         views_list = []
         try:
-            async for message in self.client.iter_messages(
-                entity, limit=self.POSTS_SAMPLE
-            ):
+            async for message in self.client.iter_messages(entity, limit=self.POSTS_SAMPLE):
                 if message.views and message.views > 0:
                     views_list.append(message.views)
         except Exception as e:
@@ -570,9 +668,7 @@ class TelegramParser:
             "count": len(views_list),
         }
 
-    async def _collect_post_frequency(
-        self, entity: Channel | Chat
-    ) -> tuple[float, int]:
+    async def _collect_post_frequency(self, entity: Channel | Chat) -> tuple[float, int]:
         """
         Частота публикаций за последние 30 дней.
 
@@ -582,9 +678,9 @@ class TelegramParser:
         Returns:
             Кортеж (posts_per_day, total_posts_30d).
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        since = datetime.now(tz=timezone.utc) - timedelta(days=self.FREQUENCY_DAYS)
+        since = datetime.now(tz=UTC) - timedelta(days=self.FREQUENCY_DAYS)
         count = 0
         try:
             async for message in self.client.iter_messages(entity):
@@ -629,3 +725,272 @@ class TelegramParser:
             title=username,
             error=error,
         )
+
+    # ──────────────────────────────────────────────────────
+    # TGStat методы (перенесено из tgstat_parser.py)
+    # ──────────────────────────────────────────────────────
+
+    # Base URL для каталогов TGStat
+    TGSTAT_BASE_URL: str = "https://tgstat.ru"
+    TGSTAT_REQUEST_DELAY: float = 2.0  # секунды между запросами
+    TGSTAT_TIMEOUT: int = 30  # таймаут запроса
+
+    # User-Agent для обхода простых защит
+    TGSTAT_HEADERS: dict = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+
+    async def _get_tgstat_client(self) -> httpx.AsyncClient:
+        """Получить или создать HTTP клиент для TGStat."""
+        client = httpx.AsyncClient(
+            headers=self.TGSTAT_HEADERS,
+            timeout=httpx.Timeout(self.TGSTAT_TIMEOUT),
+            follow_redirects=True,
+        )
+        return client
+
+    async def fetch_tgstat_catalog(
+        self,
+        topic: str,
+        max_pages: int = 5,
+    ) -> list[str]:
+        """
+        Получить список username каналов из каталога TGStat.
+        Кэширует результат в Redis на 24 часа.
+
+        Args:
+            topic: Тематика (например, "business", "news", "crypto").
+            max_pages: Максимальное количество страниц для парсинга.
+
+        Returns:
+            Список username (без @).
+        """
+        # Проверяем кэш
+        cache_key = self._get_cache_key("tgstat", topic)
+        cached = await self._cache_get(cache_key)
+        if cached:
+            logger.debug(f"Cache hit for TGStat topic '{topic}'")
+            return cached
+
+        usernames: list[str] = []
+        client = await self._get_tgstat_client()
+
+        try:
+            catalog_url = f"{self.TGSTAT_BASE_URL}/catalog/{topic}"
+
+            for page in range(1, max_pages + 1):
+                page_url = f"{catalog_url}?p={page}" if page > 1 else catalog_url
+
+                try:
+                    response = await client.get(page_url)
+                    response.raise_for_status()
+
+                    usernames_on_page = self._parse_tgstat_catalog_page(response.text)
+
+                    if not usernames_on_page:
+                        logger.info(f"No more channels found on page {page}")
+                        break
+
+                    usernames.extend(usernames_on_page)
+                    logger.info(f"Found {len(usernames_on_page)} channels on page {page}")
+
+                    if page < max_pages:
+                        await asyncio.sleep(self.TGSTAT_REQUEST_DELAY)
+
+                except httpx.HTTPStatusError as e:
+                    logger.error(f"HTTP error on page {page}: {e}")
+                    break
+                except httpx.RequestError as e:
+                    logger.error(f"Request error on page {page}: {e}")
+                    break
+                except Exception as e:
+                    logger.error(f"Unexpected error on page {page}: {e}")
+                    break
+
+            logger.info(f"Total found {len(usernames)} channels for topic '{topic}'")
+            result = list(set(usernames))
+
+            # Кэшируем результат
+            await self._cache_set(cache_key, result, self.CACHE_TTL_LONG)
+
+            return result
+        finally:
+            await client.aclose()
+
+    def _parse_tgstat_catalog_page(self, html: str) -> list[str]:
+        """
+        Распарсить HTML страницу каталога TGStat.
+
+        Args:
+            html: HTML содержимое страницы.
+
+        Returns:
+            Список username.
+        """
+        usernames = []
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+
+            channel_cards = soup.find_all("a", href=re.compile(r"^/channel/"))
+
+            for card in channel_cards:
+                href = str(card.get("href") or "")
+                match = re.search(r"/channel/@?([a-zA-Z0-9_]+)", href)
+                if match:
+                    username = match.group(1)
+                    if username not in ("search", "popular", "new"):
+                        usernames.append(username)
+
+            channel_links = soup.find_all(attrs={"data-channel-url": re.compile(r"^/channel/")})
+
+            for link in channel_links:
+                url = str(link.get("data-channel-url") or "")
+                match = re.search(r"/channel/@?([a-zA-Z0-9_]+)", url)
+                if match:
+                    username = match.group(1)
+                    if username not in ("search", "popular", "new"):
+                        usernames.append(username)
+
+        except Exception as e:
+            logger.error(f"Error parsing HTML: {e}")
+
+        return usernames
+
+    async def fetch_channel_stats(self, username: str) -> dict[str, Any]:
+        """
+        Получить статистику канала с TGStat.
+
+        Args:
+            username: Username канала.
+
+        Returns:
+            Словарь со статистикой.
+        """
+        client = await self._get_tgstat_client()
+        url = f"{self.TGSTAT_BASE_URL}/channel/@{username}"
+
+        try:
+            response = await client.get(url)
+            response.raise_for_status()
+            return self._parse_tgstat_channel_stats(response.text)
+        except Exception as e:
+            logger.error(f"Error fetching stats for @{username}: {e}")
+            return {}
+        finally:
+            await client.aclose()
+
+    def _parse_tgstat_channel_stats(self, html: str) -> dict[str, Any]:
+        """
+        Распарсить статистику канала с TGStat.
+
+        Args:
+            html: HTML содержимое страницы канала.
+
+        Returns:
+            Словарь со статистикой.
+        """
+        stats = {
+            "subscribers": 0,
+            "avg_post_reach": 0,
+            "posts_per_day": 0.0,
+            "err_index": 0.0,
+        }
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            stat_blocks = soup.find_all(
+                "div", class_=re.compile(r"stat|metric|value", re.IGNORECASE)
+            )
+
+            for block in stat_blocks:
+                text = block.get_text(strip=True).lower()
+
+                if "подписчик" in text or "subscriber" in text:
+                    num_match = re.search(r"([\d\s,\.]+)", text)
+                    if num_match:
+                        num_str = num_match.group(1).replace(",", "").replace(" ", "")
+                        with contextlib.suppress(ValueError):
+                            stats["subscribers"] = int(float(num_str))
+
+                if "охват" in text or "reach" in text:
+                    num_match = re.search(r"([\d\s,\.]+)", text)
+                    if num_match:
+                        num_str = num_match.group(1).replace(",", "").replace(" ", "")
+                        with contextlib.suppress(ValueError):
+                            stats["avg_post_reach"] = int(float(num_str))
+
+        except Exception as e:
+            logger.error(f"Error parsing channel stats: {e}")
+
+        return stats
+
+    async def get_all_tgstat_topics(self) -> list[str]:
+        """
+        Получить список всех доступных тематик на TGStat.
+
+        Returns:
+            Список тематик.
+        """
+        client = await self._get_tgstat_client()
+
+        try:
+            response = await client.get(f"{self.TGSTAT_BASE_URL}/catalog")
+            response.raise_for_status()
+            return self._parse_tgstat_topics(response.text)
+        except Exception as e:
+            logger.error(f"Error fetching topics: {e}")
+            return []
+        finally:
+            await client.aclose()
+
+    def _parse_tgstat_topics(self, html: str) -> list[str]:
+        """
+        Распарсить список тематик TGStat.
+
+        Args:
+            html: HTML содержимое страницы каталога.
+
+        Returns:
+            Список тематик.
+        """
+        topics = []
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            topic_links = soup.find_all("a", href=re.compile(r"^/catalog/[a-z]+"))
+
+            for link in topic_links:
+                href = str(link.get("href") or "")
+                match = re.search(r"/catalog/([a-z-]+)", href)
+                if match:
+                    topic = match.group(1)
+                    if topic not in ("all", "popular", "new"):
+                        topics.append(topic)
+
+        except Exception as e:
+            logger.error(f"Error parsing topics: {e}")
+
+        return list(set(topics))
+
+
+# Популярные тематики для парсинга
+POPULAR_TOPICS = [
+    "business",
+    "news",
+    "crypto",
+    "marketing",
+    "it",
+    "finance",
+    "education",
+    "lifestyle",
+    "health",
+    "sport",
+    "auto",
+    "travel",
+    "food",
+    "fashion",
+    "real-estate",
+]

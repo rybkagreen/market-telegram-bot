@@ -36,7 +36,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Онлайн-курсы",
         },
     ],
-
     "IT": [
         {
             "id": "it_1",
@@ -57,7 +56,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "IT-поддержка",
         },
     ],
-
     "Курсы": [
         {
             "id": "edu_1",
@@ -78,7 +76,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Курсы дизайна",
         },
     ],
-
     "Товары": [
         {
             "id": "goods_1",
@@ -99,7 +96,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Натуральная косметика",
         },
     ],
-
     "Недвижимость": [
         {
             "id": "real_1",
@@ -120,7 +116,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Загородные дома",
         },
     ],
-
     "Крипта": [
         {
             "id": "crypto_1",
@@ -141,7 +136,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Торговые сигналы",
         },
     ],
-
     "Бизнес": [
         {
             "id": "biz_1",
@@ -162,7 +156,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Регистрация бизнеса",
         },
     ],
-
     "Новости": [
         {
             "id": "news_1",
@@ -177,7 +170,6 @@ TEMPLATES: dict[str, list[dict]] = {
             "preview": "Аналитика рынка",
         },
     ],
-
     "Другое": [
         {
             "id": "other_1",

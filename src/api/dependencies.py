@@ -165,6 +165,7 @@ async def get_current_user(
         )
 
     import json
+
     try:
         user_data = json.loads(user_json)
     except json.JSONDecodeError as e:
@@ -198,14 +199,17 @@ async def get_current_user(
             language_code = user_data.get("language_code", "ru")
 
             import uuid
-            user = await user_repo.create({
-                "telegram_id": telegram_id,
-                "username": username,
-                "first_name": first_name,
-                "last_name": last_name,
-                "language_code": language_code,
-                "referral_code": str(uuid.uuid4())[:8],
-            })
+
+            user = await user_repo.create(
+                {
+                    "telegram_id": telegram_id,
+                    "username": username,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "language_code": language_code,
+                    "referral_code": str(uuid.uuid4())[:8],
+                }
+            )
 
         # Кэшируем
         await _cache_user(user)

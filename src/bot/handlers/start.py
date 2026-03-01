@@ -10,8 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +31,8 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     """
     await state.clear()
 
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-
-        # Создаем или обновляем пользователя
-        user = await user_repo.create_or_update(
+    async with get_user_service() as svc:
+        user, is_new = await svc.get_or_create(
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
@@ -44,12 +40,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             language_code=message.from_user.language_code,
         )
 
-        # Коммитим сессию чтобы сохранить пользователя
-        await session.commit()
-
         # Обработка реферального кода для новых пользователей
-        if ref_code and user.created_at == user.updated_at:  # Только что создан
-            referrer = await user_repo.get_by_referral_code(ref_code)
+        if ref_code and is_new:
+            referrer = await svc._user_repo.get_by_referral_code(ref_code)
             if referrer and referrer.id != user.id:
                 # Начисляем реферальный бонус
                 from src.core.services.billing_service import billing_service
@@ -63,27 +56,27 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
     # Формируем приветственное сообщение
-    plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
-    if user.created_at == user.updated_at and ref_code is None:
+    if is_new and ref_code is None:
         # Новый пользователь без реферала
         text = (
             f"🚀 <b>Добро пожаловать в Market Bot!</b>\n\n"
             f"Привет, <b>{message.from_user.first_name or 'друг'}</b>!\n"
             f"Здесь вы можете запускать рекламные кампании в Telegram-чатах.\n\n"
-            f"💳 Ваш баланс: <b>{user.balance}₽</b>\n\n"
+            f"💳 Ваш баланс: <b>{user.credits:,} кр</b>\n\n"
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
     else:
         # Возвращающийся пользователь или с рефералом
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-    await message.answer(text, reply_markup=get_main_menu(user.balance, user.id))
+    await message.answer(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.message(Command("help"))
@@ -139,9 +132,8 @@ async def handle_balance_command(message: Message) -> None:
     Args:
         message: Сообщение от пользователя.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(message.from_user.id)
 
         if user:
             text = (
@@ -150,6 +142,7 @@ async def handle_balance_command(message: Message) -> None:
                 f"Для пополнения нажмите «Пополнить» в главном меню."
             )
             from src.bot.keyboards.billing import get_amount_kb
+
             await message.answer(text, reply_markup=get_amount_kb())
         else:
             await message.answer("❌ Пользователь не найден. Нажмите /start")
@@ -163,21 +156,52 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        plan_value = user.plan.value if hasattr(user.plan, 'value') else user.plan
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
         text = (
             f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "admin_panel"))
+async def admin_panel_redirect(callback: CallbackQuery) -> None:
+    """
+    Перенаправить в админ-панель через кнопку главного меню.
+    Только для пользователей из ADMIN_IDS.
+    """
+    from src.config.settings import settings
+
+    if callback.from_user.id not in settings.admin_ids:
+        await callback.answer("❌ Нет доступа", show_alert=True)
+        return
+
+    from src.bot.keyboards.admin import get_admin_main_kb
+
+    await callback.message.edit_text(
+        "🔐 <b>Панель администратора</b>\n\n"
+        f"Добро пожаловать, <b>{callback.from_user.first_name}</b>!",
+        reply_markup=get_admin_main_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "feedback"))
+async def feedback_redirect(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Перенаправить в меню обратной связи.
+    """
+    from src.bot.handlers.feedback import handle_feedback_menu
+
+    await handle_feedback_menu(callback, state)

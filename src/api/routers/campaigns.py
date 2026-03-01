@@ -20,6 +20,7 @@ router = APIRouter()
 
 # === Pydantic схемы ===
 
+
 class CampaignCreate(BaseModel):
     """Создание кампании."""
 
@@ -67,6 +68,7 @@ class CampaignListResponse(BaseModel):
 
 # === Эндпоинты ===
 
+
 @router.post("", response_model=CampaignResponse, status_code=status.HTTP_201_CREATED)
 async def create_campaign(
     campaign_data: CampaignCreate,
@@ -86,14 +88,16 @@ async def create_campaign(
         campaign_repo = CampaignRepository(session)
 
         # Создаём кампанию со статусом draft
-        campaign = await campaign_repo.create({
-            "user_id": current_user.id,
-            "title": campaign_data.title,
-            "text": campaign_data.text,
-            "status": CampaignStatus.DRAFT,
-            "filters_json": campaign_data.filters_json,
-            "scheduled_at": campaign_data.scheduled_at,
-        })
+        campaign = await campaign_repo.create(
+            {
+                "user_id": current_user.id,
+                "title": campaign_data.title,
+                "text": campaign_data.text,
+                "status": CampaignStatus.DRAFT,
+                "filters_json": campaign_data.filters_json,
+                "scheduled_at": campaign_data.scheduled_at,
+            }
+        )
 
         logger.info(f"Campaign {campaign.id} created by user {current_user.id}")
 

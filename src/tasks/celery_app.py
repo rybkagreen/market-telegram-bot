@@ -73,7 +73,12 @@ def create_celery_app() -> Celery:
     app.conf.beat_schedule = get_beat_schedule()
 
     # Автообнаружение задач
-    app.autodiscover_tasks(packages=["src.tasks"], force=True)
+    app.autodiscover_tasks(
+        packages=[
+            "src.tasks",
+        ],
+        force=True,
+    )
 
     return app
 
@@ -82,45 +87,116 @@ def get_beat_schedule() -> dict[str, Any]:
     """
     Получить расписание периодических задач Celery Beat.
 
+    Парсинг настроен на ночное время (02:30-06:00 UTC = 05:30-09:00 MSK).
+    Разбит на 7 слотов по 30 минут для соблюдения лимитов Telegram.
+
+    Telegram лимиты (User API):
+    - Поиск каналов: ~10-20 запросов в минуту
+    - Получение информации о канале: ~50-100 запросов в минуту
+    - FloodWait: автоматически обрабатывается в парсере
+
+    Каждый слот обрабатывает ~20-25 поисковых запросов.
+    Общее время: 3.5 часа для ~150 запросов.
+
     Returns:
         Словарь с расписанием задач.
     """
     return {
-        # Обновление базы чатов — каждые 24 часа в 3:00 UTC
-        "refresh-chat-database": {
+        # ========== ПАРСИНГ (02:30-06:00 UTC) ==========
+        # Слот 1: 02:30 - Бизнес и финансы
+        "parser-slot-1-business": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=2, minute=30),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "business"},
+        },
+        # Слот 2: 03:00 - Маркетинг и продажи
+        "parser-slot-2-marketing": {
             "task": "parser:refresh_chat_database",
             "schedule": crontab(hour=3, minute=0),
             "options": {"queue": "parser"},
+            "kwargs": {"query_category": "marketing"},
         },
-        # Ежедневный сбор аналитики в 02:00 UTC
+        # Слот 3: 03:30 - IT и технологии
+        "parser-slot-3-it": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=3, minute=30),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "it"},
+        },
+        # Слот 4: 04:00 - Недвижимость, Авто, Путешествия
+        "parser-slot-4-lifestyle": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=4, minute=0),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "lifestyle"},
+        },
+        # Слот 5: 04:30 - Еда, Мода, Здоровье
+        "parser-slot-5-health": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=4, minute=30),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "health"},
+        },
+        # Слот 6: 05:00 - Образование, Дом, Развлечения
+        "parser-slot-6-education": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=5, minute=0),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "education"},
+        },
+        # Слот 7: 05:30 - Новости, Работа, Психология
+        "parser-slot-7-news": {
+            "task": "parser:refresh_chat_database",
+            "schedule": crontab(hour=5, minute=30),
+            "options": {"queue": "parser"},
+            "kwargs": {"query_category": "news"},
+        },
+        # ========== АНАЛИТИКА (06:00) ==========
+        # Сбор аналитики после завершения парсинга
         "collect-all-chats-stats-daily": {
             "task": "parser:collect_all_chats_stats",
-            "schedule": crontab(hour=2, minute=0),
+            "schedule": crontab(hour=6, minute=0),
             "options": {"queue": "parser"},
         },
-        # Проверка запланированных кампаний — каждые 5 минут
+        # ========== MAILING (каждые 5 минут) ==========
         "check-scheduled-campaigns": {
             "task": "mailing:check_scheduled_campaigns",
             "schedule": crontab(minute="*/5"),
             "options": {"queue": "mailing"},
         },
-        # Удаление старых логов — каждое воскресенье в 3:00 UTC
+        # ========== CLEANUP (воскресенье 03:00 UTC) ==========
         "delete-old-logs": {
             "task": "cleanup:delete_old_logs",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),
             "options": {"queue": "cleanup"},
         },
-        # Проверка низкого баланса — каждый час
+        # ========== BILLING (каждый час) ==========
         "check-low-balance": {
             "task": "mailing:check_low_balance",
             "schedule": crontab(minute=0),
             "options": {"queue": "mailing"},
+        },
+        # ========== PLAN RENEWALS (ежедневно в 03:00 UTC) ==========
+        "check-plan-renewals": {
+            "task": "tasks.billing_tasks:check_plan_renewals",
+            "schedule": crontab(hour=settings.plan_renewal_check_hour, minute=0),
+            "options": {"queue": "default"},
+        },
+        # ========== CHECK PENDING INVOICES (каждые 5 минут) ==========
+        "check-pending-invoices": {
+            "task": "tasks.billing_tasks:check_pending_invoices",
+            "schedule": 300.0,  # 5 минут
+            "options": {"queue": "default"},
         },
     }
 
 
 # Создаем глобальное приложение
 celery_app = create_celery_app()
+
+# Алиас для совместимости
+app = celery_app
 
 
 # Decorator для регистрации задач

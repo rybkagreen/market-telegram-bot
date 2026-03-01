@@ -21,6 +21,7 @@ router = APIRouter()
 
 # === Pydantic схемы ===
 
+
 class BalanceResponse(BaseModel):
     """Ответ с балансом."""
 
@@ -67,6 +68,7 @@ class TopUpResponse(BaseModel):
 
 
 # === Эндпоинты ===
+
 
 @router.get("/balance", response_model=BalanceResponse)
 async def get_balance(current_user: CurrentUser):
