@@ -192,7 +192,10 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"💳 Оплатить {amount} {currency}", url=invoice.pay_url)
+    builder.button(
+        text=f"💳 Оплатить {amount} {currency}",
+        callback_data=BillingCB(action="pay_crypto_url", value=f"{invoice.invoice_id}:{invoice.pay_url}")
+    )
     builder.button(
         text="🔄 Проверить оплату",
         callback_data=BillingCB(action="check_invoice", value=invoice.invoice_id),
@@ -203,6 +206,30 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     logger.info(f"Sending message with pay_url: {invoice.pay_url}")
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     logger.info("Message sent successfully")
+
+
+@router.callback_query(BillingCB.filter(F.action == "pay_crypto_url"))
+async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) -> None:
+    """Отправить ссылку на оплату текстовым сообщением."""
+    parts = callback_data.value.split(":", 1)
+    if len(parts) != 2:
+        await callback.answer("❌ Ошибка формирования ссылки", show_alert=True)
+        return
+    
+    invoice_id, pay_url = parts
+    
+    # Отправляем ссылку отдельным сообщением
+    await callback.message.answer(
+        f"💳 <b>Счёт на оплату</b>\n\n"
+        f"Нажмите на ссылку для оплаты:\n"
+        f"<a href='{pay_url}'>Оплатить счёт</a>\n\n"
+        f"Или скопируйте ссылку:\n"
+        f"<code>{pay_url}</code>\n\n"
+        f"⏱ Счёт действителен 1 час."
+    )
+    
+    # Показываем уведомление что ссылка отправлена
+    await callback.answer("✅ Ссылка отправлена!", show_alert=False)
 
 
 @router.callback_query(BillingCB.filter(F.action == "check_invoice"))
