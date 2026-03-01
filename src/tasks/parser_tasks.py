@@ -33,52 +33,79 @@ class ChatParseData:
     rating: float = 5.0
 
 
-# Поисковые запросы для парсинга Telegram
+# Поисковые запросы для парсинга Telegram (расширенный список ~150 запросов)
+# Разбит по тематикам для равномерного распределения нагрузки
 SEARCH_QUERIES = [
-    "бизнес",
-    "новости",
-    "крипта",
-    "инвестиции",
-    "маркетинг",
-    "it",
-    "финансы",
-    "спорт",
-    "авто",
-    "путешествия",
-    "еда",
-    "мода",
-    "здоровье",
-    "образование",
-    "недвижимость",
-    "startups",
-    "technology",
-    "crypto news",
-    "business news",
-    "trading",
-    "forex",
-    "stocks",
-    "real estate",
-    "travel blog",
-    "food blog",
-    "fitness",
-    "lifestyle",
-    "fashion",
-    "beauty",
-    "cars",
-    "ai",
-    "programming",
-    "web development",
-    "mobile apps",
-    "gadgets",
-    "science",
-    "education",
-    "online learning",
-    "courses",
-    "books",
-    "movies",
-    "music",
-    "games",
-    "entertainment",
+    # Бизнес и финансы (20)
+    "бизнес", "бизнес новости", "бизнес идеи", "стартап", "стартапы россия",
+    "инвестиции", "инвестиции для начинающих", "фондовый рынок", "трейдинг", "крипта",
+    "криптовалюта", "биткоин", "ethereum", "defi", "nft",
+    "финансы", "финансовая грамотность", "деньги", "заработок", "пассивный доход",
+    
+    # Маркетинг и продажи (15)
+    "маркетинг", "digital маркетинг", "smm", "таргетинг", "контекстная реклама",
+    "продажи", "продажи b2b", "продажи b2c", "переговоры", "клиенты",
+    "бренд", "pr", "контент маркетинг", "email маркетинг", "лидогенерация",
+    
+    # IT и технологии (25)
+    "it", "it новости", "программирование", "разработка", "веб разработка",
+    "python", "javascript", "java", "golang", "rust",
+    "ai", "искусственный интеллект", "машинное обучение", "ml", "data science",
+    "big data", "аналитика данных", "devops", "cloud", "kubernetes",
+    "docker", "микросервисы", "api", "mobile development", "ios разработка",
+    "android разработка", "flutter", "react native", "frontend", "backend",
+    
+    # Недвижимость (10)
+    "недвижимость", "недвижимость москва", "недвижимость спб", "аренда", "купить квартиру",
+    "ипотека", "загородная недвижимость", "коммерческая недвижимость", "инвестиции в недвижимость", "ремонт",
+    
+    # Авто и транспорт (10)
+    "авто", "автомобили", "авто новости", "тест драйв", "автоспорт",
+    "мото", "мотоциклы", "грузовики", "спецтехника", "запчасти",
+    
+    # Путешествия и туризм (15)
+    "путешествия", "туризм", "отдых", "отпуск", "туры",
+    "авиабилеты", "отели", "хостелы", "кемпинг", "походы",
+    "европа", "азия", "россия туризм", "пляжный отдых", "горнолыжный отдых", "экзотические страны",
+    
+    # Еда и рестораны (10)
+    "еда", "рестораны", "кафе", "доставка еды", "рецепты",
+    "кулинария", "здоровое питание", "веган", "вегетарианство", "пп рецепты",
+    
+    # Мода и красота (10)
+    "мода", "стиль", "одежда", "обувь", "аксессуары",
+    "красота", "косметика", "уход за кожей", "макияж", "ногти",
+    
+    # Здоровье и спорт (15)
+    "здоровье", "медицина", "врач", "диагностика", "профилактика",
+    "спорт", "фитнес", "тренировки", "йога", "бег",
+    "кроссфит", "бодибилдинг", "плавание", "велоспорт", "здоровый образ жизни",
+    
+    # Образование и наука (15)
+    "образование", "наука", "онлайн обучение", "курсы", "университет",
+    "школьное образование", "егэ", "оге", "репетитор", "языки",
+    "английский", "немецкий", "китайский", "испанский", "французский",
+    
+    # Дом и семья (10)
+    "дом", "дача", "сад", "огород", "интерьер",
+    "дизайн интерьера", "ремонт своими руками", "семья", "дети", "воспитание детей",
+    
+    # Развлечения и хобби (15)
+    "развлечения", "кино", "фильмы", "сериалы", "музыка",
+    "игры", "видеоигры", "настольные игры", "книги", "чтение",
+    "фотография", "рисование", "музыкальные инструменты", "танцы", "театр",
+    
+    # Новости и СМИ (10)
+    "новости", "новости россии", "новости мира", "политика", "экономика",
+    "общество", "происшествия", "технологии новости", "спорт новости", "погода",
+    
+    # Работа и карьера (10)
+    "работа", "вакансии", "карьера", "удаленная работа", "фриланс",
+    "резюме", "собеседование", "повышение", "бизнес этикет", "тайм менеджмент",
+    
+    # Психология и саморазвитие (10)
+    "психология", "психолог", "самопомощь", "мотивация", "саморазвитие",
+    "медитация", "осознанность", "эмоциональный интеллект", "отношения", "семейная психология",
 ]
 
 
@@ -219,9 +246,12 @@ async def _parse_tgstat_and_save(
         return 0
 
 
-async def _refresh_chats_async() -> dict[str, Any]:
+async def _refresh_chats_async(query_category: str | None = None) -> dict[str, Any]:
     """
     Асинхронная функция для обновления базы чатов.
+    
+    Args:
+        query_category: Категория запросов для парсинга. Если None — все категории.
 
     Returns:
         Статистика обновления.
@@ -233,38 +263,48 @@ async def _refresh_chats_async() -> dict[str, Any]:
         "errors": 0,
     }
 
+    # Определяем какие запросы парсить
+    if query_category and query_category in SEARCH_QUERIES_BY_CATEGORY:
+        queries_to_parse = SEARCH_QUERIES_BY_CATEGORY[query_category]
+        logger.info(f"Parsing category '{query_category}': {len(queries_to_parse)} queries")
+    else:
+        queries_to_parse = SEARCH_QUERIES
+        logger.info(f"Parsing all categories: {len(queries_to_parse)} queries")
+
     async with async_session_factory() as session:
         chat_repo = ChatAnalyticsRepository(session)
 
         # 1. Парсим через Telegram search
         async with TelegramParser() as parser:
-            for query in SEARCH_QUERIES:
+            for query in queries_to_parse:
                 try:
                     count = await _parse_and_save_chats(parser, chat_repo, query, limit=30)
                     stats["telegram_search"] += count
                     stats["total"] += count
 
-                    # Задержка между запросами
-                    await asyncio.sleep(1)
+                    # Задержка между запросами для соблюдения лимитов Telegram
+                    # Telegram лимит: ~10-20 запросов в минуту на поиск
+                    await asyncio.sleep(2)
 
                 except Exception as e:
                     logger.error(f"Error in Telegram search for '{query}': {e}")
                     stats["errors"] += 1
 
-        # 2. Парсим через TGStat
-        async with TelegramParser() as telegram_parser:
-            for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
-                try:
-                    count = await _parse_tgstat_and_save(telegram_parser, chat_repo, topic)
-                    stats["tgstat"] += count
-                    stats["total"] += count
+        # 2. Парсим через TGStat (только если категория не указана или это первая категория)
+        if not query_category:
+            async with TelegramParser() as telegram_parser:
+                for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
+                    try:
+                        count = await _parse_tgstat_and_save(telegram_parser, chat_repo, topic)
+                        stats["tgstat"] += count
+                        stats["total"] += count
 
-                    # Задержка между запросами
-                    await asyncio.sleep(2)
+                        # Задержка между запросами
+                        await asyncio.sleep(2)
 
-                except Exception as e:
-                    logger.error(f"Error in TGStat parsing for '{topic}': {e}")
-                    stats["errors"] += 1
+                    except Exception as e:
+                        logger.error(f"Error in TGStat parsing for '{topic}': {e}")
+                        stats["errors"] += 1
 
         # Коммитим все изменения
         await session.commit()
@@ -272,25 +312,41 @@ async def _refresh_chats_async() -> dict[str, Any]:
     return stats
 
 
+# Категории поисковых запросов для распределения по слотам
+SEARCH_QUERIES_BY_CATEGORY = {
+    "business": SEARCH_QUERIES[0:20],      # Бизнес и финансы (20)
+    "marketing": SEARCH_QUERIES[20:35],    # Маркетинг и продажи (15)
+    "it": SEARCH_QUERIES[35:60],           # IT и технологии (25)
+    "lifestyle": SEARCH_QUERIES[60:85],    # Недвижимость, Авто, Путешествия (25)
+    "health": SEARCH_QUERIES[85:110],      # Еда, Мода, Здоровье (25)
+    "education": SEARCH_QUERIES[110:135],  # Образование, Дом, Развлечения (25)
+    "news": SEARCH_QUERIES[135:155],       # Новости, Работа, Психология (20)
+}
+
+
 # Celery задача будет определена после создания celery_app
 # Импортируем celery_app динамически чтобы избежать circular imports
 
 
 @celery_app.task(bind=True, base=BaseTask, name="parser:refresh_chat_database")
-def refresh_chat_database(self) -> dict[str, Any]:
+def refresh_chat_database(self, query_category: str | None = None) -> dict[str, Any]:
     """
     Celery задача для обновления базы данных чатов.
 
-    Запускается по расписанию (каждые 24 часа).
+    Запускается по расписанию (каждые 24 часа) или для конкретной категории.
     Собирает данные из Telegram и TGStat.
+    
+    Args:
+        query_category: Категория запросов (business, marketing, it, lifestyle, 
+                       health, education, news). Если None — все категории.
 
     Returns:
         Статистика обновления.
     """
-    logger.info("Starting chat database refresh...")
+    logger.info(f"Starting chat database refresh (category: {query_category or 'all'})...")
 
     try:
-        stats = asyncio.run(_refresh_chats_async())
+        stats = asyncio.run(_refresh_chats_async(query_category))
 
         logger.info(
             f"Chat database refresh completed. "
