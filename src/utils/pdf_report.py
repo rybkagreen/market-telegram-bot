@@ -70,9 +70,7 @@ def generate_campaign_report(
     )
 
     elements.append(Paragraph(f"<b>ID кампании:</b> {campaign_id}", info_style))
-    elements.append(
-        Paragraph(f"<b>Название:</b> {campaign_title}", info_style)
-    )
+    elements.append(Paragraph(f"<b>Название:</b> {campaign_title}", info_style))
     if created_at:
         elements.append(
             Paragraph(
@@ -233,9 +231,7 @@ def generate_user_summary_report(
 
     elements.append(Paragraph(f"<b>User ID:</b> {user_id}", info_style))
     elements.append(Paragraph(f"<b>Username:</b> @{username or 'N/A'}", info_style))
-    elements.append(
-        Paragraph(f"<b>Период:</b> последние {period_days} дн.", info_style)
-    )
+    elements.append(Paragraph(f"<b>Период:</b> последние {period_days} дн.", info_style))
     elements.append(Spacer(1, 0.5 * cm))
 
     # Таблица статистики

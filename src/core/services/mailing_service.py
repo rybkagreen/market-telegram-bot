@@ -198,10 +198,10 @@ class MailingService:
         Returns:
             Список чатов.
         """
-        from src.db.repositories.chat_repo import ChatRepository
+        from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 
         async with self.campaign_repo.session.begin_nested():
-            chat_repo = ChatRepository(self.campaign_repo.session)
+            chat_repo = ChatAnalyticsRepository(self.campaign_repo.session)
 
             # Получаем фильтры
             topics = campaign.get_filter_topics()
@@ -210,13 +210,16 @@ class MailingService:
             blacklist = campaign.get_blacklist()
 
             # Получаем чаты
-            chats = await chat_repo.get_active_filtered(
-                topics=topics if topics else None,
+            chats = await chat_repo.get_chats_for_mailing(
+                topic=topics[0] if topics else None,
                 min_members=min_members,
                 max_members=max_members,
-                exclude_ids=blacklist,
                 limit=campaign.user.get_chat_limit_per_campaign(),
             )
+
+            # Фильтруем blacklist
+            if blacklist:
+                chats = [c for c in chats if c.telegram_id not in blacklist]
 
             return chats
 

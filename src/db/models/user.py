@@ -3,11 +3,12 @@
 Хранит информацию о пользователях бота, их балансе и тарифном плане.
 """
 
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Numeric, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.settings import settings
@@ -15,6 +16,8 @@ from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.campaign import Campaign
+    from src.db.models.crypto_payment import CryptoPayment
+    from src.db.models.notification import Notification
     from src.db.models.transaction import Transaction
 
 
@@ -91,7 +94,15 @@ class User(Base, TimestampMixin):
         Numeric(12, 2),
         default=Decimal("0.00"),
         nullable=False,
-        doc="Баланс пользователя в рублях",
+        doc="Баланс пользователя в рублях (legacy, используется credits)",
+    )
+
+    credits: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+        doc="Баланс пользователя в кредитах",
     )
 
     plan: Mapped[UserPlan] = mapped_column(
@@ -100,6 +111,20 @@ class User(Base, TimestampMixin):
         nullable=False,
         index=True,
         doc="Тарифный план пользователя",
+    )
+
+    plan_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Когда истекает текущий тариф",
+    )
+
+    ai_generations_used: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+        doc="Счётчик использованных ИИ-генераций в текущем месяце",
     )
 
     # Реферальная программа
@@ -163,6 +188,20 @@ class User(Base, TimestampMixin):
         doc="Транзакции пользователя",
     )
 
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        doc="Уведомления пользователя",
+    )
+
+    crypto_payments: Mapped[list["CryptoPayment"]] = relationship(
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        doc="Crypto-платежи пользователя",
+    )
+
     # Индексы
     __table_args__ = (
         UniqueConstraint("telegram_id", name="uq_users_telegram_id"),
@@ -189,7 +228,28 @@ class User(Base, TimestampMixin):
 
     def can_send_campaigns(self) -> bool:
         """Проверяет, может ли пользователь запускать кампании."""
-        return not self.is_banned and self.is_active and self.plan != UserPlan.FREE
+        if self.is_banned or not self.is_active:
+            return False
+        if self.plan == UserPlan.FREE:
+            return False
+        # Проверяем, активен ли тариф
+        if self.plan_expires_at and self.plan_expires_at < datetime.utcnow():
+            return False
+        return True
+
+    def get_included_ai_generations(self) -> int:
+        """Количество включённых ИИ-генераций в месяц по тарифу."""
+        limits = {
+            UserPlan.FREE: 0,
+            UserPlan.STARTER: 0,
+            UserPlan.PRO: 5,
+            UserPlan.BUSINESS: 20,
+        }
+        return limits.get(self.plan, 0)
+
+    def has_free_ai_generation(self) -> bool:
+        """Есть ли включённые ИИ-генерации в этом месяце."""
+        return self.ai_generations_used < self.get_included_ai_generations()
 
     def get_campaign_limit(self) -> int:
         """Возвращает лимит кампаний в месяц для текущего тарифа."""
@@ -234,6 +294,7 @@ class User(Base, TimestampMixin):
     def get_ai_model(self) -> str:
         """
         Возвращает AI модель для пользователя на основе тарифа.
+        Использует settings.get_model_for_plan() для выбора модели.
 
         Returns:
             AI модель.
@@ -242,11 +303,5 @@ class User(Base, TimestampMixin):
         if self.ai_model:
             return self.ai_model
 
-        # Привязка моделей к тарифам
-        model_map = {
-            UserPlan.FREE: "llama-3.3-70b-versatile",  # Бесплатный — базовая Llama
-            UserPlan.STARTER: "llama-3.3-70b-versatile",  # STARTER — Llama 70B
-            UserPlan.PRO: settings.openrouter_model,  # PRO — Claude Sonnet через OpenRouter
-            UserPlan.BUSINESS: settings.openrouter_model,  # BUSINESS — Claude Sonnet через OpenRouter
-        }
-        return model_map.get(self.plan, "llama-3.3-70b-versatile")
+        # Привязка моделей к тарифам через settings
+        return settings.get_model_for_plan(self.plan.value)

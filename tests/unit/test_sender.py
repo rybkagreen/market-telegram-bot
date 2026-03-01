@@ -211,9 +211,7 @@ class TestTelegramSenderErrors:
         mock_bot: MagicMock,
     ) -> None:
         """Проверка исчерпания всех попыток."""
-        mock_bot.send_message = AsyncMock(
-            side_effect=Exception("Unknown error")
-        )
+        mock_bot.send_message = AsyncMock(side_effect=Exception("Unknown error"))
 
         result = await sender.send_message(
             chat_id=123,
@@ -230,9 +228,7 @@ class TestTelegramSenderErrors:
         mock_bot: MagicMock,
     ) -> None:
         """Проверка безопасной отправки без исключений."""
-        mock_bot.send_message = AsyncMock(
-            side_effect=Exception("Unexpected error")
-        )
+        mock_bot.send_message = AsyncMock(side_effect=Exception("Unexpected error"))
 
         result = await sender.send_message_safe(
             chat_id=123,

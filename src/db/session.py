@@ -49,7 +49,7 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
     Используется в FastAPI и других местах.
 
     Usage:
-        async with get_session() as session:
+        async for session in get_session():
             # работа с session
     """
     session = async_session_factory()
@@ -69,7 +69,7 @@ async def get_session_no_commit() -> AsyncGenerator[AsyncSession]:
     Коммит должен быть вызван явно.
 
     Usage:
-        async with get_session_no_commit() as session:
+        async for session in get_session_no_commit():
             # работа с session
             await session.commit()
     """
@@ -121,7 +121,7 @@ def get_async_engine(connection_url: str) -> Any:
     )
 
 
-def async_sessionmaker(engine: Any) -> Any:
+def create_async_sessionmaker(engine: Any) -> Any:
     """
     Создать фабрику сессий для указанного движка.
 

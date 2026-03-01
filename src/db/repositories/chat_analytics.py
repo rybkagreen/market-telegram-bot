@@ -1,14 +1,17 @@
 """
 Репозиторий для работы с аналитикой Telegram чатов.
 """
+
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import desc
 
 from src.db.models.analytics import ChatSnapshot, ChatType, TelegramChat
+from src.db.models.campaign import Campaign
 
 
 class ChatAnalyticsRepository:
@@ -190,43 +193,46 @@ class ChatAnalyticsRepository:
         delta = subscribers - prev.subscribers if prev else 0
         delta_pct = (delta / prev.subscribers * 100) if prev and prev.subscribers else 0.0
 
-        stmt = pg_insert(ChatSnapshot).values(
-            chat_id=chat_id,
-            snapshot_date=snapshot_date,
-            subscribers=subscribers,
-            subscribers_delta=delta,
-            subscribers_delta_pct=round(delta_pct, 2),
-            avg_views=avg_views,
-            max_views=max_views,
-            min_views=min_views,
-            posts_analyzed=posts_analyzed,
-            er=round(er, 2),
-            post_frequency=round(post_frequency, 2),
-            posts_last_30d=posts_last_30d,
-            can_post=can_post,
-        ).on_conflict_do_update(
-            index_elements=["chat_id", "snapshot_date"],
-            set_={
-                "subscribers": subscribers,
-                "subscribers_delta": delta,
-                "subscribers_delta_pct": round(delta_pct, 2),
-                "avg_views": avg_views,
-                "max_views": max_views,
-                "min_views": min_views,
-                "posts_analyzed": posts_analyzed,
-                "er": round(er, 2),
-                "post_frequency": round(post_frequency, 2),
-                "posts_last_30d": posts_last_30d,
-                "can_post": can_post,
-            },
-        ).returning(ChatSnapshot)
+        stmt = (
+            pg_insert(ChatSnapshot)
+            .values(
+                chat_id=chat_id,
+                snapshot_date=snapshot_date,
+                subscribers=subscribers,
+                subscribers_delta=delta,
+                subscribers_delta_pct=round(delta_pct, 2),
+                avg_views=avg_views,
+                max_views=max_views,
+                min_views=min_views,
+                posts_analyzed=posts_analyzed,
+                er=round(er, 2),
+                post_frequency=round(post_frequency, 2),
+                posts_last_30d=posts_last_30d,
+                can_post=can_post,
+            )
+            .on_conflict_do_update(
+                index_elements=["chat_id", "snapshot_date"],
+                set_={
+                    "subscribers": subscribers,
+                    "subscribers_delta": delta,
+                    "subscribers_delta_pct": round(delta_pct, 2),
+                    "avg_views": avg_views,
+                    "max_views": max_views,
+                    "min_views": min_views,
+                    "posts_analyzed": posts_analyzed,
+                    "er": round(er, 2),
+                    "post_frequency": round(post_frequency, 2),
+                    "posts_last_30d": posts_last_30d,
+                    "can_post": can_post,
+                },
+            )
+            .returning(ChatSnapshot)
+        )
 
         result = await self._session.execute(stmt)
         return result.scalar_one()
 
-    async def _get_previous_snapshot(
-        self, chat_id: int, before_date: date
-    ) -> ChatSnapshot | None:
+    async def _get_previous_snapshot(self, chat_id: int, before_date: date) -> ChatSnapshot | None:
         """
         Получить предыдущий снимок для расчёта дельты.
 
@@ -250,9 +256,7 @@ class ChatAnalyticsRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_snapshots(
-        self, chat_id: int, days: int = 30
-    ) -> list[ChatSnapshot]:
+    async def get_snapshots(self, chat_id: int, days: int = 30) -> list[ChatSnapshot]:
         """
         История снимков за N дней — для построения графиков.
 
@@ -303,7 +307,81 @@ class ChatAnalyticsRepository:
         q = select(TelegramChat).where(TelegramChat.is_active == True)  # noqa: E712
         if topic:
             q = q.where(TelegramChat.topic == topic)
-        q = q.order_by(order_map.get(order_by, TelegramChat.last_subscribers.desc()))
+        order_expr = order_map.get(order_by, TelegramChat.last_subscribers.desc())
+        q = q.order_by(order_expr)  # type: ignore[arg-type]
         q = q.limit(limit)
         result = await self._session.execute(q)
         return list(result.scalars().all())
+
+    async def get_top_topic(self, user_id: int) -> str | None:
+        """
+        Получить тематику с наибольшим числом успешных кампаний у пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Топовая тематика или None.
+        """
+        result = await self._session.execute(
+            select(Campaign.topic, func.count(Campaign.id).label("cnt"))
+            .where(
+                Campaign.user_id == user_id,
+                Campaign.status == "done",
+                Campaign.topic.isnot(None),
+            )
+            .group_by(Campaign.topic)
+            .order_by(desc("cnt"))
+            .limit(1)
+        )
+        row = result.first()
+        return row[0] if row else None
+
+    async def get_chats_for_mailing(
+        self,
+        topic: str | None = None,
+        min_members: int = 100,
+        max_members: int | None = None,
+        limit: int = 100,
+    ) -> list[TelegramChat]:
+        """
+        Выборка чатов для рассылки с фильтрами.
+        Заменяет ChatRepository.select_chats_for_mailing().
+
+        Args:
+            topic: Тематика для фильтрации.
+            min_members: Минимальное количество участников.
+            max_members: Максимальное количество участников.
+            limit: Максимальное количество результатов.
+
+        Returns:
+            Список чатов подходящих для рассылки.
+        """
+        q = select(TelegramChat).where(
+            TelegramChat.is_active,
+            TelegramChat.is_scam.is_(False),
+            TelegramChat.is_fake.is_(False),
+            TelegramChat.error_count < 5,
+            TelegramChat.member_count >= min_members,
+        )
+        if topic:
+            q = q.where(TelegramChat.topic == topic)
+        if max_members:
+            q = q.where(TelegramChat.member_count <= max_members)
+        q = q.order_by(TelegramChat.rating.desc()).limit(limit)
+        result = await self._session.execute(q)
+        return list(result.scalars().all())
+
+    async def increment_error(self, chat_id: int, reason: str | None = None) -> None:
+        """
+        Увеличить счётчик ошибок.
+        После 5 ошибок — деактивировать чат.
+
+        Args:
+            chat_id: ID чата в БД.
+            reason: Причина ошибки.
+        """
+        chat = await self._session.get(TelegramChat, chat_id)
+        if chat:
+            chat.increment_error(reason)
+            await self._session.flush()

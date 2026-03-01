@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import Select, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.user import User
+from src.db.models.user import User, UserPlan
 from src.db.repositories.base import BaseRepository
 
 
@@ -320,3 +320,100 @@ class UserRepository(BaseRepository[User]):
         from sqlalchemy.orm import selectinload
 
         return select(self.model).options(selectinload(User.campaigns))
+
+    async def get_users_with_low_balance(
+        self,
+        threshold: Decimal,
+    ) -> list[User]:
+        """
+        Получить пользователей с низким балансом.
+
+        Args:
+            threshold: Порог баланса.
+
+        Returns:
+            Список пользователей.
+        """
+        return await self.find_many(
+            User.is_active == True,  # noqa: E712
+            User.is_banned == False,  # noqa: E712
+            User.balance < threshold,
+        )
+
+    async def update_credits(self, user_id: int, delta: int) -> int:
+        """
+        Атомарно изменить кредиты пользователя.
+
+        Args:
+            user_id: ID пользователя в БД.
+            delta: Изменение (положительное — пополнение, отрицательное — списание).
+
+        Returns:
+            Новый баланс кредитов.
+
+        Raises:
+            ValueError: если credits уйдут в минус.
+        """
+        from sqlalchemy import update
+
+        result = await self.session.execute(
+            update(User)
+            .where(User.id == user_id, User.credits + delta >= 0)
+            .values(credits=User.credits + delta)
+            .returning(User.credits)
+        )
+        row = result.fetchone()
+        if row is None:
+            raise ValueError(f"Недостаточно кредитов (user_id={user_id}, delta={delta})")
+        await self.session.commit()
+        return row[0]
+
+    async def increment_ai_usage(self, user_id: int) -> None:
+        """
+        Увеличить счётчик использования ИИ на 1.
+
+        Args:
+            user_id: ID пользователя в БД.
+        """
+        from sqlalchemy import update
+
+        await self.session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(ai_generations_used=User.ai_generations_used + 1)
+        )
+        await self.session.commit()
+
+    async def reset_ai_usage(self, user_id: int) -> None:
+        """
+        Сбросить счётчик ИИ (при продлении тарифа).
+
+        Args:
+            user_id: ID пользователя в БД.
+        """
+        from sqlalchemy import update
+
+        await self.session.execute(
+            update(User).where(User.id == user_id).values(ai_generations_used=0)
+        )
+        await self.session.commit()
+
+    async def expire_plan(self, user_id: int) -> None:
+        """
+        Сбросить тариф на FREE при истечении.
+
+        Args:
+            user_id: ID пользователя в БД.
+        """
+        from sqlalchemy import update
+
+        await self.session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                plan=UserPlan.FREE,
+                plan_expires_at=None,
+                ai_generations_used=0,
+            )
+        )
+        await self.session.commit()
