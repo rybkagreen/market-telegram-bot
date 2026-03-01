@@ -1,7 +1,10 @@
 """
 Celery задачи для биллинга: продление тарифов, проверка платежей.
+
+Использует asyncio.run() для запуска async кода в синхронных Celery задачах.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -33,9 +36,7 @@ def check_plan_renewals() -> dict:
     - Кредитов хватает → продляем на 30 дней
     - Кредитов не хватает → план → FREE, уведомление
     """
-    import asyncio
-
-    return asyncio.get_event_loop().run_until_complete(_check_plan_renewals())
+    return asyncio.run(_check_plan_renewals())
 
 
 async def _check_plan_renewals() -> dict:
@@ -99,9 +100,7 @@ def check_pending_invoices() -> dict:
     Проверить неоплаченные счета CryptoBot и зачислить кредиты.
     Запускается каждые 5 минут.
     """
-    import asyncio
-
-    return asyncio.get_event_loop().run_until_complete(_check_pending_invoices())
+    return asyncio.run(_check_pending_invoices())
 
 
 async def _check_pending_invoices() -> dict:
