@@ -1,12 +1,14 @@
 """
 Модели для хранения аналитики Telegram каналов и групп.
 """
+
 from __future__ import annotations
 
 import enum
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -61,6 +63,23 @@ class TelegramChat(Base):
     can_post: Mapped[bool] = mapped_column(Boolean, default=False)
     # True = открытая группа куда можно писать без вступления
 
+    # Поля для совместимости с mailing-системой (из таблицы chats)
+    member_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Синоним last_subscribers для mailing-фильтров
+
+    rating: Mapped[float] = mapped_column(Float, default=5.0, nullable=False)
+    # Рейтинг 0-10 для сортировки в mailing
+
+    is_scam: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_fake: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Флаги безопасности — исключают чат из рассылок
+
+    error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Синоним parse_error_count для совместимости
+
+    deactivate_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Причина деактивации для отладки
+
     # Последние известные данные (денормализация для быстрых запросов)
     last_subscribers: Mapped[int] = mapped_column(Integer, default=0)
     last_avg_views: Mapped[int] = mapped_column(Integer, default=0)
@@ -73,17 +92,53 @@ class TelegramChat(Base):
     parse_error_count: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=func.now(), onupdate=func.now()
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Индексы для mailing-фильтров
+    __table_args__ = (
+        sa.Index("ix_telegram_chats_member_count", "member_count"),
+        sa.Index("ix_telegram_chats_rating", "rating"),
+        sa.Index("ix_telegram_chats_topic_active", "topic", "is_active"),
+        sa.Index("ix_telegram_chats_is_active", "is_active"),
     )
 
     # Связи
     snapshots: Mapped[list[ChatSnapshot]] = relationship(
         "ChatSnapshot", back_populates="chat", lazy="select"
     )
+    mailing_logs: Mapped[list[MailingLog]] = relationship(
+        "MailingLog",
+        back_populates="chat",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<TelegramChat(id={self.id}, username={self.username!r}, title={self.title!r})>"
+
+    @property
+    def is_eligible_for_mailing(self) -> bool:
+        """Можно ли использовать чат для рассылки."""
+        return (
+            self.is_active
+            and not self.is_scam
+            and not self.is_fake
+            and (self.error_count or 0) < 5
+            and self.member_count > 0
+        )
+
+    def increment_error(self, reason: str | None = None) -> None:
+        """Увеличить счётчик ошибок, деактивировать после 5."""
+        self.error_count = (self.error_count or 0) + 1
+        self.parse_error_count = self.error_count  # синхронизировать
+        if reason:
+            self.deactivate_reason = reason[:500]
+        if self.error_count >= 5:
+            self.is_active = False
+
+    def mark_checked(self) -> None:
+        """Отметить чат как проверенный."""
+        self.last_parsed_at = datetime.utcnow()
 
 
 class ChatSnapshot(Base):

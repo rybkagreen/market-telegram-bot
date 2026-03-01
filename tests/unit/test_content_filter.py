@@ -131,9 +131,7 @@ class TestContentFilter:
         assert result.passed is True
         assert result.score == 0.0
 
-    def test_check_case_insensitive(
-        self, content_filter: ContentFilter
-    ) -> None:
+    def test_check_case_insensitive(self, content_filter: ContentFilter) -> None:
         """Проверка регистронезависимости."""
         result1 = content_filter.check("НАРКОТИКИ")
         result2 = content_filter.check("наркотики")

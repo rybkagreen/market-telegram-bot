@@ -4,9 +4,14 @@ Mailing Celery tasks.
 
 import asyncio
 import logging
+from datetime import UTC
+from decimal import Decimal
 from typing import Any
 
+from src.config.settings import settings
+from src.db.models.notification import NotificationType
 from src.db.repositories.campaign_repo import CampaignRepository
+from src.db.repositories.notification_repo import NotificationRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
@@ -28,14 +33,15 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     logger.info(f"Starting campaign {campaign_id}")
 
     async def _send_async() -> dict[str, Any]:
-        from datetime import datetime, timezone
+        from aiogram import Bot
 
         from src.db.models.campaign import CampaignStatus
         from src.utils.telegram.sender import CampaignSender
 
         async with async_session_factory() as session:
             campaign_repo = CampaignRepository(session)
-            sender = CampaignSender(session)
+            bot = Bot(token=settings.bot_token)
+            sender = CampaignSender(bot=bot)
 
             # Получаем кампанию
             campaign = await campaign_repo.get_by_id(campaign_id)
@@ -81,7 +87,7 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                     stats["failed"] += 1
 
             # Обновляем статистику кампании
-            await campaign_repo.update_stats(
+            await campaign_repo.update_statistics(
                 campaign_id=campaign.id,
                 sent_count=stats["sent"],
                 failed_count=stats["failed"],
@@ -124,7 +130,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
     logger.info("Checking scheduled campaigns")
 
     async def _check_async() -> dict[str, Any]:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.db.models.campaign import CampaignStatus
 
@@ -132,7 +138,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             campaign_repo = CampaignRepository(session)
 
             # Получаем кампании, готовые к запуску
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             campaigns = await campaign_repo.get_scheduled_due(now)
 
             stats = {
@@ -195,7 +201,7 @@ def check_low_balance(self, threshold: float = 50.0) -> dict[str, Any]:
             user_repo = UserRepository(session)
 
             # Получаем пользователей с низким балансом
-            users = await user_repo.get_users_with_low_balance(threshold)
+            users = await user_repo.get_users_with_low_balance(Decimal(str(threshold)))
 
             stats = {
                 "total_checked": len(users),
@@ -207,7 +213,10 @@ def check_low_balance(self, threshold: float = 50.0) -> dict[str, Any]:
             for user in users:
                 try:
                     # Отправляем уведомление через бота
-                    notify_user.delay(user.id, f"⚠️ Низкий баланс!\n\nВаш баланс меньше {threshold}₽.\nПополните баланс для продолжения работы.")
+                    notify_user.delay(
+                        user.id,
+                        f"⚠️ Низкий баланс!\n\nВаш баланс меньше {threshold}₽.\nПополните баланс для продолжения работы.",
+                    )
                     stats["notified"] += 1
                     logger.info(f"Low balance notification sent to user {user.id}")
 
@@ -234,13 +243,23 @@ def check_low_balance(self, threshold: float = 50.0) -> dict[str, Any]:
 
 
 @celery_app.task(bind=True, base=BaseTask, name="mailing:notify_user")
-def notify_user(self, user_id: int, message: str) -> bool:
+def notify_user(
+    self,
+    user_id: int,
+    message: str,
+    notification_type: str = "system",
+    title: str | None = None,
+    campaign_id: int | None = None,
+) -> bool:
     """
     Отправить уведомление пользователю.
 
     Args:
         user_id: ID пользователя в БД.
-        message: Текст уведомления.
+        message: Текст сообщения.
+        notification_type: Тип уведомления (campaign_started, campaign_done, и т.д.).
+        title: Заголовок уведомления (опционально).
+        campaign_id: ID кампании (опционально).
 
     Returns:
         True если успешно.
@@ -262,16 +281,19 @@ def notify_user(self, user_id: int, message: str) -> bool:
             bot = Bot(token=self.app.conf.broker_url.split("://")[1].split("/")[0])
 
             try:
+                # Отправляем уведомление через Telegram
                 await bot.send_message(
                     chat_id=user.telegram_id,
                     text=message,
                 )
 
-                # Логируем уведомление
-                await notification_repo.create(
+                # Логируем уведомление в БД
+                await notification_repo.create_notification(
                     user_id=user_id,
                     message=message,
-                    is_read=False,
+                    notification_type=NotificationType(notification_type),
+                    title=title,
+                    campaign_id=campaign_id,
                 )
 
                 logger.info(f"Notification sent to user {user_id}")

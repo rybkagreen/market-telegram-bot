@@ -3,7 +3,8 @@
 """
 
 import asyncio
-from typing import Any, AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -18,10 +19,10 @@ from sqlalchemy.ext.asyncio import (
 from src.config.settings import settings
 from src.db.base import Base
 
-
 # ────────────────────────────────────────────
 # Event loop fixtures
 # ────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
@@ -32,6 +33,7 @@ def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
 # ────────────────────────────────────────────
 # Database fixtures
 # ────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Any:
@@ -63,7 +65,7 @@ async def test_engine() -> Any:
 
 
 @pytest_asyncio.fixture
-async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession]:
     """Сессия БД с автоматическим rollback после каждого теста."""
     async_session = async_sessionmaker(
         test_engine,
@@ -78,6 +80,7 @@ async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession, None]:
 # ────────────────────────────────────────────
 # Redis fixture
 # ────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def redis_client() -> Redis:
@@ -108,8 +111,9 @@ async def mock_redis() -> Any:
 # API client fixture
 # ────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
-async def api_client() -> AsyncGenerator[AsyncClient, None]:
+async def api_client() -> AsyncGenerator[AsyncClient]:
     """HTTP клиент для тестирования FastAPI."""
     from src.api.main import app
 
@@ -123,6 +127,7 @@ async def api_client() -> AsyncGenerator[AsyncClient, None]:
 # ────────────────────────────────────────────
 # Bot mocks
 # ────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_bot() -> Any:
@@ -178,6 +183,7 @@ def mock_openai_client() -> Any:
 # AI Service fixtures
 # ────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_ai_service() -> Any:
     """
@@ -199,6 +205,7 @@ def mock_ai_service() -> Any:
 # ────────────────────────────────────────────
 # Test data helpers
 # ────────────────────────────────────────────
+
 
 @pytest.fixture
 def user_test_data() -> dict[str, Any]:

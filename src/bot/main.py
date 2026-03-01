@@ -4,6 +4,7 @@
 
 import logging
 
+import sentry_sdk
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -17,6 +18,7 @@ from src.bot.handlers import (
     billing,
     cabinet,
     campaigns,
+    feedback,
     models,
     notifications,
     start,
@@ -26,6 +28,23 @@ from src.bot.middlewares.throttling import ThrottlingMiddleware
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def setup_sentry() -> None:
+    """
+    Инициализация Sentry для мониторинга ошибок.
+    """
+    if settings.sentry_dsn:
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            traces_sample_rate=0.1 if settings.is_production else 0.0,
+            profiles_sample_rate=0.1 if settings.is_production else 0.0,
+            send_default_pii=settings.is_production,
+        )
+        logger.info(f"Sentry initialized ({settings.environment})")
+    else:
+        logger.warning("Sentry DSN not configured — errors will not be tracked")
 
 
 def create_bot() -> Bot:
@@ -68,6 +87,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(analytics.router)
     dp.include_router(analytics_chats.router)
     dp.include_router(templates.router)
+    dp.include_router(feedback.router)
     dp.include_router(admin.router)
 
     return dp
@@ -79,6 +99,9 @@ async def main() -> None:
 
     Запускает polling для получения обновлений.
     """
+
+    # Инициализация Sentry
+    setup_sentry()
 
     # Создаем Redis клиент
     redis = Redis.from_url(
