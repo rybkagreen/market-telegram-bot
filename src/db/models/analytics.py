@@ -28,7 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base
 
 if TYPE_CHECKING:
-    pass
+    from src.db.models.mailing_log import MailingLog
 
 
 class ChatType(str, enum.Enum):
@@ -77,9 +77,7 @@ class TelegramChat(Base):
     error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Синоним parse_error_count для совместимости
 
-    deactivate_reason: Mapped[str | None] = mapped_column(
-        String(500), nullable=True
-    )
+    deactivate_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Причина деактивации для отладки
 
     # Последние известные данные (денормализация для быстрых запросов)
@@ -108,7 +106,7 @@ class TelegramChat(Base):
     snapshots: Mapped[list[ChatSnapshot]] = relationship(
         "ChatSnapshot", back_populates="chat", lazy="select"
     )
-    mailing_logs: Mapped[list["MailingLog"]] = relationship(
+    mailing_logs: Mapped[list[MailingLog]] = relationship(
         "MailingLog",
         back_populates="chat",
         lazy="selectin",

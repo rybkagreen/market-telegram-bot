@@ -64,19 +64,19 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             f"🚀 <b>Добро пожаловать в Market Bot!</b>\n\n"
             f"Привет, <b>{message.from_user.first_name or 'друг'}</b>!\n"
             f"Здесь вы можете запускать рекламные кампании в Telegram-чатах.\n\n"
-            f"💳 Ваш баланс: <b>{user.balance}₽</b>\n\n"
+            f"💳 Ваш баланс: <b>{user.credits:,} кр</b>\n\n"
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
     else:
         # Возвращающийся пользователь или с рефералом
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-    await message.answer(text, reply_markup=get_main_menu(user.balance, user.id))
+    await message.answer(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.message(Command("help"))
@@ -167,12 +167,12 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
 
         text = (
             f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "admin_panel"))
@@ -203,4 +203,5 @@ async def feedback_redirect(callback: CallbackQuery, state: FSMContext) -> None:
     Перенаправить в меню обратной связи.
     """
     from src.bot.handlers.feedback import handle_feedback_menu
+
     await handle_feedback_menu(callback, state)

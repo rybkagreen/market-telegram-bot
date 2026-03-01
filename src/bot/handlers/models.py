@@ -240,12 +240,12 @@ async def models_back_callback(callback: CallbackQuery) -> None:
 
         text = (
             f"👋 <b>С возвращением, {callback.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
             f"📦 Тариф: <b>{plan_value}</b>\n\n"
             f"Выберите действие в меню ниже:"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.balance, user.id))
+        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.callback_query(

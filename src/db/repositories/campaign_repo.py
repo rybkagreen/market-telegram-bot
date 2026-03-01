@@ -237,10 +237,12 @@ class CampaignRepository(BaseRepository[Campaign]):
         Returns:
             Количество кампаний.
         """
+        from sqlalchemy import and_
+
         filters = [Campaign.user_id == user_id]
         if status is not None:
             filters.append(Campaign.status == status)
-        return await self.count(*filters)
+        return await self.count(and_(*filters))
 
     async def get_campaigns_for_period(
         self,

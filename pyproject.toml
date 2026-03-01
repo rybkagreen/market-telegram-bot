@@ -32,10 +32,9 @@ telethon = "^1.36.0"
 pymorphy3 = "^2.0.0"
 rapidfuzz = "^3.6.0"
 
-# AI Services
-anthropic = "^0.18.0"
+# AI Services — OpenRouter (единый провайдер)
+# OpenRouter использует OpenAI-совместимый API
 openai = "^1.12.0"
-groq = "^0.15.0"
 
 # TGStat Parser
 beautifulsoup4 = "^4.12.3"

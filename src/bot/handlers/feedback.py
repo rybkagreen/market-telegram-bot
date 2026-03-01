@@ -4,6 +4,7 @@ Handlers для обратной связи: отзывы, bug reports, идеи
 Все сообщения отправляются в Telegram-чат поддержки (SUPPORT_CHAT_ID из .env)
 или напрямую админам из ADMIN_IDS.
 """
+
 import logging
 from datetime import datetime
 
@@ -108,16 +109,12 @@ async def handle_feedback_text(message: Message, state: FSMContext) -> None:
 
     if len(text) < min_len:
         await message.answer(
-            f"❌ Слишком коротко (минимум {min_len} символов).\n\n"
-            f"Напишите подробнее:"
+            f"❌ Слишком коротко (минимум {min_len} символов).\n\nНапишите подробнее:"
         )
         return
 
     if len(text) > 2000:
-        await message.answer(
-            "❌ Слишком длинно (максимум 2000 символов).\n\n"
-            "Сократите текст:"
-        )
+        await message.answer("❌ Слишком длинно (максимум 2000 символов).\n\nСократите текст:")
         return
 
     await state.update_data(feedback_text=text)
@@ -125,12 +122,7 @@ async def handle_feedback_text(message: Message, state: FSMContext) -> None:
     type_name = data.get("type_name", "💬 Отзыв")
     preview = text[:300] + ("..." if len(text) > 300 else "")
 
-    confirm_text = (
-        f"📋 <b>Предпросмотр</b>\n\n"
-        f"Тип: <b>{type_name}</b>\n\n"
-        f"{preview}\n\n"
-        "Отправить?"
-    )
+    confirm_text = f"📋 <b>Предпросмотр</b>\n\nТип: <b>{type_name}</b>\n\n{preview}\n\nОтправить?"
 
     await message.answer(confirm_text, reply_markup=get_feedback_confirm_kb())
     await state.set_state(FeedbackStates.waiting_confirm)
@@ -182,8 +174,7 @@ async def handle_feedback_confirm(callback: CallbackQuery, state: FSMContext) ->
         )
     else:
         success_text = (
-            "⚠️ Не удалось доставить сообщение.\n"
-            "Попробуйте позже или напишите в поддержку напрямую."
+            "⚠️ Не удалось доставить сообщение.\nПопробуйте позже или напишите в поддержку напрямую."
         )
 
     async with async_session_factory() as session:
@@ -191,10 +182,7 @@ async def handle_feedback_confirm(callback: CallbackQuery, state: FSMContext) ->
         _ = await user_repo.get_by_telegram_id(callback.from_user.id)
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="🔙 В меню",
-        callback_data=MainMenuCB(action="main_menu")
-    )
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1)
 
     await callback.message.edit_text(success_text, reply_markup=builder.as_markup())
@@ -222,8 +210,7 @@ async def handle_feedback_edit(callback: CallbackQuery, state: FSMContext) -> No
     builder.adjust(1)
 
     await callback.message.edit_text(
-        prompts.get(feedback_type, "Введите текст:"),
-        reply_markup=builder.as_markup()
+        prompts.get(feedback_type, "Введите текст:"), reply_markup=builder.as_markup()
     )
     await state.set_state(FeedbackStates.waiting_text)
 
@@ -236,10 +223,7 @@ async def handle_feedback_cancel(callback: CallbackQuery, state: FSMContext) -> 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
-        balance = user.balance if user else 0
+        credits = user.credits if user else 0
         user_id = user.id if user else None
 
-    await callback.message.edit_text(
-        "❌ Отменено.",
-        reply_markup=get_main_menu(balance, user_id)
-    )
+    await callback.message.edit_text("❌ Отменено.", reply_markup=get_main_menu(credits, user_id))

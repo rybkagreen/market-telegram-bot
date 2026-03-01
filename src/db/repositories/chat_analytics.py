@@ -357,15 +357,12 @@ class ChatAnalyticsRepository:
         Returns:
             Список чатов подходящих для рассылки.
         """
-        q = (
-            select(TelegramChat)
-            .where(
-                TelegramChat.is_active,
-                TelegramChat.is_scam.is_(False),
-                TelegramChat.is_fake.is_(False),
-                TelegramChat.error_count < 5,
-                TelegramChat.member_count >= min_members,
-            )
+        q = select(TelegramChat).where(
+            TelegramChat.is_active,
+            TelegramChat.is_scam.is_(False),
+            TelegramChat.is_fake.is_(False),
+            TelegramChat.error_count < 5,
+            TelegramChat.member_count >= min_members,
         )
         if topic:
             q = q.where(TelegramChat.topic == topic)
@@ -375,9 +372,7 @@ class ChatAnalyticsRepository:
         result = await self._session.execute(q)
         return list(result.scalars().all())
 
-    async def increment_error(
-        self, chat_id: int, reason: str | None = None
-    ) -> None:
+    async def increment_error(self, chat_id: int, reason: str | None = None) -> None:
         """
         Увеличить счётчик ошибок.
         После 5 ошибок — деактивировать чат.

@@ -352,7 +352,9 @@ class MailingLogRepository(BaseRepository[MailingLog]):
         reach_query = (
             select(func.coalesce(func.sum(TelegramChat.member_count), 0))
             .select_from(
-                MailingLog.__table__.join(TelegramChat, MailingLog.chat_telegram_id == TelegramChat.telegram_id)
+                MailingLog.__table__.join(
+                    TelegramChat, MailingLog.chat_telegram_id == TelegramChat.telegram_id
+                )
             )
             .where(MailingLog.campaign_id == campaign_id)
         )

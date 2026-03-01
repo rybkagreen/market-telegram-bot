@@ -2,8 +2,6 @@
 Клавиатура главного меню бота.
 """
 
-from decimal import Decimal
-
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -18,12 +16,18 @@ class MainMenuCB(CallbackData, prefix="main"):
     value: str = ""
 
 
+class ModelCB(CallbackData, prefix="model"):
+    """CallbackData для выбора модели ИИ."""
+
+    provider: str
+
+
 def _is_admin(user_id: int) -> bool:
     """Проверить, является ли пользователь админом."""
     return user_id in settings.admin_ids
 
 
-def get_main_menu(balance: Decimal, user_id: int | None = None) -> InlineKeyboardMarkup:
+def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMarkup:
     """
     Главное меню бота.
 
@@ -32,7 +36,7 @@ def get_main_menu(balance: Decimal, user_id: int | None = None) -> InlineKeyboar
     Для всех: кнопка Обратная связь.
 
     Args:
-        balance: Баланс пользователя.
+        credits: Баланс пользователя в кредитах.
         user_id: ID пользователя (опционально, для определения админа).
 
     Returns:
@@ -40,43 +44,19 @@ def get_main_menu(balance: Decimal, user_id: int | None = None) -> InlineKeyboar
     """
     builder = InlineKeyboardBuilder()
 
-    builder.button(
-        text="🚀 Создать кампанию",
-        callback_data=MainMenuCB(action="create_campaign")
-    )
-    builder.button(
-        text="📋 Мои кампании",
-        callback_data=MainMenuCB(action="my_campaigns")
-    )
-    builder.button(
-        text="📊 Аналитика",
-        callback_data=MainMenuCB(action="analytics")
-    )
-    builder.button(
-        text="📄 Шаблоны",
-        callback_data=MainMenuCB(action="templates")
-    )
-    builder.button(
-        text="👤 Кабинет",
-        callback_data=MainMenuCB(action="cabinet")
-    )
-    builder.button(
-        text=f"💳 {balance}₽",
-        callback_data=MainMenuCB(action="balance")
-    )
+    builder.button(text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign"))
+    builder.button(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))
+    builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
+    builder.button(text="📄 Шаблоны", callback_data=MainMenuCB(action="templates"))
+    builder.button(text="👤 Кабинет", callback_data=MainMenuCB(action="cabinet"))
+    builder.button(text=f"💳 {credits:,} кр", callback_data=MainMenuCB(action="balance"))
 
     # Кнопка для всех: обратная связь
-    builder.button(
-        text="💬 Обратная связь",
-        callback_data=MainMenuCB(action="feedback")
-    )
+    builder.button(text="💬 Обратная связь", callback_data=MainMenuCB(action="feedback"))
 
     # Только для админов: панель управления
     if user_id and _is_admin(user_id):
-        builder.button(
-            text="🔐 Админ-панель",
-            callback_data=MainMenuCB(action="admin_panel")
-        )
+        builder.button(text="🔐 Админ-панель", callback_data=MainMenuCB(action="admin_panel"))
         builder.adjust(2, 2, 2, 1, 1)
     else:
         builder.adjust(2, 2, 2, 1)
