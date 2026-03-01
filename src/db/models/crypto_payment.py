@@ -89,6 +89,12 @@ class CryptoPayment(Base, TimestampMixin):
         doc="ID инвойса в CryptoBot",
     )
 
+    pay_url: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+        doc="Ссылка на оплату в CryptoBot (https://t.me/CryptoBot?start=...)",
+    )
+
     currency: Mapped[str | None] = mapped_column(
         String(16),
         nullable=True,

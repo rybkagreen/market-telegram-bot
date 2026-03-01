@@ -169,13 +169,12 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
             user_id=user.id,
             method=PaymentMethod.CRYPTOBOT,
             invoice_id=invoice.invoice_id,
+            pay_url=invoice.pay_url,
             currency=currency,
             amount=amount,
             credits=credits,
             bonus_credits=bonus,
             status=PaymentStatus.PENDING,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
         )
         session.add(payment)
         await session.commit()
@@ -194,7 +193,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder = InlineKeyboardBuilder()
     builder.button(
         text=f"💳 Оплатить {amount} {currency}",
-        callback_data=BillingCB(action="pay_crypto_url", value=f"{invoice.invoice_id}|{invoice.pay_url}")
+        callback_data=BillingCB(action="pay_crypto_url", value=invoice.invoice_id)
     )
     builder.button(
         text="🔄 Проверить оплату",
@@ -210,26 +209,44 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
 
 @router.callback_query(BillingCB.filter(F.action == "pay_crypto_url"))
 async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) -> None:
-    """Отправить ссылку на оплату текстовым сообщением."""
-    parts = callback_data.value.split("|", 1)
-    if len(parts) != 2:
-        await callback.answer("❌ Ошибка формирования ссылки", show_alert=True)
+    """Отправить ссылку на оплату. URL берётся из БД по invoice_id."""
+    invoice_id = callback_data.value
+
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(CryptoPayment).where(CryptoPayment.invoice_id == invoice_id)
+        )
+        payment = result.scalar_one_or_none()
+
+    if not payment:
+        await callback.answer("❌ Счёт не найден", show_alert=True)
         return
-    
-    invoice_id, pay_url = parts
-    
-    # Отправляем ссылку отдельным сообщением
+
+    if not payment.pay_url:
+        await callback.answer("❌ Ссылка на оплату недоступна", show_alert=True)
+        return
+
+    if payment.status == PaymentStatus.PAID:
+        await callback.answer("✅ Этот счёт уже оплачен", show_alert=True)
+        return
+
+    if payment.status in (PaymentStatus.EXPIRED, PaymentStatus.CANCELLED):
+        await callback.answer("❌ Счёт истёк или отменён. Создайте новый.", show_alert=True)
+        return
+
     await callback.message.answer(
         f"💳 <b>Счёт на оплату</b>\n\n"
-        f"Нажмите на ссылку для оплаты:\n"
-        f"<a href='{pay_url}'>Оплатить счёт</a>\n\n"
+        f"Нажмите на ссылку:\n"
+        f"<a href='{payment.pay_url}'>Оплатить счёт</a>\n\n"
         f"Или скопируйте ссылку:\n"
-        f"<code>{pay_url}</code>\n\n"
-        f"⏱ Счёт действителен 1 час."
+        f"<code>{payment.pay_url}</code>\n\n"
+        f"⏱ Счёт действителен 1 час.",
+        parse_mode="HTML",
+        disable_web_page_preview=True,
     )
-    
-    # Показываем уведомление что ссылка отправлена
-    await callback.answer("✅ Ссылка отправлена!", show_alert=False)
+    await callback.answer("✅ Ссылка отправлена!")
 
 
 @router.callback_query(BillingCB.filter(F.action == "check_invoice"))
@@ -336,8 +353,6 @@ async def create_stars_invoice(callback: CallbackQuery, callback_data: BillingCB
             credits=credits,
             bonus_credits=bonus,
             status=PaymentStatus.PENDING,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
         )
         session.add(payment)
         await session.commit()
