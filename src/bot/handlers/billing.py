@@ -179,6 +179,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
         )
         session.add(payment)
         await session.commit()
+    logger.info(f"Payment created: invoice_id={invoice.invoice_id}, pay_url={invoice.pay_url}")
 
     total_credits = credits + bonus
     text = (
@@ -199,7 +200,9 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder.button(text="🔙 Назад", callback_data=BillingCB(action="topup_crypto"))
     builder.adjust(1, 1, 1)
 
+    logger.info(f"Sending message with pay_url: {invoice.pay_url}")
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    logger.info("Message sent successfully")
 
 
 @router.callback_query(BillingCB.filter(F.action == "check_invoice"))
