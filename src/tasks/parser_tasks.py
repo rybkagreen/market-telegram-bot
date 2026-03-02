@@ -290,14 +290,14 @@ async def _parse_and_save_chats(
         # Сохраняем каждый чат отдельно
         saved_count = 0
         blocked_count = 0
-        
+
         for chat_info in chat_infos:
             # Проверяем контент канала (название + описание)
             from src.utils.content_filter.filter import check as content_filter_check
-            
+
             channel_content = f"{chat_info.title} {chat_info.description or ''}"
             filter_result = content_filter_check(channel_content)
-            
+
             if not filter_result.passed:
                 blocked_count += 1
                 logger.debug(
@@ -305,7 +305,7 @@ async def _parse_and_save_chats(
                     f"{filter_result.categories}"
                 )
                 continue
-            
+
             # Классифицируем тематику
             topic = classify_topic(chat_info.title, chat_info.description or "")
 
@@ -381,14 +381,14 @@ async def _parse_tgstat_and_save(
         # Сохраняем каждый чат отдельно
         saved_count = 0
         blocked_count = 0
-        
+
         for chat_details in chat_details_list:
             # Проверяем контент канала (название + описание)
             from src.utils.content_filter.filter import check as content_filter_check
-            
+
             channel_content = f"{chat_details.title} {chat_details.description or ''}"
             filter_result = content_filter_check(channel_content)
-            
+
             if not filter_result.passed:
                 blocked_count += 1
                 logger.debug(
@@ -396,7 +396,7 @@ async def _parse_tgstat_and_save(
                     f"{filter_result.categories}"
                 )
                 continue
-            
+
             try:
                 # Получаем или создаём чат
                 username = chat_details.username or f"_{chat_details.telegram_id}"
@@ -546,8 +546,9 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
     try:
         # Health check Redis перед запуском
         from redis.asyncio import Redis as AsyncRedis
+
         from src.config.settings import settings
-        
+
         try:
             redis_client = AsyncRedis.from_url(
                 str(settings.redis_url),
@@ -563,7 +564,7 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
 
         # Используем правильный подход для async в Celery worker
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # Loop уже существует — запускаем в отдельном потоке
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -587,7 +588,7 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
         logger.error(f"Error in refresh_chat_database: {e}")
         # Retry при ошибках подключения
         if any(x in str(e).lower() for x in ["connection", "timeout", "redis", "telethon"]):
-            raise self.retry(exc=e, countdown=300 * (self.request.retries + 1))
+            raise self.retry(exc=e, countdown=300 * (self.request.retries + 1)) from e
         return {"error": str(e)}
 
 
