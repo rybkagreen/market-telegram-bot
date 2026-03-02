@@ -130,7 +130,9 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
             user = await user_repo.get_by_telegram_id(message.from_user.id)
-            user_plan = user.plan.value if user else "free"
+            # Получаем план пользователя
+            from src.db.models.user import UserPlan
+            user_plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
 
         text = "✍️ <b>Текст кампании</b>\n\nКак вы хотите создать текст для рассылки?"
         await message.answer(text, reply_markup=get_text_type_kb(user_plan))
@@ -167,7 +169,8 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(message.from_user.id)
-        user_plan = user.plan.value if user else "free"
+        from src.db.models.user import UserPlan
+        user_plan = user.plan if user and isinstance(user.plan, UserPlan) else UserPlan.FREE
 
     text = "✍️ <b>Текст кампании</b>\n\nШаг 3 из 7: Как вы хотите создать текст для рассылки?"
 
@@ -237,7 +240,10 @@ async def select_ai_text(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        if user.plan.value == "free":
+        # Конвертируем plan из строки в Enum если нужно
+        from src.db.models.user import UserPlan
+        plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
+        if plan == UserPlan.FREE:
             await callback.answer(
                 "❌ ИИ-генерация недоступна на тарифе FREE\n\n"
                 "Перейдите на STARTER или выше для использования ИИ.",

@@ -56,7 +56,10 @@ async def show_balance(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        plan_value = user.plan.value.upper()
+        # Конвертируем plan из строки в Enum если нужно
+        from src.db.models.user import UserPlan
+        plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
+        plan_value = plan.value.upper()
 
         # Информация о тарифе
         plan_expires = ""
@@ -166,6 +169,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
             user_id=user.id,
             method=PaymentMethod.CRYPTOBOT,
             invoice_id=invoice.invoice_id,
+            pay_url=invoice.pay_url,
             currency=currency,
             amount=amount,
             credits=credits,
@@ -174,6 +178,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
         )
         session.add(payment)
         await session.commit()
+    logger.info(f"Payment created: invoice_id={invoice.invoice_id}, pay_url={invoice.pay_url}")
 
     total_credits = credits + bonus
     text = (
@@ -186,7 +191,10 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"💳 Оплатить {amount} {currency}", url=invoice.pay_url)
+    builder.button(
+        text=f"💳 Оплатить {amount} {currency}",
+        callback_data=BillingCB(action="pay_crypto_url", value=invoice.invoice_id)
+    )
     builder.button(
         text="🔄 Проверить оплату",
         callback_data=BillingCB(action="check_invoice", value=invoice.invoice_id),
@@ -194,7 +202,51 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder.button(text="🔙 Назад", callback_data=BillingCB(action="topup_crypto"))
     builder.adjust(1, 1, 1)
 
+    logger.info(f"Sending message with pay_url: {invoice.pay_url}")
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    logger.info("Message sent successfully")
+
+
+@router.callback_query(BillingCB.filter(F.action == "pay_crypto_url"))
+async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) -> None:
+    """Отправить ссылку на оплату. URL берётся из БД по invoice_id."""
+    invoice_id = callback_data.value
+
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(CryptoPayment).where(CryptoPayment.invoice_id == invoice_id)
+        )
+        payment = result.scalar_one_or_none()
+
+    if not payment:
+        await callback.answer("❌ Счёт не найден", show_alert=True)
+        return
+
+    if not payment.pay_url:
+        await callback.answer("❌ Ссылка на оплату недоступна", show_alert=True)
+        return
+
+    if payment.status == PaymentStatus.PAID:
+        await callback.answer("✅ Этот счёт уже оплачен", show_alert=True)
+        return
+
+    if payment.status in (PaymentStatus.EXPIRED, PaymentStatus.CANCELLED):
+        await callback.answer("❌ Счёт истёк или отменён. Создайте новый.", show_alert=True)
+        return
+
+    await callback.message.answer(
+        f"💳 <b>Счёт на оплату</b>\n\n"
+        f"Нажмите на ссылку:\n"
+        f"<a href='{payment.pay_url}'>Оплатить счёт</a>\n\n"
+        f"Или скопируйте ссылку:\n"
+        f"<code>{payment.pay_url}</code>\n\n"
+        f"⏱ Счёт действителен 1 час.",
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+    await callback.answer("✅ Ссылка отправлена!")
 
 
 @router.callback_query(BillingCB.filter(F.action == "check_invoice"))
@@ -250,7 +302,7 @@ async def check_invoice_status(callback: CallbackQuery, callback_data: BillingCB
             await session.execute(
                 update(CryptoPayment)
                 .where(CryptoPayment.id == payment.id)
-                .values(status=PaymentStatus(invoice.status))
+                .values(status=PaymentStatus[invoice.status.upper()].value)
             )
             await session.commit()
             await callback.answer(f"❌ Счёт {invoice.status}. Создайте новый.", show_alert=True)

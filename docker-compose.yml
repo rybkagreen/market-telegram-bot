@@ -163,20 +163,40 @@ services:
       - market_bot_network
     command: poetry run uvicorn src.api.main:app --host 0.0.0.0 --port 8001 --reload
 
+  # ══════════════════════════════════════════════════════════════
+  # Nginx + Mini App (production build)
+  # ══════════════════════════════════════════════════════════════
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nginx
     container_name: market_bot_nginx
     ports:
-      - "${NGINX_PORT:-8080}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d/:/etc/nginx/conf.d/:ro
-      - ./mini_app/dist:/app/static:ro
+      - "8080:80"
     depends_on:
       - bot
       - api
     networks:
       - market_bot_network
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════════
+  # Cloudflare Tunnel (HTTPS для Mini App)
+  # ══════════════════════════════════════════════════════════════
+  # Раскомментировать для постоянного туннеля:
+  # 1. Создать туннель: cloudflared tunnel create market-bot
+  # 2. Получить токен из ~/.cloudflared/market-bot.json
+  # 3. Вставить токен в CLOUDFLARE_TUNNEL_TOKEN ниже
+  # 4. Запустить: docker compose up -d cloudflared
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: market_bot_cloudflared
+  #   command: tunnel run
+  #   environment:
+  #     - CLOUDFLARE_TUNNEL_TOKEN=YOUR_TOKEN_HERE
+  #   networks:
+  #     - market_bot_network
+  #   restart: unless-stopped
 
 networks:
   market_bot_network:

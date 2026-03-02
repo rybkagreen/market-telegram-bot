@@ -1,0 +1,60 @@
+:root {
+  /* ── Фоны ── */
+  --bg-base:       #080B12;
+  --bg-surface:    #0F1521;
+  --bg-elevated:   #162033;
+  --bg-hover:      #1C2840;
+
+  /* ── Акцент — электрический фиолетово-синий ── */
+  --accent-500:    #6366F1;
+  --accent-400:    #818CF8;
+  --accent-600:    #4F46E5;
+  --accent-glow:   rgba(99, 102, 241, 0.25);
+
+  /* ── Статусы ── */
+  --success:       #10B981;
+  --success-dim:   rgba(16, 185, 129, 0.15);
+  --warning:       #F59E0B;
+  --warning-dim:   rgba(245, 158, 11, 0.15);
+  --danger:        #EF4444;
+  --danger-dim:    rgba(239, 68, 68, 0.15);
+  --info:          #3B82F6;
+  --info-dim:      rgba(59, 130, 246, 0.15);
+  --neutral:       #6B7280;
+  --neutral-dim:   rgba(107, 114, 128, 0.15);
+
+  /* ── Текст ── */
+  --text-primary:  #F1F5F9;
+  --text-secondary:#94A3B8;
+  --text-muted:    #475569;
+  --text-accent:   #818CF8;
+
+  /* ── Границы ── */
+  --border:        rgba(148, 163, 184, 0.08);
+  --border-accent: rgba(99, 102, 241, 0.3);
+
+  /* ── Шрифты ── */
+  --font-display:  'DM Mono', monospace;
+  --font-body:     'Onest', sans-serif;
+
+  /* ── Скругления ── */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  24px;
+
+  /* ── Тени ── */
+  --shadow-glow: 0 0 32px var(--accent-glow);
+}
+
+/* Светлая тема (если Telegram в светлом режиме) */
+[data-theme="light"] {
+  --bg-base:       #F8FAFC;
+  --bg-surface:    #FFFFFF;
+  --bg-elevated:   #F1F5F9;
+  --bg-hover:      #E2E8F0;
+  --text-primary:  #0F172A;
+  --text-secondary:#475569;
+  --text-muted:    #94A3B8;
+  --border:        rgba(15, 23, 42, 0.08);
+}

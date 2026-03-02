@@ -1,5 +1,9 @@
 """
 Mailing Celery tasks.
+
+Использует asyncio.run() для запуска async кода в синхронных Celery задачах.
+asyncio.run() создаёт новый event loop для каждого вызова и закрывает его,
+что гарантирует корректную работу в Celery worker контексте без конфликтов.
 """
 
 import asyncio
@@ -105,14 +109,9 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
             return stats
 
     try:
-        # Создаём новый event loop для задачи
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_send_async())
-            return result
-        finally:
-            loop.close()
+        # asyncio.run() создаёт новый event loop и закрывает его после выполнения
+        # Это правильный способ запуска async кода в синхронном контексте
+        return asyncio.run(_send_async())
 
     except Exception as e:
         logger.error(f"Error in send_campaign: {e}")
@@ -168,15 +167,21 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             return stats
 
     try:
-        # Создаём новый event loop для задачи
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Используем asyncio.run() с обработкой ситуации когда event loop уже существует
+        # Это происходит в Celery worker при использовании prefork pool
         try:
-            result = loop.run_until_complete(_check_async())
-            logger.info(f"Scheduled campaigns check completed: {result}")
-            return result
-        finally:
-            loop.close()
+            loop = asyncio.get_running_loop()
+            # Loop уже существует — создаём новый и запускаем в нём
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, _check_async())
+                result = future.result(timeout=300)
+        except RuntimeError:
+            # Нет активного loop — используем обычный asyncio.run()
+            result = asyncio.run(_check_async())
+        
+        logger.info(f"Scheduled campaigns check completed: {result}")
+        return result
 
     except Exception as e:
         logger.error(f"Error checking scheduled campaigns: {e}")
@@ -227,15 +232,10 @@ def check_low_balance(self, threshold: float = 50.0) -> dict[str, Any]:
             return stats
 
     try:
-        # Создаём новый event loop для задачи
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_check_balance_async())
-            logger.info(f"Low balance check completed: {result}")
-            return result
-        finally:
-            loop.close()
+        # asyncio.run() создаёт новый event loop и закрывает его после выполнения
+        result = asyncio.run(_check_balance_async())
+        logger.info(f"Low balance check completed: {result}")
+        return result
 
     except Exception as e:
         logger.error(f"Error checking low balance: {e}")
@@ -307,14 +307,8 @@ def notify_user(
                 await bot.session.close()
 
     try:
-        # Создаём новый event loop для задачи
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_notify_async())
-            return result
-        finally:
-            loop.close()
+        # asyncio.run() создаёт новый event loop и закрывает его после выполнения
+        return asyncio.run(_notify_async())
 
     except Exception as e:
         logger.error(f"Error notifying user: {e}")
