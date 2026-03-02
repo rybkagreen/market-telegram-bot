@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser
-from src.db.models.campaign import CampaignStatus
+from src.db.models.campaign import Campaign, CampaignStatus
 from src.db.models.mailing_log import MailingLog
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.session import async_session_factory
@@ -534,50 +534,6 @@ async def get_campaign_stats(
         started_at=s.started_at.isoformat() if s.started_at else None,
         finished_at=s.finished_at.isoformat() if s.finished_at else None,
     )
-
-
-# ─── Удалить кампанию ────────────────────────────────────────────
-
-
-@router.delete("/{campaign_id}", status_code=204)
-async def delete_campaign(
-    campaign_id: int,
-    current_user: CurrentUser,
-) -> None:
-    """
-    Удалить кампанию.
-    Можно удалить только черновики и завершённые/ошибочные кампании.
-    Нельзя удалять running и queued.
-    """
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(Campaign).where(
-                Campaign.id == campaign_id,
-                Campaign.user_id == current_user.id,
-            )
-        )
-        campaign = result.scalar_one_or_none()
-
-        if not campaign:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Campaign not found",
-            )
-
-        camp_status = (
-            campaign.status.value
-            if hasattr(campaign.status, "value")
-            else str(campaign.status)
-        )
-
-        if camp_status in ("running", "queued"):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete running or queued campaign",
-            )
-
-        await session.delete(campaign)
-        await session.commit()
 
 
 # ─── Дублировать кампанию ────────────────────────────────────────
