@@ -27,21 +27,18 @@ TOPIC_PROMPTS = {
 Длина: 400-700 символов.
 Структура: заголовок → боль → решение → призыв.
 Эмодзи: уместно, 3-5 штук.""",
-    
     "retail": """Ты — копирайтер для розничной торговли.
 Пиши короткие, эмоциональные тексты про товары и услуги.
 Стиль: дружеский, с акцентом на выгоду.
 Длина: 300-600 символов.
 Структура: эмоция → преимущество → скидка → призыв.
 Эмодзи: умеренно, 2-4 штуки.""",
-    
     "finance": """Ты — копирайтер для финансовых услуг.
 Пиши лаконичные, убедительные тексты.
 Стиль: профессиональный, но доступный.
 Длина: 400-700 символов.
 Структура: проблема → решение → гарантии → призыв.
 Эмодзи: минимально, 1-3 штуки.""",
-    
     "default": """Ты — профессиональный копирайтер для Telegram.
 Пиши короткие, цепляющие рекламные тексты.
 Стиль: живой, не шаблонный.
@@ -128,7 +125,7 @@ class AIService:
         if topic and topic in TOPIC_PROMPTS:
             system = TOPIC_PROMPTS[topic]
             logger.debug(f"Using topic prompt: {topic}")
-        
+
         model = settings.get_model_for_plan(user_plan)
 
         # Проверяем кэш
@@ -314,9 +311,11 @@ class AIService:
         except Exception as e:
             # Проверяем rate limit
             error_str = str(e).lower()
-            if '429' in error_str or 'rate limit' in error_str:
+            if "429" in error_str or "rate limit" in error_str:
                 # Пробуем fallback модель
-                logger.warning(f"Rate limit on {model}, trying fallback: {settings.model_free_fallback}")
+                logger.warning(
+                    f"Rate limit on {model}, trying fallback: {settings.model_free_fallback}"
+                )
                 try:
                     response = await self.client.chat.completions.create(
                         model=settings.model_free_fallback,
@@ -336,8 +335,10 @@ class AIService:
                     return content.strip()
                 except Exception as fallback_error:
                     logger.error(f"Fallback model also failed: {fallback_error}")
-                    raise RuntimeError(f"Ошибка AI генерации (fallback не удался): {fallback_error}") from fallback_error
-            
+                    raise RuntimeError(
+                        f"Ошибка AI генерации (fallback не удался): {fallback_error}"
+                    ) from fallback_error
+
             # Другие ошибки
             logger.error(f"OpenRouter API error: model={model}, error={e}")
             raise RuntimeError(f"Ошибка AI генерации: {e}") from e
