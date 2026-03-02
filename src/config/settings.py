@@ -74,7 +74,9 @@ class Settings(BaseSettings):
 
     # Модели (менять не рекомендуется — они привязаны к тарифам)
     # FREE/STARTER → NousResearch Hermes 3 Llama 3.1 405B (бесплатная)
+    # При rate limit fallback: meta-llama/llama-3.2-90b-vision-instruct:free
     model_free: str = Field("nousresearch/hermes-3-llama-3.1-405b:free", alias="MODEL_FREE")
+    model_free_fallback: str = Field("meta-llama/llama-3.2-90b-vision-instruct:free", alias="MODEL_FREE_FALLBACK")
     # PRO/BUSINESS → Claude Sonnet 4.6
     model_paid: str = Field("anthropic/claude-sonnet-4-6", alias="MODEL_PAID")
 
