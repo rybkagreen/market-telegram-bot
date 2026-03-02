@@ -73,10 +73,10 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = Field(24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)")
 
     # Модели (менять не рекомендуется — они привязаны к тарифам)
-    # FREE/STARTER → бесплатная Llama 4 Scout
-    model_free: str = Field("meta-llama/llama-4-scout:free", alias="MODEL_FREE")
+    # FREE/STARTER → NousResearch Hermes 3 Llama 3.1 405B (бесплатная)
+    model_free: str = Field("nousresearch/hermes-3-llama-3.1-405b:free", alias="MODEL_FREE")
     # PRO/BUSINESS → Claude Sonnet 4.6
-    model_paid: str = Field("anthropic/claude-sonnet-4.6", alias="MODEL_PAID")
+    model_paid: str = Field("anthropic/claude-sonnet-4-6", alias="MODEL_PAID")
 
     # Параметры генерации
     ai_timeout: int = Field(60, alias="AI_TIMEOUT")
