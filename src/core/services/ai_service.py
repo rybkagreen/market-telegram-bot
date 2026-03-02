@@ -59,8 +59,8 @@ class AIService:
                 timeout=settings.ai_timeout,
                 default_headers={
                     # Обязательные заголовки OpenRouter
-                    "HTTP-Referer": "https://market-bot.app",
-                    "X-Title": "Market Telegram Bot",
+                    "HTTP-Referer": "https://github.com/rybkagreen/market-telegram-bot",
+                    "X-OpenRouter-Title": "Market Telegram Bot",
                 },
             )
             logger.info("OpenRouter client initialized")
