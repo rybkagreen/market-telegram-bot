@@ -56,6 +56,7 @@ class TelegramChat(Base):
         Enum(ChatType), default=ChatType.channel, nullable=False
     )
     topic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    subcategory: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
     # Флаги доступности
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
