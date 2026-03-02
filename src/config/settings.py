@@ -64,11 +64,21 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════
     openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
 
+    # ══════════════════════════════════════════════════════════════
+    # JWT для Mini App аутентификации
+    # Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
+    # ══════════════════════════════════════════════════════════════
+    jwt_secret: str = Field(..., alias="JWT_SECRET", description="Секрет для подписи JWT токенов Mini App")
+    jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM", description="Алгоритм подписи JWT")
+    jwt_expire_hours: int = Field(24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)")
+
     # Модели (менять не рекомендуется — они привязаны к тарифам)
-    # FREE/STARTER → бесплатная Llama 4 Scout
-    model_free: str = Field("meta-llama/llama-4-scout:free", alias="MODEL_FREE")
+    # FREE/STARTER → NousResearch Hermes 3 Llama 3.1 405B (бесплатная)
+    # При rate limit fallback: stepfun/step-3.5-flash:free (всегда доступна)
+    model_free: str = Field("nousresearch/hermes-3-llama-3.1-405b:free", alias="MODEL_FREE")
+    model_free_fallback: str = Field("stepfun/step-3.5-flash:free", alias="MODEL_FREE_FALLBACK")
     # PRO/BUSINESS → Claude Sonnet 4.6
-    model_paid: str = Field("anthropic/claude-sonnet-4.6", alias="MODEL_PAID")
+    model_paid: str = Field("anthropic/claude-sonnet-4-6", alias="MODEL_PAID")
 
     # Параметры генерации
     ai_timeout: int = Field(60, alias="AI_TIMEOUT")

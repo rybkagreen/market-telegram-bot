@@ -167,16 +167,18 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
 
         payment = CryptoPayment(
             user_id=user.id,
-            method=PaymentMethod.CRYPTOBOT.value,
+            method=PaymentMethod.CRYPTOBOT,
             invoice_id=invoice.invoice_id,
+            pay_url=invoice.pay_url,
             currency=currency,
             amount=amount,
             credits=credits,
             bonus_credits=bonus,
-            status=PaymentStatus.PENDING.value,
+            status=PaymentStatus.PENDING,
         )
         session.add(payment)
         await session.commit()
+    logger.info(f"Payment created: invoice_id={invoice.invoice_id}, pay_url={invoice.pay_url}")
 
     total_credits = credits + bonus
     text = (
@@ -189,7 +191,10 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"💳 Оплатить {amount} {currency}", url=invoice.pay_url)
+    builder.button(
+        text=f"💳 Оплатить {amount} {currency}",
+        callback_data=BillingCB(action="pay_crypto_url", value=invoice.invoice_id)
+    )
     builder.button(
         text="🔄 Проверить оплату",
         callback_data=BillingCB(action="check_invoice", value=invoice.invoice_id),
@@ -197,7 +202,51 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder.button(text="🔙 Назад", callback_data=BillingCB(action="topup_crypto"))
     builder.adjust(1, 1, 1)
 
+    logger.info(f"Sending message with pay_url: {invoice.pay_url}")
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    logger.info("Message sent successfully")
+
+
+@router.callback_query(BillingCB.filter(F.action == "pay_crypto_url"))
+async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) -> None:
+    """Отправить ссылку на оплату. URL берётся из БД по invoice_id."""
+    invoice_id = callback_data.value
+
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(CryptoPayment).where(CryptoPayment.invoice_id == invoice_id)
+        )
+        payment = result.scalar_one_or_none()
+
+    if not payment:
+        await callback.answer("❌ Счёт не найден", show_alert=True)
+        return
+
+    if not payment.pay_url:
+        await callback.answer("❌ Ссылка на оплату недоступна", show_alert=True)
+        return
+
+    if payment.status == PaymentStatus.PAID:
+        await callback.answer("✅ Этот счёт уже оплачен", show_alert=True)
+        return
+
+    if payment.status in (PaymentStatus.EXPIRED, PaymentStatus.CANCELLED):
+        await callback.answer("❌ Счёт истёк или отменён. Создайте новый.", show_alert=True)
+        return
+
+    await callback.message.answer(
+        f"💳 <b>Счёт на оплату</b>\n\n"
+        f"Нажмите на ссылку:\n"
+        f"<a href='{payment.pay_url}'>Оплатить счёт</a>\n\n"
+        f"Или скопируйте ссылку:\n"
+        f"<code>{payment.pay_url}</code>\n\n"
+        f"⏱ Счёт действителен 1 час.",
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+    await callback.answer("✅ Ссылка отправлена!")
 
 
 @router.callback_query(BillingCB.filter(F.action == "check_invoice"))
@@ -217,7 +266,7 @@ async def check_invoice_status(callback: CallbackQuery, callback_data: BillingCB
             await callback.answer("❌ Счёт не найден", show_alert=True)
             return
 
-        if payment.status == PaymentStatus.PAID.value:
+        if payment.status == PaymentStatus.PAID:
             await callback.answer(
                 f"✅ Уже оплачено! {payment.total_credits} кр зачислены.",
                 show_alert=True,
@@ -240,7 +289,7 @@ async def check_invoice_status(callback: CallbackQuery, callback_data: BillingCB
             await session.execute(
                 update(CryptoPayment)
                 .where(CryptoPayment.id == payment.id)
-                .values(status=PaymentStatus.PAID.value, credited_at=datetime.now(UTC))
+                .values(status=PaymentStatus.PAID, credited_at=datetime.now(UTC))
             )
             await session.commit()
 
@@ -299,11 +348,11 @@ async def create_stars_invoice(callback: CallbackQuery, callback_data: BillingCB
 
         payment = CryptoPayment(
             user_id=user.id,
-            method=PaymentMethod.STARS.value,
+            method=PaymentMethod.STARS,
             stars_amount=stars_amount,
             credits=credits,
             bonus_credits=bonus,
-            status=PaymentStatus.PENDING.value,
+            status=PaymentStatus.PENDING,
         )
         session.add(payment)
         await session.commit()
@@ -344,7 +393,7 @@ async def stars_payment_success(message: Message) -> None:
         )
         db_payment = result.scalar_one_or_none()
 
-        if not db_payment or db_payment.status == PaymentStatus.PAID.value:
+        if not db_payment or db_payment.status == PaymentStatus.PAID:
             return
 
         user_repo = UserRepository(session)
@@ -355,7 +404,7 @@ async def stars_payment_success(message: Message) -> None:
             update(CryptoPayment)
             .where(CryptoPayment.id == payment_db_id)
             .values(
-                status=PaymentStatus.PAID.value,
+                status=PaymentStatus.PAID,
                 telegram_payment_charge_id=payment.telegram_payment_charge_id,
                 credited_at=datetime.now(UTC),
             )
@@ -459,7 +508,7 @@ async def show_history(callback: CallbackQuery) -> None:
             select(CryptoPayment)
             .where(
                 CryptoPayment.user_id == user.id,
-                CryptoPayment.status == PaymentStatus.PAID.value,
+                CryptoPayment.status == PaymentStatus.PAID,
             )
             .order_by(desc(CryptoPayment.credited_at))
             .limit(10)
@@ -473,7 +522,7 @@ async def show_history(callback: CallbackQuery) -> None:
             for p in payments:
                 date = p.credited_at.strftime("%d.%m.%Y %H:%M") if p.credited_at else "—"
                 total = p.total_credits
-                method = "⭐ Stars" if p.method == PaymentMethod.STARS.value else f"💎 {p.currency}"
+                method = "⭐ Stars" if p.method == PaymentMethod.STARS else f"💎 {p.currency}"
                 text += f"✅ +{total:,} кр — {method} — {date}\n"
 
     builder = InlineKeyboardBuilder()
