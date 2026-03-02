@@ -480,7 +480,15 @@ SEARCH_QUERIES_BY_CATEGORY = {
 # Импортируем celery_app динамически чтобы избежать circular imports
 
 
-@celery_app.task(bind=True, base=BaseTask, name="parser:refresh_chat_database")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="parser:refresh_chat_database",
+    max_retries=3,
+    default_retry_delay=300,  # 5 минут между попытками
+    autoretry_for=(Exception,),
+    retry_kwargs={"exc": Exception("Parser error"), "countdown": 300},
+)
 def refresh_chat_database(self, query_category: str | None = None) -> dict[str, Any]:
     """
     Celery задача для обновления базы данных чатов.
@@ -498,7 +506,34 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
     logger.info(f"Starting chat database refresh (category: {query_category or 'all'})...")
 
     try:
-        stats = asyncio.run(_refresh_chats_async(query_category))
+        # Health check Redis перед запуском
+        from redis.asyncio import Redis as AsyncRedis
+        from src.config.settings import settings
+        
+        try:
+            redis_client = AsyncRedis.from_url(
+                str(settings.redis_url),
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            asyncio.run(redis_client.ping())
+            asyncio.run(redis_client.close())
+            logger.debug("Redis health check passed")
+        except Exception as redis_error:
+            logger.warning(f"Redis health check failed: {redis_error}")
+            # Не прерываем задачу, просто логируем
+
+        # Используем правильный подход для async в Celery worker
+        try:
+            loop = asyncio.get_running_loop()
+            # Loop уже существует — запускаем в отдельном потоке
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, _refresh_chats_async(query_category))
+                stats = future.result(timeout=1800)  # 30 минут таймаут
+        except RuntimeError:
+            # Нет активного loop — используем обычный asyncio.run()
+            stats = asyncio.run(_refresh_chats_async(query_category))
 
         logger.info(
             f"Chat database refresh completed. "
@@ -512,6 +547,9 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
 
     except Exception as e:
         logger.error(f"Error in refresh_chat_database: {e}")
+        # Retry при ошибках подключения
+        if any(x in str(e).lower() for x in ["connection", "timeout", "redis", "telethon"]):
+            raise self.retry(exc=e, countdown=300 * (self.request.retries + 1))
         return {"error": str(e)}
 
 
