@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { campaignsApi, CampaignItem } from '@/api/campaigns'
-import { analyticsApi, AIInsights } from '@/api/analytics'
+import { analyticsApi } from '@/api/analytics'
 import { useAuthStore } from '@/store/authStore'
 import { Badge } from '@/components/ui/Badge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
