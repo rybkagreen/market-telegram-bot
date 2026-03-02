@@ -824,6 +824,20 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             continue
 
         # Обновить мета-данные чата
+        from src.utils.categories import classify_subcategory
+        from src.db.models.analytics import TelegramChat
+        from sqlalchemy import select
+
+        # Получаем текущий topic из БД
+        chat = await session.get(TelegramChat, chat_id)
+        topic = chat.topic if chat else None
+
+        subcategory = classify_subcategory(
+            title=metrics.title or "",
+            description=metrics.description or "",
+            topic=topic,
+        )
+
         await repo.update_chat_meta(
             chat_id,
             telegram_id=metrics.telegram_id,
@@ -836,6 +850,7 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             last_avg_views=metrics.avg_views,
             last_er=metrics.er,
             last_post_frequency=metrics.post_frequency,
+            subcategory=subcategory,
         )
 
         # Сохранить снимок за сегодня
@@ -879,6 +894,16 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         break  # Выходим после первого yield
 
     chat, is_new = await repo.get_or_create_chat(username)
+
+    # Автоклассификация подкатегории
+    from src.utils.categories import classify_subcategory
+
+    subcategory = classify_subcategory(
+        title=metrics.title or "",
+        description=metrics.description or "",
+        topic=chat.topic if chat else None,
+    )
+
     await repo.update_chat_meta(
         chat.id,
         telegram_id=metrics.telegram_id,
@@ -891,6 +916,7 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         last_avg_views=metrics.avg_views,
         last_er=metrics.er,
         last_post_frequency=metrics.post_frequency,
+        subcategory=subcategory,
     )
     await repo.upsert_snapshot(
         chat_id=chat.id,

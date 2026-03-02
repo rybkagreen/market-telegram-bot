@@ -35,7 +35,7 @@ export const CreateCampaignForm: React.FC<CreateCampaignFormProps> = ({
         text,
         topic: topic || undefined,
         filters: {
-          topics: filters.topics.length > 0 ? filters.topics : undefined,
+          topics: filters.topics.length > 0 ? filters.topics : [],
           min_members: filters.min_members,
           max_members: filters.max_members,
           blacklist: filters.blacklist,
