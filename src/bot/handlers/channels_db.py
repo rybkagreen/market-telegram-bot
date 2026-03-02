@@ -198,9 +198,10 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
     if top_channels:
         text += "<b>Крупнейшие каналы:</b>\n"
         for i, ch in enumerate(top_channels, 1):
-            username = ch.username or "—"
-            title = ch.title or "Без названия"
-            subs = f"{ch.member_count:,}" if ch.member_count else "—"
+            # ch is a tuple: (username, title, member_count)
+            username = ch[0] or "—"
+            title = ch[1] or "Без названия"
+            subs = f"{ch[2]:,}" if ch[2] else "—"
             text += f"{i}. <a href='https://t.me/{username}'>{title}</a> — {subs}\n"
 
     if has_subcats:
@@ -286,9 +287,12 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
 
     # Формируем список
     for row in rows:
-        if row.subcat:
-            name = subcats.get(row.subcat, row.subcat)
-            text += f"• {name}: <b>{row.total:,}</b>\n"
+        # row is a tuple: (subcat, total)
+        subcat = row[0]
+        total = row[1]
+        if subcat:
+            name = subcats.get(subcat, subcat)
+            text += f"• {name}: <b>{total:,}</b>\n"
 
     if not rows:
         text += "Пока нет данных по подкатегориям.\n"
