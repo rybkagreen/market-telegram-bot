@@ -101,7 +101,9 @@ class CryptoBotService:
                 "payload": payload,
                 "description": description,
                 "expires_in": expires_in,
-                "allow_anonymous": False,
+                "allow_anonymous": True,  # Разрешить анонимную оплату
+                "paid_btn_name": "Вернуться в бот",  # Текст кнопки после оплаты
+                "paid_btn_url": "https://t.me/Eliza_rybka_assistant_bot",  # Ссылка возврата
             },
         )
 

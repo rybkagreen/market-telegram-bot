@@ -102,61 +102,61 @@ def get_beat_schedule() -> dict[str, Any]:
         Словарь с расписанием задач.
     """
     return {
-        # ========== ПАРСИНГ (02:30-06:00 UTC) ==========
-        # Слот 1: 02:30 - Бизнес и финансы
+        # ========== ПАРСИНГ (00:15-03:30 UTC = 03:15-06:30 MSK) ==========
+        # Слот 1: 03:15 MSK (00:15 UTC) - Бизнес и финансы
         "parser-slot-1-business": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=2, minute=30),
+            "schedule": crontab(hour=0, minute=15),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "business"},
         },
-        # Слот 2: 03:00 - Маркетинг и продажи
+        # Слот 2: 03:45 MSK (00:45 UTC) - Маркетинг и продажи
         "parser-slot-2-marketing": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=3, minute=0),
+            "schedule": crontab(hour=0, minute=45),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "marketing"},
         },
-        # Слот 3: 03:30 - IT и технологии
+        # Слот 3: 04:15 MSK (01:15 UTC) - IT и технологии
         "parser-slot-3-it": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=3, minute=30),
+            "schedule": crontab(hour=1, minute=15),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "it"},
         },
-        # Слот 4: 04:00 - Недвижимость, Авто, Путешествия
+        # Слот 4: 04:45 MSK (01:45 UTC) - Недвижимость, Авто, Путешествия
         "parser-slot-4-lifestyle": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=4, minute=0),
+            "schedule": crontab(hour=1, minute=45),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "lifestyle"},
         },
-        # Слот 5: 04:30 - Еда, Мода, Здоровье
+        # Слот 5: 05:15 MSK (02:15 UTC) - Еда, Мода, Здоровье
         "parser-slot-5-health": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=4, minute=30),
+            "schedule": crontab(hour=2, minute=15),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "health"},
         },
-        # Слот 6: 05:00 - Образование, Дом, Развлечения
+        # Слот 6: 05:45 MSK (02:45 UTC) - Образование, Дом, Развлечения
         "parser-slot-6-education": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=5, minute=0),
+            "schedule": crontab(hour=2, minute=45),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "education"},
         },
-        # Слот 7: 05:30 - Новости, Работа, Психология
+        # Слот 7: 06:15 MSK (03:15 UTC) - Новости, Работа, Психология
         "parser-slot-7-news": {
             "task": "parser:refresh_chat_database",
-            "schedule": crontab(hour=5, minute=30),
+            "schedule": crontab(hour=3, minute=15),
             "options": {"queue": "parser"},
             "kwargs": {"query_category": "news"},
         },
-        # ========== АНАЛИТИКА (06:00) ==========
+        # ========== АНАЛИТИКА (06:30 MSK = 03:30 UTC) ==========
         # Сбор аналитики после завершения парсинга
         "collect-all-chats-stats-daily": {
             "task": "parser:collect_all_chats_stats",
-            "schedule": crontab(hour=6, minute=0),
+            "schedule": crontab(hour=3, minute=30),
             "options": {"queue": "parser"},
         },
         # ========== MAILING (каждые 5 минут) ==========
