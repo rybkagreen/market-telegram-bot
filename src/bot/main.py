@@ -17,8 +17,10 @@ from src.bot.handlers import (
     analytics_chats,
     billing,
     cabinet,
+    campaign_analytics,  # AI-аналитика кампаний
     campaign_create_ai,  # Новый обработчик создания с AI
     campaigns,
+    channels_db,  # База каналов
     feedback,
     models,
     notifications,
@@ -82,12 +84,14 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(start.router)
     dp.include_router(cabinet.router)
     dp.include_router(campaigns.router)
+    dp.include_router(campaign_analytics.router)  # AI-аналитика кампаний
     dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
     dp.include_router(billing.router)
     dp.include_router(models.router)
     dp.include_router(notifications.router)
     dp.include_router(analytics.router)
     dp.include_router(analytics_chats.router)
+    dp.include_router(channels_db.router)  # База каналов
     dp.include_router(templates.router)
     dp.include_router(feedback.router)
     dp.include_router(admin.router)
