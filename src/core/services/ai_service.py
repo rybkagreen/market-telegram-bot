@@ -19,12 +19,36 @@ from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Системный промпт для генерации рекламных текстов
-AD_SYSTEM_PROMPT = """Ты — профессиональный копирайтер для Telegram.
-Пишешь короткие, цепляющие рекламные тексты на русском языке.
-Используй эмодзи уместно. Текст должен быть живым, не шаблонным.
-Не используй маркеры списков — только сплошной текст или абзацы.
-Максимальная длина ответа — 500 слов."""
+# Системные промпты для разных тематик
+TOPIC_PROMPTS = {
+    "education": """Ты — копирайтер для образовательных проектов.
+Пиши короткие, энергичные тексты про курсы и обучение.
+Стиль: мотивирующий, с акцентом на результат.
+Длина: 400-700 символов.
+Структура: заголовок → боль → решение → призыв.
+Эмодзи: уместно, 3-5 штук.""",
+    "retail": """Ты — копирайтер для розничной торговли.
+Пиши короткие, эмоциональные тексты про товары и услуги.
+Стиль: дружеский, с акцентом на выгоду.
+Длина: 300-600 символов.
+Структура: эмоция → преимущество → скидка → призыв.
+Эмодзи: умеренно, 2-4 штуки.""",
+    "finance": """Ты — копирайтер для финансовых услуг.
+Пиши лаконичные, убедительные тексты.
+Стиль: профессиональный, но доступный.
+Длина: 400-700 символов.
+Структура: проблема → решение → гарантии → призыв.
+Эмодзи: минимально, 1-3 штуки.""",
+    "default": """Ты — профессиональный копирайтер для Telegram.
+Пиши короткие, цепляющие рекламные тексты.
+Стиль: живой, не шаблонный.
+Длина: 300-600 символов (оптимально для Telegram).
+Структура: заголовок → преимущества → призыв к действию.
+Эмодзи: уместно, но без фанатизма.""",
+}
+
+# Системный промпт по умолчанию
+AD_SYSTEM_PROMPT = TOPIC_PROMPTS["default"]
 
 
 class AIService:
@@ -59,8 +83,8 @@ class AIService:
                 timeout=settings.ai_timeout,
                 default_headers={
                     # Обязательные заголовки OpenRouter
-                    "HTTP-Referer": "https://market-bot.app",
-                    "X-Title": "Market Telegram Bot",
+                    "HTTP-Referer": "https://github.com/rybkagreen/market-telegram-bot",
+                    "X-OpenRouter-Title": "Market Telegram Bot",
                 },
             )
             logger.info("OpenRouter client initialized")
@@ -76,6 +100,7 @@ class AIService:
         system: str = AD_SYSTEM_PROMPT,
         user_plan: str = "free",
         use_cache: bool = True,
+        topic: str | None = None,
     ) -> str:
         """
         Сгенерировать текст через OpenRouter.
@@ -88,6 +113,7 @@ class AIService:
             system: Системный промпт (по умолчанию — копирайтер).
             user_plan: Тариф пользователя ("free", "starter", "pro", "business").
             use_cache: Использовать кэш Redis.
+            topic: Тематика для выбора стиля (education, retail, finance, default).
 
         Returns:
             Сгенерированный текст.
@@ -95,6 +121,11 @@ class AIService:
         Raises:
             RuntimeError: при ошибке API или отсутствии ключа.
         """
+        # Выбираем системный промпт по тематике
+        if topic and topic in TOPIC_PROMPTS:
+            system = TOPIC_PROMPTS[topic]
+            logger.debug(f"Using topic prompt: {topic}")
+
         model = settings.get_model_for_plan(user_plan)
 
         # Проверяем кэш
@@ -118,6 +149,7 @@ class AIService:
         self,
         description: str,
         user_plan: str = "free",
+        topic: str | None = None,
     ) -> str:
         """
         Сгенерировать рекламный текст по описанию продукта.
@@ -125,58 +157,61 @@ class AIService:
         Args:
             description: Описание продукта/услуги от пользователя.
             user_plan: Тариф (определяет модель).
+            topic: Тематика для выбора стиля (education, retail, finance, default).
 
         Returns:
-            Готовый рекламный текст для Telegram.
+            Готовый рекламный текст для Telegram (300-700 символов).
         """
+        # Формируем краткий промпт
         prompt = (
             f"Напиши рекламный текст для Telegram-канала.\n\n"
-            f"Описание продукта/услуги:\n{description}\n\n"
+            f"Описание:\n{description}\n\n"
             f"Требования:\n"
-            f"- Длина 150-300 слов\n"
-            f"- Цепляющий заголовок первой строкой\n"
+            f"- Длина 300-600 символов (кратко!)\n"
+            f"- Цепляющий заголовок в первой строке\n"
             f"- Призыв к действию в конце\n"
-            f"- Уместные эмодзи\n"
-            f"- Живой, не шаблонный язык"
+            f"- Живой язык, без шаблонов\n"
+            f"- Эмодзи только по делу"
         )
-        return await self.generate(prompt=prompt, user_plan=user_plan)
+        return await self.generate(prompt=prompt, user_plan=user_plan, topic=topic, use_cache=False)
 
     async def generate_ab_variants(
         self,
         description: str,
         user_plan: str = "free",
         count: int = 3,
+        topic: str | None = None,
     ) -> list[str]:
         """
-        Сгенерировать несколько вариантов рекламного текста для A/B теста.
+        Сгенерировать несколько вариантов для A/B теста.
 
         Args:
             description: Описание продукта/услуги.
             user_plan: Тариф пользователя.
-            count: Количество вариантов (по умолчанию 3).
+            count: Количество вариантов.
+            topic: Тематика для выбора стиля.
 
         Returns:
-            Список вариантов текста.
+            Список вариантов текста (каждый 300-600 символов).
         """
         prompt = (
-            f"Напиши {count} разных варианта рекламного текста для Telegram.\n\n"
+            f"Напиши {count} РАЗНЫХ варианта рекламного текста для Telegram.\n\n"
             f"Описание:\n{description}\n\n"
-            f"Требования к каждому варианту:\n"
-            f"- 100-250 слов\n"
-            f"- Разные стили (один — эмоциональный, один — информативный, один — с акцентом на выгоду)\n"
+            f"Требования к каждому:\n"
+            f"- 300-600 символов (кратко!)\n"
+            f"- Разные стили (эмоциональный / информативный / с выгодой)\n"
             f"- Разделяй варианты строкой: ---\n"
-            f"- Нумерацию не добавляй — только тексты\n"
-            f"- Уместные эмодзи"
+            f"- Без нумерации — только тексты"
         )
         raw = await self.generate(
             prompt=prompt,
             user_plan=user_plan,
-            use_cache=False,  # A/B варианты не кэшируем — нужна уникальность
+            topic=topic,
+            use_cache=False,
         )
 
-        # Парсим варианты по разделителю ---
+        # Парсим варианты по разделителю
         variants = [v.strip() for v in raw.split("---") if v.strip()]
-        # Берём ровно count вариантов
         return variants[:count] if len(variants) >= count else variants
 
     async def improve_text(
@@ -254,6 +289,7 @@ class AIService:
         Raises:
             RuntimeError: при ошибке API.
         """
+        # Пробуем основную модель
         try:
             response = await self.client.chat.completions.create(
                 model=model,
@@ -273,6 +309,37 @@ class AIService:
             return content.strip()
 
         except Exception as e:
+            # Проверяем rate limit
+            error_str = str(e).lower()
+            if "429" in error_str or "rate limit" in error_str:
+                # Пробуем fallback модель
+                logger.warning(
+                    f"Rate limit on {model}, trying fallback: {settings.model_free_fallback}"
+                )
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=settings.model_free_fallback,
+                        messages=[
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=settings.ai_max_tokens,
+                        temperature=settings.ai_temperature,
+                    )
+                    content = response.choices[0].message.content
+                    if not content:
+                        raise RuntimeError("Пустой ответ от fallback модели")
+                    logger.info(
+                        f"OpenRouter OK (fallback): model={settings.model_free_fallback}, tokens={response.usage.total_tokens if response.usage else '?'}"
+                    )
+                    return content.strip()
+                except Exception as fallback_error:
+                    logger.error(f"Fallback model also failed: {fallback_error}")
+                    raise RuntimeError(
+                        f"Ошибка AI генерации (fallback не удался): {fallback_error}"
+                    ) from fallback_error
+
+            # Другие ошибки
             logger.error(f"OpenRouter API error: model={model}, error={e}")
             raise RuntimeError(f"Ошибка AI генерации: {e}") from e
 

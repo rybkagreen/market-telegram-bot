@@ -17,6 +17,7 @@ from src.bot.handlers import (
     analytics_chats,
     billing,
     cabinet,
+    campaign_create_ai,  # Новый обработчик создания с AI
     campaigns,
     feedback,
     models,
@@ -81,6 +82,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(start.router)
     dp.include_router(cabinet.router)
     dp.include_router(campaigns.router)
+    dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
     dp.include_router(billing.router)
     dp.include_router(models.router)
     dp.include_router(notifications.router)
@@ -120,6 +122,18 @@ async def main() -> None:
         logger.info(f"Bot username: @{bot_info.username}")
     except Exception as e:
         logger.error(f"Failed to get bot username: {e}")
+
+    # Устанавливаем команды бота
+    from aiogram.types import BotCommand
+    commands = [
+        BotCommand(command="start",   description="🏠 Главное меню"),
+        BotCommand(command="app",     description="📱 Открыть Mini App"),
+        BotCommand(command="cabinet", description="👤 Личный кабинет"),
+        BotCommand(command="balance", description="💳 Баланс"),
+        BotCommand(command="help",    description="ℹ️ Помощь"),
+    ]
+    await bot.set_my_commands(commands)
+    logger.info(f"Bot commands set: {[c.command for c in commands]}")
 
     logger.info("Starting bot in polling mode...")
 

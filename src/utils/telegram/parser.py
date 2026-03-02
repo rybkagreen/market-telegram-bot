@@ -26,10 +26,12 @@ from telethon.errors import (
 )
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.functions.messages import SearchGlobalRequest
 from telethon.tl.types import (
     Channel,
     Chat,
 )
+from telethon.tl.types.messages import ChannelMessages
 
 from src.config.settings import settings
 
@@ -190,6 +192,7 @@ class TelegramParser:
 
         # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
         # https://github.com/LonamiWebs/Telethon/issues/4730
+        # Используем ТОЛЬКО user account (без bot_token) для полноценного доступа к поиску
         self._client = TelegramClient(
             StringSession(settings.telethon_session_string),
             settings.api_id,
@@ -201,9 +204,11 @@ class TelegramParser:
             system_lang_code="en-US",
         )
 
-        await self._client.start(bot_token=settings.bot_token)
+        await self._client.start()
         self._is_started = True
-        logger.info("Telegram parser started")
+        
+        me = await self._client.get_me()
+        logger.info(f"Telegram parser started as user @{me.username or me.first_name}")
 
     async def stop(self) -> None:
         """
@@ -306,18 +311,46 @@ class TelegramParser:
         results: list[ChatInfo] = []
 
         try:
-            # Поиск через Telegram
-            search_results = await self.client.get_entity(query)
+            # Глобальный поиск через Telegram с использованием SearchGlobalRequest
+            # Фильтр InputMessagesFilterEmpty ищет все типы сообщений
+            from telethon.tl.types import InputMessagesFilterEmpty
 
-            if isinstance(search_results, list):
-                entities = search_results[:limit]
-            else:
-                entities = [search_results]
+            result = await self.client(
+                SearchGlobalRequest(
+                    q=query,
+                    filter=InputMessagesFilterEmpty(),
+                    min_date=None,
+                    max_date=None,
+                    offset_rate=0,
+                    offset_id=0,
+                    offset_peer=await self.client.get_input_entity("me"),
+                    limit=limit,
+                    broadcasts_only=True,  # Ищем только по каналам
+                )
+            )
 
-            for entity in entities:
-                chat_info = await self._process_entity(entity)
-                if chat_info:
-                    results.append(chat_info)
+            if not result or not result.messages:
+                logger.info(f"No channels found for query: {query}")
+                return []
+
+            # Извлекаем уникальные каналы из результатов
+            seen_ids: set[int] = set()
+            for msg in result.messages:
+                if hasattr(msg, "peer_id") and hasattr(msg.peer_id, "channel_id"):
+                    channel_id = msg.peer_id.channel_id
+                    if channel_id not in seen_ids:
+                        seen_ids.add(channel_id)
+
+            # Получаем информацию о каждом канале
+            for channel_id in list(seen_ids)[:limit]:
+                try:
+                    entity = await self.client.get_entity(channel_id)
+                    chat_info = await self._process_entity(entity)
+                    if chat_info:
+                        results.append(chat_info)
+                except Exception as e:
+                    logger.debug(f"Error getting channel {channel_id}: {e}")
+                    continue
 
         except FloodWaitError as e:
             logger.warning(f"FloodWait: {e.seconds} seconds")

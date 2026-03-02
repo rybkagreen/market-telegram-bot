@@ -75,7 +75,7 @@ class CryptoPayment(Base, TimestampMixin):
 
     # Метод оплаты
     method: Mapped[PaymentMethod] = mapped_column(
-        Enum(PaymentMethod),
+        Enum(PaymentMethod, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         doc="Метод оплаты (cryptobot / stars)",
     )
@@ -87,6 +87,12 @@ class CryptoPayment(Base, TimestampMixin):
         unique=True,
         index=True,
         doc="ID инвойса в CryptoBot",
+    )
+
+    pay_url: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+        doc="Ссылка на оплату в CryptoBot (https://t.me/CryptoBot?start=...)",
     )
 
     currency: Mapped[str | None] = mapped_column(
@@ -129,7 +135,7 @@ class CryptoPayment(Base, TimestampMixin):
 
     # Status
     status: Mapped[PaymentStatus] = mapped_column(
-        Enum(PaymentStatus),
+        Enum(PaymentStatus, values_callable=lambda x: [e.value for e in x]),
         default=PaymentStatus.PENDING,
         nullable=False,
         index=True,
