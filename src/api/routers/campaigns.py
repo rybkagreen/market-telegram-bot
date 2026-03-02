@@ -25,13 +25,23 @@ CampaignStatusLiteral = Literal["draft", "queued", "running", "done", "error", "
 # === Pydantic схемы ===
 
 
+class CampaignFiltersInput(BaseModel):
+    """Фильтры таргетинга для кампании."""
+
+    topics: list[str] | None = None
+    min_members: int = 0
+    max_members: int = 1000000
+    blacklist: list[int] | None = None
+
+
 class CampaignCreate(BaseModel):
     """Создание кампании."""
 
     title: str = Field(..., min_length=1, max_length=255)
     text: str = Field(..., min_length=1, max_length=5000)
+    topic: str | None = Field(None, max_length=100)
     ai_description: str | None = None
-    filters_json: dict[str, Any] | None = None
+    filters: CampaignFiltersInput | None = None
     scheduled_at: str | None = None
 
 
@@ -91,14 +101,25 @@ async def create_campaign(
     async with async_session_factory() as session:
         campaign_repo = CampaignRepository(session)
 
+        # Преобразуем фильтры в формат JSON
+        filters_json = None
+        if campaign_data.filters:
+            filters_json = {
+                "topics": campaign_data.filters.topics or [],
+                "min_members": campaign_data.filters.min_members,
+                "max_members": campaign_data.filters.max_members,
+                "blacklist": campaign_data.filters.blacklist or [],
+            }
+
         # Создаём кампанию со статусом draft
         campaign = await campaign_repo.create(
             {
                 "user_id": current_user.id,
                 "title": campaign_data.title,
                 "text": campaign_data.text,
+                "topic": campaign_data.topic,
                 "status": CampaignStatus.DRAFT,
-                "filters_json": campaign_data.filters_json,
+                "filters_json": filters_json,
                 "scheduled_at": campaign_data.scheduled_at,
             }
         )

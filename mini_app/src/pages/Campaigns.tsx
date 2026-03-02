@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { campaignsApi, CampaignItem } from '@/api/campaigns'
 import { Badge } from '@/components/ui/Badge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { CampaignDetail } from '@/components/CampaignDetail'
+import { CreateCampaignForm } from '@/components/CreateCampaignForm'
 
 // ─── Табы фильтрации ─────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export default function Campaigns() {
   const [activeTab, setActiveTab] = useState('')
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignItem | null>(null)
   const [page, setPage] = useState(1)
+  const [showCreateForm, setShowCreateForm] = useState(false)
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['campaigns', activeTab, page],
@@ -60,17 +62,37 @@ export default function Campaigns() {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light')
   }
 
+  const handleCreateSuccess = (campaignId: number) => {
+    setShowCreateForm(false)
+    // Обновляем список кампаний
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success')
+  }
+
   return (
     <div className="page-content page-enter">
 
-      {/* Заголовок */}
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Кампании</h1>
-        {data && (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-            {data.total} всего
-          </p>
-        )}
+      {/* Заголовок с кнопкой создания */}
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Кампании</h1>
+          {data && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+              {data.total} всего
+            </p>
+          )}
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => setShowCreateForm(true)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          + Новая
+        </button>
       </div>
 
       {/* Горизонтальные табы */}
@@ -225,6 +247,51 @@ export default function Campaigns() {
         campaign={selectedCampaign}
         onClose={() => setSelectedCampaign(null)}
       />
+
+      {/* Модальное окно создания кампании */}
+      <AnimatePresence>
+        {showCreateForm && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowCreateForm(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 500,
+                maxHeight: '90vh',
+                overflow: 'auto',
+              }}
+            >
+              <CreateCampaignForm
+                onSuccess={handleCreateSuccess}
+                onCancel={() => setShowCreateForm(false)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   )
