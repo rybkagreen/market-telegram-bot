@@ -54,6 +54,7 @@ def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMar
         )
 
     builder.button(text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign"))
+    builder.button(text="🤖 Создать с AI", callback_data=MainMenuCB(action="create_campaign_ai"))
     builder.button(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))
     builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
     builder.button(text="📄 Шаблоны", callback_data=MainMenuCB(action="templates"))
@@ -66,8 +67,8 @@ def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMar
     # Только для админов: панель управления
     if user_id and _is_admin(user_id):
         builder.button(text="🔐 Админ-панель", callback_data=MainMenuCB(action="admin_panel"))
-        builder.adjust(2, 2, 2, 1, 1)
+        builder.adjust(2, 2, 2, 2, 1, 1)
     else:
-        builder.adjust(2, 2, 2, 1)
+        builder.adjust(2, 2, 2, 2, 1)
 
     return builder.as_markup()

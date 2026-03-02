@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+@router.callback_query(MainMenuCB.filter(F.action == "create_campaign_ai"))
+async def start_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запуск создания кампании с AI."""
+    # Импортируем функцию создания
+    from src.bot.handlers.campaign_create_ai import start_campaign_create
+    await start_campaign_create(callback, state)
+
+
 @router.message(Command("start"))
 async def handle_start(message: Message, state: FSMContext, command: CommandObject) -> None:
     """

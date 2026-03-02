@@ -17,6 +17,7 @@ from src.bot.handlers import (
     analytics_chats,
     billing,
     cabinet,
+    campaign_create_ai,  # Новый обработчик создания с AI
     campaigns,
     feedback,
     models,
@@ -81,6 +82,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(start.router)
     dp.include_router(cabinet.router)
     dp.include_router(campaigns.router)
+    dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
     dp.include_router(billing.router)
     dp.include_router(models.router)
     dp.include_router(notifications.router)
