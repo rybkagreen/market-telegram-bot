@@ -264,7 +264,7 @@ async def process_url(message: Message, state: FSMContext) -> None:
     if not message.text:
         return
     url = message.text
-    
+
     # Простая валидация URL
     if not url.startswith(("http://", "https://", "t.me/")):
         await message.answer(

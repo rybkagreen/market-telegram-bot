@@ -3,7 +3,7 @@
 """
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config.settings import settings
@@ -31,7 +31,7 @@ def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMar
     """
     Главное меню бота.
 
-    6 кнопок: Кампания, Мои кампании, Аналитика, Шаблоны, Кабинет, Баланс.
+    Кнопки: Кампания, Мои кампании, Аналитика, База каналов, Шаблоны, Кабинет, Баланс.
     Для админов: дополнительная кнопка Админ-панель.
     Для всех: кнопка Обратная связь.
 
@@ -44,19 +44,20 @@ def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMar
     """
     builder = InlineKeyboardBuilder()
 
-    # Кнопка Mini App — только если URL настроен
-    if settings.mini_app_url:
-        builder.row(
-            InlineKeyboardButton(
-                text="📱 Открыть кабинет",
-                web_app=WebAppInfo(url=settings.mini_app_url),
-            )
-        )
+    # Кнопка Mini App отключена до настройки production домена
+    # if settings.mini_app_url:
+    #     builder.row(
+    #         InlineKeyboardButton(
+    #             text="📱 Открыть кабинет",
+    #             web_app=WebAppInfo(url=settings.mini_app_url),
+    #         )
+    #     )
 
     builder.button(text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign"))
     builder.button(text="🤖 Создать с AI", callback_data=MainMenuCB(action="create_campaign_ai"))
     builder.button(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))
     builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
+    builder.button(text="📡 База каналов", callback_data=MainMenuCB(action="channels_db"))
     builder.button(text="📄 Шаблоны", callback_data=MainMenuCB(action="templates"))
     builder.button(text="👤 Кабинет", callback_data=MainMenuCB(action="cabinet"))
     builder.button(text=f"💳 {credits:,} кр", callback_data=MainMenuCB(action="balance"))
