@@ -400,30 +400,31 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
         return
 
     # Получаем количество кампаний
-    campaign_repo = CampaignRepository(session)
-    campaign_count = await campaign_repo.count(CampaignRepository.model.user_id == user.id)
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaign_count = await campaign_repo.count(CampaignRepository.model.user_id == user.id)
 
-    ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
-    created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
-    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
+        ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
+        created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
-    text = (
-        f"👤 <b>Профиль пользователя</b>\n\n"
-        f"Telegram ID: <code>{user.telegram_id}</code>\n"
-        f"Username: @{user.username or '—'}\n"
-        f"Имя: {user.full_name}\n\n"
-        f"💳 Баланс: <b>{user.balance}₽</b>\n"
-        f"📦 Тариф: <b>{plan_value}</b>\n"
-        f"📊 Кампаний: <b>{campaign_count}</b>\n\n"
-        f"📅 Регистрация: {created_at}\n"
-        f"Статус: {ban_emoji}\n\n"
-        f"Реферальный код: <code>{user.referral_code}</code>"
-    )
+        text = (
+            f"👤 <b>Профиль пользователя</b>\n\n"
+            f"Telegram ID: <code>{user.telegram_id}</code>\n"
+            f"Username: @{user.username or '—'}\n"
+            f"Имя: {user.full_name}\n\n"
+            f"💳 Баланс: <b>{user.balance}₽</b>\n"
+            f"📦 Тариф: <b>{plan_value}</b>\n"
+            f"📊 Кампаний: <b>{campaign_count}</b>\n\n"
+            f"📅 Регистрация: {created_at}\n"
+            f"Статус: {ban_emoji}\n\n"
+            f"Реферальный код: <code>{user.referral_code}</code>"
+        )
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=get_user_actions_kb(user_db_id, user.is_banned),
-    )
+        await callback.message.edit_text(
+            text,
+            reply_markup=get_user_actions_kb(user_db_id, user.is_banned),
+        )
     await callback.answer()
 
 
@@ -515,7 +516,7 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
         new_status = not user.is_banned
         await user_repo.update(target_db_id, {"is_banned": new_status})
 
-        action = "разбанен ✅" if new_status else "забанен 🚫"
+        action = "забанен 🚫" if new_status else "разбанен ✅"
         logger.warning(
             f"Admin {message.from_user.id} {action} user {target_telegram_id}. Reason: {reason}"
         )
@@ -1217,22 +1218,5 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
         "🔙 Возврат в главное меню",
         reply_markup=get_main_menu(credits, user.id if user else None),
-    )
-    await callback.answer()
-
-
-@router.callback_query(AdminCB.filter(F.action == "cancel"))
-async def handle_cancel(callback: CallbackQuery, state: FSMContext) -> None:
-    """
-    Отменить текущую операцию.
-
-    Args:
-        callback: Callback query.
-        state: FSM контекст.
-    """
-    await state.clear()
-    await callback.message.edit_text(
-        "❌ Операция отменена",
-        reply_markup=get_admin_main_kb(),
     )
     await callback.answer()
