@@ -3,7 +3,7 @@
 """
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config.settings import settings
@@ -43,6 +43,15 @@ def get_main_menu(credits: int, user_id: int | None = None) -> InlineKeyboardMar
         InlineKeyboardMarkup с кнопками меню.
     """
     builder = InlineKeyboardBuilder()
+
+    # Кнопка Mini App — только если URL настроен
+    if settings.mini_app_url:
+        builder.row(
+            InlineKeyboardButton(
+                text="📱 Открыть кабинет",
+                web_app=WebAppInfo(url=settings.mini_app_url),
+            )
+        )
 
     builder.button(text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign"))
     builder.button(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))

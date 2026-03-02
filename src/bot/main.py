@@ -121,6 +121,18 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"Failed to get bot username: {e}")
 
+    # Устанавливаем команды бота
+    from aiogram.types import BotCommand
+    commands = [
+        BotCommand(command="start",   description="🏠 Главное меню"),
+        BotCommand(command="app",     description="📱 Открыть Mini App"),
+        BotCommand(command="cabinet", description="👤 Личный кабинет"),
+        BotCommand(command="balance", description="💳 Баланс"),
+        BotCommand(command="help",    description="ℹ️ Помощь"),
+    ]
+    await bot.set_my_commands(commands)
+    logger.info(f"Bot commands set: {[c.command for c in commands]}")
+
     logger.info("Starting bot in polling mode...")
 
     try:
