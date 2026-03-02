@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════
     openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
 
+    # ══════════════════════════════════════════════════════════════
+    # JWT для Mini App аутентификации
+    # Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
+    # ══════════════════════════════════════════════════════════════
+    jwt_secret: str = Field(..., alias="JWT_SECRET", description="Секрет для подписи JWT токенов Mini App")
+    jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM", description="Алгоритм подписи JWT")
+    jwt_expire_hours: int = Field(24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)")
+
     # Модели (менять не рекомендуется — они привязаны к тарифам)
     # FREE/STARTER → бесплатная Llama 4 Scout
     model_free: str = Field("meta-llama/llama-4-scout:free", alias="MODEL_FREE")

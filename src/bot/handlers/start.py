@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
+from src.config.settings import settings
 from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
@@ -205,3 +206,30 @@ async def feedback_redirect(callback: CallbackQuery, state: FSMContext) -> None:
     from src.bot.handlers.feedback import handle_feedback_menu
 
     await handle_feedback_menu(callback, state)
+
+
+@router.message(Command("app"))
+async def handle_app_command(message: Message) -> None:
+    """Открыть Mini App по команде /app."""
+    if not settings.mini_app_url:
+        await message.answer(
+            "📱 Mini App пока не настроен.\n"
+            "Используйте кнопки меню для управления ботом."
+        )
+        return
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="📱 Открыть кабинет",
+            web_app=WebAppInfo(url=settings.mini_app_url),
+        )
+    ]])
+
+    await message.answer(
+        "📱 <b>Market Bot — Личный кабинет</b>\n\n"
+        "Управляйте кампаниями, пополняйте баланс "
+        "и смотрите аналитику в удобном интерфейсе.",
+        reply_markup=keyboard,
+    )
