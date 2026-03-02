@@ -327,3 +327,54 @@ async def get_channels_preview(
         total_locked=len(channels) - accessible,
         channels=channels,
     )
+
+
+# ─── Endpoint для подкатегорий ──────────────────────────────────
+
+
+@router.get("/subcategories/{parent_topic}")
+async def get_subcategory_stats(parent_topic: str) -> dict:
+    """
+    Детальная статистика по подкатегориям внутри топика.
+    Например: GET /api/channels/subcategories/it
+    """
+    from fastapi import HTTPException
+
+    from src.utils.categories import SUBCATEGORIES
+
+    subcats = SUBCATEGORIES.get(parent_topic)
+    if not subcats:
+        raise HTTPException(status_code=404, detail=f"Topic '{parent_topic}' not found")
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(
+                TelegramChat.subcategory.label("subcat"),
+                func.count(TelegramChat.id).label("total"),
+                func.max(TelegramChat.member_count).label("max_subs"),
+                func.avg(TelegramChat.member_count).label("avg_subs"),
+            )
+            .where(
+                TelegramChat.is_active == true(),  # noqa: E712
+                TelegramChat.topic == parent_topic,
+                TelegramChat.subcategory.in_(list(subcats.keys())),
+            )
+            .group_by(TelegramChat.subcategory)
+            .order_by(func.count(TelegramChat.id).desc())
+        )
+        rows = result.all()
+
+    return {
+        "topic": parent_topic,
+        "subcategories": [
+            {
+                "code": row.subcat,
+                "name": subcats.get(row.subcat, row.subcat),
+                "total": row.total,
+                "max_subscribers": row.max_subs or 0,
+                "avg_subscribers": round(row.avg_subs or 0),
+            }
+            for row in rows
+            if row.subcat
+        ],
+    }
