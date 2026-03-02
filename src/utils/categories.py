@@ -132,11 +132,17 @@ def classify_subcategory(
     Returns:
         Код подкатегории (e.g. "smm", "devops") или None
     """
-    if not topic or topic not in SUBCATEGORIES:
+    if not topic:
+        return None
+    
+    # Нормализуем topic к нижнему регистру для сравнения
+    topic_lower = topic.lower()
+    
+    if topic_lower not in SUBCATEGORIES:
         return None
 
     text = f"{title or ''} {description or ''}".lower()
-    valid_subcats = set(SUBCATEGORIES[topic].keys())
+    valid_subcats = set(SUBCATEGORIES[topic_lower].keys())
 
     scores: dict[str, int] = {}
     for subcat, keywords in SUBCATEGORY_KEYWORDS.items():
