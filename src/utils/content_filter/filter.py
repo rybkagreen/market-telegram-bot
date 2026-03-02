@@ -312,6 +312,10 @@ class ContentFilter:
             client = AsyncOpenAI(
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/rybkagreen/market-telegram-bot",
+                    "X-OpenRouter-Title": "Market Telegram Bot",
+                },
             )
 
             system_prompt = """Ты модератор контента для Telegram бота.
