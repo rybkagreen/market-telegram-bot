@@ -163,12 +163,12 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
 
         from src.db.models.analytics import TelegramChat
 
-        # Всего в категории
+        # Всего в категории (case-insensitive comparison)
         total_result = await session.execute(
             select(func.count(TelegramChat.id))
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == category,
+                func.lower(TelegramChat.topic) == category.lower(),
             )
         )
         total = total_result.scalar() or 0
@@ -182,7 +182,7 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
             )
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == category,
+                func.lower(TelegramChat.topic) == category.lower(),
             )
             .order_by(TelegramChat.member_count.desc())
             .limit(3)
@@ -276,7 +276,7 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
             )
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == topic,
+                func.lower(TelegramChat.topic) == topic.lower(),
                 TelegramChat.subcategory.in_(list(subcats.keys())),
             )
             .group_by(TelegramChat.subcategory)
