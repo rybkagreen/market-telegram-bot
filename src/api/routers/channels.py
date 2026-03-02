@@ -5,6 +5,7 @@ Endpoints:
   GET /api/channels/stats   — публичная статистика (без JWT)
   GET /api/channels/preview — предпросмотр каналов для пользователя (с JWT)
 """
+
 import json
 import logging
 from datetime import datetime, timedelta
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, true
 
 from src.api.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
@@ -34,6 +35,7 @@ CACHE_TTL = 3600  # 1 час
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
+
 
 class TariffStatsItem(BaseModel):
     tariff: str
@@ -85,12 +87,13 @@ class ChannelsPreviewResponse(BaseModel):
 
 # ─── Хелпер: фильтры по тарифу ──────────────────────────────────
 
+
 def _tariff_conditions(tariff: str) -> list:
     """
     SQLAlchemy условия фильтрации каналов по тарифу.
     Использует реальные поля TelegramChat: is_active, member_count, rating, topic.
     """
-    conds = [TelegramChat.is_active == True]
+    conds = [TelegramChat.is_active == true()]
 
     sub_limit = TARIFF_SUBSCRIBER_LIMITS.get(tariff, -1)
     if sub_limit != -1:
@@ -113,6 +116,7 @@ def _tariff_conditions(tariff: str) -> list:
 
 # ─── Endpoints ──────────────────────────────────────────────────
 
+
 @router.get("/stats", response_model=DatabaseStatsResponse)
 async def get_channel_stats() -> DatabaseStatsResponse:
     """
@@ -132,20 +136,17 @@ async def get_channel_stats() -> DatabaseStatsResponse:
 
     # ── Считаем статистику ───────────────────────────────────────
     async with async_session_factory() as session:
-
         # Всего активных каналов
         total_r = await session.execute(
-            select(func.count(TelegramChat.id))
-            .where(TelegramChat.is_active == True)
+            select(func.count(TelegramChat.id)).where(TelegramChat.is_active == true())
         )
         total = total_r.scalar() or 0
 
         # Добавлено за 7 дней
         week_ago = datetime.utcnow() - timedelta(days=7)
         new_r = await session.execute(
-            select(func.count(TelegramChat.id))
-            .where(
-                TelegramChat.is_active == True,
+            select(func.count(TelegramChat.id)).where(
+                TelegramChat.is_active == true(),
                 TelegramChat.created_at >= week_ago,
             )
         )
@@ -157,7 +158,7 @@ async def get_channel_stats() -> DatabaseStatsResponse:
                 TelegramChat.topic.label("topic"),
                 func.count(TelegramChat.id).label("total"),
             )
-            .where(TelegramChat.is_active == True)
+            .where(TelegramChat.is_active == true())
             .group_by(TelegramChat.topic)
             .order_by(func.count(TelegramChat.id).desc())
         )
@@ -178,7 +179,7 @@ async def get_channel_stats() -> DatabaseStatsResponse:
                     TelegramChat.member_count,
                 )
                 .where(
-                    TelegramChat.is_active == True,
+                    TelegramChat.is_active == true(),
                     TelegramChat.topic == row.topic,
                 )
                 .order_by(TelegramChat.member_count.desc())
@@ -204,20 +205,20 @@ async def get_channel_stats() -> DatabaseStatsResponse:
                 )
                 available_by_tariff[tariff] = cnt_r.scalar() or 0
 
-            categories.append(CategoryStatsItem(
-                category=row.topic,
-                total=row.total or 0,
-                available_by_tariff=available_by_tariff,
-                top_channels=top_channels,
-            ))
+            categories.append(
+                CategoryStatsItem(
+                    category=row.topic,
+                    total=row.total or 0,
+                    available_by_tariff=available_by_tariff,
+                    top_channels=top_channels,
+                )
+            )
 
         # Статистика по тарифам
         tariff_stats: list[TariffStatsItem] = []
         for tariff in ("free", "starter", "pro", "business"):
             conds = _tariff_conditions(tariff)
-            cnt_r = await session.execute(
-                select(func.count(TelegramChat.id)).where(and_(*conds))
-            )
+            cnt_r = await session.execute(select(func.count(TelegramChat.id)).where(and_(*conds)))
             available = cnt_r.scalar() or 0
 
             # Premium каналы (>1M) — только для business
@@ -225,19 +226,21 @@ async def get_channel_stats() -> DatabaseStatsResponse:
             if tariff == "business":
                 prem_r = await session.execute(
                     select(func.count(TelegramChat.id)).where(
-                        TelegramChat.is_active == True,
+                        TelegramChat.is_active == true(),
                         TelegramChat.member_count >= PREMIUM_SUBSCRIBER_THRESHOLD,
                     )
                 )
                 premium_count = prem_r.scalar() or 0
 
-            tariff_stats.append(TariffStatsItem(
-                tariff=tariff,
-                label=TARIFF_LABELS[tariff],
-                available=available,
-                percent_of_total=round(available / total * 100, 1) if total > 0 else 0.0,
-                premium_count=premium_count,
-            ))
+            tariff_stats.append(
+                TariffStatsItem(
+                    tariff=tariff,
+                    label=TARIFF_LABELS[tariff],
+                    available=available,
+                    percent_of_total=round(available / total * 100, 1) if total > 0 else 0.0,
+                    premium_count=premium_count,
+                )
+            )
 
     result = DatabaseStatsResponse(
         total_channels=total,
@@ -256,7 +259,7 @@ async def get_channel_stats() -> DatabaseStatsResponse:
         logger.warning(f"Redis cache write error: {e}")
     finally:
         if redis_client:
-            await redis_client.aclose()
+            await redis_client.close()
 
     return result
 
@@ -272,14 +275,12 @@ async def get_channels_preview(
     Требует JWT. Показывает доступные и заблокированные каналы.
     """
     plan_str = (
-        current_user.plan.value
-        if hasattr(current_user.plan, "value")
-        else str(current_user.plan)
+        current_user.plan.value if hasattr(current_user.plan, "value") else str(current_user.plan)
     )
 
     async with async_session_factory() as session:
         # Все каналы по фильтру
-        base_conds = [TelegramChat.is_active == True]
+        base_conds = [TelegramChat.is_active == true()]
         if topic:
             base_conds.append(TelegramChat.topic == topic)
 
@@ -303,9 +304,7 @@ async def get_channels_preview(
         if topic:
             user_conds.append(TelegramChat.topic == topic)
 
-        acc_r = await session.execute(
-            select(TelegramChat.id).where(and_(*user_conds))
-        )
+        acc_r = await session.execute(select(TelegramChat.id).where(and_(*user_conds)))
         accessible_ids = {r.id for r in acc_r.all()}
 
     channels = [
