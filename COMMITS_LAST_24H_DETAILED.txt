@@ -1,0 +1,188 @@
+================================================================================
+                    COMMITS LAST 24 HOURS REPORT
+                    Generated: 2026-03-02 17:45 MSK
+================================================================================
+
+SUMMARY:
+  Total Commits: 31
+  Authors: 1 (alex_)
+  Time Range: 2026-03-01 03:00 to 2026-03-02 17:45
+  Branches: main, develop, developer2/belin
+
+================================================================================
+                         COMMITS BY CATEGORY
+================================================================================
+
+FEATURES (15 commits):
+  - feat(ai): migrate to OpenRouter as single AI provider + credit system
+  - feat(parser): add seed script with 493 Telegram channels across 6 topics
+  - feat(parser): expand topics and configure scheduled parsing 02:30-06:00 UTC
+  - feat(ux): redesign main menu + add Feedback/Bug Report
+  - feat(parser): change parser schedule to Moscow time (UTC+3)
+  - feat(mini-app): add Telegram Mini App with React + TypeScript
+  - feat(api): enhance analytics, billing and campaigns endpoints
+  - feat(bot): add analytics handlers and improve keyboard navigation
+  - feat(analytics): implement avg_success_rate and total_chats_reached
+  - feat(campaigns): add campaign filters UI and API support
+  - feat(content-filter): add channel content validation during parsing
+  - feat(ai): upgrade free model to Hermes 3 Llama 3.1 405B
+  - feat(ai): add fallback model for rate limit handling
+  - feat(ai): add topic-aware short text generation for Telegram
+  - feat(bot): add AI campaign creation wizard with editor
+
+FIXES (11 commits):
+  - fix(celery): replace manual event loop management with asyncio.run()
+  - fix(handlers): handle UserPlan enum/string conversion for user.plan
+  - fix(billing): use Enum.value for PaymentMethod and PaymentStatus
+  - fix(billing): fix SQLAlchemy Enum coercion + created_at NOT NULL
+  - fix(billing): replace URL button with callback for CryptoBot payment
+  - fix(billing): use '|' separator instead of ':' in callback_data
+  - fix(billing): store pay_url in DB instead of callback_data
+  - fix(parser): use SearchGlobalRequest for global Telegram search
+  - fix(parser): fix ruff linting errors
+  - fix(openrouter): add required HTTP headers for rankings
+  - fix(ai): update fallback model to stepfun/step-3.5-flash:free
+
+REFACTOR (1 commit):
+  - refactor(content-filter): migrate LLM check to OpenRouter API
+
+DEBUG (1 commit):
+  - debug(billing): add logging for payment creation and message sending
+
+DOCS (3 commits):
+  - docs: add expanded analytics and public channel stats proposals
+  - (plus 2 documentation files created)
+
+================================================================================
+                         CHRONOLOGICAL LIST
+================================================================================
+
+2026-03-02 17:45 | fbaf1d6 | docs: add expanded analytics and public channel stats proposals
+2026-03-02 17:22 | a5afced | fix: ruff and mypy type checking fixes
+2026-03-02 17:13 | 4ae8860 | feat(bot): add AI campaign creation wizard with editor
+2026-03-02 17:02 | 2d0d1fe | feat(ai): add topic-aware short text generation for Telegram
+2026-03-02 16:48 | 4a37906 | fix(ai): update fallback model to stepfun/step-3.5-flash:free
+2026-03-02 16:46 | f0cbc5d | feat(ai): add fallback model for rate limit handling
+2026-03-02 16:41 | 36c3be0 | fix(openrouter): add required HTTP headers for rankings
+2026-03-02 16:30 | d08811c | feat(ai): upgrade free model to Hermes 3 Llama 3.1 405B
+2026-03-02 16:08 | cc93de2 | fix(parser): fix ruff linting errors
+2026-03-02 16:03 | 50cce2e | refactor(content-filter): migrate LLM check to OpenRouter API
+2026-03-02 16:01 | c15a0d3 | feat(content-filter): add channel content validation during parsing
+2026-03-02 15:55 | cd03150 | feat(campaigns): add campaign filters UI and API support
+2026-03-02 15:50 | bf8fd23 | feat(analytics): implement avg_success_rate and total_chats_reached
+2026-03-02 15:47 | c5260e2 | feat(mini-app): add Telegram Mini App with React + TypeScript
+2026-03-02 15:47 | 9d01fb9 | feat(bot): add analytics handlers and improve keyboard navigation
+2026-03-02 15:47 | 7781cb1 | feat(api): enhance analytics, billing and campaigns endpoints
+2026-03-02 15:46 | 7c102a5 | fix(parser): use SearchGlobalRequest for global Telegram search
+2026-03-02 03:03 | 3fa3bfd | feat(parser): change parser schedule to Moscow time (UTC+3)
+2026-03-01 23:12 | 162792e | fix(billing): store pay_url in DB instead of callback_data
+2026-03-01 23:02 | b432a32 | fix(billing): use '|' separator instead of ':' in callback_data
+2026-03-01 22:59 | aa1092d | feat(billing): replace URL button with callback for CryptoBot payment
+2026-03-01 22:04 | 2caa351 | debug(billing): add logging for payment creation and message sending
+2026-03-01 21:56 | cd98456 | fix(billing): fix SQLAlchemy Enum coercion + created_at NOT NULL
+2026-03-01 20:36 | 526e036 | fix(billing): use Enum.value for PaymentMethod and PaymentStatus
+2026-03-01 19:54 | c63e4fe | fix(handlers): handle UserPlan enum/string conversion for user.plan
+2026-03-01 19:47 | 46cc46f | fix(celery): replace manual event loop management with asyncio.run()
+2026-03-01 19:29 | 39e33b1 | feat(ai): migrate to OpenRouter as single AI provider + credit system
+2026-03-01 03:57 | f007c28 | feat(ux): redesign main menu + add Feedback/Bug Report
+2026-03-01 03:27 | 48f5773 | feat(parser): expand topics and configure scheduled parsing
+2026-03-01 03:09 | 27d47ef | feat(parser): add seed script with 493 Telegram channels
+2026-03-01 03:00 | c4e58a3 | feat(docker): add TELETHON_SESSION_STRING to worker environment
+
+================================================================================
+                         FILES CHANGED STATISTICS
+================================================================================
+
+Total Files Changed: 88+
+Total Lines Added: 17,881+
+Total Lines Removed: 6,071+
+Net Change: +11,810 lines
+
+Major New Files:
+  - mini_app/src/* (30+ files, React + TypeScript Mini App)
+  - src/bot/handlers/campaign_create_ai.py (486 lines)
+  - src/bot/keyboards/campaign_ai.py (153 lines)
+  - src/bot/states/campaign_create.py (30 lines)
+  - src/api/auth_utils.py (141 lines)
+  - scripts/test_*.py (5 test scripts)
+  - EXPANDED_ANALYTICS_AND_TARIFFS_PROPOSAL.md (950+ lines)
+  - PUBLIC_CHANNEL_STATS_PLAN.md (670+ lines)
+
+Major Modified Files:
+  - src/core/services/ai_service.py (974 lines changed)
+  - src/utils/telegram/parser.py (462 lines changed)
+  - src/tasks/parser_tasks.py (774 lines changed)
+  - src/bot/handlers/billing.py (814 lines changed)
+  - src/api/routers/billing.py (601 lines changed)
+
+================================================================================
+                         MERGES & PRs
+================================================================================
+
+PR #19: feat: AI campaign creation wizard with OpenRouter integration
+  - Merged: developer2/belin → develop
+  - Commits: 25
+  - Status: ✅ Merged
+
+PR #20: feat: Merge AI campaign wizard and Mini App to production
+  - Merged: develop → main
+  - Commits: 25 (squashed)
+  - Status: ✅ Merged
+
+Branch Cleanup:
+  - ✅ developer2/belin deleted after merge
+
+================================================================================
+                         KEY MILESTONES
+================================================================================
+
+✅ OpenRouter Integration Complete
+   - Migrated from Anthropic/OpenAI to OpenRouter
+   - Free model: Hermes 3 Llama 3.1 405B
+   - Fallback model: Step 3.5 Flash
+   - Automatic retry with exponential backoff
+
+✅ AI Campaign Creation Wizard Launched
+   - Step-by-step creation flow
+   - Topic-aware text generation
+   - 3 A/B test variants
+   - Text editor with URL and image support
+
+✅ Telegram Mini App Deployed
+   - React + TypeScript
+   - Dashboard with analytics
+   - Campaign management
+   - Billing integration
+
+✅ Content Filter Enhanced
+   - Channel validation during parsing
+   - 3-level filter system
+   - OpenRouter LLM integration
+
+✅ Production Deployment Complete
+   - All changes merged to main
+   - Auto-deploy to timeweb.cloud
+   - Monitoring via Flower + Sentry
+
+================================================================================
+                         NEXT STEPS (Planned)
+================================================================================
+
+Priority 1 (10-12 days):
+  [ ] Public channel statistics page
+  [ ] Expanded categories (63 instead of 20)
+  [ ] Updated tariff system UI
+
+Priority 2 (4-6 weeks):
+  [ ] Extended channel analytics
+  [ ] AI analytics for PRO tier
+  [ ] AI analytics for BUSINESS tier
+
+Priority 3 (2-3 weeks):
+  [ ] UI/UX dashboards
+  [ ] A/B testing
+  [ ] Marketing campaign
+
+================================================================================
+                         END OF REPORT
+================================================================================
