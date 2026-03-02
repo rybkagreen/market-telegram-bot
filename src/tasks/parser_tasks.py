@@ -289,7 +289,23 @@ async def _parse_and_save_chats(
 
         # Сохраняем каждый чат отдельно
         saved_count = 0
+        blocked_count = 0
+        
         for chat_info in chat_infos:
+            # Проверяем контент канала (название + описание)
+            from src.utils.content_filter.filter import check as content_filter_check
+            
+            channel_content = f"{chat_info.title} {chat_info.description or ''}"
+            filter_result = content_filter_check(channel_content)
+            
+            if not filter_result.passed:
+                blocked_count += 1
+                logger.debug(
+                    f"Channel '{chat_info.title}' blocked by content filter: "
+                    f"{filter_result.categories}"
+                )
+                continue
+            
             # Классифицируем тематику
             topic = classify_topic(chat_info.title, chat_info.description or "")
 
@@ -319,7 +335,10 @@ async def _parse_and_save_chats(
                 continue
 
         await chat_repo._session.commit()
-        logger.info(f"Saved {saved_count} chats for query '{query}'")
+        logger.info(
+            f"Saved {saved_count} chats for query '{query}' "
+            f"(blocked {blocked_count} by content filter)"
+        )
 
         return saved_count
 
@@ -361,7 +380,23 @@ async def _parse_tgstat_and_save(
 
         # Сохраняем каждый чат отдельно
         saved_count = 0
+        blocked_count = 0
+        
         for chat_details in chat_details_list:
+            # Проверяем контент канала (название + описание)
+            from src.utils.content_filter.filter import check as content_filter_check
+            
+            channel_content = f"{chat_details.title} {chat_details.description or ''}"
+            filter_result = content_filter_check(channel_content)
+            
+            if not filter_result.passed:
+                blocked_count += 1
+                logger.debug(
+                    f"Channel '{chat_details.title}' blocked by content filter: "
+                    f"{filter_result.categories}"
+                )
+                continue
+            
             try:
                 # Получаем или создаём чат
                 username = chat_details.username or f"_{chat_details.telegram_id}"
@@ -389,7 +424,10 @@ async def _parse_tgstat_and_save(
                 continue
 
         await chat_repo._session.commit()
-        logger.info(f"Saved {saved_count} chats from TGStat for topic '{topic}'")
+        logger.info(
+            f"Saved {saved_count} chats from TGStat for topic '{topic}' "
+            f"(blocked {blocked_count} by content filter)"
+        )
 
         return saved_count
 
