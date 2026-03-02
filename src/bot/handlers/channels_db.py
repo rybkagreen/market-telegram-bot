@@ -150,15 +150,13 @@ async def handle_categories(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "category"))
-async def handle_category_detail(callback: CallbackQuery) -> None:
+async def handle_category_detail(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать детальную информацию по категории.
 
-    value: название категории (например, "it", "бизнес")
+    callback_data.value: название категории (например, "it", "бизнес")
     """
-    category = callback.data.split(":")[-1] if ":" in callback.data else ""
-    if not category:
-        category = callback.data.split("=")[-1] if "=" in callback.data else ""
+    category = callback_data.value
 
     async with async_session_factory() as session:
         from sqlalchemy import func, select, true
@@ -242,15 +240,13 @@ async def handle_category_detail(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "subcategories"))
-async def handle_subcategories(callback: CallbackQuery) -> None:
+async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать подкатегории для выбранной категории.
 
-    value: название родительской категории
+    callback_data.value: название родительской категории
     """
-    topic = callback.data.split(":")[-1] if ":" in callback.data else ""
-    if not topic:
-        topic = callback.data.split("=")[-1] if "=" in callback.data else ""
+    topic = callback_data.value
 
     subcats = SUBCATEGORIES.get(topic, {})
 
@@ -315,15 +311,13 @@ async def handle_subcategories(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "tariff"))
-async def handle_tariff_filter(callback: CallbackQuery) -> None:
+async def handle_tariff_filter(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать фильтр по тарифам для категории.
 
-    value: категория или категория_тариф
+    callback_data.value: категория или категория_тариф
     """
-    value = callback.data.split(":")[-1] if ":" in callback.data else ""
-    if not value:
-        value = callback.data.split("=")[-1] if "=" in callback.data else ""
+    value = callback_data.value
 
     parts = value.split("_") if "_" in value else [value, ""]
     category = parts[0] if parts[0] else None
