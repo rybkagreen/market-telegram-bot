@@ -309,6 +309,14 @@ async def _parse_and_save_chats(
             # Классифицируем тематику
             topic = classify_topic(chat_info.title, chat_info.description or "")
 
+            # Автоклассификация подкатегории
+            from src.utils.categories import classify_subcategory
+            subcategory = classify_subcategory(
+                title=chat_info.title or "",
+                description=chat_info.description or "",
+                topic=topic,
+            )
+
             try:
                 # Получаем или создаём чат
                 username = chat_info.username or f"_{chat_info.telegram_id}"
@@ -320,6 +328,7 @@ async def _parse_and_save_chats(
                 chat.description = chat_info.description
                 chat.member_count = chat_info.member_count or 0
                 chat.topic = topic
+                chat.subcategory = subcategory
                 chat.is_verified = chat_info.is_verified or False
                 chat.is_scam = chat_info.is_scam or False
                 chat.is_fake = chat_info.is_fake or False
@@ -613,6 +622,14 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
 
             topic = classify_topic(chat_details.title, chat_details.description or "")
 
+            # Автоклассификация подкатегории
+            from src.utils.categories import classify_subcategory
+            subcategory = classify_subcategory(
+                title=chat_details.title or "",
+                description=chat_details.description or "",
+                topic=topic,
+            )
+
             try:
                 # Получаем или создаём чат
                 username_clean = chat_details.username or f"_{chat_details.telegram_id}"
@@ -624,6 +641,7 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
                 chat.description = chat_details.description
                 chat.member_count = chat_details.member_count or 0
                 chat.topic = topic
+                chat.subcategory = subcategory
                 chat.is_verified = chat_details.is_verified or False
                 chat.is_scam = chat_details.is_scam or False
                 chat.is_fake = chat_details.is_fake or False
@@ -824,9 +842,9 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             continue
 
         # Обновить мета-данные чата
-        from src.utils.categories import classify_subcategory
+
         from src.db.models.analytics import TelegramChat
-        from sqlalchemy import select
+        from src.utils.categories import classify_subcategory
 
         # Получаем текущий topic из БД
         chat = await session.get(TelegramChat, chat_id)
