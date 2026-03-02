@@ -86,13 +86,16 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         analytics_repo = ChatAnalyticsRepository(svc._session)
         top_topic = await analytics_repo.get_top_topic(user.id) or "Нет данных"
 
+        # Форматируем успешность с прогресс-баром
+        success_rate_bar = make_progress_bar(user_analytics.avg_success_rate)
+
         text = (
             f"📊 <b>Ваша аналитика за 30 дней</b>\n\n"
             f"📤 Всего кампаний: <b>{user_analytics.total_campaigns}</b>\n"
             f"🔄 Активных: <b>{user_analytics.active_campaigns}</b>\n"
             f"✅ Завершённых: <b>{user_analytics.completed_campaigns}</b>\n"
             f"💰 Потрачено: <b>{user_analytics.total_spent}₽</b>\n\n"
-            f"📊 Средняя успешность: <b>{user_analytics.avg_success_rate:.1f}%</b>\n"
+            f"📊 Успешность: {success_rate_bar}\n"
             f"👥 Чатов достигнуто: <b>{user_analytics.total_chats_reached}</b>\n\n"
             f"🏆 Топ тематика: <b>{top_topic}</b>"
         )

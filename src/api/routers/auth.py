@@ -1,196 +1,143 @@
 """
-Auth router для JWT авторизации.
+Auth router для JWT авторизации через Telegram initData.
+
+POST /api/auth/login  — получить JWT по initData
+GET  /api/auth/me     — данные текущего пользователя
 """
-
 import logging
-from datetime import UTC, datetime, timedelta
+import uuid
 
-import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from src.api.dependencies import get_current_user
-from src.config.settings import settings
+from src.api.auth_utils import create_jwt_token, validate_telegram_init_data
+from src.api.dependencies import CurrentUser
 from src.db.models.user import User
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# JWT настройки
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = 60 * 24  # 24 часа
 
-
-def create_access_token(user_id: int, telegram_id: int) -> str:
-    """
-    Создать JWT access token.
-
-    Args:
-        user_id: ID пользователя в БД.
-        telegram_id: Telegram ID.
-
-    Returns:
-        JWT токен.
-    """
-    expire = datetime.now(UTC) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    to_encode = {
-        "sub": str(user_id),
-        "telegram_id": telegram_id,
-        "exp": expire,
-        "iat": datetime.now(UTC),
-    }
-    return jwt.encode(to_encode, settings.bot_token, algorithm=JWT_ALGORITHM)
-
-
-def decode_access_token(token: str) -> dict | None:
-    """
-    Расшифровать JWT токен.
-
-    Args:
-        token: JWT токен.
-
-    Returns:
-        Payload токена или None.
-    """
-    try:
-        return jwt.decode(token, settings.bot_token, algorithms=[JWT_ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-
+# ─── Схемы ──────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    """Запрос на авторизацию."""
+    """Запрос на авторизацию через Telegram initData."""
 
     init_data: str
 
 
+class UserResponse(BaseModel):
+    """Данные пользователя для Mini App."""
+
+    id: int
+    telegram_id: int
+    username: str | None
+    first_name: str | None
+    plan: str
+    credits: int
+    ai_generations_used: int
+
+    model_config = {"from_attributes": True}
+
+
 class LoginResponse(BaseModel):
-    """Ответ с токенами."""
+    """Ответ с JWT токеном."""
 
     access_token: str
     token_type: str = "bearer"
-    expires_in: int = JWT_EXPIRE_MINUTES * 60
+    user: UserResponse
 
 
-class TokenRefreshRequest(BaseModel):
-    """Запрос на обновление токена."""
-
-    access_token: str
-
+# ─── Endpoints ──────────────────────────────────────────────────
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
+async def login(body: LoginRequest) -> LoginResponse:
     """
     Авторизация через Telegram initData.
 
-    Args:
-        request: Запрос с initData.
+    Принимает initData из window.Telegram.WebApp.initData,
+    проверяет подпись, создаёт или обновляет пользователя,
+    возвращает JWT токен.
 
-    Returns:
-        Access token.
+    Errors:
+        400: initData невалидна или устарела (> 1 часа)
+        500: ошибка БД
     """
-    from src.api.dependencies import _validate_telegram_init_data
-    from src.db.repositories.user_repo import UserRepository
-    from src.db.session import async_session_factory
-
     # Валидируем initData
-    data = _validate_telegram_init_data(request.init_data)
-    if not data:
+    try:
+        tg_data = validate_telegram_init_data(body.init_data)
+    except ValueError as e:
+        logger.warning(f"Invalid initData: {e}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid initData",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Telegram data: {e}",
         )
 
-    # Получаем user данные
-    import json
-
-    user_data = json.loads(data.get("user", "{}"))
-    telegram_id = user_data.get("id")
+    tg_user = tg_data["user"]
+    telegram_id = tg_user.get("id")
 
     if not telegram_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No telegram_id in initData",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing user.id in initData",
         )
 
-    # Получаем или создаём пользователя
+    # Находим или создаём пользователя в БД
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(int(telegram_id))
+        user = await user_repo.create_or_update(
+            telegram_id=int(telegram_id),
+            username=tg_user.get("username"),
+            first_name=tg_user.get("first_name"),
+            last_name=tg_user.get("last_name"),
+            language_code=tg_user.get("language_code", "ru"),
+        )
 
-        if not user:
-            # Создаём нового
-            import uuid
+    logger.info(f"Mini App login: telegram_id={telegram_id}, plan={user.plan.value}")
 
-            user = await user_repo.create(
-                {
-                    "telegram_id": int(telegram_id),
-                    "username": user_data.get("username"),
-                    "first_name": user_data.get("first_name"),
-                    "last_name": user_data.get("last_name"),
-                    "language_code": user_data.get("language_code", "ru"),
-                    "referral_code": str(uuid.uuid4())[:8],
-                }
-            )
-
-    # Создаём токен
-    access_token = create_access_token(user.id, user.telegram_id)
-
-    logger.info(f"User {user.telegram_id} logged in")
+    # Создаём JWT
+    plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+    token = create_jwt_token(
+        user_id=user.id,
+        telegram_id=user.telegram_id,
+        plan=plan_value,
+    )
 
     return LoginResponse(
-        access_token=access_token,
-        expires_in=JWT_EXPIRE_MINUTES * 60,
+        access_token=token,
+        user=UserResponse(
+            id=user.id,
+            telegram_id=user.telegram_id,
+            username=user.username,
+            first_name=user.first_name,
+            plan=plan_value,
+            credits=user.credits,
+            ai_generations_used=user.ai_generations_used,
+        ),
     )
 
 
-@router.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)):  # noqa: B008
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: CurrentUser) -> UserResponse:
     """
-    Получить текущего пользователя.
+    Получить данные текущего авторизованного пользователя.
 
-    Args:
-        current_user: Текущий пользователь.
-
-    Returns:
-        Данные пользователя.
+    Используется для проверки токена и обновления данных на фронтенде.
     """
-    return {
-        "id": current_user.id,
-        "telegram_id": current_user.telegram_id,
-        "username": current_user.username,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "balance": str(current_user.balance),
-        "plan": current_user.plan.value,
-        "is_banned": current_user.is_banned,
-    }
-
-
-@router.post("/refresh")
-async def refresh_token(request: TokenRefreshRequest):
-    """
-    Обновить access token.
-
-    Args:
-        request: Старый токен.
-
-    Returns:
-        Новый токен.
-    """
-    payload = decode_access_token(request.access_token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = int(payload["sub"])
-    telegram_id = int(payload["telegram_id"])
-
-    new_token = create_access_token(user_id, telegram_id)
-
-    return {"access_token": new_token, "token_type": "bearer"}
+    plan_value = (
+        current_user.plan.value
+        if hasattr(current_user.plan, "value")
+        else str(current_user.plan)
+    )
+    return UserResponse(
+        id=current_user.id,
+        telegram_id=current_user.telegram_id,
+        username=current_user.username,
+        first_name=current_user.first_name,
+        plan=plan_value,
+        credits=current_user.credits,
+        ai_generations_used=current_user.ai_generations_used,
+    )

@@ -225,7 +225,11 @@ class AnalyticsService:
             return UserAnalytics(**cached)
 
         async with async_session_factory() as session:
+            from src.db.repositories.log_repo import MailingLogRepository
+            from src.db.repositories.user_repo import UserRepository
+
             user_repo = UserRepository(session)
+            log_repo = MailingLogRepository(session)
 
             # Получаем пользователя
             user = await user_repo.get_by_id(user_id)
@@ -245,11 +249,11 @@ class AnalyticsService:
                 case str():
                     total_spent = Decimal(total_spent)
 
-            # Рассчитываем средний success rate (заглушка - будет реализовано отдельно)
-            avg_success_rate = 0.0
+            # Рассчитываем средний success rate через репозиторий
+            avg_success_rate = await log_repo.get_user_success_rate(user_id, days=days)
 
-            # Общее количество достигнутых чатов (заглушка - будет реализовано отдельно)
-            total_chats_reached = 0
+            # Общее количество достигнутых чатов
+            total_chats_reached = await log_repo.get_total_chats_reached(user_id, days=days)
 
             result = UserAnalytics(
                 total_campaigns=total_campaigns,
