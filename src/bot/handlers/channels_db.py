@@ -156,7 +156,7 @@ async def handle_category_detail(callback: CallbackQuery) -> None:
 
     value: название категории (например, "it", "бизнес")
     """
-    category = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
+    category = callback.data.split(":")[-1] if ":" in callback.data else ""
     if not category:
         category = callback.data.split("=")[-1] if "=" in callback.data else ""
 
@@ -248,7 +248,7 @@ async def handle_subcategories(callback: CallbackQuery) -> None:
 
     value: название родительской категории
     """
-    topic = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
+    topic = callback.data.split(":")[-1] if ":" in callback.data else ""
     if not topic:
         topic = callback.data.split("=")[-1] if "=" in callback.data else ""
 
@@ -321,7 +321,7 @@ async def handle_tariff_filter(callback: CallbackQuery) -> None:
 
     value: категория или категория_тариф
     """
-    value = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
+    value = callback.data.split(":")[-1] if ":" in callback.data else ""
     if not value:
         value = callback.data.split("=")[-1] if "=" in callback.data else ""
 
