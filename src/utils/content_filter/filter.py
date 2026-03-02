@@ -4,7 +4,11 @@ Content Filter — 3-уровневая система проверки конт
 Уровни:
 1. regex_check — быстрая проверка по стоп-словам (< 1 мс)
 2. morph_check — проверка нормализованных словоформ (pymorphy3)
-3. llm_check — LLM анализ (Claude/OpenAI) при score > 0.3
+3. llm_check — LLM анализ через OpenRouter (бесплатная модель)
+
+8 заблокированных категорий:
+- drugs, terrorism, weapons, adult
+- fraud, suicide, extremism, gambling
 """
 
 import json
@@ -267,7 +271,7 @@ class ContentFilter:
 
     def _llm_check(self, text: str) -> FilterResult:
         """
-        Уровень 3: LLM проверка через Claude/OpenAI.
+        Уровень 3: LLM проверка через OpenRouter API.
 
         Args:
             text: Текст для проверки.
@@ -277,37 +281,42 @@ class ContentFilter:
         """
         from src.config.settings import settings
 
-        # Проверяем наличие API ключей
-        if not settings.anthropic_api_key and not settings.openai_api_key:
-            logger.warning("No AI API keys configured, skipping LLM check")
+        # Проверяем наличие API ключа OpenRouter
+        if not settings.openrouter_api_key:
+            logger.warning("OpenRouter API key not configured, skipping LLM check")
             return FilterResult(passed=True, score=0.0)
 
         try:
-            # Пробуем Claude сначала
-            if settings.anthropic_api_key:
-                return self._call_claude(text, settings.anthropic_api_key)
-            elif settings.openai_api_key:
-                return self._call_openai(text, settings.openai_api_key)
+            return self._call_openrouter(text, settings.openrouter_api_key, settings.model_free)
         except Exception as e:
             logger.error(f"LLM check failed: {e}")
 
         return FilterResult(passed=True, score=0.0)
 
-    def _call_claude(self, text: str, api_key: str) -> FilterResult:
+    def _call_openrouter(self, text: str, api_key: str, model: str) -> FilterResult:
         """
-        Вызвать Claude API для анализа контента.
+        Вызвать OpenRouter API для анализа контента.
 
         Args:
             text: Текст для проверки.
-            api_key: Anthropic API ключ.
+            api_key: OpenRouter API ключ.
+            model: Модель для анализа (из settings.model_free).
 
         Returns:
             FilterResult с результатами.
         """
         try:
-            import anthropic
+            from openai import AsyncOpenAI
 
-            client = anthropic.AsyncAnthropic(api_key=api_key)
+            # OpenRouter совместим с OpenAI API
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/rybkagreen/market-telegram-bot",
+                    "X-OpenRouter-Title": "Market Telegram Bot",
+                },
+            )
 
             system_prompt = """Ты модератор контента для Telegram бота.
 Твоя задача — определить, содержит ли текст запрещенный контент по законодательству РФ.
@@ -328,67 +337,21 @@ class ContentFilter:
     "score": 0.0-1.0,
     "categories": ["category1", "category2"],
     "analysis": "краткий анализ"
-}"""
+}
+
+Если текст чистый — passed: true, score: 0.0
+Если текст содержит нарушения — passed: false, score: 0.5-1.0"""
 
             user_prompt = f"Проверь этот текст на запрещенный контент:\n\n{text[:3000]}"
 
             import asyncio
 
             response = asyncio.get_event_loop().run_until_complete(
-                client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=500,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                )
-            )
-
-            # Парсим ответ
-            import json
-
-            response_text = response.content[0].text
-            result = json.loads(response_text)
-
-            return FilterResult(
-                passed=result.get("passed", True),
-                score=float(result.get("score", 0.0)),
-                categories=result.get("categories", []),
-                llm_analysis=result.get("analysis", ""),
-            )
-
-        except Exception as e:
-            logger.error(f"Claude API error: {e}")
-            return FilterResult(passed=True, score=0.0)
-
-    def _call_openai(self, text: str, api_key: str) -> FilterResult:
-        """
-        Вызвать OpenAI API для анализа контента.
-
-        Args:
-            text: Текст для проверки.
-            api_key: OpenAI API ключ.
-
-        Returns:
-            FilterResult с результатами.
-        """
-        try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(api_key=api_key)
-
-            system_prompt = """Ты модератор контента для Telegram бота.
-Определи, содержит ли текст запрещенный контент по законодательству РФ.
-Категории: drugs, terrorism, weapons, adult, fraud, suicide, extremism, gambling.
-Верни JSON: {"passed": bool, "score": float, "categories": [], "analysis": ""}"""
-
-            import asyncio
-
-            response = asyncio.get_event_loop().run_until_complete(
                 client.chat.completions.create(
-                    model="gpt-4o",
+                    model=model,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": text[:3000]},
+                        {"role": "user", "content": user_prompt},
                     ],
                     max_tokens=500,
                     response_format={"type": "json_object"},
@@ -411,7 +374,7 @@ class ContentFilter:
             )
 
         except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
+            logger.error(f"OpenRouter API error: {e}")
             return FilterResult(passed=True, score=0.0)
 
     def _merge_categories(self, *category_lists: list[str]) -> list[str]:

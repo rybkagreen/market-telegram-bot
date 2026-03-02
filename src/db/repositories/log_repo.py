@@ -428,6 +428,75 @@ class MailingLogRepository(BaseRepository[MailingLog]):
 
         return top_chats
 
+    async def get_user_success_rate(self, user_id: int, days: int = 30) -> float:
+        """
+        Рассчитать средний success rate пользователя за период.
+
+        Args:
+            user_id: ID пользователя.
+            days: Период в днях.
+
+        Returns:
+            Средний процент успешности (0-100).
+        """
+        from datetime import timedelta
+
+        from src.db.models.campaign import Campaign
+
+        start_date = datetime.now(tz=UTC) - timedelta(days=days)
+
+        query = (
+            select(
+                func.count(MailingLog.id).label("total"),
+                func.sum(case((MailingLog.status == MailingStatus.SENT, 1), else_=0)).label("sent"),
+            )
+            .select_from(MailingLog.__table__.join(Campaign, MailingLog.campaign_id == Campaign.id))
+            .where(
+                Campaign.user_id == user_id,
+                MailingLog.sent_at >= start_date,
+            )
+        )
+
+        result = await self.session.execute(query)
+        row = result.one()
+
+        total = row.total or 0
+        sent = row.sent or 0
+
+        return round((sent / total * 100) if total > 0 else 0.0, 2)
+
+    async def get_total_chats_reached(self, user_id: int, days: int = 30) -> int:
+        """
+        Получить количество уникальных чатов, достигнутых пользователем.
+
+        Args:
+            user_id: ID пользователя.
+            days: Период в днях.
+
+        Returns:
+            Количество уникальных чатов.
+        """
+        from datetime import timedelta
+
+        from src.db.models.campaign import Campaign
+
+        start_date = datetime.now(tz=UTC) - timedelta(days=days)
+
+        query = (
+            select(func.count(func.distinct(MailingLog.chat_telegram_id)))
+            .select_from(MailingLog.__table__.join(Campaign, MailingLog.campaign_id == Campaign.id))
+            .where(
+                Campaign.user_id == user_id,
+                MailingLog.sent_at >= start_date,
+                MailingLog.status == MailingStatus.SENT,
+            )
+        )
+
+        result = await self.session.execute(query)
+        row = result.one()
+
+        return row[0] or 0
+
     async def get_daily_stats(
         self,
         user_id: int,
