@@ -62,7 +62,7 @@ export default function Campaigns() {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light')
   }
 
-  const handleCreateSuccess = (campaignId: number) => {
+  const handleCreateSuccess = (_campaignId: number) => {
     setShowCreateForm(false)
     // Обновляем список кампаний
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success')
