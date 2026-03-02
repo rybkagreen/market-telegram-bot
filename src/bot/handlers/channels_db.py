@@ -187,7 +187,7 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
             .order_by(TelegramChat.member_count.desc())
             .limit(3)
         )
-        top_channels = top_result.all()
+        top_channels = top_result.tuples().all()
 
     # Проверяем подкатегории
     has_subcats = category in SUBCATEGORIES
@@ -283,7 +283,7 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
             .group_by(TelegramChat.subcategory)
             .order_by(func.count(TelegramChat.id).desc())
         )
-        rows = result.all()
+        rows = result.tuples().all()
 
     # Формируем список
     for row in rows:
