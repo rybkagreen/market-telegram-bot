@@ -1,0 +1,31 @@
+fbaf1d6 | 2026-03-02 17:45 | alex_ | docs: add expanded analytics and public channel stats proposals
+a5afced | 2026-03-02 17:22 | alex_ | fix: ruff and mypy type checking fixes
+4ae8860 | 2026-03-02 17:13 | alex_ | feat(bot): add AI campaign creation wizard with editor
+2d0d1fe | 2026-03-02 17:02 | alex_ | feat(ai): add topic-aware short text generation for Telegram
+4a37906 | 2026-03-02 16:48 | alex_ | fix(ai): update fallback model to stepfun/step-3.5-flash:free
+f0cbc5d | 2026-03-02 16:46 | alex_ | feat(ai): add fallback model for rate limit handling
+36c3be0 | 2026-03-02 16:41 | alex_ | fix(openrouter): add required HTTP headers for rankings
+d08811c | 2026-03-02 16:30 | alex_ | feat(ai): upgrade free model to Hermes 3 Llama 3.1 405B
+cc93de2 | 2026-03-02 16:08 | alex_ | fix(parser): fix ruff linting errors
+50cce2e | 2026-03-02 16:03 | alex_ | refactor(content-filter): migrate LLM check to OpenRouter API
+c15a0d3 | 2026-03-02 16:01 | alex_ | feat(content-filter): add channel content validation during parsing
+cd03150 | 2026-03-02 15:55 | alex_ | feat(campaigns): add campaign filters UI and API support
+bf8fd23 | 2026-03-02 15:50 | alex_ | feat(analytics): implement avg_success_rate and total_chats_reached calculations
+c5260e2 | 2026-03-02 15:47 | alex_ | feat(mini-app): add Telegram Mini App with React + TypeScript
+9d01fb9 | 2026-03-02 15:47 | alex_ | feat(bot): add analytics handlers and improve keyboard navigation
+7781cb1 | 2026-03-02 15:47 | alex_ | feat(api): enhance analytics, billing and campaigns endpoints
+7c102a5 | 2026-03-02 15:46 | alex_ | fix(parser): use SearchGlobalRequest for global Telegram search and fix asyncio issues
+3fa3bfd | 2026-03-02 03:03 | alex_ | feat(parser): change parser schedule to Moscow time (UTC+3)
+162792e | 2026-03-01 23:12 | alex_ | fix(billing): store pay_url in DB instead of callback_data
+b432a32 | 2026-03-01 23:02 | alex_ | fix(billing): use '|' separator instead of ':' in callback_data
+aa1092d | 2026-03-01 22:59 | alex_ | feat(billing): replace URL button with callback for CryptoBot payment
+2caa351 | 2026-03-01 22:04 | alex_ | debug(billing): add logging for payment creation and message sending
+cd98456 | 2026-03-01 21:56 | alex_ | fix(billing): fix SQLAlchemy Enum coercion + created_at NOT NULL constraint
+526e036 | 2026-03-01 20:36 | alex_ | fix(billing): use Enum.value for PaymentMethod and PaymentStatus in DB operations
+c63e4fe | 2026-03-01 19:54 | alex_ | fix(handlers): handle UserPlan enum/string conversion for user.plan
+46cc46f | 2026-03-01 19:47 | alex_ | fix(celery): replace manual event loop management with asyncio.run()
+39e33b1 | 2026-03-01 19:29 | alex_ | feat(ai): migrate to OpenRouter as single AI provider + credit system
+f007c28 | 2026-03-01 03:57 | alex_ | feat(ux): redesign main menu + add Feedback/Bug Report
+48f5773 | 2026-03-01 03:27 | alex_ | feat(parser): expand topics and configure scheduled parsing 02:30-06:00 UTC
+27d47ef | 2026-03-01 03:09 | alex_ | feat(parser): add seed script with 493 Telegram channels across 6 topics
+c4e58a3 | 2026-03-01 03:00 | alex_ | feat(docker): add TELETHON_SESSION_STRING to worker environment
