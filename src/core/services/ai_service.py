@@ -254,6 +254,7 @@ class AIService:
         Raises:
             RuntimeError: при ошибке API.
         """
+        # Пробуем основную модель
         try:
             response = await self.client.chat.completions.create(
                 model=model,
@@ -273,6 +274,33 @@ class AIService:
             return content.strip()
 
         except Exception as e:
+            # Проверяем rate limit
+            error_str = str(e).lower()
+            if '429' in error_str or 'rate limit' in error_str:
+                # Пробуем fallback модель
+                logger.warning(f"Rate limit on {model}, trying fallback: {settings.model_free_fallback}")
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=settings.model_free_fallback,
+                        messages=[
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=settings.ai_max_tokens,
+                        temperature=settings.ai_temperature,
+                    )
+                    content = response.choices[0].message.content
+                    if not content:
+                        raise RuntimeError("Пустой ответ от fallback модели")
+                    logger.info(
+                        f"OpenRouter OK (fallback): model={settings.model_free_fallback}, tokens={response.usage.total_tokens if response.usage else '?'}"
+                    )
+                    return content.strip()
+                except Exception as fallback_error:
+                    logger.error(f"Fallback model also failed: {fallback_error}")
+                    raise RuntimeError(f"Ошибка AI генерации (fallback не удался): {fallback_error}") from fallback_error
+            
+            # Другие ошибки
             logger.error(f"OpenRouter API error: model={model}, error={e}")
             raise RuntimeError(f"Ошибка AI генерации: {e}") from e
 
