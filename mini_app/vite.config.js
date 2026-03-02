@@ -9,6 +9,7 @@ export default defineConfig({
             '@': fileURLToPath(new URL('./src', import.meta.url)),
         },
     },
+    base: './', // Относительные пути для assets
     server: {
         port: 5173,
         proxy: {

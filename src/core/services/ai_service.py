@@ -350,14 +350,18 @@ class AIService:
 
     async def _get_cache(self, key: str) -> str | None:
         """Получить значение из Redis кэша."""
+        if not self._redis:
+            return None
         try:
             value = await self._redis.get(key)
-            return value
+            return value.decode() if isinstance(value, bytes) else value
         except Exception:
             return None
 
     async def _set_cache(self, key: str, value: str, ttl: int = 3600) -> None:
         """Сохранить значение в Redis кэше."""
+        if not self._redis:
+            return
         try:
             await self._redis.setex(key, ttl, value)
         except Exception as e:
