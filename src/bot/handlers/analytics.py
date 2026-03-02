@@ -47,15 +47,19 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
         "Выберите раздел:\n\n"
         "📈 Общая статистика — ваша сводка за 30 дней\n"
         "📋 Кампании — статистика по кампаниям\n"
-        "🏆 Топ чатов — лучшие чаты по эффективности"
+        "🏆 Топ чатов — лучшие чаты по эффективности\n"
+        "📊 Тематики кампаний — распределение по темам\n"
+        "✨ AI-анализ — анализ кампании через ИИ"
     )
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📈 Общая статистика", callback_data=MainMenuCB(action="user_summary"))
     builder.button(text="📋 Кампании", callback_data=MainMenuCB(action="campaigns_stats"))
     builder.button(text="🏆 Топ чатов", callback_data=MainMenuCB(action="top_chats"))
+    builder.button(text="📊 Тематики", callback_data=MainMenuCB(action="topics_distribution"))
+    builder.button(text="✨ AI-анализ", callback_data=MainMenuCB(action="ai_campaign_analytics"))
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
-    builder.adjust(2, 2)
+    builder.adjust(2, 2, 1)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
@@ -233,6 +237,105 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
             "Запускайте кампании в чатах с высоким рейтингом\n"
             "для лучшей конверсии."
         )
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.adjust(1)
+
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "topics_distribution"))
+async def handle_topics_distribution(callback: CallbackQuery) -> None:
+    """
+    Показать распределение кампаний по тематикам.
+
+    Args:
+        callback: Callback query.
+    """
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        # Проверяем тариф
+        plan_str = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+        if plan_str not in ("pro", "business"):
+            text = (
+                "📊 <b>Тематики кампаний</b>\n\n"
+                "❌ Доступно только для тарифов PRO и BUSINESS\n\n"
+                "Upgrade откроет:\n"
+                "• Аналитику по тематикам\n"
+                "• Топ чатов по эффективности\n"
+                "• AI-аналитику кампаний"
+            )
+
+            builder = InlineKeyboardBuilder()
+            builder.button(
+                text="💳 Изменить тариф",
+                callback_data=MainMenuCB(action="balance"),
+            )
+            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.adjust(1)
+
+            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            return
+
+        # Получаем тематики из БД
+        from sqlalchemy import select
+
+        from src.db.models.campaign import Campaign
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(Campaign.filters_json)
+                .where(
+                    Campaign.user_id == user.id,
+                    Campaign.status == "done",
+                )
+            )
+            rows = result.scalars().all()
+
+        # Подсчитываем тематики
+        from collections import Counter
+        topic_counter: Counter = Counter()
+
+        for filters_json in rows:
+            if not filters_json:
+                continue
+            topics = filters_json.get("topics", [])
+            if isinstance(topics, list):
+                for t in topics:
+                    if t:
+                        topic_counter[t] += 1
+
+        if not topic_counter:
+            text = (
+                "📊 <b>Тематики кампаний</b>\n\n"
+                "Пока нет данных.\n"
+                "Запустите несколько кампаний с разными тематиками."
+            )
+
+            builder = InlineKeyboardBuilder()
+            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.adjust(1)
+
+            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            return
+
+        # Формируем текст с распределением
+        total = sum(topic_counter.values())
+        text = "📊 <b>Тематики ваших кампаний</b>\n\n"
+
+        for topic, count in topic_counter.most_common(8):
+            percentage = round(count / total * 100, 1)
+            progress_bar = make_progress_bar(percentage, length=10)
+            text += f"<b>{topic}</b>: {count} ({progress_bar})\n"
+
+        text += f"\n💡 <b>Всего:</b> {total} кампаний"
 
         builder = InlineKeyboardBuilder()
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))

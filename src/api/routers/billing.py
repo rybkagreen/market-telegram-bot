@@ -11,6 +11,7 @@ Endpoints:
 """
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -140,9 +141,9 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
         expires_str = current_user.plan_expires_at.isoformat()
 
     # Добавляем примерные суммы в USDT к каждому пакету
-    packages_with_price = []
+    packages_with_price: list[dict[str, Any]] = []
     for pkg in CREDIT_PACKAGES:
-        total = pkg["credits"] + pkg["bonus"]
+        total = int(str(pkg["credits"])) + int(str(pkg["bonus"]))
         usdt = round(total / settings.credits_per_usdt, 2)
         packages_with_price.append({
             **pkg,
@@ -253,7 +254,7 @@ async def create_crypto_invoice(
     try:
         invoice = await cryptobot_service.create_invoice(
             currency=currency,
-            amount=amount_str,
+            amount=amount,  # Передаём float
             payload=payload,
             description=description,
             expires_in=3600,
@@ -301,6 +302,7 @@ async def create_stars_invoice(
     Возвращает invoice_link для открытия через Telegram.
     """
     from aiogram import Bot
+    from aiogram.types import LabeledPrice
 
     package = _get_package(body.package_id)
     if not package:
@@ -324,7 +326,7 @@ async def create_stars_invoice(
             description=f"{total_credits} кредитов" + (f" (+{bonus} бонус)" if bonus else ""),
             payload=f"miniapp_stars:{current_user.id}:{body.package_id}",
             currency="XTR",
-            prices=[{"label": "Кредиты", "amount": stars_amount}],
+            prices=[LabeledPrice(label="Кредиты", amount=stars_amount)],
         )
         await bot.session.close()
     except Exception as e:
