@@ -8,9 +8,8 @@ Endpoints:
 """
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -18,7 +17,7 @@ from src.api.dependencies import CurrentUser
 from src.db.models.analytics import TelegramChat
 from src.db.models.campaign import Campaign
 from src.db.models.mailing_log import MailingLog
-from src.db.models.user import UserPlan
+from src.db.models.user import User
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -172,7 +171,7 @@ async def get_activity(
         rows = result.all()
 
     # Строим полный список дней (даже пустых)
-    DAY_LABELS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    day_labels_ru = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     data_by_day = {str(row.day): (row.sent or 0, row.failed or 0) for row in rows}
 
     points = []
@@ -183,7 +182,7 @@ async def get_activity(
         sent, failed = data_by_day.get(day_str, (0, 0))
 
         # Короткая метка: для 7 дней — "Пн", для 30+ дней — "01.03"
-        label = DAY_LABELS_RU[day.weekday()] if days <= 7 else day.strftime("%d.%m")
+        label = day_labels_ru[day.weekday()] if days <= 7 else day.strftime("%d.%m")
         points.append(ActivityPoint(date=label, sent=sent, failed=failed))
         total_sent += sent
 
@@ -322,3 +321,127 @@ async def get_topics_distribution(
     ]
 
     return TopicsResponse(topics=topics_list)
+
+
+# ─── AI-аналитика кампаний ──────────────────────────────────────
+
+
+class AIInsightsResponse(BaseModel):
+    campaign_id: int
+    plan: str
+    insights: list[str]
+    recommendations: list[str]
+    performance_grade: str
+    forecast: str | None = None
+    ab_test_suggestion: str | None = None
+    generated_at: str
+
+
+@router.get("/campaigns/{campaign_id}/ai-insights", response_model=AIInsightsResponse)
+async def get_campaign_ai_insights(
+    campaign_id: int,
+    current_user: CurrentUser,
+) -> AIInsightsResponse:
+    """
+    AI-аналитика конкретной кампании через OpenRouter.
+    Доступна только для PRO и BUSINESS тарифов.
+    Списывает 1 ИИ-генерацию из лимита пользователя.
+    """
+    from sqlalchemy import update
+
+    from src.core.services.campaign_analytics_ai import campaign_analytics_ai
+    from src.db.models.campaign import Campaign
+
+    plan_str = _plan_label(current_user.plan)
+
+    # Проверка тарифа
+    if plan_str not in ("pro", "business"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI insights available for PRO and BUSINESS plans only",
+        )
+
+    # Проверка лимита генераций
+    ai_limits = {"pro": 5, "business": 20}
+    limit = ai_limits.get(plan_str, 0)
+    if current_user.ai_generations_used >= limit and plan_str != "business":
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"AI generation limit reached ({current_user.ai_generations_used}/{limit})",
+        )
+
+    # Получаем данные кампании
+    async with async_session_factory() as session:
+        campaign = await session.get(Campaign, campaign_id)
+
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found",
+        )
+
+    # Проверка что кампания принадлежит пользователю
+    if campaign.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only analyze your own campaigns",
+        )
+
+    camp_status = campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)
+    if camp_status != "done":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI insights available only for completed campaigns",
+        )
+
+    # Получаем статистику кампании
+    async with async_session_factory() as session:
+        logs_result = await session.execute(
+            select(
+                func.count(MailingLog.id).label("total"),
+                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
+                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
+                func.min(MailingLog.sent_at).label("started_at"),
+            ).where(MailingLog.campaign_id == campaign_id)
+        )
+        log_row = logs_result.one()
+
+    total_sent = log_row.sent or 0
+    total_failed = log_row.failed or 0
+    total_logs = log_row.total or 0
+    success_rate = round(total_sent / total_logs * 100, 1) if total_logs > 0 else 0.0
+
+    campaign_data = {
+        "title": campaign.title or "Без названия",
+        "sent": total_sent,
+        "failed": total_failed,
+        "success_rate": success_rate,
+        "topics": (campaign.filters_json or {}).get("topics", []),
+        "date": log_row.started_at.strftime("%d.%m.%Y") if log_row.started_at else "",
+    }
+
+    # Вызываем AI
+    result = await campaign_analytics_ai.generate_campaign_insights(
+        campaign_data=campaign_data,
+        plan=plan_str,
+    )
+
+    # Списываем генерацию
+    async with async_session_factory() as session:
+        await session.execute(
+            update(User)
+            .where(User.id == current_user.id)
+            .values(ai_generations_used=current_user.ai_generations_used + 1)
+        )
+        await session.commit()
+
+    return AIInsightsResponse(
+        campaign_id=campaign_id,
+        plan=plan_str,
+        insights=result.get("insights", []),
+        recommendations=result.get("recommendations", []),
+        performance_grade=result.get("performance_grade", "N/A"),
+        forecast=result.get("forecast"),
+        ab_test_suggestion=result.get("ab_test_suggestion"),
+        generated_at=datetime.now(UTC).isoformat(),
+    )

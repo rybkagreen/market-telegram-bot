@@ -37,6 +37,9 @@ export const analyticsApi = {
 
   topics: (): Promise<TopicsData> =>
     apiClient.get('/analytics/topics').then(r => r.data),
+
+  campaignAiInsights: (campaignId: number): Promise<AIInsights> =>
+    apiClient.get(`/analytics/campaigns/${campaignId}/ai-insights`).then(r => r.data),
 }
 
 export interface TopicItem {
@@ -59,4 +62,15 @@ export interface TopChatItem {
 
 export interface TopChatsData {
   chats: TopChatItem[]
+}
+
+export interface AIInsights {
+  campaign_id: number
+  plan: string
+  insights: string[]
+  recommendations: string[]
+  performance_grade: 'A' | 'B' | 'C' | 'D' | 'N/A'
+  forecast: string | null
+  ab_test_suggestion: string | null
+  generated_at: string
 }
