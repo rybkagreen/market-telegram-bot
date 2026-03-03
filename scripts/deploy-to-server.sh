@@ -9,13 +9,15 @@ set -e
 # ══════════════════════════════════════════════════════════════
 
 # Сервер Timeweb Cloud
-SERVER_HOST="123.45.67.89"          # IP вашего сервера
-SERVER_PORT="22"                     # SSH порт (обычно 22)
-SERVER_USER="root"                   # Пользователь
+SERVER_SSH="zerodolg-server"        # SSH алиас (уже настроен)
 SERVER_PATH="/opt/market-telegram-bot"  # Путь к проекту на сервере
 
 # Локальная ветка
 LOCAL_BRANCH="main"                  # Ветка для деплоя
+
+# Требуемые версии (как на локальной машине)
+REQUIRED_DOCKER="29.2.1"
+REQUIRED_DOCKER_COMPOSE="5.0.2"
 
 # ══════════════════════════════════════════════════════════════
 # ЦВЕТА ДЛЯ ВЫВОДА
@@ -45,6 +47,49 @@ print_error() {
 
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
+}
+
+check_and_update_docker() {
+    print_info "Проверка версий Docker на сервере..."
+    
+    # Проверка Docker версии
+    DOCKER_VERSION=$(ssh $SERVER_SSH "docker --version 2>/dev/null | cut -d' ' -f3" | tr -d ',')
+    print_status "Docker на сервере: $DOCKER_VERSION"
+    print_info "Требуется: $REQUIRED_DOCKER"
+    
+    if [ "$DOCKER_VERSION" != "$REQUIRED_DOCKER" ]; then
+        print_warning "Docker версии отличаются. Обновление..."
+        ssh $SERVER_SSH "
+            curl -fsSL https://get.docker.com -o get-docker.sh &&
+            sh get-docker.sh &&
+            rm get-docker.sh
+        "
+        print_status "Docker обновлён"
+    else
+        print_status "Docker версии совпадают ✓"
+    fi
+    
+    # Проверка Docker Compose версии
+    COMPOSE_VERSION=$(ssh $SERVER_SSH "docker compose version 2>/dev/null | cut -d' ' -f4" | tr -d 'v')
+    print_status "Docker Compose на сервере: $COMPOSE_VERSION"
+    print_info "Требуется: $REQUIRED_DOCKER_COMPOSE"
+    
+    if [ "$COMPOSE_VERSION" != "$REQUIRED_DOCKER_COMPOSE" ]; then
+        print_warning "Docker Compose версии отличаются. Обновление..."
+        ssh $SERVER_SSH "
+            DOCKER_CONFIG=\${DOCKER_CONFIG:-\$HOME/.docker} &&
+            mkdir -p \$DOCKER_CONFIG/cli-plugins &&
+            curl -SL https://github.com/docker/compose/releases/download/v$REQUIRED_DOCKER_COMPOSE/docker-compose-linux-x86_64 -o \$DOCKER_CONFIG/cli-plugins/docker-compose &&
+            chmod +x \$DOCKER_CONFIG/cli-plugins/docker-compose
+        "
+        print_status "Docker Compose обновлён"
+    else
+        print_status "Docker Compose версии совпадают ✓"
+    fi
+    
+    # Проверка nginx
+    NGINX_VERSION=$(ssh $SERVER_SSH "nginx -v 2>&1 | cut -d'/' -f2")
+    print_status "Nginx на сервере: $NGINX_VERSION"
 }
 
 check_prerequisites() {
@@ -85,12 +130,16 @@ check_prerequisites() {
 }
 
 deploy_to_server() {
-    print_info "Деплой на сервер $SERVER_USER@$SERVER_HOST:$SERVER_PATH..."
+    print_info "Деплой на сервер $SERVER_SSH:$SERVER_PATH..."
+    echo ""
+    
+    # 0. Проверка и обновление Docker
+    check_and_update_docker
     echo ""
     
     # 1. Git push на сервер
     print_status "1. Git push на сервер..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         git fetch origin $LOCAL_BRANCH &&
         git checkout $LOCAL_BRANCH &&
@@ -99,7 +148,7 @@ deploy_to_server() {
     
     # 2. Проверка .env
     print_status "2. Проверка .env..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         if [ ! -f .env ]; then
             echo '❌ .env файл не найден!' && exit 1
@@ -108,21 +157,21 @@ deploy_to_server() {
     
     # 3. Pull Docker образов
     print_status "3. Pull Docker образов..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose pull
     "
     
     # 4. Применение миграций
     print_status "4. Применение миграций..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose run --rm bot poetry run alembic upgrade head
     "
     
     # 5. Обновление сервисов
     print_status "5. Обновление сервисов..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose up -d --no-deps bot api worker celery_beat
     "
@@ -133,14 +182,14 @@ deploy_to_server() {
     
     # 7. Проверка здоровья
     print_status "7. Проверка здоровья сервисов..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose ps
     "
     
     # 8. Health check API
     print_status "8. Health check API..."
-    if git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "curl -f http://localhost:8001/health" > /dev/null 2>&1; then
+    if ssh $SERVER_SSH "curl -f http://localhost:8001/health" > /dev/null 2>&1; then
         print_status "API health check: OK"
     else
         print_warning "API health check: FAILED (требуется время на запуск)"
@@ -148,7 +197,7 @@ deploy_to_server() {
     
     # 9. Очистка
     print_status "9. Очистка старых образов..."
-    git ssh $SERVER_USER@$SERVER_HOST -p $SERVER_PORT "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker image prune -f
     "
