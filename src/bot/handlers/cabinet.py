@@ -10,9 +10,12 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.billing import BillingCB, get_plans_kb
+from src.bot.keyboards.cabinet import CabinetCB, get_cabinet_kb
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.db.models.campaign import CampaignStatus
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
@@ -65,18 +68,8 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             f"Telegram: @{user.username or 'не указан'}\n"
         )
 
-        # Кнопки действий
-        builder = InlineKeyboardBuilder()
-        builder.button(text="💳 Пополнить", callback_data=BillingCB(action="topup", value="0"))
-        builder.button(
-            text="📊 История транзакций", callback_data=BillingCB(action="history", value="0")
-        )
-        builder.button(text="👥 Рефералы", callback_data=BillingCB(action="referral", value="0"))
-        builder.button(text="🔄 Сменить тариф", callback_data=BillingCB(action="plans", value="0"))
-        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
-        builder.adjust(2, 2, 1)
-
-        await answer_method(text, reply_markup=builder.as_markup())
+        # Кнопки действий с переключателем уведомлений
+        await answer_method(text, reply_markup=get_cabinet_kb(user.notifications_enabled))
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "cabinet"))
@@ -88,6 +81,24 @@ async def cabinet_callback(callback: CallbackQuery) -> None:
         callback: Callback query.
     """
     await show_cabinet(callback)
+
+
+@router.callback_query(CabinetCB.filter(F.action == "toggle_notifications"))
+async def toggle_notifications_handler(callback: CallbackQuery) -> None:
+    """
+    Переключить уведомления пользователя.
+    """
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        new_state = await user_repo.toggle_notifications(callback.from_user.id)
+
+    status_text = "включены 🔔" if new_state else "выключены 🔕"
+    await callback.answer(f"Уведомления {status_text}", show_alert=False)
+
+    # Обновить кнопку без перерисовки всего сообщения
+    await callback.message.edit_reply_markup(
+        reply_markup=get_cabinet_kb(notifications_enabled=new_state)
+    )
 
 
 @router.callback_query(BillingCB.filter(F.action == "referral"))

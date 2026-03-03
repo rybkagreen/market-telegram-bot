@@ -59,6 +59,11 @@ async def _check_low_balance_async() -> dict[str, Any]:
 
         for user in users:
             try:
+                # Проверяем настройку уведомлений
+                if not user.notifications_enabled:
+                    logger.debug(f"Notifications disabled for user {user.telegram_id}, skipping")
+                    continue
+
                 # Отправляем уведомление
                 await _notify_low_balance(user.telegram_id, user.credits)
                 stats["notified"] += 1
@@ -115,6 +120,28 @@ def notify_campaign_status(
         status: Статус кампании (paused, banned, completed, error).
         error_message: Сообщение об ошибке (опционально).
     """
+    async def _send():
+        # НОВОЕ: проверяем настройку перед отправкой
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(user_id)
+
+            if not user or not user.notifications_enabled:
+                logger.debug(f"Notifications disabled for user {user_id}, skipping")
+                return
+
+        text = _get_campaign_message(campaign_id, status, error_message)
+        try:
+            asyncio.run(_notify_user_async(user_id, text, "HTML"))
+        except Exception as exc:
+            logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
+            raise self.retry(countdown=60, exc=exc) from exc
+
+    asyncio.run(_send())
+
+
+def _get_campaign_message(campaign_id: int, status: str, error_message: str = "") -> str:
+    """Получить текст уведомления о кампании."""
     messages = {
         "paused": (
             f"⏸ <b>Кампания #{campaign_id} приостановлена</b>\n\n"
@@ -130,14 +157,7 @@ def notify_campaign_status(
             f"{error_message}"
         ),
     }
-
-    text = messages.get(status, f"Статус кампании #{campaign_id}: {status}")
-
-    try:
-        asyncio.run(_notify_user_async(user_id, text, "HTML"))
-    except Exception as exc:
-        logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
-        raise self.retry(countdown=60, exc=exc) from exc
+    return messages.get(status, f"Статус кампании #{campaign_id}: {status}")
 
 
 @celery_app.task(bind=True, base=BaseTask, name="mailing:notify_user")
