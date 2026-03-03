@@ -417,3 +417,39 @@ class UserRepository(BaseRepository[User]):
             )
         )
         await self.session.commit()
+
+    async def toggle_notifications(self, user_id: int) -> bool:
+        """
+        Переключить уведомления пользователя.
+        Возвращает новое значение (True = включены).
+
+        Args:
+            user_id: ID пользователя в БД.
+
+        Returns:
+            Новое значение notifications_enabled.
+        """
+        user = await self.get_by_id(user_id)
+        if user:
+            user.notifications_enabled = not user.notifications_enabled
+            await self.session.commit()
+            return user.notifications_enabled
+        return False
+
+    async def toggle_notifications_by_db_id(self, db_id: int) -> bool:
+        """
+        Переключить уведомления пользователя по DB ID (для админки).
+        Возвращает новое значение (True = включены).
+
+        Args:
+            db_id: ID пользователя в БД.
+
+        Returns:
+            Новое значение notifications_enabled.
+        """
+        user = await self.get_by_id(db_id)
+        if user:
+            user.notifications_enabled = not user.notifications_enabled
+            await self.session.commit()
+            return user.notifications_enabled
+        return False
