@@ -82,6 +82,14 @@ class TelegramChat(Base):
     error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Синоним parse_error_count для совместимости
 
+    # Поля жалоб и чёрного списка
+    complaint_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_complaint_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_blacklisted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    blacklisted_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    blacklisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+
     deactivate_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Причина деактивации для отладки
 

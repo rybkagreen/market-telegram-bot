@@ -37,10 +37,18 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     logger.info(f"Starting campaign {campaign_id}")
 
     async def _send_async() -> dict[str, Any]:
-        from aiogram import Bot
 
+        from aiogram import Bot
+        from sqlalchemy import select
+
+        from src.db.models.analytics import TelegramChat
         from src.db.models.campaign import CampaignStatus
-        from src.utils.telegram.sender import CampaignSender
+        from src.utils.telegram.sender import (
+            AccountBannedError,
+            CampaignSender,
+            ChatBlockedError,
+            ChatInvalidError,
+        )
 
         async with async_session_factory() as session:
             campaign_repo = CampaignRepository(session)
@@ -72,6 +80,11 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                 "skipped": 0,
             }
 
+            complaint_thresholds = {
+                "pause_24h": 3,
+                "blacklist": 10,
+            }
+
             for chat in chats:
                 try:
                     # Отправляем сообщение
@@ -85,6 +98,44 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                         stats["sent"] += 1
                     else:
                         stats["failed"] += 1
+
+                except AccountBannedError as e:
+                    # КРИТИЧНО: весь аккаунт забанен — останавливаем кампанию
+                    campaign.status = CampaignStatus.ACCOUNT_BANNED
+                    campaign.error_message = f"Account banned: {e}"
+                    await session.commit()
+
+                    logger.error(f"Campaign {campaign_id} stopped: account banned")
+
+                    # Уведомить пользователя
+                    try:
+                        from src.tasks.notification_tasks import notify_campaign_status
+                        notify_campaign_status.delay(
+                            user_id=campaign.user_id,
+                            campaign_id=campaign.id,
+                            status="banned",
+                        )
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to send notification: {notify_err}")
+
+                    return {"error": "Account banned", "campaign_id": campaign_id}
+
+                except ChatBlockedError as e:
+                    # Чат заблокировал бота — фиксируем жалобу
+                    logger.warning(f"Chat {e.chat_id} blocked bot: {e}")
+                    await _handle_chat_complaint(e.chat_id, "ChatWriteForbidden", session, complaint_thresholds)
+                    stats["failed"] += 1
+
+                except ChatInvalidError as e:
+                    # Чат не существует — деактивируем без жалобы
+                    logger.warning(f"Chat {e.chat_id} invalid: {e}")
+                    stmt = select(TelegramChat).where(TelegramChat.telegram_id == e.chat_id)
+                    result = await session.execute(stmt)
+                    chat_obj = result.scalar_one_or_none()
+                    if chat_obj:
+                        chat_obj.is_active = False
+                        await session.commit()
+                    stats["failed"] += 1
 
                 except Exception as e:
                     logger.error(f"Error sending to chat {chat.telegram_id}: {e}")
@@ -116,6 +167,51 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in send_campaign: {e}")
         return {"error": str(e)}
+
+
+async def _handle_chat_complaint(
+    chat_telegram_id: int,
+    reason: str,
+    session,
+    complaint_thresholds: dict,
+) -> None:
+    """
+    Зафиксировать жалобу на чат и при необходимости заблокировать его.
+
+    Args:
+        chat_telegram_id: Telegram ID чата.
+        reason: Причина жалобы.
+        session: AsyncSession для работы с БД.
+        complaint_thresholds: Пороги для блокировки.
+    """
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    from src.db.models.analytics import TelegramChat
+
+    stmt = select(TelegramChat).where(TelegramChat.telegram_id == chat_telegram_id)
+    result = await session.execute(stmt)
+    chat = result.scalar_one_or_none()
+
+    if not chat:
+        return
+
+    chat.complaint_count += 1
+    chat.last_complaint_at = datetime.now(UTC)
+    chat.consecutive_failures += 1
+
+    if chat.complaint_count >= complaint_thresholds["blacklist"]:
+        chat.is_blacklisted = True
+        chat.blacklisted_reason = f"Too many errors ({chat.complaint_count}): {reason}"
+        chat.blacklisted_at = datetime.now(UTC)
+        logger.warning(f"Chat {chat_telegram_id} blacklisted after {chat.complaint_count} errors")
+
+    elif chat.complaint_count >= complaint_thresholds["pause_24h"]:
+        chat.is_active = False
+        logger.warning(f"Chat {chat_telegram_id} paused: {chat.complaint_count} complaints")
+
+    await session.commit()
 
 
 @celery_app.task(bind=True, base=BaseTask, name="mailing:check_scheduled_campaigns")
@@ -170,7 +266,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
         # Используем asyncio.run() с обработкой ситуации когда event loop уже существует
         # Это происходит в Celery worker при использовании prefork pool
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # Loop уже существует — создаём новый и запускаем в нём
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -179,7 +275,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
         except RuntimeError:
             # Нет активного loop — используем обычный asyncio.run()
             result = asyncio.run(_check_async())
-        
+
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 

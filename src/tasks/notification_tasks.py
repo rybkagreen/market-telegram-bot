@@ -41,7 +41,6 @@ async def _check_low_balance_async() -> dict[str, Any]:
     Returns:
         Статистика.
     """
-    from decimal import Decimal
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -97,6 +96,48 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
         await bot.send_message(telegram_id, message, parse_mode="HTML")
     finally:
         await bot.session.close()
+
+
+@celery_app.task(name="notifications:notify_campaign_status", bind=True, max_retries=3)
+def notify_campaign_status(
+    self,
+    user_id: int,
+    campaign_id: int,
+    status: str,
+    error_message: str = "",
+) -> None:
+    """
+    Уведомить пользователя об изменении статуса кампании.
+
+    Args:
+        user_id: Telegram ID пользователя.
+        campaign_id: ID кампании.
+        status: Статус кампании (paused, banned, completed, error).
+        error_message: Сообщение об ошибке (опционально).
+    """
+    messages = {
+        "paused": (
+            f"⏸ <b>Кампания #{campaign_id} приостановлена</b>\n\n"
+            f"Telegram ограничил отправку. Кампания продолжится автоматически."
+        ),
+        "banned": (
+            f"🚫 <b>Кампания #{campaign_id} остановлена</b>\n\n"
+            f"Telegram-аккаунт рассылки заблокирован. Обратитесь в поддержку."
+        ),
+        "completed": f"✅ <b>Кампания #{campaign_id} завершена!</b>",
+        "error": (
+            f"❌ <b>Ошибка в кампании #{campaign_id}</b>\n\n"
+            f"{error_message}"
+        ),
+    }
+
+    text = messages.get(status, f"Статус кампании #{campaign_id}: {status}")
+
+    try:
+        asyncio.run(_notify_user_async(user_id, text, "HTML"))
+    except Exception as exc:
+        logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
+        raise self.retry(countdown=60, exc=exc) from exc
 
 
 @celery_app.task(bind=True, base=BaseTask, name="mailing:notify_user")

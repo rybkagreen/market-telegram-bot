@@ -5,14 +5,12 @@ POST /api/auth/login  — получить JWT по initData
 GET  /api/auth/me     — данные текущего пользователя
 """
 import logging
-import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from src.api.auth_utils import create_jwt_token, validate_telegram_init_data
 from src.api.dependencies import CurrentUser
-from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 

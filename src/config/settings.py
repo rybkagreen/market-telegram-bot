@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     yookassa_shop_id: str | None = Field(None, alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str | None = Field(None, alias="YOOKASSA_SECRET_KEY")
 
+    # Mailing rate limits
+    mailing_max_per_minute: int = Field(10, alias="MAILING_MAX_PER_MINUTE")
+    mailing_max_per_hour: int = Field(300, alias="MAILING_MAX_PER_HOUR")
+    mailing_max_per_day: int = Field(2000, alias="MAILING_MAX_PER_DAY")
+    mailing_flood_wait_threshold: int = Field(300, alias="MAILING_FLOOD_WAIT_THRESHOLD")
+
     # Admin IDs
     admin_ids_raw: str = Field("", alias="ADMIN_IDS")
 
@@ -163,6 +169,16 @@ class Settings(BaseSettings):
             "ETH": self.credits_per_eth,
             "LTC": self.credits_per_ltc,
             "XUSDT": self.credits_per_usdt,  # alias для Stars
+        }
+
+    @property
+    def mailing_settings(self) -> dict:
+        """Настройки лимитов рассылок."""
+        return {
+            "max_per_minute": self.mailing_max_per_minute,
+            "max_per_hour": self.mailing_max_per_hour,
+            "max_per_day": self.mailing_max_per_day,
+            "flood_wait_threshold": self.mailing_flood_wait_threshold,
         }
 
     @property
