@@ -444,7 +444,7 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
 
         await callback.message.edit_text(
             text,
-            reply_markup=get_user_actions_kb(user_db_id, user.is_banned),
+            reply_markup=get_user_actions_kb(user_db_id, user.is_banned, user.notifications_enabled),
         )
     await callback.answer()
 
@@ -492,6 +492,33 @@ async def handle_toggle_ban(
     await handle_user_detail(callback, AdminCB(action="user_detail", value=str(user_db_id)), state)
 
     await callback.answer(f"✅ Пользователь {action}")
+
+
+@router.callback_query(AdminCB.filter(F.action == "toggle_user_notif"))
+async def admin_toggle_user_notif(
+    callback: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+) -> None:
+    """
+    Админ переключает уведомления конкретного пользователя.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback (user DB id).
+        state: FSM контекст.
+    """
+    user_db_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        new_state = await user_repo.toggle_notifications_by_db_id(user_db_id)
+
+    status = "включены 🔔" if new_state else "выключены 🔕"
+    await callback.answer(f"Уведомления {status}")
+
+    # Перерисовать профиль пользователя
+    await handle_user_detail(callback, AdminCB(action="user_detail", value=str(user_db_id)), state)
 
 
 @router.callback_query(AdminCB.filter(F.action == "ban_user"))

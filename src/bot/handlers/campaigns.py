@@ -29,6 +29,9 @@ from src.bot.keyboards.campaign import (
     get_text_type_kb,
     get_topics_kb,
 )
+from src.bot.keyboards.cabinet import CabinetCB, get_notifications_prompt_kb
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.campaign import CampaignStates
 from src.core.services.ai_service import ai_service
@@ -766,25 +769,55 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
         if scheduled_at_str:
             scheduled_at = datetime.fromisoformat(scheduled_at_str)
 
-        # Создаём кампанию
-        campaign = await campaign_repo.create(
-            {
-                "user_id": user.id,
-                "title": data.get("header", "Без названия"),
-                "topic": data.get("topic"),
-                "header": data.get("header"),
-                "text": data.get("text", ""),
-                "image_file_id": data.get("image_file_id"),
-                "ai_description": data.get("ai_description"),
-                "status": CampaignStatus.QUEUED if scheduled_at else CampaignStatus.RUNNING,
-                "filters_json": {
-                    "topics": [data.get("topic")],
-                    "min_members": data.get("min_members", 0),
-                    "max_members": data.get("max_members", 1000000),
-                },
-                "scheduled_at": scheduled_at,
-            }
-        )
+        # Проверяем уведомления — если выключены, спрашиваем перед запуском
+        if not user.notifications_enabled and not scheduled_at:
+            # Сохраняем данные в state и показываем запрос
+            await callback.message.edit_text(
+                "🚀 Кампания готова к запуску!\n\n"
+                "📬 Хотите получать уведомления о статусе кампании?\n"
+                "(паузы, ошибки, завершение)",
+                reply_markup=get_notifications_prompt_kb(),
+            )
+            return
+
+        # Запускаем кампанию (создание и отправка)
+        await _do_launch_campaign(callback, state, session, user, data, campaign_repo, scheduled_at)
+
+
+async def _do_launch_campaign(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session,
+    user,
+    data: dict,
+    campaign_repo,
+    scheduled_at=None,
+) -> None:
+    """
+    Приватная функция для фактического запуска кампании.
+    Вызывается из confirm_launch или после включения уведомлений.
+    """
+    from src.tasks.mailing_tasks import send_campaign
+
+    # Создаём кампанию
+    campaign = await campaign_repo.create(
+        {
+            "user_id": user.id,
+            "title": data.get("header", "Без названия"),
+            "topic": data.get("topic"),
+            "header": data.get("header"),
+            "text": data.get("text", ""),
+            "image_file_id": data.get("image_file_id"),
+            "ai_description": data.get("ai_description"),
+            "status": CampaignStatus.QUEUED if scheduled_at else CampaignStatus.RUNNING,
+            "filters_json": {
+                "topics": [data.get("topic")],
+                "min_members": data.get("min_members", 0),
+                "max_members": data.get("max_members", 1000000),
+            },
+            "scheduled_at": scheduled_at,
+        }
+    )
 
     await state.clear()
 
@@ -829,3 +862,32 @@ async def cancel_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     else:
         await callback.message.edit_text(text)
         await callback.answer("❌ Пользователь не найден. Нажмите /start")
+
+
+@router.callback_query(
+    CampaignStates.waiting_confirm, CabinetCB.filter(F.action == "enable_notif_and_launch")
+)
+async def enable_notif_and_launch(callback: CallbackQuery, state: FSMContext) -> None:
+    """Включить уведомления и запустить кампанию."""
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        await user_repo.toggle_notifications(callback.from_user.id)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        data = await state.get_data()
+        campaign_repo = CampaignRepository(session)
+
+    await _do_launch_campaign(callback, state, session, user, data, campaign_repo)
+
+
+@router.callback_query(
+    CampaignStates.waiting_confirm, CabinetCB.filter(F.action == "launch_without_notif")
+)
+async def launch_without_notif(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запустить кампанию без включения уведомлений."""
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        data = await state.get_data()
+        campaign_repo = CampaignRepository(session)
+
+    await _do_launch_campaign(callback, state, session, user, data, campaign_repo)

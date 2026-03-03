@@ -160,6 +160,14 @@ class User(Base, TimestampMixin):
         doc="Активен ли пользователь",
     )
 
+    notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        doc="Включены ли уведомления пользователя (кампании, баланс)",
+    )
+
     # AI настройки пользователя
     ai_provider: Mapped[str | None] = mapped_column(
         String(50),

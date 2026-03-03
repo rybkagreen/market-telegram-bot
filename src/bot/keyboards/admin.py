@@ -97,13 +97,14 @@ def get_users_list_kb(
     return builder.as_markup()
 
 
-def get_user_actions_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
+def get_user_actions_kb(user_id: int, is_banned: bool, notifications_enabled: bool = False) -> InlineKeyboardMarkup:
     """
     Действия над конкретным пользователем.
 
     Args:
         user_id: ID пользователя в БД.
         is_banned: Забанен ли пользователь.
+        notifications_enabled: Включены ли уведомления у пользователя.
 
     Returns:
         InlineKeyboardMarkup с действиями.
@@ -117,8 +118,16 @@ def get_user_actions_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
     builder.button(
         text="📊 Кампании", callback_data=AdminCB(action="user_campaigns", value=str(user_id))
     )
+
+    # Переключение уведомлений пользователя
+    notif_text = "🔕 Выкл. уведомления" if notifications_enabled else "🔔 Вкл. уведомления"
+    builder.button(
+        text=notif_text,
+        callback_data=AdminCB(action="toggle_user_notif", value=str(user_id)),
+    )
+
     builder.button(text="🔙 К списку", callback_data=AdminCB(action="users"))
-    builder.adjust(2, 2)
+    builder.adjust(2, 2, 1, 1)
     return builder.as_markup()
 
 
