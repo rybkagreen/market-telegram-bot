@@ -4,6 +4,8 @@ Handlers для команд /start и /help.
 
 import logging
 
+from pathlib import Path
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
