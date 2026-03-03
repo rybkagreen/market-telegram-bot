@@ -26,11 +26,10 @@ def get_admin_main_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📊 Статистика", callback_data=AdminCB(action="stats"))
     builder.button(text="👥 Пользователи", callback_data=AdminCB(action="users"))
-    builder.button(text="🤖 ИИ-генерация", callback_data=AdminCB(action="ai_generate"))
-    builder.button(text="📣 Кампания без оплаты", callback_data=AdminCB(action="free_campaign"))
-    builder.button(text="💰 Баланс пользователя", callback_data=AdminCB(action="balance_manage"))
-    builder.button(text="🚫 Бан пользователя", callback_data=AdminCB(action="ban_user"))
+    builder.button(text="📣 Рассылки", callback_data=AdminCB(action="mailing_health"))
+    builder.button(text="🚫 Чёрный список", callback_data=AdminCB(action="blacklist"))
     builder.button(text="📢 Broadcast", callback_data=AdminCB(action="broadcast"))
+    builder.button(text="🧪 Тест кампании", callback_data=AdminCB(action="test_campaign"))
     builder.button(text="🔙 В меню", callback_data=AdminCB(action="back_to_main"))
     builder.adjust(2, 2, 2, 1)
     return builder.as_markup()
@@ -140,5 +139,67 @@ def get_back_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_mailing_health_kb() -> InlineKeyboardMarkup:
+    """
+    Дашборд здоровья рассылок.
+
+    Returns:
+        InlineKeyboardMarkup с кнопками дашборда.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔄 Обновить", callback_data=AdminCB(action="mailing_health"))
+    builder.button(text="⏸ Паузы", callback_data=AdminCB(action="paused_campaigns"))
+    builder.button(text="🚫 Забаненные", callback_data=AdminCB(action="banned_campaigns"))
+    builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(1, 2, 1)
+    return builder.as_markup()
+
+
+def get_blacklist_kb(page: int, total_pages: int) -> InlineKeyboardMarkup:
+    """
+    Список заблокированных каналов с пагинацией.
+
+    Args:
+        page: Текущая страница.
+        total_pages: Всего страниц.
+
+    Returns:
+        InlineKeyboardMarkup с пагинацией.
+    """
+    builder = InlineKeyboardBuilder()
+    if page > 1:
+        builder.button(
+            text="◀ Пред", callback_data=AdminCB(action="blacklist_page", value=str(page - 1))
+        )
+    builder.button(text=f"{page}/{total_pages}", callback_data=AdminCB(action="noop"))
+    if page < total_pages:
+        builder.button(
+            text="След ▶", callback_data=AdminCB(action="blacklist_page", value=str(page + 1))
+        )
+    builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(3, 1)
+    return builder.as_markup()
+
+
+def get_blacklist_channel_kb(chat_db_id: int) -> InlineKeyboardMarkup:
+    """
+    Действия над заблокированным каналом.
+
+    Args:
+        chat_db_id: ID канала в БД.
+
+    Returns:
+        InlineKeyboardMarkup с кнопками действий.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✅ Разблокировать",
+        callback_data=AdminCB(action="unblacklist", value=str(chat_db_id)),
+    )
+    builder.button(text="🔙 К списку", callback_data=AdminCB(action="blacklist"))
     builder.adjust(1)
     return builder.as_markup()
