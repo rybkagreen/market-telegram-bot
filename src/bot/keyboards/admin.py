@@ -30,8 +30,10 @@ def get_admin_main_kb() -> InlineKeyboardMarkup:
     builder.button(text="🚫 Чёрный список", callback_data=AdminCB(action="blacklist"))
     builder.button(text="📢 Broadcast", callback_data=AdminCB(action="broadcast"))
     builder.button(text="🧪 Тест кампании", callback_data=AdminCB(action="test_campaign"))
+    builder.button(text="🖥 Мониторинг", callback_data=AdminCB(action="server_monitoring"))
+    builder.button(text="📋 Задачи Celery", callback_data=AdminCB(action="celery_tasks"))
     builder.button(text="🔙 В меню", callback_data=AdminCB(action="back_to_main"))
-    builder.adjust(2, 2, 2, 1)
+    builder.adjust(2, 2, 2, 2, 1)
     return builder.as_markup()
 
 
