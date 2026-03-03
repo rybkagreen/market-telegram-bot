@@ -190,20 +190,22 @@ class Settings(BaseSettings):
         """
         Вернуть модель OpenRouter для указанного тарифа.
 
-        FREE/STARTER → бесплатная модель
+        FREE/STARTER/ADMIN → бесплатная модель
         PRO/BUSINESS → платная модель
 
         Args:
-            plan: Название тарифа (free, starter, pro, business).
+            plan: Название тарифа (free, starter, pro, business, admin).
 
         Returns:
             ID модели в формате OpenRouter.
         """
+        # ADMIN тариф использует бесплатную модель
         paid_plans = {"pro", "business"}
         plan_value = plan.lower() if isinstance(plan, str) else plan.value.lower()
+
         if plan_value in paid_plans:
             return self.model_paid
-        return self.model_free
+        return self.model_free  # free, starter, admin
 
 
 @lru_cache
