@@ -73,9 +73,9 @@ check_prerequisites() {
         fi
     fi
     
-    # Проверка незакоммиченных изменений
-    if [ -n "$(git status --porcelain)" ]; then
-        print_warning "Есть незакоммиченные изменения!"
+    # Проверка незакоммиченных изменений (только tracked файлы)
+    if [ -n "$(git diff --cached --name-only)" ]; then
+        print_warning "Есть staged изменения!"
         read -p "Продолжить? (y/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
