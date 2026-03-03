@@ -196,10 +196,14 @@ deploy_to_server() {
     
     # 6. Миграции
     print_status "4. Применение миграций..."
-    ssh "$SERVER_SSH" "
+    if ! ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose run --rm bot poetry run alembic upgrade head
-    " || print_warning "Миграции не выполнены"
+    "; then
+        print_error "Миграции failed!"
+        rollback
+        exit 1
+    fi
     
     # 7. Обновление сервисов (БЕЗ postgres и redis!)
     print_status "5. Обновление сервисов..."
