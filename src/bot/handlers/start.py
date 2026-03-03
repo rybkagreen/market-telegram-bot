@@ -8,6 +8,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.config.settings import settings
@@ -24,6 +25,32 @@ async def start_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     # Импортируем функцию создания
     from src.bot.handlers.campaign_create_ai import start_campaign_create
     await start_campaign_create(callback, state)
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "create_menu"))
+async def show_create_menu(callback: CallbackQuery) -> None:
+    """
+    Показать sub-меню выбора способа создания кампании.
+
+    Args:
+        callback: Callback query.
+    """
+    text = (
+        "📣 <b>Создание кампании</b>\n\n"
+        "Выберите способ:\n\n"
+        "✍️ <b>Вручную</b> — пошаговый мастер (5 шагов)\n"
+        "🤖 <b>С помощью AI</b> — нейросеть создаст текст за вас\n"
+        "📄 <b>Из шаблона</b> — готовый текст для вашей тематики"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✍️ Вручную", callback_data=MainMenuCB(action="create_campaign"))
+    builder.button(text="🤖 С помощью AI", callback_data=MainMenuCB(action="create_campaign_ai"))
+    builder.button(text="📄 Из шаблона", callback_data=MainMenuCB(action="templates"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1, 1, 1)
+
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
 @router.message(Command("start"))
@@ -48,6 +75,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             last_name=message.from_user.last_name,
             language_code=message.from_user.language_code,
         )
+        
+        # Логирование для отладки регистрации
+        logger.info(f"User /start: telegram_id={message.from_user.id}, username={message.from_user.username}, is_new={is_new}")
 
         # Обработка реферального кода для новых пользователей
         if ref_code and is_new:
@@ -149,7 +179,7 @@ async def handle_balance_command(message: Message) -> None:
         if user:
             text = (
                 f"💳 <b>Ваш баланс</b>\n\n"
-                f"Текущая сумма: <b>{user.balance}₽</b>\n\n"
+                f"Текущая сумма: <b>{user.credits:,} кр</b>\n\n"
                 f"Для пополнения нажмите «Пополнить» в главном меню."
             )
             from src.bot.keyboards.billing import get_amount_kb
