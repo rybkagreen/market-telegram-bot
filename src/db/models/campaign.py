@@ -28,6 +28,7 @@ class CampaignStatus(str, Enum):
     ERROR = "error"  # Завершена с ошибкой
     PAUSED = "paused"  # На паузе
     CANCELLED = "cancelled"  # Отменена пользователем
+    ACCOUNT_BANNED = "banned"  # Telegram-аккаунт заблокирован
 
 
 class Campaign(Base, TimestampMixin):

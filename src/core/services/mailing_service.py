@@ -259,3 +259,48 @@ class MailingService:
 
         finally:
             await r.close()
+
+    async def check_global_rate_limits(self) -> tuple[bool, str]:
+        """
+        Глобальные лимиты отправки по всему аккаунту (не per-chat).
+        Возвращает (можно_отправлять, причина_отказа).
+        """
+        import time
+
+        import redis.asyncio as redis
+
+        from src.config.settings import settings
+
+        r = redis.from_url(str(settings.redis_url))
+
+        try:
+            now = int(time.time())
+
+            # Per minute
+            minute_key = f"mailing:global:minute:{now // 60}"
+            minute_count = await r.incr(minute_key)
+            if minute_count == 1:
+                await r.expire(minute_key, 60)
+            if minute_count > settings.mailing_settings["max_per_minute"]:
+                return False, f"per_minute limit ({minute_count}/{settings.mailing_settings['max_per_minute']})"
+
+            # Per hour
+            hour_key = f"mailing:global:hour:{now // 3600}"
+            hour_count = await r.incr(hour_key)
+            if hour_count == 1:
+                await r.expire(hour_key, 3600)
+            if hour_count > settings.mailing_settings["max_per_hour"]:
+                return False, f"per_hour limit ({hour_count}/{settings.mailing_settings['max_per_hour']})"
+
+            # Per day
+            day_key = f"mailing:global:day:{now // 86400}"
+            day_count = await r.incr(day_key)
+            if day_count == 1:
+                await r.expire(day_key, 86400)
+            if day_count > settings.mailing_settings["max_per_day"]:
+                return False, f"per_day limit ({day_count}/{settings.mailing_settings['max_per_day']})"
+
+            return True, ""
+
+        finally:
+            await r.close()

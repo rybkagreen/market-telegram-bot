@@ -8,15 +8,6 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from src.api.constants.limits import (
-    BUSINESS_CAMPAIGN_LIMIT,
-    BUSINESS_SUBSCRIBER_LIMIT,
-    FREE_CAMPAIGN_LIMIT,
-    PRO_CAMPAIGN_LIMIT,
-    PRO_SUBSCRIBER_LIMIT,
-    STARTER_CAMPAIGN_LIMIT,
-    STARTER_SUBSCRIBER_LIMIT,
-)
 from src.api.constants.tariffs import TARIFF_CREDIT_COST
 from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan

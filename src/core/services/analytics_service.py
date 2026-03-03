@@ -12,7 +12,6 @@ import redis.asyncio as redis
 
 from src.config.settings import settings
 from src.db.repositories.log_repo import MailingLogRepository
-from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)

@@ -3,28 +3,24 @@
 """
 
 import re
-from functools import lru_cache
 
 # Часто используемые русские слова (маркеры русского языка)
 RUSSIAN_MARKERS = {
     "и", "в", "не", "на", "я", "что", "этот", "как", "а", "то", "все", "она", "так", "его", "но",
-    "да", "ты", "к", "у", "же", "вы", "бы", "по", "только", "она", "он", "с", "м", "из", "нам",
-    "при", "о", "ни", "под", "же", "них", "была", "было", "были", "будет", "будут", "будь",
+    "да", "ты", "к", "у", "же", "вы", "бы", "по", "только", "он", "с", "м", "из", "нам",
+    "при", "о", "ни", "под", "них", "была", "было", "были", "будет", "будут", "будь",
     "который", "которая", "которые", "которого", "которой", "которых", "которому", "которым",
-    "котором", "какой", "какая", "какое", "какие", "какого", "какой", "каким", "каких",
+    "котором", "какой", "какая", "какое", "какие", "какого", "каким", "каких",
     "свой", "своя", "своё", "свои", "своего", "своей", "своём", "своим", "своих",
     "себя", "себе", "собой", "собою",
-    "кто", "что", "куда", "откуда", "где", "когда", "зачем", "почему", "как",
-    "мой", "моя", "моё", "мои", "твой", "твоя", "твоё", "твои",
+    "кто", "куда", "откуда", "где", "когда", "зачем", "почему", "мой", "моя", "моё", "мои", "твой", "твоя", "твоё", "твои",
     "наш", "наша", "наше", "наши", "ваш", "ваша", "ваше", "ваши",
-    "тот", "та", "то", "те", "того", "той", "том", "тем", "тех",
-    "этого", "этой", "этом", "этим", "этих", "эти", "этот", "эта", "это",
+    "тот", "та", "те", "того", "той", "том", "тем", "тех",
+    "этого", "этой", "этом", "этим", "этих", "эти", "эта", "это",
     "сам", "сама", "само", "сами", "самого", "самой", "самом", "самим", "самих",
-    "другой", "другая", "другое", "другие", "другого", "другой", "другом",
-    "весь", "вся", "всё", "все", "всего", "всей", "всём", "всем", "всех",
-    "быть", "был", "была", "было", "были", "буду", "будешь", "будет", "будем", "будете", "будут",
-    "есть", "быть", "будет", "будут",
-    "говорить", "говорю", "говоришь", "говорит", "говорим", "говорите", "говорят",
+    "другой", "другая", "другое", "другие", "другого", "другом",
+    "весь", "вся", "всё", "всего", "всей", "всём", "всем", "всех",
+    "быть", "был", "буду", "будешь", "будем", "будете", "есть", "говорить", "говорю", "говоришь", "говорит", "говорим", "говорите", "говорят",
     "делать", "делаю", "делаешь", "делает", "делаем", "делаете", "делают",
     "знать", "знаю", "знаешь", "знает", "знаем", "знаете", "знают",
     "мочь", "могу", "можешь", "может", "можем", "можете", "могут",
@@ -53,7 +49,7 @@ ENGLISH_MARKERS = {
     "think", "look", "want", "give", "use", "find", "tell",
     "ask", "work", "seem", "feel", "try", "leave", "call",
     "good", "new", "first", "last", "long", "great", "little",
-    "own", "other", "old", "right", "big", "high", "different",
+    "other", "old", "right", "big", "high", "different",
     "small", "large", "next", "early", "young", "important",
     "channel", "telegram", "chat", "group", "news", "business",
     "crypto", "bitcoin", "trading", "investment", "marketing",
@@ -147,13 +143,13 @@ def is_in_english_blacklist(text: str) -> bool:
     """
     if not text:
         return False
-    
+
     text_lower = text.lower()
-    
+
     for blacklist_item in ENGLISH_BLACKLIST:
         if blacklist_item in text_lower:
             return True
-    
+
     return False
 
 
@@ -171,21 +167,21 @@ def detect_language_from_posts(post_texts: list[str]) -> tuple[str, float]:
     """
     if not post_texts:
         return "unknown", 0.5
-    
+
     # Проверяем каждый пост
     russian_count = 0
     english_count = 0
     total_russian_score = 0.0
-    
+
     for post_text in post_texts:
         if not post_text or len(post_text.strip()) < 10:
             continue
-        
+
         # Быстрая проверка по чёрному списку
         if is_in_english_blacklist(post_text):
             english_count += 1
             continue
-        
+
         # Проверяем язык поста
         detector = RussianLanguageDetector()
         if detector.is_russian(post_text):
@@ -193,16 +189,16 @@ def detect_language_from_posts(post_texts: list[str]) -> tuple[str, float]:
             total_russian_score += detector.get_language_score(post_text)[0]
         else:
             english_count += 1
-    
+
     # Если постов мало, возвращаем unknown
     total_analyzed = russian_count + english_count
     if total_analyzed < 3:
         return "unknown", 0.5
-    
+
     # Вычисляем соотношение
     russian_ratio = russian_count / total_analyzed
     avg_russian_score = total_russian_score / max(russian_count, 1)
-    
+
     if russian_ratio >= 0.7:
         return "ru", avg_russian_score
     elif russian_ratio <= 0.3:
@@ -220,7 +216,7 @@ class RussianLanguageDetector:
         if detector.is_russian(text):
             # Текст на русском
     """
-    
+
     def __init__(self, russian_threshold: float = 0.3, english_threshold: float = 0.5):
         """
         Инициализация детектора.
@@ -231,7 +227,7 @@ class RussianLanguageDetector:
         """
         self.russian_threshold = russian_threshold
         self.english_threshold = english_threshold
-    
+
     def extract_words(self, text: str) -> list[str]:
         """
         Извлечь слова из текста.
@@ -244,12 +240,12 @@ class RussianLanguageDetector:
         """
         if not text:
             return []
-        
+
         # Приводим к нижнему регистру и разбиваем на слова
         text = text.lower()
         words = re.findall(r"\b\w+\b", text)
         return words
-    
+
     def is_russian(self, text: str) -> bool:
         """
         Проверить, является ли текст русским.
@@ -262,26 +258,26 @@ class RussianLanguageDetector:
         """
         if not text:
             return False
-        
+
         words = self.extract_words(text)
-        
+
         if len(words) < MIN_WORDS_FOR_ANALYSIS:
             # Слишком короткий текст - проверяем по кириллице
             return bool(CYRILLIC_PATTERN.search(text))
-        
+
         russian_count = sum(1 for word in words if word in RUSSIAN_MARKERS)
         english_count = sum(1 for word in words if word in ENGLISH_MARKERS)
-        
+
         russian_ratio = russian_count / len(words)
         english_ratio = english_count / len(words)
-        
+
         # Если больше 50% английских слов - точно не русский
         if english_ratio > self.english_threshold:
             return False
-        
+
         # Если больше 30% русских слов - это русский текст
         return russian_ratio >= self.russian_threshold
-    
+
     def get_language_score(self, text: str) -> tuple[float, float]:
         """
         Получить оценку языка (русский, английский).
@@ -294,15 +290,15 @@ class RussianLanguageDetector:
         """
         if not text:
             return 0.0, 0.0
-        
+
         words = self.extract_words(text)
-        
+
         if not words:
             return 0.0, 0.0
-        
+
         russian_count = sum(1 for word in words if word in RUSSIAN_MARKERS)
         english_count = sum(1 for word in words if word in ENGLISH_MARKERS)
-        
+
         return russian_count / len(words), english_count / len(words)
 
 
