@@ -75,7 +75,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             last_name=message.from_user.last_name,
             language_code=message.from_user.language_code,
         )
-        
+
         # Логирование для отладки регистрации
         logger.info(f"User /start: telegram_id={message.from_user.id}, username={message.from_user.username}, is_new={is_new}")
 

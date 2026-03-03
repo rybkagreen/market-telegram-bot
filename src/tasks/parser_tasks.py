@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from src.api.constants.parser import POPULAR_TOPICS, SEARCH_QUERIES, SEARCH_QUERIES_BY_CATEGORY
+from src.api.constants.parser import POPULAR_TOPICS
 from src.db.models.analytics import ChatType
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
+from src.utils.telegram.channel_rules_checker import check_channel_rules
 from src.utils.telegram.parser import TelegramParser
 from src.utils.telegram.russian_lang_detector import is_russian_text
 from src.utils.telegram.topic_classifier import classify_topic
@@ -438,7 +439,7 @@ async def _parse_and_save_chats(
             if require_russian:
                 description = chat_info.description or ""
                 title = chat_info.title or ""
-                
+
                 # Проверяем описание или название на русский язык
                 if description and not is_russian_text(description):
                     non_russian_count += 1
@@ -448,6 +449,18 @@ async def _parse_and_save_chats(
                     non_russian_count += 1
                     logger.debug(f"Skipping non-Russian channel (title only): {title}")
                     continue
+
+            # Проверяем правила канала на запрет рекламы
+            if chat_info.username:
+                try:
+                    rules_result = await check_channel_rules(parser._client, chat_info.username)
+                    if not rules_result.allows_ads:
+                        logger.info(
+                            f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}"
+                        )
+                        chat_info.is_active = False
+                except Exception as e:
+                    logger.debug(f"Rules check failed for @{chat_info.username}: {e}")
 
             # Проверяем контент канала (название + описание)
             from src.utils.content_filter.filter import check as content_filter_check
@@ -492,7 +505,7 @@ async def _parse_and_save_chats(
                 chat.rating = 7.0 if chat.is_verified else 5.0
                 chat.last_subscribers = chat_info.member_count or 0
                 chat.last_parsed_at = date.today()
-                
+
                 # Сохраняем информацию о языке
                 if chat_info.meta_json:
                     chat.language = chat_info.meta_json.get("language", "ru")
@@ -509,13 +522,13 @@ async def _parse_and_save_chats(
                 continue
 
         await chat_repo._session.commit()
-        
+
         log_msg = f"Saved {saved_count} chats for query '{query}'"
         if blocked_count > 0:
             log_msg += f" (blocked {blocked_count} by content filter)"
         if non_russian_count > 0:
             log_msg += f" (skipped {non_russian_count} non-Russian)"
-        
+
         logger.info(log_msg)
 
         return saved_count
@@ -1127,3 +1140,56 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         "er": metrics.er,
         "can_post": metrics.can_post,
     }
+
+
+@celery_app.task(name="parser:recheck_channel_rules", queue="parser")
+def recheck_channel_rules_task() -> None:
+    """
+    Периодически перепроверять правила существующих активных каналов.
+    Запускается через Celery Beat раз в 30 дней.
+    """
+    asyncio.run(_recheck_channel_rules_async())
+
+
+async def _recheck_channel_rules_async() -> None:
+    """Асинхронная реализация recheck_channel_rules_task."""
+    from sqlalchemy import and_, select
+
+    from src.db.models.analytics import TelegramChat
+    from src.utils.telegram.channel_rules_checker import check_channel_rules
+    from src.utils.telegram.parser import TelegramParser
+
+    batch_size = 50
+    checked = 0
+    deactivated = 0
+
+    async with TelegramParser() as parser, async_session_factory() as session:
+        stmt = (
+            select(TelegramChat)
+            .where(
+                and_(
+                    TelegramChat.is_active == True,  # noqa: E712
+                    TelegramChat.username.isnot(None),
+                    TelegramChat.is_blacklisted == False,  # noqa: E712
+                )
+            )
+            .limit(batch_size)
+        )
+        result = await session.execute(stmt)
+        chats = result.scalars().all()
+
+        for chat in chats:
+            rules_result = await check_channel_rules(parser._client, chat.username)
+            checked += 1
+
+            if not rules_result.allows_ads:
+                chat.is_active = False
+                deactivated += 1
+                logger.info(
+                    f"Channel @{chat.username} deactivated after recheck: "
+                    f"{rules_result.reject_reason}"
+                )
+
+        await session.commit()
+
+    logger.info(f"recheck_channel_rules: checked={checked}, deactivated={deactivated}")

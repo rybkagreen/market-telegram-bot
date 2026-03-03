@@ -134,10 +134,10 @@ def classify_subcategory(
     """
     if not topic:
         return None
-    
+
     # Нормализуем topic к нижнему регистру для сравнения
     topic_lower = topic.lower()
-    
+
     if topic_lower not in SUBCATEGORIES:
         return None
 
