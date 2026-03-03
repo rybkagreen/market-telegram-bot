@@ -85,7 +85,7 @@ fi
 
 # Проверка nginx
 print_status "Проверка nginx health check..."
-if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+if curl -f http://localhost:8081/health > /dev/null 2>&1; then
     print_status "Nginx health check: OK"
 else
     print_warning "Nginx health check: FAILED"
