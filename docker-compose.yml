@@ -172,7 +172,7 @@ services:
       dockerfile: docker/Dockerfile.nginx
     container_name: market_bot_nginx
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - bot
       - api

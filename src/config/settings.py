@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # Ports
     api_port: int = Field(8001, alias="API_PORT")
     flower_port: int = Field(5555, alias="FLOWER_PORT")
-    nginx_port: int = Field(8080, alias="NGINX_PORT")
+    nginx_port: int = Field(8081, alias="NGINX_PORT")
 
     # Environment
     environment: Literal["development", "production", "testing"] = Field(

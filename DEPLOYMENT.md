@@ -155,7 +155,7 @@ server {
     server_name bot.yourdomain.ru;
 
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:8081;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -190,7 +190,7 @@ server {
 
     # Market Bot
     location /bot/ {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:8081;
         proxy_set_header Host $host;
     }
 }
@@ -311,7 +311,7 @@ docker compose ps
 curl http://localhost:8001/health
 
 # Nginx
-curl http://localhost:8080/health
+curl http://localhost:8081/health
 
 # Flower (Celery UI)
 # Откройте: http://<SERVER_IP>:5555
