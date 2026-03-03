@@ -28,6 +28,7 @@ class UserPlan(str, Enum):
     STARTER = "starter"  # Стартовый, базовые возможности
     PRO = "pro"  # Профессиональный, расширенные возможности
     BUSINESS = "business"  # Бизнес, полный доступ
+    ADMIN = "admin"  # Администратор (скрыт от обычных пользователей, бесплатная AI модель)
 
 
 class User(Base, TimestampMixin):
@@ -252,12 +253,16 @@ class User(Base, TimestampMixin):
             UserPlan.STARTER: 0,
             UserPlan.PRO: 5,
             UserPlan.BUSINESS: 20,
+            UserPlan.ADMIN: -1,  # ADMIN — безлимит
         }
         return limits.get(self.plan, 0)
 
     def has_free_ai_generation(self) -> bool:
         """Есть ли включённые ИИ-генерации в этом месяце."""
-        return self.ai_generations_used < self.get_included_ai_generations()
+        limit = self.get_included_ai_generations()
+        if limit < 0:  # Безлимит
+            return True
+        return self.ai_generations_used < limit
 
     def get_campaign_limit(self) -> int:
         """Возвращает лимит кампаний в месяц для текущего тарифа."""
@@ -266,6 +271,7 @@ class User(Base, TimestampMixin):
             UserPlan.STARTER: 5,
             UserPlan.PRO: 20,
             UserPlan.BUSINESS: 100,
+            UserPlan.ADMIN: -1,  # ADMIN — безлимит
         }
         return limits.get(self.plan, 0)
 
@@ -276,6 +282,7 @@ class User(Base, TimestampMixin):
             UserPlan.STARTER: 50,
             UserPlan.PRO: 200,
             UserPlan.BUSINESS: 1000,
+            UserPlan.ADMIN: 10000,  # ADMIN — 10K чатов
         }
         return limits.get(self.plan, 0)
 
@@ -291,11 +298,13 @@ class User(Base, TimestampMixin):
             return self.ai_provider
 
         # Привязка провайдеров к тарифам
+        # ADMIN использует бесплатную модель через OpenRouter
         provider_map = {
             UserPlan.FREE: "groq",  # Бесплатный тариф — базовый Groq
             UserPlan.STARTER: "groq",  # STARTER — Groq
             UserPlan.PRO: "openrouter",  # PRO — OpenRouter (Claude Sonnet)
             UserPlan.BUSINESS: "openrouter",  # BUSINESS — OpenRouter (Claude Sonnet)
+            UserPlan.ADMIN: "openrouter",  # ADMIN — OpenRouter (бесплатная модель)
         }
         return provider_map.get(self.plan, "groq")
 
