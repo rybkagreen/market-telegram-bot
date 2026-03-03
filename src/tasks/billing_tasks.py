@@ -42,11 +42,13 @@ async def _check_plan_renewals() -> dict:
         user_repo = UserRepository(session)
 
         # Получаем всех пользователей с истёкшим или истекающим тарифом
+        # ADMIN тариф не продлеваем автоматически — он бесплатный и постоянный
         from sqlalchemy import select
 
         result = await session.execute(
             select(User).where(
                 User.plan != UserPlan.FREE,
+                User.plan != UserPlan.ADMIN,  # ADMIN не продлеваем
                 User.plan_expires_at <= datetime.now(UTC) + timedelta(hours=1),
             )
         )

@@ -61,6 +61,7 @@ TARIFF_MODELS = {
     UserPlan.STARTER: {"provider": "groq", "model": "llama-3.3-70b-versatile"},
     UserPlan.PRO: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
     UserPlan.BUSINESS: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
+    UserPlan.ADMIN: {"provider": "openrouter", "model": "nousresearch/hermes-3-llama-3.1-405b:free"},  # ADMIN — бесплатная модель
 }
 
 
