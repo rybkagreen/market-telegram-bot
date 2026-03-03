@@ -4,55 +4,55 @@
 Централизованное хранилище всех констант проекта для упрощения поддержки.
 """
 
-from src.api.constants.tariffs import (
-    TARIFF_CREDIT_COST,
-    TARIFF_LABELS,
-    TARIFF_SUBSCRIBER_LIMITS,
-    TARIFF_MIN_RATING,
-    TARIFF_TOPICS,
-    PREMIUM_SUBSCRIBER_THRESHOLD,
-)
-from src.api.constants.payments import (
-    CREDIT_PACKAGES,
-    CREDIT_PACKAGE_STANDARD,
-    CREDIT_PACKAGE_BUSINESS,
-    CURRENCIES,
-    CRYPTO_CURRENCIES,
-    PAYMENT_METHODS,
-)
-from src.api.constants.parser import (
-    SEARCH_QUERIES,
-    SEARCH_QUERIES_BY_CATEGORY,
-    PARSER_POSTS_SAMPLE,
-    PARSER_RATE_LIMIT_DELAY,
-    POPULAR_TOPICS,
-)
-from src.api.constants.content_filter import (
-    LEVEL1_THRESHOLD,
-    LEVEL2_THRESHOLD,
-    LEVEL3_THRESHOLD,
-    BLOCKED_CATEGORIES,
-)
 from src.api.constants.celery import (
     CELERY_BEAT_SCHEDULE,
     CELERY_TASK_ROUTES,
+    CLEANUP_QUEUE,
     MAILING_QUEUE,
     PARSER_QUEUE,
-    CLEANUP_QUEUE,
+)
+from src.api.constants.content_filter import (
+    BLOCKED_CATEGORIES,
+    LEVEL1_THRESHOLD,
+    LEVEL2_THRESHOLD,
+    LEVEL3_THRESHOLD,
 )
 from src.api.constants.limits import (
-    FREE_AI_GENERATIONS,
-    STARTER_AI_GENERATIONS,
-    PRO_AI_GENERATIONS,
     BUSINESS_AI_GENERATIONS,
-    FREE_CAMPAIGN_LIMIT,
-    STARTER_CAMPAIGN_LIMIT,
-    PRO_CAMPAIGN_LIMIT,
     BUSINESS_CAMPAIGN_LIMIT,
-    FREE_CHAT_LIMIT,
-    STARTER_CHAT_LIMIT,
-    PRO_CHAT_LIMIT,
     BUSINESS_CHAT_LIMIT,
+    FREE_AI_GENERATIONS,
+    FREE_CAMPAIGN_LIMIT,
+    FREE_CHAT_LIMIT,
+    PRO_AI_GENERATIONS,
+    PRO_CAMPAIGN_LIMIT,
+    PRO_CHAT_LIMIT,
+    STARTER_AI_GENERATIONS,
+    STARTER_CAMPAIGN_LIMIT,
+    STARTER_CHAT_LIMIT,
+)
+from src.api.constants.parser import (
+    PARSER_POSTS_SAMPLE,
+    PARSER_RATE_LIMIT_DELAY,
+    POPULAR_TOPICS,
+    SEARCH_QUERIES,
+    SEARCH_QUERIES_BY_CATEGORY,
+)
+from src.api.constants.payments import (
+    CREDIT_PACKAGE_BUSINESS,
+    CREDIT_PACKAGE_STANDARD,
+    CREDIT_PACKAGES,
+    CRYPTO_CURRENCIES,
+    CURRENCIES,
+    PAYMENT_METHODS,
+)
+from src.api.constants.tariffs import (
+    PREMIUM_SUBSCRIBER_THRESHOLD,
+    TARIFF_CREDIT_COST,
+    TARIFF_LABELS,
+    TARIFF_MIN_RATING,
+    TARIFF_SUBSCRIBER_LIMITS,
+    TARIFF_TOPICS,
 )
 
 __all__ = [

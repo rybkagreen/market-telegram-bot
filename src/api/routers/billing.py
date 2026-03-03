@@ -21,7 +21,7 @@ from src.api.dependencies import CurrentUser
 from src.config.settings import settings
 from src.core.services.cryptobot_service import cryptobot_service
 from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
-from src.db.models.user import User, UserPlan
+from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 

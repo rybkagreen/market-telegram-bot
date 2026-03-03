@@ -5,7 +5,6 @@ Handlers вызывают методы сервиса и не знают о БД
 
 import logging
 from dataclasses import dataclass
-from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +42,7 @@ class UserService:
         """Получить или создать пользователя. Возвращает (user, is_new)."""
         # Сначала проверяем, существует ли пользователь
         existing_user = await self._user_repo.get_by_telegram_id(telegram_id)
-        
+
         if existing_user is None:
             # Создаём нового пользователя
             user = await self._user_repo.create_or_update(

@@ -10,7 +10,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.api.auth_utils import decode_jwt_token
-from src.config.settings import settings
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory

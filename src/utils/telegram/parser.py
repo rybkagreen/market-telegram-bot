@@ -31,14 +31,13 @@ from telethon.tl.types import (
     Channel,
     Chat,
 )
-from telethon.tl.types.messages import ChannelMessages
 
 from src.config.settings import settings
 from src.utils.telegram.russian_lang_detector import (
-    is_russian_text,
+    detect_language_from_posts,
     get_russian_score,
     is_english_blacklisted,
-    detect_language_from_posts,
+    is_russian_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -212,7 +211,7 @@ class TelegramParser:
 
         await self._client.start()
         self._is_started = True
-        
+
         me = await self._client.get_me()
         logger.info(f"Telegram parser started as user @{me.username or me.first_name}")
 
@@ -353,7 +352,7 @@ class TelegramParser:
                 try:
                     entity = await self.client.get_entity(channel_id)
                     chat_info = await self._process_entity(entity)
-                    
+
                     if chat_info and chat_info.description:
                         # Проверяем язык описания
                         if is_russian_text(chat_info.description):
@@ -366,11 +365,11 @@ class TelegramParser:
                     elif chat_info:
                         # Если описания нет, добавляем с низким приоритетом
                         russian_channels.append(chat_info)
-                        
+
                 except Exception as e:
                     logger.debug(f"Error getting channel {channel_id}: {e}")
                     continue
-            
+
             # Сортируем по оценке русского языка (выше = лучше)
             russian_channels.sort(
                 key=lambda x: x.meta_json.get("russian_score", 0) if x.meta_json else 0,
@@ -483,7 +482,7 @@ class TelegramParser:
 
         try:
             full_channel = await self.client(GetFullChannelRequest(entity))
-            
+
             description = getattr(full_channel.full_chat, "about", None)
 
             # Анализируем язык канала
@@ -759,13 +758,13 @@ class TelegramParser:
             if is_english_blacklisted(description):
                 logger.debug(f"Channel {entity.title} blacklisted by description")
                 return "en", 0.0
-            
+
             # Проверяем язык описания
             if is_russian_text(description):
                 score = get_russian_score(description)
                 if score > 0.7:
                     return "ru", score
-        
+
         # Если описание не определило язык или смешанное — анализируем посты
         post_texts = []
         try:
@@ -774,18 +773,18 @@ class TelegramParser:
                     post_texts.append(message.text)
         except Exception as e:
             logger.debug(f"Could not get posts for language analysis: {e}")
-        
+
         if len(post_texts) >= 5:
             language, score = detect_language_from_posts(post_texts)
             logger.debug(f"Channel {entity.title} language: {language} (score: {score})")
             return language, score
-        
+
         # Если постов мало — возвращаем по описанию или unknown
         if description and is_russian_text(description):
             return "ru", get_russian_score(description)
         elif description:
             return "en", 1.0 - get_russian_score(description)
-        
+
         return "unknown", 0.5
 
     async def _collect_post_frequency(self, entity: Channel | Chat) -> tuple[float, int]:

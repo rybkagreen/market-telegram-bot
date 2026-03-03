@@ -10,12 +10,32 @@ from enum import Enum
 
 from aiogram import Bot
 from aiogram.exceptions import (
+    TelegramBadRequest,
     TelegramForbiddenError,
     TelegramMigrateToChat,
     TelegramRetryAfter,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class AccountBannedError(Exception):
+    """Telegram-аккаунт заблокирован."""
+    pass
+
+
+class ChatBlockedError(Exception):
+    """Бот заблокирован в конкретном чате."""
+    def __init__(self, chat_id: int, message: str = ""):
+        self.chat_id = chat_id
+        super().__init__(message)
+
+
+class ChatInvalidError(Exception):
+    """Чат не существует или недоступен."""
+    def __init__(self, chat_id: int, message: str = ""):
+        self.chat_id = chat_id
+        super().__init__(message)
 
 
 class SendStatus(str, Enum):
@@ -25,6 +45,9 @@ class SendStatus(str, Enum):
     FAILED = "failed"  # Ошибка при отправке
     SKIPPED = "skipped"  # Пропущено (rate limit, blacklist)
     RETRY = "retry"  # Требуется повторная попытка
+    CHAT_BLOCKED = "chat_blocked"  # Бот заблокирован в чате
+    USER_BANNED = "user_banned"  # Аккаунт забанен в Telegram
+    CHAT_INVALID = "chat_invalid"  # Чат не существует
 
 
 @dataclass
@@ -120,12 +143,35 @@ class TelegramSender:
                     retry_after=0,
                 )
 
-            except TelegramForbiddenError:
-                # Бот заблокирован или удалён из чата
-                logger.warning(f"Bot forbidden for chat {chat_id}")
+            except TelegramForbiddenError as e:
+                # Различаем бан аккаунта от блокировки конкретного чата
+                error_text = str(e).lower()
+                if "banned" in error_text or "kicked" in error_text or "user is banned" in error_text:
+                    logger.warning(f"User banned in chat {chat_id}: {e}")
+                    return SendResult(
+                        status=SendStatus.USER_BANNED,
+                        error_message=f"UserBannedInChannel: {e}",
+                    )
+                # ChatWriteForbidden — бот/аккаунт заблокирован в этом чате
+                logger.warning(f"Bot forbidden for chat {chat_id}: {e}")
+                return SendResult(
+                    status=SendStatus.CHAT_BLOCKED,
+                    error_message=f"ChatWriteForbidden: {e}",
+                )
+
+            except TelegramBadRequest as e:
+                # Обработка несуществующего чата
+                error_text = str(e).lower()
+                if "chat not found" in error_text or "peer_id_invalid" in error_text:
+                    logger.warning(f"Chat invalid or not found: {chat_id}: {e}")
+                    return SendResult(
+                        status=SendStatus.CHAT_INVALID,
+                        error_message=f"ChatNotFound: {e}",
+                    )
+                logger.warning(f"BadRequest for chat {chat_id}: {e}")
                 return SendResult(
                     status=SendStatus.FAILED,
-                    error_message="Bot forbidden",
+                    error_message=f"BadRequest: {e}",
                 )
 
             except Exception as e:
@@ -235,24 +281,42 @@ class CampaignSender:
 
         Returns:
             True если успешно.
+
+        Raises:
+            AccountBannedError: Если аккаунт забанен в Telegram
+            ChatBlockedError: Если бот заблокирован в чате
+            ChatInvalidError: Если чат не существует
         """
         chat_id = chat.telegram_id if hasattr(chat, "telegram_id") else chat
 
         try:
-            if image_file_id:
-                await self.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=image_file_id,
-                    caption=text,
-                    parse_mode=parse_mode,
-                )
-            else:
-                await self.bot.send_message(
-                    chat_id=chat_id,
-                    text=text,
-                    parse_mode=parse_mode,
-                )
-            return True
+            # Используем TelegramSender для детальной обработки ошибок
+            result = await self.sender.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode,
+            )
+
+            # Обработка новых статусов
+            if result.status == SendStatus.USER_BANNED:
+                raise AccountBannedError(result.error_message)
+
+            if result.status == SendStatus.CHAT_BLOCKED:
+                raise ChatBlockedError(chat_id, result.error_message)
+
+            if result.status == SendStatus.CHAT_INVALID:
+                raise ChatInvalidError(chat_id, result.error_message)
+
+            if result.status == SendStatus.SENT:
+                return True
+
+            # FAILED, RETRY, SKIPPED
+            logger.warning(f"Message not sent to {chat_id}: {result.status} - {result.error_message}")
+            return False
+
+        except (AccountBannedError, ChatBlockedError, ChatInvalidError):
+            # Пробрасываем кастомные исключения наверх
+            raise
         except Exception as e:
             logger.error(f"Error sending to chat {chat_id}: {e}")
             return False
