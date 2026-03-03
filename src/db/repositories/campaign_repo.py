@@ -3,7 +3,7 @@ Campaign Repository для работы с рекламными кампания
 Расширяет BaseRepository специфичными методами для Campaign.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Select, and_, case, func, select
@@ -316,3 +316,56 @@ class CampaignRepository(BaseRepository[Campaign]):
         await self.refresh(campaign)
 
         return campaign
+
+    async def count_by_status(self, status: CampaignStatus) -> int:
+        """
+        Количество кампаний в статусе.
+
+        Args:
+            status: Статус кампании.
+
+        Returns:
+            Количество кампаний.
+        """
+        stmt = select(func.count(Campaign.id)).where(Campaign.status == status)
+        result = await self.session.execute(stmt)
+        return result.scalar_one() or 0
+
+    async def count_done_today(self) -> int:
+        """
+        Количество завершённых кампаний за последние 24 часа.
+
+        Returns:
+            Количество кампаний.
+        """
+        since = datetime.now(tz=UTC) - timedelta(hours=24)
+        stmt = select(func.count(Campaign.id)).where(
+            Campaign.status == CampaignStatus.DONE,
+            Campaign.completed_at >= since,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one() or 0
+
+    async def get_by_status(
+        self,
+        status: CampaignStatus,
+        limit: int = 20,
+    ) -> list[Campaign]:
+        """
+        Список кампаний в статусе, свежие первые.
+
+        Args:
+            status: Статус кампании.
+            limit: Максимальное количество.
+
+        Returns:
+            Список кампаний.
+        """
+        stmt = (
+            select(Campaign)
+            .where(Campaign.status == status)
+            .order_by(Campaign.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

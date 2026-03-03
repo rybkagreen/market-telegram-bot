@@ -20,6 +20,8 @@ from src.bot.keyboards.admin import (
     get_admin_confirm_kb,
     get_admin_main_kb,
     get_back_kb,
+    get_blacklist_kb,
+    get_mailing_health_kb,
     get_user_actions_kb,
     get_users_list_kb,
 )
@@ -42,6 +44,7 @@ from src.db.models.campaign import CampaignStatus
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
 from src.db.repositories.campaign_repo import CampaignRepository
+from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 from src.tasks.mailing_tasks import send_campaign
@@ -147,6 +150,175 @@ async def handle_admin_stats(callback: CallbackQuery) -> None:
     builder.adjust(1)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+# ==================== ДАШБОРД РАССЫЛОК ====================
+
+
+@router.callback_query(AdminCB.filter(F.action == "mailing_health"))
+async def show_mailing_health(callback: CallbackQuery) -> None:
+    """
+    Дашборд здоровья рассылок.
+
+    Args:
+        callback: Callback query.
+    """
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        chat_repo = ChatAnalyticsRepository(session)
+
+        # Статистика кампаний по статусам
+        running = await campaign_repo.count_by_status(CampaignStatus.RUNNING)
+        paused = await campaign_repo.count_by_status(CampaignStatus.PAUSED)
+        banned = await campaign_repo.count_by_status(CampaignStatus.ACCOUNT_BANNED)
+        done_today = await campaign_repo.count_done_today()
+
+        # Чёрный список каналов
+        blacklisted = await chat_repo.count_blacklisted()
+
+    text = (
+        "📣 <b>Здоровье рассылок</b>\n\n"
+        f"🔄 Активных кампаний:   <b>{running}</b>\n"
+        f"⏸ На паузе:            <b>{paused}</b>\n"
+        f"🚫 Забанено аккаунтов: <b>{banned}</b>\n"
+        f"✅ Завершено сегодня:  <b>{done_today}</b>\n"
+        f"⛔ Каналов в ЧС:       <b>{blacklisted}</b>"
+    )
+
+    await callback.message.edit_text(text, reply_markup=get_mailing_health_kb())
+    await callback.answer()
+
+
+@router.callback_query(AdminCB.filter(F.action.in_({"paused_campaigns", "banned_campaigns"})))
+async def show_problem_campaigns(
+    callback: CallbackQuery,
+    callback_data: AdminCB,
+) -> None:
+    """
+    Список кампаний в статусе PAUSED или ACCOUNT_BANNED.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+    """
+    status = (
+        CampaignStatus.PAUSED
+        if callback_data.action == "paused_campaigns"
+        else CampaignStatus.ACCOUNT_BANNED
+    )
+    label = "⏸ На паузе" if status == CampaignStatus.PAUSED else "🚫 Забанено"
+
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaigns = await campaign_repo.get_by_status(status, limit=20)
+
+    if not campaigns:
+        await callback.answer(f"{label}: нет кампаний", show_alert=False)
+        return
+
+    lines = [f"{label} — последние {len(campaigns)}:\n"]
+    for c in campaigns:
+        lines.append(f"• #{c.id} {c.title[:30]} — user:{c.user_id}")
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 К дашборду", callback_data=AdminCB(action="mailing_health"))
+    builder.adjust(1)
+
+    await callback.message.edit_text("\n".join(lines), reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+# ==================== ЧЁРНЫЙ СПИСОК КАНАЛОВ ====================
+
+
+@router.callback_query(AdminCB.filter(F.action.in_({"blacklist", "blacklist_page"})))
+async def show_blacklist(callback: CallbackQuery, callback_data: AdminCB) -> None:
+    """
+    Список заблокированных каналов с пагинацией.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback.
+    """
+    page = int(callback_data.value) if callback_data.value else 1
+    per_page = 15
+
+    async with async_session_factory() as session:
+        chat_repo = ChatAnalyticsRepository(session)
+        chats, total = await chat_repo.get_blacklisted(
+            offset=(page - 1) * per_page,
+            limit=per_page,
+        )
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    if not chats:
+        await callback.message.edit_text(
+            "🚫 <b>Чёрный список каналов</b>\n\nСписок пуст.",
+            reply_markup=get_back_kb(),
+        )
+        return
+
+    lines = [f"🚫 <b>Чёрный список</b> (всего: {total})\n"]
+    for ch in chats:
+        username = f"@{ch.username}" if ch.username else f"id:{ch.telegram_id}"
+        reason = (ch.blacklisted_reason or "—")[:40]
+        lines.append(f"• <code>{ch.id}</code> {username}\n  └ {reason}")
+
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=get_blacklist_kb(page, total_pages),
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminCB.filter(F.action == "unblacklist"))
+async def unblacklist_channel(callback: CallbackQuery, callback_data: AdminCB) -> None:
+    """
+    Разблокировать канал — убрать из чёрного списка.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback (chat DB id).
+    """
+    chat_db_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        chat_repo = ChatAnalyticsRepository(session)
+        await chat_repo.unblacklist(chat_db_id)
+
+    await callback.answer("✅ Канал разблокирован", show_alert=False)
+    await show_blacklist(callback, AdminCB(action="blacklist"))
+
+
+# ==================== ТЕСТ КАМПАНИИ ====================
+
+
+@router.callback_query(AdminCB.filter(F.action == "test_campaign"))
+async def show_test_campaign_menu(callback: CallbackQuery) -> None:
+    """
+    Тестирование кампании — объединённый раздел.
+
+    Args:
+        callback: Callback query.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🤖 ИИ-генерация текста",
+        callback_data=AdminCB(action="ai_generate"),
+    )
+    builder.button(
+        text="📣 Запустить без оплаты",
+        callback_data=AdminCB(action="free_campaign"),
+    )
+    builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(1)
+
+    await callback.message.edit_text(
+        "🧪 <b>Тест кампании</b>\n\nВыберите действие:",
+        reply_markup=builder.as_markup(),
+    )
     await callback.answer()
 
 

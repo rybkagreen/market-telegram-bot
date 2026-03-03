@@ -389,3 +389,59 @@ class ChatAnalyticsRepository:
         if chat:
             chat.increment_error(reason)
             await self._session.flush()
+
+    async def count_blacklisted(self) -> int:
+        """
+        Количество каналов в чёрном списке.
+
+        Returns:
+            Количество каналов.
+        """
+        stmt = select(func.count(TelegramChat.id)).where(TelegramChat.is_blacklisted == True)  # noqa: E712
+        result = await self._session.execute(stmt)
+        return result.scalar_one() or 0
+
+    async def get_blacklisted(
+        self,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[TelegramChat], int]:
+        """
+        Список заблокированных каналов с общим количеством.
+
+        Args:
+            offset: Смещение.
+            limit: Максимальное количество.
+
+        Returns:
+            Кортеж (список каналов, общее количество).
+        """
+        count_stmt = select(func.count(TelegramChat.id)).where(TelegramChat.is_blacklisted == True)  # noqa: E712
+        total = (await self._session.execute(count_stmt)).scalar_one() or 0
+
+        stmt = (
+            select(TelegramChat)
+            .where(TelegramChat.is_blacklisted == True)  # noqa: E712
+            .order_by(TelegramChat.blacklisted_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all()), total
+
+    async def unblacklist(self, chat_db_id: int) -> None:
+        """
+        Снять блокировку с канала.
+
+        Args:
+            chat_db_id: ID канала в БД.
+        """
+        chat = await self._session.get(TelegramChat, chat_db_id)
+        if not chat:
+            return
+        chat.is_blacklisted = False
+        chat.is_active = True
+        chat.blacklisted_reason = None
+        chat.blacklisted_at = None
+        chat.complaint_count = 0
+        await self._session.commit()
