@@ -7,7 +7,7 @@ import logging
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
@@ -16,7 +16,36 @@ from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
+# Пути к изображениям
+BASE_DIR = Path(__file__).parent.parent
+BANNER_PATH = BASE_DIR / "assets" / "images" / "bot" / "banner.jpg"
+
 router = Router()
+
+
+async def send_banner_with_menu(message: Message, user_credits: int, user_id: int) -> None:
+    """
+    Отправить баннер с главным меню.
+    
+    Args:
+        message: Сообщение для ответа.
+        user_credits: Баланс пользователя в кредитах.
+        user_id: ID пользователя для проверки админа.
+    """
+    try:
+        if BANNER_PATH.exists():
+            banner = FSInputFile(BANNER_PATH)
+            await message.answer_photo(
+                photo=banner,
+                caption="Выберите действие:",
+                reply_markup=get_main_menu(user_credits, user_id)
+            )
+        else:
+            logger.warning(f"Banner not found: {BANNER_PATH}")
+            await message.answer("Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
+    except Exception as e:
+        logger.error(f"Error sending banner: {e}")
+        await message.answer("Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "create_campaign_ai"))
@@ -106,16 +135,13 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             f"💳 Ваш баланс: <b>{user.credits:,} кр</b>\n\n"
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
+        await message.answer(text)
+        # Отправляем баннер с меню
+        await send_banner_with_menu(message, user.credits, user.id)
     else:
         # Возвращающийся пользователь или с рефералом
-        text = (
-            f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
-            f"📦 Тариф: <b>{plan_value}</b>\n\n"
-            f"Выберите действие в меню ниже:"
-        )
-
-    await message.answer(text, reply_markup=get_main_menu(user.credits, user.id))
+        # Отправляем баннер с меню вместо текста
+        await send_banner_with_menu(message, user.credits, user.id)
 
 
 @router.message(Command("help"))
