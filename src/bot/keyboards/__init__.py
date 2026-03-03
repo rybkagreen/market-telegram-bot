@@ -1,6 +1,7 @@
 # Inline keyboards
 
 from src.bot.keyboards.billing import BillingCB, get_amount_kb, get_payment_methods_kb, get_plans_kb
+from src.bot.keyboards.cabinet import CabinetCB, get_cabinet_kb, get_notifications_prompt_kb
 from src.bot.keyboards.campaign import (
     TOPICS,
     CampaignCB,
@@ -32,4 +33,7 @@ __all__ = [
     "get_payment_methods_kb",
     "PaginationCB",
     "get_pagination_kb",
+    "CabinetCB",
+    "get_cabinet_kb",
+    "get_notifications_prompt_kb",
 ]
