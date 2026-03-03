@@ -58,10 +58,10 @@ function Test-Prerequisites {
         }
     }
     
-    # Проверка незакоммиченных изменений
-    $status = git status --porcelain
-    if ($status) {
-        Print-Warning "Есть незакоммиченные изменения!"
+    # Проверка незакоммиченных изменений (только tracked файлы)
+    $staged = git diff --cached --name-only
+    if ($staged) {
+        Print-Warning "Есть staged изменения!"
         $continue = Read-Host "Продолжить? (y/n)"
         if ($continue -ne 'y' -and $continue -ne 'Y') {
             exit 1
