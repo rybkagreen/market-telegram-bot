@@ -57,7 +57,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         # Формируем карточку кабинета
         text = (
             f"👤 <b>Ваш кабинет</b>\n\n"
-            f"💳 Баланс: <b>{user.balance}₽</b>  |  📦 Тариф: <b>{cabinet_data.plan}</b>\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>  |  📦 Тариф: <b>{cabinet_data.plan}</b>\n"
             f"📊 Кампаний: <b>{cabinet_data.total_campaigns}</b>  |  🔄 Активных: <b>{cabinet_data.active_campaigns}</b>\n"
             f"📅 Дата регистрации: <b>{cabinet_data.created_at}</b>\n\n"
             f"👤 <b>Профиль:</b>\n"

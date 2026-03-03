@@ -131,13 +131,13 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(CampaignAICB.filter(F.action == "analyze"))
-async def analyze_campaign(callback: CallbackQuery) -> None:
+async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB) -> None:
     """
     Выполнить AI-анализ кампании.
 
-    campaign_id: ID кампании для анализа.
+    callback_data.campaign_id: ID кампании для анализа.
     """
-    campaign_id = int(callback.callback_data.split(":")[-1].split("=")[-1])
+    campaign_id = int(callback_data.campaign_id)
 
     # Показываем индикатор загрузки
     await callback.message.edit_text(

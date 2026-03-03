@@ -150,27 +150,25 @@ async def handle_categories(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "category"))
-async def handle_category_detail(callback: CallbackQuery) -> None:
+async def handle_category_detail(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать детальную информацию по категории.
 
-    value: название категории (например, "it", "бизнес")
+    callback_data.value: название категории (например, "it", "бизнес")
     """
-    category = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
-    if not category:
-        category = callback.data.split("=")[-1] if "=" in callback.data else ""
+    category = callback_data.value
 
     async with async_session_factory() as session:
         from sqlalchemy import func, select, true
 
         from src.db.models.analytics import TelegramChat
 
-        # Всего в категории
+        # Всего в категории (case-insensitive comparison)
         total_result = await session.execute(
             select(func.count(TelegramChat.id))
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == category,
+                func.lower(TelegramChat.topic) == category.lower(),
             )
         )
         total = total_result.scalar() or 0
@@ -184,12 +182,12 @@ async def handle_category_detail(callback: CallbackQuery) -> None:
             )
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == category,
+                func.lower(TelegramChat.topic) == category.lower(),
             )
             .order_by(TelegramChat.member_count.desc())
             .limit(3)
         )
-        top_channels = top_result.all()
+        top_channels = top_result.tuples().all()
 
     # Проверяем подкатегории
     has_subcats = category in SUBCATEGORIES
@@ -200,9 +198,10 @@ async def handle_category_detail(callback: CallbackQuery) -> None:
     if top_channels:
         text += "<b>Крупнейшие каналы:</b>\n"
         for i, ch in enumerate(top_channels, 1):
-            username = ch.username or "—"
-            title = ch.title or "Без названия"
-            subs = f"{ch.member_count:,}" if ch.member_count else "—"
+            # ch is a tuple: (username, title, member_count)
+            username = ch[0] or "—"
+            title = ch[1] or "Без названия"
+            subs = f"{ch[2]:,}" if ch[2] else "—"
             text += f"{i}. <a href='https://t.me/{username}'>{title}</a> — {subs}\n"
 
     if has_subcats:
@@ -242,15 +241,13 @@ async def handle_category_detail(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "subcategories"))
-async def handle_subcategories(callback: CallbackQuery) -> None:
+async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать подкатегории для выбранной категории.
 
-    value: название родительской категории
+    callback_data.value: название родительской категории
     """
-    topic = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
-    if not topic:
-        topic = callback.data.split("=")[-1] if "=" in callback.data else ""
+    topic = callback_data.value
 
     subcats = SUBCATEGORIES.get(topic, {})
 
@@ -280,19 +277,22 @@ async def handle_subcategories(callback: CallbackQuery) -> None:
             )
             .where(
                 TelegramChat.is_active == true(),
-                TelegramChat.topic == topic,
+                func.lower(TelegramChat.topic) == topic.lower(),
                 TelegramChat.subcategory.in_(list(subcats.keys())),
             )
             .group_by(TelegramChat.subcategory)
             .order_by(func.count(TelegramChat.id).desc())
         )
-        rows = result.all()
+        rows = result.tuples().all()
 
     # Формируем список
     for row in rows:
-        if row.subcat:
-            name = subcats.get(row.subcat, row.subcat)
-            text += f"• {name}: <b>{row.total:,}</b>\n"
+        # row is a tuple: (subcat, total)
+        subcat = row[0]
+        total = row[1]
+        if subcat:
+            name = subcats.get(subcat, subcat)
+            text += f"• {name}: <b>{total:,}</b>\n"
 
     if not rows:
         text += "Пока нет данных по подкатегориям.\n"
@@ -315,15 +315,13 @@ async def handle_subcategories(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(ChannelsCB.filter(F.action == "tariff"))
-async def handle_tariff_filter(callback: CallbackQuery) -> None:
+async def handle_tariff_filter(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
     Показать фильтр по тарифам для категории.
 
-    value: категория или категория_тариф
+    callback_data.value: категория или категория_тариф
     """
-    value = callback.callback_data.split(":")[-1] if ":" in callback.callback_data else ""
-    if not value:
-        value = callback.data.split("=")[-1] if "=" in callback.data else ""
+    value = callback_data.value
 
     parts = value.split("_") if "_" in value else [value, ""]
     category = parts[0] if parts[0] else None

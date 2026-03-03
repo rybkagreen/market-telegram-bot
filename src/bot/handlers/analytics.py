@@ -105,7 +105,7 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -133,7 +133,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
             builder.button(
                 text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign")
             )
-            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(2)
 
             await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -164,7 +164,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
             )
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -212,7 +212,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
             builder.button(
                 text="🚀 Создать кампанию", callback_data=MainMenuCB(action="create_campaign")
             )
-            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(2)
 
             await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -239,7 +239,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -320,7 +320,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
             )
 
             builder = InlineKeyboardBuilder()
-            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(1)
 
             await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -338,7 +338,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
         text += f"\n💡 <b>Всего:</b> {total} кампаний"
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
