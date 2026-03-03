@@ -11,7 +11,7 @@ $SERVER_SSH = "zerodolg-server"
 $SERVER_PATH = "/opt/market-telegram-bot"
 
 # Ветка для деплоя
-$LOCAL_BRANCH = "main"
+$LOCAL_BRANCH = "developer2/belin"
 
 # Требуемые версии (синхронизация с локальной машиной)
 $REQUIRED_DOCKER = "29.2.1"
