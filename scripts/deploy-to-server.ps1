@@ -6,13 +6,15 @@
 # ══════════════════════════════════════════════════════════════
 
 # Сервер Timeweb Cloud
-$SERVER_HOST = "123.45.67.89"          # IP вашего сервера
-$SERVER_PORT = "22"                     # SSH порт (обычно 22)
-$SERVER_USER = "root"                   # Пользователь
+$SERVER_SSH = "zerodolg-server"        # SSH алиас (уже настроен)
 $SERVER_PATH = "/opt/market-telegram-bot"  # Путь к проекту на сервере
 
 # Локальная ветка
 $LOCAL_BRANCH = "main"                  # Ветка для деплоя
+
+# Требуемые версии (как на локальной машине)
+$REQUIRED_DOCKER = "29.2.1"
+$REQUIRED_DOCKER_COMPOSE = "5.0.2"
 
 # ══════════════════════════════════════════════════════════════
 # ФУНКЦИИ
@@ -36,6 +38,51 @@ function Print-Error {
 function Print-Info {
     param([string]$Message)
     Write-Host "ℹ $Message" -ForegroundColor Cyan
+}
+
+function Test-AndUpdate-Docker {
+    Print-Info "Проверка версий Docker на сервере..."
+    
+    # Проверка Docker версии
+    $dockerVersion = ssh $SERVER_SSH "docker --version" 2>$null
+    if ($dockerVersion) {
+        $dockerVersion = ($dockerVersion -split ' ')[2].Trim(',')
+        Print-Status "Docker на сервере: $dockerVersion"
+        Print-Info "Требуется: $REQUIRED_DOCKER"
+        
+        if ($dockerVersion -ne $REQUIRED_DOCKER) {
+            Print-Warning "Docker версии отличаются. Обновление..."
+            ssh $SERVER_SSH @"
+curl -fsSL https://get.docker.com -o get-docker.sh &&
+sh get-docker.sh &&
+rm get-docker.sh
+"@
+            Print-Status "Docker обновлён"
+        } else {
+            Print-Status "Docker версии совпадают ✓"
+        }
+    }
+    
+    # Проверка Docker Compose версии
+    $composeVersion = ssh $SERVER_SSH "docker compose version" 2>$null
+    if ($composeVersion) {
+        $composeVersion = ($composeVersion -split ' ')[3].TrimStart('v')
+        Print-Status "Docker Compose на сервере: $composeVersion"
+        Print-Info "Требуется: $REQUIRED_DOCKER_COMPOSE"
+        
+        if ($composeVersion -ne $REQUIRED_DOCKER_COMPOSE) {
+            Print-Warning "Docker Compose версии отличаются. Обновление..."
+            ssh $SERVER_SSH @"
+`$DOCKER_CONFIG = `$env:DOCKER_CONFIG ?? `$HOME/.docker
+New-Item -ItemType Directory -Force -Path `$DOCKER_CONFIG/cli-plugins | Out-Null
+Invoke-WebRequest -Uri "https://github.com/docker/compose/releases/download/v$REQUIRED_DOCKER_COMPOSE/docker-compose-linux-x86_64" -OutFile `$DOCKER_CONFIG/cli-plugins/docker-compose
+chmod +x `$DOCKER_CONFIG/cli-plugins/docker-compose
+"@
+            Print-Status "Docker Compose обновлён"
+        } else {
+            Print-Status "Docker Compose версии совпадают ✓"
+        }
+    }
 }
 
 function Test-Prerequisites {
@@ -85,12 +132,16 @@ function Invoke-SSHCommand {
 }
 
 function Deploy-ToServer {
-    Print-Info "Деплой на сервер $SERVER_USER@$SERVER_HOST:$SERVER_PATH..."
+    Print-Info "Деплой на сервер $SERVER_SSH:$SERVER_PATH..."
+    Write-Host ""
+    
+    # 0. Проверка и обновление Docker
+    Test-AndUpdate-Docker
     Write-Host ""
     
     # 1. Git push на сервер
     Print-Status "1. Git push на сервер..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         git fetch origin $LOCAL_BRANCH &&
         git checkout $LOCAL_BRANCH &&
@@ -99,7 +150,7 @@ function Deploy-ToServer {
     
     # 2. Проверка .env
     Print-Status "2. Проверка .env..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         if [ ! -f .env ]; then
             echo '❌ .env файл не найден!' && exit 1
@@ -108,21 +159,21 @@ function Deploy-ToServer {
     
     # 3. Pull Docker образов
     Print-Status "3. Pull Docker образов..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose pull
     "
     
     # 4. Применение миграций
     Print-Status "4. Применение миграций..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose run --rm bot poetry run alembic upgrade head
     "
     
     # 5. Обновление сервисов
     Print-Status "5. Обновление сервисов..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose up -d --no-deps bot api worker celery_beat
     "
@@ -133,23 +184,23 @@ function Deploy-ToServer {
     
     # 7. Проверка здоровья
     Print-Status "7. Проверка здоровья сервисов..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker compose ps
     "
     
     # 8. Health check API
     Print-Status "8. Health check API..."
-    $apiCheck = Invoke-SSHCommand "curl -f http://localhost:8001/health" 2>&1
+    $apiCheck = ssh $SERVER_SSH "curl -f http://localhost:8001/health" 2>&1
     if ($LASTEXITCODE -eq 0) {
         Print-Status "API health check: OK"
     } else {
-        Print-Warning "API health check: FAILED (требуется время на запуск)"
+        Print-Warning "API health check: FAILED (возможно требуется больше времени)"
     }
     
     # 9. Очистка
     Print-Status "9. Очистка старых образов..."
-    Invoke-SSHCommand "
+    ssh $SERVER_SSH "
         cd $SERVER_PATH &&
         docker image prune -f
     "
