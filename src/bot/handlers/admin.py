@@ -369,10 +369,10 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
     await message.answer("⏳ Генерирую кампанию через ИИ...")
 
     try:
-        # Генерируем A/B варианты
+        # Генерируем A/B варианты (админ = business тариф)
         variants = await admin_ai_service.generate_ab_variants(
-            user_id=message.from_user.id,
             description=description,
+            user_plan="business",
             count=3,
         )
 
@@ -422,8 +422,8 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
 
     try:
         variants = await admin_ai_service.generate_ab_variants(
-            user_id=callback.from_user.id,
             description=description,
+            user_plan="business",
             count=3,
         )
         await state.update_data(ai_variants=variants)
