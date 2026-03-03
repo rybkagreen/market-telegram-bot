@@ -239,7 +239,7 @@ function Invoke-Rollback {
 # ══════════════════════════════════════════════════════════════
 
 function Deploy-ToServer {
-    Print-Info "Деплой на сервер $SERVER_SSH:$SERVER_PATH..."
+    Print-Info "Деплой на сервер ${SERVER_SSH}:${SERVER_PATH}..."
     Write-Host ""
     
     # 0. Проверка SSH
@@ -371,3 +371,4 @@ Write-Host ""
 Print-Status "Готово!"
 Write-Host ""
 Print-Info "Мониторинг: ssh $SERVER_SSH 'cd $SERVER_PATH && docker compose logs -f'"
+
