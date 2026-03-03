@@ -19,6 +19,12 @@ def slice_rekharbor_logos(image_path: str, output_dir: str = None):
     """
     Нарезать логотипы RekHarbor из сетки.
     
+    Структура (в процентах):
+    - Row 1 (0-28%): 2 логотипа (якорь+текст, якорь в круге)
+    - Row 2 (28-42%): 1 логотип на полную ширину (R + RekHarbor)
+    - Row 3 (42-68%): 2 логотипа (маяк, простой якорь)
+    - Row 4 (68-100%): 2 логотипа (R с якорем, RH якоря)
+    
     Args:
         image_path: Путь к исходному изображению.
         output_dir: Папка для сохранения.
@@ -43,66 +49,50 @@ def slice_rekharbor_logos(image_path: str, output_dir: str = None):
     
     base_name = Path(image_path).stem
     
-    # Вычисляем координаты на основе структуры 2×4 с fullWidth row
-    # Row heights (проценты от общей высоты)
-    row1_height = int(height * 0.25)    # 0-25%
-    row2_height = int(height * 0.20)    # 25-45%
-    row3_height = int(height * 0.25)    # 45-70%
-    row4_height = int(height * 0.30)    # 70-100%
-    
-    # Y координаты для каждого ряда
-    row1_y = 0
-    row2_y = row1_height
-    row3_y = row1_height + row2_height
-    row4_y = row1_height + row2_height + row3_height
-    
-    # Половина ширины
-    half_width = width // 2
-    
-    # Определяем все логотипы
+    # Точные координаты в процентах [left, top, right, bottom]
     logos = [
         {
-            "name": "anchor_text",
-            "description": "Якорь + RekHarbor текст",
-            "box": (0, row1_y, half_width, row1_y + row1_height),
+            "name": "anchor_with_text",
+            "description": "Якорь + текст RekHarbor",
+            "pct": (0, 0, 50, 28),
         },
         {
-            "name": "anchor_circle",
+            "name": "anchor_in_circle",
             "description": "Якорь в круге",
-            "box": (half_width, row1_y, width, row1_y + row1_height),
+            "pct": (50, 0, 100, 28),
         },
         {
-            "name": "full_logo",
+            "name": "r_full_logo",
             "description": "R + RekHarbor (полная ширина)",
-            "box": (0, row2_y, width, row2_y + row2_height),
+            "pct": (0, 28, 100, 42),
         },
         {
             "name": "lighthouse",
             "description": "Маяк с волной",
-            "box": (0, row3_y, half_width, row3_y + row3_height),
+            "pct": (0, 42, 50, 68),
         },
         {
-            "name": "anchor_simple",
+            "name": "simple_anchor",
             "description": "Простой якорь",
-            "box": (half_width, row3_y, width, row3_y + row3_height),
+            "pct": (50, 42, 100, 68),
         },
         {
-            "name": "r_anchor",
+            "name": "r_with_anchor",
             "description": "Буква R с якорем",
-            "box": (0, row4_y, half_width, row4_y + row4_height),
+            "pct": (0, 68, 50, 100),
         },
         {
-            "name": "anchor_chains",
-            "description": "Якоря с цепями",
-            "box": (half_width, row4_y, width, row4_y + row4_height),
+            "name": "rh_anchors",
+            "description": "RH якоря с цепями",
+            "pct": (50, 68, 100, 100),
         },
     ]
     
     print(f"\nСтруктура сетки:")
-    print(f"  Row 1: 2 логотипа (0-{row1_height}px)")
-    print(f"  Row 2: 1 логотип fullWidth ({row1_height}-{row2_y + row2_height}px)")
-    print(f"  Row 3: 2 логотипа ({row3_y}-{row3_y + row3_height}px)")
-    print(f"  Row 4: 2 логотипа ({row4_y}-{height}px)")
+    print(f"  Row 1: 2 логотипа (0-28%)")
+    print(f"  Row 2: 1 логотип fullWidth (28-42%)")
+    print(f"  Row 3: 2 логотипа (42-68%)")
+    print(f"  Row 4: 2 логотипа (68-100%)")
     print(f"\nВсего логотипов: {len(logos)}")
     print(f"\n{'='*60}")
     print(f"НАРЕЗКА")
@@ -111,7 +101,16 @@ def slice_rekharbor_logos(image_path: str, output_dir: str = None):
     output_files = []
     
     for logo in logos:
-        box = logo["box"]
+        # Конвертация процентов в пиксели
+        left_pct, top_pct, right_pct, bottom_pct = logo["pct"]
+        
+        box = (
+            int(width * left_pct / 100),
+            int(height * top_pct / 100),
+            int(width * right_pct / 100),
+            int(height * bottom_pct / 100),
+        )
+        
         logo_img = img.crop(box)
         
         # Сохраняем
