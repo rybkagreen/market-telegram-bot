@@ -76,6 +76,27 @@ async def handle_admin_menu(message: Message, state: FSMContext) -> None:
     )
 
 
+@router.message(Command("cancel"))
+async def handle_admin_cancel_command(message: Message, state: FSMContext) -> None:
+    """
+    Отменить текущее действие администратора.
+
+    Args:
+        message: Сообщение с командой.
+        state: FSM контекст.
+    """
+    current_state = await state.get_state()
+    if not current_state:
+        await message.answer("Нет активных действий для отмены.")
+        return
+
+    await state.clear()
+    await message.answer(
+        "✖ Действие отменено.",
+        reply_markup=get_admin_main_kb(),
+    )
+
+
 # ==================== СТАТИСТИКА ПЛАТФОРМЫ ====================
 
 
@@ -359,7 +380,7 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
     for i, user in enumerate(users, 1):
         ban_emoji = "🚫 " if user.is_banned else "✅ "
         username = f"@{user.username}" if user.username else "—"
-        text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.balance}₽\n"
+        text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.credits} кр\n"
 
     await callback.message.edit_text(
         text,
@@ -400,40 +421,83 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
         return
 
     # Получаем количество кампаний
-    campaign_repo = CampaignRepository(session)
-    campaign_count = await campaign_repo.count(CampaignRepository.model.user_id == user.id)
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaign_count = await campaign_repo.count(CampaignRepository.model.user_id == user.id)
 
-    ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
-    created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
-    plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
+        ban_emoji = "🚫 Забанен" if user.is_banned else "✅ Активен"
+        created_at = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
+        plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
-    text = (
-        f"👤 <b>Профиль пользователя</b>\n\n"
-        f"Telegram ID: <code>{user.telegram_id}</code>\n"
-        f"Username: @{user.username or '—'}\n"
-        f"Имя: {user.full_name}\n\n"
-        f"💳 Баланс: <b>{user.balance}₽</b>\n"
-        f"📦 Тариф: <b>{plan_value}</b>\n"
-        f"📊 Кампаний: <b>{campaign_count}</b>\n\n"
-        f"📅 Регистрация: {created_at}\n"
-        f"Статус: {ban_emoji}\n\n"
-        f"Реферальный код: <code>{user.referral_code}</code>"
-    )
+        text = (
+            f"👤 <b>Профиль пользователя</b>\n\n"
+            f"Telegram ID: <code>{user.telegram_id}</code>\n"
+            f"Username: @{user.username or '—'}\n"
+            f"Имя: {user.full_name}\n\n"
+            f"💳 Баланс: <b>{user.credits} кр</b>\n"
+            f"📦 Тариф: <b>{plan_value}</b>\n"
+            f"📊 Кампаний: <b>{campaign_count}</b>\n\n"
+            f"📅 Регистрация: {created_at}\n"
+            f"Статус: {ban_emoji}\n\n"
+            f"Реферальный код: <code>{user.referral_code}</code>"
+        )
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=get_user_actions_kb(user_db_id, user.is_banned),
-    )
+        await callback.message.edit_text(
+            text,
+            reply_markup=get_user_actions_kb(user_db_id, user.is_banned),
+        )
     await callback.answer()
 
 
 # ==================== БАН / РАЗБАН ====================
 
 
+@router.callback_query(AdminCB.filter(F.action == "toggle_ban"))
+async def handle_toggle_ban(
+    callback: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+) -> None:
+    """
+    Быстрый бан/разбан пользователя из профиля.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback (user DB id).
+        state: FSM контекст.
+    """
+    user_db_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_id(user_db_id)
+
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    # Нельзя банить админа
+    if user.telegram_id in settings.admin_ids:
+        await callback.answer("❌ Нельзя забанить администратора", show_alert=True)
+        return
+
+    # Toggle ban
+    new_status = not user.is_banned
+    await user_repo.update(user_db_id, {"is_banned": new_status})
+
+    action = "забанен 🚫" if new_status else "разбанен ✅"
+    logger.warning(f"Admin {callback.from_user.id} {action} user {user.telegram_id}")
+
+    # Обновляем профиль пользователя
+    await handle_user_detail(callback, AdminCB(action="user_detail", value=str(user_db_id)), state)
+
+    await callback.answer(f"✅ Пользователь {action}")
+
+
 @router.callback_query(AdminCB.filter(F.action == "ban_user"))
 async def handle_ban_start(callback: CallbackQuery, state: FSMContext) -> None:
     """
-    Начать процесс бана пользователя.
+    Начать процесс бана пользователя (ручной ввод ID).
 
     Args:
         callback: Callback query.
@@ -497,6 +561,15 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
         message: Сообщение с причиной.
         state: FSM контекст.
     """
+    # Проверка на отмену
+    if message.text and message.text.strip().lower() in ["/cancel", "отмена", "cancel"]:
+        await state.clear()
+        await message.answer(
+            "✖ Бан отменен.",
+            reply_markup=get_admin_main_kb(),
+        )
+        return
+
     data = await state.get_data()
     reason = message.text
     target_db_id = data["target_db_id"]
@@ -515,7 +588,7 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
         new_status = not user.is_banned
         await user_repo.update(target_db_id, {"is_banned": new_status})
 
-        action = "разбанен ✅" if new_status else "забанен 🚫"
+        action = "забанен 🚫" if new_status else "разбанен ✅"
         logger.warning(
             f"Admin {message.from_user.id} {action} user {target_telegram_id}. Reason: {reason}"
         )
@@ -530,10 +603,49 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
 # ==================== УПРАВЛЕНИЕ БАЛАНСОМ ====================
 
 
+@router.callback_query(AdminCB.filter(F.action == "edit_balance"))
+async def handle_edit_balance(
+    callback: CallbackQuery,
+    callback_data: AdminCB,
+    state: FSMContext,
+) -> None:
+    """
+    Начать изменение баланса пользователя из профиля.
+
+    Args:
+        callback: Callback query.
+        callback_data: Данные callback (user DB id).
+        state: FSM контекст.
+    """
+    user_db_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        user = await UserRepository(session).get_by_id(user_db_id)
+
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    await state.update_data(target_db_id=user_db_id, target_telegram_id=user.telegram_id)
+    await state.set_state(AdminBalanceStates.waiting_amount)
+
+    await callback.message.edit_text(
+        f"💰 <b>Изменение баланса пользователя</b>\n\n"
+        f"👤 {user.full_name} (Telegram ID: <code>{user.telegram_id}</code>)\n"
+        f"💳 Текущий баланс: <b>{user.credits} кр</b>\n\n"
+        "Введите сумму изменения:\n"
+        "<code>+500</code> — пополнить на 500 кр\n"
+        "<code>-200</code> — списать 200 кр\n\n"
+        "Или введите /cancel для отмены",
+        reply_markup=get_back_kb(),
+    )
+    await callback.answer()
+
+
 @router.callback_query(AdminCB.filter(F.action == "balance_manage"))
 async def handle_balance_manage(callback: CallbackQuery, state: FSMContext) -> None:
     """
-    Начать изменение баланса пользователя.
+    Начать изменение баланса пользователя (ручной ввод ID).
 
     Args:
         callback: Callback query.
@@ -576,10 +688,10 @@ async def handle_balance_user_id(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"👤 <b>{user.full_name}</b>\n"
         f"Telegram ID: <code>{telegram_id}</code>\n"
-        f"💳 Текущий баланс: <b>{user.balance}₽</b>\n\n"
+        f"💳 Текущий баланс: <b>{user.credits} кр</b>\n\n"
         "Введите сумму изменения:\n"
-        "<code>+500</code> — пополнить на 500₽\n"
-        "<code>-200</code> — списать 200₽"
+        "<code>+500</code> — пополнить на 500 кр\n"
+        "<code>-200</code> — списать 200 кр"
     )
 
 
@@ -614,8 +726,17 @@ async def handle_balance_reason(message: Message, state: FSMContext) -> None:
         message: Сообщение с причиной.
         state: FSM контекст.
     """
+    # Проверка на отмену
+    if message.text and message.text.strip().lower() in ["/cancel", "отмена", "cancel"]:
+        await state.clear()
+        await message.answer(
+            "✖ Изменение баланса отменено.",
+            reply_markup=get_admin_main_kb(),
+        )
+        return
+
     data = await state.get_data()
-    amount = Decimal(data["amount"])
+    amount = int(Decimal(data["amount"]))  # Конвертируем в целое число кредитов
     target_db_id = data["target_db_id"]
     reason = message.text
 
@@ -628,20 +749,20 @@ async def handle_balance_reason(message: Message, state: FSMContext) -> None:
             await state.clear()
             return
 
-        # Обновляем баланс
-        await user_repo.update_balance(target_db_id, amount)
-        await user_repo.refresh(user)
+        # Обновляем кредиты (1 кредит = 1 рублю)
+        new_credits = await user_repo.update_credits(target_db_id, amount)
+        await session.commit()  # Явно коммитим изменения
 
         sign = "+" if amount > 0 else ""
         logger.info(
-            f"Admin {message.from_user.id} changed balance of user "
-            f"{user.telegram_id} by {sign}{amount}₽. Reason: {reason}"
+            f"Admin {message.from_user.id} changed credits of user "
+            f"{user.telegram_id} by {sign}{amount} кр. Reason: {reason}"
         )
 
     await message.answer(
         f"✅ <b>Баланс изменён</b>\n\n"
-        f"Изменение: <b>{sign}{amount}₽</b>\n"
-        f"Новый баланс: <b>{user.balance}₽</b>\n"
+        f"Изменение: <b>{sign}{amount} кр</b>\n"
+        f"Новый баланс: <b>{new_credits} кр</b>\n"
         f"Причина: {reason}",
         reply_markup=get_admin_main_kb(),
     )
@@ -1217,22 +1338,5 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
         "🔙 Возврат в главное меню",
         reply_markup=get_main_menu(credits, user.id if user else None),
-    )
-    await callback.answer()
-
-
-@router.callback_query(AdminCB.filter(F.action == "cancel"))
-async def handle_cancel(callback: CallbackQuery, state: FSMContext) -> None:
-    """
-    Отменить текущую операцию.
-
-    Args:
-        callback: Callback query.
-        state: FSM контекст.
-    """
-    await state.clear()
-    await callback.message.edit_text(
-        "❌ Операция отменена",
-        reply_markup=get_admin_main_kb(),
     )
     await callback.answer()

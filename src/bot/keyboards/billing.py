@@ -6,17 +6,8 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.api.constants.payments import CREDIT_PACKAGES, CURRENCIES
 from src.bot.keyboards.main_menu import MainMenuCB
-
-# Пакеты кредитов: (label, credits, bonus_credits, callback_value)
-CREDIT_PACKAGES = [
-    ("300 кр", 300, 0, "300"),
-    ("600 кр", 600, 0, "600"),
-    ("1 200 кр", 1200, 100, "1200"),
-    ("3 500 кр", 3500, 500, "3500"),
-]
-
-CURRENCIES = ["USDT", "TON", "BTC", "ETH", "LTC"]
 
 
 class BillingCB(CallbackData, prefix="billing"):

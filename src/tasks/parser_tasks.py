@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from src.api.constants.parser import POPULAR_TOPICS, SEARCH_QUERIES, SEARCH_QUERIES_BY_CATEGORY
 from src.db.models.analytics import ChatType
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
-from src.utils.telegram.parser import POPULAR_TOPICS, TelegramParser
+from src.utils.telegram.parser import TelegramParser
+from src.utils.telegram.russian_lang_detector import is_russian_text
 from src.utils.telegram.topic_classifier import classify_topic
 
 logger = logging.getLogger(__name__)
@@ -34,10 +36,10 @@ class ChatParseData:
     rating: float = 5.0
 
 
-# Поисковые запросы для парсинга Telegram (расширенный список ~150 запросов)
+# Поисковые запросы для парсинга Telegram (расширенный список ~250 запросов)
 # Разбит по тематикам для равномерного распределения нагрузки
 SEARCH_QUERIES = [
-    # Бизнес и финансы (20)
+    # Бизнес и финансы (35)
     "бизнес",
     "бизнес новости",
     "бизнес идеи",
@@ -58,7 +60,22 @@ SEARCH_QUERIES = [
     "деньги",
     "заработок",
     "пассивный доход",
-    # Маркетинг и продажи (15)
+    "предпринимательство",
+    "малый бизнес",
+    "ип",
+    "самозанятый",
+    "бизнес молодость",
+    "трансформатор",
+    "радашевски",
+    "слишко",
+    "академия трейдинга",
+    "школа инвестиций",
+    "управление бизнесом",
+    "корпоративное управление",
+    "стратегия бизнеса",
+    "масштабирование бизнеса",
+    "франшиза бизнес",
+    # Маркетинг и продажи (30)
     "маркетинг",
     "digital маркетинг",
     "smm",
@@ -74,7 +91,22 @@ SEARCH_QUERIES = [
     "контент маркетинг",
     "email маркетинг",
     "лидогенерация",
-    # IT и технологии (25)
+    "воронка продаж",
+    "crm система",
+    "скрипты продаж",
+    "холодные звонки",
+    "маркетолог",
+    "брендинг",
+    "упаковка бизнеса",
+    "позиционирование",
+    "целевая аудитория",
+    "аналитика маркетинг",
+    "вебинары",
+    "запуск продукта",
+    "инфобизнес",
+    "онлайн школа",
+    "продвижение instagram",
+    # IT и технологии (40)
     "it",
     "it новости",
     "программирование",
@@ -105,7 +137,17 @@ SEARCH_QUERIES = [
     "react native",
     "frontend",
     "backend",
-    # Недвижимость (10)
+    "fullstack",
+    "нейросети",
+    "chatgpt",
+    "openai",
+    "blockchain",
+    "smart contracts",
+    "web3",
+    "кибербезопасность",
+    "пентест",
+    "разработка игр",
+    # Недвижимость (15)
     "недвижимость",
     "недвижимость москва",
     "недвижимость спб",
@@ -116,7 +158,12 @@ SEARCH_QUERIES = [
     "коммерческая недвижимость",
     "инвестиции в недвижимость",
     "ремонт",
-    # Авто и транспорт (10)
+    "дизайн интерьера",
+    "застройщик",
+    "новостройки",
+    "вторичное жилье",
+    "риелтор",
+    # Авто и транспорт (15)
     "авто",
     "автомобили",
     "авто новости",
@@ -127,7 +174,12 @@ SEARCH_QUERIES = [
     "грузовики",
     "спецтехника",
     "запчасти",
-    # Путешествия и туризм (15)
+    "автосервис",
+    "тюнинг",
+    "автокредит",
+    "страховка осаго",
+    "права пдд",
+    # Путешествия и туризм (20)
     "путешествия",
     "туризм",
     "отдых",
@@ -144,7 +196,7 @@ SEARCH_QUERIES = [
     "пляжный отдых",
     "горнолыжный отдых",
     "экзотические страны",
-    # Еда и рестораны (10)
+    # Еда и рестораны (20)
     "еда",
     "рестораны",
     "кафе",
@@ -155,7 +207,17 @@ SEARCH_QUERIES = [
     "веган",
     "вегетарианство",
     "пп рецепты",
-    # Мода и красота (10)
+    "шеф повар",
+    "гастрономия",
+    "винный клуб",
+    "кофейня",
+    "бары рестораны",
+    "фуд блог",
+    "обзор ресторанов",
+    "мишлен",
+    "кулинарная школа",
+    "выпечка торты",
+    # Мода и красота (20)
     "мода",
     "стиль",
     "одежда",
@@ -166,7 +228,17 @@ SEARCH_QUERIES = [
     "уход за кожей",
     "макияж",
     "ногти",
-    # Здоровье и спорт (15)
+    "стилист",
+    "шоппинг",
+    "бьюти блог",
+    "парикмахер",
+    "салон красоты",
+    "маникюр педикюр",
+    "люксовые бренды",
+    "mass market одежда",
+    "тренды моды",
+    "имидж стиль",
+    # Здоровье и спорт (25)
     "здоровье",
     "медицина",
     "врач",
@@ -182,7 +254,17 @@ SEARCH_QUERIES = [
     "плавание",
     "велоспорт",
     "здоровый образ жизни",
-    # Образование и наука (15)
+    "лфк массаж",
+    "реабилитация",
+    "диетология",
+    "похудение",
+    "набор массы",
+    "гормоны здоровье",
+    "витамины добавки",
+    "сон отдых",
+    "стресс депрессия",
+    "женское здоровье",
+    # Образование и наука (25)
     "образование",
     "наука",
     "онлайн обучение",
@@ -198,7 +280,17 @@ SEARCH_QUERIES = [
     "китайский",
     "испанский",
     "французский",
-    # Дом и семья (10)
+    "подготовка к экзаменам",
+    "олимпиады школьников",
+    "аспирантура",
+    "диссертация",
+    "научные статьи",
+    "конференции",
+    "гранты исследования",
+    "повышение квалификации",
+    "проф переподготовка",
+    "детское образование",
+    # Дом и семья (20)
     "дом",
     "дача",
     "сад",
@@ -209,7 +301,17 @@ SEARCH_QUERIES = [
     "семья",
     "дети",
     "воспитание детей",
-    # Развлечения и хобби (15)
+    "беременность роды",
+    "грудное вскармливание",
+    "развивашки дети",
+    "подростки психология",
+    "усыновление опека",
+    "многодетная семья",
+    "семейный бюджет",
+    "совместные покупки",
+    "handmade поделки",
+    "комнатные растения",
+    # Развлечения и хобби (25)
     "развлечения",
     "кино",
     "фильмы",
@@ -225,7 +327,17 @@ SEARCH_QUERIES = [
     "музыкальные инструменты",
     "танцы",
     "театр",
-    # Новости и СМИ (10)
+    "концерты мероприятия",
+    "клубы вечеринки",
+    "рыбалка охота",
+    "туризм походы",
+    "коллекционирование",
+    "астрология эзотерика",
+    "животные питомцы",
+    "аквариум рыбки",
+    "собаки кошки",
+    "юмор комедия",
+    # Новости и СМИ (20)
     "новости",
     "новости россии",
     "новости мира",
@@ -236,7 +348,14 @@ SEARCH_QUERIES = [
     "технологии новости",
     "спорт новости",
     "погода",
-    # Работа и карьера (10)
+    "срочные новости",
+    "главное за день",
+    "аналитика новости",
+    "расследования журналисты",
+    "факты проверка",
+    "фейки новости",
+    "мировые события",
+    # Работа и карьера (20)
     "работа",
     "вакансии",
     "карьера",
@@ -247,7 +366,17 @@ SEARCH_QUERIES = [
     "повышение",
     "бизнес этикет",
     "тайм менеджмент",
-    # Психология и саморазвитие (10)
+    "поиск работы",
+    "head hunter hh",
+    "зарплата переговоры",
+    "профориентация",
+    "стажировка практика",
+    "нетворкинг связи",
+    "деловая переписка",
+    "презентация выступления",
+    "лидерство управление",
+    "продуктивность эффективность",
+    # Психология и саморазвитие (20)
     "психология",
     "психолог",
     "самопомощь",
@@ -258,6 +387,16 @@ SEARCH_QUERIES = [
     "эмоциональный интеллект",
     "отношения",
     "семейная психология",
+    "личностный рост",
+    "уверенность себе",
+    "прокрастинация лень",
+    "целеполагание планы",
+    "дисциплина привычки",
+    "психосоматика здоровье",
+    "тревога паника",
+    "самооценка любовь",
+    "манипуляции токсичные",
+    "коучинг тренинги",
 ]
 
 
@@ -266,6 +405,7 @@ async def _parse_and_save_chats(
     chat_repo: ChatAnalyticsRepository,
     query: str,
     limit: int = 50,
+    require_russian: bool = True,  # Новый параметр
 ) -> int:
     """
     Распарсить и сохранить чаты по запросу.
@@ -275,6 +415,7 @@ async def _parse_and_save_chats(
         chat_repo: ChatAnalyticsRepository экземпляр.
         query: Поисковый запрос.
         limit: Максимальное количество результатов.
+        require_russian: Требовать русскоязычность канала.
 
     Returns:
         Количество сохраненных чатов.
@@ -290,8 +431,24 @@ async def _parse_and_save_chats(
         # Сохраняем каждый чат отдельно
         saved_count = 0
         blocked_count = 0
+        non_russian_count = 0
 
         for chat_info in chat_infos:
+            # Проверяем русскоязычность (если требуется)
+            if require_russian:
+                description = chat_info.description or ""
+                title = chat_info.title or ""
+                
+                # Проверяем описание или название на русский язык
+                if description and not is_russian_text(description):
+                    non_russian_count += 1
+                    logger.debug(f"Skipping non-Russian channel: {title}")
+                    continue
+                elif not description and not is_russian_text(title):
+                    non_russian_count += 1
+                    logger.debug(f"Skipping non-Russian channel (title only): {title}")
+                    continue
+
             # Проверяем контент канала (название + описание)
             from src.utils.content_filter.filter import check as content_filter_check
 
@@ -309,6 +466,14 @@ async def _parse_and_save_chats(
             # Классифицируем тематику
             topic = classify_topic(chat_info.title, chat_info.description or "")
 
+            # Автоклассификация подкатегории
+            from src.utils.categories import classify_subcategory
+            subcategory = classify_subcategory(
+                title=chat_info.title or "",
+                description=chat_info.description or "",
+                topic=topic,
+            )
+
             try:
                 # Получаем или создаём чат
                 username = chat_info.username or f"_{chat_info.telegram_id}"
@@ -320,12 +485,21 @@ async def _parse_and_save_chats(
                 chat.description = chat_info.description
                 chat.member_count = chat_info.member_count or 0
                 chat.topic = topic
+                chat.subcategory = subcategory
                 chat.is_verified = chat_info.is_verified or False
                 chat.is_scam = chat_info.is_scam or False
                 chat.is_fake = chat_info.is_fake or False
                 chat.rating = 7.0 if chat.is_verified else 5.0
                 chat.last_subscribers = chat_info.member_count or 0
                 chat.last_parsed_at = date.today()
+                
+                # Сохраняем информацию о языке
+                if chat_info.meta_json:
+                    chat.language = chat_info.meta_json.get("language", "ru")
+                    chat.russian_score = chat_info.meta_json.get("russian_score", 1.0)
+                else:
+                    chat.language = "ru"
+                    chat.russian_score = 1.0
 
                 await chat_repo._session.flush()
                 saved_count += 1
@@ -335,10 +509,14 @@ async def _parse_and_save_chats(
                 continue
 
         await chat_repo._session.commit()
-        logger.info(
-            f"Saved {saved_count} chats for query '{query}' "
-            f"(blocked {blocked_count} by content filter)"
-        )
+        
+        log_msg = f"Saved {saved_count} chats for query '{query}'"
+        if blocked_count > 0:
+            log_msg += f" (blocked {blocked_count} by content filter)"
+        if non_russian_count > 0:
+            log_msg += f" (skipped {non_russian_count} non-Russian)"
+        
+        logger.info(log_msg)
 
         return saved_count
 
@@ -613,6 +791,14 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
 
             topic = classify_topic(chat_details.title, chat_details.description or "")
 
+            # Автоклассификация подкатегории
+            from src.utils.categories import classify_subcategory
+            subcategory = classify_subcategory(
+                title=chat_details.title or "",
+                description=chat_details.description or "",
+                topic=topic,
+            )
+
             try:
                 # Получаем или создаём чат
                 username_clean = chat_details.username or f"_{chat_details.telegram_id}"
@@ -624,6 +810,7 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
                 chat.description = chat_details.description
                 chat.member_count = chat_details.member_count or 0
                 chat.topic = topic
+                chat.subcategory = subcategory
                 chat.is_verified = chat_details.is_verified or False
                 chat.is_scam = chat_details.is_scam or False
                 chat.is_fake = chat_details.is_fake or False
@@ -824,6 +1011,20 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             continue
 
         # Обновить мета-данные чата
+
+        from src.db.models.analytics import TelegramChat
+        from src.utils.categories import classify_subcategory
+
+        # Получаем текущий topic из БД
+        chat = await session.get(TelegramChat, chat_id)
+        topic = chat.topic if chat else None
+
+        subcategory = classify_subcategory(
+            title=metrics.title or "",
+            description=metrics.description or "",
+            topic=topic,
+        )
+
         await repo.update_chat_meta(
             chat_id,
             telegram_id=metrics.telegram_id,
@@ -836,6 +1037,7 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             last_avg_views=metrics.avg_views,
             last_er=metrics.er,
             last_post_frequency=metrics.post_frequency,
+            subcategory=subcategory,
         )
 
         # Сохранить снимок за сегодня
@@ -879,6 +1081,16 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         break  # Выходим после первого yield
 
     chat, is_new = await repo.get_or_create_chat(username)
+
+    # Автоклассификация подкатегории
+    from src.utils.categories import classify_subcategory
+
+    subcategory = classify_subcategory(
+        title=metrics.title or "",
+        description=metrics.description or "",
+        topic=chat.topic if chat else None,
+    )
+
     await repo.update_chat_meta(
         chat.id,
         telegram_id=metrics.telegram_id,
@@ -891,6 +1103,7 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         last_avg_views=metrics.avg_views,
         last_er=metrics.er,
         last_post_frequency=metrics.post_frequency,
+        subcategory=subcategory,
     )
     await repo.upsert_snapshot(
         chat_id=chat.id,

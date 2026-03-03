@@ -34,6 +34,12 @@ from telethon.tl.types import (
 from telethon.tl.types.messages import ChannelMessages
 
 from src.config.settings import settings
+from src.utils.telegram.russian_lang_detector import (
+    is_russian_text,
+    get_russian_score,
+    is_english_blacklisted,
+    detect_language_from_posts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -341,16 +347,36 @@ class TelegramParser:
                     if channel_id not in seen_ids:
                         seen_ids.add(channel_id)
 
-            # Получаем информацию о каждом канале
+            # Получаем информацию о каждом канале с фильтрацией по языку
+            russian_channels = []
             for channel_id in list(seen_ids)[:limit]:
                 try:
                     entity = await self.client.get_entity(channel_id)
                     chat_info = await self._process_entity(entity)
-                    if chat_info:
-                        results.append(chat_info)
+                    
+                    if chat_info and chat_info.description:
+                        # Проверяем язык описания
+                        if is_russian_text(chat_info.description):
+                            russian_score = get_russian_score(chat_info.description)
+                            chat_info.meta_json = chat_info.meta_json or {}
+                            chat_info.meta_json["russian_score"] = russian_score
+                            russian_channels.append(chat_info)
+                        else:
+                            logger.debug(f"Skipping non-Russian channel: {chat_info.title}")
+                    elif chat_info:
+                        # Если описания нет, добавляем с низким приоритетом
+                        russian_channels.append(chat_info)
+                        
                 except Exception as e:
                     logger.debug(f"Error getting channel {channel_id}: {e}")
                     continue
+            
+            # Сортируем по оценке русского языка (выше = лучше)
+            russian_channels.sort(
+                key=lambda x: x.meta_json.get("russian_score", 0) if x.meta_json else 0,
+                reverse=True
+            )
+            results = russian_channels
 
         except FloodWaitError as e:
             logger.warning(f"FloodWait: {e.seconds} seconds")
@@ -457,12 +483,17 @@ class TelegramParser:
 
         try:
             full_channel = await self.client(GetFullChannelRequest(entity))
+            
+            description = getattr(full_channel.full_chat, "about", None)
+
+            # Анализируем язык канала
+            language, russian_score = await self._analyze_channel_language(entity, description)
 
             return ChatInfo(
                 telegram_id=entity.id,
                 title=entity.title,
                 username=entity.username,
-                description=getattr(full_channel.full_chat, "about", None),
+                description=description,
                 member_count=getattr(full_channel.full_chat, "participants_count", 0),
                 is_verified=entity.verified,
                 is_scam=entity.scam,
@@ -472,6 +503,10 @@ class TelegramParser:
                 can_view_participants=True,
                 can_send_messages=getattr(full_channel.full_chat, "participants_admin_rights", None)
                 is None,
+                meta_json={
+                    "language": language,
+                    "russian_score": russian_score,
+                },
             )
 
         except Exception as e:
@@ -700,6 +735,58 @@ class TelegramParser:
             "min_views": min(views_list),
             "count": len(views_list),
         }
+
+    async def _analyze_channel_language(
+        self,
+        entity: Channel | Chat,
+        description: str | None = None,
+    ) -> tuple[str, float]:
+        """
+        Проанализировать язык канала по описанию и последним постам.
+
+        Args:
+            entity: Channel или Chat entity.
+            description: Описание канала.
+
+        Returns:
+            Кортеж (language_code, russian_score):
+            - language_code: "ru", "en", "mixed", "unknown"
+            - russian_score: оценка от 0.0 до 1.0
+        """
+        # Сначала проверяем описание
+        if description:
+            # Быстрая проверка по чёрному списку
+            if is_english_blacklisted(description):
+                logger.debug(f"Channel {entity.title} blacklisted by description")
+                return "en", 0.0
+            
+            # Проверяем язык описания
+            if is_russian_text(description):
+                score = get_russian_score(description)
+                if score > 0.7:
+                    return "ru", score
+        
+        # Если описание не определило язык или смешанное — анализируем посты
+        post_texts = []
+        try:
+            async for message in self.client.iter_messages(entity, limit=15):
+                if message.text and len(message.text.strip()) > 20:
+                    post_texts.append(message.text)
+        except Exception as e:
+            logger.debug(f"Could not get posts for language analysis: {e}")
+        
+        if len(post_texts) >= 5:
+            language, score = detect_language_from_posts(post_texts)
+            logger.debug(f"Channel {entity.title} language: {language} (score: {score})")
+            return language, score
+        
+        # Если постов мало — возвращаем по описанию или unknown
+        if description and is_russian_text(description):
+            return "ru", get_russian_score(description)
+        elif description:
+            return "en", 1.0 - get_russian_score(description)
+        
+        return "unknown", 0.5
 
     async def _collect_post_frequency(self, entity: Channel | Chat) -> tuple[float, int]:
         """

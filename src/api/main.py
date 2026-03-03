@@ -8,7 +8,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routers import analytics, auth, billing, campaigns
+from src.api.routers.analytics import router as analytics_router
+from src.api.routers.auth import router as auth_router
+from src.api.routers.billing import router as billing_router
+from src.api.routers.campaigns import router as campaigns_router
+from src.api.routers.channels import router as channels_router
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -45,10 +49,11 @@ app.add_middleware(
 )
 
 # Роутеры
-app.include_router(auth, prefix="/api/auth", tags=["Auth"])
-app.include_router(campaigns, prefix="/api/campaigns", tags=["Campaigns"])
-app.include_router(analytics, prefix="/api/analytics", tags=["Analytics"])
-app.include_router(billing, prefix="/api/billing", tags=["Billing"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+app.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"])
+app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(billing_router, prefix="/api/billing", tags=["Billing"])
+app.include_router(channels_router, prefix="/api", tags=["Channels"])
 
 
 @app.get("/health")
