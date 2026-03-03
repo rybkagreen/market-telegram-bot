@@ -8,6 +8,16 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
+from src.api.constants.limits import (
+    BUSINESS_CAMPAIGN_LIMIT,
+    BUSINESS_SUBSCRIBER_LIMIT,
+    FREE_CAMPAIGN_LIMIT,
+    PRO_CAMPAIGN_LIMIT,
+    PRO_SUBSCRIBER_LIMIT,
+    STARTER_CAMPAIGN_LIMIT,
+    STARTER_SUBSCRIBER_LIMIT,
+)
+from src.api.constants.tariffs import TARIFF_CREDIT_COST
 from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
@@ -15,13 +25,6 @@ from src.db.session import async_session_factory
 from src.tasks.celery_app import app
 
 logger = logging.getLogger(__name__)
-
-# Стоимость тарифов в кредитах
-PLAN_COSTS = {
-    UserPlan.STARTER: 299,
-    UserPlan.PRO: 999,
-    UserPlan.BUSINESS: 2999,
-}
 
 
 @app.task(name="tasks.billing_tasks:check_plan_renewals")
@@ -59,7 +62,9 @@ async def _check_plan_renewals() -> dict:
         users = result.scalars().all()
 
         for user in users:
-            plan_cost = PLAN_COSTS.get(user.plan, 0)
+            # Конвертируем plan.value в строку для TARIFF_CREDIT_COST
+            plan_key = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+            plan_cost = TARIFF_CREDIT_COST.get(plan_key, 0)
 
             if user.credits >= plan_cost:
                 # Списываем кредиты и продляем

@@ -56,6 +56,11 @@ class TelegramChat(Base):
         Enum(ChatType), default=ChatType.channel, nullable=False
     )
     topic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    subcategory: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    language: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
+    # Язык контента канала (ru, en, mixed, etc.)
+    russian_score: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    # Оценка русскоязычности (0.0-1.0), 1.0 = полностью русский
 
     # Флаги доступности
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
