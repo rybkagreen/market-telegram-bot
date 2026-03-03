@@ -19,6 +19,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.bot.keyboards.cabinet import CabinetCB, get_notifications_prompt_kb
 from src.bot.keyboards.campaign import (
     CampaignCB,
     get_campaign_confirm_kb,
@@ -29,9 +30,6 @@ from src.bot.keyboards.campaign import (
     get_text_type_kb,
     get_topics_kb,
 )
-from src.bot.keyboards.cabinet import CabinetCB, get_notifications_prompt_kb
-from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.campaign import CampaignStates
 from src.core.services.ai_service import ai_service
@@ -797,7 +795,6 @@ async def _do_launch_campaign(
     Приватная функция для фактического запуска кампании.
     Вызывается из confirm_launch или после включения уведомлений.
     """
-    from src.tasks.mailing_tasks import send_campaign
 
     # Создаём кампанию
     campaign = await campaign_repo.create(
