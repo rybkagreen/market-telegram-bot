@@ -121,13 +121,13 @@ class CampaignService:
             return validation
 
         # Рассчитываем стоимость (заглушка — в production реальная логика)
-        cost = Decimal("100")  # 100₽ за кампанию
+        cost = 100  # 100 кредитов за кампанию
 
-        # Проверяем баланс
-        if not data.is_free and user.balance < cost:
+        # Проверяем баланс в кредитах
+        if not data.is_free and user.credits < cost:
             return CampaignValidationResult(
                 success=False,
-                error=f"Недостаточно средств. Требуется: {cost}₽, баланс: {user.balance}₽",
+                error=f"Недостаточно кредитов. Требуется: {cost} кр, баланс: {user.credits} кр",
             )
 
         # Создаём кампанию
@@ -140,12 +140,12 @@ class CampaignService:
             image_file_id=data.image_file_id,
             status=CampaignStatus.QUEUED if data.scheduled_at else CampaignStatus.RUNNING,
             scheduled_at=data.scheduled_at,
-            cost=cost,
+            cost=Decimal(cost),  # 1 кредит = 1 рублю
         )
 
-        # Списываем баланс (если не бесплатно)
+        # Списываем кредиты (если не бесплатно)
         if not data.is_free:
-            await self._user_repo.update_balance(user.id, -cost)
+            await self._user_repo.update_credits(user.id, -cost)
 
         # Запускаем рассылку (если не запланирована)
         if not data.scheduled_at:

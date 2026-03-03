@@ -296,12 +296,12 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
                 await status_message.edit_text("❌ Пользователь не найден")
                 return
 
-            # Проверяем баланс
-            cost = 10.0
-            if user.balance < cost:
+            # Проверяем баланс в кредитах
+            cost = 10  # 10 кредитов
+            if user.credits < cost:
                 await status_message.edit_text(
-                    f"❌ Недостаточно средств на балансе.\n"
-                    f"Требуется: {cost}₽, у вас: {user.balance}₽\n\n"
+                    f"❌ Недостаточно кредитов.\n"
+                    f"Требуется: {cost} кр, у вас: {user.credits} кр\n\n"
                     "Пополните баланс и попробуйте снова."
                 )
                 await state.set_state(CampaignStates.waiting_text)

@@ -61,7 +61,7 @@ async def _check_low_balance_async() -> dict[str, Any]:
         for user in users:
             try:
                 # Отправляем уведомление
-                await _notify_low_balance(user.telegram_id, user.balance)
+                await _notify_low_balance(user.telegram_id, user.credits)
                 stats["notified"] += 1
 
             except Exception as e:
@@ -71,13 +71,13 @@ async def _check_low_balance_async() -> dict[str, Any]:
         return stats
 
 
-async def _notify_low_balance(telegram_id: int, balance: Decimal) -> None:
+async def _notify_low_balance(telegram_id: int, credits: int) -> None:
     """
     Отправить уведомление о низком балансе.
 
     Args:
         telegram_id: Telegram ID пользователя.
-        balance: Текущий баланс.
+        credits: Текущий баланс в кредитах.
     """
     # Импортируем aiogram Bot
     from aiogram import Bot
@@ -88,7 +88,7 @@ async def _notify_low_balance(telegram_id: int, balance: Decimal) -> None:
 
     message = (
         f"⚠️ <b>Низкий баланс</b>\n\n"
-        f"Ваш баланс: {balance} RUB\n"
+        f"Ваш баланс: {credits} кр\n"
         f"Пополните баланс для продолжения использования бота.\n\n"
         f"Используйте команду /billing для пополнения."
     )

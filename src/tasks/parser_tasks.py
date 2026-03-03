@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from src.api.constants.parser import POPULAR_TOPICS, SEARCH_QUERIES, SEARCH_QUERIES_BY_CATEGORY
 from src.db.models.analytics import ChatType
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
-from src.utils.telegram.parser import POPULAR_TOPICS, TelegramParser
+from src.utils.telegram.parser import TelegramParser
+from src.utils.telegram.russian_lang_detector import is_russian_text
 from src.utils.telegram.topic_classifier import classify_topic
 
 logger = logging.getLogger(__name__)
@@ -403,6 +405,7 @@ async def _parse_and_save_chats(
     chat_repo: ChatAnalyticsRepository,
     query: str,
     limit: int = 50,
+    require_russian: bool = True,  # Новый параметр
 ) -> int:
     """
     Распарсить и сохранить чаты по запросу.
@@ -412,6 +415,7 @@ async def _parse_and_save_chats(
         chat_repo: ChatAnalyticsRepository экземпляр.
         query: Поисковый запрос.
         limit: Максимальное количество результатов.
+        require_russian: Требовать русскоязычность канала.
 
     Returns:
         Количество сохраненных чатов.
@@ -427,8 +431,24 @@ async def _parse_and_save_chats(
         # Сохраняем каждый чат отдельно
         saved_count = 0
         blocked_count = 0
+        non_russian_count = 0
 
         for chat_info in chat_infos:
+            # Проверяем русскоязычность (если требуется)
+            if require_russian:
+                description = chat_info.description or ""
+                title = chat_info.title or ""
+                
+                # Проверяем описание или название на русский язык
+                if description and not is_russian_text(description):
+                    non_russian_count += 1
+                    logger.debug(f"Skipping non-Russian channel: {title}")
+                    continue
+                elif not description and not is_russian_text(title):
+                    non_russian_count += 1
+                    logger.debug(f"Skipping non-Russian channel (title only): {title}")
+                    continue
+
             # Проверяем контент канала (название + описание)
             from src.utils.content_filter.filter import check as content_filter_check
 
@@ -472,6 +492,14 @@ async def _parse_and_save_chats(
                 chat.rating = 7.0 if chat.is_verified else 5.0
                 chat.last_subscribers = chat_info.member_count or 0
                 chat.last_parsed_at = date.today()
+                
+                # Сохраняем информацию о языке
+                if chat_info.meta_json:
+                    chat.language = chat_info.meta_json.get("language", "ru")
+                    chat.russian_score = chat_info.meta_json.get("russian_score", 1.0)
+                else:
+                    chat.language = "ru"
+                    chat.russian_score = 1.0
 
                 await chat_repo._session.flush()
                 saved_count += 1
@@ -481,10 +509,14 @@ async def _parse_and_save_chats(
                 continue
 
         await chat_repo._session.commit()
-        logger.info(
-            f"Saved {saved_count} chats for query '{query}' "
-            f"(blocked {blocked_count} by content filter)"
-        )
+        
+        log_msg = f"Saved {saved_count} chats for query '{query}'"
+        if blocked_count > 0:
+            log_msg += f" (blocked {blocked_count} by content filter)"
+        if non_russian_count > 0:
+            log_msg += f" (skipped {non_russian_count} non-Russian)"
+        
+        logger.info(log_msg)
 
         return saved_count
 
