@@ -1,5 +1,6 @@
 """
 Billing Service для управления платежами и балансом.
+Работает с кредитами (1 кредит = 1 рублю).
 """
 
 import logging
@@ -23,7 +24,7 @@ class BillingService:
     Методы:
         create_payment: Создать платёж
         check_payment: Проверить статус платежа
-        deduct_balance: Списать средства
+        deduct_credits: Списать кредиты
         apply_referral_bonus: Начислить реферальный бонус
     """
 
@@ -42,7 +43,7 @@ class BillingService:
 
         Args:
             user_id: ID пользователя.
-            amount: Сумма платежа.
+            amount: Сумма платежа в рублях (конвертируется в кредиты 1:1).
             payment_method: Метод оплаты.
 
         Returns:
@@ -58,6 +59,9 @@ class BillingService:
             # Генерируем payment_id
             payment_id = str(uuid.uuid4())
 
+            # Конвертируем рубли в кредиты (1:1)
+            credits_amount = int(amount)
+
             # Создаём транзакцию со статусом pending
             transaction_repo = TransactionRepository(session)
             await transaction_repo.create_transaction(
@@ -65,19 +69,24 @@ class BillingService:
                 amount=amount,
                 transaction_type=TransactionType.TOPUP,
                 payment_id=payment_id,
-                meta_json={"status": "pending", "method": payment_method},
+                meta_json={
+                    "status": "pending",
+                    "method": payment_method,
+                    "credits": credits_amount,
+                },
             )
 
             # В production здесь создаём платёж в YooKassa
             # Для now возвращаем заглушку
             payment_url = f"https://yookassa.ru/payment/{payment_id}"
 
-            logger.info(f"Payment {payment_id} created for user {user_id}, amount: {amount}")
+            logger.info(f"Payment {payment_id} created for user {user_id}, amount: {amount} RUB = {credits_amount} credits")
 
             return {
                 "payment_id": payment_id,
                 "payment_url": payment_url,
                 "amount": str(amount),
+                "credits": credits_amount,
                 "status": "pending",
             }
 
@@ -113,23 +122,25 @@ class BillingService:
             status = meta.get("status", "pending")
 
             # В production здесь проверяем статус в YooKassa
-            # Если paid, то зачисляем на баланс
+            # Если paid, то зачисляем кредиты на баланс
             credited = meta.get("credited") if meta else None
             if status == "succeeded" and credited is not True:
-                # Зачисляем на баланс
+                # Зачисляем кредиты на баланс (1 рубль = 1 кредит)
                 user_repo = UserRepository(session)
-                await user_repo.update_balance(user_id, transaction.amount)
+                credits_amount = int(transaction.amount)
+                await user_repo.update_credits(user_id, credits_amount)
 
                 # Обновляем транзакцию
                 meta["credited"] = True
+                meta["credits_credited"] = credits_amount
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
-                logger.info(f"Payment {payment_id} credited to user {user_id}")
+                logger.info(f"Payment {payment_id} credited: {credits_amount} credits to user {user_id}")
 
                 # Уведомляем пользователя
                 await notification_service.notify_low_balance(
                     user_id=user_id,
-                    balance=transaction.amount,
+                    balance=credits_amount,
                 )
 
             return {
@@ -139,18 +150,18 @@ class BillingService:
                 "credited": meta.get("credited", False),
             }
 
-    async def deduct_balance(
+    async def deduct_credits(
         self,
         user_id: int,
-        amount: Decimal,
+        credits: int,
         description: str = "",
     ) -> bool:
         """
-        Списать средства с баланса.
+        Списать кредиты с баланса.
 
         Args:
             user_id: ID пользователя.
-            amount: Сумма для списания.
+            credits: Количество кредитов для списания.
             description: Описание списания.
 
         Returns:
@@ -164,23 +175,23 @@ class BillingService:
             if not user:
                 return False
 
-            if user.balance < amount:
-                logger.warning(f"User {user_id} has insufficient balance: {user.balance}")
+            if user.credits < credits:
+                logger.warning(f"User {user_id} has insufficient credits: {user.credits} < {credits}")
                 return False
 
-            # Списываем баланс (атомарно)
-            await user_repo.update_balance(user_id, Decimal(-amount))
+            # Списываем кредиты
+            await user_repo.update_credits(user_id, -credits)
 
-            # Создаём транзакцию
+            # Создаём транзакцию (для истории, в рублях)
             transaction_repo = TransactionRepository(session)
             await transaction_repo.create_transaction(
                 user_id=user_id,
-                amount=amount,
+                amount=Decimal(credits),  # 1 кредит = 1 рублю
                 transaction_type=TransactionType.SPEND,
-                meta_json={"description": description},
+                meta_json={"description": description, "credits_spent": credits},
             )
 
-            logger.info(f"Spend {amount} RUB from user {user_id}: {description}")
+            logger.info(f"Spend {credits} credits from user {user_id}: {description}")
 
             return True
 
@@ -196,7 +207,7 @@ class BillingService:
         Args:
             referrer_id: ID пригласившего.
             referred_user_id: ID приглашённого.
-            bonus_amount: Сумма бонуса.
+            bonus_amount: Сумма бонуса в рублях (конвертируется в кредиты 1:1).
 
         Returns:
             True если бонус начислен.
@@ -209,23 +220,25 @@ class BillingService:
             if not referrer:
                 return False
 
-            # Начисляем бонус
-            await user_repo.update_balance(referrer_id, bonus_amount)
+            # Начисляем бонус в кредитах (1 рубль = 1 кредит)
+            bonus_credits = int(bonus_amount)
+            await user_repo.update_credits(referrer_id, bonus_credits)
 
             # Создаём транзакцию
             transaction_repo = TransactionRepository(session)
             await transaction_repo.create_transaction(
                 user_id=referrer_id,
                 amount=bonus_amount,
-                transaction_type=TransactionType.TOPUP,
+                transaction_type=TransactionType.BONUS,
                 payment_id=None,
                 meta_json={
                     "type": "referral_bonus",
                     "referred_user_id": referred_user_id,
+                    "bonus_credits": bonus_credits,
                 },
             )
 
-            logger.info(f"Referral bonus {bonus_amount} RUB to user {referrer_id}")
+            logger.info(f"Referral bonus {bonus_credits} credits to user {referrer_id}")
 
             # Уведомляем
             await notification_service.notify_referral_bonus(

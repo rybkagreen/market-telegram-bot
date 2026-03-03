@@ -365,7 +365,7 @@ class UserRepository(BaseRepository[User]):
         row = result.fetchone()
         if row is None:
             raise ValueError(f"Недостаточно кредитов (user_id={user_id}, delta={delta})")
-        await self.session.commit()
+        await self.session.flush()  # Только flush, коммит на уровне хендлера
         return row[0]
 
     async def increment_ai_usage(self, user_id: int) -> None:
