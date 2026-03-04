@@ -1,11 +1,6 @@
 #!/bin/bash
-# Market Bot — Деплой с локального кода на сервер (без Git)
-# Использование: ./scripts/deploy-from-local.sh
-# 
-# Этот скрипт копирует код с локальной машины на сервер
-# и пересобирает Docker контейнеры.
-# Идеально подходит для деплоя без коммитов в Git.
-
+# Market Bot — Скрипт обновления с пересборкой Docker-контейнеров
+# Использование: ./scripts/rebuild-and-deploy.sh
 set -e
 set -o pipefail
 
@@ -14,29 +9,11 @@ set -o pipefail
 # ══════════════════════════════════════════════════════════════
 SERVER_SSH="zerodolg-server"
 SERVER_PATH="/opt/market-telegram-bot"
-DEPLOY_LOG="/tmp/deploy-local-$(date +%Y%m%d_%H%M%S).log"
+LOCAL_BRANCH="main"
+DEPLOY_LOG="/tmp/rebuild-$(date +%Y%m%d_%H%M%S).log"
 
 # Сервисы для пересборки (БЕЗ БД и кэша!)
 SERVICES_TO_REBUILD=("bot" "api" "worker" "celery_beat" "nginx" "flower")
-
-# Файлы/папки для исключения из синхронизации
-EXCLUDE_FILES=(
-    ".git"
-    ".gitignore"
-    "__pycache__"
-    "*.pyc"
-    ".env"
-    ".venv"
-    "venv"
-    "*.log"
-    ".pytest_cache"
-    ".mypy_cache"
-    "node_modules"
-    ".venv"
-    "*.pyo"
-    ".coverage"
-    "htmlcov"
-)
 
 # ══════════════════════════════════════════════════════════════
 # ЦВЕТА
@@ -61,19 +38,18 @@ check_ssh_connection() {
     print_info "Проверка SSH-соединения..."
     if ! ssh -o ConnectTimeout=10 -o BatchMode=yes "$SERVER_SSH" "exit" 2>/dev/null; then
         print_error "Не удалось подключиться к серверу!"
-        print_warning "Проверьте SSH ключи: ssh-keygen -R zerodolg-server"
         exit 1
     fi
     print_status "SSH-соединение OK"
 }
 
-# Бэкап перед деплоем
+# Бэкап перед обновлением
 create_backup() {
-    print_info "Создание бэкапа на сервере..."
+    print_info "Создание бэкапа..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     [ -f .env ] && cp .env .env.backup.\$(date +%Y%m%d_%H%M%S) &&
-    [ -f docker-compose.yml ] && cp docker-compose.yml docker-compose.yml.backup.\$(date +%Y%m%d_%H%M%S) &&
+    docker compose ps -q > /tmp/container_ids_backup.txt &&
     echo 'Бэкап создан'
     " || print_warning "Не удалось создать бэкап"
 }
@@ -83,6 +59,7 @@ rollback() {
     print_warning "Выполняется откат..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
+    git reset --hard HEAD~1 2>/dev/null || echo 'Нет коммитов для отката' &&
     docker compose up -d 2>/dev/null || echo 'Откат Docker не выполнен'
     "
     print_status "Откат завершён"
@@ -124,93 +101,45 @@ health_check_api() {
     return 1
 }
 
-# Синхронизация файлов с сервером (rsync)
-sync_files_to_server() {
-    print_info "Синхронизация файлов с сервером..."
+# Проверка prerequisites
+check_prerequisites() {
+    print_info "Проверка prerequisites..."
     
-    # Формируем список исключений
-    local excludes=""
-    for exclude in "${EXCLUDE_FILES[@]}"; do
-        excludes="$excludes --exclude='$exclude'"
-    done
-    
-    # Синхронизация через rsync
-    rsync -avz --delete \
-        $excludes \
-        -e "ssh -o ConnectTimeout=10" \
-        ./ \
-        "$SERVER_SSH:$SERVER_PATH/" \
-        | tee -a "$DEPLOY_LOG"
-    
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        print_status "Файлы синхронизированы"
-    else
-        print_error "Синхронизация не удалась!"
+    if ! command -v git &> /dev/null; then
+        print_error "Git не установлен!"
         exit 1
     fi
-}
-
-# Альтернатива через scp (если нет rsync)
-sync_files_via_scp() {
-    print_info "Синхронизация файлов через scp..."
     
-    # Создаём временный архив
-    local temp_archive="/tmp/deploy-$(date +%Y%m%d_%H%M%S).tar.gz"
-    
-    # Формируем команду tar с исключениями
-    local tar_excludes=""
-    for exclude in "${EXCLUDE_FILES[@]}"; do
-        tar_excludes="$tar_excludes --exclude='$exclude'"
-    done
-    
-    # Архивируем без исключений
-    tar $tar_excludes -czf "$temp_archive" .
-    
-    # Копируем на сервер
-    print_info "Копирование архива на сервер..."
-    scp "$temp_archive" "$SERVER_SSH:/tmp/"
-    
-    # Распаковываем на сервере
-    ssh "$SERVER_SSH" "
-    cd $SERVER_PATH &&
-    tar -xzf /tmp/deploy-*.tar.gz &&
-    rm /tmp/deploy-*.tar.gz
-    "
-    
-    # Удаляем локальный архив
-    rm -f "$temp_archive"
-    
-    print_status "Файлы синхронизированы"
-}
-
-# Проверка зависимостей
-check_dependencies() {
-    print_info "Проверка зависимостей..."
-    
-    local missing=()
-    
-    # Проверка rsync
-    if ! command -v rsync &> /dev/null; then
-        missing+=("rsync")
-    fi
-    
-    # Проверка ssh
     if ! command -v ssh &> /dev/null; then
-        missing+=("ssh")
-    fi
-    
-    if [ ${#missing[@]} -gt 0 ]; then
-        print_error "Отсутствуют зависимости: ${missing[*]}"
-        print_warning "Установите: sudo apt install ${missing[*]}"
+        print_error "SSH не установлен!"
         exit 1
     fi
     
-    print_status "Все зависимости установлены"
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" != "$LOCAL_BRANCH" ]; then
+        print_warning "Текущая ветка: $CURRENT_BRANCH (ожидалась $LOCAL_BRANCH)"
+        read -p "Продолжить? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    if [ -n "$(git status --porcelain)" ]; then
+        print_warning "Есть незакоммиченные изменения!"
+        read -p "Продолжить? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    print_status "Prerequisites OK"
 }
 
-# Основная функция деплоя
-deploy_from_local() {
-    print_info "Деплой с локальной машины на сервер ${SERVER_SSH}:${SERVER_PATH}..."
+# Основная функция обновления с пересборкой
+rebuild_and_deploy() {
+    print_info "Обновление с пересборкой на сервере ${SERVER_SSH}:${SERVER_PATH}..."
     echo "" | tee -a "$DEPLOY_LOG"
     
     # 0. Проверка SSH
@@ -221,27 +150,30 @@ deploy_from_local() {
     create_backup
     echo ""
     
-    # 2. Синхронизация файлов
-    if command -v rsync &> /dev/null; then
-        sync_files_to_server
-    else
-        print_warning "rsync не найден, используем scp..."
-        sync_files_via_scp
+    # 2. Git pull (получаем свежие изменения)
+    print_status "1. Получение изменений из репозитория..."
+    if ! ssh "$SERVER_SSH" "
+    cd $SERVER_PATH &&
+    git fetch origin $LOCAL_BRANCH &&
+    git checkout $LOCAL_BRANCH &&
+    git reset --hard origin/$LOCAL_BRANCH
+    "; then
+        print_error "Git pull failed!"
+        rollback
+        exit 1
     fi
-    echo ""
     
     # 3. Проверка .env
-    print_status "1. Проверка .env..."
+    print_status "2. Проверка .env..."
     if ! ssh "$SERVER_SSH" "[ -f $SERVER_PATH/.env ]"; then
-        print_error ".env файл не найден на сервере!"
-        print_warning "Создайте .env на сервере или скопируйте вручную"
+        print_error ".env файл не найден!"
         rollback
         exit 1
     fi
     
     # 4. Пересборка Docker образов БЕЗ КЭША
-    print_status "2. Пересборка Docker образов (без кэша)..."
-    print_warning "Это может занять 5-15 минут..."
+    print_status "3. Пересборка Docker образов (без кэша)..."
+    print_warning "Это может занять несколько минут..."
     if ! ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose build --no-cache --pull ${SERVICES_TO_REBUILD[*]}
@@ -252,25 +184,21 @@ deploy_from_local() {
     fi
     
     # 5. Применение миграций
-    print_status "3. Применение миграций..."
-    if ! ssh "$SERVER_SSH" "
+    print_status "4. Применение миграций..."
+    ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose run --rm bot poetry run alembic upgrade head
-    "; then
-        print_error "Миграции failed!"
-        rollback
-        exit 1
-    fi
+    " || print_warning "Миграции не выполнены"
     
     # 6. Остановка старых контейнеров
-    print_status "4. Остановка старых контейнеров..."
+    print_status "5. Остановка старых контейнеров..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose stop ${SERVICES_TO_REBUILD[*]}
     "
     
     # 7. Запуск обновлённых сервисов
-    print_status "5. Запуск обновлённых сервисов..."
+    print_status "6. Запуск обновлённых сервисов..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose up -d --no-deps ${SERVICES_TO_REBUILD[*]}
@@ -289,21 +217,21 @@ deploy_from_local() {
     health_check_api
     
     # 10. Проверка всех контейнеров
-    print_status "6. Статус всех контейнеров..."
+    print_status "7. Статус всех контейнеров..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker compose ps
     "
     
     # 11. Очистка старых образов
-    print_status "7. Очистка старых образов..."
+    print_status "8. Очистка старых образов..."
     ssh "$SERVER_SSH" "
     cd $SERVER_PATH &&
     docker image prune -f --filter 'until=24h'
     "
     
     echo ""
-    print_status "Деплой с локальной машины завершён успешно!"
+    print_status "Обновление с пересборкой завершено успешно!"
 }
 
 # Показать логи
@@ -324,28 +252,21 @@ show_logs() {
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║     Market Bot — Деплой с локальной машина                ║"
+echo "║     Market Bot — Обновление с пересборкой Docker          ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 
 # Инициализация логирования
 exec > >(tee -a "$DEPLOY_LOG") 2>&1
 
-check_dependencies
-
+check_prerequisites
 check_ssh_connection
 
-# Проверка текущей директории
-if [ ! -f "docker-compose.yml" ]; then
-    print_error "docker-compose.yml не найден в текущей директории!"
-    print_warning "Запускайте скрипт из корня проекта"
-    exit 1
-fi
-
 echo ""
-print_warning "Внимание! Будет выполнен деплой с локального кода:"
+print_warning "Внимание! Будет выполнено обновление с пересборкой:"
 echo "  Сервер: $SERVER_SSH"
 echo "  Путь: $SERVER_PATH"
+echo "  Ветка: $LOCAL_BRANCH"
 echo "  Сервисы: ${SERVICES_TO_REBUILD[*]}"
 echo "  Режим: BUILD --no-cache (без кэша)"
 echo "  Лог: $DEPLOY_LOG"
@@ -353,14 +274,14 @@ echo ""
 print_warning "⚠ Пересборка без кэша может занять 5-15 минут!"
 echo ""
 
-read -p "Продолжить деплой? (y/n): " -n 1 -r
+read -p "Продолжить обновление? (y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    print_warning "Деплой отменён"
+    print_warning "Обновление отменено"
     exit 0
 fi
 
-deploy_from_local
+rebuild_and_deploy
 show_logs
 
 echo ""
