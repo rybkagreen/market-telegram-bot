@@ -531,6 +531,18 @@ async def show_history(callback: CallbackQuery) -> None:
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
+# ─── ОБРАБОТКА КНОПКИ "ПОПОЛНИТЬ" ИЗ КАБИНЕТА ─────────────────────────────────
+
+
+@router.callback_query(BillingCB.filter(F.action == "topup"))
+async def topup_from_cabinet(callback: CallbackQuery) -> None:
+    """
+    Обработчик кнопки 'Пополнить' из личного кабинета.
+    Показывает меню выбора метода пополнения.
+    """
+    await show_balance(callback)
+
+
 # ─── ПУНКТ МЕНЮ (обратная совместимость) ─────────────────────────────────────
 
 
