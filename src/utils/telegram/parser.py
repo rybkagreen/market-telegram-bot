@@ -735,6 +735,35 @@ class TelegramParser:
             "count": len(views_list),
         }
 
+    async def _collect_recent_posts_texts(
+        self,
+        entity: Channel | Chat,
+        limit: int = 5,
+    ) -> list[dict]:
+        """
+        Собрать тексты последних постов для LLM-классификации.
+
+        Args:
+            entity: Channel или Chat entity.
+            limit: Количество постов (по умолчанию 5).
+
+        Returns:
+            Список dict [{'text': '...', 'date': '2026-03-01'}, ...].
+        """
+        posts = []
+        try:
+            async for message in self.client.iter_messages(entity, limit=limit):
+                if message.text and len(message.text.strip()) > 10:
+                    post_date = message.date.strftime("%Y-%m-%d") if message.date else None
+                    posts.append({
+                        "text": message.text.strip()[:500],  # Обрезаем длинные посты
+                        "date": post_date,
+                    })
+        except Exception as e:
+            logger.debug(f"Не удалось получить посты для классификации: {e}")
+
+        return posts
+
     async def _analyze_channel_language(
         self,
         entity: Channel | Chat,

@@ -14,6 +14,7 @@ from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
 from src.utils.telegram.channel_rules_checker import check_channel_rules
+from src.utils.telegram.llm_classifier import classify_channel_with_llm
 from src.utils.telegram.parser import TelegramParser
 from src.utils.telegram.russian_lang_detector import is_russian_text
 from src.utils.telegram.topic_classifier import classify_topic
@@ -513,6 +514,45 @@ async def _parse_and_save_chats(
                 else:
                     chat.language = "ru"
                     chat.russian_score = 1.0
+
+                # LLM-классификация для новых каналов
+                if is_new:
+                    try:
+                        # Собираем recent posts
+                        entity = await parser.client.get_entity(chat.telegram_id)
+                        recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
+                        
+                        # Создаём ai_service для классификации
+                        from src.core.services.ai_service import AIService
+                        ai_service = AIService()
+                        
+                        # Классифицируем через LLM
+                        classification = await classify_channel_with_llm(
+                            ai_service=ai_service,
+                            title=chat.title or "",
+                            username=chat.username or "",
+                            member_count=chat.member_count or 0,
+                            language=chat.language,
+                            description=chat.description or "",
+                            posts=[p["text"] for p in recent_posts] if recent_posts else [],
+                        )
+                        
+                        # Обновляем канал
+                        chat.topic = classification.topic
+                        chat.subcategory = classification.subcategory or subcategory
+                        chat.rating = classification.rating
+                        chat.last_classified_at = datetime.now(UTC)
+                        chat.llm_confidence = classification.confidence
+                        chat.recent_posts = recent_posts
+                        
+                        if classification.used_fallback:
+                            logger.warning(f"LLM classification fallback for @{chat.username}")
+                        else:
+                            logger.info(f"LLM classified @{chat.username}: {classification.topic} (confidence={classification.confidence:.2f})")
+                            
+                    except Exception as e:
+                        logger.warning(f"LLM classification failed for @{chat.username}: {e}")
+                        # Не бросаем исключение — парсинг не должен падать
 
                 await chat_repo._session.flush()
                 saved_count += 1
@@ -1197,3 +1237,99 @@ async def _recheck_channel_rules_async() -> None:
         await session.commit()
 
     logger.info(f"recheck_channel_rules: checked={checked}, deactivated={deactivated}")
+
+
+# ══════════════════════════════════════════════════════════════
+# LLM-КЛАССИФИКАЦИЯ КАНАЛОВ
+# ══════════════════════════════════════════════════════════════
+
+CLASSIFY_BATCH_SIZE = 50
+
+
+@celery_app.task(name="parser:llm_reclassify_all", bind=True)
+def llm_reclassify_all_task(self, batch_size: int = CLASSIFY_BATCH_SIZE) -> dict:
+    """
+    Переклассифицировать все каналы в базе через LLM.
+    Обрабатывает батчами — безопасно для больших баз.
+    Возвращает статистику: total, updated, failed, skipped.
+    """
+    return asyncio.run(_llm_reclassify_all_async(batch_size))
+
+
+async def _llm_reclassify_all_async(batch_size: int) -> dict:
+    """Асинхронная реализация LLM-переклассификации."""
+    from datetime import timezone
+    from sqlalchemy import or_, select
+
+    from src.core.services.ai_service import AIService
+    from src.db.models.analytics import TelegramChat
+
+    stats = {"total": 0, "updated": 0, "failed": 0, "skipped": 0}
+
+    async with async_session_factory() as session:
+        # Берём каналы которые:
+        # - активны (is_active=True)
+        # - не в чёрном списке
+        # - никогда не классифицировались LLM ИЛИ классифицировались >30 дней назад
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        stmt = (
+            select(TelegramChat)
+            .where(
+                TelegramChat.is_active == True,  # noqa: E712
+                TelegramChat.is_blacklisted == False,  # noqa: E712
+                or_(
+                    TelegramChat.last_classified_at.is_(None),
+                    TelegramChat.last_classified_at < cutoff,
+                ),
+            )
+            .order_by(TelegramChat.last_classified_at.asc().nullsfirst())
+            .limit(batch_size)
+        )
+        result = await session.execute(stmt)
+        chats = result.scalars().all()
+        stats["total"] = len(chats)
+
+        # Создаём ai_service один раз на все каналы
+        ai_service = AIService()
+
+        for chat in chats:
+            try:
+                # Собираем recent posts если есть
+                posts = chat.recent_posts or []
+                posts_texts = [p["text"] for p in posts] if posts else []
+
+                classification = await classify_channel_with_llm(
+                    ai_service=ai_service,
+                    title=chat.title or "",
+                    username=chat.username or "",
+                    member_count=chat.member_count or 0,
+                    language=chat.language or "unknown",
+                    description=chat.description or "",
+                    posts=posts_texts,
+                )
+
+                # Обновляем канал
+                chat.topic = classification.topic
+                chat.subcategory = classification.subcategory or ""
+                chat.rating = classification.rating
+                chat.last_classified_at = datetime.now(timezone.utc)
+                chat.llm_confidence = classification.confidence
+
+                if classification.used_fallback:
+                    stats["failed"] += 1
+                else:
+                    stats["updated"] += 1
+
+                logger.info(
+                    f"Classified @{chat.username}: {classification.topic} "
+                    f"(confidence={classification.confidence:.2f})"
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to classify @{chat.username}: {e}")
+                stats["failed"] += 1
+
+        await session.commit()
+
+    logger.info(f"LLM reclassify complete: {stats}")
+    return stats

@@ -47,6 +47,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": "crontab(hour=4, minute=0, day_of_month=1)",
         "queue": CLEANUP_QUEUE,
     },
+    # LLM-переклассификация каналов — каждое воскресенье в 02:00 UTC
+    "llm-reclassify-channels": {
+        "task": "parser:llm_reclassify_all",
+        "schedule": "crontab(day_of_week='sunday', hour='2', minute='0')",
+        "queue": PARSER_QUEUE,
+        "kwargs": {"batch_size": 50},
+    },
 }
 
 # Маршрутизация задач

@@ -21,6 +21,7 @@ from src.bot.keyboards.admin import (
     get_admin_main_kb,
     get_back_kb,
     get_blacklist_kb,
+    get_llm_classify_kb,
     get_mailing_health_kb,
     get_user_actions_kb,
     get_users_list_kb,
@@ -1539,3 +1540,42 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
         reply_markup=get_main_menu(credits, user.id if user else None),
     )
     await callback.answer()
+
+
+# ══════════════════════════════════════════════════════════════
+# LLM-КЛАССИФИКАЦИЯ КАНАЛОВ
+# ══════════════════════════════════════════════════════════════
+
+
+@router.callback_query(AdminCB.filter(F.action == "llm_classify"))
+async def show_llm_classify_menu(callback: CallbackQuery) -> None:
+    """Меню запуска LLM-классификации."""
+    await callback.message.edit_text(
+        "🧠 <b>LLM-классификация каналов</b>\n\n"
+        "Переклассифицирует каналы через OpenRouter (Claude).\n"
+        "Обрабатывает каналы у которых нет LLM-классификации или "
+        "она устарела (>30 дней).\n\n"
+        "⚠️ Каждый канал = 1 запрос к API. Учитывай стоимость.",
+        reply_markup=get_llm_classify_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminCB.filter(F.action == "llm_classify_run"))
+async def run_llm_classify(callback: CallbackQuery, callback_data: AdminCB) -> None:
+    """Запустить переклассификацию через Celery."""
+    from src.tasks.parser_tasks import llm_reclassify_all_task
+
+    batch_size = int(callback_data.value or 50)
+
+    # Запускаем асинхронно через Celery — не блокируем бота
+    task = llm_reclassify_all_task.delay(batch_size=batch_size)
+
+    await callback.answer("✅ Задача запущена!", show_alert=False)
+    await callback.message.edit_text(
+        f"🧠 <b>Классификация запущена</b>\n\n"
+        f"Батч: {batch_size} каналов\n"
+        f"Task ID: <code>{task.id}</code>\n\n"
+        f"Результат появится в логах Celery (Flower).",
+        reply_markup=get_back_kb(),
+    )
