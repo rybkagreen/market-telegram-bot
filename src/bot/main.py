@@ -23,6 +23,7 @@ from src.bot.handlers import (
     channels_db,  # База каналов
     feedback,
     models,
+    monitoring,  # Мониторинг сервера и Celery
     notifications,
     start,
     templates,
@@ -94,6 +95,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(channels_db.router)  # База каналов
     dp.include_router(templates.router)
     dp.include_router(feedback.router)
+    dp.include_router(monitoring.router)  # Мониторинг сервера и Celery
     dp.include_router(admin.router)
 
     return dp
