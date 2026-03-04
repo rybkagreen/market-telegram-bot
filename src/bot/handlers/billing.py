@@ -154,15 +154,17 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
 
         try:
             payload_str = f"uid:{user.id}:credits:{credits}:bonus:{bonus}"
+            logger.info(f"Creating CryptoBot invoice: {currency} {amount} for {credits} credits")
             invoice = await cryptobot_service.create_invoice(
                 currency=currency,
                 amount=amount,
                 payload=payload_str,
                 description=f"Market Bot: {label} ({credits} кр)",
             )
+            logger.info(f"Invoice created: {invoice.invoice_id} - {invoice.pay_url}")
         except Exception as e:
-            logger.error(f"CryptoBot invoice creation failed: {e}")
-            await callback.answer("❌ Ошибка создания счёта. Попробуйте позже.", show_alert=True)
+            logger.error(f"CryptoBot invoice creation failed: {e}", exc_info=True)
+            await callback.answer(f"❌ Ошибка создания счёта: {str(e)}", show_alert=True)
             return
 
         payment = CryptoPayment(
