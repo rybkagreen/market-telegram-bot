@@ -1253,7 +1253,19 @@ def llm_reclassify_all_task(self, batch_size: int = CLASSIFY_BATCH_SIZE) -> dict
     Обрабатывает батчами — безопасно для больших баз.
     Возвращает статистику: total, updated, failed, skipped.
     """
-    return asyncio.run(_llm_reclassify_all_async(batch_size))
+    import asyncio
+    import sys
+    
+    # Python 3.13 требует создания нового event loop для каждого вызова
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_llm_reclassify_all_async(batch_size))
+    finally:
+        loop.close()
 
 
 async def _llm_reclassify_all_async(batch_size: int) -> dict:
