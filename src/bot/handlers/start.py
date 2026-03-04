@@ -25,29 +25,31 @@ BANNER_PATH = BASE_DIR / "assets" / "images" / "bot" / "banner.jpg"
 router = Router()
 
 
-async def send_banner_with_menu(message: Message, user_credits: int, user_id: int) -> None:
+async def send_banner_with_menu(message: Message, user_credits: int, user_id: int, caption: str = None) -> None:
     """
     Отправить баннер с главным меню.
-    
+
     Args:
         message: Сообщение для ответа.
         user_credits: Баланс пользователя в кредитах.
         user_id: ID пользователя для проверки админа.
+        caption: Текст под баннером (опционально).
     """
     try:
         if BANNER_PATH.exists():
             banner = FSInputFile(BANNER_PATH)
+            caption_text = caption if caption else "Выберите действие:"
             await message.answer_photo(
                 photo=banner,
-                caption="Выберите действие:",
+                caption=caption_text,
                 reply_markup=get_main_menu(user_credits, user_id)
             )
         else:
             logger.warning(f"Banner not found: {BANNER_PATH}")
-            await message.answer("Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
+            await message.answer(caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
     except Exception as e:
         logger.error(f"Error sending banner: {e}")
-        await message.answer("Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
+        await message.answer(caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "create_campaign_ai"))
@@ -137,13 +139,18 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             f"💳 Ваш баланс: <b>{user.credits:,} кр</b>\n\n"
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
-        await message.answer(text)
-        # Отправляем баннер с меню
-        await send_banner_with_menu(message, user.credits, user.id)
+        # Отправляем баннер с текстом приветствия
+        await send_banner_with_menu(message, user.credits, user.id, caption=text)
     else:
         # Возвращающийся пользователь или с рефералом
-        # Отправляем баннер с меню вместо текста
-        await send_banner_with_menu(message, user.credits, user.id)
+        text = (
+            f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"
+            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
+            f"📦 Тариф: <b>{plan_value}</b>\n\n"
+            f"Выберите действие в меню ниже:"
+        )
+        # Отправляем баннер с текстом
+        await send_banner_with_menu(message, user.credits, user.id, caption=text)
 
 
 @router.message(Command("help"))
