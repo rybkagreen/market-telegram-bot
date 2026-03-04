@@ -74,6 +74,7 @@ class CryptoBotService:
         payload: str = "",
         description: str = "Пополнение кредитов Market Bot",
         expires_in: int = 3600,
+        bot_username: str = "RekharborBot",  # URL для кнопки после оплаты
     ) -> Invoice:
         """
         Создать счёт на оплату.
@@ -84,6 +85,7 @@ class CryptoBotService:
             payload: Произвольные данные (например "user:123:credits:300").
             description: Описание платежа (видит пользователь).
             expires_in: Время жизни счёта в секундах (default 1 час).
+            bot_username: Username бота для кнопки возврата.
 
         Returns:
             Invoice с pay_url для отправки пользователю.
@@ -101,9 +103,9 @@ class CryptoBotService:
                 "payload": payload,
                 "description": description,
                 "expires_in": expires_in,
-                "allow_anonymous": True,  # Разрешить анонимную оплату
-                "paid_btn_name": "Вернуться в бот",  # Текст кнопки после оплаты
-                "paid_btn_url": "https://t.me/Eliza_rybka_assistant_bot",  # Ссылка возврата
+                "allow_anonymous": True,
+                "paid_btn_name": "Вернуться в бот",
+                "paid_btn_url": f"https://t.me/{bot_username}",
             },
         )
 
