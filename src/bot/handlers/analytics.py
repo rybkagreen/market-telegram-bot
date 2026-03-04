@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.utils.message_utils import safe_edit_message
 from src.core.services.analytics_service import analytics_service
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.services import get_user_service
@@ -61,7 +62,7 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 2, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "user_summary"))
@@ -108,7 +109,7 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
         builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "campaigns_stats"))
@@ -136,7 +137,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
             builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(2)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             return
 
         # Формируем список кампаний с прогресс-барами
@@ -167,7 +168,7 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
         builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "campaign_stats"))
@@ -215,7 +216,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
             builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(2)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             return
 
         # Формируем список топ чатов
@@ -242,7 +243,7 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
         builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "topics_distribution"))
@@ -280,7 +281,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
             builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
             builder.adjust(1)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             return
 
         # Получаем тематики из БД
@@ -323,7 +324,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
             builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
             builder.adjust(1)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             return
 
         # Формируем текст с распределением
@@ -341,4 +342,4 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
         builder.button(text="🔙 В меню аналитики", callback_data=MainMenuCB(action="analytics"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())

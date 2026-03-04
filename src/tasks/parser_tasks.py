@@ -779,7 +779,11 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
         logger.error(f"Error in refresh_chat_database: {e}")
         # Retry при ошибках подключения
         if any(x in str(e).lower() for x in ["connection", "timeout", "redis", "telethon"]):
-            raise self.retry(exc=e, countdown=300 * (self.request.retries + 1)) from e
+            raise self.retry(
+                args=self.request.args,
+                kwargs=self.request.kwargs,
+                countdown=300 * (self.request.retries + 1),
+            ) from e
         return {"error": str(e)}
 
 

@@ -236,8 +236,8 @@ class BaseTask(Task):
             f"Task {self.name} failed: {exc}",
             extra={
                 "task_id": task_id,
-                "args": args,
-                "kwargs": kwargs,
+                "task_args": args,  # Renamed to avoid conflict with logging internals
+                "task_kwargs": kwargs,
                 "traceback": einfo.traceback,
             },
         )
