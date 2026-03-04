@@ -34,6 +34,23 @@ STATUS_EMOJI = {
 }
 
 
+async def safe_edit_message(message, text: str, reply_markup=None):
+    """
+    Универсальная функция редактирования сообщения.
+    Работает и с обычными сообщениями, и с сообщениями с фото.
+    """
+    try:
+        await message.edit_text(text, reply_markup=reply_markup)
+    except Exception:
+        # Если сообщение с фото — используем edit_message_caption
+        try:
+            await message.edit_message_caption(caption=text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"Failed to edit message: {e}")
+            # Fallback: отправляем новое сообщение
+            await message.answer(text, reply_markup=reply_markup)
+
+
 async def show_cabinet(message: Message | CallbackQuery) -> None:
     """
     Показать личный кабинет пользователя.
@@ -153,7 +170,7 @@ async def referral_callback(callback: CallbackQuery) -> None:
         builder.button(text="🔙 Назад", callback_data=MainMenuCB(action="cabinet"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(BillingCB.filter(F.action == "plans"))
@@ -181,7 +198,7 @@ async def plans_callback(callback: CallbackQuery) -> None:
         "Выберите тариф для перехода:"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_plans_kb())
+    await safe_edit_message(callback.message, text, reply_markup=get_plans_kb())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "my_campaigns"))
@@ -222,7 +239,11 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
             builder = InlineKeyboardBuilder()
             builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
             builder.adjust(1)
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            # Используем edit_message_caption для совместимости с фото
+            try:
+                await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+            except Exception:
+                await callback.message.edit_message_caption(caption=text, reply_markup=builder.as_markup())
             return
 
         # Формируем список кампаний
@@ -263,7 +284,7 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
         builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
         builder.adjust(2, 1, 1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(PaginationCB.filter(F.prefix == "campaigns"))
