@@ -61,12 +61,10 @@ async def classify_channel_with_llm(
     )
 
     try:
-        # Использую ai_service.generate с температурой 0.1 для детерминированности
+        # Использую ai_service.generate() без temperature (не поддерживается)
         raw_response = await ai_service.generate(
             prompt=prompt,
             system="Ты классификатор Telegram-каналов. Возвращай ТОЛЬКО JSON.",
-            temperature=0.1,
-            max_tokens=300,
         )
 
         # Извлечь JSON из ответа
