@@ -1277,7 +1277,7 @@ def llm_reclassify_all_task(self, batch_size: int = CLASSIFY_BATCH_SIZE) -> dict
 
 async def _llm_reclassify_all_async(batch_size: int) -> dict:
     """Асинхронная реализация LLM-переклассификации."""
-    from datetime import timezone
+    from datetime import datetime, timezone
     from sqlalchemy import or_, select
 
     from src.core.services.ai_service import AIService
