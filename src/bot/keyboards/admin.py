@@ -32,6 +32,7 @@ def get_admin_main_kb() -> InlineKeyboardMarkup:
     builder.button(text="🧪 Тест кампании", callback_data=AdminCB(action="test_campaign"))
     builder.button(text="🖥 Мониторинг", callback_data=AdminCB(action="server_monitoring"))
     builder.button(text="📋 Задачи Celery", callback_data=AdminCB(action="celery_tasks"))
+    builder.button(text="🧠 LLM-классификация", callback_data=AdminCB(action="llm_classify"))
     builder.button(text="🔙 В меню", callback_data=AdminCB(action="back_to_main"))
     builder.adjust(2, 2, 2, 2, 1)
     return builder.as_markup()
@@ -140,6 +141,27 @@ def get_back_kb() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup с кнопкой назад.
     """
     builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_llm_classify_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для запуска LLM-классификации.
+
+    Returns:
+        InlineKeyboardMarkup с кнопками запуска.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="▶️ Запустить (батч 50)",
+        callback_data=AdminCB(action="llm_classify_run", value="50"),
+    )
+    builder.button(
+        text="▶️ Запустить (батч 200)",
+        callback_data=AdminCB(action="llm_classify_run", value="200"),
+    )
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(1)
     return builder.as_markup()

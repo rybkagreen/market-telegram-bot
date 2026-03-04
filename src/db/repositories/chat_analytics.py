@@ -86,6 +86,7 @@ class ChatAnalyticsRepository:
         last_er: float | None = None,
         last_post_frequency: float | None = None,
         subcategory: str | None = None,
+        recent_posts: list[dict] | None = None,
     ) -> None:
         """
         Обновить мета-данные чата после парсинга.
@@ -103,6 +104,7 @@ class ChatAnalyticsRepository:
             last_er: Engagement Rate.
             last_post_frequency: Частота публикаций.
             subcategory: Подкатегория канала (автоклассификация).
+            recent_posts: Последние посты для LLM-классификации.
         """
         values: dict[str, Any] = {
             "updated_at": datetime.utcnow(),
@@ -131,6 +133,8 @@ class ChatAnalyticsRepository:
             values["last_post_frequency"] = last_post_frequency
         if subcategory is not None:
             values["subcategory"] = subcategory
+        if recent_posts is not None:
+            values["recent_posts"] = recent_posts
         values["last_parsed_at"] = datetime.utcnow()
 
         await self._session.execute(
