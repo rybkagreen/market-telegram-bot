@@ -153,7 +153,7 @@ async def _cleanup_useless_channels_async() -> dict[str, Any]:
     async with async_session_factory() as session:
         # Находим каналы для удаления:
         # - без названия (title IS NULL OR title = '')
-        # - тестовые (username LIKE 'test%' OR 'temp%')
+        # - тестовые (username LIKE 'test%' OR 'temp%' OR title LIKE 'Test Channel%')
         # - без подписчиков (member_count = 0)
         stmt = delete(TelegramChat).where(
             or_(
@@ -161,6 +161,8 @@ async def _cleanup_useless_channels_async() -> dict[str, Any]:
                 TelegramChat.title == '',
                 TelegramChat.username.like('test%'),
                 TelegramChat.username.like('temp%'),
+                TelegramChat.title.like('Test Channel%'),
+                TelegramChat.member_count == 0,
             )
         )
         
