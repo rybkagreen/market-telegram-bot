@@ -91,7 +91,7 @@ services:
     networks:
       - market_bot_network
     restart: unless-stopped
-    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser,cleanup -E
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser,cleanup,celery -E
     healthcheck:
       test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
       interval: 30s
