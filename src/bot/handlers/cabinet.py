@@ -13,6 +13,7 @@ from src.bot.keyboards.billing import BillingCB, get_plans_kb
 from src.bot.keyboards.cabinet import CabinetCB, get_cabinet_kb
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
+from src.bot.utils.message_utils import safe_edit_message
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -32,23 +33,6 @@ STATUS_EMOJI = {
     CampaignStatus.PAUSED: "⏸️",
     CampaignStatus.CANCELLED: "🚫",
 }
-
-
-async def safe_edit_message(message, text: str, reply_markup=None):
-    """
-    Универсальная функция редактирования сообщения.
-    Работает и с обычными сообщениями, и с сообщениями с фото.
-    """
-    try:
-        await message.edit_text(text, reply_markup=reply_markup)
-    except Exception:
-        # Если сообщение с фото — используем edit_message_caption
-        try:
-            await message.edit_message_caption(caption=text, reply_markup=reply_markup)
-        except Exception as e:
-            logger.error(f"Failed to edit message: {e}")
-            # Fallback: отправляем новое сообщение
-            await message.answer(text, reply_markup=reply_markup)
 
 
 async def show_cabinet(message: Message | CallbackQuery) -> None:

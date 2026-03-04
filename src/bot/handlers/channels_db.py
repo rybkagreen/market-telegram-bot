@@ -16,6 +16,7 @@ from src.bot.keyboards.channels import (
     get_tariff_filter_kb,
 )
 from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.utils.message_utils import safe_edit_message
 from src.db.session import async_session_factory
 from src.services import get_user_service
 from src.utils.categories import SUBCATEGORIES
@@ -36,7 +37,7 @@ async def show_channels_menu(callback: CallbackQuery) -> None:
         "📡 Топ каналов — крупнейшие каналы по подписчикам"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=get_channels_menu_kb(),
     )
@@ -129,7 +130,7 @@ async def handle_channels_stats(callback: CallbackQuery) -> None:
         )
         builder.adjust(1, 1, 1)
 
-        await callback.message.edit_text(
+        await safe_edit_message(callback.message, 
             text,
             reply_markup=builder.as_markup(),
         )
@@ -143,7 +144,7 @@ async def handle_categories(callback: CallbackQuery) -> None:
         "Фильтрация каналов по тематике:\n"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=get_categories_kb(),
     )
@@ -234,7 +235,7 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
     )
     builder.adjust(1, 1, 1)
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=builder.as_markup(),
     )
@@ -259,7 +260,7 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
             callback_data=ChannelsCB(action="categories"),
         )
         builder.adjust(1)
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
         return
 
     text = f"📊 <b>Подкатегории: {topic}</b>\n\n"
@@ -308,7 +309,7 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
     )
     builder.adjust(1, 1)
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=builder.as_markup(),
     )
@@ -331,7 +332,7 @@ async def handle_tariff_filter(callback: CallbackQuery, callback_data: ChannelsC
         text += f"Категория: <b>{category}</b>\n\n"
     text += "Выберите тариф для фильтрации:\n"
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=get_tariff_filter_kb(category),
     )
@@ -379,7 +380,7 @@ async def handle_top_channels(callback: CallbackQuery) -> None:
     )
     builder.adjust(1, 1)
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=builder.as_markup(),
     )
@@ -396,7 +397,7 @@ async def back_to_channels_menu(callback: CallbackQuery) -> None:
         "📡 Топ каналов — крупнейшие каналы по подписчикам"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_message(callback.message, 
         text,
         reply_markup=get_channels_menu_kb(),
     )
