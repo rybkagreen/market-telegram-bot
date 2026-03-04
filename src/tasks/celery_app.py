@@ -261,7 +261,7 @@ class BaseTask(Task):
             f"Task {self.name} retrying: {exc}",
             extra={
                 "task_id": task_id,
-                "args": args,
-                "kwargs": kwargs,
+                "task_args": args,
+                "task_kwargs": kwargs,
             },
         )
