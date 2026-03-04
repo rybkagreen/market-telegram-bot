@@ -263,19 +263,14 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             return stats
 
     try:
-        # Используем asyncio.run() с обработкой ситуации когда event loop уже существует
-        # Это происходит в Celery worker при использовании prefork pool
-        try:
-            asyncio.get_running_loop()
-            # Loop уже существует — создаём новый и запускаем в нём
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, _check_async())
-                result = future.result(timeout=300)
-        except RuntimeError:
-            # Нет активного loop — используем обычный asyncio.run()
-            result = asyncio.run(_check_async())
-
+        # Правильное выполнение async кода в Celery worker
+        # Используем asyncio.run() только если нет активного loop
+        import sys
+        if sys.platform == "win32":
+            # Windows требует event_loop_policy для asyncio
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        result = asyncio.run(_check_async())
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 
