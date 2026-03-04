@@ -47,6 +47,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": "crontab(hour=4, minute=0, day_of_month=1)",
         "queue": CLEANUP_QUEUE,
     },
+    # Очистка бесполезных каналов — каждое воскресенье в 03:30 UTC
+    "cleanup-useless-channels": {
+        "task": "cleanup:cleanup_useless_channels",
+        "schedule": "crontab(hour=3, minute=30, day_of_week=0)",
+        "queue": CLEANUP_QUEUE,
+    },
     # LLM-переклассификация каналов — каждое воскресенье в 02:00 UTC
     "llm-reclassify-channels": {
         "task": "parser:llm_reclassify_all",
