@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
     from src.db.models.payout import Payout
+    from src.db.models.review import Review
 
 
 class MailingStatus(str, Enum):
@@ -132,6 +133,13 @@ class MailingLog(Base, TimestampMixin):
 
     payout: Mapped["Payout | None"] = relationship(
         "Payout",
+        back_populates="placement",
+        lazy="select",
+        uselist=False,
+    )
+
+    review: Mapped["Review | None"] = relationship(
+        "Review",
         back_populates="placement",
         lazy="select",
         uselist=False,

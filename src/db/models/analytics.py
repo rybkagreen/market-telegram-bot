@@ -32,6 +32,7 @@ from src.db.base import Base
 if TYPE_CHECKING:
     from src.db.models.mailing_log import MailingLog
     from src.db.models.payout import Payout
+    from src.db.models.review import Review
     from src.db.models.user import User
 
 
@@ -175,6 +176,12 @@ class TelegramChat(Base):
 
     payouts: Mapped[list[Payout]] = relationship(
         "Payout",
+        back_populates="channel",
+        lazy="select",
+    )
+
+    reviews: Mapped[list[Review]] = relationship(
+        "Review",
         back_populates="channel",
         lazy="select",
     )
