@@ -15,6 +15,7 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
+    from src.db.models.payout import Payout
 
 
 class MailingStatus(str, Enum):
@@ -124,6 +125,13 @@ class MailingLog(Base, TimestampMixin):
         "TelegramChat",
         back_populates="mailing_logs",
         lazy="selectin",
+    )
+
+    payout: Mapped["Payout | None"] = relationship(
+        "Payout",
+        back_populates="placement",
+        lazy="select",
+        uselist=False,
     )
 
     # Индексы
