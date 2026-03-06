@@ -292,3 +292,107 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error notifying owner about placement {placement_id}: {e}")
         return False
+
+
+# ─────────────────────────────────────────────
+# Уведомления о выплатах (Спринт 1)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:notify_payout_created")
+def notify_payout_created_task(payout_id: int) -> bool:
+    """
+    Уведомляет владельца о создании выплаты.
+    """
+    import asyncio
+
+    async def _notify_async() -> bool:
+        from src.db.models.payout import Payout
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            payout = await session.get(Payout, payout_id)
+            if not payout:
+                return False
+
+            owner = await session.get(User, payout.owner_id)
+            if not owner or not owner.notifications_enabled:
+                return False
+
+            message = (
+                f"💰 <b>Начислена выплата</b>\n\n"
+                f"Сумма: {payout.amount:.0f} ₽\n"
+                f"Статус: ожидает выплаты\n\n"
+                f"Выплата будет обработана в ближайшее время."
+            )
+
+            from aiogram import Bot
+
+            from src.config.settings import settings
+
+            bot = Bot(token=settings.bot_token)
+            try:
+                await bot.send_message(
+                    owner.telegram_id,
+                    message,
+                    parse_mode="HTML",
+                )
+                return True
+            finally:
+                await bot.session.close()
+
+    try:
+        return asyncio.run(_notify_async())
+    except Exception as e:
+        logger.error(f"Error notifying payout created {payout_id}: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_payout_paid")
+def notify_payout_paid_task(payout_id: int) -> bool:
+    """
+    Уведомляет владельца о выплате.
+    """
+    import asyncio
+
+    async def _notify_async() -> bool:
+        from src.db.models.payout import Payout
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            payout = await session.get(Payout, payout_id)
+            if not payout:
+                return False
+
+            owner = await session.get(User, payout.owner_id)
+            if not owner or not owner.notifications_enabled:
+                return False
+
+            tx_info = f"\nTX: {payout.tx_hash[:10]}..." if payout.tx_hash else ""
+
+            message = (
+                f"✅ <b>Выплата произведена!</b>\n\n"
+                f"Сумма: {payout.amount:.0f} ₽\n"
+                f"Статус: выплачено{tx_info}\n\n"
+                f"Средства зачислены на ваш счёт."
+            )
+
+            from aiogram import Bot
+
+            from src.config.settings import settings
+
+            bot = Bot(token=settings.bot_token)
+            try:
+                await bot.send_message(
+                    owner.telegram_id,
+                    message,
+                    parse_mode="HTML",
+                )
+                return True
+            finally:
+                await bot.session.close()
+
+    try:
+        return asyncio.run(_notify_async())
+    except Exception as e:
+        logger.error(f"Error notifying payout paid {payout_id}: {e}")
+        return False
