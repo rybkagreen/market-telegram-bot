@@ -48,6 +48,12 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour=4, minute=0, day_of_month=1),
         "options": {"queue": "cleanup"},
     },
+    # Автоодобрение заявок — каждый час
+    "auto-approve-pending-placements": {
+        "task": "src.tasks.mailing_tasks.auto_approve_pending_placements",
+        "schedule": crontab(minute=0),
+        "options": {"queue": "mailing"},
+    },
 }
 
 # =============================================================================

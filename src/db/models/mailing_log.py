@@ -25,6 +25,9 @@ class MailingStatus(str, Enum):
     FAILED = "failed"  # Ошибка при отправке
     SKIPPED = "skipped"  # Пропущено (rate limit, blacklist, и т.д.)
     PENDING = "pending"  # В очереди на отправку
+    PENDING_APPROVAL = "pending_approval"  # Ожидает одобрения владельца (Спринт 1)
+    REJECTED = "rejected"  # Отклонено владельцем (Спринт 1)
+    QUEUED = "queued"  # В очереди на отправку после одобрения (Спринт 1)
 
 
 class MailingLog(Base, TimestampMixin):

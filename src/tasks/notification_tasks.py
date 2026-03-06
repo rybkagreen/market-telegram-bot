@@ -207,3 +207,88 @@ async def _notify_user_async(
         await bot.send_message(telegram_id, message, parse_mode=parse_mode)
     finally:
         await bot.session.close()
+
+
+# ─────────────────────────────────────────────
+# Уведомления владельца о заявках (Спринт 1)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:notify_owner_new_placement")
+def notify_owner_new_placement_task(placement_id: int) -> bool:
+    """
+    Уведомляет владельца канала о новой заявке на размещение.
+    Celery-обёртка для async функции.
+    """
+    import asyncio
+
+    async def _notify_async() -> bool:
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            placement = await session.get(MailingLog, placement_id)
+            if not placement:
+                return False
+
+            channel = await session.get(TelegramChat, placement.chat_id)
+            if not channel or not channel.owner_user_id:
+                return False
+
+            campaign = await session.get(Campaign, placement.campaign_id)
+            if not campaign:
+                return False
+
+            owner = await session.get(User, channel.owner_user_id)
+            if not owner or not owner.notifications_enabled:
+                return False
+
+            payout_amount = float(channel.price_per_post or 0) * 0.8
+
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+            keyboard_markup = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="✅ Одобрить",
+                            callback_data=f"approve_placement:{placement_id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="❌ Отклонить",
+                            callback_data=f"reject_placement:{placement_id}",
+                        ),
+                    ],
+                ],
+            )
+
+            message = (
+                f"📢 <b>Новая заявка на размещение в @{channel.username or channel.title}</b>\n\n"
+                f"💬 Текст объявления:\n{campaign.text[:500]}{'...' if len(campaign.text) > 500 else ''}\n\n"
+                f"📅 Дата публикации: {placement.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+                f"💸 Выплата: {payout_amount:.0f} ₽\n\n"
+                f"⏰ Автоодобрение через 24 часа если не ответите"
+            )
+
+            from aiogram import Bot
+
+            from src.config.settings import settings
+
+            bot = Bot(token=settings.bot_token)
+            try:
+                await bot.send_message(
+                    owner.telegram_id,
+                    message,
+                    parse_mode="HTML",
+                    reply_markup=keyboard_markup,
+                )
+                return True
+            finally:
+                await bot.session.close()
+
+    try:
+        return asyncio.run(_notify_async())
+    except Exception as e:
+        logger.error(f"Error notifying owner about placement {placement_id}: {e}")
+        return False
