@@ -117,7 +117,7 @@ class CryptoBotService:
                 "description": description,
                 "expires_in": expires_in,
                 "allow_anonymous": True,
-                "paid_btn_name": "Вернуться в бот",
+                "paid_btn_name": "openBot",  # Допустимые значения: viewItem, openChannel, openBot, callback
                 "paid_btn_url": f"https://t.me/{bot_username}",
             },
         )
