@@ -66,9 +66,10 @@ def get_text_type_kb(user_plan: str = "free") -> InlineKeyboardMarkup:
         builder.button(
             text="🤖 ИИ — доступно от STARTER", callback_data=CampaignCB(action="ai_locked")
         )
+    builder.button(text="👁 Предпросмотр", callback_data=CampaignCB(action="preview_post"))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
     builder.button(text="✖ Отмена", callback_data=CampaignCB(action="cancel"))
-    builder.adjust(2, 2)
+    builder.adjust(2, 2, 2)
     return builder.as_markup()
 
 

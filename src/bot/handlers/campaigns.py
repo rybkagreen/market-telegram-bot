@@ -520,6 +520,84 @@ async def image_back(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(step="text_type" if text_type == "ai" else "manual_text")
 
 
+# ==================== ШАГ 3.5: ПРЕДПРОСМОТР ПОСТА ====================
+
+
+@router.callback_query(
+    CampaignStates.waiting_text, CampaignCB.filter(F.action == "preview_post")
+)
+async def preview_post(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Показать предпросмотр поста.
+    """
+    data = await state.get_data()
+
+    header = data.get("header", "Без заголовка")
+    text = data.get("text", "")
+    has_image = data.get("image_file_id") is not None
+
+    # Формируем предпросмотр
+    preview_text = (
+        "📱 <b>Предпросмотр поста</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+    )
+
+    if header:
+        preview_text += f"<b>{header}</b>\n\n"
+
+    preview_text += f"{text}\n\n"
+    preview_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    if has_image:
+        preview_text += "📷 Изображение будет прикреплено"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Выглядит хорошо", callback_data="preview_ok"),
+            ],
+            [
+                InlineKeyboardButton(text="✏️ Изменить текст", callback_data="preview_edit"),
+            ],
+        ]
+    )
+
+    await safe_callback_edit(
+        callback,
+        preview_text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "preview_ok")
+async def preview_ok(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Подтвердить предпросмотр и перейти к выбору аудитории.
+    """
+    text = "👥 <b>Размер аудитории</b>\n\nВыберите размер чатов для рассылки:"
+
+    await safe_callback_edit(callback, text, reply_markup=get_member_count_kb())
+    await state.set_state(CampaignStates.waiting_member_count)
+    await state.update_data(step="member_count")
+
+
+@router.callback_query(F.data == "preview_edit")
+async def preview_edit(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Вернуться к редактированию текста.
+    """
+    text = "✏️ <b>Редактирование текста</b>\n\n"
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=get_campaign_step_kb(),
+    )
+    await state.set_state(CampaignStates.waiting_text)
+    await state.update_data(step="text")
+
+
 # ==================== ШАГ 5: РАЗМЕР АУДИТОРИИ ====================
 
 
