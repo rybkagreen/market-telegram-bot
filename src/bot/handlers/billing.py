@@ -9,7 +9,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, LabeledPrice, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.keyboards.billing import (
+from src.bot.keyboards.billing import (  # type: ignore[attr-defined]
     CREDIT_PACKAGES,
     BillingCB,
     get_currency_kb,
@@ -18,6 +18,7 @@ from src.bot.keyboards.billing import (
     get_topup_methods_kb,
 )
 from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.core.services.cryptobot_service import cryptobot_service
 from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
@@ -85,7 +86,7 @@ async def show_balance(callback: CallbackQuery) -> None:
             f"1 кредит ≈ 1₽. Используются для оплаты тарифов и ИИ-генерации.\n\n"
             f"Выберите способ пополнения:"
         )
-        await callback.message.edit_text(text, reply_markup=get_topup_methods_kb())
+        await safe_callback_edit(callback, text, reply_markup=get_topup_methods_kb())
 
 
 # ─── CRYPTO BOT ──────────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ async def show_crypto_packages(callback: CallbackQuery) -> None:
         usdt_amount = round(credits / settings.credits_per_usdt, 1)
         text += f"• <b>{label}{bonus_text}</b> — ~{usdt_amount} USDT\n"
 
-    await callback.message.edit_text(text, reply_markup=get_packages_kb("crypto"))
+    await safe_callback_edit(callback, text, reply_markup=get_packages_kb("crypto"))
 
 
 @router.callback_query(BillingCB.filter(F.action == "pkg_crypto"))
@@ -127,7 +128,7 @@ async def select_crypto_package(callback: CallbackQuery, callback_data: BillingC
         amount = round(credits / rate, 6)
         text += f"• {currency}: <b>{amount}</b>\n"
 
-    await callback.message.edit_text(text, reply_markup=get_currency_kb(credits))
+    await safe_callback_edit(callback, text, reply_markup=get_currency_kb(credits))
 
 
 @router.callback_query(BillingCB.filter(F.action == "pay_crypto"))
@@ -206,7 +207,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder.adjust(1, 1, 1)
 
     logger.info(f"Sending message with pay_url: {invoice.pay_url}")
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     logger.info("Message sent successfully")
 
 
@@ -239,7 +240,7 @@ async def send_payment_url(callback: CallbackQuery, callback_data: BillingCB) ->
         await callback.answer("❌ Счёт истёк или отменён. Создайте новый.", show_alert=True)
         return
 
-    await callback.message.answer(
+    await callback.message.answer(  # type: ignore[union-attr]
         f"💳 <b>Счёт на оплату</b>\n\n"
         f"Нажмите на ссылку:\n"
         f"<a href='{payment.pay_url}'>Оплатить счёт</a>\n\n"
@@ -329,7 +330,7 @@ async def show_stars_packages(callback: CallbackQuery) -> None:
         bonus_text = f" (+{bonus} бонус)" if bonus > 0 else ""
         text += f"• <b>{label}{bonus_text}</b> — {stars_needed} ⭐\n"
 
-    await callback.message.edit_text(text, reply_markup=get_packages_kb("stars"))
+    await safe_callback_edit(callback, text, reply_markup=get_packages_kb("stars"))
 
 
 @router.callback_query(BillingCB.filter(F.action == "pkg_stars"))
@@ -361,7 +362,7 @@ async def create_stars_invoice(callback: CallbackQuery, callback_data: BillingCB
         await session.commit()
 
     total = credits + bonus
-    await callback.message.answer_invoice(
+    await callback.message.answer_invoice(  # type: ignore[union-attr]
         title=f"Market Bot: {label}",
         description=f"Пополнение баланса на {total:,} кредитов",
         payload=f"stars:{payment.id}",
@@ -451,7 +452,7 @@ async def show_plans(callback: CallbackQuery) -> None:
         "💡 Тариф автоматически продлевается каждые 30 дней.\n"
         "При нехватке кредитов — план сбросится на FREE."
     )
-    await callback.message.edit_text(text, reply_markup=get_plans_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_plans_kb())
 
 
 @router.callback_query(BillingCB.filter(F.action == "plan"))
@@ -535,7 +536,7 @@ async def show_history(callback: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 К балансу", callback_data=MainMenuCB(action="balance"))
     builder.adjust(1)
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 # ─── ОБРАБОТКА КНОПКИ "ПОПОЛНИТЬ" ИЗ КАБИНЕТА ─────────────────────────────────

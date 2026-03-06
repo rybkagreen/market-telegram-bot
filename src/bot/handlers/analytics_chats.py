@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.tasks.parser_tasks import parse_single_chat
 
 router = Router()
@@ -83,4 +84,4 @@ async def handle_add_chat_username(message: Message, state: FSMContext) -> None:
 async def handle_cancel_add_chat(callback: CallbackQuery, state: FSMContext) -> None:
     """Отменить добавление чата."""
     await state.clear()
-    await callback.message.edit_text("❌ Добавление чата отменено.")
+    await safe_callback_edit(callback, "❌ Добавление чата отменено.")

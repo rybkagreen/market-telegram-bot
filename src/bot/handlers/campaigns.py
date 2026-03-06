@@ -32,6 +32,7 @@ from src.bot.keyboards.campaign import (
 )
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.campaign import CampaignStates
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.ai_service import ai_service
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.campaign_repo import CampaignRepository
@@ -61,7 +62,7 @@ async def start_campaign_wizard(callback: CallbackQuery, state: FSMContext) -> N
         "Тематика поможет нам подобрать подходящие чаты для рассылки."
     )
 
-    await callback.message.edit_text(text, reply_markup=get_topics_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_topics_kb())
     await state.set_state(CampaignStates.waiting_topic)
     await state.update_data(step="topic")
 
@@ -87,7 +88,7 @@ async def select_topic(
         "Пример: «🔥 Скидка 50% на курс по Python!»"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_header)
     await state.update_data(step="header")
 
@@ -133,11 +134,11 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
         # Получаем тариф пользователя
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(message.from_user.id)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
             # Получаем план пользователя
             from src.db.models.user import UserPlan
 
-            user_plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
+            user_plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)  # type: ignore[union-attr]
 
         text = "✍️ <b>Текст кампании</b>\n\nКак вы хотите создать текст для рассылки?"
         await message.answer(text, reply_markup=get_text_type_kb(user_plan))
@@ -176,7 +177,7 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
     # Получаем тариф пользователя
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
         from src.db.models.user import UserPlan
 
         user_plan = user.plan if user and isinstance(user.plan, UserPlan) else UserPlan.FREE
@@ -203,7 +204,7 @@ async def text_back(callback: CallbackQuery, state: FSMContext) -> None:
         "📝 <b>Заголовок кампании</b>\n\nВведите заголовок рекламного сообщения (5-255 символов):"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
 
 
 @router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "manual_text"))
@@ -220,7 +221,7 @@ async def select_manual_text(callback: CallbackQuery, state: FSMContext) -> None
         "💡 Добавьте призыв к действию и контактную информацию."
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_text)
     await state.update_data(step="manual_text")
 
@@ -272,7 +273,7 @@ async def select_ai_text(callback: CallbackQuery, state: FSMContext) -> None:
         "«Онлайн-курс по Python для начинающих. Длительность 3 месяца, практика, дипломный проект.»"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_ai_description)
     await state.update_data(step="ai_description")
 
@@ -303,7 +304,7 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
     try:
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(message.from_user.id)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
 
             if not user:
                 await status_message.edit_text("❌ Пользователь не найден")
@@ -322,7 +323,6 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
 
         # Генерируем варианты
         variants = await ai_service.generate_ab_variants(
-            user_id=message.from_user.id,
             description=description,
             count=3,
         )
@@ -440,7 +440,7 @@ async def show_image_upload(target: Message | CallbackQuery, state: FSMContext) 
     )
 
     if isinstance(target, CallbackQuery):
-        await target.message.edit_text(text, reply_markup=get_image_upload_kb())
+        await target.message.edit_text(text, reply_markup=get_image_upload_kb())  # type: ignore[union-attr]
     else:
         await target.answer(text, reply_markup=get_image_upload_kb())
 
@@ -459,7 +459,7 @@ async def image_upload(callback: CallbackQuery, state: FSMContext) -> None:
         "💡 Изображение будет прикреплено к тексту рассылки."
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_image)
     await state.update_data(step="image_upload")
 
@@ -492,7 +492,7 @@ async def image_skip(callback: CallbackQuery, state: FSMContext) -> None:
     # Переход к выбору размера аудитории
     text = "👥 <b>Размер аудитории</b>\n\nШаг 5 из 7: Выберите размер чатов для рассылки."
 
-    await callback.message.edit_text(text, reply_markup=get_member_count_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_member_count_kb())
     await state.set_state(CampaignStates.waiting_member_count)
     await state.update_data(step="member_count")
 
@@ -512,7 +512,7 @@ async def image_back(callback: CallbackQuery, state: FSMContext) -> None:
         await state.set_state(CampaignStates.waiting_text)
         text = "✏️ <b>Текст кампании</b>\n\nВведите текст кампании:"
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.update_data(step="text_type" if text_type == "ai" else "manual_text")
 
 
@@ -552,7 +552,7 @@ async def select_member_count(
 
     text = "⏰ <b>Расписание запуска</b>\n\nШаг 6 из 7: Когда запустить кампанию?"
 
-    await callback.message.edit_text(text, reply_markup=get_schedule_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_schedule_kb())
     await state.set_state(CampaignStates.waiting_schedule)
     await state.update_data(step="schedule")
 
@@ -567,7 +567,7 @@ async def schedule_back(callback: CallbackQuery, state: FSMContext) -> None:
     """
     text = "👥 <b>Размер аудитории</b>\n\nВыберите размер чатов для рассылки:"
 
-    await callback.message.edit_text(text, reply_markup=get_member_count_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_member_count_kb())
     await state.set_state(CampaignStates.waiting_member_count)
     await state.update_data(step="member_count")
 
@@ -597,7 +597,7 @@ async def schedule_later(callback: CallbackQuery, state: FSMContext) -> None:
         "Пример: 2026-03-01 15:30"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_schedule)
     await state.update_data(step="schedule_datetime")
 
@@ -665,7 +665,7 @@ async def show_confirmation(target: Message | CallbackQuery, state: FSMContext) 
     )
 
     if isinstance(target, CallbackQuery):
-        await target.message.edit_text(confirmation_text, reply_markup=get_campaign_confirm_kb())
+        await target.message.edit_text(confirmation_text, reply_markup=get_campaign_confirm_kb())  # type: ignore[union-attr]
     else:
         await target.answer(confirmation_text, reply_markup=get_campaign_confirm_kb())
 
@@ -677,7 +677,7 @@ async def confirm_back(callback: CallbackQuery, state: FSMContext) -> None:
     """
     text = "⏰ <b>Расписание запуска</b>\n\nКогда запустить кампанию?"
 
-    await callback.message.edit_text(text, reply_markup=get_schedule_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_schedule_kb())
     await state.set_state(CampaignStates.waiting_schedule)
     await state.update_data(step="schedule")
 
@@ -691,7 +691,7 @@ async def confirm_edit(callback: CallbackQuery, state: FSMContext) -> None:
     """
     text = "✏️ <b>Редактирование текста</b>\n\nВведите новый текст кампании:"
 
-    await callback.message.edit_text(text, reply_markup=get_campaign_step_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_campaign_step_kb())
     await state.set_state(CampaignStates.waiting_text)
     await state.update_data(step="manual_text")
 
@@ -742,7 +742,7 @@ async def confirm_draft(callback: CallbackQuery, state: FSMContext) -> None:
         f"Вы можете запустить её позже из личного кабинета."
     )
 
-    await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
+    await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.callback_query(
@@ -791,8 +791,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
         # Проверяем уведомления — если выключены, спрашиваем перед запуском
         if not user.notifications_enabled and not scheduled_at:
             # Сохраняем данные в state и показываем запрос
-            await callback.message.edit_text(
-                "🚀 Кампания готова к запуску!\n\n"
+            await safe_callback_edit(callback, "🚀 Кампания готова к запуску!\n\n"
                 "📬 Хотите получать уведомления о статусе кампании?\n"
                 "(паузы, ошибки, завершение)",
                 reply_markup=get_notifications_prompt_kb(),
@@ -856,7 +855,7 @@ async def _do_launch_campaign(
         # Запускаем рассылку через Celery
         send_campaign.delay(campaign.id)
 
-    await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
+    await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 # ==================== ОТМЕНА ====================
@@ -876,9 +875,9 @@ async def cancel_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     text = "✖ Создание кампании отменено."
 
     if user:
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
+        await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
     else:
-        await callback.message.edit_text(text)
+        await safe_callback_edit(callback, text)
         await callback.answer("❌ Пользователь не найден. Нажмите /start")
 
 

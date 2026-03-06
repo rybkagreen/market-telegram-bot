@@ -16,6 +16,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.bot.keyboards.feedback import FeedbackCB, get_feedback_confirm_kb, get_feedback_type_kb
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.feedback import FeedbackStates
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -46,7 +47,7 @@ async def handle_feedback_menu(callback: CallbackQuery, state: FSMContext) -> No
         "Мы читаем каждое сообщение! 🙏"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_feedback_type_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_feedback_type_kb())
     await state.set_state(FeedbackStates.choosing_type)
 
 
@@ -94,7 +95,7 @@ async def handle_feedback_type(
     builder.button(text="❌ Отмена", callback_data=FeedbackCB(action="cancel"))
     builder.adjust(1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await state.set_state(FeedbackStates.waiting_text)
 
 
@@ -191,7 +192,7 @@ async def handle_feedback_confirm(callback: CallbackQuery, state: FSMContext) ->
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1)
 
-    await callback.message.edit_text(success_text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, success_text, reply_markup=builder.as_markup())
     logger.info(
         f"Feedback sent: type={feedback_type}, "
         f"user={callback.from_user.id}, "
@@ -215,8 +216,7 @@ async def handle_feedback_edit(callback: CallbackQuery, state: FSMContext) -> No
     builder.button(text="❌ Отмена", callback_data=FeedbackCB(action="cancel"))
     builder.adjust(1)
 
-    await callback.message.edit_text(
-        prompts.get(feedback_type, "Введите текст:"), reply_markup=builder.as_markup()
+    await safe_callback_edit(callback, prompts.get(feedback_type, "Введите текст:"), reply_markup=builder.as_markup()
     )
     await state.set_state(FeedbackStates.waiting_text)
 
@@ -232,4 +232,4 @@ async def handle_feedback_cancel(callback: CallbackQuery, state: FSMContext) -> 
         credits = user.credits if user else 0
         user_id = user.id if user else None
 
-    await callback.message.edit_text("❌ Отменено.", reply_markup=get_main_menu(credits, user_id))
+    await safe_callback_edit(callback, "❌ Отменено.", reply_markup=get_main_menu(credits, user_id))

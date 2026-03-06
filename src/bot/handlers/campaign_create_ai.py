@@ -17,6 +17,7 @@ from src.bot.keyboards.campaign_ai import (
     get_campaign_editor_keyboard,
 )
 from src.bot.states.campaign_create import CampaignCreateState
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.ai_service import AIService
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository
@@ -54,8 +55,7 @@ async def start_campaign_create(callback: CallbackQuery, state: FSMContext) -> N
         "☕ Другое — универсальный стиль"
     )
 
-    await callback.message.edit_text(
-        text,
+    await safe_callback_edit(callback, text,
         reply_markup=get_ai_topic_keyboard(),
     )
 
@@ -94,7 +94,7 @@ async def topic_selected(callback: CallbackQuery, state: FSMContext) -> None:
         "👇 Напишите описание ниже:"
     )
 
-    await callback.message.edit_text(text)
+    await safe_callback_edit(callback, text)
 
 
 @router.message(CampaignCreateState.waiting_for_description)
@@ -185,8 +185,7 @@ async def variant_selected(callback: CallbackQuery, state: FSMContext) -> None:
         "Что хотите сделать дальше?"
     )
 
-    await callback.message.edit_text(
-        text,
+    await safe_callback_edit(callback, text,
         reply_markup=get_campaign_editor_keyboard(selected_text),
     )
 
@@ -213,7 +212,7 @@ async def edit_text(callback: CallbackQuery, state: FSMContext) -> None:
         "<i>Для отмены отправьте: /cancel</i>"
     )
 
-    await callback.message.edit_text(text)
+    await safe_callback_edit(callback, text)
 
 
 @router.message(CampaignCreateState.editing_text)
@@ -259,7 +258,7 @@ async def add_url(callback: CallbackQuery, state: FSMContext) -> None:
         "<i>Для отмены: /cancel</i>"
     )
 
-    await callback.message.edit_text(text)
+    await safe_callback_edit(callback, text)
 
 
 @router.message(CampaignCreateState.waiting_for_url)
@@ -312,7 +311,7 @@ async def add_image(callback: CallbackQuery, state: FSMContext) -> None:
         "<i>Для отмены: /cancel</i>"
     )
 
-    await callback.message.edit_text(text)
+    await safe_callback_edit(callback, text)
 
 
 @router.message(CampaignCreateState.waiting_for_image, F.photo)
@@ -406,13 +405,13 @@ async def confirm_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     )
 
     if image_file_id:
-        await callback.message.answer_photo(
+        await callback.message.answer_photo(  # type: ignore[union-attr]
             photo=image_file_id,
             caption=preview,
             reply_markup=keyboard,
         )
     else:
-        await callback.message.answer(
+        await callback.message.answer(  # type: ignore[union-attr]
             preview,
             reply_markup=keyboard,
         )
@@ -482,7 +481,7 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
             ]
         )
 
-        await callback.message.answer(success_text, reply_markup=keyboard)
+        await callback.message.answer(success_text, reply_markup=keyboard)  # type: ignore[union-attr]
 
 
 # ──────────────────────────────────────────────────────────────

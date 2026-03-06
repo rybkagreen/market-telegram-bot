@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery
 
 from src.bot.filters.admin import AdminFilter
 from src.bot.keyboards.admin import AdminCB
+from src.bot.utils.safe_callback import safe_callback_edit
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ async def show_server_monitoring(callback: CallbackQuery) -> None:
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
     except Exception as e:
         logger.error(f"Server monitoring error: {e}")
@@ -74,7 +75,7 @@ async def show_celery_tasks(callback: CallbackQuery) -> None:
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
     except Exception as e:
         logger.error(f"Celery tasks error: {e}")

@@ -44,10 +44,10 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
     """
     # Получаем telegram_id
     if isinstance(message, CallbackQuery):
-        telegram_id = message.from_user.id
+        telegram_id = message.from_user.id  # type: ignore[union-attr]
         answer_method = message.message.answer if message.message else message.answer
     else:
-        telegram_id = message.from_user.id
+        telegram_id = message.from_user.id  # type: ignore[union-attr]
         answer_method = message.answer
 
     async with get_user_service() as svc:
@@ -97,7 +97,7 @@ async def toggle_notifications_handler(callback: CallbackQuery) -> None:
     await callback.answer(f"Уведомления {status_text}", show_alert=False)
 
     # Обновить кнопку без перерисовки всего сообщения
-    await callback.message.edit_reply_markup(
+    await callback.message.edit_reply_markup(  # type: ignore[union-attr]
         reply_markup=get_cabinet_kb(notifications_enabled=new_state)
     )
 
@@ -232,7 +232,7 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
             try:
                 await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             except Exception:
-                await callback.message.edit_message_caption(
+                await callback.message.edit_message_caption(  # type: ignore[union-attr]
                     caption=text, reply_markup=builder.as_markup()
                 )
             return

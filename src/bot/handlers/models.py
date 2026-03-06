@@ -13,6 +13,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import ModelCB, get_main_menu
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
@@ -83,13 +84,13 @@ async def handle_models(message: Message) -> None:
     """
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
 
         if not user:
             await message.answer("❌ Пользователь не найден. Нажмите /start")
             return
 
-        if is_admin(message.from_user.id):
+        if is_admin(message.from_user.id):  # type: ignore[union-attr]
             await show_admin_models_menu(message, user)
         else:
             await show_user_models_info(message, user)
@@ -97,7 +98,7 @@ async def handle_models(message: Message) -> None:
 
 async def show_admin_models_menu(message: Message | CallbackQuery, user: User) -> None:
     """Показать меню выбора модели для админа."""
-    answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer
+    answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer  # type: ignore[union-attr]
 
     # Используем getattr с fallback так как ai_provider/ai_model могут отсутствовать в Settings
     current_provider = getattr(settings, "ai_provider", "openrouter")
@@ -131,7 +132,7 @@ async def show_admin_models_menu(message: Message | CallbackQuery, user: User) -
 
 async def show_user_models_info(message: Message | CallbackQuery, user: User) -> None:
     """Показать информацию о модели для пользователя."""
-    answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer
+    answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer  # type: ignore[union-attr]
 
     # Получаем модель пользователя на основе тарифа
     user_provider = user.get_ai_provider()
@@ -209,7 +210,7 @@ async def tariff_info_callback(callback: CallbackQuery) -> None:
     builder.button(text="🔙 Назад", callback_data=ModelCB(provider="back"))
     builder.adjust(1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(ModelCB.filter(F.provider == "select"))
@@ -250,7 +251,7 @@ async def models_back_callback(callback: CallbackQuery) -> None:
             f"Выберите действие в меню ниже:"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_main_menu(user.credits, user.id))
+        await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
 
 
 @router.callback_query(
@@ -307,4 +308,4 @@ async def model_provider_callback(callback: CallbackQuery, callback_data: ModelC
     builder.button(text="🔙 В меню", callback_data=ModelCB(provider="back"))
     builder.adjust(1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
