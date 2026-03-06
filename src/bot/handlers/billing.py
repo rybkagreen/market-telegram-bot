@@ -164,6 +164,14 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
                 description=f"Market Bot: {label} ({credits} кр)",
             )
             logger.info(f"Invoice created: {invoice.invoice_id} - {invoice.pay_url}")
+        except ValueError as e:
+            # Явная обработка ошибок CryptoBot API (включая HTTP 400)
+            logger.error(f"CryptoBot API error: {e}")
+            await callback.answer(
+                "Ошибка платёжного шлюза. Попробуйте позже или обратитесь в поддержку.",
+                show_alert=True,
+            )
+            return
         except Exception as e:
             logger.error(f"CryptoBot invoice creation failed: {e}", exc_info=True)
             await callback.answer(f"❌ Ошибка создания счёта: {str(e)}", show_alert=True)

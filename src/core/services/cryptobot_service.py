@@ -57,6 +57,19 @@ class CryptoBotService:
         url = f"{CRYPTOBOT_API_URL}/{endpoint}"
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.request(method, url, headers=self.headers, **kwargs)
+
+            # Явная обработка HTTP 400 с подробным логированием
+            if response.status_code == 400:
+                error_body = await response.aread()
+                logger.error(
+                    f"CryptoBot API returned 400. "
+                    f"URL: {url}, "
+                    f"Method: {method}, "
+                    f"Payload: {kwargs.get('json', kwargs.get('params', {}))}, "
+                    f"Response: {error_body.decode('utf-8', errors='replace')}"
+                )
+                raise ValueError(f"CryptoBot API error 400: {error_body.decode('utf-8', errors='replace')}")
+
             response.raise_for_status()
             data = response.json()
             if not data.get("ok"):
