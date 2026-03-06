@@ -59,6 +59,7 @@ class ChatInfo:
     linked_chat_id: int | None = None
     can_view_participants: bool = False
     can_send_messages: bool = False
+    meta_json: dict | None = None
 
 
 @dataclass
@@ -198,6 +199,25 @@ class TelegramParser:
         # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
         # https://github.com/LonamiWebs/Telethon/issues/4730
         # Используем ТОЛЬКО user account (без bot_token) для полноценного доступа к поиску
+        
+        # Настройка прокси если задан
+        proxy = None
+        if settings.telegram_proxy:
+            try:
+                # Парсинг прокси (поддержка HTTP/SOCKS5)
+                proxy_str = settings.telegram_proxy
+                if proxy_str.startswith('http://') or proxy_str.startswith('https://'):
+                    # HTTP proxy
+                    from telethon import HttpProxy
+                    proxy = HttpProxy.from_url(proxy_str)
+                elif proxy_str.startswith('socks5://') or proxy_str.startswith('socks4://'):
+                    # SOCKS proxy
+                    from telethon import SocksProxy
+                    proxy = SocksProxy.from_url(proxy_str)
+                logger.info(f"Using proxy: {proxy_str[:20]}...")
+            except Exception as e:
+                logger.warning(f"Failed to parse proxy '{settings.telegram_proxy}': {e}")
+        
         self._client = TelegramClient(
             StringSession(settings.telethon_session_string),
             settings.api_id,
@@ -207,6 +227,7 @@ class TelegramParser:
             app_version="3.1.1 x64",
             lang_code="en",
             system_lang_code="en-US",
+            proxy=proxy,
         )
 
         await self._client.start()
@@ -346,25 +367,24 @@ class TelegramParser:
                     if channel_id not in seen_ids:
                         seen_ids.add(channel_id)
 
-            # Получаем информацию о каждом канале с фильтрацией по языку
+            # Получаем информацию о каждом канале с проверкой языка по постам
             russian_channels = []
             for channel_id in list(seen_ids)[:limit]:
                 try:
                     entity = await self.client.get_entity(channel_id)
                     chat_info = await self._process_entity(entity)
 
-                    if chat_info and chat_info.description:
-                        # Проверяем язык описания
-                        if is_russian_text(chat_info.description):
-                            russian_score = get_russian_score(chat_info.description)
+                    if chat_info:
+                        # Проверяем язык по постам (даже если описание на английском)
+                        is_russian, russian_score = await self._check_channel_language(entity)
+                        
+                        if is_russian:
                             chat_info.meta_json = chat_info.meta_json or {}
                             chat_info.meta_json["russian_score"] = russian_score
                             russian_channels.append(chat_info)
+                            logger.debug(f"✓ Russian channel: {chat_info.title} (@{chat_info.username})")
                         else:
-                            logger.debug(f"Skipping non-Russian channel: {chat_info.title}")
-                    elif chat_info:
-                        # Если описания нет, добавляем с низким приоритетом
-                        russian_channels.append(chat_info)
+                            logger.debug(f"✗ Skipping non-Russian channel: {chat_info.title}")
 
                 except Exception as e:
                     logger.debug(f"Error getting channel {channel_id}: {e}")
@@ -763,6 +783,73 @@ class TelegramParser:
             logger.debug(f"Не удалось получить посты для классификации: {e}")
 
         return posts
+
+    async def _check_channel_language(
+        self,
+        entity: Channel,
+        sample_size: int = 10,
+    ) -> tuple[bool, float]:
+        """
+        Проверить язык канала по последним постам.
+
+        Args:
+            entity: Channel entity.
+            sample_size: Количество постов для анализа.
+
+        Returns:
+            Кортеж (is_russian, russian_score):
+            - is_russian: True если канал русскоязычный
+            - russian_score: оценка от 0.0 до 1.0
+        """
+        from src.utils.telegram.russian_lang_detector import (
+            detect_language_from_posts,
+            is_russian_text,
+            is_english_blacklisted,
+        )
+
+        try:
+            # Сначала проверяем описание если есть
+            full_channel = await self.client(GetFullChannelRequest(entity))
+            description = getattr(full_channel.full_chat, "about", None)
+            
+            if description:
+                # Быстрая проверка по чёрному списку
+                if is_english_blacklisted(description):
+                    return False, 0.0
+                
+                # Если описание на русском — сразу принимаем
+                if is_russian_text(description):
+                    score = get_russian_score(description)
+                    if score > 0.5:
+                        return True, score
+
+            # Получаем последние посты
+            posts = []
+            async for message in self.client.iter_messages(entity, limit=sample_size):
+                if message.text and len(message.text.strip()) > 20:
+                    posts.append(message.text)
+
+            if not posts:
+                # Если постов нет, используем описание
+                if description and is_russian_text(description):
+                    return True, 0.5
+                return True, 0.5  # Если нет данных, считаем русским
+
+            # Определяем язык по постам
+            language, score = detect_language_from_posts(posts)
+
+            if language == "ru":
+                return True, score
+            elif language == "mixed":
+                # Смешанный язык — считаем русским если score > 0.4
+                return score > 0.4, score
+            else:
+                return False, score
+
+        except Exception as e:
+            logger.debug(f"Language check error for {entity.title}: {e}")
+            # При ошибке считаем русским (чтобы не пропустить)
+            return True, 0.5
 
     async def _analyze_channel_language(
         self,
