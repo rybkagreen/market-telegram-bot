@@ -20,12 +20,14 @@ from src.bot.handlers import (
     campaign_analytics,  # AI-аналитика кампаний
     campaign_create_ai,  # Новый обработчик создания с AI
     campaigns,
+    channel_owner,  # Владельцы каналов (Спринт 0)
     channels_db,  # База каналов
     feedback,
     models,
     monitoring,  # Мониторинг сервера и Celery
     notifications,
     start,
+    stats,  # Публичная статистика (Спринт 0)
     templates,
 )
 from src.bot.middlewares.throttling import ThrottlingMiddleware
@@ -87,6 +89,8 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(campaigns.router)
     dp.include_router(campaign_analytics.router)  # AI-аналитика кампаний
     dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
+    dp.include_router(channel_owner.router)  # Владельцы каналов (Спринт 0)
+    dp.include_router(stats.router)  # Публичная статистика (Спринт 0)
     dp.include_router(billing.router)
     dp.include_router(models.router)
     dp.include_router(notifications.router)
