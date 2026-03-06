@@ -153,9 +153,15 @@ async def handle_feedback_confirm(callback: CallbackQuery, state: FSMContext) ->
 
     # Отправляем всем админам
     sent_count = 0
+    bot = callback.bot
+    if bot is None:
+        logger.error("Bot instance is None in feedback handler")
+        await callback.answer("Ошибка отправки. Попробуйте позже.", show_alert=True)
+        return
+
     for admin_id in settings.admin_ids:
         try:
-            await callback.bot.send_message(
+            await bot.send_message(
                 chat_id=admin_id,
                 text=admin_message,
                 parse_mode="HTML",

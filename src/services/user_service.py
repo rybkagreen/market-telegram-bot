@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.models.campaign import CampaignStatus
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -77,7 +78,7 @@ class UserService:
             raise ValueError(f"User with telegram_id {telegram_id} not found")
 
         total = await self._campaign_repo.get_user_campaigns_count(user.id)
-        active = await self._campaign_repo.get_user_campaigns_count(user.id, status="running")
+        active = await self._campaign_repo.get_user_campaigns_count(user.id, status=CampaignStatus.RUNNING)
 
         plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 

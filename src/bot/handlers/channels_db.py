@@ -37,7 +37,8 @@ async def show_channels_menu(callback: CallbackQuery) -> None:
         "📡 Топ каналов — крупнейшие каналы по подписчикам"
     )
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=get_channels_menu_kb(),
     )
@@ -106,8 +107,7 @@ async def handle_channels_stats(callback: CallbackQuery) -> None:
         else:
             async with async_session_factory() as session:
                 avail_result = await session.execute(
-                    select(func.count(TelegramChat.id))
-                    .where(
+                    select(func.count(TelegramChat.id)).where(
                         TelegramChat.is_active == true(),
                         TelegramChat.member_count <= limit,
                     )
@@ -130,7 +130,8 @@ async def handle_channels_stats(callback: CallbackQuery) -> None:
         )
         builder.adjust(1, 1, 1)
 
-        await safe_edit_message(callback.message, 
+        await safe_edit_message(
+            callback.message,
             text,
             reply_markup=builder.as_markup(),
         )
@@ -139,12 +140,10 @@ async def handle_channels_stats(callback: CallbackQuery) -> None:
 @router.callback_query(ChannelsCB.filter(F.action == "categories"))
 async def handle_categories(callback: CallbackQuery) -> None:
     """Показать список категорий для фильтрации."""
-    text = (
-        "🔍 <b>Выберите категорию</b>\n\n"
-        "Фильтрация каналов по тематике:\n"
-    )
+    text = "🔍 <b>Выберите категорию</b>\n\nФильтрация каналов по тематике:\n"
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=get_categories_kb(),
     )
@@ -166,8 +165,7 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
 
         # Всего в категории (case-insensitive comparison)
         total_result = await session.execute(
-            select(func.count(TelegramChat.id))
-            .where(
+            select(func.count(TelegramChat.id)).where(
                 TelegramChat.is_active == true(),
                 func.lower(TelegramChat.topic) == category.lower(),
             )
@@ -235,7 +233,8 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
     )
     builder.adjust(1, 1, 1)
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=builder.as_markup(),
     )
@@ -309,7 +308,8 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
     )
     builder.adjust(1, 1)
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=builder.as_markup(),
     )
@@ -332,7 +332,8 @@ async def handle_tariff_filter(callback: CallbackQuery, callback_data: ChannelsC
         text += f"Категория: <b>{category}</b>\n\n"
     text += "Выберите тариф для фильтрации:\n"
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=get_tariff_filter_kb(category),
     )
@@ -380,7 +381,8 @@ async def handle_top_channels(callback: CallbackQuery) -> None:
     )
     builder.adjust(1, 1)
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=builder.as_markup(),
     )
@@ -397,7 +399,8 @@ async def back_to_channels_menu(callback: CallbackQuery) -> None:
         "📡 Топ каналов — крупнейшие каналы по подписчикам"
     )
 
-    await safe_edit_message(callback.message, 
+    await safe_edit_message(
+        callback.message,
         text,
         reply_markup=get_channels_menu_kb(),
     )

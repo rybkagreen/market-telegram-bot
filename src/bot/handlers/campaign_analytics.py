@@ -156,21 +156,16 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
 
         # Получаем данные кампании
         async with async_session_factory() as session:
-
             from sqlalchemy import func, select
 
             campaign = await session.get(Campaign, campaign_id)
 
             if not campaign:
-                await callback.message.edit_text(
-                    "❌ Кампания не найдена"
-                )
+                await callback.message.edit_text("❌ Кампания не найдена")
                 return
 
             if campaign.user_id != user.id:
-                await callback.message.edit_text(
-                    "❌ Это не ваша кампания"
-                )
+                await callback.message.edit_text("❌ Это не ваша кампания")
                 return
 
             # Получаем статистику
@@ -207,15 +202,14 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
         except Exception as e:
             logger.error(f"AI analytics error: {e}")
             await callback.message.edit_text(
-                "❌ Не удалось получить AI-анализ\n\n"
-                f"Ошибка: {str(e)}\n\n"
-                "Попробуйте позже."
+                f"❌ Не удалось получить AI-анализ\n\nОшибка: {str(e)}\n\nПопробуйте позже."
             )
             return
 
         # Списываем генерацию
         async with async_session_factory() as session:
             from sqlalchemy import update
+
             await session.execute(
                 update(svc._user_repo.model)
                 .where(svc._user_repo.model.id == user.id)

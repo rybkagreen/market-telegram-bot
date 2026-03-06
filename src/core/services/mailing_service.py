@@ -282,7 +282,10 @@ class MailingService:
             if minute_count == 1:
                 await r.expire(minute_key, 60)
             if minute_count > settings.mailing_settings["max_per_minute"]:
-                return False, f"per_minute limit ({minute_count}/{settings.mailing_settings['max_per_minute']})"
+                return (
+                    False,
+                    f"per_minute limit ({minute_count}/{settings.mailing_settings['max_per_minute']})",
+                )
 
             # Per hour
             hour_key = f"mailing:global:hour:{now // 3600}"
@@ -290,7 +293,10 @@ class MailingService:
             if hour_count == 1:
                 await r.expire(hour_key, 3600)
             if hour_count > settings.mailing_settings["max_per_hour"]:
-                return False, f"per_hour limit ({hour_count}/{settings.mailing_settings['max_per_hour']})"
+                return (
+                    False,
+                    f"per_hour limit ({hour_count}/{settings.mailing_settings['max_per_hour']})",
+                )
 
             # Per day
             day_key = f"mailing:global:day:{now // 86400}"
@@ -298,7 +304,10 @@ class MailingService:
             if day_count == 1:
                 await r.expire(day_key, 86400)
             if day_count > settings.mailing_settings["max_per_day"]:
-                return False, f"per_day limit ({day_count}/{settings.mailing_settings['max_per_day']})"
+                return (
+                    False,
+                    f"per_day limit ({day_count}/{settings.mailing_settings['max_per_day']})",
+                )
 
             return True, ""
 

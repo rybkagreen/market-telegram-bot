@@ -31,6 +31,7 @@ router = Router()
 # Начало создания кампании
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(CampaignCreateCB.filter(F.step == "start"))
 async def start_campaign_create(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать создание кампании с AI."""
@@ -62,6 +63,7 @@ async def start_campaign_create(callback: CallbackQuery, state: FSMContext) -> N
 # ──────────────────────────────────────────────────────────────
 # Выбор тематики
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step.startswith("topic_")))
 async def topic_selected(callback: CallbackQuery, state: FSMContext) -> None:
@@ -138,7 +140,7 @@ async def process_description(message: Message, state: FSMContext) -> None:
         )
 
         for i, variant in enumerate(variants, 1):
-            preview = variant[:150].replace('\n', ' ') + "..." if len(variant) > 150 else variant
+            preview = variant[:150].replace("\n", " ") + "..." if len(variant) > 150 else variant
             text += f"\n<b>📝 Вариант {i}:</b>\n<i>{preview}</i>\n"
 
         await message.answer(
@@ -156,6 +158,7 @@ async def process_description(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Выбор варианта
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(AIVariantCB.filter())
 async def variant_selected(callback: CallbackQuery, state: FSMContext) -> None:
@@ -192,6 +195,7 @@ async def variant_selected(callback: CallbackQuery, state: FSMContext) -> None:
 # Редактирование текста
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(AIEditCB.filter(F.action == "edit_text"))
 async def edit_text(callback: CallbackQuery, state: FSMContext) -> None:
     """Редактирование текста кампании."""
@@ -225,8 +229,7 @@ async def process_text_edit(message: Message, state: FSMContext) -> None:
     has_image = bool(data.get("image_file_id"))
 
     await message.answer(
-        "✅ Текст обновлен!\n\n"
-        "Что хотите сделать дальше?",
+        "✅ Текст обновлен!\n\nЧто хотите сделать дальше?",
         reply_markup=get_campaign_editor_keyboard(new_text, has_url, has_image),
     )
     await state.set_state(CampaignCreateState.selecting_variant)
@@ -235,6 +238,7 @@ async def process_text_edit(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Добавление URL
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(AIEditCB.filter(F.action == "add_url"))
 async def add_url(callback: CallbackQuery, state: FSMContext) -> None:
@@ -284,8 +288,7 @@ async def process_url(message: Message, state: FSMContext) -> None:
     has_image = bool(data.get("image_file_id"))
 
     await message.answer(
-        f"✅ URL добавлен: {url}\n\n"
-        "Что хотите сделать дальше?",
+        f"✅ URL добавлен: {url}\n\nЧто хотите сделать дальше?",
         reply_markup=get_campaign_editor_keyboard(current_text, has_url=True, has_image=has_image),
     )
     await state.set_state(CampaignCreateState.selecting_variant)
@@ -294,6 +297,7 @@ async def process_url(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Добавление изображения
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(AIEditCB.filter(F.action == "add_image"))
 async def add_image(callback: CallbackQuery, state: FSMContext) -> None:
@@ -325,8 +329,7 @@ async def process_image_photo(message: Message, state: FSMContext) -> None:
     has_url = bool(data.get("url"))
 
     await message.answer(
-        "✅ Изображение добавлено!\n\n"
-        "Что хотите сделать дальше?",
+        "✅ Изображение добавлено!\n\nЧто хотите сделать дальше?",
         reply_markup=get_campaign_editor_keyboard(current_text, has_url, has_image=True),
     )
     await state.set_state(CampaignCreateState.selecting_variant)
@@ -347,8 +350,7 @@ async def process_image_document(message: Message, state: FSMContext) -> None:
         has_url = bool(data.get("url"))
 
         await message.answer(
-            "✅ Изображение добавлено!\n\n"
-            "Что хотите сделать дальше?",
+            "✅ Изображение добавлено!\n\nЧто хотите сделать дальше?",
             reply_markup=get_campaign_editor_keyboard(current_text, has_url, has_image=True),
         )
         await state.set_state(CampaignCreateState.selecting_variant)
@@ -361,6 +363,7 @@ async def process_image_document(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Подтверждение и создание
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(AIEditCB.filter(F.action == "confirm"))
 async def confirm_campaign(callback: CallbackQuery, state: FSMContext) -> None:
@@ -388,8 +391,17 @@ async def confirm_campaign(callback: CallbackQuery, state: FSMContext) -> None:
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Создать кампанию", callback_data="campaign_confirm_create")],
-            [InlineKeyboardButton(text="✏️ Назад к редактированию", callback_data=AIEditCB(action="edit_text").pack())],
+            [
+                InlineKeyboardButton(
+                    text="✅ Создать кампанию", callback_data="campaign_confirm_create"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Назад к редактированию",
+                    callback_data=AIEditCB(action="edit_text").pack(),
+                )
+            ],
         ]
     )
 
@@ -426,16 +438,18 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
         topic = data.get("topic", "default")
 
         # Создаем кампанию
-        campaign = await campaign_repo.create({
-            "user_id": user.id,
-            "title": f"AI кампания: {topic}",
-            "text": text,
-            "topic": topic,
-            "header": url,  # Используем header для URL
-            "image_file_id": image_file_id,
-            "status": "draft",
-            "filters_json": {},
-        })
+        campaign = await campaign_repo.create(
+            {
+                "user_id": user.id,
+                "title": f"AI кампания: {topic}",
+                "text": text,
+                "topic": topic,
+                "header": url,  # Используем header для URL
+                "image_file_id": image_file_id,
+                "status": "draft",
+                "filters_json": {},
+            }
+        )
 
         await state.clear()
 
@@ -454,8 +468,17 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns").pack())],
-                [InlineKeyboardButton(text="🏠 В меню", callback_data=MainMenuCB(action="main_menu").pack())],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Мои кампании",
+                        callback_data=MainMenuCB(action="my_campaigns").pack(),
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🏠 В меню", callback_data=MainMenuCB(action="main_menu").pack()
+                    )
+                ],
             ]
         )
 
@@ -465,6 +488,7 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
 # ──────────────────────────────────────────────────────────────
 # Отмена
 # ──────────────────────────────────────────────────────────────
+
 
 @router.message(F.text == "/cancel")
 async def cancel_create(message: Message, state: FSMContext) -> None:

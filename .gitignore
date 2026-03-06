@@ -134,3 +134,6 @@ docker-compose.override.yml
 ""  
 "# Telethon debug logs"  
 "session_debug.log" 
+"mypy_full_errors.txt"  
+"ruff_errors.txt"  
+"qr_login.png" 

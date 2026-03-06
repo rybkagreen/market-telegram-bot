@@ -6,6 +6,7 @@ Endpoints:
   GET /api/analytics/activity?days=7  — активность по дням для графика
   GET /api/analytics/top-chats        — топ чатов по успешности (PRO/BUSINESS)
 """
+
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -26,6 +27,7 @@ router = APIRouter(tags=["analytics"])
 
 # ─── Схемы ──────────────────────────────────────────────────────
 
+
 class SummaryResponse(BaseModel):
     # Баланс и тариф
     credits: int
@@ -43,7 +45,7 @@ class SummaryResponse(BaseModel):
 
 
 class ActivityPoint(BaseModel):
-    date: str    # "Пн", "Вт", "Ср" и т.д.
+    date: str  # "Пн", "Вт", "Ср" и т.д.
     sent: int
     failed: int
 
@@ -68,6 +70,7 @@ class TopChatsResponse(BaseModel):
 
 # ─── Хелперы ────────────────────────────────────────────────────
 
+
 def _get_included_ai(plan: str) -> int:
     """Количество включённых ИИ-генераций по тарифу."""
     return {"pro": 5, "business": 20}.get(plan, 0)
@@ -79,6 +82,7 @@ def _plan_label(plan) -> str:
 
 
 # ─── Endpoints ──────────────────────────────────────────────────
+
 
 @router.get("/summary", response_model=SummaryResponse)
 async def get_summary(current_user: CurrentUser) -> SummaryResponse:
@@ -93,9 +97,9 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
         campaigns_result = await session.execute(
             select(
                 func.count(Campaign.id).label("total"),
-                func.count(Campaign.id).filter(
-                    Campaign.status.in_(["running", "queued"])
-                ).label("active"),
+                func.count(Campaign.id)
+                .filter(Campaign.status.in_(["running", "queued"]))
+                .label("active"),
             ).where(Campaign.user_id == current_user.id)
         )
         camp_row = campaigns_result.one()
@@ -104,19 +108,17 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
         logs_result = await session.execute(
             select(
                 func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "sent"
-                ).label("sent"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "failed"
-                ).label("failed"),
-            ).join(Campaign).where(Campaign.user_id == current_user.id)
+                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
+                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
+            )
+            .join(Campaign)
+            .where(Campaign.user_id == current_user.id)
         )
         log_row = logs_result.one()
 
-    total_sent   = log_row.sent   or 0
+    total_sent = log_row.sent or 0
     total_failed = log_row.failed or 0
-    total_logs   = log_row.total  or 0
+    total_logs = log_row.total or 0
     success_rate = round(total_sent / total_logs * 100, 1) if total_logs > 0 else 0.0
 
     expires_str = None
@@ -153,12 +155,8 @@ async def get_activity(
             select(
                 func.date(MailingLog.sent_at).label("day"),
                 func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "sent"
-                ).label("sent"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "failed"
-                ).label("failed"),
+                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
+                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
             )
             .join(Campaign)
             .where(
@@ -286,8 +284,7 @@ async def get_topics_distribution(
     async with async_session_factory() as session:
         # Берём тематики из filters_json кампаний пользователя
         result = await session.execute(
-            select(Campaign.filters_json)
-            .where(
+            select(Campaign.filters_json).where(
                 Campaign.user_id == current_user.id,
                 Campaign.status == "done",
             )
@@ -387,7 +384,9 @@ async def get_campaign_ai_insights(
             detail="You can only analyze your own campaigns",
         )
 
-    camp_status = campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)
+    camp_status = (
+        campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)
+    )
     if camp_status != "done":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

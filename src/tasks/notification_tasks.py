@@ -120,7 +120,8 @@ def notify_campaign_status(
         status: Статус кампании (paused, banned, completed, error).
         error_message: Сообщение об ошибке (опционально).
     """
-    async def _send():
+
+    async def _send() -> None:
         # НОВОЕ: проверяем настройку перед отправкой
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
@@ -152,10 +153,7 @@ def _get_campaign_message(campaign_id: int, status: str, error_message: str = ""
             f"Telegram-аккаунт рассылки заблокирован. Обратитесь в поддержку."
         ),
         "completed": f"✅ <b>Кампания #{campaign_id} завершена!</b>",
-        "error": (
-            f"❌ <b>Ошибка в кампании #{campaign_id}</b>\n\n"
-            f"{error_message}"
-        ),
+        "error": (f"❌ <b>Ошибка в кампании #{campaign_id}</b>\n\n{error_message}"),
     }
     return messages.get(status, f"Статус кампании #{campaign_id}: {status}")
 

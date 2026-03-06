@@ -21,11 +21,13 @@ logger = logging.getLogger(__name__)
 
 class AccountBannedError(Exception):
     """Telegram-аккаунт заблокирован."""
+
     pass
 
 
 class ChatBlockedError(Exception):
     """Бот заблокирован в конкретном чате."""
+
     def __init__(self, chat_id: int, message: str = ""):
         self.chat_id = chat_id
         super().__init__(message)
@@ -33,6 +35,7 @@ class ChatBlockedError(Exception):
 
 class ChatInvalidError(Exception):
     """Чат не существует или недоступен."""
+
     def __init__(self, chat_id: int, message: str = ""):
         self.chat_id = chat_id
         super().__init__(message)
@@ -146,7 +149,11 @@ class TelegramSender:
             except TelegramForbiddenError as e:
                 # Различаем бан аккаунта от блокировки конкретного чата
                 error_text = str(e).lower()
-                if "banned" in error_text or "kicked" in error_text or "user is banned" in error_text:
+                if (
+                    "banned" in error_text
+                    or "kicked" in error_text
+                    or "user is banned" in error_text
+                ):
                     logger.warning(f"User banned in chat {chat_id}: {e}")
                     return SendResult(
                         status=SendStatus.USER_BANNED,
@@ -302,16 +309,18 @@ class CampaignSender:
                 raise AccountBannedError(result.error_message)
 
             if result.status == SendStatus.CHAT_BLOCKED:
-                raise ChatBlockedError(chat_id, result.error_message)
+                raise ChatBlockedError(chat_id, result.error_message or "")
 
             if result.status == SendStatus.CHAT_INVALID:
-                raise ChatInvalidError(chat_id, result.error_message)
+                raise ChatInvalidError(chat_id, result.error_message or "")
 
             if result.status == SendStatus.SENT:
                 return True
 
             # FAILED, RETRY, SKIPPED
-            logger.warning(f"Message not sent to {chat_id}: {result.status} - {result.error_message}")
+            logger.warning(
+                f"Message not sent to {chat_id}: {result.status} - {result.error_message}"
+            )
             return False
 
         except (AccountBannedError, ChatBlockedError, ChatInvalidError):

@@ -16,6 +16,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 try:
     import pymorphy3
@@ -156,7 +157,7 @@ class ContentFilter:
         # Уровень 3: LLM проверка (ОТКЛЮЧЕНО для производительности)
         # level3_result = self._llm_check(text)
         # final_score = max(combined_score, level3_result.score)
-        
+
         # Временно используем только уровень 2 для скорости
         final_score = combined_score
 
@@ -287,7 +288,7 @@ class ContentFilter:
         try:
             # Используем Qwen для модерации (синхронно для Celery)
             result = qwen_ai_service.moderate_content_sync(text, timeout=30)
-            
+
             return FilterResult(
                 passed=result.passed,
                 score=result.score,
@@ -356,7 +357,7 @@ class ContentFilter:
             import concurrent.futures
 
             # Выполняем async код в отдельном потоке для совместимости с Celery
-            async def _call_api():
+            async def _call_api() -> Any:
                 return await client.chat.completions.create(
                     model=model,
                     messages=[

@@ -3,7 +3,7 @@ Handlers для команд /start и /help.
 """
 
 import logging
-
+from decimal import Decimal
 from pathlib import Path
 
 from aiogram import F, Router
@@ -25,7 +25,9 @@ BANNER_PATH = BASE_DIR / "assets" / "images" / "bot" / "banner.jpg"
 router = Router()
 
 
-async def send_banner_with_menu(message: Message, user_credits: int, user_id: int, caption: str = None) -> None:
+async def send_banner_with_menu(
+    message: Message, user_credits: int, user_id: int, caption: str = None
+) -> None:
     """
     Отправить баннер с главным меню.
 
@@ -42,14 +44,19 @@ async def send_banner_with_menu(message: Message, user_credits: int, user_id: in
             await message.answer_photo(
                 photo=banner,
                 caption=caption_text,
-                reply_markup=get_main_menu(user_credits, user_id)
+                reply_markup=get_main_menu(user_credits, user_id),
             )
         else:
             logger.warning(f"Banner not found: {BANNER_PATH}")
-            await message.answer(caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
+            await message.answer(
+                caption_text or "Выберите действие:",
+                reply_markup=get_main_menu(user_credits, user_id),
+            )
     except Exception as e:
         logger.error(f"Error sending banner: {e}")
-        await message.answer(caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id))
+        await message.answer(
+            caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id)
+        )
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "create_campaign_ai"))
@@ -57,6 +64,7 @@ async def start_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     """Запуск создания кампании с AI."""
     # Импортируем функцию создания
     from src.bot.handlers.campaign_create_ai import start_campaign_create
+
     await start_campaign_create(callback, state)
 
 
@@ -110,7 +118,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         )
 
         # Логирование для отладки регистрации
-        logger.info(f"User /start: telegram_id={message.from_user.id}, username={message.from_user.username}, is_new={is_new}")
+        logger.info(
+            f"User /start: telegram_id={message.from_user.id}, username={message.from_user.username}, is_new={is_new}"
+        )
 
         # Обработка реферального кода для новых пользователей
         if ref_code and is_new:
@@ -123,7 +133,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 await billing_service.apply_referral_bonus(
                     referrer_id=referrer.id,
                     referred_user_id=user.id,
-                    bonus_amount=bonus_amount,
+                    bonus_amount=Decimal(str(bonus_amount)),
                 )
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
@@ -288,19 +298,22 @@ async def handle_app_command(message: Message) -> None:
     """Открыть Mini App по команде /app."""
     if not settings.mini_app_url:
         await message.answer(
-            "📱 Mini App пока не настроен.\n"
-            "Используйте кнопки меню для управления ботом."
+            "📱 Mini App пока не настроен.\nИспользуйте кнопки меню для управления ботом."
         )
         return
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text="📱 Открыть кабинет",
-            web_app=WebAppInfo(url=settings.mini_app_url),
-        )
-    ]])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📱 Открыть кабинет",
+                    web_app=WebAppInfo(url=settings.mini_app_url),
+                )
+            ]
+        ]
+    )
 
     await message.answer(
         "📱 <b>Market Bot — Личный кабинет</b>\n\n"

@@ -80,7 +80,9 @@ class BillingService:
             # Для now возвращаем заглушку
             payment_url = f"https://yookassa.ru/payment/{payment_id}"
 
-            logger.info(f"Payment {payment_id} created for user {user_id}, amount: {amount} RUB = {credits_amount} credits")
+            logger.info(
+                f"Payment {payment_id} created for user {user_id}, amount: {amount} RUB = {credits_amount} credits"
+            )
 
             return {
                 "payment_id": payment_id,
@@ -135,12 +137,14 @@ class BillingService:
                 meta["credits_credited"] = credits_amount
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
-                logger.info(f"Payment {payment_id} credited: {credits_amount} credits to user {user_id}")
+                logger.info(
+                    f"Payment {payment_id} credited: {credits_amount} credits to user {user_id}"
+                )
 
                 # Уведомляем пользователя
                 await notification_service.notify_low_balance(
                     user_id=user_id,
-                    balance=credits_amount,
+                    balance=Decimal(credits_amount),
                 )
 
             return {
@@ -176,7 +180,9 @@ class BillingService:
                 return False
 
             if user.credits < credits:
-                logger.warning(f"User {user_id} has insufficient credits: {user.credits} < {credits}")
+                logger.warning(
+                    f"User {user_id} has insufficient credits: {user.credits} < {credits}"
+                )
                 return False
 
             # Списываем кредиты
