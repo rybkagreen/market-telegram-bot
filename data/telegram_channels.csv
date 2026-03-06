@@ -1,0 +1,187 @@
+# Популярные русскоязычные Telegram каналы по категориям
+# Формат: username,title,category,subcategories
+
+# ========== IT & ТЕХНОЛОГИИ (50 каналов) ==========
+golang_ru,Golang Developers,it,programming
+javascript_ru,JavaScript Developers,it,programming
+frontend_ru,Frontend_ru,it,programming
+pythonru,Python Russia,it,programming
+devops_ru,DevOps Community,it,devops
+docker_ru,Docker Russia,it,devops
+kubernetes_ru,Kubernetes Russia,it,devops
+linux_ru,Linux Community,it,sysadmin
+sysadmin_ru,SysAdmin Russia,it,sysadmin
+networking_ru,Networking Russia,it,sysadmin
+security_ru,Security Russia,it,security
+pentest_ru,Pentest Russia,it,security
+crypto_ru,Crypto Russia,it,security
+ai_ml_ru,AI ML Russia,it,ai
+neural_networks,Neural Networks,it,ai
+chatgpt_ru,ChatGPT Russia,it,ai
+data_science_ru,Data Science Russia,it,analytics
+analytics_ru,Analytics Russia,it,analytics
+big_data_ru,Big Data Russia,it,analytics
+startup_ru,Startup Russia,it,startup
+vc_ru,VC.ru,it,startup
+tech_crunch_ru,TechCrunch Russia,it,news
+habr_russia,Habr Russia,it,news
+opennet_ru,OpenNET,it,news
+xakep_ru,Xakep,it,news
+code_review,Code Review,it,education
+geekbrains,GeekBrains,it,education
+skillbox,Skillbox,it,education
+netology,Netology,it,education
+yandex_praktikum,Yandex Praktikum,it,education
+stepik,Stepik,it,education
+postnauka_tech,PostNauka Tech,it,education
+timeweb_cloud,Timeweb Cloud,it,cloud
+selectel_cloud,Selectel Cloud,it,cloud
+cloud_ru,Cloud Russia,it,cloud
+serverless_ru,Serverless Russia,it,cloud
+microservices_ru,Microservices Russia,it,architecture
+clean_code,Clean Code,it,architecture
+patterns_ru,Patterns Russia,it,architecture
+ddd_ru,DDD Russia,it,architecture
+tdd_ru,TDD Russia,it,methodology
+agile_ru,Agile Russia,it,methodology
+scrum_ru,Scrum Russia,it,methodology
+product_manager,Product Manager,it,management
+project_manager,Project Manager,it,management
+team_lead,Team Lead,it,management
+cto_ru,CTO Russia,it,management
+freelance_ru,Freelance Russia,it,freelance
+upwork_ru,Upwork Russia,it,freelance
+remote_work,Remote Work,it,freelance
+
+# ========== БИЗНЕС (40 каналов) ==========
+rb_ru,Russian Business,business,general
+vedomosti,Vedomosti,business,news
+kommersant,Kommersant,business,news
+forbes_ru,Forbes Russia,business,news
+rbcdaily,RBC Daily,business,news
+tass_agency,TASS Agency,business,news
+rian_ru,RIA News,business,news
+interfax_ru,Interfax,business,news
+gazeta_ru,Gazeta,business,news
+lenta_ru,Lenta,business,news
+meduza,Meduza,business,news
+business_insider_ru,Business Insider,business,news
+secret_mag,Secret Mag,business,news
+vc_news,VC.ru News,business,startup
+incrussia,InRussia,business,startup
+vc_ru_startups,VC Startups,business,startup
+startup_digest,Startup Digest,business,startup
+invest_future,Invest Future,business,investments
+tinkoff_invest,Tinkoff Invest,business,investments
+sb_invest,SB Invest,business,investments
+alpha_invest,Alpha Invest,business,investments
+vtb_invest,VTB Invest,business,investments
+gazprom_invest,Gazprom Invest,business,investments
+lukoil_invest,Lukoil Invest,business,investments
+oil_gas,Oil Gas,business,energy
+energy_news,Energy News,business,energy
+realestate_ru,RealEstate Russia,business,realestate
+cian_ru,CIAN,business,realestate
+avito_business,Avito Business,business,realestate
+retail_ru,Retail Russia,business,retail
+x5_group,X5 Group,business,retail
+magnit,Magnit,business,retail
+pyaterochka,Pyaterochka,business,retail
+perepustok,Perepustok,business,education
+get_course,GetCourse,business,education
+edmarket,EdMarket,business,education
+skillfactory,SkillFactory,business,education
+yandex_praktikum_business,Yandex Business,business,education
+sber_university,Sber University,business,education
+vk_edu,VK Edu,business,education
+
+# ========== МАРКЕТИНГ (30 каналов) ==========
+marketing_ru,Marketing Russia,marketing,general
+smm_ru,SMM Russia,marketing,smm
+targetolog,Targetolog,marketing,target
+context_ru,Context Russia,marketing,context
+seo_ru,SEO Russia,marketing,seo
+content_marketing,Content Marketing,marketing,content
+brand_ru,Brand Russia,marketing,branding
+pr_ru,PR Russia,marketing,pr
+influencer_ru,Influencer Russia,marketing,influencer
+email_marketing,Email Marketing,marketing,email
+push_notifications,Push Notifications,marketing,push
+telegram_ads,Telegram Ads,marketing,telegram_ads
+yandex_direct,Yandex Direct,marketing,context
+google_ads,Google Ads,marketing,context
+facebook_ads,Facebook Ads,marketing,target
+instagram_ads,Instagram Ads,marketing,target
+tiktok_ads,TikTok Ads,marketing,target
+vk_ads,VK Ads,marketing,target
+mytarget,MyTarget,marketing,target
+cpa_ru,CPA Russia,marketing,affiliate
+partnerkin,Partnerkin,marketing,affiliate
+lead_generation,Lead Generation,marketing,leads
+conversion_ru,Conversion Russia,marketing,analytics
+google_analytics,Google Analytics,marketing,analytics
+yandex_metrika,Yandex Metrika,marketing,analytics
+data_driven,Data Driven,marketing,analytics
+growth_hacking,Growth Hacking,marketing,growth
+product_marketing,Product Marketing,marketing,product
+b2b_marketing,B2B Marketing,marketing,b2b
+ecommerce_marketing,Ecommerce Marketing,marketing,ecommerce
+
+# ========== НОВОСТИ (30 каналов) ==========
+breaking_news,Breaking News,news,breaking
+ria_politics,RIA Politics,news,politics
+tass_politics,TASS Politics,news,politics
+kommersant_politics,Kommersant Politics,news,politics
+vedomosti_politics,Vedomosti Politics,news,politics
+rbc_politics,RBC Politics,news,politics
+meduza_news,Meduza News,news,general
+holod_media,Holod Media,news,general
+verstka,Verstka,news,general
+important_stories,Important Stories,news,general
+current_news,Current News,news,general
+world_news,World News,news,world
+europe_news,Europe News,news,world
+asia_news,Asia News,news,world
+usa_news,USA News,news,world
+china_news,China News,news,world
+ukraine_news,Ukraine News,news,world
+belarus_news,Belarus News,news,world
+kazakhstan_news,Kazakhstan News,news,world
+moscow_news,Moscow News,news,local
+spb_news,SPB News,news,local
+ekb_news,EKB News,news,local
+kazan_news,Kazan News,news,local
+sochi_news,Sochi News,news,local
+vladivostok_news,Vladivostok News,news,local
+economy_news,Economy News,news,economy
+finance_news,Finance News,news,economy
+tech_news,Tech News,news,technology
+sport_news,Sport News,news,sport
+weather_news,Weather News,news,weather
+
+# ========== КРИПТОВАЛЮТЫ (25 каналов) ==========
+cryptonews_ru,Crypto News Russia,crypto,news
+bitcoin_ru,Bitcoin Russia,crypto,bitcoin
+ethereum_ru,Ethereum Russia,crypto,ethereum
+defi_ru,DeFi Russia,crypto,defi
+nft_ru,NFT Russia,crypto,nft
+web3_ru,Web3 Russia,crypto,web3
+blockchain_ru,Blockchain Russia,crypto,blockchain
+binance_ru,Binance Russia,crypto,exchange
+bybit_ru,Bybit Russia,crypto,exchange
+okx_ru,OKX Russia,crypto,exchange
+huobi_ru,Huobi Russia,crypto,exchange
+gate_io_ru,Gate.io Russia,crypto,exchange
+kucoin_ru,KuCoin Russia,crypto,exchange
+mexc_ru,MEXC Russia,crypto,exchange
+bitget_ru,Bitget Russia,crypto,exchange
+trading_view_ru,TradingView Russia,crypto,trading
+crypto_signals,Crypto Signals,crypto,signals
+whale_alert_ru,Whale Alert Russia,crypto,analytics
+glassnode_ru,Glassnode Russia,crypto,analytics
+coinglass_ru,CoinGlass Russia,crypto,analytics
+coinmarketcap_ru,CoinMarketCap Russia,crypto,analytics
+cryptorank_ru,CryptoRank Russia,crypto,analytics
+investing_crypto,Investing Crypto,crypto,analytics
+coin_telegraph_ru,CoinTelegraph Russia,crypto,news
+forklog,Forklog,crypto,news
