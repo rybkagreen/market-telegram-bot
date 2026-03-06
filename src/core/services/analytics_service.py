@@ -55,6 +55,18 @@ class ChatPerformance:
     avg_rating: float
 
 
+@dataclass
+class PlatformStats:
+    """Публичная статистика платформы (Спринт 0)."""
+
+    active_channels: int  # Количество активных каналов (bot_is_admin=True, is_accepting_ads=True)
+    total_reach: int  # Суммарный охват (сумма member_count)
+    campaigns_launched: int  # Всего запущено кампаний
+    campaigns_completed: int  # Всего завершено успешно
+    avg_channel_rating: float  # Средний рейтинг каналов
+    total_payouts: Decimal  # Суммарно выплачено владельцам (пока 0)
+
+
 class AnalyticsService:
     """
     Сервис аналитики и статистики.
@@ -387,6 +399,70 @@ class AnalyticsService:
             )
 
             return daily_stats
+
+    async def get_platform_stats(self) -> PlatformStats:
+        """
+        Получить публичную статистику платформы (Спринт 0).
+
+        Returns:
+            PlatformStats с метриками платформы.
+        """
+        from sqlalchemy import func, select
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.campaign import Campaign, CampaignStatus
+
+        async with async_session_factory() as session:
+            # Количество активных каналов (opt-in)
+            active_channels_stmt = select(func.count(TelegramChat.id)).where(
+                TelegramChat.is_active == True,  # noqa: E712
+                TelegramChat.bot_is_admin == True,  # noqa: E712
+                TelegramChat.is_accepting_ads == True,  # noqa: E712
+            )
+            active_channels_result = await session.execute(active_channels_stmt)
+            active_channels = active_channels_result.scalar_one() or 0
+
+            # Суммарный охват (сумма member_count)
+            total_reach_stmt = select(func.sum(TelegramChat.member_count)).where(
+                TelegramChat.is_active == True,  # noqa: E712
+                TelegramChat.bot_is_admin == True,  # noqa: E712
+                TelegramChat.is_accepting_ads == True,  # noqa: E712
+            )
+            total_reach_result = await session.execute(total_reach_stmt)
+            total_reach = total_reach_result.scalar_one() or 0
+
+            # Всего запущено кампаний
+            campaigns_launched_stmt = select(func.count(Campaign.id))
+            campaigns_launched_result = await session.execute(campaigns_launched_stmt)
+            campaigns_launched = campaigns_launched_result.scalar_one() or 0
+
+            # Всего завершено успешно
+            campaigns_completed_stmt = select(func.count(Campaign.id)).where(
+                Campaign.status == CampaignStatus.DONE
+            )
+            campaigns_completed_result = await session.execute(campaigns_completed_stmt)
+            campaigns_completed = campaigns_completed_result.scalar_one() or 0
+
+            # Средний рейтинг каналов
+            avg_rating_stmt = select(func.avg(TelegramChat.rating)).where(
+                TelegramChat.is_active == True,  # noqa: E712
+                TelegramChat.bot_is_admin == True,  # noqa: E712
+                TelegramChat.is_accepting_ads == True,  # noqa: E712
+            )
+            avg_rating_result = await session.execute(avg_rating_stmt)
+            avg_channel_rating = avg_rating_result.scalar_one() or 0.0
+
+            # Суммарно выплачено (пока 0, т.к. модель Payout будет в Спринте 1)
+            total_payouts = Decimal("0.00")
+
+            return PlatformStats(
+                active_channels=active_channels,
+                total_reach=total_reach,
+                campaigns_launched=campaigns_launched,
+                campaigns_completed=campaigns_completed,
+                avg_channel_rating=round(avg_channel_rating, 2),
+                total_payouts=total_payouts,
+            )
 
 
 # Глобальный экземпляр
