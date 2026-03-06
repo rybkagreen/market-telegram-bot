@@ -34,17 +34,18 @@ from src.api.constants import (
 
 ### `parser.py`
 Константы парсера Telegram:
-- `SEARCH_QUERIES` — ~250 поисковых запросов по категориям
-- `SEARCH_QUERIES_BY_CATEGORY` — запросы, сгруппированные по категориям
+- `SEARCH_QUERIES` — 333 поисковых запроса по категориям
+- `SEARCH_QUERIES_BY_CATEGORY` — запросы, сгруппированные по категориям (7 категорий)
+- `TOPIC_SEARCH_QUERIES` — 63 запроса по 8 темам (дополнительно)
 - `PARSER_POSTS_SAMPLE` — количество постов для анализа (50)
 - `PARSER_RATE_LIMIT_DELAY` — задержка rate limiting (0.5 сек)
 - `POPULAR_TOPICS` — популярные тематики (45 тем)
 
 ### `content_filter.py`
 Константы контент-фильтра:
-- `LEVEL1_THRESHOLD` — порог regex проверки (0.1)
-- `LEVEL2_THRESHOLD` — порог pymorphy3 проверки (0.3)
-- `LEVEL3_THRESHOLD` — порог LLM проверки (0.5)
+- `LEVEL1_THRESHOLD` — порог regex проверки (0.2)
+- `LEVEL2_THRESHOLD` — порог pymorphy3 проверки (0.5)
+- `LEVEL3_THRESHOLD` — порог LLM проверки (0.7)
 - `BLOCKED_CATEGORIES` — 8 заблокированных категорий
 
 ### `celery.py`
