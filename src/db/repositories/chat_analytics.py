@@ -56,6 +56,23 @@ class ChatAnalyticsRepository:
         await self._session.flush()
         return chat, True
 
+    async def get_by_owner_id(self, owner_user_id: int) -> list[TelegramChat]:
+        """
+        Получить все каналы зарегистрированные данным пользователем.
+
+        Args:
+            owner_user_id: ID владельца в БД (users.id).
+
+        Returns:
+            Список каналов владельца.
+        """
+        result = await self._session.execute(
+            select(TelegramChat)
+            .where(TelegramChat.owner_user_id == owner_user_id)
+            .order_by(TelegramChat.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def get_all_active(self) -> list[TelegramChat]:
         """
         Получить все активные чаты для парсинга.

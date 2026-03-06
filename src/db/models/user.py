@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from src.db.models.campaign import Campaign
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
+    from src.db.models.payout import Payout
     from src.db.models.transaction import Transaction
 
 
@@ -218,6 +219,14 @@ class User(Base, TimestampMixin):
         back_populates="owner",
         lazy="select",
         doc="Каналы принадлежащие пользователю",
+    )
+
+    # Выплаты владельца (Спринт 1)
+    payouts: Mapped[list["Payout"]] = relationship(
+        "Payout",
+        back_populates="owner",
+        lazy="select",
+        doc="Выплаты владельцу канала",
     )
 
     # Индексы

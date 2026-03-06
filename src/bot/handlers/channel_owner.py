@@ -1,9 +1,11 @@
 """
 Хэндлеры для владельцев каналов.
 Спринт 0: регистрация канала (/add_channel) с верификацией bot_is_admin.
+Спринт 1: управление каналами (/my_channels).
 """
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
@@ -18,6 +20,7 @@ from aiogram.types import (
 
 from src.bot.states.channel_owner import AddChannelStates
 from src.bot.utils.safe_callback import safe_callback_edit
+from src.db.models.analytics import TelegramChat
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -329,3 +332,229 @@ async def _finalize_channel_registration(
         "Управление каналом: /my_channels",
         parse_mode="HTML",
     )
+
+
+# ─────────────────────────────────────────────
+# /my_channels — список каналов владельца
+# ─────────────────────────────────────────────
+
+@router.message(Command("my_channels"))
+async def cmd_my_channels(message: Message) -> None:
+    """
+    Список каналов зарегистрированных пользователем.
+    Показывает статус, баланс к выплате и быстрые кнопки управления.
+    """
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        chat_repo = ChatAnalyticsRepository(session)
+
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        if not user:
+            await message.answer("❌ Пользователь не найден. Начните с /start")
+            return
+
+        channels = await chat_repo.get_by_owner_id(user.id)  # type: ignore[arg-type]
+        if not channels:
+            await message.answer(
+                "У вас нет зарегистрированных каналов.\n\n"
+                "Добавьте канал командой /add_channel"
+            )
+            return
+
+        # Строим клавиатуру с каналами
+        keyboard_buttons = []
+        for channel in channels:
+            if channel.username is None:
+                continue
+            status_icon = "🟢" if channel.is_accepting_ads else "🔴"
+            price_str = f"{channel.price_per_post or 0} ₽"
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"{status_icon} @{channel.username} — {price_str}",
+                    callback_data=f"channel_menu:{channel.id}",
+                )
+            ])
+
+        keyboard_buttons.append([InlineKeyboardButton(text="📊 Статистика", callback_data="channels_stats")])
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+        await message.answer(
+            f"📺 <b>Ваши каналы ({len(channels)})</b>\n\n"
+            f"Нажмите на канал для управления:",
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data.startswith("channel_menu:"))
+async def show_channel_menu(callback: CallbackQuery) -> None:
+    """
+    Меню управления конкретным каналом.
+    Показывает статистику и кнопки действий.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        channel = await session.get(TelegramChat, channel_id)
+
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Считаем количество размещений
+        total_placements = len(channel.mailing_logs) if channel.mailing_logs else 0
+
+        # Считаем сумму к выплате
+        pending_payouts = sum(p.amount for p in channel.payouts if p.is_pending) if channel.payouts else Decimal("0")
+
+        status_icon = "🟢" if channel.is_accepting_ads else "🔴"
+        status_text = "Принимает рекламу" if channel.is_accepting_ads else "Реклама отключена"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[  # type: ignore[unused-ignore]
+            [
+                InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}"),
+                InlineKeyboardButton(text="📊 Аналитика", callback_data=f"ch_analytics:{channel_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="📋 Заявки", callback_data=f"ch_requests:{channel_id}"),
+                InlineKeyboardButton(text="💰 Выплаты", callback_data=f"ch_payouts:{channel_id}"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔴 Отключить рекламу" if channel.is_accepting_ads else "🟢 Включить рекламу",
+                    callback_data=f"ch_toggle:{channel_id}",
+                ),
+            ],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="my_channels_back")],
+        ])
+
+        await safe_callback_edit(
+            callback,
+            f"📺 <b>@{channel.username or channel.title}</b>\n\n"
+            f"👥 Подписчиков: {channel.member_count:,}\n"
+            f"💰 Цена за пост: {channel.price_per_post or 0} ₽\n"
+            f"📈 Размещений всего: {total_placements}\n"
+            f"💸 К выплате: {pending_payouts:.0f} ₽\n"
+            f"{status_icon} {status_text}",
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data.startswith("ch_settings:"))
+async def show_channel_settings(callback: CallbackQuery) -> None:
+    """Меню настроек канала."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Изменить цену", callback_data=f"ch_edit_price:{channel_id}")],
+        [InlineKeyboardButton(text="🏷 Изменить тематики", callback_data=f"ch_edit_topics:{channel_id}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"channel_menu:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        "⚙️ <b>Настройки канала</b>\n\nЧто хотите изменить?",
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("ch_toggle:"))
+async def toggle_accepting_ads(callback: CallbackQuery) -> None:
+    """Переключить статус приёма рекламы."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        channel = await session.get(TelegramChat, channel_id)
+        if channel:
+            channel.is_accepting_ads = not channel.is_accepting_ads
+            await session.flush()
+            await callback.answer(f"Реклама {'включена' if channel.is_accepting_ads else 'отключена'}")
+            await show_channel_menu(callback)
+
+
+@router.callback_query(F.data == "my_channels_back")
+async def my_channels_back(callback: CallbackQuery) -> None:
+    """Возврат к списку каналов."""
+    await cmd_my_channels(callback.message)
+
+
+# ─────────────────────────────────────────────
+# Обработка входящих заявок на размещение
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("approve_placement:"))
+async def approve_placement(callback: CallbackQuery) -> None:
+    """
+    Владелец канала одобряет заявку на размещение.
+    Переводит размещение в статус QUEUED для исполнения рассыльщиком.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    placement_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Заявка не найдена", show_alert=True)
+            return
+
+        if placement.status != MailingStatus.PENDING_APPROVAL:
+            await callback.answer("Заявка уже обработана", show_alert=True)
+            return
+
+        placement.status = MailingStatus.QUEUED
+        await session.flush()
+
+    await safe_callback_edit(
+        callback,
+        "✅ <b>Заявка одобрена!</b>\n\n"
+        "Пост будет опубликован в согласованное время.\n"
+        "После публикации вы получите уведомление и выплата будет начислена.",
+        parse_mode="HTML",
+    )
+    await callback.answer("Заявка одобрена")
+
+
+@router.callback_query(F.data.startswith("reject_placement:"))
+async def reject_placement(callback: CallbackQuery) -> None:
+    """
+    Владелец канала отклоняет заявку.
+    Средства рекламодателя размораживаются и возвращаются на баланс.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    placement_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Заявка не найдена", show_alert=True)
+            return
+
+        placement.status = MailingStatus.REJECTED
+        await session.flush()
+
+    await safe_callback_edit(
+        callback,
+        "❌ <b>Заявка отклонена</b>\n\n"
+        "Средства рекламодателя будут возвращены на его баланс.",
+        parse_mode="HTML",
+    )
+    await callback.answer("Заявка отклонена")
