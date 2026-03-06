@@ -263,14 +263,12 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             return stats
 
     try:
-        # Правильное выполнение async кода в Celery worker
-        # Используем asyncio.run() только если нет активного loop
-        import sys
-        if sys.platform == "win32":
-            # Windows требует event_loop_policy для asyncio
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        # Выполняем async код в отдельном потоке для совместимости с Celery prefork
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, _check_async())
+            result = future.result(timeout=60)  # 60 секунд таймаут
         
-        result = asyncio.run(_check_async())
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 

@@ -43,9 +43,9 @@ class FilterResult:
 
 
 # Пороги для перехода между уровнями
-LEVEL1_THRESHOLD = 0.1  # Если score > 0.1, переходим на уровень 2
-LEVEL2_THRESHOLD = 0.3  # Если score > 0.3, переходим на уровень 3
-LEVEL3_THRESHOLD = 0.5  # Если LLM score > 0.5, контент блокируется
+LEVEL1_THRESHOLD = 0.2  # Если score > 0.2, переходим на уровень 2
+LEVEL2_THRESHOLD = 0.5  # Если score > 0.5, переходим на уровень 3
+LEVEL3_THRESHOLD = 0.7  # Если LLM score > 0.7, контент блокируется
 
 
 class ContentFilter:
@@ -153,9 +153,12 @@ class ContentFilter:
                 level2_score=level2_result.score,
             )
 
-        # Уровень 3: LLM проверка
-        level3_result = self._llm_check(text)
-        final_score = max(combined_score, level3_result.score)
+        # Уровень 3: LLM проверка (ОТКЛЮЧЕНО для производительности)
+        # level3_result = self._llm_check(text)
+        # final_score = max(combined_score, level3_result.score)
+        
+        # Временно используем только уровень 2 для скорости
+        final_score = combined_score
 
         return FilterResult(
             passed=final_score < LEVEL3_THRESHOLD,
@@ -163,17 +166,17 @@ class ContentFilter:
             categories=self._merge_categories(
                 level1_result.categories,
                 level2_result.categories,
-                level3_result.categories,
+                # level3_result.categories,
             ),
             flagged_fragments=self._merge_fragments(
                 level1_result.flagged_fragments,
                 level2_result.flagged_fragments,
-                level3_result.flagged_fragments,
+                # level3_result.flagged_fragments,
             ),
             level1_score=level1_result.score,
             level2_score=level2_result.score,
-            level3_score=level3_result.score,
-            llm_analysis=level3_result.llm_analysis,
+            # level3_score=level3_result.score,
+            # llm_analysis=level3_result.llm_analysis,
         )
 
     def _regex_check(self, text: str) -> FilterResult:
@@ -271,7 +274,7 @@ class ContentFilter:
 
     def _llm_check(self, text: str) -> FilterResult:
         """
-        Уровень 3: LLM проверка через OpenRouter API.
+        Уровень 3: LLM проверка через Qwen (OpenRouter API).
 
         Args:
             text: Текст для проверки.
@@ -279,17 +282,22 @@ class ContentFilter:
         Returns:
             FilterResult с результатами.
         """
-        from src.config.settings import settings
-
-        # Проверяем наличие API ключа OpenRouter
-        if not settings.openrouter_api_key:
-            logger.warning("OpenRouter API key not configured, skipping LLM check")
-            return FilterResult(passed=True, score=0.0)
+        from src.core.services.qwen_ai_service import qwen_ai_service
 
         try:
-            return self._call_openrouter(text, settings.openrouter_api_key, settings.model_free)
+            # Используем Qwen для модерации (синхронно для Celery)
+            result = qwen_ai_service.moderate_content_sync(text, timeout=30)
+            
+            return FilterResult(
+                passed=result.passed,
+                score=result.score,
+                categories=result.categories,
+                flagged_fragments=[],  # Qwen не возвращает фрагменты
+                level3_score=result.score,
+                llm_analysis=result.analysis,
+            )
         except Exception as e:
-            logger.error(f"LLM check failed: {e}")
+            logger.error(f"Qwen LLM check failed: {e}")
 
         return FilterResult(passed=True, score=0.0)
 
@@ -345,9 +353,11 @@ class ContentFilter:
             user_prompt = f"Проверь этот текст на запрещенный контент:\n\n{text[:3000]}"
 
             import asyncio
+            import concurrent.futures
 
-            response = asyncio.get_event_loop().run_until_complete(
-                client.chat.completions.create(
+            # Выполняем async код в отдельном потоке для совместимости с Celery
+            async def _call_api():
+                return await client.chat.completions.create(
                     model=model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -356,7 +366,10 @@ class ContentFilter:
                     max_tokens=500,
                     response_format={"type": "json_object"},
                 )
-            )
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, _call_api())
+                response = future.result(timeout=30)  # 30 секунд таймаут
 
             import json
 

@@ -1,5 +1,6 @@
 """
-LLM-классификатор Telegram-каналов через OpenRouter (тот же что для генерации текстов).
+LLM-классификатор Telegram-каналов через Qwen (OpenRouter API).
+Оптимизирован для русского языка и работы с Celery workers.
 """
 import json
 import logging
@@ -37,50 +38,45 @@ async def classify_channel_with_llm(
     posts: list[str],        # список текстов последних постов
 ) -> ClassificationResult:
     """
-    Классифицировать канал через LLM.
+    Классифицировать канал через LLM (Qwen).
     При любой ошибке возвращает fallback-результат, не бросает исключение.
     """
-    # Подготовка данных
-    description_trimmed = (description or "")[:MAX_DESCRIPTION_CHARS]
-
-    posts_text = ""
-    if posts:
-        combined = "\n---\n".join(p[:300] for p in posts[:5])  # макс 5 постов
-        posts_text = combined[:MAX_POSTS_CHARS]
-    else:
-        posts_text = "(посты недоступны)"
-
-    prompt = CLASSIFICATION_PROMPT_TEMPLATE.format(
-        categories=CATEGORIES_FOR_PROMPT,
-        title=title or "—",
-        username=username or "—",
-        member_count=member_count or 0,
-        language=language or "unknown",
-        description=description_trimmed or "(описание отсутствует)",
-        posts=posts_text,
-    )
-
+    # Используем Qwen сервис напрямую
+    from src.core.services.qwen_ai_service import qwen_ai_service
+    
     try:
-        # Использую ai_service.generate() без temperature (не поддерживается)
-        raw_response = await ai_service.generate(
-            prompt=prompt,
-            system="Ты классификатор Telegram-каналов. Возвращай ТОЛЬКО JSON.",
+        # Подготовка данных
+        description_trimmed = (description or "")[:MAX_DESCRIPTION_CHARS]
+
+        posts_text = ""
+        if posts:
+            combined = "\n---\n".join(p[:300] for p in posts[:5])  # макс 5 постов
+            posts_text = combined[:MAX_POSTS_CHARS]
+        else:
+            posts_text = "(посты недоступны)"
+
+        # Вызываем Qwen классификацию
+        result = await qwen_ai_service.classify_channel(
+            title=title or "—",
+            username=username or "—",
+            member_count=member_count or 0,
+            description=description_trimmed or "(описание отсутствует)",
+            posts=posts if posts else [],
+            use_paid=False,  # Используем бесплатную модель
         )
 
-        # Извлечь JSON из ответа
-        result_json = _extract_json(raw_response)
-
         return ClassificationResult(
-            topic=result_json.get("topic", "Другое"),
-            subcategory=result_json.get("subcategory", ""),
-            confidence=float(result_json.get("confidence", 0.5)),
-            rating=float(result_json.get("rating", 5.0)),
-            reasoning=result_json.get("reasoning", ""),
+            topic=result.topic,
+            subcategory=result.subcategory or "",
+            confidence=result.confidence,
+            rating=result.rating,
+            reasoning=f"Qwen: {result.topic}",
+            used_fallback=result.used_fallback,
         )
 
     except Exception as e:
         logger.warning(
-            f"LLM classification failed for @{username}: {e}. Using fallback."
+            f"Qwen LLM classification failed for @{username}: {e}. Using fallback."
         )
         return ClassificationResult(
             topic="Другое",
