@@ -4,6 +4,7 @@ Auth router для JWT авторизации через Telegram initData.
 POST /api/auth/login  — получить JWT по initData
 GET  /api/auth/me     — данные текущего пользователя
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -20,6 +21,7 @@ router = APIRouter()
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
+
 
 class LoginRequest(BaseModel):
     """Запрос на авторизацию через Telegram initData."""
@@ -51,6 +53,7 @@ class LoginResponse(BaseModel):
 
 # ─── Endpoints ──────────────────────────────────────────────────
 
+
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest) -> LoginResponse:
     """
@@ -72,7 +75,7 @@ async def login(body: LoginRequest) -> LoginResponse:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid Telegram data: {e}",
-        )
+        ) from e
 
     tg_user = tg_data["user"]
     telegram_id = tg_user.get("id")
@@ -126,9 +129,7 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
     Используется для проверки токена и обновления данных на фронтенде.
     """
     plan_value = (
-        current_user.plan.value
-        if hasattr(current_user.plan, "value")
-        else str(current_user.plan)
+        current_user.plan.value if hasattr(current_user.plan, "value") else str(current_user.plan)
     )
     return UserResponse(
         id=current_user.id,

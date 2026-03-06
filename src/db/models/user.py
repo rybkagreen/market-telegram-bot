@@ -242,9 +242,7 @@ class User(Base, TimestampMixin):
         if self.plan == UserPlan.FREE:
             return False
         # Проверяем, активен ли тариф
-        if self.plan_expires_at and self.plan_expires_at < datetime.utcnow():
-            return False
-        return True
+        return not (self.plan_expires_at and self.plan_expires_at < datetime.utcnow())
 
     def get_included_ai_generations(self) -> int:
         """Количество включённых ИИ-генераций в месяц по тарифу."""

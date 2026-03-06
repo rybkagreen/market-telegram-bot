@@ -21,10 +21,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(bearer_scheme)
-    ],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> User:
     """
     Dependency: получить текущего пользователя из JWT токена.
@@ -53,16 +50,16 @@ async def get_current_user(
     try:
         payload = decode_jwt_token(credentials.credentials)
         user_id = int(payload["sub"])
-    except pyjwt.ExpiredSignatureError:
+    except pyjwt.ExpiredSignatureError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired",
-        )
-    except (pyjwt.InvalidTokenError, KeyError, ValueError):
+        ) from e
+    except (pyjwt.InvalidTokenError, KeyError, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+        ) from e
 
     async with async_session_factory() as session:
         user = await UserRepository(session).get_by_id(user_id)

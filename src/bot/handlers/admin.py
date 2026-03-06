@@ -358,6 +358,9 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
         message: Сообщение с описанием.
         state: FSM контекст.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     description = message.text.strip()
 
     if len(description) < 10 or len(description) > 500:
@@ -617,7 +620,9 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
 
         await callback.message.edit_text(
             text,
-            reply_markup=get_user_actions_kb(user_db_id, user.is_banned, user.notifications_enabled),
+            reply_markup=get_user_actions_kb(
+                user_db_id, user.is_banned, user.notifications_enabled
+            ),
         )
     await callback.answer()
 
@@ -720,7 +725,7 @@ async def handle_ban_user_id(message: Message, state: FSMContext) -> None:
         message: Сообщение с ID.
         state: FSM контекст.
     """
-    if not message.text.isdigit():
+    if not message.text or not message.text.isdigit():
         await message.answer("❌ Введите числовой Telegram ID.")
         return
 
@@ -868,7 +873,7 @@ async def handle_balance_user_id(message: Message, state: FSMContext) -> None:
         message: Сообщение с ID.
         state: FSM контекст.
     """
-    if not message.text.isdigit():
+    if not message.text or not message.text.isdigit():
         await message.answer("❌ Введите числовой Telegram ID.")
         return
 
@@ -904,6 +909,9 @@ async def handle_balance_amount(message: Message, state: FSMContext) -> None:
         message: Сообщение с суммой.
         state: FSM контекст.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите сумму.")
+        return
     text = message.text.strip().replace(",", ".")
 
     try:
@@ -1037,10 +1045,15 @@ async def handle_broadcast_confirm(callback: CallbackQuery, state: FSMContext) -
 
     sent = 0
     failed = 0
+    bot = callback.bot
+    if bot is None:
+        logger.error("Bot instance is None in admin broadcast handler")
+        await callback.answer("Ошибка. Попробуйте позже.", show_alert=True)
+        return
 
     for user in users:
         try:
-            await callback.bot.send_message(user.telegram_id, text, parse_mode="HTML")
+            await bot.send_message(user.telegram_id, text, parse_mode="HTML")
             sent += 1
         except Exception as e:
             logger.error(f"Failed to send broadcast to {user.telegram_id}: {e}")
@@ -1085,6 +1098,9 @@ async def handle_free_campaign_title(message: Message, state: FSMContext) -> Non
         message: Сообщение с названием.
         state: FSM контекст.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     title = message.text.strip()
 
     if len(title) < 3 or len(title) > 100:
@@ -1105,6 +1121,9 @@ async def handle_free_campaign_text(message: Message, state: FSMContext) -> None
         message: Сообщение с текстом.
         state: FSM контекст.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     text = message.text.strip()
 
     # Content filter проверяет даже для админа

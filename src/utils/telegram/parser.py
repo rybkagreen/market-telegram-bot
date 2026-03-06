@@ -43,6 +43,92 @@ from src.utils.telegram.russian_lang_detector import (
 logger = logging.getLogger(__name__)
 
 
+# ══════════════════════════════════════════════════════════════
+# Расширенные поисковые запросы по каждой тематике
+# ══════════════════════════════════════════════════════════════
+TOPIC_SEARCH_QUERIES: dict[str, list[str]] = {
+    "бизнес": [
+        "бизнес",
+        "предпринимательство",
+        "стартап",
+        "малый бизнес",
+        "бизнес идеи",
+        "открыть бизнес",
+        "бизнес советы",
+        "франшиза",
+    ],
+    "it": [
+        "программирование",
+        "разработка",
+        "python разработчик",
+        "javascript",
+        "devops",
+        "backend",
+        "frontend",
+        "golang",
+        "it вакансии",
+        "software engineer",
+    ],
+    "маркетинг": [
+        "маркетинг",
+        "smm",
+        "таргетинг",
+        "реклама",
+        "продвижение",
+        "контент маркетинг",
+        "digital маркетинг",
+        "маркетолог",
+    ],
+    "финансы": [
+        "финансы",
+        "инвестиции",
+        "фондовый рынок",
+        "акции",
+        "дивиденды",
+        "пассивный доход",
+        "личные финансы",
+        "бюджет",
+    ],
+    "крипто": [
+        "криптовалюта",
+        "биткоин",
+        "ethereum",
+        "трейдинг",
+        "defi",
+        "крипто сигналы",
+        "блокчейн",
+        "nft",
+    ],
+    "образование": [
+        "образование",
+        "онлайн курсы",
+        "обучение",
+        "саморазвитие",
+        "карьера",
+        "профессия",
+        "навыки",
+        "вебинар",
+    ],
+    "новости": [
+        "новости",
+        "политика",
+        "экономика",
+        "мировые новости",
+        "россия",
+        "события",
+        "аналитика",
+    ],
+    "недвижимость": [
+        "недвижимость",
+        "квартира",
+        "ипотека",
+        "аренда жилья",
+        "новостройки",
+        "инвестиции в недвижимость",
+    ],
+}
+
+
 @dataclass
 class ChatInfo:
     """Информация о чате/канале."""
@@ -199,25 +285,27 @@ class TelegramParser:
         # ВАЖНО: указываем device_model чтобы Telegram не блокировал запрос кода
         # https://github.com/LonamiWebs/Telethon/issues/4730
         # Используем ТОЛЬКО user account (без bot_token) для полноценного доступа к поиску
-        
+
         # Настройка прокси если задан
         proxy = None
         if settings.telegram_proxy:
             try:
                 # Парсинг прокси (поддержка HTTP/SOCKS5)
                 proxy_str = settings.telegram_proxy
-                if proxy_str.startswith('http://') or proxy_str.startswith('https://'):
+                if proxy_str.startswith("http://") or proxy_str.startswith("https://"):
                     # HTTP proxy
                     from telethon import HttpProxy
+
                     proxy = HttpProxy.from_url(proxy_str)
-                elif proxy_str.startswith('socks5://') or proxy_str.startswith('socks4://'):
+                elif proxy_str.startswith("socks5://") or proxy_str.startswith("socks4://"):
                     # SOCKS proxy
                     from telethon import SocksProxy
+
                     proxy = SocksProxy.from_url(proxy_str)
                 logger.info(f"Using proxy: {proxy_str[:20]}...")
             except Exception as e:
                 logger.warning(f"Failed to parse proxy '{settings.telegram_proxy}': {e}")
-        
+
         self._client = TelegramClient(
             StringSession(settings.telethon_session_string),
             settings.api_id,
@@ -341,31 +429,48 @@ class TelegramParser:
             # Фильтр InputMessagesFilterEmpty ищет все типы сообщений
             from telethon.tl.types import InputMessagesFilterEmpty
 
-            result = await self.client(
-                SearchGlobalRequest(
-                    q=query,
-                    filter=InputMessagesFilterEmpty(),
-                    min_date=None,
-                    max_date=None,
-                    offset_rate=0,
-                    offset_id=0,
-                    offset_peer=await self.client.get_input_entity("me"),
-                    limit=limit,
-                    broadcasts_only=True,  # Ищем только по каналам
-                )
-            )
+            # Пагинация: делаем несколько запросов пока не наберём limit уникальных каналов
+            seen_ids: set[int] = set()
+            offset_rate = 0
+            max_pages = 5  # Ограничение на количество страниц для одного запроса
+            page = 0
 
-            if not result or not result.messages:
+            while len(seen_ids) < limit and page < max_pages:
+                result = await self.client(
+                    SearchGlobalRequest(
+                        q=query,
+                        filter=InputMessagesFilterEmpty(),
+                        min_date=None,
+                        max_date=None,
+                        offset_rate=offset_rate,
+                        offset_id=0,
+                        offset_peer=await self.client.get_input_entity("me"),
+                        limit=100,  # Максимум за запрос
+                        broadcasts_only=True,  # Ищем только по каналам
+                    )
+                )
+
+                if not result or not result.messages:
+                    break
+
+                # Извлекаем уникальные каналы из текущей страницы
+                for msg in result.messages:
+                    if hasattr(msg, "peer_id") and hasattr(msg.peer_id, "channel_id"):
+                        channel_id = msg.peer_id.channel_id
+                        if channel_id not in seen_ids:
+                            seen_ids.add(channel_id)
+
+                # Переходим к следующей странице
+                if hasattr(result, "next_rate") and result.next_rate:
+                    offset_rate = result.next_rate
+                    page += 1
+                    await asyncio.sleep(1)  # Пауза между запросами
+                else:
+                    break  # Больше результатов нет
+
+            if not seen_ids:
                 logger.info(f"No channels found for query: {query}")
                 return []
-
-            # Извлекаем уникальные каналы из результатов
-            seen_ids: set[int] = set()
-            for msg in result.messages:
-                if hasattr(msg, "peer_id") and hasattr(msg.peer_id, "channel_id"):
-                    channel_id = msg.peer_id.channel_id
-                    if channel_id not in seen_ids:
-                        seen_ids.add(channel_id)
 
             # Получаем информацию о каждом канале с проверкой языка по постам
             russian_channels = []
@@ -376,13 +481,19 @@ class TelegramParser:
 
                     if chat_info:
                         # Проверяем язык по постам (даже если описание на английском)
-                        is_russian, russian_score = await self._check_channel_language(entity)
-                        
+                        # Передаём description из chat_info чтобы не делать повторный GetFullChannelRequest
+                        is_russian, russian_score = await self._check_channel_language(
+                            entity,
+                            description=chat_info.description,
+                        )
+
                         if is_russian:
                             chat_info.meta_json = chat_info.meta_json or {}
                             chat_info.meta_json["russian_score"] = russian_score
                             russian_channels.append(chat_info)
-                            logger.debug(f"✓ Russian channel: {chat_info.title} (@{chat_info.username})")
+                            logger.debug(
+                                f"✓ Russian channel: {chat_info.title} (@{chat_info.username})"
+                            )
                         else:
                             logger.debug(f"✗ Skipping non-Russian channel: {chat_info.title}")
 
@@ -393,7 +504,7 @@ class TelegramParser:
             # Сортируем по оценке русского языка (выше = лучше)
             russian_channels.sort(
                 key=lambda x: x.meta_json.get("russian_score", 0) if x.meta_json else 0,
-                reverse=True
+                reverse=True,
             )
             results = russian_channels
 
@@ -404,6 +515,78 @@ class TelegramParser:
             logger.error(f"Error searching for '{query}': {e}")
 
         return results
+
+    async def search_by_topic(
+        self,
+        topic: str,
+        limit_per_query: int = 30,
+    ) -> list[ChatInfo]:
+        """
+        Искать каналы по теме используя множество поисковых запросов.
+
+        Args:
+            topic: Тема из TOPIC_SEARCH_QUERIES.
+            limit_per_query: Каналов на каждый запрос.
+
+        Returns:
+            Дедуплицированный список ChatInfo.
+        """
+        queries = TOPIC_SEARCH_QUERIES.get(topic, [topic])
+        seen_ids: set[int] = set()
+        results: list[ChatInfo] = []
+
+        for query in queries:
+            chats = await self.search_public_chats(query, limit=limit_per_query)
+            for chat in chats:
+                if chat.telegram_id not in seen_ids:
+                    seen_ids.add(chat.telegram_id)
+                    results.append(chat)
+
+            # Пауза между запросами чтобы не получить FloodWait
+            await asyncio.sleep(2)
+
+        logger.info(
+            f"Topic '{topic}': found {len(results)} unique channels from {len(queries)} queries"
+        )
+        return results
+
+    async def collect_forwarded_channels(
+        self,
+        username: str,
+        posts_limit: int = 50,
+    ) -> list[str]:
+        """
+        Собрать username каналов из пересылок в постах.
+
+        Args:
+            username: Username канала для анализа.
+            posts_limit: Количество постов для анализа.
+
+        Returns:
+            Список username каналов-источников пересылок.
+        """
+        found_usernames: set[str] = set()
+
+        try:
+            entity = await self.client.get_entity(username)
+
+            async for message in self.client.iter_messages(entity, limit=posts_limit):
+                # Пересылка из канала
+                if (
+                    message.forward
+                    and message.forward.chat
+                    and hasattr(message.forward.chat, "username")
+                    and message.forward.chat.username
+                    and message.forward.chat.username.lower() != username.lower()
+                ):
+                    found_usernames.add(message.forward.chat.username)
+
+            logger.info(f"@{username}: found {len(found_usernames)} forwarded channels")
+
+        except Exception as e:
+            logger.debug(f"Error collecting forwards from @{username}: {e}")
+
+        return list(found_usernames)
 
     async def resolve_and_validate(self, username: str) -> ChatDetails | None:
         """
@@ -775,10 +958,12 @@ class TelegramParser:
             async for message in self.client.iter_messages(entity, limit=limit):
                 if message.text and len(message.text.strip()) > 10:
                     post_date = message.date.strftime("%Y-%m-%d") if message.date else None
-                    posts.append({
-                        "text": message.text.strip()[:500],  # Обрезаем длинные посты
-                        "date": post_date,
-                    })
+                    posts.append(
+                        {
+                            "text": message.text.strip()[:500],  # Обрезаем длинные посты
+                            "date": post_date,
+                        }
+                    )
         except Exception as e:
             logger.debug(f"Не удалось получить посты для классификации: {e}")
 
@@ -787,6 +972,7 @@ class TelegramParser:
     async def _check_channel_language(
         self,
         entity: Channel,
+        description: str | None = None,
         sample_size: int = 10,
     ) -> tuple[bool, float]:
         """
@@ -794,6 +980,7 @@ class TelegramParser:
 
         Args:
             entity: Channel entity.
+            description: Описание канала (уже полученное, чтобы не делать повторный запрос).
             sample_size: Количество постов для анализа.
 
         Returns:
@@ -803,20 +990,18 @@ class TelegramParser:
         """
         from src.utils.telegram.russian_lang_detector import (
             detect_language_from_posts,
-            is_russian_text,
             is_english_blacklisted,
+            is_russian_text,
         )
 
         try:
-            # Сначала проверяем описание если есть
-            full_channel = await self.client(GetFullChannelRequest(entity))
-            description = getattr(full_channel.full_chat, "about", None)
-            
+            # description уже передано из _process_entity — не делаем повторный GetFullChannelRequest
+
             if description:
                 # Быстрая проверка по чёрному списку
                 if is_english_blacklisted(description):
                     return False, 0.0
-                
+
                 # Если описание на русском — сразу принимаем
                 if is_russian_text(description):
                     score = get_russian_score(description)

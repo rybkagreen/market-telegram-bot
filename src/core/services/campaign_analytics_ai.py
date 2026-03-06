@@ -4,6 +4,7 @@ AI-аналитика кампаний через OpenRouter.
 
 Использует существующий ai_service.py.
 """
+
 import json
 import logging
 import re
@@ -61,12 +62,12 @@ class CampaignAnalyticsAI:
         base = f"""Проанализируй результаты рекламной кампании в Telegram.
 
 Данные кампании:
-- Название: {data.get('title', 'Без названия')}
-- Отправлено: {data.get('sent', 0)}
-- Ошибок: {data.get('failed', 0)}
-- Процент успеха: {data.get('success_rate', 0)}%
-- Тематика: {', '.join(data.get('topics', [])) or 'не указана'}
-- Дата: {data.get('date', datetime.now(UTC).strftime('%d.%m.%Y'))}
+- Название: {data.get("title", "Без названия")}
+- Отправлено: {data.get("sent", 0)}
+- Ошибок: {data.get("failed", 0)}
+- Процент успеха: {data.get("success_rate", 0)}%
+- Тематика: {", ".join(data.get("topics", [])) or "не указана"}
+- Дата: {data.get("date", datetime.now(UTC).strftime("%d.%m.%Y"))}
 
 Средний успех по платформе: ~85-90%
 
@@ -94,7 +95,7 @@ class CampaignAnalyticsAI:
     def _parse_response(self, response: str, plan: str) -> dict:
         """Парсить JSON-ответ от AI."""
         # Ищем JSON в ответе
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
         if not json_match:
             return {
                 "insights": [response],

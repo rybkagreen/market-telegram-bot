@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-CampaignStatusLiteral = Literal["draft", "queued", "running", "done", "error", "paused", "cancelled"]
+CampaignStatusLiteral = Literal[
+    "draft", "queued", "running", "done", "error", "paused", "cancelled"
+]
 
 
 # === Pydantic схемы ===
@@ -426,9 +428,7 @@ async def list_campaigns_mini_app(
     async with async_session_factory() as session:
         # Базовый запрос
         base_q = select(Campaign).where(Campaign.user_id == current_user.id)
-        count_q = select(func.count(Campaign.id)).where(
-            Campaign.user_id == current_user.id
-        )
+        count_q = select(func.count(Campaign.id)).where(Campaign.user_id == current_user.id)
 
         if status_filter:
             base_q = base_q.where(Campaign.status == status_filter)
@@ -441,9 +441,7 @@ async def list_campaigns_mini_app(
         # Получаем страницу
         offset = (page - 1) * limit
         result = await session.execute(
-            base_q.order_by(Campaign.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+            base_q.order_by(Campaign.created_at.desc()).offset(offset).limit(limit)
         )
         campaigns = result.scalars().all()
 
@@ -458,15 +456,17 @@ async def list_campaigns_mini_app(
             )
             sent_count = sent_result.scalar() or 0
 
-            items.append(CampaignItem(
-                id=camp.id,
-                title=camp.title or "Без названия",
-                status=camp.status.value if hasattr(camp.status, "value") else str(camp.status),
-                created_at=camp.created_at.isoformat() if camp.created_at else "",
-                sent_count=sent_count,
-                target_count=camp.total_chats or None,
-                error_msg=getattr(camp, "error_message", None),
-            ))
+            items.append(
+                CampaignItem(
+                    id=camp.id,
+                    title=camp.title or "Без названия",
+                    status=camp.status.value if hasattr(camp.status, "value") else str(camp.status),
+                    created_at=camp.created_at.isoformat() if camp.created_at else "",
+                    sent_count=sent_count,
+                    target_count=camp.total_chats or None,
+                    error_msg=getattr(camp, "error_message", None),
+                )
+            )
 
     pages = max(1, (total + limit - 1) // limit)
     return CampaignsListResponse(items=items, total=total, page=page, pages=pages)
@@ -497,15 +497,9 @@ async def get_campaign_stats(
         stats_result = await session.execute(
             select(
                 func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "sent"
-                ).label("sent"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "failed"
-                ).label("failed"),
-                func.count(MailingLog.id).filter(
-                    MailingLog.status == "skipped"
-                ).label("skipped"),
+                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
+                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
+                func.count(MailingLog.id).filter(MailingLog.status == "skipped").label("skipped"),
                 func.min(MailingLog.sent_at).label("started_at"),
                 func.max(MailingLog.sent_at).label("finished_at"),
             ).where(MailingLog.campaign_id == campaign_id)
@@ -517,9 +511,7 @@ async def get_campaign_stats(
     success_rate = round(sent / total * 100, 1) if total > 0 else 0.0
 
     camp_status = (
-        campaign.status.value
-        if hasattr(campaign.status, "value")
-        else str(campaign.status)
+        campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)
     )
 
     return CampaignStats(

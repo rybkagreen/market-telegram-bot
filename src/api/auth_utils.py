@@ -4,6 +4,7 @@
 Документация Telegram по валидации initData:
 https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
 """
+
 import hashlib
 import hmac
 import json
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 # ─── Telegram initData валидация ────────────────────────────────
+
 
 def validate_telegram_init_data(init_data: str) -> dict:
     """
@@ -49,9 +51,7 @@ def validate_telegram_init_data(init_data: str) -> dict:
         raise ValueError("Missing hash in initData")
 
     # Формируем строку для проверки (ключи отсортированы)
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(params.items())
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
 
     # Вычисляем секретный ключ
     secret_key = hmac.new(
@@ -81,8 +81,8 @@ def validate_telegram_init_data(init_data: str) -> dict:
     user_json = params.get("user", "{}")
     try:
         user_data = json.loads(unquote(user_json))
-    except json.JSONDecodeError:
-        raise ValueError("Invalid user JSON in initData")
+    except json.JSONDecodeError as e:
+        raise ValueError("Invalid user JSON in initData") from e
 
     return {
         "user": user_data,
@@ -92,6 +92,7 @@ def validate_telegram_init_data(init_data: str) -> dict:
 
 
 # ─── JWT ────────────────────────────────────────────────────────
+
 
 def create_jwt_token(user_id: int, telegram_id: int, plan: str) -> str:
     """

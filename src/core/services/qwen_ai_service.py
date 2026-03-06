@@ -121,9 +121,10 @@ class QwenAIService:
         self._client: AsyncOpenAI | None = None
         self._redis = redis
         self._token_logger = None
-        
+
         if redis:
             from src.core.services.token_logger import TokenUsageLogger
+
             self._token_logger = TokenUsageLogger(redis)
 
     @property
@@ -158,7 +159,7 @@ class QwenAIService:
         """
         if use_paid:
             return settings.model_qwen_plus
-        
+
         # Для модерации используем Step (без rate limit)
         # Для классификации используем Qwen (лучше качество)
         if for_moderation:
@@ -200,13 +201,15 @@ class QwenAIService:
         )
 
         # Логирование использования токенов
-        if self._token_logger and hasattr(response, 'usage') and response.usage:
+        if self._token_logger and hasattr(response, "usage") and response.usage:
             await self._token_logger.log_usage(
                 model=model,
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
-                task_type="moderation" if "модератор" in system_prompt.lower() else "classification",
+                task_type="moderation"
+                if "модератор" in system_prompt.lower()
+                else "classification",
             )
 
         content = response.choices[0].message.content
@@ -239,7 +242,7 @@ class QwenAIService:
             Ответ от модели.
         """
 
-        async def _call():
+        async def _call() -> str:
             return await self._call_qwen_async(
                 system_prompt, user_prompt, model, temperature, max_tokens
             )

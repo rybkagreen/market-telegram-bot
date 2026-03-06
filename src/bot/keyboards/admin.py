@@ -99,7 +99,9 @@ def get_users_list_kb(
     return builder.as_markup()
 
 
-def get_user_actions_kb(user_id: int, is_banned: bool, notifications_enabled: bool = False) -> InlineKeyboardMarkup:
+def get_user_actions_kb(
+    user_id: int, is_banned: bool, notifications_enabled: bool = False
+) -> InlineKeyboardMarkup:
     """
     Действия над конкретным пользователем.
 

@@ -109,6 +109,9 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
     """
     Обработать название кампании (для flow через шаблоны).
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     title = message.text.strip()
 
     if len(title) < 3 or len(title) > 100:
@@ -133,6 +136,7 @@ async def handle_title_input(message: Message, state: FSMContext) -> None:
             user = await user_repo.get_by_telegram_id(message.from_user.id)
             # Получаем план пользователя
             from src.db.models.user import UserPlan
+
             user_plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
 
         text = "✍️ <b>Текст кампании</b>\n\nКак вы хотите создать текст для рассылки?"
@@ -148,6 +152,9 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
     """
     Обработать ввод заголовка.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     header = message.text.strip()
 
     if len(header) < 5:
@@ -171,6 +178,7 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(message.from_user.id)
         from src.db.models.user import UserPlan
+
         user_plan = user.plan if user and isinstance(user.plan, UserPlan) else UserPlan.FREE
 
     text = "✍️ <b>Текст кампании</b>\n\nШаг 3 из 7: Как вы хотите создать текст для рассылки?"
@@ -243,6 +251,7 @@ async def select_ai_text(callback: CallbackQuery, state: FSMContext) -> None:
 
         # Конвертируем plan из строки в Enum если нужно
         from src.db.models.user import UserPlan
+
         plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
         if plan == UserPlan.FREE:
             await callback.answer(
@@ -276,6 +285,9 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
     """
     Обработать описание для ИИ-генерации.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     description = message.text.strip()
 
     if len(description) < 10:
@@ -373,6 +385,9 @@ async def handle_text_input(message: Message, state: FSMContext) -> None:
     """
     Обработать ввод текста кампании.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
     text = message.text.strip()
 
     data = await state.get_data()
@@ -455,6 +470,9 @@ async def handle_image_upload(message: Message, state: FSMContext) -> None:
     Обработать загруженное изображение.
     """
     # Получаем file_id самого большого фото
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте фото.")
+        return
     image_file_id = message.photo[-1].file_id
     await state.update_data(image_file_id=image_file_id)
 
@@ -589,6 +607,9 @@ async def handle_schedule_datetime(message: Message, state: FSMContext) -> None:
     """
     Обработать дату и время запуска.
     """
+    if not message.text:
+        await message.answer("Пожалуйста, введите дату и время.")
+        return
     text = message.text.strip()
 
     # Парсинг даты

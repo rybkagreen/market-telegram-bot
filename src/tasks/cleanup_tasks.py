@@ -135,7 +135,7 @@ async def _archive_old_campaigns_async(months: int = 12) -> dict[str, Any]:
 def cleanup_useless_channels(self) -> dict[str, Any]:
     """
     Удалить бесполезные каналы (без названия, тестовые).
-    
+
     Returns:
         Статистика: удалено, пропущено.
     """
@@ -144,12 +144,12 @@ def cleanup_useless_channels(self) -> dict[str, Any]:
 
 async def _cleanup_useless_channels_async() -> dict[str, Any]:
     """Асинхронная реализация очистки бесполезных каналов."""
-    from sqlalchemy import delete, or_, select
-    
+    from sqlalchemy import delete, or_
+
     from src.db.models.analytics import TelegramChat
-    
+
     stats = {"deleted": 0, "skipped": 0}
-    
+
     async with async_session_factory() as session:
         # Находим каналы для удаления:
         # - без названия (title IS NULL OR title = '')
@@ -158,18 +158,18 @@ async def _cleanup_useless_channels_async() -> dict[str, Any]:
         stmt = delete(TelegramChat).where(
             or_(
                 TelegramChat.title.is_(None),
-                TelegramChat.title == '',
-                TelegramChat.username.like('test%'),
-                TelegramChat.username.like('temp%'),
-                TelegramChat.title.like('Test Channel%'),
+                TelegramChat.title == "",
+                TelegramChat.username.like("test%"),
+                TelegramChat.username.like("temp%"),
+                TelegramChat.title.like("Test Channel%"),
                 TelegramChat.member_count == 0,
             )
         )
-        
+
         result = await session.execute(stmt)
-        stats["deleted"] = result.rowcount
+        stats["deleted"] = result.rowcount if result.rowcount is not None else 0
         await session.commit()
-    
+
     logger.info(f"Cleanup useless channels complete: {stats}")
     return stats
 

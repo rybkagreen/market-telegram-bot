@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         alias="TELETHON_SESSION_STRING",
         description="Telethon StringSession для парсера",
     )
-    
+
     # Telegram Proxy (MTProxy/HTTP proxy для обхода ограничений)
     telegram_proxy: str | None = Field(
         None,
@@ -75,9 +75,13 @@ class Settings(BaseSettings):
     # JWT для Mini App аутентификации
     # Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
     # ══════════════════════════════════════════════════════════════
-    jwt_secret: str = Field(..., alias="JWT_SECRET", description="Секрет для подписи JWT токенов Mini App")
+    jwt_secret: str = Field(
+        ..., alias="JWT_SECRET", description="Секрет для подписи JWT токенов Mini App"
+    )
     jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM", description="Алгоритм подписи JWT")
-    jwt_expire_hours: int = Field(24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)")
+    jwt_expire_hours: int = Field(
+        24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)"
+    )
 
     # Модели (менять не рекомендуется — они привязаны к тарифам)
     # FREE/STARTER → Step 3.5 Flash (бесплатная, БЕЗ rate limit, отличная поддержка RU)
@@ -86,12 +90,18 @@ class Settings(BaseSettings):
     model_free_fallback: str = Field("qwen/qwen3-coder:free", alias="MODEL_FREE_FALLBACK")
     # PRO/BUSINESS → Qwen Plus (платная, высокое качество)
     model_paid: str = Field("qwen/qwen-plus", alias="MODEL_PAID")
-    
+
     # ========== QWEN MODELS (через OpenRouter) ==========
     # Qwen — модели от Alibaba с отличной поддержкой русского языка
-    model_qwen_coder_free: str = Field("qwen/qwen3-coder:free", alias="MODEL_QWEN_CODER_FREE")  # Для классификации
-    model_qwen_turbo: str = Field("qwen/qwen-turbo", alias="MODEL_QWEN_TURBO")  # Дешёвая ($0.002/1K)
-    model_qwen_plus: str = Field("qwen/qwen-plus", alias="MODEL_QWEN_PLUS")  # Качественная ($0.04/1K)
+    model_qwen_coder_free: str = Field(
+        "qwen/qwen3-coder:free", alias="MODEL_QWEN_CODER_FREE"
+    )  # Для классификации
+    model_qwen_turbo: str = Field(
+        "qwen/qwen-turbo", alias="MODEL_QWEN_TURBO"
+    )  # Дешёвая ($0.002/1K)
+    model_qwen_plus: str = Field(
+        "qwen/qwen-plus", alias="MODEL_QWEN_PLUS"
+    )  # Качественная ($0.04/1K)
 
     # Параметры генерации
     ai_timeout: int = Field(60, alias="AI_TIMEOUT")

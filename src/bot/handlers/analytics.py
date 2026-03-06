@@ -292,8 +292,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
 
         async with async_session_factory() as session:
             result = await session.execute(
-                select(Campaign.filters_json)
-                .where(
+                select(Campaign.filters_json).where(
                     Campaign.user_id == user.id,
                     Campaign.status == "done",
                 )
@@ -302,6 +301,7 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
 
         # Подсчитываем тематики
         from collections import Counter
+
         topic_counter: Counter = Counter()
 
         for filters_json in rows:

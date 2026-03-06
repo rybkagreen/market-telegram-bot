@@ -33,6 +33,9 @@ async def handle_add_chat_start(message: Message, state: FSMContext) -> None:
 @router.message(AddChatStates.waiting_username)
 async def handle_add_chat_username(message: Message, state: FSMContext) -> None:
     """Обработать введенный username и запустить парсинг."""
+    if not message.text:
+        await message.answer("Пожалуйста, введите username.")
+        return
     username = message.text.lstrip("@").strip()
     if not username or len(username) < 3:
         await message.answer(

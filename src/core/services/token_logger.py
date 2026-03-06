@@ -6,7 +6,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from redis.asyncio import Redis
@@ -49,11 +49,11 @@ class TokenUsageLogger:
             cost_usd: Стоимость в USD (если известна).
         """
         if not self._redis:
-            logger.debug(f"Redis not configured, skipping token logging")
+            logger.debug("Redis not configured, skipping token logging")
             return
 
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
@@ -81,9 +81,7 @@ class TokenUsageLogger:
         # TTL для статистики — 30 дней
         await self._redis.expire(model_key, 86400 * 30)
 
-        logger.debug(
-            f"Token usage: {model} | {total_tokens} tokens | {task_type}"
-        )
+        logger.debug(f"Token usage: {model} | {total_tokens} tokens | {task_type}")
 
     async def get_stats(self, model: str | None = None) -> dict[str, Any]:
         """
@@ -108,8 +106,7 @@ class TokenUsageLogger:
             model_name = key.decode().replace("qwen:stats:", "")
             stats = await self._redis.hgetall(key)
             all_stats[model_name] = {
-                k.decode(): v.decode() if isinstance(v, bytes) else v
-                for k, v in stats.items()
+                k.decode(): v.decode() if isinstance(v, bytes) else v for k, v in stats.items()
             }
 
         return all_stats

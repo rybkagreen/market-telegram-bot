@@ -15,104 +15,100 @@
 # Ключи верхнего уровня = реальные значения TelegramChat.topic
 SUBCATEGORIES: dict[str, dict[str, str]] = {
     "бизнес": {
-        "startup":          "Стартапы и инновации",
-        "small_business":   "Малый бизнес и ИП",
-        "franchise":        "Франчайзинг",
+        "startup": "Стартапы и инновации",
+        "small_business": "Малый бизнес и ИП",
+        "franchise": "Франчайзинг",
         "personal_finance": "Личные финансы",
-        "real_estate":      "Недвижимость",
+        "real_estate": "Недвижимость",
     },
     "маркетинг": {
-        "digital":    "Digital-маркетинг",
-        "smm":        "SMM и соцсети",
+        "digital": "Digital-маркетинг",
+        "smm": "SMM и соцсети",
         "target_ads": "Таргетированная реклама",
-        "sales":      "Воронки продаж и CRM",
-        "seo":        "SEO и контент",
+        "sales": "Воронки продаж и CRM",
+        "seo": "SEO и контент",
     },
     "it": {
         "programming": "Программирование",
-        "web_dev":     "Веб-разработка",
-        "mobile_dev":  "Мобильная разработка",
-        "ai_ml":       "ИИ и машинное обучение",
-        "data":        "Data Science и аналитика",
-        "devops":      "DevOps и облака",
-        "security":    "Кибербезопасность",
-        "gamedev":     "Разработка игр",
+        "web_dev": "Веб-разработка",
+        "mobile_dev": "Мобильная разработка",
+        "ai_ml": "ИИ и машинное обучение",
+        "data": "Data Science и аналитика",
+        "devops": "DevOps и облака",
+        "security": "Кибербезопасность",
+        "gamedev": "Разработка игр",
     },
     "финансы": {
-        "investments":  "Инвестиции и трейдинг",
+        "investments": "Инвестиции и трейдинг",
         "stock_market": "Фондовый рынок",
-        "banking":      "Банки и вклады",
-        "insurance":    "Страхование",
+        "banking": "Банки и вклады",
+        "insurance": "Страхование",
     },
     "крипто": {
-        "defi":     "DeFi и протоколы",
-        "nft":      "NFT",
-        "trading":  "Крипто-трейдинг",
-        "bitcoin":  "Bitcoin и Ethereum",
+        "defi": "DeFi и протоколы",
+        "nft": "NFT",
+        "trading": "Крипто-трейдинг",
+        "bitcoin": "Bitcoin и Ethereum",
     },
     "образование": {
         "online_courses": "Онлайн-курсы",
-        "languages":      "Изучение языков",
-        "professional":   "Профессии и переквалификация",
-        "kids":           "Детское образование",
-        "university":     "Высшее образование",
+        "languages": "Изучение языков",
+        "professional": "Профессии и переквалификация",
+        "kids": "Детское образование",
+        "university": "Высшее образование",
     },
 }
 
 # Плоский маппинг: код подкатегории → название
 ALL_SUBCATEGORIES: dict[str, str] = {
-    subcat: name
-    for subcats in SUBCATEGORIES.values()
-    for subcat, name in subcats.items()
+    subcat: name for subcats in SUBCATEGORIES.values() for subcat, name in subcats.items()
 }
 
 # Маппинг: подкатегория → родительский топик
 SUBCATEGORY_TO_TOPIC: dict[str, str] = {
-    subcat: parent
-    for parent, subcats in SUBCATEGORIES.items()
-    for subcat in subcats
+    subcat: parent for parent, subcats in SUBCATEGORIES.items() for subcat in subcats
 }
 
 # Ключевые слова для автоклассификации
 # Используются в classify_subcategory()
 SUBCATEGORY_KEYWORDS: dict[str, list[str]] = {
     # бизнес
-    "startup":        ["стартап", "startup", "инновации", "mvp", "фаундер", "раунд", "инвестор"],
+    "startup": ["стартап", "startup", "инновации", "mvp", "фаундер", "раунд", "инвестор"],
     "small_business": ["малый бизнес", "ИП", "предприниматель", "открыть бизнес", "самозанятый"],
-    "franchise":      ["франшиза", "франчайзинг", "франчайзи"],
+    "franchise": ["франшиза", "франчайзинг", "франчайзи"],
     "personal_finance": ["личный бюджет", "экономия", "копить", "финансовая грамотность"],
-    "real_estate":    ["недвижимость", "квартира", "ипотека", "аренда", "жильё"],
+    "real_estate": ["недвижимость", "квартира", "ипотека", "аренда", "жильё"],
     # маркетинг
-    "digital":        ["digital", "диджитал", "интернет-маркетинг", "пиар", "pr"],
-    "smm":            ["smm", "instagram", "тикток", "reels", "контент-маркетинг", "инстаграм"],
-    "target_ads":     ["таргет", "таргетинг", "facebook ads", "vk реклама", "кабинет рекламы"],
-    "sales":          ["воронка", "crm", "продажи", "лиды", "конверсия"],
-    "seo":            ["seo", "сео", "продвижение сайта", "семантика", "позиции"],
+    "digital": ["digital", "диджитал", "интернет-маркетинг", "пиар", "pr"],
+    "smm": ["smm", "instagram", "тикток", "reels", "контент-маркетинг", "инстаграм"],
+    "target_ads": ["таргет", "таргетинг", "facebook ads", "vk реклама", "кабинет рекламы"],
+    "sales": ["воронка", "crm", "продажи", "лиды", "конверсия"],
+    "seo": ["seo", "сео", "продвижение сайта", "семантика", "позиции"],
     # it
-    "programming":    ["python", "javascript", "golang", "rust", "leetcode", "алгоритмы"],
-    "web_dev":        ["react", "vue", "angular", "фронтенд", "backend", "fullstack"],
-    "mobile_dev":     ["ios", "android", "flutter", "swift", "kotlin", "мобильная разработка"],
-    "ai_ml":          ["chatgpt", "llm", "нейросети", "machine learning", "openai", "claude", "ии"],
-    "data":           ["data science", "pandas", "sql", "аналитик данных", "bi", "дашборд"],
-    "devops":         ["docker", "kubernetes", "k8s", "ci/cd", "devops", "aws", "gcp", "azure"],
-    "security":       ["кибербезопасность", "пентест", "уязвимости", "hacking", "osint"],
-    "gamedev":        ["unity", "unreal", "gamedev", "разработка игр", "геймдев", "godot"],
+    "programming": ["python", "javascript", "golang", "rust", "leetcode", "алгоритмы"],
+    "web_dev": ["react", "vue", "angular", "фронтенд", "backend", "fullstack"],
+    "mobile_dev": ["ios", "android", "flutter", "swift", "kotlin", "мобильная разработка"],
+    "ai_ml": ["chatgpt", "llm", "нейросети", "machine learning", "openai", "claude", "ии"],
+    "data": ["data science", "pandas", "sql", "аналитик данных", "bi", "дашборд"],
+    "devops": ["docker", "kubernetes", "k8s", "ci/cd", "devops", "aws", "gcp", "azure"],
+    "security": ["кибербезопасность", "пентест", "уязвимости", "hacking", "osint"],
+    "gamedev": ["unity", "unreal", "gamedev", "разработка игр", "геймдев", "godot"],
     # финансы
-    "investments":    ["инвестиции", "портфель", "дивиденды", "etf", "пиф", "доходность"],
-    "stock_market":   ["акции", "биржа", "ipo", "фондовый", "мосбиржа", "tinkoff"],
-    "banking":        ["банк", "вклад", "кредит", "ставка", "сбербанк", "депозит"],
-    "insurance":      ["страхование", "страховка", "полис", "росгосстрах", "ингосстрах"],
+    "investments": ["инвестиции", "портфель", "дивиденды", "etf", "пиф", "доходность"],
+    "stock_market": ["акции", "биржа", "ipo", "фондовый", "мосбиржа", "tinkoff"],
+    "banking": ["банк", "вклад", "кредит", "ставка", "сбербанк", "депозит"],
+    "insurance": ["страхование", "страховка", "полис", "росгосстрах", "ингосстрах"],
     # крипто
-    "defi":           ["defi", "yield farming", "ликвидность", "протокол", "uniswap"],
-    "nft":            ["nft", "нфт", "метавселенная", "opensea"],
-    "trading":        ["трейдинг", "скальпинг", "технический анализ", "ta", "торговля"],
-    "bitcoin":        ["bitcoin", "биткоин", "ethereum", "эфириум", "btc", "eth"],
+    "defi": ["defi", "yield farming", "ликвидность", "протокол", "uniswap"],
+    "nft": ["nft", "нфт", "метавселенная", "opensea"],
+    "trading": ["трейдинг", "скальпинг", "технический анализ", "ta", "торговля"],
+    "bitcoin": ["bitcoin", "биткоин", "ethereum", "эфириум", "btc", "eth"],
     # образование
     "online_courses": ["курс", "обучение онлайн", "урок", "воркшоп", "вебинар"],
-    "languages":      ["английский", "немецкий", "china", "язык", "learn english"],
-    "professional":   ["профессия", "переквалификация", "смена профессии", "карьера"],
-    "kids":           ["детское", "дети", "школьники", "подготовка к школе", "репетитор"],
-    "university":     ["университет", "вуз", "абитуриент", "егэ", "бакалавр", "магистр"],
+    "languages": ["английский", "немецкий", "china", "язык", "learn english"],
+    "professional": ["профессия", "переквалификация", "смена профессии", "карьера"],
+    "kids": ["детское", "дети", "школьники", "подготовка к школе", "репетитор"],
+    "university": ["университет", "вуз", "абитуриент", "егэ", "бакалавр", "магистр"],
 }
 
 

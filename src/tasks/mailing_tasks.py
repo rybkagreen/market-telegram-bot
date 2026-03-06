@@ -37,7 +37,6 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     logger.info(f"Starting campaign {campaign_id}")
 
     async def _send_async() -> dict[str, Any]:
-
         from aiogram import Bot
         from sqlalchemy import select
 
@@ -110,6 +109,7 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                     # Уведомить пользователя
                     try:
                         from src.tasks.notification_tasks import notify_campaign_status
+
                         notify_campaign_status.delay(
                             user_id=campaign.user_id,
                             campaign_id=campaign.id,
@@ -123,7 +123,9 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                 except ChatBlockedError as e:
                     # Чат заблокировал бота — фиксируем жалобу
                     logger.warning(f"Chat {e.chat_id} blocked bot: {e}")
-                    await _handle_chat_complaint(e.chat_id, "ChatWriteForbidden", session, complaint_thresholds)
+                    await _handle_chat_complaint(
+                        e.chat_id, "ChatWriteForbidden", session, complaint_thresholds
+                    )
                     stats["failed"] += 1
 
                 except ChatInvalidError as e:
@@ -265,10 +267,11 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
     try:
         # Выполняем async код в отдельном потоке для совместимости с Celery prefork
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(asyncio.run, _check_async())
             result = future.result(timeout=60)  # 60 секунд таймаут
-        
+
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 

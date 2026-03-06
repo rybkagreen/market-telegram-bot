@@ -61,7 +61,10 @@ TARIFF_MODELS = {
     UserPlan.STARTER: {"provider": "groq", "model": "llama-3.3-70b-versatile"},
     UserPlan.PRO: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
     UserPlan.BUSINESS: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
-    UserPlan.ADMIN: {"provider": "openrouter", "model": "nousresearch/hermes-3-llama-3.1-405b:free"},  # ADMIN — бесплатная модель
+    UserPlan.ADMIN: {
+        "provider": "openrouter",
+        "model": "nousresearch/hermes-3-llama-3.1-405b:free",
+    },  # ADMIN — бесплатная модель
 }
 
 
@@ -96,8 +99,9 @@ async def show_admin_models_menu(message: Message | CallbackQuery, user: User) -
     """Показать меню выбора модели для админа."""
     answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer
 
-    current_provider = settings.ai_provider
-    current_model = settings.ai_model
+    # Используем getattr с fallback так как ai_provider/ai_model могут отсутствовать в Settings
+    current_provider = getattr(settings, "ai_provider", "openrouter")
+    current_model = getattr(settings, "ai_model", "qwen/qwen-plus")
 
     text = (
         f"🤖 <b>Настройки ИИ (Админ-панель)</b>\n\n"
@@ -267,8 +271,9 @@ async def model_provider_callback(callback: CallbackQuery, callback_data: ModelC
         await callback.answer("❌ Неизвестный провайдер", show_alert=True)
         return
 
-    current_model = settings.ai_model
-    current_provider = settings.ai_provider
+    # Используем getattr с fallback так как ai_provider/ai_model могут отсутствовать в Settings
+    current_model = getattr(settings, "ai_model", "qwen/qwen-plus")
+    current_provider = getattr(settings, "ai_provider", "openrouter")
 
     # Формируем текст с моделями провайдера
     text = (

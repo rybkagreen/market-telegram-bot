@@ -2,14 +2,10 @@
 LLM-классификатор Telegram-каналов через Qwen (OpenRouter API).
 Оптимизирован для русского языка и работы с Celery workers.
 """
+
 import json
 import logging
 from dataclasses import dataclass
-
-from src.utils.telegram.llm_classifier_prompt import (
-    CATEGORIES_FOR_PROMPT,
-    CLASSIFICATION_PROMPT_TEMPLATE,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +18,20 @@ MAX_DESCRIPTION_CHARS = 500
 class ClassificationResult:
     topic: str
     subcategory: str
-    confidence: float        # 0.0–1.0
-    rating: float            # 1.0–10.0
+    confidence: float  # 0.0–1.0
+    rating: float  # 1.0–10.0
     reasoning: str
     used_fallback: bool = False  # True = LLM упал, использована старая классификация
 
 
 async def classify_channel_with_llm(
-    ai_service,              # передавай существующий инстанс ai_service
+    ai_service,  # передавай существующий инстанс ai_service
     title: str,
     username: str,
     member_count: int,
     language: str,
     description: str,
-    posts: list[str],        # список текстов последних постов
+    posts: list[str],  # список текстов последних постов
 ) -> ClassificationResult:
     """
     Классифицировать канал через LLM (Qwen).
@@ -43,17 +39,10 @@ async def classify_channel_with_llm(
     """
     # Используем Qwen сервис напрямую
     from src.core.services.qwen_ai_service import qwen_ai_service
-    
+
     try:
         # Подготовка данных
         description_trimmed = (description or "")[:MAX_DESCRIPTION_CHARS]
-
-        posts_text = ""
-        if posts:
-            combined = "\n---\n".join(p[:300] for p in posts[:5])  # макс 5 постов
-            posts_text = combined[:MAX_POSTS_CHARS]
-        else:
-            posts_text = "(посты недоступны)"
 
         # Вызываем Qwen классификацию
         result = await qwen_ai_service.classify_channel(
@@ -75,9 +64,7 @@ async def classify_channel_with_llm(
         )
 
     except Exception as e:
-        logger.warning(
-            f"Qwen LLM classification failed for @{username}: {e}. Using fallback."
-        )
+        logger.warning(f"Qwen LLM classification failed for @{username}: {e}. Using fallback.")
         return ClassificationResult(
             topic="Другое",
             subcategory="",
@@ -98,7 +85,7 @@ def _extract_json(text: str) -> dict:
     # Убираем markdown-блоки если есть
     if "```" in text:
         lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
+        lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
     # Ищем JSON-объект

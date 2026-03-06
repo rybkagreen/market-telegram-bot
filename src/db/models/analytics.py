@@ -84,7 +84,9 @@ class TelegramChat(Base):
 
     # Поля жалоб и чёрного списка
     complaint_count: Mapped[int] = mapped_column(Integer, default=0)
-    last_complaint_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_complaint_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_blacklisted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     blacklisted_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     blacklisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -106,16 +108,15 @@ class TelegramChat(Base):
 
     # Поля для LLM-классификации
     last_classified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
-        comment="Когда последний раз была LLM-классификация"
+        DateTime(timezone=True), nullable=True, comment="Когда последний раз была LLM-классификация"
     )
     llm_confidence: Mapped[float | None] = mapped_column(
-        Float, nullable=True,
-        comment="Уверенность LLM при последней классификации (0.0–1.0)"
+        Float, nullable=True, comment="Уверенность LLM при последней классификации (0.0–1.0)"
     )
     recent_posts: Mapped[list[dict] | None] = mapped_column(
-        sa.JSON, nullable=True,
-        comment="Последние 5 постов для LLM-классификации [{'text': '...', 'date': '...'}]"
+        sa.JSON,
+        nullable=True,
+        comment="Последние 5 постов для LLM-классификации [{'text': '...', 'date': '...'}]",
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

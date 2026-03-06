@@ -58,6 +58,7 @@ async def show_balance(callback: CallbackQuery) -> None:
 
         # Конвертируем plan из строки в Enum если нужно
         from src.db.models.user import UserPlan
+
         plan = user.plan if isinstance(user.plan, UserPlan) else UserPlan(user.plan)
         plan_value = plan.value.upper()
 
@@ -195,7 +196,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder = InlineKeyboardBuilder()
     builder.button(
         text=f"💳 Оплатить {amount} {currency}",
-        callback_data=BillingCB(action="pay_crypto_url", value=invoice.invoice_id)
+        callback_data=BillingCB(action="pay_crypto_url", value=invoice.invoice_id),
     )
     builder.button(
         text="🔄 Проверить оплату",
@@ -380,6 +381,9 @@ async def stars_pre_checkout(pre_checkout_query) -> None:
 async def stars_payment_success(message: Message) -> None:
     """Обработать успешный Stars платёж."""
     payment = message.successful_payment
+    if payment is None:
+        logger.error("successful_payment is None in stars payment handler")
+        return
     payload = payment.invoice_payload
 
     if not payload.startswith("stars:"):
@@ -402,15 +406,16 @@ async def stars_payment_success(message: Message) -> None:
         total = db_payment.total_credits
         await user_repo.update_credits(db_payment.user_id, total)
 
-        await session.execute(
-            update(CryptoPayment)
-            .where(CryptoPayment.id == payment_db_id)
-            .values(
-                status=PaymentStatus.PAID,
-                telegram_payment_charge_id=payment.telegram_payment_charge_id,
-                credited_at=datetime.now(UTC),
+        if payment is not None:
+            await session.execute(
+                update(CryptoPayment)
+                .where(CryptoPayment.id == payment_db_id)
+                .values(
+                    status=PaymentStatus.PAID,
+                    telegram_payment_charge_id=payment.telegram_payment_charge_id,
+                    credited_at=datetime.now(UTC),
+                )
             )
-        )
         await session.commit()
 
     await message.answer(

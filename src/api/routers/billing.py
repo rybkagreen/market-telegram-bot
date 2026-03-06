@@ -9,6 +9,7 @@ Endpoints:
   POST /api/billing/plan             — сменить тариф
   GET  /api/billing/invoice/{id}     — проверить статус инвойса
 """
+
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -32,16 +33,16 @@ router = APIRouter(tags=["billing"])
 # ─── Константы ──────────────────────────────────────────────────
 
 CREDIT_PACKAGES = [
-    {"id": "nano",     "credits": 300,  "bonus": 0,   "label": "Nano"},
-    {"id": "mini",     "credits": 600,  "bonus": 0,   "label": "Mini"},
+    {"id": "nano", "credits": 300, "bonus": 0, "label": "Nano"},
+    {"id": "mini", "credits": 600, "bonus": 0, "label": "Mini"},
     {"id": "standard", "credits": 1200, "bonus": 100, "label": "Standard"},
     {"id": "business", "credits": 3500, "bonus": 500, "label": "Business"},
 ]
 
 PLAN_COSTS = {
-    "free":     0,
-    "starter":  299,
-    "pro":      999,
+    "free": 0,
+    "starter": 299,
+    "pro": 999,
     "business": 2999,
 }
 
@@ -57,6 +58,7 @@ def _plan_label(plan) -> str:
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
+
 
 class BalanceResponse(BaseModel):
     credits: int
@@ -130,6 +132,7 @@ class InvoiceStatusResponse(BaseModel):
 
 # ─── Endpoints ──────────────────────────────────────────────────
 
+
 @router.get("/balance", response_model=BalanceResponse)
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
@@ -145,11 +148,13 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     for pkg in CREDIT_PACKAGES:
         total = int(str(pkg["credits"])) + int(str(pkg["bonus"]))
         usdt = round(total / settings.credits_per_usdt, 2)
-        packages_with_price.append({
-            **pkg,
-            "total_credits": total,
-            "usdt_approx": usdt,
-        })
+        packages_with_price.append(
+            {
+                **pkg,
+                "total_credits": total,
+                "usdt_approx": usdt,
+            }
+        )
 
     return BalanceResponse(
         credits=current_user.credits,
@@ -171,8 +176,7 @@ async def get_history(
     """История платежей пользователя."""
     async with async_session_factory() as session:
         count_result = await session.execute(
-            select(func.count(CryptoPayment.id))
-            .where(CryptoPayment.user_id == current_user.id)
+            select(func.count(CryptoPayment.id)).where(CryptoPayment.user_id == current_user.id)
         )
         total = count_result.scalar() or 0
 
@@ -190,15 +194,17 @@ async def get_history(
     for p in payments:
         method_str = p.method.value if hasattr(p.method, "value") else str(p.method)
         status_str = p.status.value if hasattr(p.status, "value") else str(p.status)
-        items.append(PaymentHistoryItem(
-            id=p.id,
-            method=method_str,
-            currency=getattr(p, "currency", None),
-            credits=p.credits or 0,
-            bonus_credits=p.bonus_credits or 0,
-            status=status_str,
-            created_at=p.created_at.isoformat() if p.created_at else "",
-        ))
+        items.append(
+            PaymentHistoryItem(
+                id=p.id,
+                method=method_str,
+                currency=getattr(p, "currency", None),
+                credits=p.credits or 0,
+                bonus_credits=p.bonus_credits or 0,
+                status=status_str,
+                created_at=p.created_at.isoformat() if p.created_at else "",
+            )
+        )
 
     pages = max(1, (total + limit - 1) // limit)
     return HistoryResponse(items=items, total=total, page=page, pages=pages)
@@ -228,7 +234,7 @@ async def create_crypto_invoice(
         )
 
     credits = package["credits"]
-    bonus  = package["bonus"]
+    bonus = package["bonus"]
     total_credits = credits + bonus
 
     # Считаем сумму в выбранной валюте
@@ -242,10 +248,7 @@ async def create_crypto_invoice(
     amount_str = f"{amount:.8f}".rstrip("0").rstrip(".")
 
     # Описание инвойса
-    description = (
-        f"Market Bot: {total_credits} кредитов"
-        + (f" (+{bonus} бонус)" if bonus else "")
-    )
+    description = f"Market Bot: {total_credits} кредитов" + (f" (+{bonus} бонус)" if bonus else "")
 
     # Payload для идентификации при вебхуке
     payload = f"miniapp:{current_user.id}:{body.package_id}"
@@ -264,7 +267,7 @@ async def create_crypto_invoice(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create CryptoBot invoice",
-        )
+        ) from e
 
     # Сохраняем в БД
     async with async_session_factory() as session:
@@ -312,7 +315,7 @@ async def create_stars_invoice(
         )
 
     credits = package["credits"]
-    bonus  = package["bonus"]
+    bonus = package["bonus"]
     total_credits = credits + bonus
 
     # Считаем количество Stars
@@ -334,7 +337,7 @@ async def create_stars_invoice(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create Stars invoice",
-        )
+        ) from e
 
     # Сохраняем pending платёж
     async with async_session_factory() as session:
@@ -452,8 +455,7 @@ async def get_invoice_status(
         )
 
     payment_status = (
-        payment.status.value if hasattr(payment.status, "value")
-        else str(payment.status)
+        payment.status.value if hasattr(payment.status, "value") else str(payment.status)
     )
 
     # Если уже оплачен — возвращаем сразу

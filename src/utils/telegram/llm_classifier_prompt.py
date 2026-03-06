@@ -21,7 +21,7 @@ CATEGORIES_FOR_PROMPT = """
 - Другое: не подходит ни под одну категорию
 """
 
-CLASSIFICATION_PROMPT_TEMPLATE = """Ты классификатор Telegram-каналов. 
+CLASSIFICATION_PROMPT_TEMPLATE = """Ты классификатор Telegram-каналов.
 Твоя задача — определить тематику канала на основе предоставленных данных.
 
 {categories}

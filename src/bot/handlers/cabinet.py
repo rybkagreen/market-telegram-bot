@@ -131,7 +131,12 @@ async def referral_callback(callback: CallbackQuery) -> None:
                 referrers_text += f"\n... и ещё {referrer_count - 5}"
 
         # Реферальная ссылка
-        bot_info = await callback.bot.get_me()
+        bot = callback.bot
+        if bot is None:
+            logger.error("Bot instance is None in cabinet handler")
+            await callback.answer("Ошибка. Попробуйте позже.", show_alert=True)
+            return
+        bot_info = await bot.get_me()
         ref_link = f"https://t.me/{bot_info.username}?start=ref_{user.referral_code}"
 
         text = (
@@ -227,7 +232,9 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
             try:
                 await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
             except Exception:
-                await callback.message.edit_message_caption(caption=text, reply_markup=builder.as_markup())
+                await callback.message.edit_message_caption(
+                    caption=text, reply_markup=builder.as_markup()
+                )
             return
 
         # Формируем список кампаний

@@ -3,6 +3,7 @@
 Используется в parser_tasks.py при парсинге новых каналов
 и при периодическом обновлении через Celery Beat.
 """
+
 import logging
 import re
 from dataclasses import dataclass
@@ -26,8 +27,8 @@ COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _NO_ADS_PATTERNS]
 
 @dataclass
 class ChannelRulesResult:
-    allows_ads: bool        # True = реклама разрешена (или правила не найдены)
-    reject_reason: str = "" # причина отказа
+    allows_ads: bool  # True = реклама разрешена (или правила не найдены)
+    reject_reason: str = ""  # причина отказа
     checked_text: str = ""  # текст который проверялся (для лога, обрезан до 500 символов)
 
 
