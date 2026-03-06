@@ -16,6 +16,7 @@ from src.bot.keyboards.campaign_analytics import (
     get_campaign_list_kb,
 )
 from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.campaign_analytics_ai import campaign_analytics_ai
 from src.db.models.campaign import Campaign
 from src.db.models.mailing_log import MailingLog
@@ -51,8 +52,7 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
                 "• Идеи для A/B тестов"
             )
 
-            await callback.message.edit_text(
-                text,
+            await safe_callback_edit(callback, text,
                 reply_markup=get_ai_premium_lock_kb(),
             )
             return
@@ -90,7 +90,7 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
             )
             builder.adjust(1)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
             return
 
         # Проверяем лимит AI-генераций
@@ -110,7 +110,7 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
             )
             builder.adjust(1)
 
-            await callback.message.edit_text(text, reply_markup=builder.as_markup())
+            await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
             return
 
         text = (
@@ -124,8 +124,7 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
             for c in campaigns
         ]
 
-        await callback.message.edit_text(
-            text,
+        await safe_callback_edit(callback, text,
             reply_markup=get_campaign_list_kb(campaigns_data),
         )
 
@@ -140,11 +139,9 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
     campaign_id = int(callback_data.campaign_id)
 
     # Показываем индикатор загрузки
-    await callback.message.edit_text(
-        "✨ <b>AI-анализ кампании</b>\n\n"
+    await safe_callback_edit(callback, "✨ <b>AI-анализ кампании</b>\n\n"
         "⏳ Анализирую данные кампании...\n\n"
-        "Это может занять до 30 секунд."
-    )
+        "Это может занять до 30 секунд.")
 
     async with get_user_service() as svc:
         user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
@@ -161,11 +158,11 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
             campaign = await session.get(Campaign, campaign_id)
 
             if not campaign:
-                await callback.message.edit_text("❌ Кампания не найдена")
+                await safe_callback_edit(callback, "❌ Кампания не найдена")
                 return
 
             if campaign.user_id != user.id:
-                await callback.message.edit_text("❌ Это не ваша кампания")
+                await safe_callback_edit(callback, "❌ Это не ваша кампания")
                 return
 
             # Получаем статистику
@@ -201,8 +198,7 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
             )
         except Exception as e:
             logger.error(f"AI analytics error: {e}")
-            await callback.message.edit_text(
-                f"❌ Не удалось получить AI-анализ\n\nОшибка: {str(e)}\n\nПопробуйте позже."
+            await safe_callback_edit(callback, f"❌ Не удалось получить AI-анализ\n\nОшибка: {str(e)}\n\nПопробуйте позже."
             )
             return
 
@@ -256,8 +252,7 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
         ai_limit = 5 if plan_str == "pro" else 20
         text += f"\n💡 Осталось генераций: {ai_limit - user.ai_generations_used - 1} из {ai_limit}"
 
-        await callback.message.edit_text(
-            text,
+        await safe_callback_edit(callback, text,
             reply_markup=get_ai_analysis_result_kb(campaign_id),
         )
 

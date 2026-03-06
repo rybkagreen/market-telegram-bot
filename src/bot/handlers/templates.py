@@ -18,6 +18,7 @@ from src.bot.data.templates import (
 from src.bot.keyboards.campaign import CampaignCB
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.states.campaign import CampaignStates
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -47,7 +48,7 @@ async def handle_templates_menu(callback: CallbackQuery) -> None:
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 2, 2, 2, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(CampaignCB.filter(F.action == "template_category"))
@@ -80,7 +81,7 @@ async def handle_category_selected(callback: CallbackQuery, callback_data: Campa
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 2)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(CampaignCB.filter(F.action == "template_preview"))
@@ -113,7 +114,7 @@ async def handle_template_preview(callback: CallbackQuery, callback_data: Campai
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(CampaignCB.filter(F.action == "template_back"))
@@ -140,7 +141,7 @@ async def handle_template_back(callback: CallbackQuery, callback_data: CampaignC
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(2, 2, 2, 2, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(CampaignCB.filter(F.action == "template_use"))
@@ -190,14 +191,14 @@ async def handle_use_template(
             f"Теперь придумайте название для кампании (3-100 символов):"
         )
 
-        await callback.message.edit_text(text)
+        await safe_callback_edit(callback, text)
         await state.set_state(CampaignStates.waiting_title)
         await state.update_data(step="title")
     else:
         # Продолжаем wizard — переходим к выбору тематики
         text = f"✅ Шаблон «{template['title']}» выбран!\n\nТеперь выберите тематику кампании:"
 
-        await callback.message.edit_text(text, reply_markup=get_topics_kb())
+        await safe_callback_edit(callback, text, reply_markup=get_topics_kb())
         await state.set_state(CampaignStates.waiting_topic)
         await state.update_data(step="topic")
 

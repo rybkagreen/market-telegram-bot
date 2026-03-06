@@ -39,6 +39,7 @@ from src.bot.states.admin import (
     AdminBroadcastStates,
     AdminFreeCampaignStates,
 )
+from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.core.services.ai_service import admin_ai_service
 from src.db.models.campaign import CampaignStatus
@@ -74,8 +75,8 @@ async def handle_admin_menu(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "🔐 <b>Панель администратора</b>\n\n"
-        f"Добро пожаловать, <b>{message.from_user.first_name}</b>!\n\n"
-        f"Ваш ID: <code>{message.from_user.id}</code>",
+        f"Добро пожаловать, <b>{message.from_user.first_name}</b>!\n\n"  # type: ignore[union-attr]
+        f"Ваш ID: <code>{message.from_user.id}</code>",  # type: ignore[union-attr]
         reply_markup=get_admin_main_kb(),
     )
 
@@ -150,7 +151,7 @@ async def handle_admin_stats(callback: CallbackQuery) -> None:
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 
@@ -187,7 +188,7 @@ async def show_mailing_health(callback: CallbackQuery) -> None:
         f"⛔ Каналов в ЧС:       <b>{blacklisted}</b>"
     )
 
-    await callback.message.edit_text(text, reply_markup=get_mailing_health_kb())
+    await safe_callback_edit(callback, text, reply_markup=get_mailing_health_kb())
     await callback.answer()
 
 
@@ -226,7 +227,7 @@ async def show_problem_campaigns(
     builder.button(text="🔙 К дашборду", callback_data=AdminCB(action="mailing_health"))
     builder.adjust(1)
 
-    await callback.message.edit_text("\n".join(lines), reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, "\n".join(lines), reply_markup=builder.as_markup())
     await callback.answer()
 
 
@@ -255,8 +256,7 @@ async def show_blacklist(callback: CallbackQuery, callback_data: AdminCB) -> Non
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     if not chats:
-        await callback.message.edit_text(
-            "🚫 <b>Чёрный список каналов</b>\n\nСписок пуст.",
+        await safe_callback_edit(callback, "🚫 <b>Чёрный список каналов</b>\n\nСписок пуст.",
             reply_markup=get_back_kb(),
         )
         return
@@ -267,8 +267,7 @@ async def show_blacklist(callback: CallbackQuery, callback_data: AdminCB) -> Non
         reason = (ch.blacklisted_reason or "—")[:40]
         lines.append(f"• <code>{ch.id}</code> {username}\n  └ {reason}")
 
-    await callback.message.edit_text(
-        "\n".join(lines),
+    await safe_callback_edit(callback, "\n".join(lines),
         reply_markup=get_blacklist_kb(page, total_pages),
     )
     await callback.answer()
@@ -316,8 +315,7 @@ async def show_test_campaign_menu(callback: CallbackQuery) -> None:
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(1)
 
-    await callback.message.edit_text(
-        "🧪 <b>Тест кампании</b>\n\nВыберите действие:",
+    await safe_callback_edit(callback, "🧪 <b>Тест кампании</b>\n\nВыберите действие:",
         reply_markup=builder.as_markup(),
     )
     await callback.answer()
@@ -338,8 +336,7 @@ async def handle_ai_generate_start(callback: CallbackQuery, state: FSMContext) -
     await state.clear()
     await state.set_state(AdminAIGenerateStates.waiting_description)
 
-    await callback.message.edit_text(
-        "🤖 <b>ИИ-генерация кампании</b>\n\n"
+    await safe_callback_edit(callback, "🤖 <b>ИИ-генерация кампании</b>\n\n"
         "Опишите, о чём должна быть рекламная кампания.\n"
         "ИИ сгенерирует название, текст и варианты A/B тестирования.\n\n"
         "Пример: 'Продвижение онлайн-курса по программированию для начинающих'\n\n"
@@ -422,7 +419,7 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
     data = await state.get_data()
     description = data.get("ai_description", "")
 
-    await callback.message.edit_text("⏳ Перегенерирую варианты...")
+    await safe_callback_edit(callback, "⏳ Перегенерирую варианты...")
 
     try:
         variants = await admin_ai_service.generate_ab_variants(
@@ -445,12 +442,11 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(1, 1, 1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
 
     except Exception as e:
         logger.error(f"AI regeneration error: {e}")
-        await callback.message.edit_text(
-            "❌ Ошибка при перегенерации.\nПопробуйте ещё раз.",
+        await safe_callback_edit(callback, "❌ Ошибка при перегенерации.\nПопробуйте ещё раз.",
             reply_markup=get_back_kb(),
         )
 
@@ -481,7 +477,7 @@ async def handle_ai_variant_select(
     await state.update_data(text=selected_text, selected_variant=variant_index + 1)
 
     # Генерируем название на основе описания (бесплатно для админа)
-    await callback.message.edit_text("⏳ Генерирую название...")
+    await safe_callback_edit(callback, "⏳ Генерирую название...")
 
     try:
         title = await admin_ai_service.generate(
@@ -492,8 +488,7 @@ async def handle_ai_variant_select(
         await state.update_data(title=title)
 
         await state.set_state(AdminAIGenerateStates.waiting_topic)
-        await callback.message.edit_text(
-            f"✅ <b>Кампания сгенерирована!</b>\n\n"
+        await safe_callback_edit(callback, f"✅ <b>Кампания сгенерирована!</b>\n\n"
             f"📋 <b>Название:</b> {title}\n"
             f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
             f"Выберите тематику для рассылки:",
@@ -506,8 +501,7 @@ async def handle_ai_variant_select(
         title = f"Кампания #{variant_index + 1}"
         await state.update_data(title=title)
         await state.set_state(AdminAIGenerateStates.waiting_topic)
-        await callback.message.edit_text(
-            f"✅ <b>Кампания сгенерирована!</b>\n\n"
+        await safe_callback_edit(callback, f"✅ <b>Кампания сгенерирована!</b>\n\n"
             f"📋 <b>Название:</b> {title}\n"
             f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
             f"Выберите тематику для рассылки:",
@@ -558,8 +552,7 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
         username = f"@{user.username}" if user.username else "—"
         text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.credits} кр\n"
 
-    await callback.message.edit_text(
-        text,
+    await safe_callback_edit(callback, text,
         reply_markup=get_users_list_kb(users, page, total_pages),
     )
     await callback.answer()
@@ -618,11 +611,9 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
             f"Реферальный код: <code>{user.referral_code}</code>"
         )
 
-        await callback.message.edit_text(
-            text,
+        await safe_callback_edit(callback, text,
             reply_markup=get_user_actions_kb(
-                user_db_id, user.is_banned, user.notifications_enabled
-            ),
+                user_db_id, user.is_banned, user.notifications_enabled),
         )
     await callback.answer()
 
@@ -709,8 +700,7 @@ async def handle_ban_start(callback: CallbackQuery, state: FSMContext) -> None:
         state: FSM контекст.
     """
     await state.set_state(AdminBanStates.waiting_user_id)
-    await callback.message.edit_text(
-        "🚫 <b>Бан пользователя</b>\n\nВведите Telegram ID пользователя:",
+    await safe_callback_edit(callback, "🚫 <b>Бан пользователя</b>\n\nВведите Telegram ID пользователя:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -795,7 +785,7 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
 
         action = "забанен 🚫" if new_status else "разбанен ✅"
         logger.warning(
-            f"Admin {message.from_user.id} {action} user {target_telegram_id}. Reason: {reason}"
+            f"Admin {message.from_user.id} {action} user {target_telegram_id}. Reason: {reason}"  # type: ignore[union-attr]
         )
 
     await message.answer(
@@ -834,8 +824,7 @@ async def handle_edit_balance(
     await state.update_data(target_db_id=user_db_id, target_telegram_id=user.telegram_id)
     await state.set_state(AdminBalanceStates.waiting_amount)
 
-    await callback.message.edit_text(
-        f"💰 <b>Изменение баланса пользователя</b>\n\n"
+    await safe_callback_edit(callback, f"💰 <b>Изменение баланса пользователя</b>\n\n"
         f"👤 {user.full_name} (Telegram ID: <code>{user.telegram_id}</code>)\n"
         f"💳 Текущий баланс: <b>{user.credits} кр</b>\n\n"
         "Введите сумму изменения:\n"
@@ -857,8 +846,7 @@ async def handle_balance_manage(callback: CallbackQuery, state: FSMContext) -> N
         state: FSM контекст.
     """
     await state.set_state(AdminBalanceStates.waiting_user_id)
-    await callback.message.edit_text(
-        "💰 <b>Изменение баланса пользователя</b>\n\nВведите Telegram ID пользователя:",
+    await safe_callback_edit(callback, "💰 <b>Изменение баланса пользователя</b>\n\nВведите Telegram ID пользователя:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -963,7 +951,7 @@ async def handle_balance_reason(message: Message, state: FSMContext) -> None:
 
         sign = "+" if amount > 0 else ""
         logger.info(
-            f"Admin {message.from_user.id} changed credits of user "
+            f"Admin {message.from_user.id} changed credits of user "  # type: ignore[union-attr]
             f"{user.telegram_id} by {sign}{amount} кр. Reason: {reason}"
         )
 
@@ -990,8 +978,7 @@ async def handle_broadcast_start(callback: CallbackQuery, state: FSMContext) -> 
         state: FSM контекст.
     """
     await state.set_state(AdminBroadcastStates.waiting_message)
-    await callback.message.edit_text(
-        "📢 <b>Broadcast рассылка</b>\n\n"
+    await safe_callback_edit(callback, "📢 <b>Broadcast рассылка</b>\n\n"
         "Введите текст сообщения.\n"
         "Поддерживается HTML форматирование.\n\n"
         "⚠️ Сообщение получат <b>все</b> незабаненные пользователи.",
@@ -1059,8 +1046,7 @@ async def handle_broadcast_confirm(callback: CallbackQuery, state: FSMContext) -
             logger.error(f"Failed to send broadcast to {user.telegram_id}: {e}")
             failed += 1
 
-    await callback.message.edit_text(
-        f"✅ <b>Broadcast завершён</b>\n\n📤 Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
+    await safe_callback_edit(callback, f"✅ <b>Broadcast завершён</b>\n\n📤 Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
         reply_markup=get_admin_main_kb(),
     )
     await callback.answer()
@@ -1082,8 +1068,7 @@ async def handle_free_campaign_start(callback: CallbackQuery, state: FSMContext)
     await state.update_data(is_free=True, admin_id=callback.from_user.id)
     await state.set_state(AdminFreeCampaignStates.waiting_title)
 
-    await callback.message.edit_text(
-        "📣 <b>Бесплатная кампания администратора</b>\n\nВведите название кампании:",
+    await safe_callback_edit(callback, "📣 <b>Бесплатная кампания администратора</b>\n\nВведите название кампании:",
         reply_markup=get_back_kb(),
     )
     await callback.answer()
@@ -1159,8 +1144,7 @@ async def handle_free_campaign_topic(
     """
     await state.update_data(topic=callback_data.value)
     await state.set_state(AdminFreeCampaignStates.waiting_member_count)
-    await callback.message.edit_text(
-        "Выберите размер аудитории:", reply_markup=get_member_count_kb()
+    await safe_callback_edit(callback, "Выберите размер аудитории:", reply_markup=get_member_count_kb()
     )
     await callback.answer()
 
@@ -1192,7 +1176,7 @@ async def handle_free_campaign_members(
 
     await state.update_data(min_members=min_members, max_members=max_members)
     await state.set_state(AdminFreeCampaignStates.waiting_schedule)
-    await callback.message.edit_text("Когда запустить кампанию?", reply_markup=get_schedule_kb())
+    await safe_callback_edit(callback, "Когда запустить кампанию?", reply_markup=get_schedule_kb())
     await callback.answer()
 
 
@@ -1246,11 +1230,15 @@ async def show_free_campaign_confirm(
         state: FSM контекст.
     """
     data = await state.get_data()
+    if data is None:
+        logger.error("State data is None in show_free_campaign_confirm")
+        await callback.answer("Ошибка. Начните заново.", show_alert=True)
+        return
 
     text = (
         "✅ <b>Подтверждение кампании</b>\n\n"
         f"📋 Название: {data.get('title')}\n"
-        f"📝 Текст: {data.get('text')[:200]}...\n"
+        f"📝 Текст: {data.get('text', '')[:200]}...\n"
         f"📌 Тематика: {data.get('topic')}\n"
         f"👥 Аудитория: {data.get('min_members')}-{data.get('max_members')}\n"
         f"⏰ Запуск: {'Немедленно' if data.get('schedule') == 'now' else 'По расписанию'}\n\n"
@@ -1266,7 +1254,7 @@ async def show_free_campaign_confirm(
     builder.adjust(2)
 
     if isinstance(callback, CallbackQuery):
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     else:
         await callback.answer(text, reply_markup=builder.as_markup())
 
@@ -1285,7 +1273,7 @@ async def handle_free_campaign_confirm(callback: CallbackQuery, state: FSMContex
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        admin_user = await user_repo.get_by_telegram_id(admin_id)
+        admin_user = await user_repo.get_by_telegram_id(admin_id)  # type: ignore[arg-type]
 
         if not admin_user:
             await callback.answer("❌ Администратор не найден", show_alert=True)
@@ -1314,8 +1302,7 @@ async def handle_free_campaign_confirm(callback: CallbackQuery, state: FSMContex
 
     logger.info(f"Admin {admin_id} created free campaign {campaign.id}")
 
-    await callback.message.edit_text(
-        f"✅ <b>Кампания запущена!</b>\n\n"
+    await safe_callback_edit(callback, f"✅ <b>Кампания запущена!</b>\n\n"
         f"📋 {campaign.title}\n"
         f"💰 Стоимость: <b>0₽ (бесплатно)</b>\n\n"
         f"Вы получите уведомление о завершении.",
@@ -1344,8 +1331,7 @@ async def handle_ai_generate_topic(
     """
     await state.update_data(topic=callback_data.value)
     await state.set_state(AdminAIGenerateStates.waiting_member_count)
-    await callback.message.edit_text(
-        "Выберите размер чатов для рассылки:",
+    await safe_callback_edit(callback, "Выберите размер чатов для рассылки:",
         reply_markup=get_member_count_kb(),
     )
     await callback.answer()
@@ -1381,8 +1367,7 @@ async def handle_ai_generate_member_count(
         max_members=max_members,
     )
     await state.set_state(AdminAIGenerateStates.waiting_schedule)
-    await callback.message.edit_text(
-        "Когда запустить кампанию?",
+    await safe_callback_edit(callback, "Когда запустить кампанию?",
         reply_markup=get_schedule_kb(),
     )
     await callback.answer()
@@ -1423,11 +1408,15 @@ async def show_ai_campaign_confirm(
         state: FSM контекст.
     """
     data = await state.get_data()
+    if data is None:
+        logger.error("State data is None in show_ai_campaign_confirm")
+        await callback.answer("Ошибка. Начните заново.", show_alert=True)
+        return
 
     text = (
         "✅ <b>Подтверждение AI-кампании</b>\n\n"
         f"📋 Название: {data.get('title')}\n"
-        f"📝 Текст: {data.get('text')[:200]}...\n"
+        f"📝 Текст: {data.get('text', '')[:200]}...\n"
         f"📌 Тематика: {data.get('topic')}\n"
         f"👥 Аудитория: {data.get('min_members')}-{data.get('max_members')}\n"
         f"⏰ Запуск: {'Немедленно' if data.get('schedule') == 'now' else 'По расписанию'}\n\n"
@@ -1443,7 +1432,7 @@ async def show_ai_campaign_confirm(
     builder.adjust(2)
 
     if isinstance(callback, CallbackQuery):
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     else:
         await callback.answer(text, reply_markup=builder.as_markup())
 
@@ -1462,7 +1451,7 @@ async def handle_ai_campaign_confirm(callback: CallbackQuery, state: FSMContext)
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        admin_user = await user_repo.get_by_telegram_id(admin_id)
+        admin_user = await user_repo.get_by_telegram_id(admin_id)  # type: ignore[arg-type]
 
         if not admin_user:
             await callback.answer("❌ Администратор не найден", show_alert=True)
@@ -1492,8 +1481,7 @@ async def handle_ai_campaign_confirm(callback: CallbackQuery, state: FSMContext)
 
     logger.info(f"Admin {admin_id} created AI campaign {campaign.id}")
 
-    await callback.message.edit_text(
-        f"✅ <b>AI-кампания запущена!</b>\n\n"
+    await safe_callback_edit(callback, f"✅ <b>AI-кампания запущена!</b>\n\n"
         f"📋 {campaign.title}\n"
         f"🤖 Сгенерировано через ИИ\n"
         f"💰 Стоимость: <b>0₽ (бесплатно)</b>\n\n"
@@ -1514,8 +1502,7 @@ async def handle_admin_cancel(callback: CallbackQuery, state: FSMContext) -> Non
         state: FSM контекст.
     """
     await state.clear()
-    await callback.message.edit_text(
-        "✖ Создание кампании отменено.",
+    await safe_callback_edit(callback, "✖ Создание кампании отменено.",
         reply_markup=get_admin_main_kb(),
     )
     await callback.answer()
@@ -1532,8 +1519,7 @@ async def handle_admin_back(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    await callback.message.edit_text(
-        "🔐 <b>Панель администратора</b>",
+    await safe_callback_edit(callback, "🔐 <b>Панель администратора</b>",
         reply_markup=get_admin_main_kb(),
     )
     await callback.answer()
@@ -1554,8 +1540,7 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
 
     credits = user.credits if user else 0
 
-    await callback.message.edit_text(
-        "🔙 Возврат в главное меню",
+    await safe_callback_edit(callback, "🔙 Возврат в главное меню",
         reply_markup=get_main_menu(credits, user.id if user else None),
     )
     await callback.answer()
@@ -1569,8 +1554,7 @@ async def handle_back_to_main(callback: CallbackQuery) -> None:
 @router.callback_query(AdminCB.filter(F.action == "llm_classify"))
 async def show_llm_classify_menu(callback: CallbackQuery) -> None:
     """Меню запуска LLM-классификации."""
-    await callback.message.edit_text(
-        "🧠 <b>LLM-классификация каналов</b>\n\n"
+    await safe_callback_edit(callback, "🧠 <b>LLM-классификация каналов</b>\n\n"
         "Переклассифицирует каналы через OpenRouter (Claude).\n"
         "Обрабатывает каналы у которых нет LLM-классификации или "
         "она устарела (>30 дней).\n\n"
@@ -1591,8 +1575,7 @@ async def run_llm_classify(callback: CallbackQuery, callback_data: AdminCB) -> N
     task = llm_reclassify_all_task.delay(batch_size=batch_size)
 
     await callback.answer("✅ Задача запущена!", show_alert=False)
-    await callback.message.edit_text(
-        f"🧠 <b>Классификация запущена</b>\n\n"
+    await safe_callback_edit(callback, f"🧠 <b>Классификация запущена</b>\n\n"
         f"Батч: {batch_size} каналов\n"
         f"Task ID: <code>{task.id}</code>\n\n"
         f"Результат появится в логах Celery (Flower).",

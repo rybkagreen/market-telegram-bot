@@ -167,7 +167,7 @@ async def _cleanup_useless_channels_async() -> dict[str, Any]:
         )
 
         result = await session.execute(stmt)
-        stats["deleted"] = result.rowcount if result.rowcount is not None else 0
+        stats["deleted"] = result.rowcount if result.rowcount is not None else 0  # type: ignore[attr-defined]
         await session.commit()
 
     logger.info(f"Cleanup useless channels complete: {stats}")
