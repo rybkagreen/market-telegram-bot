@@ -12,7 +12,7 @@ async def safe_callback_edit(
     callback: CallbackQuery,
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
-    parse_mode: str | None = None,
+    parse_mode: str = "HTML",  # По умолчанию HTML для форматирования
     **kwargs: Any,
 ) -> bool:
     """

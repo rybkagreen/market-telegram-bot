@@ -14,7 +14,7 @@ async def safe_edit_message(
     message: Message | CallbackQuery | InaccessibleMessage | None,
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
-    parse_mode: str = "HTML",
+    parse_mode: str = "HTML",  # По умолчанию HTML для форматирования
 ) -> bool:
     """
     Универсальная функция редактирования сообщения.

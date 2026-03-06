@@ -215,7 +215,7 @@ async def create_crypto_invoice(callback: CallbackQuery, callback_data: BillingC
     builder.adjust(1, 1, 1)
 
     logger.info(f"Sending message with pay_url: {invoice.pay_url}")
-    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup(), parse_mode="HTML")
     logger.info("Message sent successfully")
 
 
