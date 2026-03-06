@@ -256,5 +256,171 @@ class BillingService:
             return True
 
 
+# ─────────────────────────────────────────────
+# Эскроу-механика (Спринт 1)
+# ─────────────────────────────────────────────
+
+    async def freeze_funds(
+        self,
+        user_id: int,
+        campaign_id: int,
+        amount: Decimal,
+    ) -> bool:
+        """
+        Заморозить средства пользователя для кампании.
+
+        Средства блокируются на балансе до публикации или отмены кампании.
+
+        Args:
+            user_id: ID пользователя.
+            campaign_id: ID кампании.
+            amount: Сумма для заморозки.
+
+        Returns:
+            True если успешно.
+        """
+
+        async with async_session_factory() as session:
+            from src.db.models.user import User
+
+            user = await session.get(User, user_id)
+            if not user:
+                logger.error(f"User {user_id} not found")
+                return False
+
+            # Проверяем баланс (с учётом замороженных средств)
+            frozen_amount = await self._get_frozen_amount(user_id)
+            available_balance = Decimal(user.credits) - frozen_amount
+
+            if available_balance < amount:
+                logger.warning(
+                    f"Insufficient funds: available={available_balance}, required={amount}"
+                )
+                return False
+
+            # Создаём транзакцию заморозки
+            transaction_repo = TransactionRepository(session)
+            await transaction_repo.create_transaction(
+                user_id=user_id,
+                amount=amount,
+                transaction_type=TransactionType.SPEND,
+                payment_id=f"frozen_campaign_{campaign_id}",
+                meta_json={
+                    "type": "frozen",
+                    "campaign_id": campaign_id,
+                    "status": "frozen",
+                },
+            )
+
+            logger.info(f"Frozen {amount} credits for campaign {campaign_id}, user {user_id}")
+            return True
+
+    async def release_funds_for_placement(
+        self,
+        user_id: int,
+        campaign_id: int,
+        placement_id: int,
+        amount: Decimal,
+    ) -> bool:
+        """
+        Разморозить средства для конкретного размещения.
+
+        Вызывается после факта публикации поста.
+
+        Args:
+            user_id: ID пользователя.
+            campaign_id: ID кампании.
+            placement_id: ID размещения.
+            amount: Сумма для списания.
+
+        Returns:
+            True если успешно.
+        """
+        async with async_session_factory() as session:
+            # Создаём транзакцию списания
+            transaction_repo = TransactionRepository(session)
+            await transaction_repo.create_transaction(
+                user_id=user_id,
+                amount=amount,
+                transaction_type=TransactionType.SPEND,
+                payment_id=f"placement_{placement_id}",
+                meta_json={
+                    "type": "placement",
+                    "campaign_id": campaign_id,
+                    "placement_id": placement_id,
+                    "status": "completed",
+                },
+            )
+
+            logger.info(
+                f"Released {amount} credits for placement {placement_id}, "
+                f"campaign {campaign_id}, user {user_id}"
+            )
+            return True
+
+    async def refund_frozen_funds(
+        self,
+        user_id: int,
+        campaign_id: int,
+        amount: Decimal,
+    ) -> bool:
+        """
+        Вернуть замороженные средства пользователю.
+
+        Вызывается при отмене кампании или отклонении размещения.
+
+        Args:
+            user_id: ID пользователя.
+            campaign_id: ID кампании.
+            amount: Сумма для возврата.
+
+        Returns:
+            True если успешно.
+        """
+        async with async_session_factory() as session:
+            # Создаём транзакцию возврата
+            transaction_repo = TransactionRepository(session)
+            await transaction_repo.create_transaction(
+                user_id=user_id,
+                amount=amount,
+                transaction_type=TransactionType.TOPUP,
+                payment_id=f"refund_campaign_{campaign_id}",
+                meta_json={
+                    "type": "refund",
+                    "campaign_id": campaign_id,
+                    "status": "refunded",
+                },
+            )
+
+            logger.info(
+                f"Refunded {amount} credits for campaign {campaign_id}, user {user_id}"
+            )
+            return True
+
+    async def _get_frozen_amount(self, user_id: int) -> Decimal:
+        """
+        Получить сумму замороженных средств пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Сумма замороженных средств.
+        """
+        from sqlalchemy import func, select
+
+        async with async_session_factory() as session:
+            stmt = (
+                select(func.sum(Transaction.amount))
+                .where(
+                    Transaction.user_id == user_id,
+                    Transaction.type == TransactionType.SPEND,
+                )
+            )
+            result = await session.execute(stmt)
+            frozen = result.scalar_one() or Decimal("0")
+            return frozen
+
+
 # Глобальный экземпляр
 billing_service = BillingService()
