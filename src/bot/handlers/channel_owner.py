@@ -487,3 +487,74 @@ async def toggle_accepting_ads(callback: CallbackQuery) -> None:
 async def my_channels_back(callback: CallbackQuery) -> None:
     """Возврат к списку каналов."""
     await cmd_my_channels(callback.message)
+
+
+# ─────────────────────────────────────────────
+# Обработка входящих заявок на размещение
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("approve_placement:"))
+async def approve_placement(callback: CallbackQuery) -> None:
+    """
+    Владелец канала одобряет заявку на размещение.
+    Переводит размещение в статус QUEUED для исполнения рассыльщиком.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    placement_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Заявка не найдена", show_alert=True)
+            return
+
+        if placement.status != MailingStatus.PENDING_APPROVAL:
+            await callback.answer("Заявка уже обработана", show_alert=True)
+            return
+
+        placement.status = MailingStatus.QUEUED
+        await session.flush()
+
+    await safe_callback_edit(
+        callback,
+        "✅ <b>Заявка одобрена!</b>\n\n"
+        "Пост будет опубликован в согласованное время.\n"
+        "После публикации вы получите уведомление и выплата будет начислена.",
+        parse_mode="HTML",
+    )
+    await callback.answer("Заявка одобрена")
+
+
+@router.callback_query(F.data.startswith("reject_placement:"))
+async def reject_placement(callback: CallbackQuery) -> None:
+    """
+    Владелец канала отклоняет заявку.
+    Средства рекламодателя размораживаются и возвращаются на баланс.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    placement_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Заявка не найдена", show_alert=True)
+            return
+
+        placement.status = MailingStatus.REJECTED
+        await session.flush()
+
+    await safe_callback_edit(
+        callback,
+        "❌ <b>Заявка отклонена</b>\n\n"
+        "Средства рекламодателя будут возвращены на его баланс.",
+        parse_mode="HTML",
+    )
+    await callback.answer("Заявка отклонена")

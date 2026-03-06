@@ -405,3 +405,66 @@ def notify_user(
     except Exception as e:
         logger.error(f"Error notifying user: {e}")
         return False
+
+
+# ─────────────────────────────────────────────
+# Задача автоодобрения заявок (Спринт 1)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="mailing:auto_approve_pending_placements")
+def auto_approve_pending_placements() -> dict:
+    """
+    Автоматически одобряет заявки которые не получили ответа от владельца за 24 часа.
+    Запускается каждый час через Celery Beat.
+
+    Логика:
+    - Найти все размещения в статусе PENDING_APPROVAL
+    - Если created_at + 24ч < now() → перевести в QUEUED
+    """
+    import asyncio
+    from datetime import datetime, timedelta
+
+    logger.info("Starting auto-approve pending placements")
+
+    async def _auto_approve_async() -> dict:
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        deadline = datetime.now(UTC) - timedelta(hours=24)
+        approved_count = 0
+        failed_count = 0
+
+        async with async_session_factory() as session:
+            # Найдем все PENDING_APPROVAL размещения старше 24 часов
+            from sqlalchemy import select
+
+            stmt = (
+                select(MailingLog)
+                .where(
+                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
+                    MailingLog.created_at < deadline,
+                )
+            )
+            result = await session.execute(stmt)
+            placements = result.scalars().all()
+
+            for placement in placements:
+                try:
+                    placement.status = MailingStatus.QUEUED
+                    approved_count += 1
+                except Exception as e:
+                    logger.error(f"Auto-approve failed for placement {placement.id}: {e}")
+                    failed_count += 1
+
+            await session.commit()
+
+        return {
+            "status": "ok",
+            "approved": approved_count,
+            "failed": failed_count,
+        }
+
+    try:
+        return asyncio.run(_auto_approve_async())
+    except Exception as e:
+        logger.error(f"auto_approve_pending_placements failed: {e}")
+        return {"status": "error", "error": str(e)}
