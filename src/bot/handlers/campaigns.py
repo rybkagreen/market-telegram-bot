@@ -17,7 +17,11 @@ from datetime import datetime
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.keyboard import (  # type: ignore[attr-defined]
+    InlineKeyboardBuilder,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 from src.bot.keyboards.cabinet import CabinetCB, get_notifications_prompt_kb
 from src.bot.keyboards.campaign import (
@@ -908,3 +912,102 @@ async def launch_without_notif(callback: CallbackQuery, state: FSMContext) -> No
         campaign_repo = CampaignRepository(session)
 
     await _do_launch_campaign(callback, state, session, user, data, campaign_repo)
+
+
+# ─────────────────────────────────────────────
+# Запрос отзывов после завершения кампании (Спринт 2)
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("review_request:"))
+async def handle_review_request(callback: CallbackQuery) -> None:
+    """
+    Обработка кнопки запроса отзыва.
+    """
+    if callback.message is None or isinstance(callback.message, Message):
+        return
+
+    placement_id = int((callback.data or "").split(":")[1])
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⭐️⭐️⭐️⭐️⭐️ (5)", callback_data=f"review_submit:{placement_id}:5"),
+            ],
+            [
+                InlineKeyboardButton(text="⭐️⭐️⭐️⭐️ (4)", callback_data=f"review_submit:{placement_id}:4"),
+            ],
+            [
+                InlineKeyboardButton(text="⭐️⭐️⭐️ (3)", callback_data=f"review_submit:{placement_id}:3"),
+            ],
+            [
+                InlineKeyboardButton(text="⭐️⭐️ (2)", callback_data=f"review_submit:{placement_id}:2"),
+            ],
+            [
+                InlineKeyboardButton(text="⭐️ (1)", callback_data=f"review_submit:{placement_id}:1"),
+            ],
+            [
+                InlineKeyboardButton(text="❌ Пропустить", callback_data="review_skip"),
+            ],
+        ]
+    )
+
+    await safe_callback_edit(
+        callback,
+        "📝 <b>Оставьте отзыв о размещении</b>\n\n"
+        "Ваше мнение поможет улучшить платформу!\n\n"
+        "Выберите оценку:",
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("review_submit:"))
+async def handle_review_submit(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Отправка отзыва с оценкой.
+    """
+    if callback.message is None or isinstance(callback.message, Message):
+        return
+
+    data_parts = (callback.data or "").split(":")
+    if len(data_parts) != 3:
+        await callback.answer("❌ Неверный формат", show_alert=True)
+        return
+
+    placement_id = int(data_parts[1])
+    score = int(data_parts[2])
+
+    # Сохраняем оценку в FSM для последующей отправки
+    await state.update_data(
+        review_placement_id=placement_id,
+        review_score=score,
+    )
+
+    await callback.answer(f"✅ Оценка {score} принята!")
+
+    # Здесь будет вызов review_service.create_review()
+    # Для now просто уведомляем
+    await safe_callback_edit(
+        callback,
+        "✅ <b>Спасибо за отзыв!</b>\n\n"
+        f"Вы поставили оценку: {score} ⭐\n\n"
+        "Ваше мнение поможет улучшить платформу.",
+        parse_mode="HTML",
+    )
+    await state.clear()
+
+
+@router.callback_query(F.data == "review_skip")
+async def handle_review_skip(callback: CallbackQuery) -> None:
+    """
+    Пропуск отзыва.
+    """
+    if callback.message is None or isinstance(callback.message, Message):
+        return
+
+    await safe_callback_edit(
+        callback,
+        "ℹ️ <b>Отзыв пропущен</b>\n\n"
+        "Вы всегда можете оставить отзыв позже через /my_channels",
+        parse_mode="HTML",
+    )
