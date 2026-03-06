@@ -15,6 +15,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
+from src.core.services.analytics_service import analytics_service
 from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
@@ -149,13 +150,27 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     # Формируем приветственное сообщение
     plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan  # type: ignore[union-attr]
 
+    # Получаем метрики платформы (асинхронно)
+    stats_text = ""
+    try:
+        platform_stats = await analytics_service.get_platform_stats()
+        stats_text = (
+            f"\n\n📊 <b>Платформа:</b>\n"
+            f"• Активных каналов: <b>{platform_stats.active_channels:,}</b>\n"
+            f"• Охват: <b>{platform_stats.total_reach:,}</b>\n"
+            f"• Кампаний запущено: <b>{platform_stats.campaigns_launched:,}</b>"
+        )
+    except Exception as e:
+        logger.error(f"Error getting platform stats: {e}")
+
     if is_new and ref_code is None:
         # Новый пользователь без реферала
         text = (
-            f"🚀 <b>Добро пожаловать в Market Bot!</b>\n\n"
+            f"🚀 <b>Добро пожаловать в RekHarbor!</b>\n\n"
             f"Привет, <b>{message.from_user.first_name or 'друг'}</b>!\n"  # type: ignore[union-attr]
-            f"Здесь вы можете запускать рекламные кампании в Telegram-чатах.\n\n"
-            f"💳 Ваш баланс: <b>{user.credits:,} кр</b>\n\n"  # type: ignore[union-attr]
+            f"Здесь вы можете запускать рекламные кампании в Telegram-каналах.\n\n"
+            f"💳 Ваш баланс: <b>{user.credits:,} кр</b>"  # type: ignore[union-attr]
+            f"{stats_text}\n\n"
             f"Нажмите «Создать кампанию», чтобы начать!"
         )
         # Отправляем баннер с текстом приветствия
@@ -165,7 +180,8 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"  # type: ignore[union-attr]
             f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
-            f"📦 Тариф: <b>{plan_value}</b>\n\n"  # type: ignore[union-attr]
+            f"📦 Тариф: <b>{plan_value}</b>"  # type: ignore[union-attr]
+            f"{stats_text}\n\n"
             f"Выберите действие в меню ниже:"
         )
         # Отправляем баннер с текстом
