@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
     from src.db.models.payout import Payout
+    from src.db.models.review import Review
     from src.db.models.transaction import Transaction
 
 
@@ -227,6 +228,23 @@ class User(Base, TimestampMixin):
         back_populates="owner",
         lazy="select",
         doc="Выплаты владельцу канала",
+    )
+
+    # Отзывы (Спринт 2)
+    reviews_given: Mapped[list["Review"]] = relationship(
+        "Review",
+        foreign_keys="Review.reviewer_id",
+        back_populates="reviewer",
+        lazy="select",
+        doc="Отзывы оставленные пользователем",
+    )
+
+    reviews_received: Mapped[list["Review"]] = relationship(
+        "Review",
+        foreign_keys="Review.reviewee_id",
+        back_populates="reviewee",
+        lazy="select",
+        doc="Отзывы полученные пользователем",
     )
 
     # Индексы
