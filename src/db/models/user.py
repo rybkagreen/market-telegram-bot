@@ -15,6 +15,7 @@ from src.config.settings import settings
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
@@ -209,6 +210,14 @@ class User(Base, TimestampMixin):
         lazy="selectin",
         cascade="all, delete-orphan",
         doc="Crypto-платежи пользователя",
+    )
+
+    # Каналы владельца (Спринт 0)
+    channels: Mapped[list["TelegramChat"]] = relationship(
+        "TelegramChat",
+        back_populates="owner",
+        lazy="select",
+        doc="Каналы принадлежащие пользователю",
     )
 
     # Индексы
