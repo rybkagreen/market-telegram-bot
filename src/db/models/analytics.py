@@ -31,6 +31,7 @@ from src.db.base import Base
 
 if TYPE_CHECKING:
     from src.db.models.mailing_log import MailingLog
+    from src.db.models.payout import Payout
     from src.db.models.user import User
 
 
@@ -170,6 +171,12 @@ class TelegramChat(Base):
         back_populates="channels",
         lazy="select",
         foreign_keys=[owner_user_id],
+    )
+
+    payouts: Mapped[list[Payout]] = relationship(
+        "Payout",
+        back_populates="channel",
+        lazy="select",
     )
 
     def __repr__(self) -> str:
