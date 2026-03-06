@@ -384,9 +384,28 @@ class CampaignSender:
         Returns:
             Список чатов.
         """
-        # Возвращаем пустой список по умолчанию
-        # Реальная логика должна быть в CampaignRepository
-        return []
+        from src.db.repositories.chat_analytics import ChatAnalyticsRepository
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            chat_repo = ChatAnalyticsRepository(session)
+
+            # Получаем фильтры из кампании
+            filters = getattr(campaign, 'filters_json', {}) or {}
+            topic = filters.get('topic')
+            min_members = filters.get('min_members', 100)
+            max_members = filters.get('max_members')
+            limit = filters.get('limit', 1000)
+
+            # Спринт 0: метод get_chats_for_mailing уже фильтрует по bot_is_admin и is_accepting_ads
+            chats = await chat_repo.get_chats_for_mailing(
+                topic=topic,
+                min_members=min_members,
+                max_members=max_members,
+                limit=limit,
+            )
+
+            return chats
 
     async def close(self) -> None:
         """Закрыть сессию бота."""
