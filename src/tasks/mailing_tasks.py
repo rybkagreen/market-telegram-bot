@@ -265,13 +265,9 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
             return stats
 
     try:
-        # Выполняем async код в отдельном потоке для совместимости с Celery prefork
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(asyncio.run, _check_async())
-            result = future.result(timeout=60)  # 60 секунд таймаут
-
+        # asyncio.run() создаёт новый event loop и закрывает его после выполнения
+        # Это корректный способ запуска async кода в синхронном Celery task
+        result = asyncio.run(_check_async())
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 
@@ -359,7 +355,7 @@ def notify_user(
     logger.info(f"Sending notification to user {user_id}")
 
     async def _notify_async() -> bool:
-        from telegram import Bot
+        from aiogram import Bot
 
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
@@ -370,7 +366,7 @@ def notify_user(
                 logger.error(f"User {user_id} not found")
                 return False
 
-            bot = Bot(token=self.app.conf.broker_url.split("://")[1].split("/")[0])
+            bot = Bot(token=settings.bot_token)
 
             try:
                 # Отправляем уведомление через Telegram
