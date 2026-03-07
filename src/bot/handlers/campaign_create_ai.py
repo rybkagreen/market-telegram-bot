@@ -450,6 +450,9 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
             }
         )
 
+        # Коммитим сессию чтобы кампания сохранилась в БД
+        await session.commit()
+
         await state.clear()
 
         success_text = (
