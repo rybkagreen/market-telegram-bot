@@ -1,7 +1,39 @@
 # Проблемы с миграциями Alembic — Отчёт
 
 **Дата:** 2026-03-07  
-**Статус:** ❌ Требуется ручное вмешательство
+**Статус:** ✅ **РЕШЕНО** — миграции успешно применены
+
+---
+
+## Решение применено
+
+**Вариант:** A (Исправление существующих миграций)
+
+**Изменения:**
+1. ✅ Исправлен `down_revision` в `b377ebf742bf` → `20260307_170000`
+2. ✅ Исправлен `down_revision` в `20260307_180000` → `b377ebf742bf`
+3. ✅ Добавлена проверка существования индексов перед `drop_index`
+4. ✅ Добавлена проверка существования колонки перед `add_column`
+5. ✅ Удалена операция `ALTER TYPE campaignstatus` (ENUM не существует)
+6. ✅ Удалена конфликтная merge миграция
+7. ✅ Очищена таблица `alembic_version` от orphaned записей
+
+**Результат:**
+```
+$ alembic heads
+20260307_180000 (head)
+
+$ alembic current
+20260307_180000 (head)
+```
+
+**Новые поля в БД:**
+- `telegram_chats.max_posts_per_day` (INTEGER, default=2)
+- `telegram_chats.approval_mode` (VARCHAR(20), default='auto')
+- `mailing_logs.rejection_reason` (VARCHAR(50), nullable)
+- `mailing_logs.auto_approve_notified` (BOOLEAN, default=false)
+
+---
 
 ---
 
