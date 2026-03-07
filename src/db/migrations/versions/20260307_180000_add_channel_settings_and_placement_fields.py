@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '20260307_180000'
-down_revision: Union[str, None] = '20260307_170000'
+down_revision: Union[str, None] = 'b377ebf742bf'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -53,11 +53,6 @@ def upgrade() -> None:
         server_default='false',
         comment='Отправлено ли уведомление за 3 часа до автоодобрения'
     ))
-    
-    # === Campaign: статус CHANGES_REQUESTED ===
-    # Добавляем новое значение в enum CampaignStatus
-    # Для PostgreSQL нужно использовать ALTER TYPE
-    op.execute("ALTER TYPE campaignstatus ADD VALUE IF NOT EXISTS 'changes_requested'")
 
 
 def downgrade() -> None:

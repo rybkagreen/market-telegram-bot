@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b377ebf742bf"
-down_revision: str | None = "96d841a6c242"
+down_revision: str | None = "20260307_170000"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -55,12 +55,35 @@ def upgrade() -> None:
         server_default=None,
         existing_nullable=False,
     )
-    op.drop_index(op.f("ix_telegram_chats_language"), table_name="telegram_chats")
-    op.drop_index(op.f("ix_telegram_chats_russian_score"), table_name="telegram_chats")
-    op.add_column(
-        "users",
-        sa.Column("notifications_enabled", sa.Boolean(), server_default="false", nullable=False),
+    
+    # Production fix: Check index existence before dropping
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    
+    has_language_index = any(
+        idx["name"] == "ix_telegram_chats_language"
+        for idx in inspector.get_indexes("telegram_chats")
     )
+    if has_language_index:
+        op.drop_index(op.f("ix_telegram_chats_language"), table_name="telegram_chats")
+    
+    has_russian_score_index = any(
+        idx["name"] == "ix_telegram_chats_russian_score"
+        for idx in inspector.get_indexes("telegram_chats")
+    )
+    if has_russian_score_index:
+        op.drop_index(op.f("ix_telegram_chats_russian_score"), table_name="telegram_chats")
+    
+    # Production fix: Check column existence before adding
+    has_notifications_column = any(
+        col["name"] == "notifications_enabled"
+        for col in inspector.get_columns("users")
+    )
+    if not has_notifications_column:
+        op.add_column(
+            "users",
+            sa.Column("notifications_enabled", sa.Boolean(), server_default="false", nullable=False),
+        )
     # ### end Alembic commands ###
 
 
