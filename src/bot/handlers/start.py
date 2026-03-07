@@ -9,7 +9,7 @@ from pathlib import Path
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.types import CallbackQuery, FSInputFile, InaccessibleMessage, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.keyboards.main_menu import (
@@ -19,6 +19,7 @@ from src.bot.keyboards.main_menu import (
     get_main_menu,
     get_owner_menu_kb,
 )
+from src.bot.states.onboarding import OnboardingStates
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.core.services.analytics_service import analytics_service
@@ -138,6 +139,46 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     """
     Общая логика обработки /start.
     """
+    # Сначала проверяем, находится ли пользователь в процессе онбординга
+    current_state = await state.get_state()
+
+    # Если пользователь в состоянии онбординга, показываем роль-зависимое меню
+    # Это предотвращает возврат к онбордингу после выбора роли
+    if current_state == OnboardingStates.role_selected.state:
+        # Получаем данные пользователя
+        async with get_user_service() as svc:
+            user = await svc._user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+            if not user:
+                await message.answer("Ошибка. Попробуйте позже.")
+                return
+
+            # Получаем контекст — но используем роль из состояния, а не из БД
+            user_role_service = UserRoleService()
+            user_context = await user_role_service.get_user_context(user.id)
+
+            # Если у пользователя уже есть каналы или кампании, сбрасываем состояние
+            if user_context.has_channels or user_context.has_campaigns:
+                await state.clear()
+                # Продолжаем обычную логику ниже
+            else:
+                # Пользователь всё ещё в онбординге — показываем меню без онбординга
+                plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
+                text = (
+                    f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"  # type: ignore[union-attr]
+                    f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                    f"📦 Тариф: <b>{plan_value}</b>\n\n"
+                    f"Выберите действие в меню ниже:"
+                )
+                # Показываем меню рекламодателя (по умолчанию)
+                await send_banner_with_menu(
+                    message,
+                    user.credits,  # type: ignore[union-attr]
+                    message.from_user.id,  # type: ignore[union-attr]
+                    caption=text,
+                    role="advertiser",
+                )
+                return
+
     await state.clear()
 
     async with get_user_service() as svc:
@@ -568,15 +609,20 @@ async def noop_callback(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 
 @router.callback_query(OnboardingCB.filter())
-async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB) -> None:
+async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB, state: FSMContext) -> None:
     """
     Обработка выбора роли при первом входе.
-    Показывает подходящий следующий шаг.
+    Показывает подходящий следующий шаг и сохраняет состояние.
     """
-    if callback.message is None:
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        await callback.answer("Сообщение устарело", show_alert=True)
         return
 
     role = callback_data.role
+
+    # Сохраняем состояние — пользователь выбрал роль
+    await state.update_data(role=role)
+    await state.set_state(OnboardingStates.role_selected)
 
     if role == "advertiser":
         # Показать меню рекламодателя и подсказку
