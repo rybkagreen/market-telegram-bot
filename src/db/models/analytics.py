@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import enum
 from datetime import date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
@@ -18,6 +19,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -28,7 +30,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base
 
 if TYPE_CHECKING:
+    from src.db.models.channel_rating import ChannelRating
     from src.db.models.mailing_log import MailingLog
+    from src.db.models.payout import Payout
+    from src.db.models.review import Review
+    from src.db.models.user import User
 
 
 class ChatType(str, enum.Enum):
@@ -119,6 +125,28 @@ class TelegramChat(Base):
         comment="Последние 5 постов для LLM-классификации [{'text': '...', 'date': '...'}]",
     )
 
+    # === Поля opt-in (Спринт 0) ===
+    bot_is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false",
+        comment="Бот добавлен администратором в канале"
+    )
+    admin_added_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Когда бот был добавлен администратором"
+    )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+        comment="Владелец канала (FK на users.id)"
+    )
+    price_per_post: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2), nullable=True,
+        comment="Цена за один рекламный пост в рублях"
+    )
+    is_accepting_ads: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false",
+        comment="Канал принимает рекламные размещения"
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -139,6 +167,30 @@ class TelegramChat(Base):
         back_populates="chat",
         lazy="selectin",
         cascade="all, delete-orphan",
+    )
+    owner: Mapped[User | None] = relationship(
+        "User",
+        back_populates="channels",
+        lazy="select",
+        foreign_keys=[owner_user_id],
+    )
+
+    payouts: Mapped[list[Payout]] = relationship(
+        "Payout",
+        back_populates="channel",
+        lazy="select",
+    )
+
+    reviews: Mapped[list[Review]] = relationship(
+        "Review",
+        back_populates="channel",
+        lazy="select",
+    )
+
+    ratings: Mapped[list[ChannelRating]] = relationship(
+        "ChannelRating",
+        back_populates="channel",
+        lazy="select",
     )
 
     def __repr__(self) -> str:

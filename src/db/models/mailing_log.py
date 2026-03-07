@@ -15,6 +15,8 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
+    from src.db.models.payout import Payout
+    from src.db.models.review import Review
 
 
 class MailingStatus(str, Enum):
@@ -24,6 +26,9 @@ class MailingStatus(str, Enum):
     FAILED = "failed"  # Ошибка при отправке
     SKIPPED = "skipped"  # Пропущено (rate limit, blacklist, и т.д.)
     PENDING = "pending"  # В очереди на отправку
+    PENDING_APPROVAL = "pending_approval"  # Ожидает одобрения владельца (Спринт 1)
+    REJECTED = "rejected"  # Отклонено владельцем (Спринт 1)
+    QUEUED = "queued"  # В очереди на отправку после одобрения (Спринт 1)
 
 
 class MailingLog(Base, TimestampMixin):
@@ -124,6 +129,20 @@ class MailingLog(Base, TimestampMixin):
         "TelegramChat",
         back_populates="mailing_logs",
         lazy="selectin",
+    )
+
+    payout: Mapped["Payout | None"] = relationship(
+        "Payout",
+        back_populates="placement",
+        lazy="select",
+        uselist=False,
+    )
+
+    review: Mapped["Review | None"] = relationship(
+        "Review",
+        back_populates="placement",
+        lazy="select",
+        uselist=False,
     )
 
     # Индексы
