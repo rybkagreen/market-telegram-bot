@@ -257,6 +257,152 @@ class BillingService:
 
 
 # ─────────────────────────────────────────────
+# Реферальная программа (Спринт 4)
+# ─────────────────────────────────────────────
+
+    async def apply_referral_signup_bonus(
+        self,
+        referrer_id: int,
+        referred_user_id: int,
+    ) -> dict[str, Any]:
+        """
+        Начислить бонус за регистрацию реферала.
+
+        PRD §9.3: +50 XP пригласившему за регистрацию.
+
+        Args:
+            referrer_id: ID пригласившего.
+            referred_user_id: ID приглашённого.
+
+        Returns:
+            dict с результатом начисления.
+        """
+        from src.core.services.xp_service import XPService
+
+        xp_service = XPService()
+
+        async with async_session_factory() as session:
+            from src.db.models.user import User
+
+            referrer = await session.get(User, referrer_id)
+            if not referrer:
+                return {"error": "Referrer not found"}
+
+            # Начисляем XP
+            level_up = await xp_service.add_xp(
+                user_id=referrer_id,
+                amount=50,  # +50 XP за регистрацию реферала
+                reason="referral_signup",
+            )
+
+            return {
+                "success": True,
+                "xp_awarded": 50,
+                "level_up": level_up is not None,
+                "new_level": referrer.level + (1 if level_up else 0),
+            }
+
+    async def apply_referral_first_campaign_bonus(
+        self,
+        referrer_id: int,
+        referred_user_id: int,
+        campaign_id: int,
+    ) -> dict[str, Any]:
+        """
+        Начислить бонус за первую кампанию реферала.
+
+        PRD §9.3: +100 XP пригласившему за первую кампанию реферала.
+
+        Args:
+            referrer_id: ID пригласившего.
+            referred_user_id: ID приглашённого.
+            campaign_id: ID первой кампании.
+
+        Returns:
+            dict с результатом начисления.
+        """
+        from src.core.services.xp_service import XPService
+
+        xp_service = XPService()
+
+        async with async_session_factory() as session:
+            from src.db.models.user import User
+
+            referrer = await session.get(User, referrer_id)
+            if not referrer:
+                return {"error": "Referrer not found"}
+
+            # Начисляем XP
+            level_up = await xp_service.add_xp(
+                user_id=referrer_id,
+                amount=100,  # +100 XP за первую кампанию реферала
+                reason="referral_first_campaign",
+            )
+
+            # Также начисляем кредиты (100 кр)
+            user_repo = UserRepository(session)
+            await user_repo.update_credits(referrer_id, 100)
+
+            return {
+                "success": True,
+                "xp_awarded": 100,
+                "credits_awarded": 100,
+                "level_up": level_up is not None,
+                "new_level": referrer.level + (1 if level_up else 0),
+            }
+
+    async def get_referral_stats(self, user_id: int) -> dict[str, Any]:
+        """
+        Получить статистику рефералов пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            dict с total_referrals, total_earned, referrals_list.
+        """
+        from sqlalchemy import func, select
+
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            # Считаем количество рефералов
+            stmt = (
+                select(func.count(User.id))
+                .where(User.referred_by_id == user_id)
+            )
+            result = await session.execute(stmt)
+            total_referrals = result.scalar_one() or 0
+
+            # Получаем список рефералов
+            stmt = (
+                select(User)
+                .where(User.referred_by_id == user_id)
+                .order_by(User.created_at.desc())
+                .limit(10)
+            )
+            result = await session.execute(stmt)
+            referrals = list(result.scalars().all())  # type: ignore[var-annotated]
+
+            referrals_list = [
+                {
+                    "telegram_id": r.telegram_id,
+                    "username": r.username,
+                    "first_name": r.first_name,
+                    "registered_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in referrals
+            ]  # type: ignore[misc]
+
+            return {
+                "user_id": user_id,
+                "total_referrals": total_referrals,
+                "referrals": referrals_list,
+                "total_earned": 0,  # Placeholder для будущей статистики
+            }
+
+
+# ─────────────────────────────────────────────
 # Эскроу-механика (Спринт 1)
 # ─────────────────────────────────────────────
 
