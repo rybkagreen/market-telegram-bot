@@ -78,3 +78,21 @@ def get_cabinet_kb(
         builder.adjust(2, 2, 2, 1)
 
     return builder.as_markup()
+
+
+def get_notifications_prompt_kb() -> InlineKeyboardMarkup:
+    """
+    Запрос на включение уведомлений при запуске кампании.
+    Показывается только если уведомления выключены.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🔔 Да, включить уведомления",
+        callback_data=CabinetCB(action="enable_notif_and_launch"),
+    )
+    builder.button(
+        text="▶️ Запустить без уведомлений",
+        callback_data=CabinetCB(action="launch_without_notif"),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
