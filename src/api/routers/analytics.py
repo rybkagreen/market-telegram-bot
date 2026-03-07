@@ -478,3 +478,33 @@ async def get_public_stats() -> PlatformStatsResponse:
         avg_channel_rating=stats.avg_channel_rating,
         total_payouts=float(stats.total_payouts),
     )
+
+
+# ─── CTR-трекинг (Спринт 2) ────────────────────────────────────
+
+
+@router.get("/r/{short_code}")
+async def redirect_short_link(short_code: str):
+    """
+    Редирект по короткой ссылке с подсчётом кликов.
+    Используется для CTR-трекинга кампаний.
+    """
+    from fastapi import Response
+
+    from src.core.services.link_tracking_service import link_tracking_service
+
+    original_url = await link_tracking_service.track_click(short_code)
+
+    if not original_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Short link not found",
+        )
+
+    # Редирект на исходную ссылку
+    return Response(
+        status_code=302,
+        headers={"Location": original_url},
+        content=f"<html><head><meta http-equiv='refresh' content='0;url={original_url}'></head></html>",
+        media_type="text/html",
+    )

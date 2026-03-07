@@ -464,6 +464,200 @@ class AnalyticsService:
                 total_payouts=total_payouts,
             )
 
+    async def calculate_cpm(self, campaign_id: int) -> Decimal:
+        """
+        Рассчитать CPM (cost per 1000 views) кампании.
+
+        Args:
+            campaign_id: ID кампании.
+
+        Returns:
+            CPM в рублях.
+        """
+
+        from src.db.models.campaign import Campaign
+
+        async with async_session_factory() as session:
+            campaign = await session.get(Campaign, campaign_id)
+            if not campaign:
+                return Decimal("0")
+
+            # CPM = (cost / reach) * 1000
+            if campaign.cost > 0 and campaign.sent_count > 0:
+                cpm = (Decimal(str(campaign.cost)) / campaign.sent_count) * 1000
+                return cpm.quantize(Decimal("0.01"))
+
+            return Decimal("0")
+
+    async def calculate_ctr(self, campaign_id: int) -> float:
+        """
+        Рассчитать CTR (click-through rate) кампании.
+
+        Args:
+            campaign_id: ID кампании.
+
+        Returns:
+            CTR в процентах.
+        """
+
+        from src.db.models.campaign import Campaign
+
+        async with async_session_factory() as session:
+            campaign = await session.get(Campaign, campaign_id)
+            if not campaign:
+                return 0.0
+
+            # CTR = (clicks / sent) * 100
+            if campaign.sent_count > 0 and campaign.clicks_count > 0:
+                ctr = (campaign.clicks_count / campaign.sent_count) * 100
+                return round(ctr, 2)
+
+            return 0.0
+
+    async def calculate_roi(self, campaign_id: int) -> dict:
+        """
+        Рассчитать ROI (return on investment) кампании.
+
+        Args:
+            campaign_id: ID кампании.
+
+        Returns:
+            dict с roi_percent, revenue, cost.
+        """
+
+        from src.db.models.campaign import Campaign
+
+        async with async_session_factory() as session:
+            campaign = await session.get(Campaign, campaign_id)
+            if not campaign:
+                return {"roi_percent": 0.0, "revenue": 0.0, "cost": 0.0}
+
+            cost = campaign.cost
+            # Для ROI нужна выручка — пока заглушка
+            # В реальности это данные из CRM рекламодателя
+            revenue = 0.0  # Placeholder
+
+            # ROI = ((revenue - cost) / cost) * 100
+            if cost > 0:
+                roi = ((revenue - cost) / cost) * 100
+            else:
+                roi = 0.0
+
+            return {
+                "roi_percent": round(roi, 2),
+                "revenue": revenue,
+                "cost": cost,
+            }
+
+    async def generate_campaign_pdf_report(self, campaign_id: int) -> bytes:
+        """
+        Сгенерировать PDF-отчёт по кампании.
+
+        Args:
+            campaign_id: ID кампании.
+
+        Returns:
+            PDF файл в bytes.
+        """
+        from io import BytesIO
+
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        async with async_session_factory() as session:
+
+            from src.db.models.campaign import Campaign
+
+            campaign = await session.get(Campaign, campaign_id)
+            if not campaign:
+                raise ValueError(f"Campaign {campaign_id} not found")
+
+            # Рассчитываем метрики
+            cpm = await self.calculate_cpm(campaign_id)
+            ctr = await self.calculate_ctr(campaign_id)
+            roi_data = await self.calculate_roi(campaign_id)
+
+            # Создаём PDF
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+
+            # Заголовок
+            title_style = ParagraphStyle(
+                "CustomTitle",
+                parent=styles["Heading1"],
+                fontSize=18,
+                spaceAfter=20,
+            )
+
+            elements = []
+            elements.append(Paragraph(f"Отчёт по кампании: {campaign.title}", title_style))
+            elements.append(Spacer(1, 0.2 * inch))  # type: ignore[arg-type]
+
+            # Основная информация
+            info_data = [
+                ["Параметр", "Значение"],
+                ["Статус", campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)],
+                ["Тематика", campaign.topic or "Не указана"],
+                ["Заголовок", campaign.header or "Без заголовка"],
+                ["Стоимость", f"{campaign.cost:.2f} ₽"],
+                ["Отправлено", str(campaign.sent_count)],
+                ["Кликов", str(campaign.clicks_count or 0)],
+                ["CPM", f"{cpm:.2f} ₽"],
+                ["CTR", f"{ctr:.2f}%"],
+                ["ROI", f"{roi_data['roi_percent']:.2f}%"],
+            ]
+
+            info_table = Table(info_data, colWidths=[2.5 * inch, 2.5 * inch])
+            info_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                    ]
+                )
+            )
+
+            elements.append(info_table)  # type: ignore[arg-type]
+            elements.append(Spacer(1, 0.5 * inch))  # type: ignore[arg-type]
+
+            # Заключение
+            summary_style = ParagraphStyle(
+                "Summary",
+                parent=styles["Normal"],
+                fontSize=11,
+                spaceBefore=10,
+            )
+
+            elements.append(Paragraph("<b>Заключение:</b>", summary_style))
+            elements.append(Spacer(1, 0.1 * inch))  # type: ignore[arg-type]
+
+            if ctr > 1.0:
+                elements.append(Paragraph("✅ CTR выше среднего (>1%)", summary_style))
+            else:
+                elements.append(Paragraph("⚠️ CTR ниже среднего (<1%)", summary_style))
+
+            if cpm < Decimal("5"):
+                elements.append(Paragraph("✅ CPM ниже среднего (<5₽)", summary_style))
+            else:
+                elements.append(Paragraph("⚠️ CPM выше среднего (>5₽)", summary_style))
+
+            # Build PDF
+            doc.build(elements)  # type: ignore[arg-type]
+
+            pdf_data = buffer.getvalue()
+            buffer.close()
+
+            return pdf_data
+
 
 # Глобальный экземпляр
 analytics_service = AnalyticsService()
