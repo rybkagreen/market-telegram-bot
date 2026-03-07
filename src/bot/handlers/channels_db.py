@@ -388,6 +388,133 @@ async def handle_top_channels(callback: CallbackQuery) -> None:
     )
 
 
+# ─────────────────────────────────────────────
+# Расширенные фильтры каталога (Спринт 3)
+# ─────────────────────────────────────────────
+
+@router.callback_query(ChannelsCB.filter(F.action == "advanced_filters"))
+async def handle_advanced_filters(callback: CallbackQuery) -> None:
+    """
+    Показать расширенные фильтры каталога.
+    Спринт 3: фильтр по ER, рейтингу надёжности, fraud_flag.
+    """
+    text = (
+        "🔧 <b>Расширенные фильтры</b>\n\n"
+        "Выберите фильтр:\n\n"
+        "📊 Минимальный ER — фильтрация по engagement rate\n"
+        "⭐ Рейтинг надёжности — только верифицированные каналы\n"
+        "🛡 Без накрутки — исключить каналы с fraud_flag"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📊 Мин. ER", callback_data=ChannelsCB(action="filter_er").pack())
+    builder.button(text="⭐ Рейтинг", callback_data=ChannelsCB(action="filter_rating").pack())
+    builder.button(text="🛡 Без накрутки", callback_data=ChannelsCB(action="filter_fraud").pack())
+    builder.button(text="◀️ Назад", callback_data=ChannelsCB(action="back").pack())
+    builder.adjust(2, 2)
+
+    await safe_edit_message(
+        callback.message,
+        text,
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(ChannelsCB.filter(F.action == "filter_er"))
+async def handle_filter_er(callback: CallbackQuery) -> None:
+    """Фильтр по минимальному ER."""
+    text = (
+        "📊 <b>Фильтр по ER</b>\n\n"
+        "Выберите минимальный engagement rate:\n\n"
+        "• ≥ 1% — все каналы\n"
+        "• ≥ 3% — хорошие каналы\n"
+        "• ≥ 5% — отличные каналы\n"
+        "• ≥ 10% — премиум каналы"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="≥ 1%", callback_data=ChannelsCB(action="er_1").pack())
+    builder.button(text="≥ 3%", callback_data=ChannelsCB(action="er_3").pack())
+    builder.button(text="≥ 5%", callback_data=ChannelsCB(action="er_5").pack())
+    builder.button(text="≥ 10%", callback_data=ChannelsCB(action="er_10").pack())
+    builder.button(text="◀️ Назад", callback_data=ChannelsCB(action="advanced_filters").pack())
+    builder.adjust(2, 2)
+
+    await safe_edit_message(
+        callback.message,
+        text,
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(ChannelsCB.filter(F.action == "filter_rating"))
+async def handle_filter_rating(callback: CallbackQuery) -> None:
+    """Фильтр по рейтингу надёжности."""
+    text = (
+        "⭐ <b>Фильтр по рейтингу надёжности</b>\n\n"
+        "Выберите минимальное количество звёзд:\n\n"
+        "Рейтинг рассчитывается на основе отзывов и активности канала."
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="≥ 3★", callback_data=ChannelsCB(action="rating_3").pack())
+    builder.button(text="≥ 4★", callback_data=ChannelsCB(action="rating_4").pack())
+    builder.button(text="5★", callback_data=ChannelsCB(action="rating_5").pack())
+    builder.button(text="◀️ Назад", callback_data=ChannelsCB(action="advanced_filters").pack())
+    builder.adjust(3)
+
+    await safe_edit_message(
+        callback.message,
+        text,
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(ChannelsCB.filter(F.action == "filter_fraud"))
+async def handle_filter_fraud(callback: CallbackQuery) -> None:
+    """Фильтр без накрутки."""
+    async with async_session_factory() as session:
+        from sqlalchemy import false, select, true
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.channel_rating import ChannelRating
+
+        # Получаем каналы без fraud_flag
+        stmt = (
+            select(TelegramChat)
+            .join(ChannelRating, ChannelRating.channel_id == TelegramChat.id)
+            .where(
+                TelegramChat.is_active == true(),
+                ChannelRating.fraud_flag == false(),  # noqa: E712
+            )
+            .order_by(ChannelRating.total_score.desc())
+            .limit(20)
+        )
+        result = await session.execute(stmt)
+        channels = list(result.scalars().all())
+
+    text = (
+        "🛡 <b>Каналы без накрутки</b>\n\n"
+        f"Найдено {len(channels)} верифицированных каналов.\n\n"
+        "Эти каналы прошли проверку на накрутку подписчиков."
+    )
+
+    builder = InlineKeyboardBuilder()
+    for ch in channels[:10]:
+        builder.button(
+            text=f"📺 {ch.username or ch.title}",
+            callback_data=ChannelsCB(action="view_channel", value=str(ch.id)).pack(),
+        )
+    builder.button(text="◀️ Назад", callback_data=ChannelsCB(action="advanced_filters").pack())
+    builder.adjust(1)
+
+    await safe_edit_message(
+        callback.message,
+        text,
+        reply_markup=builder.as_markup(),
+    )
+
+
 @router.callback_query(ChannelsCB.filter(F.action == "menu"))
 async def back_to_channels_menu(callback: CallbackQuery) -> None:
     """Вернуться в главное меню базы каналов."""
