@@ -1,5 +1,6 @@
 """
 Handlers для аналитики и статистики.
+Задача 6.1: Развилка по роли в main:analytics
 """
 
 import logging
@@ -11,7 +12,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.utils.message_utils import safe_edit_message
 from src.core.services.analytics_service import analytics_service
+from src.core.services.user_role_service import UserRoleService
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
+from src.db.session import async_session_factory
 from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
@@ -39,12 +42,59 @@ def make_progress_bar(percent: float, length: int = 10) -> str:
 async def show_analytics_menu(callback: CallbackQuery) -> None:
     """
     Показать меню аналитики.
+    Задача 6.1: Развилка по роли.
 
     Args:
         callback: Callback query.
     """
+    # Задача 6.1: Определяем роль пользователя
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        user_role_service = UserRoleService()
+        user_context = await user_role_service.get_user_context(user.id)
+        role = user_context.role
+
+    # Задача 6.1: Развилка по роли
+    if role in ("owner",):
+        await show_owner_analytics(callback, user.id)
+    elif role == "both":
+        # Показать выбор: как рекламодатель или как владелец
+        await show_analytics_role_choice(callback, user.id)
+    else:
+        # advertiser или new — показываем аналитику рекламодателя
+        await show_advertiser_analytics(callback, user.id)
+
+
+async def show_analytics_role_choice(callback: CallbackQuery, user_id: int) -> None:
+    """
+    Задача 6.1: Выбор роли для аналитики (для пользователей с обеими ролями).
+    """
     text = (
         "📊 <b>Аналитика</b>\n\n"
+        "Выберите раздел:\n\n"
+        "📺 Как владелец канала\n"
+        "📣 Как рекламодатель"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📺 Как владелец канала", callback_data="owner_analytics:role")
+    builder.button(text="📣 Как рекламодатель", callback_data=MainMenuCB(action="advertiser_analytics"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1, 1)
+
+    await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+
+
+async def show_advertiser_analytics(callback: CallbackQuery, user_id: int) -> None:
+    """
+    Задача 6.1: Аналитика рекламодателя (существующее меню).
+    """
+    text = (
+        "📊 <b>Аналитика рекламодателя</b>\n\n"
         "Выберите раздел:\n\n"
         "📈 Общая статистика — ваша сводка за 30 дней\n"
         "📋 Кампании — статистика по кампаниям\n"
@@ -63,6 +113,182 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
     builder.adjust(2, 2, 1)
 
     await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+
+
+async def show_owner_analytics(callback: CallbackQuery, user_id: int) -> None:
+    """
+    Задача 6.2: Аналитика владельца канала — список каналов.
+    """
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        from src.db.models.analytics import TelegramChat
+
+        # Получаем каналы пользователя
+        stmt = select(TelegramChat).where(
+            TelegramChat.owner_user_id == user_id,
+            TelegramChat.is_active ,
+        )
+        result = await session.execute(stmt)
+        channels = list(result.scalars().all())
+
+    if not channels:
+        text = (
+            "📺 <b>Аналитика владельца</b>\n\n"
+            "У вас пока нет каналов.\n\n"
+            "Добавьте первый канал для отслеживания статистики."
+        )
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
+        builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+        builder.adjust(1)
+
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+        return
+
+    # Если канал один — сразу показываем статистику
+    if len(channels) == 1:
+        await show_owner_channel_analytics(callback, channels[0].id, "all")
+        return
+
+    # Если каналов несколько — показываем выбор
+    text = "📺 <b>Статистика каналов</b>\n\nВыберите канал:\n\n"
+
+    builder = InlineKeyboardBuilder()
+    for channel in channels:
+        channel_name = f"@{channel.username}" if channel.username else channel.title
+        text += f"• {channel_name}\n"
+        builder.button(
+            text=f"📺 {channel_name}",
+            callback_data=f"owner_analytics:channel:{channel.id}",
+        )
+
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1)
+
+    await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("owner_analytics:channel:"))
+async def handle_owner_channel_analytics(callback: CallbackQuery) -> None:
+    """
+    Задача 6.3: Экран статистики одного канала владельца.
+    """
+    # Парсим callback: owner_analytics:channel:{channel_id}:period:{period}
+    parts = (callback.data or "").split(":")
+    channel_id = int(parts[2]) if len(parts) > 2 else 0
+    period = parts[4] if len(parts) > 4 else "all"
+
+    await show_owner_channel_analytics(callback, channel_id, period)
+
+
+async def show_owner_channel_analytics(
+    callback: CallbackQuery,
+    channel_id: int,
+    period: str = "all",
+) -> None:
+    """
+    Задача 6.3: Показать статистику одного канала.
+
+    Args:
+        callback: Callback query.
+        channel_id: ID канала.
+        period: Период (7, 30, all).
+    """
+    async with async_session_factory() as session:
+        from sqlalchemy import func, select
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        # Получаем канал
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Задача 6.3: Блок ДОХОД — из mailing_log за период
+        from datetime import datetime, timedelta
+
+        if period == "7":
+            days_label = "7 дней"
+            start_date = datetime.now() - timedelta(days=7)
+        elif period == "30":
+            days_label = "30 дней"
+            start_date = datetime.now() - timedelta(days=30)
+        else:
+            days_label = "Всё время"
+            start_date = None
+
+        # Подсчитываем размещения и заработок
+        stmt = select(
+            func.count(MailingLog.id),
+            func.sum(MailingLog.cost),
+        ).where(
+            MailingLog.chat_id == channel_id,
+            MailingLog.status == MailingStatus.SENT,
+        )
+        if start_date:
+            stmt = stmt.where(MailingLog.sent_at >= start_date)
+
+        result = await session.execute(stmt)
+        row = result.one()
+        placements_count = row[0] or 0
+        earned_credits = float(row[1] or 0) * 0.8  # 80% владельцу
+
+        # Задача 6.3: Блок КАНАЛ — из chat
+        member_count = channel.member_count or 0
+
+        # Задача 6.3: Блок РЕЙТИНГ — только если поля существуют
+        rating = getattr(channel, 'rating', None)
+
+        # Формируем текст
+        text = f"📺 @{channel.username or channel.title}  •  {days_label}\n\n"
+
+        text += "━━━━ ДОХОД ━━━━\n"
+        text += f"Размещений: {placements_count}\n"
+        text += f"Заработано: {earned_credits:.0f} кр\n"
+        if placements_count > 0:
+            avg_check = earned_credits / placements_count
+            text += f"Средний чек: {avg_check:.0f} кр/пост\n"
+
+        text += "\n━━━━ КАНАЛ ━━━━\n"
+        text += f"Подписчиков: {member_count:,}\n"
+
+        if rating:
+            text += "\n━━━━ РЕЙТИНГ ━━━━\n"
+            text += f"Надёжность: {rating:.1f}★\n"
+
+        # Клавиатура с переключателями периода
+        builder = InlineKeyboardBuilder()
+
+        builder.button(
+            text="→ 7 дней" if period == "7" else "7 дней",
+            callback_data=f"owner_analytics:channel:{channel_id}:period:7",
+        )
+        builder.button(
+            text="→ 30 дней" if period == "30" else "30 дней",
+            callback_data=f"owner_analytics:channel:{channel_id}:period:30",
+        )
+        builder.button(
+            text="→ Всё время" if period == "all" else "Всё время",
+            callback_data=f"owner_analytics:channel:{channel_id}:period:all",
+        )
+
+        builder.button(
+            text="💰 История выплат",
+            callback_data=f"ch_payouts:{channel_id}",
+        )
+        builder.button(
+            text="📋 Все размещения",
+            callback_data=f"ch_requests:{channel_id}",
+        )
+        builder.button(text="🔙 Назад", callback_data="owner_analytics:role")
+
+        builder.adjust(3, 2, 1)
+
+        await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "user_summary"))

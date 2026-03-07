@@ -3,6 +3,7 @@ Handlers личного кабинета пользователя.
 """
 
 import logging
+from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -15,6 +16,7 @@ from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.bot.utils.message_utils import safe_edit_message
 from src.core.services.badge_service import badge_service
+from src.core.services.user_role_service import UserRoleService
 from src.core.services.xp_service import xp_service
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.user_repo import UserRepository
@@ -24,6 +26,31 @@ from src.services import get_user_service
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+# Задача 5.1: Словарь имён уровней
+LEVEL_NAMES = {
+    1: "Новичок 🌱",
+    2: "Участник ⭐",
+    3: "Активный 🔥",
+    4: "Опытный 💎",
+    5: "Профи 🚀",
+    6: "Эксперт 🎯",
+    7: "Мастер 👑",
+}
+
+# Задача 5.1: Привилегии следующего уровня
+LEVEL_NEXT_PRIVILEGE = {
+    1: "расширенные фильтры в каталоге каналов",
+    2: "скидка 3% на все размещения",
+    3: "скидка 7% + персональный менеджер",
+    4: "скидка 10% + ранний доступ к B2B",
+    5: "скидка 15% + белый лейбл отчётов",
+    6: "API-доступ",
+    7: None,  # максимальный уровень
+}
+
+# Задача 5.1: Порог XP для каждого уровня
+LEVEL_XP = {1: 0, 2: 500, 3: 1500, 4: 3500, 5: 7500, 6: 15000, 7: 30000}
 
 # Эмодзи статусов кампании
 STATUS_EMOJI = {
@@ -37,9 +64,40 @@ STATUS_EMOJI = {
 }
 
 
+# Задача 5.2: Функция для генерации прогресс-бара XP
+def build_xp_progress_bar(current_xp: int, level: int) -> str:
+    """
+    Построить прогресс-бар XP.
+
+    Args:
+        current_xp: Текущее количество XP.
+        level: Текущий уровень.
+
+    Returns:
+        Строка прогресс-бара.
+    """
+    if level >= 7:
+        return "MAX ████████████ 100%"
+
+    current_level_xp = LEVEL_XP[level]
+    next_level_xp = LEVEL_XP.get(level + 1, 30000)
+    progress_xp = current_xp - current_level_xp
+    total_needed = next_level_xp - current_level_xp
+
+    percent = min(100, int(progress_xp / total_needed * 100)) if total_needed > 0 else 0
+    filled = percent // 10
+    empty = 10 - filled
+
+    bar = "█" * filled + "░" * empty
+    remaining = next_level_xp - current_xp
+
+    return f"{current_xp} XP  {bar}  {percent}%  →  до ур.{level+1}: {remaining} XP"
+
+
 async def show_cabinet(message: Message | CallbackQuery) -> None:
     """
     Показать личный кабинет пользователя.
+    Задача 5.3: Разные версии для рекламодателя и владельца.
 
     Args:
         message: Сообщение или callback query.
@@ -60,31 +118,106 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             await answer_method("❌ Пользователь не найден. Нажмите /start")
             return
 
+        # Задача 5.3: Определяем роль пользователя
+        user_role_service = UserRoleService()
+        user_context = await user_role_service.get_user_context(user.id)
+        role = user_context.role
+
         # Получаем данные геймификации
         xp_stats = await xp_service.get_user_stats(telegram_id)
-        progress = xp_stats.get("progress", {})
-        progress_percent = progress.get("progress_percent", 0)
-        xp_to_next = progress.get("xp_to_next", 0)
-        level_name = xp_stats.get("level_name", "Неизвестно")
+        level = xp_stats.get('level', 1)
+        xp_points = xp_stats.get('xp_points', 0)
 
-        # Формируем карточку кабинета с геймификацией
-        text = (
-            f"👤 <b>Ваш кабинет</b>\n\n"
-            f"💳 Баланс: <b>{user.credits:,} кр</b>  |  📦 Тариф: <b>{cabinet_data.plan}</b>\n"
-            f"📊 Кампаний: <b>{cabinet_data.total_campaigns}</b>  |  🔄 Активных: <b>{cabinet_data.active_campaigns}</b>\n"
-            f"📅 Дата регистрации: <b>{cabinet_data.created_at}</b>\n\n"
-            f"🎮 <b>Прогресс</b>\n"
-            f"⭐ Уровень: <b>{xp_stats.get('level', 1)}</b> — {level_name}\n"
-            f"📈 XP: <b>{xp_stats.get('xp_points', 0)}</b>\n"
-            f"📊 Прогресс: <b>{progress_percent:.1f}%</b> ({xp_to_next} XP до следующего уровня)\n"
-            f"🔥 Стрик: <b>{xp_stats.get('streak_days', 0)} дн.</b>\n\n"
-            f"👤 <b>Профиль:</b>\n"
+        # Задача 5.1: Имя уровня из словаря
+        level_name = LEVEL_NAMES.get(level, f"Уровень {level}")
+
+        # Задача 5.2: Прогресс-бар XP
+        xp_bar = build_xp_progress_bar(xp_points, level)
+
+        # Задача 5.3: Привилегия следующего уровня
+        next_privilege = LEVEL_NEXT_PRIVILEGE.get(level)
+        next_level_name = LEVEL_NAMES.get(level + 1, "")
+
+        # Получаем доступную сумму к выводу (для владельца)
+        available_payout = 0
+        if role in ("owner", "both"):
+            # TODO: получить из payout_repo
+            available_payout = 0  # Заглушка
+
+        # Задача 5.3: Формируем текст в зависимости от роли
+        if role in ("advertiser", "both"):
+            # Для рекламодателя
+            # Дата истечения тарифа — получаем из user.plan_expires_at
+            plan_expires_at = getattr(user, 'plan_expires_at', None)
+            days_left = None
+            if plan_expires_at:
+                days_left = (plan_expires_at - datetime.now()).days
+
+            # Осталось кампаний — из plan лимитов
+            remaining_campaigns = cabinet_data.total_campaigns  # Заглушка
+            plan_limit = 5  # Заглушка для STARTER
+
+            text = (
+                f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
+                f"━━━━ БАЛАНС ━━━━\n"
+                f"💳 {user.credits:,} кредитов\n"
+                f"📦 Тариф: {cabinet_data.plan}"
+            )
+
+            if days_left is not None and days_left > 0:
+                text += f"  •  до {plan_expires_at.strftime('%d.%m')} ({days_left} дней)\n"
+                text += f"   Осталось кампаний: {remaining_campaigns} из {plan_limit}\n"
+            else:
+                text += "\n"
+
+            text += (
+                f"\n━━━━ УРОВЕНЬ ━━━━\n"
+                f"{level_name}  Уровень {level}\n"
+                f"   {xp_bar}\n"
+            )
+
+            if next_privilege and level < 7:
+                text += f"\nНа уровне {level + 1} — {next_level_name}:\n→ {next_privilege}\n"
+
+        elif role == "owner":
+            # Для владельца
+            text = (
+                f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
+                f"━━━━ БАЛАНС ━━━━\n"
+                f"💳 {user.credits:,} кр  (общий баланс платформы)\n"
+                f"💸 {available_payout:,} кр  (доступно к выводу)\n"
+                f"\n━━━━ УРОВЕНЬ ━━━━\n"
+                f"{level_name}  Уровень {level}\n"
+                f"   {xp_bar}\n"
+            )
+
+            if next_privilege and level < 7:
+                text += f"\nНа уровне {level + 1} — {next_level_name}:\n→ {next_privilege}\n"
+
+        else:
+            # Для new или других
+            text = (
+                f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
+                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
+                f"📦 Тариф: <b>{cabinet_data.plan}</b>\n\n"
+                f"━━━━ УРОВЕНЬ ━━━━\n"
+                f"{level_name}  Уровень {level}\n"
+                f"   {xp_bar}\n"
+            )
+
+        # Добавляем профиль
+        text += (
+            f"\n👤 <b>Профиль:</b>\n"
             f"Имя: {user.full_name}\n"
             f"Telegram: @{user.username or 'не указан'}\n"
         )
 
-        # Кнопки действий с переключателем уведомлений
-        await answer_method(text, reply_markup=get_cabinet_kb(user.notifications_enabled))
+        # Задача 5.4: Расширенная клавиатура в зависимости от роли
+        await answer_method(text, reply_markup=get_cabinet_kb(
+            notifications_enabled=user.notifications_enabled,
+            role=role.value if hasattr(role, 'value') else role,
+            available_payout=available_payout,
+        ))
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "cabinet"))

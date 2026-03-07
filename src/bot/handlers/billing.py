@@ -50,7 +50,10 @@ def _format_balance(credits: int) -> str:
 
 @router.callback_query(MainMenuCB.filter(F.action == "balance"))
 async def show_balance(callback: CallbackQuery) -> None:
-    """Показать баланс и варианты пополнения."""
+    """
+    Показать баланс и варианты пополнения.
+    Задача 7.2: Контекстная рекомендация при запланированной кампании.
+    """
     async with async_session_factory() as session:
         user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
         if not user:
@@ -76,12 +79,45 @@ async def show_balance(callback: CallbackQuery) -> None:
             used = user.ai_generations_used
             ai_info = f"\n🤖 ИИ-генерации: <b>{used}/{included}</b> использовано"
 
+        # Задача 7.2: Контекстная рекомендация
+        recommendation_text = ""
+        from sqlalchemy import select
+
+        # Запрос незапущенных кампаний
+        from src.db.models.campaign import Campaign, CampaignStatus
+        stmt = select(Campaign).where(
+            Campaign.user_id == user.id,
+            Campaign.status.in_([CampaignStatus.DRAFT, CampaignStatus.QUEUED]),
+        )
+        result = await session.execute(stmt)
+        pending_campaigns = list(result.scalars().all())
+
+        if pending_campaigns:
+            # Есть запланированные кампании
+            for campaign in pending_campaigns:
+                campaign_cost = campaign.cost or 0
+                if campaign_cost > user.credits:
+                    # Не хватает средств
+                    deficit = campaign_cost - user.credits
+                    recommended_amount = deficit + 100  # Рекомендация с запасом
+
+                    recommendation_text = (
+                        f"\n\n⚠️ <b>Внимание!</b>\n"
+                        f"У вас запланирована кампания <b>\"{campaign.title}\"</b>\n"
+                        f"Стоимость: {campaign_cost} кр\n"
+                        f"На балансе: {user.credits} кр\n"
+                        f"❌ Не хватает: <b>{deficit} кр</b>\n\n"
+                        f"💡 Рекомендуем пополнить на <b>{recommended_amount} кр</b> или больше."
+                    )
+                    break
+
         text = (
             f"💳 <b>Ваш баланс</b>\n\n"
             f"Кредиты: <b>{_format_balance(user.credits)} кр</b>\n"
             f"Тариф: <b>{plan_value}</b>"
             f"{plan_expires}"
-            f"{ai_info}\n\n"
+            f"{ai_info}"
+            f"{recommendation_text}\n\n"
             f"<b>Что такое кредиты?</b>\n"
             f"1 кредит ≈ 1₽. Используются для оплаты тарифов и ИИ-генерации.\n\n"
             f"Выберите способ пополнения:"

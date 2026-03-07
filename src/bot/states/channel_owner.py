@@ -6,9 +6,11 @@ class AddChannelStates(StatesGroup):
     """Состояния мастера добавления канала."""
 
     waiting_username = State()  # ожидаем @username канала
-    waiting_verification = State()  # ожидаем нажатия «Проверить»
+    waiting_bot_admin_confirmation = State()  # НОВОЕ: подтверждение что бот добавлен админом
     waiting_price = State()  # ожидаем цену за пост
     waiting_topics = State()  # ожидаем выбор тематик
+    waiting_settings = State()  # НОВОЕ: настройки размещения
+    waiting_confirm = State()  # НОВОЕ: подтверждение добавления
 
 
 class EditChannelStates(StatesGroup):

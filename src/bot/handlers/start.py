@@ -42,6 +42,9 @@ async def send_banner_with_menu(
     caption: str = None,
     role: str = "new",
     pending_count: int = 0,
+    active_campaigns: int = 0,
+    channels_count: int = 0,
+    available_payout: int = 0,
 ) -> None:
     """
     Отправить баннер с главным меню.
@@ -53,6 +56,9 @@ async def send_banner_with_menu(
         caption: Текст под баннером (опционально).
         role: Роль пользователя для построения меню.
         pending_count: Количество ожидающих заявок.
+        active_campaigns: Количество активных кампаний.
+        channels_count: Количество каналов.
+        available_payout: Сумма доступная к выводу.
     """
     try:
         if BANNER_PATH.exists():
@@ -66,6 +72,9 @@ async def send_banner_with_menu(
                     user_id=user_id,
                     role=role,
                     pending_count=pending_count,
+                    active_campaigns=active_campaigns,
+                    channels_count=channels_count,
+                    available_payout=available_payout,
                 ),
             )
         else:
@@ -77,6 +86,9 @@ async def send_banner_with_menu(
                     user_id=user_id,
                     role=role,
                     pending_count=pending_count,
+                    active_campaigns=active_campaigns,
+                    channels_count=channels_count,
+                    available_payout=available_payout,
                 ),
             )
     except Exception as e:
@@ -88,6 +100,9 @@ async def send_banner_with_menu(
                 user_id=user_id,
                 role=role,
                 pending_count=pending_count,
+                active_campaigns=active_campaigns,
+                channels_count=channels_count,
+                available_payout=available_payout,
             ),
         )
 
@@ -242,13 +257,16 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     if is_new and ref_code is None and user_context.role == "new":
         # Новый пользователь без реферала и без активности → показываем онбординг
         text = (
-            f"🎉 <b>Добро пожаловать в RekHarbor!</b>\n\n"
-            f"Привет, <b>{message.from_user.first_name or 'друг'}</b>!\n"  # type: ignore[union-attr]
-            f"Здесь вы можете запускать рекламные кампании в Telegram-каналах\n"
-            f"или монетизировать свой канал.\n\n"
-            f"💳 Ваш баланс: <b>{user.credits:,} кр</b>"  # type: ignore[union-attr]
-            f"{stats_text}\n\n"
-            f"<b>Выберите с чего начать:</b>"
+            "🏄 <b>Добро пожаловать в RekHarborBot!</b>\n\n"
+            "Рекламная биржа внутри Telegram: рекламодатели\n"
+            "размещают объявления в тематических каналах,\n"
+            "а владельцы каналов зарабатывают — автоматически,\n"
+            "без переписки и предоплат.\n\n"
+            "<b>Как это работает:</b>\n"
+            "→ Рекламодатель выбирает каналы и оплачивает\n"
+            "→ Бот публикует пост без вашего участия\n"
+            "→ Владелец получает 80% от стоимости поста\n\n"
+            "Кем вы хотите быть на платформе?"
         )
         # Отправляем баннер с текстом и онбординг меню
         await send_banner_with_menu(
@@ -260,13 +278,49 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         )
     else:
         # Возвращающийся пользователь или с рефералом → показываем роль-зависимое меню
-        text = (
-            f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"  # type: ignore[union-attr]
-            f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
-            f"📦 Тариф: <b>{plan_value}</b>"  # type: ignore[union-attr]
-            f"{stats_text}\n\n"
-            f"Выберите действие в меню ниже:"
-        )
+        # Задача 1.5: Персонализированный заголовок
+        first_name = message.from_user.first_name or "друг"  # type: ignore[union-attr]
+
+        if user_context.role == "advertiser":
+            # Для рекламодателя — показываем баланс и тариф
+            text = (
+                f"👋 <b>С возвращением, {first_name}!</b>\n\n"
+                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                f"📦 Тариф: <b>{plan_value}</b>"
+                f"{stats_text}\n\n"
+                f"Выберите действие в меню ниже:"
+            )
+        elif user_context.role == "owner":
+            # Для владельца — показываем количество каналов и заявок
+            channels_count = user_context.channels_count if hasattr(user_context, 'channels_count') else 0
+            pending = user_context.pending_requests_count
+
+            if pending > 0:
+                text = (
+                    f"👋 <b>С возвращением, {first_name}!</b>\n\n"
+                    f"🔔 <b>{pending} новых заявок на размещение!</b>\n\n"
+                    f"📺 Ваших каналов: <b>{channels_count}</b>\n"
+                    f"{stats_text}\n\n"
+                    f"Выберите действие в меню ниже:"
+                )
+            else:
+                text = (
+                    f"👋 <b>С возвращением, {first_name}!</b>\n\n"
+                    f"📺 Ваших каналов: <b>{channels_count}</b>\n"
+                    f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                    f"{stats_text}\n\n"
+                    f"Выберите действие в меню ниже:"
+                )
+        else:
+            # Для роли "both" или других
+            text = (
+                f"👋 <b>С возвращением, {first_name}!</b>\n\n"
+                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                f"📦 Тариф: <b>{plan_value}</b>"
+                f"{stats_text}\n\n"
+                f"Выберите действие в меню ниже:"
+            )
+
         # Отправляем баннер с роль-зависимым меню
         await send_banner_with_menu(
             message,
@@ -386,6 +440,9 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
                 user_id=callback.from_user.id,
                 role=user_context.role.value,
                 pending_count=user_context.pending_requests_count,
+                active_campaigns=user_context.has_campaigns,  # Упрощённо: 0 или 1
+                channels_count=user_context.has_channels,  # Упрощённо: 0 или 1
+                available_payout=0,  # TODO: получить из payout_repo
             ),
         )
 
@@ -613,20 +670,18 @@ async def show_platform_stats(callback: CallbackQuery) -> None:
         platform_stats = await analytics_service.get_platform_stats()
 
         text = (
-            "📊 <b>Статистика платформы</b>\n\n"
-            f"• Активных каналов: <b>{platform_stats.active_channels:,}</b>\n"
-            f"• Общий охват: <b>{platform_stats.total_reach:,}</b>\n"
-            f"• Кампаний запущено: <b>{platform_stats.campaigns_launched:,}</b>\n"
-            f"• Кампаний завершено: <b>{platform_stats.campaigns_completed:,}</b>\n\n"
-            "Присоединяйтесь к тысячам рекламодателей и владельцев каналов, "
-            "которые уже используют RekHarbor!"
+            "📊 <b>RekHarborBot — платформа в цифрах</b>\n\n"
+            f"🏪 Каналов на платформе: <b>{platform_stats.active_channels:,}</b>\n"
+            f"📣 Кампаний запущено: <b>{platform_stats.campaigns_launched:,}</b>\n"
+            f"💸 Выплачено владельцам: <b>{platform_stats.total_payouts:,.0f} кр</b>\n\n"
+            f"<i>Данные обновляются в реальном времени.</i>"
         )
     except Exception as e:
         logger.error(f"Error getting platform stats: {e}")
         text = "📊 <b>Статистика платформы</b>\n\n" "Временно недоступна. Попробуйте позже."
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.button(text="🔙 Назад", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
@@ -654,55 +709,59 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
         return
 
     role = callback_data.role
+    user_id = callback.from_user.id
 
     # Сохраняем состояние — пользователь выбрал роль
     await state.update_data(role=role)
     await state.set_state(OnboardingStates.role_selected)
 
     if role == "advertiser":
-        # Показать меню рекламодателя и подсказку
-        keyboard = get_advertiser_menu_kb(credits=0, user_id=callback.from_user.id)
-        text = (
-            "📣 <b>Добро пожаловать, рекламодатель!</b>\n\n"
-            "Создайте первую кампанию — это займёт 3 минуты.\n"
-            "Бот проведёт вас через все шаги."
+        # Задача 1.3: Сообщение перед показом меню рекламодателя
+        await callback.message.answer(
+            "📣 <b>Отлично! Вы выбрали роль рекламодателя.</b>\n\n"
+            "<b>Быстрый старт — 4 шага:</b>\n\n"
+            "1️⃣ Пополните баланс (от 100 кредитов)\n"
+            "2️⃣ Выберите каналы в каталоге или нажмите\n"
+            '   "Создать кампанию" → автоподбор по бюджету\n'
+            "3️⃣ Загрузите текст объявления или попросите AI\n"
+            "4️⃣ Оплатите — бот опубликует и пришлёт отчёт\n\n"
+            "💡 <b>Деньги замораживаются до факта публикации.</b>\n"
+            "   Если пост не вышел — средства вернутся на баланс.\n\n"
+            "<b>Главное меню рекламодателя:</b>",
+            parse_mode="HTML",
         )
-        # Используем edit_caption для совместимости с фото
-        try:
-            await callback.message.edit_text(
-                text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        except ValueError:
-            # Если сообщение с фото, используем edit_caption
-            await callback.message.edit_caption(
-                caption=text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
+
+        # Показать меню рекламодателя
+        keyboard = get_advertiser_menu_kb(credits=0, user_id=user_id)
+        await callback.message.answer(
+            "Выберите действие:",
+            reply_markup=keyboard,
+        )
 
     elif role == "owner":
+        # Задача 1.4: Сообщение перед показом меню владельца
+        await callback.message.answer(
+            "📺 <b>Отлично! Подключим ваш канал к бирже.</b>\n\n"
+            "<b>Что вас ждёт:</b>\n"
+            "→ Рекламодатели присылают заявки с текстом поста\n"
+            "→ Вы одобряете или отклоняете каждую заявку\n"
+            "→ Бот публикует в согласованное время\n"
+            "→ 80% от цены поста — ваш заработок\n\n"
+            "<b>Требования к каналу:</b>\n"
+            "• Публичный (не приватный, есть @username)\n"
+            "• Не менее 500 подписчиков\n"
+            "• Преимущественно русскоязычная аудитория\n\n"
+            "🔒 <b>Бот получает только право публиковать посты.</b>\n"
+            "   Управлять каналом он не может.\n\n"
+            "<b>Нажмите \"Добавить канал\" чтобы начать:</b>",
+            parse_mode="HTML",
+        )
+
         # Показать меню владельца
         keyboard = get_owner_menu_kb(credits=0)
-        text = (
-            "📺 <b>Добро пожаловать, владелец канала!</b>\n\n"
-            "Зарегистрируйте свой канал — это займёт 2 минуты.\n"
-            "После этого рекламодатели смогут найти вас в каталоге."
+        await callback.message.answer(
+            "Выберите действие:",
+            reply_markup=keyboard,
         )
-        # Используем edit_caption для совместимости с фото
-        try:
-            await callback.message.edit_text(
-                text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        except ValueError:
-            # Если сообщение с фото, используем edit_caption
-            await callback.message.edit_caption(
-                caption=text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
 
     await callback.answer()

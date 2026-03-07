@@ -476,3 +476,562 @@ def notify_payout_paid_task(payout_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error notifying payout paid {payout_id}: {e}")
         return False
+
+
+# ─────────────────────────────────────────────
+# Уведомления для рекламодателей (Спринт 5)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:notify_post_published")
+def notify_post_published(
+    advertiser_id: int,
+    channel_username: str,
+    expected_views: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление после публикации поста.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        channel_username: Username канала.
+        expected_views: Ожидаемый охват.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"✅ <b>Пост опубликован в @{channel_username}</b>.\n\n"
+            f"Ожидаемый охват: ~{expected_views:,} просмотров."
+        )
+        return await _notify_user_async(advertiser_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying post published: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_campaign_finished")
+def notify_campaign_finished(
+    advertiser_id: int,
+    campaign_title: str,
+    published_count: int,
+    total_count: int,
+    total_views: int,
+    campaign_id: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о завершении кампании.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        campaign_title: Название кампании.
+        published_count: Количество опубликованных.
+        total_count: Всего планировалось.
+        total_views: Суммарный охват.
+        campaign_id: ID кампании для кнопки.
+    """
+    async def _notify() -> bool:
+        from aiogram import Bot
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        from src.config.settings import settings
+
+        text = (
+            f"📊 <b>Кампания '{campaign_title}' завершена</b>.\n\n"
+            f"Опубликовано: {published_count}/{total_count}\n"
+            f"Суммарный охват: ~{total_views:,} просмотров\n\n"
+            f"Отчёт готов."
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📊 Посмотреть аналитику", callback_data=f"analytics:by_campaign:{campaign_id}")]
+            ]
+        )
+
+        bot = Bot(token=settings.bot_token)
+        try:
+            await bot.send_message(
+                advertiser_id,
+                text,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+            return True
+        finally:
+            await bot.session.close()
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying campaign finished: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_placement_rejected")
+def notify_placement_rejected(
+    advertiser_id: int,
+    channel_username: str,
+    reason_code: str,
+    refund_amount: int,
+    campaign_id: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление об отклонении заявки.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        channel_username: Username канала.
+        reason_code: Код причины.
+        refund_amount: Сумма возврата.
+        campaign_id: ID кампании.
+    """
+    reason_texts = {
+        "topic": "не подходящая тематика",
+        "text_quality": "качество текста",
+        "timing": "неудобное время",
+        "price": "низкая цена",
+        "paused": "канал временно не принимает рекламу",
+        "other": "другая причина",
+    }
+
+    async def _notify() -> bool:
+        reason = reason_texts.get(reason_code, reason_code)
+        text = (
+            f"❌ <b>@{channel_username} отклонил заявку</b>.\n\n"
+            f"Причина: {reason}\n"
+            f"Средства {refund_amount} кр вернулись на ваш баланс."
+        )
+        return await _notify_user_async(advertiser_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying placement rejected: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_changes_requested")
+def notify_changes_requested(
+    advertiser_id: int,
+    channel_username: str,
+    campaign_title: str,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о запросе правок.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        channel_username: Username канала.
+        campaign_title: Название кампании.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"✏️ <b>Владелец @{channel_username} просит исправить текст</b>.\n\n"
+            f"Кампания: '{campaign_title}'\n"
+            f"Канал: @{channel_username}\n\n"
+            f"Отредактируйте текст кампании и отправьте заявку повторно."
+        )
+        return await _notify_user_async(advertiser_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying changes requested: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_low_balance_enhanced")
+def notify_low_balance_enhanced(
+    advertiser_id: int,
+    current_balance: int,
+    campaign_title: str,
+    campaign_cost: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о низком балансе для кампании.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        current_balance: Текущий баланс.
+        campaign_title: Название кампании.
+        campaign_cost: Стоимость кампании.
+    """
+    async def _notify() -> bool:
+        from aiogram import Bot
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        from src.config.settings import settings
+
+        deficit = campaign_cost - current_balance
+
+        text = (
+            f"⚠️ <b>Баланс заканчивается</b>.\n\n"
+            f"Текущий баланс: {current_balance} кр\n"
+            f"Запланирована кампания '{campaign_title}' на {campaign_cost} кр\n"
+            f"❌ Не хватает: {deficit} кр"
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="main:balance")]
+            ]
+        )
+
+        bot = Bot(token=settings.bot_token)
+        try:
+            await bot.send_message(
+                advertiser_id,
+                text,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+            return True
+        finally:
+            await bot.session.close()
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying low balance enhanced: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_plan_expiring")
+def notify_plan_expiring(
+    advertiser_id: int,
+    plan_name: str,
+    expires_at_str: str,
+    renewal_cost: int,
+    current_balance: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление об истечении тарифа.
+    
+    Args:
+        advertiser_id: ID рекламодателя.
+        plan_name: Название тарифа.
+        expires_at_str: Дата истечения.
+        renewal_cost: Стоимость продления.
+        current_balance: Текущий баланс.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"📦 <b>Тариф {plan_name} истекает {expires_at_str}</b>.\n\n"
+            f"Продление: {renewal_cost} кр\n"
+            f"Баланс сейчас: {current_balance} кр"
+        )
+        return await _notify_user_async(advertiser_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying plan expiring: {e}")
+        return False
+
+
+# ─────────────────────────────────────────────
+# Уведомления геймификации (Спринт 5)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:notify_badge_earned")
+def notify_badge_earned(
+    user_id: int,
+    badge_name: str,
+    xp_bonus: int,
+    remaining_to_next_level: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о получении значка.
+    
+    Args:
+        user_id: ID пользователя.
+        badge_name: Название значка.
+        xp_bonus: Бонус XP.
+        remaining_to_next_level: Остаток до следующего уровня.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"🏅 <b>Новый значок '{badge_name}'!</b>\n\n"
+            f"+{xp_bonus} XP.\n"
+            f"Осталось до уровня {remaining_to_next_level} XP."
+        )
+        return await _notify_user_async(user_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying badge earned: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_level_up")
+def notify_level_up(
+    user_id: int,
+    new_level: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о новом уровне.
+    
+    Args:
+        user_id: ID пользователя.
+        new_level: Новый уровень.
+    """
+    # Импортируем словари из cabinet.py
+    LEVEL_NAMES = {
+        1: "Новичок 🌱",
+        2: "Участник ⭐",
+        3: "Активный 🔥",
+        4: "Опытный 💎",
+        5: "Профи 🚀",
+        6: "Эксперт 🎯",
+        7: "Мастер 👑",
+    }
+
+    LEVEL_NEXT_PRIVILEGE = {
+        1: "расширенные фильтры в каталоге каналов",
+        2: "скидка 3% на все размещения",
+        3: "скидка 7% + персональный менеджер",
+        4: "скидка 10% + ранний доступ к B2B",
+        5: "скидка 15% + белый лейбл отчётов",
+        6: "API-доступ",
+        7: None,
+    }
+
+    async def _notify() -> bool:
+        level_name = LEVEL_NAMES.get(new_level, f"Уровень {new_level}")
+        privilege = LEVEL_NEXT_PRIVILEGE.get(new_level - 1)
+
+        if privilege:
+            text = (
+                f"🎉 <b>Новый уровень {new_level} — {level_name}!</b>\n\n"
+                f"<b>Новая привилегия:</b>\n"
+                f"→ {privilege}"
+            )
+        else:
+            text = (
+                f"🎉 <b>Новый уровень {new_level} — {level_name}!</b>\n\n"
+                f"Это максимальный уровень. Поздравляем!"
+            )
+
+        return await _notify_user_async(user_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying level up: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_channel_top10")
+def notify_channel_top10(
+    owner_id: int,
+    channel_username: str,
+    position: int,
+    topic: str,
+    total_in_topic: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о попадании в топ-10 каналов.
+    
+    Args:
+        owner_id: ID владельца.
+        channel_username: Username канала.
+        position: Позиция в топе.
+        topic: Тематика.
+        total_in_topic: Всего каналов в тематике.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"🏆 <b>@{channel_username} вошёл в топ-{position}!</b>\n\n"
+            f"Тематика: {topic}\n"
+            f"Всего каналов: {total_in_topic}\n\n"
+            f"Метка 🏆 теперь отображается в карточке канала.\n"
+            f"Ожидайте больше заявок от рекламодателей."
+        )
+        return await _notify_user_async(owner_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying channel top10: {e}")
+        return False
+
+
+@celery_app.task(name="notifications:notify_referral_bonus")
+def notify_referral_bonus(
+    referrer_id: int,
+    referred_name: str,
+    bonus_amount: int,
+) -> bool:
+    """
+    Задача 9.2: Уведомление о реферальном бонусе.
+    
+    Args:
+        referrer_id: ID реферера.
+        referred_name: Имя реферала.
+        bonus_amount: Сумма бонуса.
+    """
+    async def _notify() -> bool:
+        text = (
+            f"💰 <b>Ваш реферал {referred_name} пополнил баланс!</b>\n\n"
+            f"Ваш бонус: +{bonus_amount} кр на баланс."
+        )
+        return await _notify_user_async(referrer_id, text, "HTML")
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(f"Error notifying referral bonus: {e}")
+        return False
+
+
+# ─────────────────────────────────────────────
+# Еженедельный дайджест (Спринт 5)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:send_weekly_digest")
+def send_weekly_digest() -> dict[str, int]:
+    """
+    Задача 9.3: Еженедельный дайджест для пользователей.
+    Запускается каждый понедельник в 09:00 UTC.
+    """
+    from datetime import datetime, timedelta
+
+    stats = {"sent": 0, "errors": 0}
+
+    async def _send_digests() -> dict[str, int]:
+        from sqlalchemy import func, select
+
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+
+            # Получаем всех пользователей с включёнными уведомлениями
+            from src.db.models.user import User
+            stmt = select(User).where(User.is_active == True, User.notifications_enabled == True)
+            result = await session.execute(stmt)
+            users = list(result.scalars().all())
+
+            for user in users:
+                try:
+                    # Определяем роль
+                    from src.core.services.user_role_service import UserRoleService
+                    user_role_service = UserRoleService()
+                    user_context = await user_role_service.get_user_context(user.id)
+                    role = user_context.role
+
+                    # Получаем данные за последние 7 дней
+                    from src.db.models.campaign import Campaign
+
+                    seven_days_ago = datetime.now() - timedelta(days=7)
+
+                    if role in ("advertiser", "both"):
+                        # Дайджест рекламодателя
+                        campaigns_count = await session.execute(
+                            select(func.count(Campaign.id)).where(
+                                Campaign.user_id == user.id,
+                                Campaign.created_at >= seven_days_ago,
+                            )
+                        )
+                        campaigns_count = campaigns_count.scalar_one() or 0
+
+                        if campaigns_count == 0:
+                            continue  # Не отправляем если нет кампаний
+
+                        text = (
+                            f"📊 <b>Итоги недели — RekHarborBot</b>\n\n"
+                            f"Кампаний: {campaigns_count}\n"
+                        )
+
+                        # TODO: получить total_views и total_spent из БД
+                        # if total_views:
+                        #     text += f"Суммарный охват: {total_views:,}\n"
+                        # if total_spent:
+                        #     text += f"Потрачено: {total_spent} кр\n"
+
+                        text += (
+                            f"\n💳 Баланс: {user.credits} кр\n"
+                            f"📦 Тариф: {user.plan.value if hasattr(user.plan, 'value') else user.plan}"
+                        )
+
+                        from aiogram import Bot
+                        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+                        from src.config.settings import settings
+
+                        keyboard = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [InlineKeyboardButton(text="📣 Создать кампанию", callback_data="main:create_menu")]
+                            ]
+                        )
+
+                        bot = Bot(token=settings.bot_token)
+                        try:
+                            await bot.send_message(
+                                user.telegram_id,
+                                text,
+                                parse_mode="HTML",
+                                reply_markup=keyboard,
+                            )
+                            stats["sent"] += 1
+                        finally:
+                            await bot.session.close()
+
+                    elif role == "owner":
+                        # Дайджест владельца
+                        # TODO: получить данные из БД
+                        requests_count = 0  # Заглушка
+                        approved_count = 0  # Заглушка
+                        earned_credits = 0  # Заглушка
+
+                        if requests_count == 0:
+                            continue  # Не отправляем если нет заявок
+
+                        text = (
+                            f"📺 <b>Итоги недели</b>\n\n"
+                            f"Заявок: {requests_count}\n"
+                            f"Одобрено: {approved_count}\n"
+                            f"Заработано: {earned_credits} кр\n"
+                        )
+
+                        # TODO: получить available_payout
+                        available_payout = 0
+
+                        text += f"\n💸 К выводу: {available_payout} кр"
+
+                        from aiogram import Bot
+                        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+                        from src.config.settings import settings
+
+                        keyboard = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [InlineKeyboardButton(text="💸 Вывести средства", callback_data="main:payouts")]
+                            ]
+                        )
+
+                        bot = Bot(token=settings.bot_token)
+                        try:
+                            await bot.send_message(
+                                user.telegram_id,
+                                text,
+                                parse_mode="HTML",
+                                reply_markup=keyboard,
+                            )
+                            stats["sent"] += 1
+                        finally:
+                            await bot.session.close()
+
+                except Exception as e:
+                    logger.error(f"Error sending digest to user {user.id}: {e}")
+                    stats["errors"] += 1
+
+            return stats
+
+    try:
+        result = asyncio.run(_send_digests())
+        logger.info(f"Weekly digest completed: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error sending weekly digest: {e}")
+        return {"sent": 0, "errors": 1}
