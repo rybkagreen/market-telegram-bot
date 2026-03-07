@@ -44,40 +44,59 @@ def get_onboarding_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="📣 Хочу размещать рекламу",
+        text="📣 Размещать рекламу в каналах",
         callback_data=OnboardingCB(role="advertiser"),
     )
     builder.button(
-        text="📺 У меня есть Telegram-канал",
+        text="📺 Зарабатывать на своём канале",
         callback_data=OnboardingCB(role="owner"),
     )
     builder.button(
-        text="📊 Посмотреть статистику платформы",
+        text="📊 Как устроена платформа",
         callback_data=MainMenuCB(action="platform_stats"),
     )
     builder.adjust(1)
     return builder.as_markup()
 
 
-def get_advertiser_menu_kb(credits: int, user_id: int | None = None) -> InlineKeyboardMarkup:
+def get_advertiser_menu_kb(
+    credits: int,
+    user_id: int | None = None,
+    active_campaigns: int = 0,
+) -> InlineKeyboardMarkup:
     """
     Меню рекламодателя.
     Показывается когда у пользователя есть кампании, но нет своих каналов.
+
+    Args:
+        credits: Баланс пользователя.
+        user_id: Telegram ID для проверки прав администратора.
+        active_campaigns: Количество активных кампаний.
     """
     builder = InlineKeyboardBuilder()
 
     builder.button(text="📣 Создать кампанию", callback_data=MainMenuCB(action="create_menu"))
-    builder.button(text="📋 Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))
+
+    # Задача 2.4: Счётчик активных кампаний
+    campaigns_label = (
+        f"📋 Мои кампании [{active_campaigns}]" if active_campaigns > 0
+        else "📋 Мои кампании"
+    )
+    builder.button(text=campaigns_label, callback_data=MainMenuCB(action="my_campaigns"))
+
     builder.button(text="📡 Каталог каналов", callback_data=MainMenuCB(action="channels_db"))
     builder.button(text="💼 B2B-пакеты", callback_data=MainMenuCB(action="b2b"))
-    builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
+    builder.button(text="📊 Моя статистика", callback_data=MainMenuCB(action="analytics"))
     builder.button(
         text=f"👤 Кабинет • {credits:,} кр".replace(",", " "),
         callback_data=MainMenuCB(action="cabinet"),
     )
-    builder.button(text="💬 Поддержка", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.5: Разделить поддержку на две кнопки
+    builder.button(text="💬 Помощь", callback_data=MainMenuCB(action="help"))
+    builder.button(text="✉️ Обратная связь", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.5: Переименование кнопки смены роли
     builder.button(
-        text="🔄 Сменить роль",
+        text="🔄 Переключить роль",
         callback_data=MainMenuCB(action="change_role"),
     )
 
@@ -94,6 +113,8 @@ def get_owner_menu_kb(
     credits: int,
     pending_count: int = 0,
     user_id: int | None = None,
+    channels_count: int = 0,
+    available_payout: int = 0,
 ) -> InlineKeyboardMarkup:
     """
     Меню владельца канала.
@@ -103,26 +124,46 @@ def get_owner_menu_kb(
         credits: Баланс пользователя.
         pending_count: Количество ожидающих заявок на размещение.
         user_id: Telegram ID для проверки прав администратора.
+        channels_count: Количество каналов пользователя.
+        available_payout: Сумма доступная к выводу.
     """
     builder = InlineKeyboardBuilder()
 
+    # Задача 2.2: Счётчик каналов
+    channels_label = (
+        f"📺 Мои каналы ({channels_count})" if channels_count > 0
+        else "📺 Мои каналы"
+    )
+
+    # Задача 2.2: Индикатор заявок
     requests_label = (
-        f"📋 Заявки [{pending_count}]" if pending_count > 0
+        f"📋 Заявки [{pending_count}] 🔴" if pending_count > 0
         else "📋 Заявки"
     )
 
-    builder.button(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels"))
+    builder.button(text=channels_label, callback_data=MainMenuCB(action="my_channels"))
     builder.button(text=requests_label, callback_data=MainMenuCB(action="my_requests"))
     builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
-    builder.button(text="💸 Выплаты", callback_data=MainMenuCB(action="payouts"))
-    builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
+
+    # Задача 2.1: Сумма на кнопке "Выплаты"
+    payout_label = (
+        f"💸 Выплаты • {available_payout} кр" if available_payout > 0
+        else "💸 Выплаты"
+    )
+    builder.button(text=payout_label, callback_data=MainMenuCB(action="payouts"))
+
+    # Задача 2.3: Переименование кнопок
+    builder.button(text="📊 Моя статистика", callback_data=MainMenuCB(action="analytics"))
     builder.button(
         text=f"👤 Кабинет • {credits:,} кр".replace(",", " "),
         callback_data=MainMenuCB(action="cabinet"),
     )
-    builder.button(text="💬 Поддержка", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.3: Разделить поддержку на две кнопки
+    builder.button(text="💬 Помощь", callback_data=MainMenuCB(action="help"))
+    builder.button(text="✉️ Обратная связь", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.3: Переименование кнопки смены роли
     builder.button(
-        text="🔄 Сменить роль",
+        text="🔄 Переключить роль",
         callback_data=MainMenuCB(action="change_role"),
     )
 
@@ -139,6 +180,9 @@ def get_combined_menu_kb(
     credits: int,
     pending_count: int = 0,
     user_id: int | None = None,
+    active_campaigns: int = 0,
+    channels_count: int = 0,
+    available_payout: int = 0,
 ) -> InlineKeyboardMarkup:
     """
     Комбинированное меню для пользователей с обеими ролями.
@@ -148,6 +192,9 @@ def get_combined_menu_kb(
         credits: Баланс пользователя.
         pending_count: Количество ожидающих заявок на размещение.
         user_id: Telegram ID для проверки прав администратора.
+        active_campaigns: Количество активных кампаний.
+        channels_count: Количество каналов.
+        available_payout: Сумма доступная к выводу.
     """
     builder = InlineKeyboardBuilder()
 
@@ -157,31 +204,53 @@ def get_combined_menu_kb(
         callback_data=MainMenuCB(action="noop"),  # заголовок, не кликабелен
     )
     builder.button(text="Создать кампанию", callback_data=MainMenuCB(action="create_menu"))
-    builder.button(text="Мои кампании", callback_data=MainMenuCB(action="my_campaigns"))
+
+    # Задача 2.6: Счётчик активных кампаний
+    campaigns_label = (
+        f"Мои кампании [{active_campaigns}]" if active_campaigns > 0
+        else "Мои кампании"
+    )
+    builder.button(text=campaigns_label, callback_data=MainMenuCB(action="my_campaigns"))
+
     builder.button(text="Каталог каналов", callback_data=MainMenuCB(action="channels_db"))
     builder.button(text="B2B-пакеты", callback_data=MainMenuCB(action="b2b"))
 
     # ── Раздел владельца канала ──
+    # Задача 2.6: Счётчик каналов и индикатор заявок
+    channels_label = (
+        f"Мои каналы ({channels_count})" if channels_count > 0
+        else "Мои каналы"
+    )
     requests_label = (
-        f"Заявки [{pending_count}]" if pending_count > 0
+        f"Заявки [{pending_count}] 🔴" if pending_count > 0
         else "Заявки"
     )
     builder.button(
         text="── 📺 Мой канал ──",
         callback_data=MainMenuCB(action="noop"),
     )
-    builder.button(text="Мои каналы", callback_data=MainMenuCB(action="my_channels"))
+    builder.button(text=channels_label, callback_data=MainMenuCB(action="my_channels"))
     builder.button(text=requests_label, callback_data=MainMenuCB(action="my_requests"))
     builder.button(text="Добавить канал", callback_data=MainMenuCB(action="add_channel"))
-    builder.button(text="Выплаты", callback_data=MainMenuCB(action="payouts"))
+
+    # Задача 2.6: Сумма на кнопке "Выплаты"
+    payout_label = (
+        f"Выплаты • {available_payout} кр" if available_payout > 0
+        else "Выплаты"
+    )
+    builder.button(text=payout_label, callback_data=MainMenuCB(action="payouts"))
 
     # ── Общие ──
-    builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
+    builder.button(text="📊 Моя статистика", callback_data=MainMenuCB(action="analytics"))
     builder.button(
         text=f"👤 Кабинет • {credits:,} кр".replace(",", " "),
         callback_data=MainMenuCB(action="cabinet"),
     )
-    builder.button(text="💬 Поддержка", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.6: Разделить поддержку на две кнопки
+    builder.button(text="💬 Помощь", callback_data=MainMenuCB(action="help"))
+    builder.button(text="✉️ Обратная связь", callback_data=MainMenuCB(action="feedback"))
+    # Задача 2.6: Переименование кнопки смены роли
+    builder.button(text="🔄 Переключить роль", callback_data=MainMenuCB(action="change_role"))
 
     if user_id and _is_admin(user_id):
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
@@ -202,6 +271,9 @@ def get_main_menu(
     # Новые параметры для роль-зависимого меню:
     role: str = "new",  # "new" | "advertiser" | "owner" | "both"
     pending_count: int = 0,  # для бейджа заявок
+    active_campaigns: int = 0,  # для бейджа кампаний
+    channels_count: int = 0,  # для бейджа каналов
+    available_payout: int = 0,  # для суммы выплат
 ) -> InlineKeyboardMarkup:
     """
     Главное меню бота — адаптируется под роль пользователя.
@@ -211,15 +283,35 @@ def get_main_menu(
         user_id: Telegram ID для проверки прав администратора.
         role: Роль пользователя из UserRoleService.get_user_context().
         pending_count: Количество непрочитанных заявок (для владельцев).
+        active_campaigns: Количество активных кампаний (для рекламодателей).
+        channels_count: Количество каналов (для владельцев).
+        available_payout: Сумма доступная к выводу (для владельцев).
 
     Returns:
         InlineKeyboardMarkup соответствующий роли пользователя.
     """
     if role == "advertiser":
-        return get_advertiser_menu_kb(credits=credits, user_id=user_id)
+        return get_advertiser_menu_kb(
+            credits=credits,
+            user_id=user_id,
+            active_campaigns=active_campaigns,
+        )
     elif role == "owner":
-        return get_owner_menu_kb(credits=credits, pending_count=pending_count, user_id=user_id)
+        return get_owner_menu_kb(
+            credits=credits,
+            pending_count=pending_count,
+            user_id=user_id,
+            channels_count=channels_count,
+            available_payout=available_payout,
+        )
     elif role == "both":
-        return get_combined_menu_kb(credits=credits, pending_count=pending_count, user_id=user_id)
+        return get_combined_menu_kb(
+            credits=credits,
+            pending_count=pending_count,
+            user_id=user_id,
+            active_campaigns=active_campaigns,
+            channels_count=channels_count,
+            available_payout=available_payout,
+        )
     else:  # "new"
         return get_onboarding_kb()

@@ -146,6 +146,16 @@ class TelegramChat(Base):
         Boolean, default=False, nullable=False, server_default="false",
         comment="Канал принимает рекламные размещения"
     )
+    
+    # === Поля для настроек размещения (Спринт 5) ===
+    max_posts_per_day: Mapped[int] = mapped_column(
+        Integer, default=2, nullable=False, server_default="2",
+        comment="Максимальное количество постов в день"
+    )
+    approval_mode: Mapped[str] = mapped_column(
+        String(20), default="auto", nullable=False, server_default="auto",
+        comment="Режим одобрения: 'auto' или 'manual'"
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())

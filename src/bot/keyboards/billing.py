@@ -84,18 +84,51 @@ def get_currency_kb(credits: int) -> InlineKeyboardMarkup:
 
 
 def get_plans_kb() -> InlineKeyboardMarkup:
-    """Тарифные планы."""
+    """
+    Задача 7.1: Тарифные планы с обновлёнными описаниями.
+    """
     builder = InlineKeyboardBuilder()
+
+    # Задача 7.1: Обновлённые тексты тарифов
     plans = [
-        ("🆓 FREE — 0 кр/мес", "free"),
-        ("🚀 STARTER — 299 кр/мес", "starter"),
-        ("💎 PRO — 999 кр/мес", "pro"),
-        ("🏢 BUSINESS — 2999 кр/мес", "business"),
+        (
+            "🆓 FREE — 0 кр/мес\n"
+            "• Кампании: недоступны\n"
+            "• AI: недоступен",
+            "free",
+        ),
+        (
+            "🚀 STARTER — 299 кр/мес\n"
+            "• 5 кампаний/мес\n"
+            "• 50 каналов/кампанию\n"
+            "• AI: базовая генерация текстов",
+            "starter",
+        ),
+        (
+            "💎 PRO — 999 кр/мес\n"
+            "• 20 кампаний/мес\n"
+            "• 200 каналов/кампанию\n"
+            "• AI: расширенная генерация ✨\n"
+            "• 5 AI-генераций включено",
+            "pro",
+        ),
+        (
+            "🏢 BUSINESS — 2 999 кр/мес\n"
+            "• 100 кампаний/мес\n"
+            "• 1 000 каналов/кампанию\n"
+            "• AI: расширенная генерация ✨\n"
+            "• 20 AI-генераций включено\n"
+            "• Приоритетная поддержка",
+            "business",
+        ),
     ]
+
     for label, value in plans:
         builder.button(text=label, callback_data=BillingCB(action="plan", value=value))
+
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1)
+
     return builder.as_markup()
 
 
