@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-# Задача 5.1: Словарь имён уровней
+# Задача 5.1: Словарь имён уровней (ОБЩИЙ — для обратной совместимости)
 LEVEL_NAMES = {
     1: "Новичок 🌱",
     2: "Участник ⭐",
@@ -38,7 +38,7 @@ LEVEL_NAMES = {
     7: "Мастер 👑",
 }
 
-# Задача 5.1: Привилегии следующего уровня
+# Задача 5.1: Привилегии следующего уровня (ОБЩИЕ)
 LEVEL_NEXT_PRIVILEGE = {
     1: "расширенные фильтры в каталоге каналов",
     2: "скидка 3% на все размещения",
@@ -46,7 +46,49 @@ LEVEL_NEXT_PRIVILEGE = {
     4: "скидка 10% + ранний доступ к B2B",
     5: "скидка 15% + белый лейбл отчётов",
     6: "API-доступ",
-    7: None,  # максимальный уровень
+    7: None,
+}
+
+# Спринт 5: Раздельные привилегии для рекламодателей
+ADVERTISER_LEVEL_NAMES = {
+    1: "Новичок 🌱",
+    2: "Активный ⭐",
+    3: "Профи 🔥",
+    4: "Эксперт 💎",
+    5: "Мастер 🚀",
+    6: "Легенда 🎯",
+    7: "Бог рекламы 👑",
+}
+
+ADVERTISER_NEXT_PRIVILEGE = {
+    1: "расширенные фильтры в каталоге",
+    2: "скидка 3% на размещения",
+    3: "скидка 7% + приоритетная поддержка",
+    4: "скидка 10% + белый лейбл отчётов",
+    5: "скидка 15% + персональный менеджер",
+    6: "API-доступ для автоматизации",
+    7: None,
+}
+
+# Спринт 5: Раздельные привилегии для владельцев
+OWNER_LEVEL_NAMES = {
+    1: "Новичок 🌱",
+    2: "Популярный ⭐",
+    3: "Избранный 🔥",
+    4: "Топовый 💎",
+    5: "Легенда 🚀",
+    6: "Влиятельный 🎯",
+    7: "Медиамагнат 👑",
+}
+
+OWNER_NEXT_PRIVILEGE = {
+    1: "аналитика канала",
+    2: "бейдж 'Проверенный канал'",
+    3: "приоритет в каталоге",
+    4: "повышенная выплата (85%)",
+    5: "персональный менеджер",
+    6: "премиум размещение в топ-10",
+    7: None,
 }
 
 # Задача 5.1: Порог XP для каждого уровня
@@ -123,20 +165,34 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         user_context = await user_role_service.get_user_context(user.id)
         role = user_context.role
 
-        # Получаем данные геймификации
-        xp_stats = await xp_service.get_user_stats(telegram_id)
-        level = xp_stats.get('level', 1)
-        xp_points = xp_stats.get('xp_points', 0)
+        # Спринт 5: Получаем раздельные данные геймификации
+        if role == "advertiser":
+            level = user.advertiser_level
+            xp_points = user.advertiser_xp
+            level_names = ADVERTISER_LEVEL_NAMES
+            level_privileges = ADVERTISER_NEXT_PRIVILEGE
+        elif role == "owner":
+            level = user.owner_level
+            xp_points = user.owner_xp
+            level_names = OWNER_LEVEL_NAMES
+            level_privileges = OWNER_NEXT_PRIVILEGE
+        else:
+            # Для new/both используем общие значения
+            xp_stats = await xp_service.get_user_stats(telegram_id)
+            level = xp_stats.get('level', 1)
+            xp_points = xp_stats.get('xp_points', 0)
+            level_names = LEVEL_NAMES
+            level_privileges = LEVEL_NEXT_PRIVILEGE
 
         # Задача 5.1: Имя уровня из словаря
-        level_name = LEVEL_NAMES.get(level, f"Уровень {level}")
+        level_name = level_names.get(level, f"Уровень {level}")
 
         # Задача 5.2: Прогресс-бар XP
         xp_bar = build_xp_progress_bar(xp_points, level)
 
         # Задача 5.3: Привилегия следующего уровня
-        next_privilege = LEVEL_NEXT_PRIVILEGE.get(level)
-        next_level_name = LEVEL_NAMES.get(level + 1, "")
+        next_privilege = level_privileges.get(level)
+        next_level_name = level_names.get(level + 1, "")
 
         # Получаем доступную сумму к выводу (для владельца)
         available_payout = 0
@@ -186,7 +242,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
                 f"━━━━ БАЛАНС ━━━━\n"
                 f"💳 {user.credits:,} кр  (общий баланс платформы)\n"
                 f"💸 {available_payout:,} кр  (доступно к выводу)\n"
-                f"\n━━━━ УРОВЕНЬ ━━━━\n"
+                f"\n━━━━ ПРОГРЕСС ВЛАДЕЛЬЦА ━━━━\n"
                 f"{level_name}  Уровень {level}\n"
                 f"   {xp_bar}\n"
             )

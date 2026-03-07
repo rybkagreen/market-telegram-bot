@@ -24,6 +24,28 @@ from src.db.session import async_session_factory
 logger = logging.getLogger(__name__)
 
 
+# Импортируем словари из cabinet.py для консистентности
+ADVERTISER_LEVEL_NAMES = {
+    1: "Новичок 🌱",
+    2: "Активный ⭐",
+    3: "Профи 🔥",
+    4: "Эксперт 💎",
+    5: "Мастер 🚀",
+    6: "Легенда 🎯",
+    7: "Бог рекламы 👑",
+}
+
+OWNER_LEVEL_NAMES = {
+    1: "Новичок 🌱",
+    2: "Популярный ⭐",
+    3: "Избранный 🔥",
+    4: "Топовый 💎",
+    5: "Легенда 🚀",
+    6: "Влиятельный 🎯",
+    7: "Медиамагнат 👑",
+}
+
+
 # Таблица уровней (PRD §9.1)
 LEVEL_THRESHOLDS = {
     1: 0,
@@ -230,7 +252,7 @@ class XPService:
         reason: str,
     ) -> LevelUpEvent | None:
         """
-        Добавить XP пользователю.
+        Добавить XP пользователю (ОБЩЕЕ — для обратной совместимости).
 
         Args:
             user_id: ID пользователя.
@@ -279,9 +301,107 @@ class XPService:
 
             return level_up_event
 
+    # === Спринт 5: Раздельный XP для рекламодателей и владельцев ===
+
+    async def add_advertiser_xp(
+        self,
+        user_id: int,
+        amount: int,
+        reason: str = "campaign",
+    ) -> tuple[int, bool]:
+        """
+        Добавить XP рекламодателя.
+
+        Args:
+            user_id: ID пользователя.
+            amount: Количество XP.
+            reason: Причина начисления.
+
+        Returns:
+            (new_level, leveled_up)
+        """
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                logger.error(f"User {user_id} not found")
+                return (1, False)
+
+            old_level = user.advertiser_level
+            user.advertiser_xp += amount
+            new_xp = user.advertiser_xp
+
+            # Вычисляем новый уровень
+            new_level = self.get_level_for_xp(new_xp)
+            leveled_up = False
+
+            if new_level > old_level:
+                user.advertiser_level = new_level
+                leveled_up = True
+                logger.info(
+                    f"User {user_id} advertiser level up: {old_level} → {new_level} "
+                    f"({amount} XP for {reason})"
+                )
+
+            # Обновляем общий XP для обратной совместимости
+            user.xp_points = user.advertiser_xp + user.owner_xp
+            user.level = max(user.advertiser_level, user.owner_level)
+
+            await session.flush()
+            return (new_level, leveled_up)
+
+    async def add_owner_xp(
+        self,
+        user_id: int,
+        amount: int,
+        reason: str = "publication",
+    ) -> tuple[int, bool]:
+        """
+        Добавить XP владельца.
+
+        Args:
+            user_id: ID пользователя.
+            amount: Количество XP.
+            reason: Причина начисления.
+
+        Returns:
+            (new_level, leveled_up)
+        """
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                logger.error(f"User {user_id} not found")
+                return (1, False)
+
+            old_level = user.owner_level
+            user.owner_xp += amount
+            new_xp = user.owner_xp
+
+            # Вычисляем новый уровень
+            new_level = self.get_level_for_xp(new_xp)
+            leveled_up = False
+
+            if new_level > old_level:
+                user.owner_level = new_level
+                leveled_up = True
+                logger.info(
+                    f"User {user_id} owner level up: {old_level} → {new_level} "
+                    f"({amount} XP for {reason})"
+                )
+
+            # Обновляем общий XP для обратной совместимости
+            user.xp_points = user.advertiser_xp + user.owner_xp
+            user.level = max(user.advertiser_level, user.owner_level)
+
+            await session.flush()
+            return (new_level, leveled_up)
+
     async def get_user_stats(self, user_id: int) -> dict[str, Any]:
         """
-        Получить статистику пользователя.
+        Получить общую статистику пользователя (для обратной совместимости).
 
         Args:
             user_id: ID пользователя.
@@ -310,6 +430,70 @@ class XPService:
                 "total_spent": float(user.total_spent) if user.total_spent else 0,
                 "total_earned": float(user.total_earned) if user.total_earned else 0,
                 "streak_days": user.streak_days or 0,
+            }
+
+    # === Спринт 5: Раздельная статистика ===
+
+    async def get_advertiser_stats(self, user_id: int) -> dict[str, Any]:
+        """
+        Получить статистику рекламодателя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            dict с advertiser_level, advertiser_xp, progress.
+        """
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                return {"error": "User not found"}
+
+            progress = self.get_progress_to_next_level(
+                user.advertiser_level,
+                user.advertiser_xp,
+            )
+
+            return {
+                "user_id": user_id,
+                "level": user.advertiser_level,
+                "level_name": ADVERTISER_LEVEL_NAMES.get(user.advertiser_level, "Неизвестно"),
+                "xp_points": user.advertiser_xp,
+                "progress": progress,
+                "privileges": self.get_level_privileges(user.advertiser_level),
+            }
+
+    async def get_owner_stats(self, user_id: int) -> dict[str, Any]:
+        """
+        Получить статистику владельца.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            dict с owner_level, owner_xp, progress.
+        """
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                return {"error": "User not found"}
+
+            progress = self.get_progress_to_next_level(
+                user.owner_level,
+                user.owner_xp,
+            )
+
+            return {
+                "user_id": user_id,
+                "level": user.owner_level,
+                "level_name": OWNER_LEVEL_NAMES.get(user.owner_level, "Неизвестно"),
+                "xp_points": user.owner_xp,
+                "progress": progress,
+                "privileges": self.get_level_privileges(user.owner_level),
             }
 
 
