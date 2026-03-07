@@ -110,7 +110,7 @@ async def send_banner_with_menu(
 @router.callback_query(MainMenuCB.filter(F.action == "create_campaign_ai"))
 async def start_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     """Запуск создания кампании с AI."""
-    # Импортируем функцию создания
+    # Импортируем функцию создания с новым флоу
     from src.bot.handlers.campaign_create_ai import start_campaign_create
 
     await start_campaign_create(callback, state)

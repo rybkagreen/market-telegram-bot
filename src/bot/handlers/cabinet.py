@@ -421,10 +421,13 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
             page=page,
             per_page=page_size,
         )
+        
+        logger.info(f"show_campaigns_list: telegram_id={callback.from_user.id}, total={total}, campaigns={len(campaigns)}")
 
         total_pages = max(1, (total + page_size - 1) // page_size)
 
         if not campaigns:
+            logger.warning(f"show_campaigns_list: no campaigns found for user {callback.from_user.id}")
             text = (
                 "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию через главное меню!"
             )
@@ -444,8 +447,9 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
         text = f"📋 <b>Ваши кампании</b> ({total} всего)\n\n"
 
         for campaign in campaigns:
-            emoji = STATUS_EMOJI.get(campaign.status, "📝")
-            status_text = campaign.status.value
+            # campaign.status может быть строкой или enum
+            status_value = campaign.status if isinstance(campaign.status, str) else campaign.status.value
+            emoji = STATUS_EMOJI.get(status_value, "📝")
             progress = campaign.progress
 
             # Форматируем дату
@@ -453,7 +457,7 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
 
             text += (
                 f"{emoji} <b>{campaign.title}</b>\n"
-                f"   Статус: {status_text}  |  Прогресс: {progress:.0f}%\n"
+                f"   Статус: {status_value}  |  Прогресс: {progress:.0f}%\n"
                 f"   Создана: {created}\n"
                 f"   Отправлено: {campaign.sent_count}/{campaign.total_chats}\n\n"
             )
