@@ -423,6 +423,41 @@ async def feedback_redirect(callback: CallbackQuery, state: FSMContext) -> None:
     await handle_feedback_menu(callback, state)
 
 
+@router.callback_query(MainMenuCB.filter(F.action == "change_role"))
+async def change_role(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Показать меню выбора роли (для пользователей которые хотят сменить роль).
+    """
+    if callback.message is None:
+        return
+
+    # Сбрасываем состояние онбординга если оно было
+    await state.clear()
+
+    text = (
+        "🔄 <b>Смена роли</b>\n\n"
+        "Выберите новую роль:\n\n"
+        "📣 <b>Рекламодатель</b> — запуск рекламных кампаний в Telegram-каналах\n"
+        "📺 <b>Владелец канала</b> — монетизация своего канала\n\n"
+        "Ваш прогресс (каналы, кампании, баланс) сохранится."
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📣 Хочу размещать рекламу",
+        callback_data=OnboardingCB(role="advertiser"),
+    )
+    builder.button(
+        text="📺 У меня есть Telegram-канал",
+        callback_data=OnboardingCB(role="owner"),
+    )
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1, 1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
 @router.message(Command("app"))
 async def handle_app_command(message: Message) -> None:
     """Открыть Mini App по команде /app."""
