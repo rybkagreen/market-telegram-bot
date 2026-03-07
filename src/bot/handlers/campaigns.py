@@ -834,16 +834,20 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Запустить кампанию.
     """
+    logger.info(f"confirm_launch: user={callback.from_user.id}")
+    
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
+            logger.error(f"confirm_launch: user not found {callback.from_user.id}")
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
         # Проверяем возможность запуска кампаний
         if not user.can_send_campaigns():
+            logger.warning(f"confirm_launch: user {callback.from_user.id} cannot send campaigns (plan={user.plan})")
             await callback.answer(
                 "❌ Ваш тариф не позволяет запускать кампании.\n"
                 "Перейдите в кабинет для смены тарифа.",
@@ -852,11 +856,14 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
             return
 
         data = await state.get_data()
+        logger.info(f"confirm_launch: state_data={data}")
+        
         campaign_repo = CampaignRepository(session)
 
         # Проверяем лимит кампаний
         campaign_count = await campaign_repo.get_user_campaigns_count(user.id)
         if campaign_count >= user.get_campaign_limit():
+            logger.warning(f"confirm_launch: campaign limit exceeded for user {callback.from_user.id}")
             await callback.answer(
                 f"❌ Превышен лимит кампаний для вашего тарифа: {user.get_campaign_limit()}\n"
                 "Перейдите в кабинет для смены тарифа.",
@@ -872,6 +879,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
 
         # Проверяем уведомления — если выключены, спрашиваем перед запуском
         if not user.notifications_enabled and not scheduled_at:
+            logger.info(f"confirm_launch: asking for notifications")
             # Сохраняем данные в state и показываем запрос
             await safe_callback_edit(callback, "🚀 Кампания готова к запуску!\n\n"
                 "📬 Хотите получать уведомления о статусе кампании?\n"
@@ -881,6 +889,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
             return
 
         # Запускаем кампанию (создание и отправка)
+        logger.info(f"confirm_launch: calling _do_launch_campaign")
         await _do_launch_campaign(callback, state, session, user, data, campaign_repo, scheduled_at)
 
 
@@ -897,26 +906,29 @@ async def _do_launch_campaign(
     Приватная функция для фактического запуска кампании.
     Вызывается из confirm_launch или после включения уведомлений.
     """
+    logger.info(f"_do_launch_campaign: user={user.id}, scheduled_at={scheduled_at}")
 
     # Создаём кампанию
-    campaign = await campaign_repo.create(
-        {
-            "user_id": user.id,
-            "title": data.get("header", "Без названия"),
-            "topic": data.get("topic"),
-            "header": data.get("header"),
-            "text": data.get("text", ""),
-            "image_file_id": data.get("image_file_id"),
-            "ai_description": data.get("ai_description"),
-            "status": CampaignStatus.QUEUED if scheduled_at else CampaignStatus.RUNNING,
-            "filters_json": {
-                "topics": [data.get("topic")],
-                "min_members": data.get("min_members", 0),
-                "max_members": data.get("max_members", 1000000),
-            },
-            "scheduled_at": scheduled_at,
-        }
-    )
+    campaign_data = {
+        "user_id": user.id,
+        "title": data.get("header", "Без названия"),
+        "topic": data.get("topic"),
+        "header": data.get("header"),
+        "text": data.get("text", ""),
+        "image_file_id": data.get("image_file_id"),
+        "ai_description": data.get("ai_description"),
+        "status": CampaignStatus.QUEUED if scheduled_at else CampaignStatus.RUNNING,
+        "filters_json": {
+            "topics": [data.get("topic")],
+            "min_members": data.get("min_members", 0),
+            "max_members": data.get("max_members", 1000000),
+        },
+        "scheduled_at": scheduled_at,
+    }
+    logger.info(f"_do_launch_campaign: creating campaign with data={campaign_data}")
+    
+    campaign = await campaign_repo.create(campaign_data)
+    logger.info(f"_do_launch_campaign: campaign created with id={campaign.id}")
 
     await state.clear()
 
@@ -935,8 +947,10 @@ async def _do_launch_campaign(
         )
 
         # Запускаем рассылку через Celery
+        logger.info(f"_do_launch_campaign: sending campaign {campaign.id} to celery")
         send_campaign.delay(campaign.id)
 
+    logger.info(f"_do_launch_campaign: editing callback with success message")
     await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
 
 
