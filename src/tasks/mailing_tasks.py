@@ -97,6 +97,17 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
 
                     if success:
                         stats["sent"] += 1
+                        
+                        # Спринт 5: Начисляем XP владельцу канала за публикацию
+                        if chat.owner_user_id:
+                            from src.tasks.notification_tasks import notify_owner_xp_for_publication
+                            
+                            # 30 XP за публикацию поста
+                            notify_owner_xp_for_publication.delay(
+                                owner_id=chat.owner_user_id,
+                                channel_id=chat.id,
+                                placement_id=0,  # TODO: получить placement_id из mailing_log
+                            )
                     else:
                         stats["failed"] += 1
 
@@ -156,9 +167,21 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
             # Завершаем кампанию
             await campaign_repo.update_status(campaign.id, CampaignStatus.DONE)
 
+            # Спринт 5: Начисляем XP рекламодателю за завершение кампании
+            from src.core.services.xp_service import xp_service
+
+            # XP за завершение кампании (50 XP) + XP за каждую успешную отправку (1 XP за 10 отправок)
+            campaign_xp = 50 + (stats["sent"] // 10)
+            await xp_service.add_advertiser_xp(
+                user_id=campaign.user_id,
+                amount=campaign_xp,
+                reason=f"campaign_completed:{campaign_id}",
+            )
+
             logger.info(
                 f"Campaign {campaign_id} completed: "
-                f"sent={stats['sent']}, failed={stats['failed']}, total={stats['total']}"
+                f"sent={stats['sent']}, failed={stats['failed']}, total={stats['total']}, "
+                f"xp_awarded={campaign_xp}"
             )
 
             return stats
