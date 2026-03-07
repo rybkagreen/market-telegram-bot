@@ -350,6 +350,45 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
 # Уведомления о выплатах (Спринт 1)
 # ─────────────────────────────────────────────
 
+@celery_app.task(name="notifications:notify_owner_xp_for_publication")
+def notify_owner_xp_for_publication(
+    owner_id: int,
+    channel_id: int,
+    placement_id: int,
+) -> bool:
+    """
+    Спринт 5: Начислить XP владельцу за публикацию поста.
+    
+    Args:
+        owner_id: ID владельца канала.
+        channel_id: ID канала.
+        placement_id: ID размещения.
+    """
+    async def _add_xp() -> bool:
+        from src.core.services.xp_service import xp_service
+        
+        # 30 XP за каждую публикацию
+        new_level, leveled_up = await xp_service.add_owner_xp(
+            user_id=owner_id,
+            amount=30,
+            reason=f"publication:{placement_id}",
+        )
+        
+        if leveled_up:
+            logger.info(f"Owner {owner_id} leveled up to {new_level} (owner XP)")
+            # Можно отправить уведомление о повышении уровня
+            from src.tasks.notification_tasks import notify_level_up
+            notify_level_up.delay(owner_id, new_level)
+        
+        return True
+    
+    try:
+        return asyncio.run(_add_xp())
+    except Exception as e:
+        logger.error(f"Error adding owner XP: {e}")
+        return False
+
+
 @celery_app.task(name="notifications:notify_payout_created")
 def notify_payout_created_task(payout_id: int) -> bool:
     """

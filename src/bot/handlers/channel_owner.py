@@ -1003,6 +1003,16 @@ async def approve_placement(callback: CallbackQuery) -> None:
 
         placement.status = MailingStatus.QUEUED
         await session.flush()
+        
+        # Спринт 5: Начисляем XP владельцу за одобрение размещения
+        from src.tasks.notification_tasks import notify_owner_xp_for_publication
+        
+        # 10 XP за одобрение заявки (дополнительно к 30 XP за публикацию)
+        notify_owner_xp_for_publication.delay(
+            owner_id=placement.chat.owner_user_id,
+            channel_id=placement.chat_id,
+            placement_id=placement_id,
+        )
 
     await callback.answer("✅ Заявка одобрена!")
 
