@@ -18,7 +18,11 @@ async def safe_callback_edit(
     """
     Безопасное редактирование сообщения из callback query.
 
-    Обрабатывает случаи когда сообщение удалено (InaccessibleMessage) или None.
+    Обрабатывает случаи когда:
+    - сообщение удалено (InaccessibleMessage)
+    - сообщение None
+    - сообщение содержит фото (использует edit_message_caption)
+    - сообщение без текста (отправляет новое)
 
     Returns:
         True если редактирование успешно, False иначе.
@@ -38,6 +42,7 @@ async def safe_callback_edit(
         return False
 
     try:
+        # Попытка редактирования текста
         await callback.message.edit_text(
             text,
             reply_markup=reply_markup,
@@ -45,8 +50,46 @@ async def safe_callback_edit(
             **kwargs,
         )
         return True
+    except ValueError as e:
+        # Ошибка: "there is no text in the message to edit"
+        # Сообщение может быть фото или иметь только клавиатуру
+        error_str = str(e).lower()
+        if "no text" in error_str or "text" in error_str:
+            logger.debug("Message has no text, trying edit_message_caption")
+            try:
+                # Попытка редактирования caption (для фото)
+                await callback.message.edit_message_caption(
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode,
+                    **kwargs,
+                )
+                return True
+            except Exception as caption_err:
+                logger.debug(f"edit_message_caption failed: {caption_err}")
+                # Если caption тоже не работает, отправляем новое сообщение
+                with contextlib.suppress(Exception):
+                    await callback.message.answer(
+                        text,
+                        reply_markup=reply_markup,
+                        parse_mode=parse_mode,
+                        **kwargs,
+                    )
+                return False
+        else:
+            logger.error(f"safe_callback_edit ValueError: {e}")
+            return False
     except Exception as e:
+        # Другие ошибки (сообщение удалено, недоступно и т.д.)
         logger.error(f"safe_callback_edit failed: {e}")
+        # Попробуем отправить новое сообщение
+        with contextlib.suppress(Exception):
+            await callback.message.answer(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+                **kwargs,
+            )
         return False
 
 
