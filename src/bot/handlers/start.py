@@ -627,22 +627,47 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
     if role == "advertiser":
         # Показать меню рекламодателя и подсказку
         keyboard = get_advertiser_menu_kb(credits=0, user_id=callback.from_user.id)
-        await callback.message.edit_text(
+        text = (
             "📣 <b>Добро пожаловать, рекламодатель!</b>\n\n"
             "Создайте первую кампанию — это займёт 3 минуты.\n"
-            "Бот проведёт вас через все шаги.",
-            reply_markup=keyboard,
-            parse_mode="HTML",
+            "Бот проведёт вас через все шаги."
         )
+        # Используем edit_caption для совместимости с фото
+        try:
+            await callback.message.edit_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        except ValueError:
+            # Если сообщение с фото, используем edit_caption
+            await callback.message.edit_caption(
+                caption=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+
     elif role == "owner":
         # Показать меню владельца
         keyboard = get_owner_menu_kb(credits=0)
-        await callback.message.edit_text(
+        text = (
             "📺 <b>Добро пожаловать, владелец канала!</b>\n\n"
             "Зарегистрируйте свой канал — это займёт 2 минуты.\n"
-            "После этого рекламодатели смогут найти вас в каталоге.",
-            reply_markup=keyboard,
-            parse_mode="HTML",
+            "После этого рекламодатели смогут найти вас в каталоге."
         )
+        # Используем edit_caption для совместимости с фото
+        try:
+            await callback.message.edit_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        except ValueError:
+            # Если сообщение с фото, используем edit_caption
+            await callback.message.edit_caption(
+                caption=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
 
     await callback.answer()
