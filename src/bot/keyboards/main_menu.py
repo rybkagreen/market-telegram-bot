@@ -76,12 +76,16 @@ def get_advertiser_menu_kb(credits: int, user_id: int | None = None) -> InlineKe
         callback_data=MainMenuCB(action="cabinet"),
     )
     builder.button(text="💬 Поддержка", callback_data=MainMenuCB(action="feedback"))
+    builder.button(
+        text="🔄 Сменить роль",
+        callback_data=MainMenuCB(action="change_role"),
+    )
 
     if user_id and _is_admin(user_id):
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
-        builder.adjust(2, 2, 2, 1, 1)
+        builder.adjust(2, 2, 2, 1, 1, 1)
     else:
-        builder.adjust(2, 2, 2, 1)
+        builder.adjust(2, 2, 2, 1, 1)
 
     return builder.as_markup()
 
@@ -117,12 +121,16 @@ def get_owner_menu_kb(
         callback_data=MainMenuCB(action="cabinet"),
     )
     builder.button(text="💬 Поддержка", callback_data=MainMenuCB(action="feedback"))
+    builder.button(
+        text="🔄 Сменить роль",
+        callback_data=MainMenuCB(action="change_role"),
+    )
 
     if user_id and _is_admin(user_id):
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
-        builder.adjust(2, 2, 2, 1, 1)
+        builder.adjust(2, 2, 2, 1, 1, 1)
     else:
-        builder.adjust(2, 2, 2, 1)
+        builder.adjust(2, 2, 2, 1, 1)
 
     return builder.as_markup()
 
