@@ -538,10 +538,7 @@ class AnalyticsService:
             revenue = 0.0  # Placeholder
 
             # ROI = ((revenue - cost) / cost) * 100
-            if cost > 0:
-                roi = ((revenue - cost) / cost) * 100
-            else:
-                roi = 0.0
+            roi = (revenue - cost) / cost * 100 if cost > 0 else 0.0
 
             return {
                 "roi_percent": round(roi, 2),

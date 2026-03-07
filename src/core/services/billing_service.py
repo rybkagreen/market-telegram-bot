@@ -361,6 +361,8 @@ class BillingService:
         Returns:
             dict с total_referrals, total_earned, referrals_list.
         """
+        from typing import cast
+
         from sqlalchemy import func, select
 
         from src.db.models.user import User
@@ -382,9 +384,9 @@ class BillingService:
                 .limit(10)
             )
             result = await session.execute(stmt)
-            referrals = list(result.scalars().all())  # type: ignore[var-annotated]
+            referrals = cast(list[User], list(result.scalars().all()))
 
-            referrals_list = [
+            referrals_list: list[dict] = [
                 {
                     "telegram_id": r.telegram_id,
                     "username": r.username,
@@ -392,7 +394,7 @@ class BillingService:
                     "registered_at": r.created_at.isoformat() if r.created_at else None,
                 }
                 for r in referrals
-            ]  # type: ignore[misc]
+            ]
 
             return {
                 "user_id": user_id,

@@ -3,7 +3,6 @@ import contextlib
 import logging
 from typing import Any
 
-from aiogram import Bot
 from aiogram.types import CallbackQuery, InaccessibleMessage, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
