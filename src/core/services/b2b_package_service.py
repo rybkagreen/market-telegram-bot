@@ -202,6 +202,114 @@ class B2BPackageService:
             "discount_pct": 0,
         }
 
+    async def generate_mediakit_pdf(
+        self,
+        channel_id: int,
+    ) -> bytes:
+        """
+        Сгенерировать PDF-медиакит канала.
+
+        Args:
+            channel_id: ID канала в БД.
+
+        Returns:
+            PDF файл в bytes.
+        """
+        from io import BytesIO
+
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        from src.db.models.analytics import TelegramChat
+
+        async with async_session_factory() as session:
+            channel = await session.get(TelegramChat, channel_id)
+            if not channel:
+                raise ValueError(f"Channel {channel_id} not found")
+
+            # Создаём PDF
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+
+            # Заголовок
+            title_style = ParagraphStyle(
+                "CustomTitle",
+                parent=styles["Heading1"],
+                fontSize=18,
+                spaceAfter=20,
+            )
+
+            elements = []
+            elements.append(
+                Paragraph(f"Медиакит: @{channel.username or channel.title}", title_style)
+            )
+            elements.append(Spacer(1, 0.2 * inch))  # type: ignore[arg-type]
+
+            # Основная информация
+            info_data = [
+                ["Параметр", "Значение"],
+                ["Название", channel.title or "Без названия"],
+                ["Username", f"@{channel.username}" if channel.username else "Не указан"],
+                ["Подписчики", f"{channel.member_count:,}"],
+                ["Средние просмотры", f"{channel.last_avg_views:,}"],
+                ["ER", f"{channel.last_er:.2f}%"],
+                ["Тематика", channel.topic or "Не указана"],
+                ["Цена за пост", f"{channel.price_per_post or 0} ₽"],
+            ]
+
+            info_table = Table(info_data, colWidths=[2.5 * inch, 2.5 * inch])
+            info_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                    ]
+                )
+            )
+
+            elements.append(info_table)  # type: ignore[arg-type]
+            elements.append(Spacer(1, 0.5 * inch))  # type: ignore[arg-type]
+
+            # Описание
+            if channel.description:
+                desc_style = ParagraphStyle(
+                    "Description",
+                    parent=styles["Normal"],
+                    fontSize=11,
+                )
+                elements.append(Paragraph("<b>Описание:</b>", desc_style))
+                elements.append(Spacer(1, 0.1 * inch))  # type: ignore[arg-type]
+                elements.append(Paragraph(channel.description, desc_style))
+                elements.append(Spacer(1, 0.3 * inch))  # type: ignore[arg-type]
+
+            # Контакты
+            contact_style = ParagraphStyle(
+                "Contact",
+                parent=styles["Normal"],
+                fontSize=11,
+                textColor=colors.blue,
+            )
+            elements.append(
+                Paragraph("📩 Для размещения: обратитесь к администратору канала", contact_style)
+            )
+
+            # Build PDF
+            doc.build(elements)  # type: ignore[arg-type]
+
+            pdf_data = buffer.getvalue()
+            buffer.close()
+
+            return pdf_data
+
 
 # Глобальный экземпляр
 b2b_package_service = B2BPackageService()
