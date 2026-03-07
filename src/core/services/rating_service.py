@@ -354,6 +354,99 @@ class RatingService:
                 for row in rows
             ]
 
+    async def detect_fraud(self, channel_id: int) -> dict[str, Any]:
+        """
+        Детектор накрутки канала.
+
+        Флаги:
+        - Прирост подписчиков > 50% за 7 дней
+        - ER < 0.5% при > 10k подписчиков
+        - Отток > 30% через 14 дней после роста
+
+        Args:
+            channel_id: ID канала в БД.
+
+        Returns:
+            dict с fraud_flag, fraud_reasons, severity.
+        """
+        from sqlalchemy import select
+
+        from src.db.models.analytics import ChatSnapshot, TelegramChat
+
+        async with async_session_factory() as session:
+            channel = await session.get(TelegramChat, channel_id)
+            if not channel:
+                return {"error": "Channel not found"}
+
+            fraud_reasons = []
+            severity = "none"
+
+            # 1. Проверка прироста > 50% за 7 дней
+            seven_days_ago = date.today() - timedelta(days=7)
+            stmt = (
+                select(ChatSnapshot)
+                .where(
+                    ChatSnapshot.chat_id == channel_id,
+                    ChatSnapshot.snapshot_date >= seven_days_ago,
+                )
+                .order_by(ChatSnapshot.snapshot_date.desc())
+            )
+            result = await session.execute(stmt)
+            snapshots = list(result.scalars().all())
+
+            if len(snapshots) >= 2:
+                old_subscribers = snapshots[-1].subscribers
+                new_subscribers = snapshots[0].subscribers
+
+                if old_subscribers > 0:
+                    growth_rate = ((new_subscribers - old_subscribers) / old_subscribers) * 100
+
+                    if growth_rate > 50:
+                        fraud_reasons.append(f"Subscriber growth > 50% in 7 days ({growth_rate:.1f}%)")
+                        severity = "high"
+
+            # 2. Проверка ER < 0.5% при > 10k подписчиков
+            if channel.member_count > 10000:
+                er = channel.last_er or 0
+                if er < 0.5:
+                    fraud_reasons.append(f"ER < 0.5% with > 10k subscribers (ER={er}%)")
+                    severity = "medium" if severity == "none" else severity
+
+            # 3. Проверка оттока > 30% через 14 дней после роста
+            fourteen_days_ago = date.today() - timedelta(days=14)
+            stmt = (
+                select(ChatSnapshot)
+                .where(
+                    ChatSnapshot.chat_id == channel_id,
+                    ChatSnapshot.snapshot_date >= fourteen_days_ago,
+                )
+                .order_by(ChatSnapshot.snapshot_date.desc())
+            )
+            result = await session.execute(stmt)
+            snapshots_14d = list(result.scalars().all())
+
+            if len(snapshots_14d) >= 2:
+                # Ищем рост followed by отток
+                peak_subscribers = max(s.subscribers for s in snapshots_14d)
+                current_subscribers = snapshots_14d[0].subscribers if snapshots_14d else channel.member_count
+
+                if peak_subscribers > 0:
+                    drop_rate = ((peak_subscribers - current_subscribers) / peak_subscribers) * 100
+
+                    if drop_rate > 30:
+                        fraud_reasons.append(f"Subscriber drop > 30% after peak ({drop_rate:.1f}%)")
+                        severity = "high"
+
+            fraud_flag = len(fraud_reasons) > 0
+
+            return {
+                "channel_id": channel_id,
+                "fraud_flag": fraud_flag,
+                "fraud_reasons": fraud_reasons,
+                "severity": severity,
+                "recommendation": "Exclude from catalog" if fraud_flag else "No action needed",
+            }
+
 
 # Глобальный экземпляр
 rating_service = RatingService()
