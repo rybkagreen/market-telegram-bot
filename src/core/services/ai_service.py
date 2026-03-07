@@ -2,9 +2,7 @@
 AI сервис на базе OpenRouter.
 
 Единственный провайдер для всего бота.
-Модель зависит от тарифа пользователя:
-  FREE/STARTER  → meta-llama/llama-4-scout:free  (бесплатно)
-  PRO/BUSINESS  → anthropic/claude-sonnet-4.6    (платно)
+Использует бесплатную Qwen модель для всех тарифов (режим отладки).
 
 Документация OpenRouter: https://openrouter.ai/docs
 """
@@ -15,37 +13,16 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
+from src.api.constants.ai import (
+    AI_MAX_TOKENS,
+    AI_TEMPERATURE,
+    FALLBACK_MODEL,
+    FREE_MODEL,
+    TOPIC_PROMPTS,
+)
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
-
-# Системные промпты для разных тематик
-TOPIC_PROMPTS = {
-    "education": """Ты — копирайтер для образовательных проектов.
-Пиши короткие, энергичные тексты про курсы и обучение.
-Стиль: мотивирующий, с акцентом на результат.
-Длина: 400-700 символов.
-Структура: заголовок → боль → решение → призыв.
-Эмодзи: уместно, 3-5 штук.""",
-    "retail": """Ты — копирайтер для розничной торговли.
-Пиши короткие, эмоциональные тексты про товары и услуги.
-Стиль: дружеский, с акцентом на выгоду.
-Длина: 300-600 символов.
-Структура: эмоция → преимущество → скидка → призыв.
-Эмодзи: умеренно, 2-4 штуки.""",
-    "finance": """Ты — копирайтер для финансовых услуг.
-Пиши лаконичные, убедительные тексты.
-Стиль: профессиональный, но доступный.
-Длина: 400-700 символов.
-Структура: проблема → решение → гарантии → призыв.
-Эмодзи: минимально, 1-3 штуки.""",
-    "default": """Ты — профессиональный копирайтер для Telegram.
-Пиши короткие, цепляющие рекламные тексты.
-Стиль: живой, не шаблонный.
-Длина: 300-600 символов (оптимально для Telegram).
-Структура: заголовок → преимущества → призыв к действию.
-Эмодзи: уместно, но без фанатизма.""",
-}
 
 # Системный промпт по умолчанию
 AD_SYSTEM_PROMPT = TOPIC_PROMPTS["default"]
@@ -105,13 +82,12 @@ class AIService:
         """
         Сгенерировать текст через OpenRouter.
 
-        Автоматически выбирает модель по тарифу.
-        Кэширует результат в Redis если доступен.
+        Использует бесплатную Qwen модель для всех тарифов (режим отладки).
 
         Args:
             prompt: Пользовательский промпт.
             system: Системный промпт (по умолчанию — копирайтер).
-            user_plan: Тариф пользователя ("free", "starter", "pro", "business").
+            user_plan: Тариф пользователя (не используется, все на бесплатной модели).
             use_cache: Использовать кэш Redis.
             topic: Тематика для выбора стиля (education, retail, finance, default).
 
@@ -126,7 +102,9 @@ class AIService:
             system = TOPIC_PROMPTS[topic]
             logger.debug(f"Using topic prompt: {topic}")
 
-        model = settings.get_model_for_plan(user_plan)
+        # Используем бесплатную Qwen модель для всех (режим отладки)
+        model = FREE_MODEL
+        logger.debug(f"Using free model: {model}")
 
         # Проверяем кэш
         if use_cache and self._redis:
@@ -156,7 +134,7 @@ class AIService:
 
         Args:
             description: Описание продукта/услуги от пользователя.
-            user_plan: Тариф (определяет модель).
+            user_plan: Тариф (не используется, все на бесплатной модели).
             topic: Тематика для выбора стиля (education, retail, finance, default).
 
         Returns:
@@ -297,8 +275,8 @@ class AIService:
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=settings.ai_max_tokens,
-                temperature=settings.ai_temperature,
+                max_tokens=AI_MAX_TOKENS,
+                temperature=AI_TEMPERATURE,
             )
             content = response.choices[0].message.content
             if not content:
@@ -314,23 +292,23 @@ class AIService:
             if "429" in error_str or "rate limit" in error_str:
                 # Пробуем fallback модель
                 logger.warning(
-                    f"Rate limit on {model}, trying fallback: {settings.model_free_fallback}"
+                    f"Rate limit on {model}, trying fallback: {FALLBACK_MODEL}"
                 )
                 try:
                     response = await self.client.chat.completions.create(
-                        model=settings.model_free_fallback,
+                        model=FALLBACK_MODEL,
                         messages=[
                             {"role": "system", "content": system},
                             {"role": "user", "content": prompt},
                         ],
-                        max_tokens=settings.ai_max_tokens,
-                        temperature=settings.ai_temperature,
+                        max_tokens=AI_MAX_TOKENS,
+                        temperature=AI_TEMPERATURE,
                     )
                     content = response.choices[0].message.content
                     if not content:
                         raise RuntimeError("Пустой ответ от fallback модели")
                     logger.info(
-                        f"OpenRouter OK (fallback): model={settings.model_free_fallback}, tokens={response.usage.total_tokens if response.usage else '?'}"
+                        f"OpenRouter OK (fallback): model={FALLBACK_MODEL}, tokens={response.usage.total_tokens if response.usage else '?'}"
                     )
                     return content.strip()
                 except Exception as fallback_error:
