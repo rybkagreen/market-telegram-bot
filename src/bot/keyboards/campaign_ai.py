@@ -11,7 +11,6 @@ class AIVariantCB(CallbackData, prefix="ai_variant"):
     """Выбор варианта AI текста."""
 
     variant_index: int  # 0, 1, 2
-    topic: str
 
 
 class AIEditCB(CallbackData, prefix="ai_edit"):
@@ -23,23 +22,57 @@ class AIEditCB(CallbackData, prefix="ai_edit"):
 class CampaignCreateCB(CallbackData, prefix="campaign_create"):
     """Создание кампании."""
 
-    step: str  # "topic", "generate", "edit", "confirm"
+    step: str  # "style_xxx", "category_xxx", "custom_category", "generate", "edit", "confirm"
 
 
-def get_ai_topic_keyboard() -> InlineKeyboardMarkup:
+# Стили текста для AI генерации
+TEXT_STYLES = {
+    "business": "👔 Деловой",
+    "energetic": "🔥 Энергичный",
+    "friendly": "😊 Дружелюбный",
+    "creative": "🎨 Креативный",
+    "professional": "💼 Профессиональный",
+    "emotional": "❤️ Эмоциональный",
+}
+
+# Категории кампаний (20 основных)
+CAMPAIGN_CATEGORIES = {
+    "it_tech": "💻 IT и технологии",
+    "business_finance": "💰 Бизнес и финансы",
+    "education": "🎓 Образование и курсы",
+    "retail_shop": "👗 Розница и магазины",
+    "beauty_health": "💄 Красота и здоровье",
+    "food_restaurant": "🍔 Еда и рестораны",
+    "travel": "✈️ Путешествия",
+    "real_estate": "🏠 Недвижимость",
+    "auto": "🚗 Автомобили",
+    "sports": "⚽ Спорт",
+    "entertainment": "🎬 Развлечения",
+    "marketing": "📈 Маркетинг",
+    "crypto_invest": "₿ Криптовалюты",
+    "psychology": "🧠 Психология",
+    "parenting": "👶 Родительство",
+    "fashion": "👠 Мода",
+    "home_garden": "🏡 Дом и сад",
+    "pets": "🐾 Животные",
+    "news": "📰 Новости",
+    "other": "📦 Другое",
+}
+
+
+def get_ai_style_keyboard() -> InlineKeyboardMarkup:
     """
-    Клавиатура выбора тематики для AI генерации.
+    Клавиатура выбора стиля текста для AI генерации.
     """
     builder = InlineKeyboardBuilder()
 
-    builder.button(
-        text="🎓 Образование", callback_data=CampaignCreateCB(step="topic_education").pack()
-    )
-    builder.button(text="👗 Розница", callback_data=CampaignCreateCB(step="topic_retail").pack())
-    builder.button(text="💰 Финансы", callback_data=CampaignCreateCB(step="topic_finance").pack())
-    builder.button(text="☕ Другое", callback_data=CampaignCreateCB(step="topic_default").pack())
+    for style_key, style_name in TEXT_STYLES.items():
+        builder.button(
+            text=style_name,
+            callback_data=CampaignCreateCB(step=f"style_{style_key}").pack()
+        )
 
-    builder.adjust(2, 2)
+    builder.adjust(2, 2, 2)
 
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_menu").pack())
     builder.adjust(1)
@@ -47,13 +80,43 @@ def get_ai_topic_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_ai_variants_keyboard(variants: list[str], topic: str) -> InlineKeyboardMarkup:
+def get_ai_category_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора категории кампании.
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Показываем по 3 категории в ряд
+    categories_list = list(CAMPAIGN_CATEGORIES.items())
+    for i in range(0, len(categories_list), 3):
+        row_buttons = []
+        for cat_key, cat_name in categories_list[i:i+3]:
+            row_buttons.append(
+                builder.button(
+                    text=cat_name,
+                    callback_data=CampaignCreateCB(step=f"category_{cat_key}").pack()
+                )
+            )
+        builder.adjust(*row_buttons)
+
+    builder.button(
+        text="✍️ Своя категория",
+        callback_data=CampaignCreateCB(step="custom_category").pack()
+    )
+    builder.adjust(1)
+
+    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_style").pack())
+    builder.adjust(1)
+
+    return builder.as_markup()
+
+
+def get_ai_variants_keyboard(variants: list[str]) -> InlineKeyboardMarkup:
     """
     Клавиатура с вариантами AI текстов.
 
     Args:
         variants: Список сгенерированных текстов.
-        topic: Тематика кампании.
     """
     builder = InlineKeyboardBuilder()
 
@@ -62,7 +125,7 @@ def get_ai_variants_keyboard(variants: list[str], topic: str) -> InlineKeyboardM
         preview = variant[:100].replace("\n", " ") + "..." if len(variant) > 100 else variant
         builder.button(
             text=f"📝 Вариант {i}: {preview}",
-            callback_data=AIVariantCB(variant_index=i - 1, topic=topic).pack(),
+            callback_data=AIVariantCB(variant_index=i - 1).pack(),
         )
 
     # Кнопки действий
@@ -72,7 +135,7 @@ def get_ai_variants_keyboard(variants: list[str], topic: str) -> InlineKeyboardM
     builder.button(
         text="✏️ Написать свой текст", callback_data=CampaignCreateCB(step="manual_text").pack()
     )
-    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_menu").pack())
+    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_category").pack())
 
     builder.adjust(1)
 
@@ -114,39 +177,10 @@ def get_campaign_editor_keyboard(
     )
 
     # Подтверждение
-    builder.button(text="✅ Создать кампанию", callback_data=AIEditCB(action="confirm").pack())
+    builder.button(text="✅ Далее", callback_data=AIEditCB(action="confirm").pack())
 
     # Назад
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_variants").pack())
-
-    builder.adjust(1)
-
-    return builder.as_markup()
-
-
-def get_quick_campaign_keyboard(variant_index: int, topic: str) -> InlineKeyboardMarkup:
-    """
-    Быстрое создание кампании с выбранным вариантом.
-
-    Args:
-        variant_index: Индекс выбранного варианта.
-        topic: Тематика.
-    """
-    builder = InlineKeyboardBuilder()
-
-    builder.button(
-        text="🚀 Быстро создать кампанию",
-        callback_data=AIVariantCB(variant_index=variant_index, topic=topic).pack(),
-    )
-
-    builder.button(
-        text="✏️ Редактировать перед созданием",
-        callback_data=AIEditCB(action="edit_before_create").pack(),
-    )
-
-    builder.button(
-        text="🔙 К вариантам", callback_data=CampaignCreateCB(step="back_to_variants").pack()
-    )
 
     builder.adjust(1)
 
