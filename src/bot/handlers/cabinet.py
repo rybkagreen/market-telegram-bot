@@ -14,6 +14,8 @@ from src.bot.keyboards.cabinet import CabinetCB, get_cabinet_kb
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.bot.utils.message_utils import safe_edit_message
+from src.core.services.badge_service import badge_service
+from src.core.services.xp_service import xp_service
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -58,12 +60,24 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             await answer_method("❌ Пользователь не найден. Нажмите /start")
             return
 
-        # Формируем карточку кабинета
+        # Получаем данные геймификации
+        xp_stats = await xp_service.get_user_stats(telegram_id)
+        progress = xp_stats.get("progress", {})
+        progress_percent = progress.get("progress_percent", 0)
+        xp_to_next = progress.get("xp_to_next", 0)
+        level_name = xp_stats.get("level_name", "Неизвестно")
+
+        # Формируем карточку кабинета с геймификацией
         text = (
             f"👤 <b>Ваш кабинет</b>\n\n"
             f"💳 Баланс: <b>{user.credits:,} кр</b>  |  📦 Тариф: <b>{cabinet_data.plan}</b>\n"
             f"📊 Кампаний: <b>{cabinet_data.total_campaigns}</b>  |  🔄 Активных: <b>{cabinet_data.active_campaigns}</b>\n"
             f"📅 Дата регистрации: <b>{cabinet_data.created_at}</b>\n\n"
+            f"🎮 <b>Прогресс</b>\n"
+            f"⭐ Уровень: <b>{xp_stats.get('level', 1)}</b> — {level_name}\n"
+            f"📈 XP: <b>{xp_stats.get('xp_points', 0)}</b>\n"
+            f"📊 Прогресс: <b>{progress_percent:.1f}%</b> ({xp_to_next} XP до следующего уровня)\n"
+            f"🔥 Стрик: <b>{xp_stats.get('streak_days', 0)} дн.</b>\n\n"
             f"👤 <b>Профиль:</b>\n"
             f"Имя: {user.full_name}\n"
             f"Telegram: @{user.username or 'не указан'}\n"
@@ -276,6 +290,47 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
         builder.adjust(2, 1, 1)
 
         await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
+
+
+# ─────────────────────────────────────────────
+# Геймификация — значки (Спринт 4)
+# ─────────────────────────────────────────────
+
+@router.callback_query(CabinetCB.filter(F.action == "badges"))
+async def show_badges(callback: CallbackQuery) -> None:
+    """
+    Показать значки пользователя.
+    """
+    if callback.message is None:
+        return
+
+    user_badges = await badge_service.get_user_badges(callback.from_user.id)
+
+    if not user_badges:
+        text = (
+            "🏅 <b>Ваши значки</b>\n\n"
+            "У вас пока нет значков.\n\n"
+            "Получайте значки за:\n"
+            "• Запуск кампаний\n"
+            "• Активность в боте\n"
+            "• Достижение уровней\n"
+            "• Ежедневный вход"
+        )
+    else:
+        text = "🏅 <b>Ваши значки</b>\n\n"
+        for badge in user_badges[:10]:  # Показываем до 10 последних
+            text += f"{badge['icon_emoji']} <b>{badge['name']}</b>\n"
+            text += f"   {badge['description'][:50]}...\n"
+            text += f"   +{badge['xp_reward']} XP | {badge['earned_at'][:10]}\n\n"
+
+        if len(user_badges) > 10:
+            text += f"... и ещё {len(user_badges) - 10} значков\n"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 В кабинет", callback_data=CabinetCB(action="main"))
+    builder.adjust(1)
+
+    await safe_edit_message(callback.message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(PaginationCB.filter(F.prefix == "campaigns"))
