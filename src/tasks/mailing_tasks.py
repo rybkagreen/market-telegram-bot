@@ -4,6 +4,8 @@ Mailing Celery tasks.
 Использует asyncio.run() для запуска async кода в синхронных Celery задачах.
 asyncio.run() создаёт новый event loop для каждого вызова и закрывает его,
 что гарантирует корректную работу в Celery worker контексте без конфликтов.
+
+ВАЖНО: Каждая задача создаёт свою сессию и закрывает её корректно.
 """
 
 import asyncio
@@ -166,6 +168,15 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
         # Это правильный способ запуска async кода в синхронном контексте
         return asyncio.run(_send_async())
 
+    except RuntimeError as e:
+        # Обрабатываем ошибки закрытия event loop
+        if "Event loop is closed" in str(e) or "handler is closed" in str(e):
+            logger.warning(
+                f"Event loop closed during campaign {campaign_id} (non-critical): {e}"
+            )
+            return {"error": "Event loop closed", "recovered": True}
+        logger.error(f"Error in send_campaign: {e}")
+        return {"error": str(e)}
     except Exception as e:
         logger.error(f"Error in send_campaign: {e}")
         return {"error": str(e)}
@@ -271,6 +282,15 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
 
+    except RuntimeError as e:
+        # Обрабатываем ошибки закрытия event loop
+        if "Event loop is closed" in str(e) or "handler is closed" in str(e):
+            logger.warning(
+                f"Event loop closed during scheduled campaigns check (non-critical): {e}"
+            )
+            return {"error": "Event loop closed", "recovered": True}
+        logger.error(f"Error checking scheduled campaigns: {e}")
+        return {"error": str(e)}
     except Exception as e:
         logger.error(f"Error checking scheduled campaigns: {e}")
         return {"error": str(e)}
@@ -325,6 +345,15 @@ def check_low_balance(self, threshold: float = 50.0) -> dict[str, Any]:
         logger.info(f"Low balance check completed: {result}")
         return result
 
+    except RuntimeError as e:
+        # Обрабатываем ошибки закрытия event loop
+        if "Event loop is closed" in str(e) or "handler is closed" in str(e):
+            logger.warning(
+                f"Event loop closed during low balance check (non-critical): {e}"
+            )
+            return {"error": "Event loop closed", "recovered": True}
+        logger.error(f"Error checking low balance: {e}")
+        return {"error": str(e)}
     except Exception as e:
         logger.error(f"Error checking low balance: {e}")
         return {"error": str(e)}

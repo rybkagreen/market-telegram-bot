@@ -3,6 +3,7 @@ import contextlib
 import logging
 from typing import Any
 
+from aiogram import Bot
 from aiogram.types import CallbackQuery, InaccessibleMessage, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
@@ -55,10 +56,13 @@ async def safe_callback_edit(
         # Сообщение может быть фото или иметь только клавиатуру
         error_str = str(e).lower()
         if "no text" in error_str or "text" in error_str:
-            logger.debug("Message has no text, trying edit_message_caption")
+            logger.warning(
+                f"Message has no text (may be media or keyboard-only), "
+                f"trying edit_message_caption: {e}"
+            )
             try:
-                # Попытка редактирования caption (для фото)
-                await callback.message.edit_message_caption(
+                # Попытка редактирования caption (для фото) через Bot
+                await callback.message.edit_caption(
                     caption=text,
                     reply_markup=reply_markup,
                     parse_mode=parse_mode,
@@ -66,7 +70,7 @@ async def safe_callback_edit(
                 )
                 return True
             except Exception as caption_err:
-                logger.debug(f"edit_message_caption failed: {caption_err}")
+                logger.warning(f"edit_message_caption failed: {caption_err}")
                 # Если caption тоже не работает, отправляем новое сообщение
                 with contextlib.suppress(Exception):
                     await callback.message.answer(
@@ -77,11 +81,11 @@ async def safe_callback_edit(
                     )
                 return False
         else:
-            logger.error(f"safe_callback_edit ValueError: {e}")
+            logger.warning(f"safe_callback_edit ValueError: {e}")
             return False
     except Exception as e:
         # Другие ошибки (сообщение удалено, недоступно и т.д.)
-        logger.error(f"safe_callback_edit failed: {e}")
+        logger.warning(f"safe_callback_edit failed: {e}")
         # Попробуем отправить новое сообщение
         with contextlib.suppress(Exception):
             await callback.message.answer(

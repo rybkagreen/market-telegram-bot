@@ -85,6 +85,7 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
     """
     # Импортируем aiogram Bot
     from aiogram import Bot
+    from aiogram.exceptions import TelegramForbiddenError
 
     from src.config.settings import settings
 
@@ -99,6 +100,16 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
 
     try:
         await bot.send_message(telegram_id, message, parse_mode="HTML")
+    except TelegramForbiddenError:
+        logger.warning(f"User {telegram_id} blocked the bot, skipping low balance notification")
+        raise
+    except Exception as e:
+        error_str = str(e).lower()
+        if "chat not found" in error_str or "blocked" in error_str:
+            logger.warning(f"User {telegram_id} blocked the bot: {e}")
+        else:
+            logger.error(f"Error sending low balance notification to {telegram_id}: {e}")
+        raise
     finally:
         await bot.session.close()
 
@@ -135,6 +146,13 @@ def notify_campaign_status(
         try:
             asyncio.run(_notify_user_async(user_id, text, "HTML"))
         except Exception as exc:
+            error_str = str(exc).lower()
+            # Не повторяем попыток если пользователь заблокировал бота
+            if "chat not found" in error_str or "blocked" in error_str:
+                logger.warning(
+                    f"User {user_id} blocked the bot, skipping campaign notification"
+                )
+                return
             logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
             raise self.retry(countdown=60, exc=exc) from exc
 
@@ -180,6 +198,14 @@ def notify_user(
         asyncio.run(_notify_user_async(telegram_id, message, parse_mode))
         return True
     except Exception as e:
+        # Игнорируем ожидаемые ошибки (пользователь заблокировал бота)
+        error_str = str(e).lower()
+        if "chat not found" in error_str or "blocked" in error_str:
+            logger.warning(
+                f"User {telegram_id} blocked the bot or chat is inaccessible, "
+                f"skipping notification: {e}"
+            )
+            return False
         logger.error(f"Error notifying user {telegram_id}: {e}")
         return False
 
@@ -198,6 +224,7 @@ async def _notify_user_async(
         parse_mode: Режим парсинга.
     """
     from aiogram import Bot
+    from aiogram.exceptions import TelegramForbiddenError
 
     from src.config.settings import settings
 
@@ -205,6 +232,18 @@ async def _notify_user_async(
 
     try:
         await bot.send_message(telegram_id, message, parse_mode=parse_mode)
+    except TelegramForbiddenError:
+        # Пользователь заблокировал бота — это нормальная ситуация
+        logger.warning(f"User {telegram_id} blocked the bot")
+        raise  # Пробрасываем выше для обработки в notify_user
+    except Exception as e:
+        # Другие ошибки (chat not found, network issues)
+        error_str = str(e).lower()
+        if "chat not found" in error_str or "blocked" in error_str:
+            logger.warning(f"User {telegram_id} blocked the bot or chat is inaccessible: {e}")
+        else:
+            logger.error(f"Error sending notification to {telegram_id}: {e}")
+        raise
     finally:
         await bot.session.close()
 
@@ -222,6 +261,11 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+        from src.config.settings import settings
         from src.db.models.analytics import TelegramChat
         from src.db.models.campaign import Campaign
         from src.db.models.mailing_log import MailingLog
@@ -246,8 +290,6 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
 
             payout_amount = float(channel.price_per_post or 0) * 0.8
 
-            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
             keyboard_markup = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -271,10 +313,6 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
                 f"⏰ Автоодобрение через 24 часа если не ответите"
             )
 
-            from aiogram import Bot
-
-            from src.config.settings import settings
-
             bot = Bot(token=settings.bot_token)
             try:
                 await bot.send_message(
@@ -284,6 +322,20 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
                     reply_markup=keyboard_markup,
                 )
                 return True
+            except TelegramForbiddenError:
+                logger.warning(
+                    f"Owner {owner.telegram_id} blocked the bot, skipping placement notification"
+                )
+                return False
+            except Exception as e:
+                error_str = str(e).lower()
+                if "chat not found" in error_str or "blocked" in error_str:
+                    logger.warning(
+                        f"Owner {owner.telegram_id} blocked the bot: {e}"
+                    )
+                    return False
+                logger.error(f"Error notifying owner about placement {placement_id}: {e}")
+                return False
             finally:
                 await bot.session.close()
 
@@ -306,6 +358,10 @@ def notify_payout_created_task(payout_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+
+        from src.config.settings import settings
         from src.db.models.payout import Payout
         from src.db.models.user import User
 
@@ -325,10 +381,6 @@ def notify_payout_created_task(payout_id: int) -> bool:
                 f"Выплата будет обработана в ближайшее время."
             )
 
-            from aiogram import Bot
-
-            from src.config.settings import settings
-
             bot = Bot(token=settings.bot_token)
             try:
                 await bot.send_message(
@@ -337,6 +389,20 @@ def notify_payout_created_task(payout_id: int) -> bool:
                     parse_mode="HTML",
                 )
                 return True
+            except TelegramForbiddenError:
+                logger.warning(
+                    f"Owner {owner.telegram_id} blocked the bot, skipping payout notification"
+                )
+                return False
+            except Exception as e:
+                error_str = str(e).lower()
+                if "chat not found" in error_str or "blocked" in error_str:
+                    logger.warning(
+                        f"Owner {owner.telegram_id} blocked the bot: {e}"
+                    )
+                    return False
+                logger.error(f"Error notifying payout created {payout_id}: {e}")
+                return False
             finally:
                 await bot.session.close()
 
@@ -355,6 +421,10 @@ def notify_payout_paid_task(payout_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+
+        from src.config.settings import settings
         from src.db.models.payout import Payout
         from src.db.models.user import User
 
@@ -376,10 +446,6 @@ def notify_payout_paid_task(payout_id: int) -> bool:
                 f"Средства зачислены на ваш счёт."
             )
 
-            from aiogram import Bot
-
-            from src.config.settings import settings
-
             bot = Bot(token=settings.bot_token)
             try:
                 await bot.send_message(
@@ -388,6 +454,20 @@ def notify_payout_paid_task(payout_id: int) -> bool:
                     parse_mode="HTML",
                 )
                 return True
+            except TelegramForbiddenError:
+                logger.warning(
+                    f"Owner {owner.telegram_id} blocked the bot, skipping payout notification"
+                )
+                return False
+            except Exception as e:
+                error_str = str(e).lower()
+                if "chat not found" in error_str or "blocked" in error_str:
+                    logger.warning(
+                        f"Owner {owner.telegram_id} blocked the bot: {e}"
+                    )
+                    return False
+                logger.error(f"Error notifying payout paid {payout_id}: {e}")
+                return False
             finally:
                 await bot.session.close()
 
