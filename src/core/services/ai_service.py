@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 from src.api.constants.ai import (
     AI_MAX_TOKENS,
     AI_TEMPERATURE,
+    DEFAULT_SYSTEM_PROMPT,
     FALLBACK_MODEL,
     FREE_MODEL,
     TOPIC_PROMPTS,
@@ -25,7 +26,7 @@ from src.config.settings import settings
 logger = logging.getLogger(__name__)
 
 # Системный промпт по умолчанию
-AD_SYSTEM_PROMPT = TOPIC_PROMPTS["default"]
+AD_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
 class AIService:
