@@ -4,6 +4,18 @@
 Централизованное хранилище всех констант проекта для упрощения поддержки.
 """
 
+from src.api.constants.ai import (
+    AI_MAX_TOKENS,
+    AI_TEMPERATURE,
+    BUSINESS_AI_GENERATIONS_LIMIT,
+    DEFAULT_SYSTEM_PROMPT,
+    FALLBACK_MODEL,
+    FREE_AI_GENERATIONS_LIMIT,
+    FREE_MODEL,
+    PAID_MODEL,
+    PRO_AI_GENERATIONS_LIMIT,
+    STARTER_AI_GENERATIONS_LIMIT,
+)
 from src.api.constants.celery import (
     CELERY_BEAT_SCHEDULE,
     CELERY_TASK_ROUTES,
@@ -56,6 +68,17 @@ from src.api.constants.tariffs import (
 )
 
 __all__ = [
+    # AI
+    "FREE_MODEL",
+    "FALLBACK_MODEL",
+    "PAID_MODEL",
+    "AI_MAX_TOKENS",
+    "AI_TEMPERATURE",
+    "FREE_AI_GENERATIONS_LIMIT",
+    "STARTER_AI_GENERATIONS_LIMIT",
+    "PRO_AI_GENERATIONS_LIMIT",
+    "BUSINESS_AI_GENERATIONS_LIMIT",
+    "DEFAULT_SYSTEM_PROMPT",
     # Tariffs
     "TARIFF_CREDIT_COST",
     "TARIFF_LABELS",

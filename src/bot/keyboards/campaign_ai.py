@@ -89,15 +89,12 @@ def get_ai_category_keyboard() -> InlineKeyboardMarkup:
     # Показываем по 3 категории в ряд
     categories_list = list(CAMPAIGN_CATEGORIES.items())
     for i in range(0, len(categories_list), 3):
-        row_buttons = []
         for cat_key, cat_name in categories_list[i:i+3]:
-            row_buttons.append(
-                builder.button(
-                    text=cat_name,
-                    callback_data=CampaignCreateCB(step=f"category_{cat_key}").pack()
-                )
+            builder.button(
+                text=cat_name,
+                callback_data=CampaignCreateCB(step=f"category_{cat_key}").pack()
             )
-        builder.adjust(*row_buttons)
+        builder.adjust(3)
 
     builder.button(
         text="✍️ Своя категория",
