@@ -30,6 +30,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base
 
 if TYPE_CHECKING:
+    from src.db.models.channel_rating import ChannelRating
     from src.db.models.mailing_log import MailingLog
     from src.db.models.payout import Payout
     from src.db.models.review import Review
@@ -182,6 +183,12 @@ class TelegramChat(Base):
 
     reviews: Mapped[list[Review]] = relationship(
         "Review",
+        back_populates="channel",
+        lazy="select",
+    )
+
+    ratings: Mapped[list[ChannelRating]] = relationship(
+        "ChannelRating",
         back_populates="channel",
         lazy="select",
     )

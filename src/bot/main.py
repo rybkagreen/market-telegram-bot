@@ -15,6 +15,7 @@ from src.bot.handlers import (
     admin,
     analytics,
     analytics_chats,
+    b2b,  # B2B-маркетплейс (Спринт 3)
     billing,
     cabinet,
     campaign_analytics,  # AI-аналитика кампаний
@@ -91,6 +92,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
     dp.include_router(channel_owner.router)  # Владельцы каналов (Спринт 0)
     dp.include_router(stats.router)  # Публичная статистика (Спринт 0)
+    dp.include_router(b2b.router)  # B2B-маркетплейс (Спринт 3)
     dp.include_router(billing.router)
     dp.include_router(models.router)
     dp.include_router(notifications.router)
