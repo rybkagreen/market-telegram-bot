@@ -369,3 +369,15 @@ class CampaignRepository(BaseRepository[Campaign]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def has_campaigns(self, user_id: int) -> bool:
+        """
+        Проверить наличие кампаний у пользователя.
+
+        Args:
+            user_id: ID пользователя в БД.
+
+        Returns:
+            True если у пользователя есть хотя бы одна кампания.
+        """
+        return await self.exists(Campaign.user_id == user_id)

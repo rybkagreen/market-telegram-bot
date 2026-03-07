@@ -436,6 +436,34 @@ class UserRepository(BaseRepository[User]):
             return user.notifications_enabled
         return False
 
+    async def has_channels(self, user_id: int) -> bool:
+        """
+        Проверить наличие каналов у пользователя.
+
+        Args:
+            user_id: ID пользователя в БД.
+
+        Returns:
+            True если у пользователя есть хотя бы один канал.
+        """
+        from src.db.models.analytics import TelegramChat
+
+        return await self.exists(TelegramChat.owner_user_id == user_id)
+
+    async def has_campaigns(self, user_id: int) -> bool:
+        """
+        Проверить наличие кампаний у пользователя.
+
+        Args:
+            user_id: ID пользователя в БД.
+
+        Returns:
+            True если у пользователя есть хотя бы одна кампания.
+        """
+        from src.db.models.campaign import Campaign
+
+        return await self.exists(Campaign.user_id == user_id)
+
     async def toggle_notifications_by_db_id(self, db_id: int) -> bool:
         """
         Переключить уведомления пользователя по DB ID (для админки).
