@@ -16,6 +16,7 @@ from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
+    from src.db.models.badge import UserBadge
     from src.db.models.campaign import Campaign
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
@@ -147,6 +148,42 @@ class User(Base, TimestampMixin):
         doc="ID пользователя, который пригласил этого",
     )
 
+    # Геймификация (Спринт 4)
+    level: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+        doc="Уровень пользователя (1-10)",
+    )
+
+    xp_points: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Текущие очки опыта",
+    )
+
+    total_spent: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        doc="Суммарно потрачено за всё время",
+    )
+
+    total_earned: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        doc="Суммарно заработано за всё время",
+    )
+
+    streak_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Текущая серия дней активности",
+    )
+
     # Статусы
     is_banned: Mapped[bool] = mapped_column(
         Boolean,
@@ -245,6 +282,15 @@ class User(Base, TimestampMixin):
         back_populates="reviewee",
         lazy="select",
         doc="Отзывы полученные пользователем",
+    )
+
+    # Значки (Спринт 4)
+    badges: Mapped[list["UserBadge"]] = relationship(
+        "UserBadge",
+        back_populates="user",
+        lazy="select",
+        cascade="all, delete-orphan",
+        doc="Значки пользователя",
     )
 
     # Индексы

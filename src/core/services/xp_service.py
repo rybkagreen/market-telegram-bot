@@ -1,0 +1,317 @@
+"""
+XP Service — сервис для управления опытом и уровнями.
+Спринт 4 — геймификация и удержание пользователей.
+
+Таблица уровней (PRD §9.1):
+- Уровень 1: 0 XP (Новичок)
+- Уровень 2: 100 XP (Начинающий)
+- Уровень 3: 300 XP (Опытный)
+- Уровень 4: 600 XP (Продвинутый)
+- Уровень 5: 1000 XP (Эксперт)
+- Уровень 6: 1500 XP (Профессионал)
+- Уровень 7: 2100 XP (Мастер)
+- Уровень 8: 2800 XP (Ветеран)
+- Уровень 9: 3600 XP (Легенда)
+- Уровень 10: 4500 XP (Икона)
+"""
+
+import logging
+from dataclasses import dataclass
+from typing import Any
+
+from src.db.session import async_session_factory
+
+logger = logging.getLogger(__name__)
+
+
+# Таблица уровней (PRD §9.1)
+LEVEL_THRESHOLDS = {
+    1: 0,
+    2: 100,
+    3: 300,
+    4: 600,
+    5: 1000,
+    6: 1500,
+    7: 2100,
+    8: 2800,
+    9: 3600,
+    10: 4500,
+}
+
+# Названия уровней
+LEVEL_NAMES = {
+    1: "Новичок",
+    2: "Начинающий",
+    3: "Опытный",
+    4: "Продвинутый",
+    5: "Эксперт",
+    6: "Профессионал",
+    7: "Мастер",
+    8: "Ветеран",
+    9: "Легенда",
+    10: "Икона",
+}
+
+# Скидки по уровням (PRD §9.1)
+LEVEL_DISCOUNTS = {
+    1: 0,
+    2: 0,
+    3: 3,
+    4: 5,
+    5: 8,
+    6: 10,
+    7: 12,
+    8: 15,
+    9: 18,
+    10: 20,
+}
+
+# XP-награды за действия
+XP_REWARDS = {
+    "first_campaign": 200,  # Первая кампания
+    "campaign_launched": 50,  # Запуск кампании
+    "campaign_completed": 100,  # Завершение кампании
+    "review_left": 20,  # Оставлен отзыв
+    "channel_added": 30,  # Добавлен канал
+    "daily_login": 10,  # Ежедневный вход
+    "referral_joined": 50,  # Реферал зарегистрировался
+    "referral_first_campaign": 100,  # Реферал запустил первую кампанию
+}
+
+
+@dataclass
+class LevelUpEvent:
+    """Событие повышения уровня."""
+
+    user_id: int
+    old_level: int
+    new_level: int
+    xp_reward: int
+
+
+class XPService:
+    """
+    Сервис для управления опытом и уровнями.
+
+    Методы:
+        add_xp: Добавить XP пользователю
+        get_level_for_xp: Получить уровень по XP
+        get_level_privileges: Получить привилегии уровня
+        get_progress_to_next_level: Получить прогресс до следующего уровня
+    """
+
+    def __init__(self) -> None:
+        """Инициализация сервиса."""
+        pass
+
+    def get_level_for_xp(self, xp: int) -> int:
+        """
+        Получить уровень по количеству XP.
+
+        Args:
+            xp: Количество очков опыта.
+
+        Returns:
+            Уровень (1-10).
+        """
+        for level in range(10, 0, -1):
+            if xp >= LEVEL_THRESHOLDS[level]:
+                return level
+        return 1
+
+    def get_level_name(self, level: int) -> str:
+        """
+        Получить название уровня.
+
+        Args:
+            level: Номер уровня.
+
+        Returns:
+            Название уровня.
+        """
+        return LEVEL_NAMES.get(level, "Неизвестно")
+
+    def get_level_discount(self, level: int) -> int:
+        """
+        Получить скидку уровня в процентах.
+
+        Args:
+            level: Номер уровня.
+
+        Returns:
+            Скидка в процентах.
+        """
+        return LEVEL_DISCOUNTS.get(level, 0)
+
+    def get_level_privileges(self, level: int) -> dict[str, Any]:
+        """
+        Получить привилегии уровня.
+
+        Args:
+            level: Номер уровня.
+
+        Returns:
+            dict с discount_pct, badge, features.
+        """
+        return {
+            "discount_pct": self.get_level_discount(level),
+            "level_name": self.get_level_name(level),
+            "features": self._get_level_features(level),
+        }
+
+    def _get_level_features(self, level: int) -> list[str]:
+        """
+        Получить список особенностей уровня.
+
+        Args:
+            level: Номер уровня.
+
+        Returns:
+            Список особенностей.
+        """
+        features = []
+
+        if level >= 3:
+            features.append("Скидка 3% на все размещения")
+        if level >= 5:
+            features.append("Приоритетная поддержка")
+        if level >= 7:
+            features.append("Персональный менеджер")
+        if level >= 10:
+            features.append("Эксклюзивный значок")
+
+        return features
+
+    def get_progress_to_next_level(
+        self,
+        current_level: int,
+        current_xp: int,
+    ) -> dict[str, Any]:
+        """
+        Получить прогресс до следующего уровня.
+
+        Args:
+            current_level: Текущий уровень.
+            current_xp: Текущее количество XP.
+
+        Returns:
+            dict с current_xp, next_level_xp, progress_percent, xp_to_next.
+        """
+        if current_level >= 10:
+            # Максимальный уровень
+            return {
+                "current_xp": current_xp,
+                "next_level_xp": LEVEL_THRESHOLDS[10],
+                "progress_percent": 100.0,
+                "xp_to_next": 0,
+                "max_level": True,
+            }
+
+        next_level = current_level + 1
+        current_threshold = LEVEL_THRESHOLDS[current_level]
+        next_threshold = LEVEL_THRESHOLDS[next_level]
+
+        xp_in_current_level = current_xp - current_threshold
+        xp_needed = next_threshold - current_threshold
+        progress_percent = (xp_in_current_level / xp_needed) * 100 if xp_needed > 0 else 0
+
+        return {
+            "current_xp": current_xp,
+            "next_level_xp": next_threshold,
+            "progress_percent": min(100.0, progress_percent),
+            "xp_to_next": next_threshold - current_xp,
+            "max_level": False,
+        }
+
+    async def add_xp(
+        self,
+        user_id: int,
+        amount: int,
+        reason: str,
+    ) -> LevelUpEvent | None:
+        """
+        Добавить XP пользователю.
+
+        Args:
+            user_id: ID пользователя.
+            amount: Количество XP.
+            reason: Причина начисления (для логирования).
+
+        Returns:
+            LevelUpEvent если уровень повышен, иначе None.
+        """
+
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                logger.error(f"User {user_id} not found")
+                return None
+
+            old_level = user.level
+            old_xp = user.xp_points
+
+            # Добавляем XP
+            user.xp_points += amount
+            new_xp = user.xp_points
+
+            # Проверяем повышение уровня
+            new_level = self.get_level_for_xp(new_xp)
+
+            level_up_event = None
+            if new_level > old_level:
+                user.level = new_level
+                level_up_event = LevelUpEvent(
+                    user_id=user_id,
+                    old_level=old_level,
+                    new_level=new_level,
+                    xp_reward=XP_REWARDS.get("campaign_completed", 0),
+                )
+                logger.info(
+                    f"User {user_id} leveled up: {old_level} → {new_level} "
+                    f"({old_xp} → {new_xp} XP)"
+                )
+            else:
+                logger.info(f"User {user_id} gained {amount} XP ({old_xp} → {new_xp} XP)")
+
+            await session.flush()
+
+            return level_up_event
+
+    async def get_user_stats(self, user_id: int) -> dict[str, Any]:
+        """
+        Получить статистику пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            dict с level, xp, progress, privileges.
+        """
+
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                return {"error": "User not found"}
+
+            progress = self.get_progress_to_next_level(user.level, user.xp_points)
+            privileges = self.get_level_privileges(user.level)
+
+            return {
+                "user_id": user_id,
+                "level": user.level,
+                "level_name": self.get_level_name(user.level),
+                "xp_points": user.xp_points,
+                "progress": progress,
+                "privileges": privileges,
+                "total_spent": float(user.total_spent) if user.total_spent else 0,
+                "total_earned": float(user.total_earned) if user.total_earned else 0,
+                "streak_days": user.streak_days or 0,
+            }
+
+
+# Глобальный экземпляр
+xp_service = XPService()
