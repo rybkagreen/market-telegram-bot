@@ -175,19 +175,19 @@ class TelegramChat(Base):
         foreign_keys=[owner_user_id],
     )
 
-    payouts: Mapped[list["Payout"]] = relationship(
+    payouts: Mapped[list[Payout]] = relationship(
         "Payout",
         back_populates="channel",
         lazy="select",
     )
 
-    reviews: Mapped[list["Review"]] = relationship(
+    reviews: Mapped[list[Review]] = relationship(
         "Review",
         back_populates="channel",
         lazy="select",
     )
 
-    ratings: Mapped[list["ChannelRating"]] = relationship(
+    ratings: Mapped[list[ChannelRating]] = relationship(
         "ChannelRating",
         back_populates="channel",
         lazy="select",
