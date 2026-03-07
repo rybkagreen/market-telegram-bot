@@ -12,10 +12,17 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
+from src.bot.keyboards.main_menu import (
+    MainMenuCB,
+    OnboardingCB,
+    get_advertiser_menu_kb,
+    get_main_menu,
+    get_owner_menu_kb,
+)
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.core.services.analytics_service import analytics_service
+from src.core.services.user_role_service import UserRoleService
 from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
@@ -28,7 +35,12 @@ router = Router()
 
 
 async def send_banner_with_menu(
-    message: Message, user_credits: int, user_id: int, caption: str = None
+    message: Message,
+    user_credits: int,
+    user_id: int,
+    caption: str = None,
+    role: str = "new",
+    pending_count: int = 0,
 ) -> None:
     """
     Отправить баннер с главным меню.
@@ -38,6 +50,8 @@ async def send_banner_with_menu(
         user_credits: Баланс пользователя в кредитах.
         user_id: ID пользователя для проверки админа.
         caption: Текст под баннером (опционально).
+        role: Роль пользователя для построения меню.
+        pending_count: Количество ожидающих заявок.
     """
     try:
         if BANNER_PATH.exists():
@@ -46,18 +60,34 @@ async def send_banner_with_menu(
             await message.answer_photo(
                 photo=banner,
                 caption=caption_text,
-                reply_markup=get_main_menu(user_credits, user_id),
+                reply_markup=get_main_menu(
+                    credits=user_credits,
+                    user_id=user_id,
+                    role=role,
+                    pending_count=pending_count,
+                ),
             )
         else:
             logger.warning(f"Banner not found: {BANNER_PATH}")
             await message.answer(
                 caption_text or "Выберите действие:",
-                reply_markup=get_main_menu(user_credits, user_id),
+                reply_markup=get_main_menu(
+                    credits=user_credits,
+                    user_id=user_id,
+                    role=role,
+                    pending_count=pending_count,
+                ),
             )
     except Exception as e:
         logger.error(f"Error sending banner: {e}")
         await message.answer(
-            caption_text or "Выберите действие:", reply_markup=get_main_menu(user_credits, user_id)
+            caption_text or "Выберите действие:",
+            reply_markup=get_main_menu(
+                credits=user_credits,
+                user_id=user_id,
+                role=role,
+                pending_count=pending_count,
+            ),
         )
 
 
@@ -126,10 +156,11 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
 
         # user гарантированно не None после проверки выше
         user_id = user.id  # type: ignore[union-attr]
+        telegram_id = message.from_user.id  # type: ignore[union-attr]
 
         # Логирование для отладки регистрации
         logger.info(
-            f"User /start: telegram_id={message.from_user.id}, username={message.from_user.username}, is_new={is_new}, user_id={user_id}"  # type: ignore[union-attr]
+            f"User /start: telegram_id={telegram_id}, username={message.from_user.username}, is_new={is_new}, user_id={user_id}"  # type: ignore[union-attr]
         )
 
         # Обработка реферального кода для новых пользователей
@@ -147,6 +178,10 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 )
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
+    # Получаем контекст роли пользователя
+    user_role_service = UserRoleService()
+    user_context = await user_role_service.get_user_context(user_id)
+
     # Формируем приветственное сообщение
     plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan  # type: ignore[union-attr]
 
@@ -163,20 +198,27 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     except Exception as e:
         logger.error(f"Error getting platform stats: {e}")
 
-    if is_new and ref_code is None:
-        # Новый пользователь без реферала
+    if is_new and ref_code is None and user_context.role == "new":
+        # Новый пользователь без реферала и без активности → показываем онбординг
         text = (
-            f"🚀 <b>Добро пожаловать в RekHarbor!</b>\n\n"
+            f"🎉 <b>Добро пожаловать в RekHarbor!</b>\n\n"
             f"Привет, <b>{message.from_user.first_name or 'друг'}</b>!\n"  # type: ignore[union-attr]
-            f"Здесь вы можете запускать рекламные кампании в Telegram-каналах.\n\n"
+            f"Здесь вы можете запускать рекламные кампании в Telegram-каналах\n"
+            f"или монетизировать свой канал.\n\n"
             f"💳 Ваш баланс: <b>{user.credits:,} кр</b>"  # type: ignore[union-attr]
             f"{stats_text}\n\n"
-            f"Нажмите «Создать кампанию», чтобы начать!"
+            f"<b>Выберите с чего начать:</b>"
         )
-        # Отправляем баннер с текстом приветствия
-        await send_banner_with_menu(message, user.credits, user.id, caption=text)  # type: ignore[union-attr]
+        # Отправляем баннер с текстом и онбординг меню
+        await send_banner_with_menu(
+            message,
+            user.credits,  # type: ignore[union-attr]
+            telegram_id,
+            caption=text,
+            role="new",
+        )
     else:
-        # Возвращающийся пользователь или с рефералом
+        # Возвращающийся пользователь или с рефералом → показываем роль-зависимое меню
         text = (
             f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"  # type: ignore[union-attr]
             f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
@@ -184,8 +226,15 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             f"{stats_text}\n\n"
             f"Выберите действие в меню ниже:"
         )
-        # Отправляем баннер с текстом
-        await send_banner_with_menu(message, user.credits, user.id, caption=text)  # type: ignore[union-attr]
+        # Отправляем баннер с роль-зависимым меню
+        await send_banner_with_menu(
+            message,
+            user.credits,  # type: ignore[union-attr]
+            telegram_id,
+            caption=text,
+            role=user_context.role.value,
+            pending_count=user_context.pending_requests_count,
+        )
 
 
 @router.message(Command("help"))
@@ -275,6 +324,10 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
+        # Получаем контекст роли
+        user_role_service = UserRoleService()
+        user_context = await user_role_service.get_user_context(user.id)
+
         plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
         text = (
@@ -284,7 +337,16 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
             f"Выберите действие в меню ниже:"
         )
 
-        await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
+        await safe_callback_edit(
+            callback,
+            text,
+            reply_markup=get_main_menu(
+                credits=user.credits,
+                user_id=callback.from_user.id,
+                role=user_context.role.value,
+                pending_count=user_context.pending_requests_count,
+            ),
+        )
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "admin_panel"))
@@ -301,7 +363,9 @@ async def admin_panel_redirect(callback: CallbackQuery) -> None:
 
     from src.bot.keyboards.admin import get_admin_main_kb
 
-    await safe_callback_edit(callback, "🔐 <b>Панель администратора</b>\n\n"
+    await safe_callback_edit(
+        callback,
+        "🔐 <b>Панель администратора</b>\n\n"
         f"Добро пожаловать, <b>{callback.from_user.first_name}</b>!",
         reply_markup=get_admin_main_kb(),
     )
@@ -346,3 +410,193 @@ async def handle_app_command(message: Message) -> None:
         "и смотрите аналитику в удобном интерфейсе.",
         reply_markup=keyboard,
     )
+
+
+# ─────────────────────────────────────────────
+# Новые action обработчики для роль-зависимого меню
+# ─────────────────────────────────────────────
+
+@router.callback_query(MainMenuCB.filter(F.action == "my_channels"))
+async def go_to_my_channels(callback: CallbackQuery) -> None:
+    """Перенаправить на /my_channels из главного меню."""
+    from src.bot.handlers.channel_owner import cmd_my_channels
+
+    await cmd_my_channels(callback.message)  # type: ignore
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "my_requests"))
+async def go_to_my_requests(callback: CallbackQuery) -> None:
+    """Показать входящие заявки на размещение для владельцев каналов."""
+    if callback.message is None:
+        return
+
+    # Получаем количество pending заявок
+    async with get_user_service() as svc:
+        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        from src.db.repositories.log_repo import MailingLogRepository
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            mailing_log_repo = MailingLogRepository(session)
+            pending_count = await mailing_log_repo.count_pending_for_owner(user.id)
+
+    text = (
+        "📋 <b>Входящие заявки на размещение</b>\n\n"
+        f"У вас есть <b>{pending_count} заявок</b>, ожидающих одобрения.\n\n"
+        "Для просмотра и одобрения заявок:\n"
+        "1. Перейдите в «Мои каналы»\n"
+        "2. Выберите канал\n"
+        "3. Нажмите «Заявки» в меню канала\n\n"
+        "Заявки автоматически одобряются через 24 часа, "
+        "если вы не приняли решение вручную."
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels"))
+    builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(2, 1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "add_channel"))
+async def go_to_add_channel(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запустить флоу добавления канала."""
+    from src.bot.handlers.channel_owner import cmd_add_channel
+
+    await cmd_add_channel(callback.message, state)  # type: ignore
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "payouts"))
+async def go_to_payouts(callback: CallbackQuery) -> None:
+    """Показать экран выплат владельца."""
+    if callback.message is None:
+        return
+
+    text = (
+        "💸 <b>Выплаты</b>\n\n"
+        "Управление выплатами доступно в разделе «Мои каналы».\n\n"
+        "Выплаты автоматически создаются после публикации "
+        "рекламного поста в вашем канале.\n"
+        "80% от стоимости размещения поступает вам, "
+        "20% — комиссия платформы."
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1, 1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "b2b"))
+async def go_to_b2b(callback: CallbackQuery) -> None:
+    """Перейти в B2B-маркетплейс."""
+    if callback.message is None:
+        return
+
+    text = (
+        "💼 <b>B2B-пакеты</b>\n\n"
+        "Готовые наборы каналов для комплексного размещения.\n\n"
+        "Доступные ниши:\n"
+        "• IT и технологии\n"
+        "• Бизнес и предпринимательство\n"
+        "• Недвижимость\n"
+        "• Криптовалюты\n"
+        "• Маркетинг\n"
+        "• Финансы\n\n"
+        "Скидка 10-25% по сравнению с разовыми размещениями."
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📡 Каталог каналов", callback_data=MainMenuCB(action="channels_db"))
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1, 1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "platform_stats"))
+async def show_platform_stats(callback: CallbackQuery) -> None:
+    """Показать публичную статистику платформы."""
+    if callback.message is None:
+        return
+
+    try:
+        platform_stats = await analytics_service.get_platform_stats()
+
+        text = (
+            "📊 <b>Статистика платформы</b>\n\n"
+            f"• Активных каналов: <b>{platform_stats.active_channels:,}</b>\n"
+            f"• Общий охват: <b>{platform_stats.total_reach:,}</b>\n"
+            f"• Кампаний запущено: <b>{platform_stats.campaigns_launched:,}</b>\n"
+            f"• Кампаний завершено: <b>{platform_stats.campaigns_completed:,}</b>\n\n"
+            "Присоединяйтесь к тысячам рекламодателей и владельцев каналов, "
+            "которые уже используют RekHarbor!"
+        )
+    except Exception as e:
+        logger.error(f"Error getting platform stats: {e}")
+        text = "📊 <b>Статистика платформы</b>\n\n" "Временно недоступна. Попробуйте позже."
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(MainMenuCB.filter(F.action == "noop"))
+async def noop_callback(callback: CallbackQuery) -> None:
+    """Заголовочные кнопки-разделители — ничего не делают."""
+    await callback.answer()
+
+
+# ─────────────────────────────────────────────
+# Онбординг
+# ─────────────────────────────────────────────
+
+@router.callback_query(OnboardingCB.filter())
+async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB) -> None:
+    """
+    Обработка выбора роли при первом входе.
+    Показывает подходящий следующий шаг.
+    """
+    if callback.message is None:
+        return
+
+    role = callback_data.role
+
+    if role == "advertiser":
+        # Показать меню рекламодателя и подсказку
+        keyboard = get_advertiser_menu_kb(credits=0, user_id=callback.from_user.id)
+        await callback.message.edit_text(
+            "📣 <b>Добро пожаловать, рекламодатель!</b>\n\n"
+            "Создайте первую кампанию — это займёт 3 минуты.\n"
+            "Бот проведёт вас через все шаги.",
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+    elif role == "owner":
+        # Показать меню владельца
+        keyboard = get_owner_menu_kb(credits=0)
+        await callback.message.edit_text(
+            "📺 <b>Добро пожаловать, владелец канала!</b>\n\n"
+            "Зарегистрируйте свой канал — это займёт 2 минуты.\n"
+            "После этого рекламодатели смогут найти вас в каталоге.",
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+
+    await callback.answer()

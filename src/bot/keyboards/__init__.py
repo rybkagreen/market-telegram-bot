@@ -12,13 +12,27 @@ from src.bot.keyboards.campaign import (
     get_text_type_kb,
     get_topics_kb,
 )
-from src.bot.keyboards.main_menu import MainMenuCB, ModelCB, get_main_menu
+from src.bot.keyboards.main_menu import (
+    MainMenuCB,
+    ModelCB,
+    OnboardingCB,
+    get_advertiser_menu_kb,
+    get_combined_menu_kb,
+    get_main_menu,
+    get_onboarding_kb,
+    get_owner_menu_kb,
+)
 from src.bot.keyboards.pagination import PaginationCB, get_pagination_kb
 
 __all__ = [
     "MainMenuCB",
     "ModelCB",
+    "OnboardingCB",
     "get_main_menu",
+    "get_onboarding_kb",
+    "get_advertiser_menu_kb",
+    "get_owner_menu_kb",
+    "get_combined_menu_kb",
     "CampaignCB",
     "TOPICS",
     "get_campaign_step_kb",

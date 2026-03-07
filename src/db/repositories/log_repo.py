@@ -552,3 +552,36 @@ class MailingLogRepository(BaseRepository[MailingLog]):
             )
 
         return daily_stats
+
+    async def count_pending_for_owner(self, owner_user_id: int) -> int:
+        """
+        Количество заявок в статусе PENDING_APPROVAL для всех каналов владельца.
+
+        Используется для бейджа в главном меню.
+
+        Args:
+            owner_user_id: ID владельца каналов в БД.
+
+        Returns:
+            Количество заявок ожидающих одобрения.
+        """
+        from sqlalchemy import select
+
+        from src.db.models.analytics import TelegramChat
+
+        # SELECT COUNT(*) FROM mailing_logs ml
+        # JOIN telegram_chats tc ON ml.chat_id = tc.id
+        # WHERE tc.owner_user_id = owner_user_id
+        # AND ml.status = 'pending_approval'
+        query = (
+            select(func.count(MailingLog.id))
+            .join(TelegramChat, MailingLog.chat_id == TelegramChat.id)
+            .where(
+                TelegramChat.owner_user_id == owner_user_id,
+                MailingLog.status == MailingStatus.PENDING_APPROVAL,
+            )
+        )
+
+        result = await self.session.execute(query)
+        count = result.scalar_one() or 0
+        return count
