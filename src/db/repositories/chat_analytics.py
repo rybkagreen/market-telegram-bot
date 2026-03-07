@@ -56,6 +56,23 @@ class ChatAnalyticsRepository:
         await self._session.flush()
         return chat, True
 
+    async def get_by_owner_id(self, owner_user_id: int) -> list[TelegramChat]:
+        """
+        Получить все каналы зарегистрированные данным пользователем.
+
+        Args:
+            owner_user_id: ID владельца в БД (users.id).
+
+        Returns:
+            Список каналов владельца.
+        """
+        result = await self._session.execute(
+            select(TelegramChat)
+            .where(TelegramChat.owner_user_id == owner_user_id)
+            .order_by(TelegramChat.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def get_all_active(self) -> list[TelegramChat]:
         """
         Получить все активные чаты для парсинга.
@@ -365,12 +382,15 @@ class ChatAnalyticsRepository:
         Returns:
             Список чатов подходящих для рассылки.
         """
+        # Спринт 0: фильтр только по каналам где бот добавлен админом и принимает рекламу
         q = select(TelegramChat).where(
             TelegramChat.is_active,
             TelegramChat.is_scam.is_(False),
             TelegramChat.is_fake.is_(False),
             TelegramChat.error_count < 5,
             TelegramChat.member_count >= min_members,
+            TelegramChat.bot_is_admin,  # Спринт 0: только opt-in каналы
+            TelegramChat.is_accepting_ads,  # Спринт 0: только принимающие рекламу
         )
         if topic:
             q = q.where(TelegramChat.topic == topic)

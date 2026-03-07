@@ -183,6 +183,27 @@ class Campaign(Base, TimestampMixin):
         doc="Стоимость кампании в рублях",
     )
 
+    # CTR-трекинг (Спринт 2)
+    tracking_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+        doc="Исходная ссылка рекламодателя для трекинга",
+    )
+
+    tracking_short_code: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True,
+        doc="Короткий код ссылки (для /r/{code})",
+    )
+
+    clicks_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Количество кликов по ссылке",
+    )
+
     # Отношения
     user: Mapped["User"] = relationship(
         back_populates="campaigns",

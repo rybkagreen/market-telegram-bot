@@ -15,9 +15,13 @@ from src.config.settings import settings
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.db.models.analytics import TelegramChat
+    from src.db.models.badge import UserBadge
     from src.db.models.campaign import Campaign
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
+    from src.db.models.payout import Payout
+    from src.db.models.review import Review
     from src.db.models.transaction import Transaction
 
 
@@ -144,6 +148,42 @@ class User(Base, TimestampMixin):
         doc="ID пользователя, который пригласил этого",
     )
 
+    # Геймификация (Спринт 4)
+    level: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+        doc="Уровень пользователя (1-10)",
+    )
+
+    xp_points: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Текущие очки опыта",
+    )
+
+    total_spent: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        doc="Суммарно потрачено за всё время",
+    )
+
+    total_earned: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        doc="Суммарно заработано за всё время",
+    )
+
+    streak_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Текущая серия дней активности",
+    )
+
     # Статусы
     is_banned: Mapped[bool] = mapped_column(
         Boolean,
@@ -209,6 +249,48 @@ class User(Base, TimestampMixin):
         lazy="selectin",
         cascade="all, delete-orphan",
         doc="Crypto-платежи пользователя",
+    )
+
+    # Каналы владельца (Спринт 0)
+    channels: Mapped[list["TelegramChat"]] = relationship(
+        "TelegramChat",
+        back_populates="owner",
+        lazy="select",
+        doc="Каналы принадлежащие пользователю",
+    )
+
+    # Выплаты владельца (Спринт 1)
+    payouts: Mapped[list["Payout"]] = relationship(
+        "Payout",
+        back_populates="owner",
+        lazy="select",
+        doc="Выплаты владельцу канала",
+    )
+
+    # Отзывы (Спринт 2)
+    reviews_given: Mapped[list["Review"]] = relationship(
+        "Review",
+        foreign_keys="Review.reviewer_id",
+        back_populates="reviewer",
+        lazy="select",
+        doc="Отзывы оставленные пользователем",
+    )
+
+    reviews_received: Mapped[list["Review"]] = relationship(
+        "Review",
+        foreign_keys="Review.reviewee_id",
+        back_populates="reviewee",
+        lazy="select",
+        doc="Отзывы полученные пользователем",
+    )
+
+    # Значки (Спринт 4)
+    badges: Mapped[list["UserBadge"]] = relationship(
+        "UserBadge",
+        back_populates="user",
+        lazy="select",
+        cascade="all, delete-orphan",
+        doc="Значки пользователя",
     )
 
     # Индексы
