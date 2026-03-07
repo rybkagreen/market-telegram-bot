@@ -54,6 +54,18 @@ BEAT_SCHEDULE = {
         "schedule": crontab(minute=0),
         "options": {"queue": "mailing"},
     },
+    # Пересчёт рейтингов каналов — ежедневно в 04:00 UTC
+    "recalculate-ratings-daily": {
+        "task": "src.tasks.rating_tasks.recalculate_ratings_daily",
+        "schedule": crontab(hour=4, minute=0),
+        "options": {"queue": "rating"},
+    },
+    # Обновление еженедельных топов — каждый понедельник в 05:00 UTC
+    "update-weekly-toplists": {
+        "task": "src.tasks.rating_tasks.update_weekly_toplists",
+        "schedule": crontab(hour=5, minute=0, day_of_week=1),
+        "options": {"queue": "rating"},
+    },
 }
 
 # =============================================================================
@@ -74,6 +86,9 @@ TASK_ROUTES = {
     # Очередь ai — задачи ИИ
     "ai.*": {"queue": "ai"},
     "src.tasks.ai_tasks.*": {"queue": "ai"},
+    # Очередь rating — задачи рейтингов
+    "rating.*": {"queue": "rating"},
+    "src.tasks.rating_tasks.*": {"queue": "rating"},
 }
 
 # =============================================================================
