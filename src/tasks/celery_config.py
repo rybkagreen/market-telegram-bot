@@ -66,6 +66,24 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour=5, minute=0, day_of_week=1),
         "options": {"queue": "rating"},
     },
+    # Обновление стриков активности — ежедневно в 00:00 UTC
+    "update-streaks-daily": {
+        "task": "src.tasks.gamification_tasks.update_streaks_daily",
+        "schedule": crontab(hour=0, minute=0),
+        "options": {"queue": "gamification"},
+    },
+    # Еженедельный дайджест — каждый понедельник в 10:00 UTC
+    "send-weekly-digest": {
+        "task": "src.tasks.gamification_tasks.send_weekly_digest",
+        "schedule": crontab(hour=10, minute=0, day_of_week=1),
+        "options": {"queue": "gamification"},
+    },
+    # Проверка сезонных событий — ежедневно в 08:00 UTC
+    "check-seasonal-events": {
+        "task": "src.tasks.gamification_tasks.check_seasonal_events",
+        "schedule": crontab(hour=8, minute=0),
+        "options": {"queue": "gamification"},
+    },
 }
 
 # =============================================================================
@@ -89,6 +107,9 @@ TASK_ROUTES = {
     # Очередь rating — задачи рейтингов
     "rating.*": {"queue": "rating"},
     "src.tasks.rating_tasks.*": {"queue": "rating"},
+    # Очередь gamification — задачи геймификации
+    "gamification.*": {"queue": "gamification"},
+    "src.tasks.gamification_tasks.*": {"queue": "gamification"},
 }
 
 # =============================================================================
