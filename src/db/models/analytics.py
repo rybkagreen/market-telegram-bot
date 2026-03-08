@@ -7,7 +7,7 @@ from __future__ import annotations
 import enum
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import sqlalchemy as sa
 from sqlalchemy import (
@@ -35,6 +35,42 @@ if TYPE_CHECKING:
     from src.db.models.payout import Payout
     from src.db.models.review import Review
     from src.db.models.user import User
+
+
+# ═══════════════════════════════════════════════════════════════
+# TypedDict для JSON-полей (Спринт 3 — документирование)
+# ═══════════════════════════════════════════════════════════════
+
+class RecentPostJSON(TypedDict):
+    """
+    Структура одного поста в TelegramChat.recent_posts.
+
+    Пример:
+    {
+        "message_id": 12345,
+        "text": "Первые 200 символов...",
+        "views": 1500,
+        "date": "2026-03-07T10:00:00Z",
+        "has_media": False
+    }
+
+    Attributes:
+        message_id: ID сообщения в Telegram.
+        text: Текст поста (первые 200-500 символов).
+        views: Количество просмотров.
+        date: Дата публикации в ISO 8601.
+        has_media: Есть ли медиа (фото, видео, и т.д.).
+    """
+    message_id: int
+    text: str
+    views: int
+    date: str
+    has_media: bool
+
+
+# ═══════════════════════════════════════════════════════════════
+# Основные модели
+# ═══════════════════════════════════════════════════════════════
 
 
 class ChatType(str, enum.Enum):
@@ -119,10 +155,10 @@ class TelegramChat(Base):
     llm_confidence: Mapped[float | None] = mapped_column(
         Float, nullable=True, comment="Уверенность LLM при последней классификации (0.0–1.0)"
     )
-    recent_posts: Mapped[list[dict] | None] = mapped_column(
+    recent_posts: Mapped[list[RecentPostJSON] | None] = mapped_column(
         sa.JSON,
         nullable=True,
-        comment="Последние 5 постов для LLM-классификации [{'text': '...', 'date': '...'}]",
+        comment="Последние 5 постов для LLM-классификации (см. RecentPostJSON)",
     )
 
     # === Поля opt-in (Спринт 0) ===
@@ -146,7 +182,7 @@ class TelegramChat(Base):
         Boolean, default=False, nullable=False, server_default="false",
         comment="Канал принимает рекламные размещения"
     )
-    
+
     # === Поля для настроек размещения (Спринт 5) ===
     max_posts_per_day: Mapped[int] = mapped_column(
         Integer, default=2, nullable=False, server_default="2",

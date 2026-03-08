@@ -163,7 +163,7 @@ class User(Base, TimestampMixin):
         nullable=False,
         doc="Текущие очки опыта — сумма advertiser_xp и owner_xp",
     )
-    
+
     # Раздельные XP и уровни (Спринт 5)
     advertiser_xp: Mapped[int] = mapped_column(
         Integer,
@@ -172,7 +172,7 @@ class User(Base, TimestampMixin):
         server_default='0',
         doc="XP рекламодателя (за запуск кампаний)",
     )
-    
+
     owner_xp: Mapped[int] = mapped_column(
         Integer,
         default=0,
@@ -180,7 +180,7 @@ class User(Base, TimestampMixin):
         server_default='0',
         doc="XP владельца (за публикации в канале)",
     )
-    
+
     advertiser_level: Mapped[int] = mapped_column(
         Integer,
         default=1,
@@ -188,7 +188,7 @@ class User(Base, TimestampMixin):
         server_default='1',
         doc="Уровень рекламодателя",
     )
-    
+
     owner_level: Mapped[int] = mapped_column(
         Integer,
         default=1,
@@ -209,6 +209,27 @@ class User(Base, TimestampMixin):
         default=Decimal("0.00"),
         nullable=False,
         doc="Суммарно заработано за всё время",
+    )
+
+    # Стрики активности (Спринт 3)
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Последний раз когда пользователь заходил в бота",
+    )
+
+    login_streak_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Текущая серия дней активности (стринк)",
+    )
+
+    max_streak_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Максимальная серия дней активности за всё время",
     )
 
     streak_days: Mapped[int] = mapped_column(
@@ -438,29 +459,29 @@ class User(Base, TimestampMixin):
         return settings.get_model_for_plan(self.plan.value)
 
     # === Свойства для обратной совместимости (Спринт 5) ===
-    
+
     @property
     def total_xp(self) -> int:
         """Возвращает суммарный XP (advertiser_xp + owner_xp)."""
         return self.advertiser_xp + self.owner_xp
-    
+
     @property
     def max_level(self) -> int:
         """Возвращает максимальный уровень из advertiser_level и owner_level."""
         return max(self.advertiser_level, self.owner_level)
-    
+
     def get_advertiser_level(self) -> int:
         """Получить уровень рекламодателя."""
         return self.advertiser_level
-    
+
     def get_owner_level(self) -> int:
         """Получить уровень владельца."""
         return self.owner_level
-    
+
     def get_advertiser_xp(self) -> int:
         """Получить XP рекламодателя."""
         return self.advertiser_xp
-    
+
     def get_owner_xp(self) -> int:
         """Получить XP владельца."""
         return self.owner_xp

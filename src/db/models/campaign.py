@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -16,6 +16,75 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.mailing_log import MailingLog
     from src.db.models.user import User
+
+
+# ═══════════════════════════════════════════════════════════════
+# TypedDict для JSON-полей (Спринт 3 — документирование)
+# ═══════════════════════════════════════════════════════════════
+
+class CampaignFiltersJSON(TypedDict, total=False):
+    """
+    Структура поля Campaign.filters_json.
+
+    Пример:
+    {
+        "topics": ["technology", "business"],
+        "subcategories": ["startups"],
+        "min_members": 1000,
+        "max_members": 100000,
+        "exclude_channels": [123456, 789012],
+        "language": "ru",
+        "has_bot_admin": True,
+        "audience": "all"
+    }
+
+    Attributes:
+        topics: Список тематик для таргетинга.
+        subcategories: Список подкатегорий.
+        min_members: Минимальное количество подписчиков.
+        max_members: Максимальное количество подписчиков.
+        exclude_channels: Список ID каналов для исключения.
+        language: Язык аудитории.
+        has_bot_admin: Только каналы с ботом-админом.
+        audience: Тип аудитории ("all", "it_tech", "business_finance", etc.).
+    """
+    topics: list[str]
+    subcategories: list[str]
+    min_members: int
+    max_members: int
+    exclude_channels: list[int]
+    language: str
+    has_bot_admin: bool
+    audience: str
+
+
+class CampaignMetaJSON(TypedDict, total=False):
+    """
+    Структура поля Campaign.meta_json.
+
+    Пример:
+    {
+        "ai_generated": True,
+        "ab_variant": "A",
+        "source": "wizard",
+        "tracking_enabled": True
+    }
+
+    Attributes:
+        ai_generated: Сгенерирован ли текст через ИИ.
+        ab_variant: Вариант A/B теста.
+        source: Источник создания (wizard, manual, api).
+        tracking_enabled: Включено ли отслеживание.
+    """
+    ai_generated: bool
+    ab_variant: str
+    source: str
+    tracking_enabled: bool
+
+
+# ═══════════════════════════════════════════════════════════════
+# Основные модели
+# ═══════════════════════════════════════════════════════════════
 
 
 class CampaignStatus(str, Enum):
