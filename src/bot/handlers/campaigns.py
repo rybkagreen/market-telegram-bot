@@ -413,7 +413,7 @@ async def handle_text_input(message: Message, state: FSMContext) -> None:
         return
 
     # Content filter проверка
-    filter_result = content_filter_check(text)
+    filter_result = await content_filter_check(text)
     if not filter_result.passed:
         categories = ", ".join(filter_result.categories)
         await message.answer(

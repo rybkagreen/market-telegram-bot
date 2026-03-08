@@ -18,7 +18,8 @@ from src.bot.keyboards.channels import (
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.utils.message_utils import safe_edit_message
 from src.db.session import async_session_factory
-from src.services import get_user_service
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 from src.utils.categories import SUBCATEGORIES
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,9 @@ async def handle_channels_stats(callback: CallbackQuery) -> None:
     Показать общую статистику базы каналов.
     Аналог GET /api/channels/stats
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return

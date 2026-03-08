@@ -12,7 +12,6 @@ from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
 from src.bot.handlers import (
-    admin,
     analytics,
     analytics_chats,
     b2b,  # B2B-маркетплейс (Спринт 3)
@@ -31,6 +30,12 @@ from src.bot.handlers import (
     start,
     stats,  # Публичная статистика (Спринт 0)
     templates,
+)
+from src.bot.handlers.admin import (
+    ai_router,
+    analytics_router,
+    campaigns_router,
+    users_router,
 )
 from src.bot.middlewares.throttling import ThrottlingMiddleware
 from src.config.settings import settings
@@ -104,7 +109,11 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(feedback.router)
     dp.include_router(help.router)  # Раздел Помощь (Спринт 5)
     dp.include_router(monitoring.router)  # Мониторинг сервера и Celery
-    dp.include_router(admin.router)
+    # Admin routers (новые подмодули)
+    dp.include_router(users_router)
+    dp.include_router(campaigns_router)
+    dp.include_router(analytics_router)
+    dp.include_router(ai_router)
 
     return dp
 

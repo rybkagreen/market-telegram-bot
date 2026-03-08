@@ -1112,7 +1112,7 @@ async def handle_free_campaign_text(message: Message, state: FSMContext) -> None
     text = message.text.strip()
 
     # Content filter проверяет даже для админа
-    filter_result = content_filter_check(text)
+    filter_result = await content_filter_check(text)
     if not filter_result.passed:
         await message.answer(
             f"⚠️ Текст не прошёл проверку: {', '.join(filter_result.categories)}\n"

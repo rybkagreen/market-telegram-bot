@@ -9,10 +9,14 @@
   - Парсере (автоклассификация по ключевым словам)
   - API /api/channels/stats
   - Скрипте бэкфилла
+
+Спринт 3: Данные хранятся в БД (topic_categories), этот файл — FALLBACK.
 """
+
 
 # Подкатегории сгруппированы по базовому топику
 # Ключи верхнего уровня = реальные значения TelegramChat.topic
+# Это FALLBACK на случай недоступности БД
 SUBCATEGORIES: dict[str, dict[str, str]] = {
     "бизнес": {
         "startup": "Стартапы и инновации",
@@ -152,3 +156,75 @@ def classify_subcategory(
         return None
 
     return max(scores, key=lambda k: scores[k])
+
+
+# ═══════════════════════════════════════════════════════════════
+# Sprint 3: Async функции для работы с БД
+# ═══════════════════════════════════════════════════════════════
+
+async def get_subcategories_from_db(topic: str) -> dict[str, str] | None:
+    """
+    Получить подкатегории для топика из БД.
+
+    Args:
+        topic: Название топика.
+
+    Returns:
+        dict {subcategory: display_name} или None.
+    """
+    try:
+        from src.db.repositories.category_repo import CategoryRepository
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            repo = CategoryRepository(session)
+            categories = await repo.get_subcategories(topic)
+
+            if not categories:
+                return None
+
+            return {cat.subcategory: cat.display_name_ru for cat in categories}
+
+    except Exception:
+        # Fallback на статические данные
+        return SUBCATEGORIES.get(topic)
+
+
+async def get_all_topics_from_db() -> list[str]:
+    """
+    Получить все топики из БД.
+
+    Returns:
+        Список топиков.
+    """
+    try:
+        from src.db.repositories.category_repo import CategoryRepository
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            repo = CategoryRepository(session)
+            return await repo.get_all_topics()
+
+    except Exception:
+        # Fallback на статические данные
+        return list(SUBCATEGORIES.keys())
+
+
+async def get_categories_dict_from_db() -> dict[str, dict[str, str]]:
+    """
+    Получить все категории в виде вложенного dict из БД.
+
+    Returns:
+        dict {topic: {subcategory: display_name}}.
+    """
+    try:
+        from src.db.repositories.category_repo import CategoryRepository
+        from src.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            repo = CategoryRepository(session)
+            return await repo.get_categories_dict()
+
+    except Exception:
+        # Fallback на статические данные
+        return SUBCATEGORIES

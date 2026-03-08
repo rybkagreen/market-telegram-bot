@@ -11,6 +11,7 @@ Content Filter — 3-уровневая система проверки конт
 - fraud, suicide, extremism, gambling
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -113,7 +114,7 @@ class ContentFilter:
                     continue
             self._regex_patterns[category] = patterns
 
-    def check(self, text: str) -> FilterResult:
+    async def check(self, text: str) -> FilterResult:
         """
         Проверить текст на запрещенный контент.
 
@@ -154,11 +155,43 @@ class ContentFilter:
                 level2_score=level2_result.score,
             )
 
-        # Уровень 3: LLM проверка (ОТКЛЮЧЕНО для производительности)
-        # level3_result = self._llm_check(text)
-        # final_score = max(combined_score, level3_result.score)
+        # Уровень 3: LLM проверка (включено с таймаутом)
+        from src.config.settings import settings
 
-        # Временно используем только уровень 2 для скорости
+        if settings.content_filter_l3_enabled:
+            try:
+                # Асинхронный вызов с таймаутом
+                level3_result = await self._llm_check_async(
+                    text,
+                    timeout=settings.content_filter_l3_timeout,
+                )
+                final_score = max(combined_score, level3_result.score)
+
+                return FilterResult(
+                    passed=final_score < LEVEL3_THRESHOLD,
+                    score=final_score,
+                    categories=self._merge_categories(
+                        level1_result.categories,
+                        level2_result.categories,
+                        level3_result.categories,
+                    ),
+                    flagged_fragments=self._merge_fragments(
+                        level1_result.flagged_fragments,
+                        level2_result.flagged_fragments,
+                    ),
+                    level1_score=level1_result.score,
+                    level2_score=level2_result.score,
+                    level3_score=level3_result.score,
+                    llm_analysis=level3_result.llm_analysis,
+                )
+            except TimeoutError:
+                logger.warning(f"Content filter L3 timeout ({settings.content_filter_l3_timeout}s), failing open")
+                # При таймауте — пропускаем (fail open)
+            except Exception as e:
+                logger.error(f"Content filter L3 error: {e}")
+                # При ошибке — пропускаем (fail open)
+
+        # Если L3 отключен или ошибка — используем только уровень 2
         final_score = combined_score
 
         return FilterResult(
@@ -167,17 +200,13 @@ class ContentFilter:
             categories=self._merge_categories(
                 level1_result.categories,
                 level2_result.categories,
-                # level3_result.categories,
             ),
             flagged_fragments=self._merge_fragments(
                 level1_result.flagged_fragments,
                 level2_result.flagged_fragments,
-                # level3_result.flagged_fragments,
             ),
             level1_score=level1_result.score,
             level2_score=level2_result.score,
-            # level3_score=level3_result.score,
-            # llm_analysis=level3_result.llm_analysis,
         )
 
     def _regex_check(self, text: str) -> FilterResult:
@@ -276,6 +305,7 @@ class ContentFilter:
     def _llm_check(self, text: str) -> FilterResult:
         """
         Уровень 3: LLM проверка через Qwen (OpenRouter API).
+        Синхронная версия (для Celery).
 
         Args:
             text: Текст для проверки.
@@ -301,6 +331,48 @@ class ContentFilter:
             logger.error(f"Qwen LLM check failed: {e}")
 
         return FilterResult(passed=True, score=0.0)
+
+    async def _llm_check_async(self, text: str, timeout: float = 3.0) -> FilterResult:
+        """
+        Уровень 3: LLM проверка через Qwen (OpenRouter API) с таймаутом.
+        Асинхронная версия для использования в async контексте.
+
+        Args:
+            text: Текст для проверки.
+            timeout: Таймаут в секундах.
+
+        Returns:
+            FilterResult с результатами.
+
+        Raises:
+            asyncio.TimeoutError: При превышении таймаута.
+        """
+        from src.core.services.qwen_ai_service import qwen_ai_service
+
+        try:
+            # Выполняем синхронный вызов в отдельном потоке с таймаутом
+            loop = asyncio.get_event_loop()
+            result = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: qwen_ai_service.moderate_content_sync(text, timeout=int(timeout)),
+                ),
+                timeout=timeout,
+            )
+
+            return FilterResult(
+                passed=result.passed,
+                score=result.score,
+                categories=result.categories,
+                flagged_fragments=[],  # Qwen не возвращает фрагменты
+                level3_score=result.score,
+                llm_analysis=result.analysis,
+            )
+        except TimeoutError:
+            raise  # Пробрасываем таймаут выше
+        except Exception as e:
+            logger.error(f"Qwen LLM async check failed: {e}")
+            raise  # Пробрасываем ошибку выше
 
     def _call_openrouter(self, text: str, api_key: str, model: str) -> FilterResult:
         """
@@ -418,7 +490,7 @@ def get_filter() -> ContentFilter:
     return _filter
 
 
-def check(text: str) -> FilterResult:
+async def check(text: str) -> FilterResult:
     """
     Проверить текст на запрещенный контент.
 
@@ -428,4 +500,4 @@ def check(text: str) -> FilterResult:
     Returns:
         FilterResult с результатами.
     """
-    return get_filter().check(text)
+    return await get_filter().check(text)

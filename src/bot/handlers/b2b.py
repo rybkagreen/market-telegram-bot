@@ -9,7 +9,6 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.b2b_package_service import b2b_package_service
 
 logger = logging.getLogger(__name__)
@@ -52,9 +51,6 @@ async def show_niche_packages(callback: CallbackQuery) -> None:
     """
     Показать пакеты выбранной ниши.
     """
-    if callback.message is None or isinstance(callback.message, Message):
-        return
-
     niche = (callback.data or "").split(":")[1]
 
     # Получаем описание ниши
@@ -92,8 +88,7 @@ async def show_niche_packages(callback: CallbackQuery) -> None:
         ]
     )
 
-    await safe_callback_edit(
-        callback,
+    await callback.message.edit_text(
         text,
         reply_markup=keyboard,
         parse_mode="HTML",
@@ -105,9 +100,6 @@ async def b2b_back(callback: CallbackQuery) -> None:
     """
     Вернуться к выбору ниш.
     """
-    if callback.message is None or isinstance(callback.message, Message):
-        return
-
     text = (
         "🏢 <b>B2B-маркетплейс</b>\n\n"
         "Пакетные предложения для агентств и крупных рекламодателей.\n\n"
@@ -131,8 +123,7 @@ async def b2b_back(callback: CallbackQuery) -> None:
         ]
     )
 
-    await safe_callback_edit(
-        callback,
+    await callback.message.edit_text(
         text,
         reply_markup=keyboard,
         parse_mode="HTML",
