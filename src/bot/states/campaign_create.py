@@ -37,6 +37,7 @@ class CampaignCreateState(StatesGroup):
     selecting_audience = State()
     setting_budget = State()
     setting_schedule = State()
+    entering_schedule_date = State()  # Ввод даты вручную
 
     # Финальное подтверждение
     confirming = State()

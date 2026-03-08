@@ -179,6 +179,105 @@ def get_campaign_editor_keyboard(
     # Назад
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_variants").pack())
 
+    builder.adjust(1, 2, 1, 1)
+
+    return builder.as_markup()
+
+
+def get_audience_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора аудитории для кампании.
+    Показывает топ-8 тематик из categories.py.
+    Кнопка "Все тематики" — без фильтра.
+    Кнопка "Пропустить" — перейти дальше без фильтра.
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Основные тематики (из CAMPAIGN_CATEGORIES)
+    audience_options = {
+        "it_tech": "💻 IT и технологии",
+        "business_finance": "💰 Бизнес и финансы",
+        "marketing": "📈 Маркетинг",
+        "education": "🎓 Образование",
+        "crypto_invest": "₿ Криптовалюты",
+        "retail_shop": "👗 Розница",
+        "beauty_health": "💄 Красота и здоровье",
+        "food_restaurant": "🍔 Еда и рестораны",
+    }
+
+    for key, name in audience_options.items():
+        builder.button(
+            text=name,
+            callback_data=CampaignCreateCB(step=f"audience_{key}").pack()
+        )
+
+    builder.adjust(2, 2, 2, 2)
+
+    # Кнопки "Все тематики" и "Пропустить"
+    builder.button(
+        text="📡 Все доступные каналы",
+        callback_data=CampaignCreateCB(step="audience_all").pack()
+    )
+    builder.button(
+        text="⏭️ Пропустить →",
+        callback_data=CampaignCreateCB(step="audience_skip").pack()
+    )
+    builder.adjust(2)
+
+    # Кнопка "Назад"
+    builder.button(
+        text="🔙 Назад",
+        callback_data=CampaignCreateCB(step="back_to_image").pack()
+    )
+    builder.adjust(1)
+
+    return builder.as_markup()
+
+
+def get_schedule_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура планирования кампании.
+    Опции:
+    - "Запустить сейчас" → scheduled_at = None
+    - "Через 1 час"     → scheduled_at = now + 1h
+    - "Сегодня вечером" → scheduled_at = сегодня 20:00 МСК
+    - "Завтра утром"    → scheduled_at = завтра 09:00 МСК
+    - "Выбрать дату"    → запросить ввод текстом
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Быстрые опции
+    builder.button(
+        text="🚀 Запустить сейчас",
+        callback_data=CampaignCreateCB(step="schedule_now").pack()
+    )
+    builder.button(
+        text="⏰ Через 1 час",
+        callback_data=CampaignCreateCB(step="schedule_1h").pack()
+    )
+    builder.button(
+        text="🌆 Сегодня вечером (20:00)",
+        callback_data=CampaignCreateCB(step="schedule_evening").pack()
+    )
+    builder.button(
+        text="🌅 Завтра утром (09:00)",
+        callback_data=CampaignCreateCB(step="schedule_tomorrow").pack()
+    )
+
+    builder.adjust(1)
+
+    # Кнопка выбора даты
+    builder.button(
+        text="📅 Выбрать дату",
+        callback_data=CampaignCreateCB(step="schedule_custom").pack()
+    )
+    builder.adjust(1)
+
+    # Кнопка "Назад"
+    builder.button(
+        text="🔙 Назад",
+        callback_data=CampaignCreateCB(step="back_to_budget").pack()
+    )
     builder.adjust(1)
 
     return builder.as_markup()

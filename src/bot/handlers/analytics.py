@@ -15,7 +15,8 @@ from src.core.services.analytics_service import analytics_service
 from src.core.services.user_role_service import UserRoleService
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory
-from src.services import get_user_service
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,9 @@ async def show_analytics_menu(callback: CallbackQuery) -> None:
         callback: Callback query.
     """
     # Задача 6.1: Определяем роль пользователя
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
@@ -299,8 +301,9 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -346,7 +349,8 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
         campaigns, total = await svc.get_campaigns_page(
             telegram_id=callback.from_user.id,
             page=1,
@@ -418,8 +422,9 @@ async def handle_top_chats(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -480,8 +485,9 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
