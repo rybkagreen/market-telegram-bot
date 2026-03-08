@@ -4,6 +4,7 @@ Notification tasks для уведомлений пользователей.
 
 import asyncio
 import logging
+from datetime import UTC, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -366,22 +367,22 @@ def notify_owner_xp_for_publication(
     """
     async def _add_xp() -> bool:
         from src.core.services.xp_service import xp_service
-        
+
         # 30 XP за каждую публикацию
         new_level, leveled_up = await xp_service.add_owner_xp(
             user_id=owner_id,
             amount=30,
             reason=f"publication:{placement_id}",
         )
-        
+
         if leveled_up:
             logger.info(f"Owner {owner_id} leveled up to {new_level} (owner XP)")
             # Можно отправить уведомление о повышении уровня
             from src.tasks.notification_tasks import notify_level_up
             notify_level_up.delay(owner_id, new_level)
-        
+
         return True
-    
+
     try:
         return asyncio.run(_add_xp())
     except Exception as e:
@@ -935,7 +936,7 @@ def send_weekly_digest() -> dict[str, int]:
     Задача 9.3: Еженедельный дайджест для пользователей.
     Запускается каждый понедельник в 09:00 UTC.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     stats = {"sent": 0, "errors": 0}
 
@@ -977,21 +978,41 @@ def send_weekly_digest() -> dict[str, int]:
                         if campaigns_count == 0:
                             continue  # Не отправляем если нет кампаний
 
+                        # Получаем статистику из analytics_service
+                        from src.core.services.analytics_service import analytics_service
+
+                        user_summary = await analytics_service.get_user_summary(user.id, days=7)
+                        total_views = user_summary.total_chats_reached if user_summary else 0
+                        total_spent = float(user_summary.total_spent) if user_summary else 0
+
                         text = (
                             f"📊 <b>Итоги недели — RekHarborBot</b>\n\n"
                             f"Кампаний: {campaigns_count}\n"
                         )
 
-                        # TODO: получить total_views и total_spent из БД
-                        # if total_views:
-                        #     text += f"Суммарный охват: {total_views:,}\n"
-                        # if total_spent:
-                        #     text += f"Потрачено: {total_spent} кр\n"
+                        if total_views:
+                            text += f"Охват: {total_views:,} каналов\n"
+                        if total_spent:
+                            text += f"Потрачено: {total_spent:,.0f} кр\n"
 
-                        text += (
-                            f"\n💳 Баланс: {user.credits} кр\n"
-                            f"📦 Тариф: {user.plan.value if hasattr(user.plan, 'value') else user.plan}"
-                        )
+                        text += f"\n💳 Баланс: {user.credits} кр"
+
+                        # Добавляем информацию о тарифе
+                        plan_value = user.plan.value if hasattr(user.plan, 'value') else str(user.plan)
+                        plan_display = {
+                            "free": "Бесплатный",
+                            "starter": "Starter",
+                            "pro": "PRO",
+                            "business": "Business",
+                            "admin": "Admin",
+                        }.get(plan_value.lower(), plan_value)
+
+                        if user.plan_expires_at:
+                            days_left = (user.plan_expires_at - datetime.now(UTC)).days
+                            expires_str = user.plan_expires_at.strftime("%d.%m.%Y")
+                            text += f"\n📦 Тариф: {plan_display} (до {expires_str}, {days_left} дн.)"
+                        else:
+                            text += f"\n📦 Тариф: {plan_display}"
 
                         from aiogram import Bot
                         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -1018,25 +1039,57 @@ def send_weekly_digest() -> dict[str, int]:
 
                     elif role == "owner":
                         # Дайджест владельца
-                        # TODO: получить данные из БД
-                        requests_count = 0  # Заглушка
-                        approved_count = 0  # Заглушка
-                        earned_credits = 0  # Заглушка
+                        from src.db.repositories.payout_repo import get_available_payout_amount
 
-                        if requests_count == 0:
-                            continue  # Не отправляем если нет заявок
+                        # Получаем доступную сумму к выводу
+                        available_payout = await get_available_payout_amount(user.id)
+
+                        # Получаем статистику выплат
+                        async with async_session_factory() as session:
+                            from sqlalchemy import func, select
+
+                            from src.db.models.payout import Payout, PayoutStatus
+
+                            # Сумма заработанных за 7 дней (PAID выплаты)
+                            seven_days_ago = datetime.now(UTC) - timedelta(days=7)
+                            stmt = (
+                                select(func.sum(Payout.amount))
+                                .where(
+                                    Payout.owner_id == user.id,
+                                    Payout.status == PayoutStatus.PAID,
+                                    Payout.created_at >= seven_days_ago,
+                                )
+                            )
+                            result = await session.execute(stmt)
+                            earned_credits = result.scalar_one() or Decimal("0")
+
+                            # Количество выплат за 7 дней
+                            stmt = (
+                                select(func.count(Payout.id))
+                                .where(
+                                    Payout.owner_id == user.id,
+                                    Payout.status == PayoutStatus.PAID,
+                                    Payout.created_at >= seven_days_ago,
+                                )
+                            )
+                            result = await session.execute(stmt)
+                            approved_count = result.scalar_one() or 0
+
+                        if available_payout <= 0 and earned_credits <= 0:
+                            continue  # Не отправляем если нет заработка
 
                         text = (
-                            f"📺 <b>Итоги недели</b>\n\n"
-                            f"Заявок: {requests_count}\n"
-                            f"Одобрено: {approved_count}\n"
-                            f"Заработано: {earned_credits} кр\n"
+                            f"📺 <b>Итоги недели — Владелец</b>\n\n"
+                            f"Одобрено публикаций: {approved_count}\n"
+                            f"Заработано: {earned_credits:,.0f} кр\n"
                         )
 
-                        # TODO: получить available_payout
-                        available_payout = 0
+                        if available_payout > 0:
+                            text += f"\n💸 К выводу: {available_payout:,.0f} кр"
+                        else:
+                            text += "\n💸 К выводу: 0 кр (ожидайте подтверждения)"
 
-                        text += f"\n💸 К выводу: {available_payout} кр"
+                        text += f"\n\n💳 Баланс: {user.credits} кр"
 
                         from aiogram import Bot
                         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup

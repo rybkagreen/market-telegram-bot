@@ -77,6 +77,31 @@ async def _check_plan_renewals() -> dict:
                         f"Plan renewed: user={user.telegram_id}, "
                         f"plan={user.plan.value}, cost={plan_cost}"
                     )
+
+                    # Отправляем уведомление об успешном продлении
+                    try:
+                        from src.db.models.notification import NotificationType
+                        from src.tasks.notification_tasks import notify_user
+
+                        plan_name = plan_key.upper()
+                        new_expires = datetime.now(UTC) + timedelta(days=30)
+                        message = (
+                            f"✅ <b>Тариф продлён</b>\n\n"
+                            f"Ваш тариф <b>{plan_name}</b> успешно продлён.\n"
+                            f"Списано кредитов: <b>{plan_cost}</b>\n"
+                            f"Действует до: <b>{new_expires.strftime('%d.%m.%Y')}</b>\n\n"
+                            f"Спасибо что остаётесь с нами!"
+                        )
+
+                        notify_user.delay(
+                            telegram_id=user.telegram_id,
+                            message=message,
+                            notification_type=NotificationType.PLAN_RENEWED.value,
+                            parse_mode="HTML",
+                        )
+                    except Exception as notify_err:
+                        logger.error(f"Failed to send plan renewed notification: {notify_err}")
+
                 except Exception as e:
                     logger.error(f"Failed to renew plan for user {user.telegram_id}: {e}")
             else:
@@ -87,7 +112,29 @@ async def _check_plan_renewals() -> dict:
                     f"had {user.credits} credits, needed {plan_cost}"
                 )
                 downgraded += 1
-                # TODO: отправить уведомление пользователю через бота
+
+                # Отправляем уведомление о истечении тарифа
+                try:
+                    from src.db.models.notification import NotificationType
+                    from src.tasks.notification_tasks import notify_user
+
+                    plan_name = plan_key.upper()
+                    message = (
+                        f"⚠️ <b>Тариф не продлён</b>\n\n"
+                        f"Ваш тариф <b>{plan_name}</b> истёк.\n"
+                        f"Недостаточно кредитов для продления (нужно {plan_cost}, было {user.credits}).\n\n"
+                        f"Тариф сброшен на <b>FREE</b>.\n"
+                        f"Пополните баланс и продлите тариф в разделе /tariffs."
+                    )
+
+                    notify_user.delay(
+                        telegram_id=user.telegram_id,
+                        message=message,
+                        notification_type=NotificationType.PLAN_EXPIRED.value,
+                        parse_mode="HTML",
+                    )
+                except Exception as notify_err:
+                    logger.error(f"Failed to send plan expired notification: {notify_err}")
 
     return {"renewed": renewed, "downgraded": downgraded}
 

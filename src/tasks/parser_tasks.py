@@ -456,7 +456,7 @@ async def _parse_and_save_chats(
             from src.utils.content_filter.filter import check as content_filter_check
 
             channel_content = f"{chat_info.title} {chat_info.description or ''}"
-            filter_result = content_filter_check(channel_content)
+            filter_result = await content_filter_check(channel_content)
 
             if not filter_result.passed:
                 blocked_count += 1

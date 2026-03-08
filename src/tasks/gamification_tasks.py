@@ -21,7 +21,7 @@ def update_streaks_daily(self) -> dict[str, Any]:
     Запускается ежедневно в 00:00 UTC.
 
     Логика:
-    - Если пользователь заходил сегодня — стрик продолжается
+    - Если пользователь заходил вчера или сегодня — стрик продолжается
     - Если пропустил день — стрик сбрасывается
     - За каждый день стрика +10 XP
 
@@ -50,37 +50,51 @@ def update_streaks_daily(self) -> dict[str, Any]:
 
             stats["total_users"] = len(users)
             today = date.today()
+            yesterday = today - timedelta(days=1)
 
             for user in users:
-                # Проверяем последнюю активность
-                # В реальной системе нужно хранить last_login_at
-                # Для упрощения считаем что пользователь активен
-                last_activity = user.updated_at.date() if user.updated_at else None
+                # Проверяем последнюю активность через last_login_at
+                if user.last_login_at is None:
+                    # Пользователь никогда не заходил — пропускаем
+                    continue
 
-                if last_activity == today:
-                    # Пользователь был активен сегодня — продолжаем стрик
-                    if user.streak_days is None:
-                        user.streak_days = 1
-                    else:
-                        # Проверяем не был ли пропущен день
-                        days_since_last = (today - last_activity).days
-                        if days_since_last <= 1:
-                            user.streak_days = (user.streak_days or 0) + 1
-                            stats["streaks_updated"] += 1
-                        else:
-                            # Пропустил день — сбрасываем
-                            user.streak_days = 1
-                            stats["streaks_reset"] += 1
+                last_login_date = user.last_login_at.date()
+
+                if last_login_date == today or last_login_date == yesterday:
+                    # Пользователь заходил сегодня или вчера — продолжаем стрик
+                    if (today - last_login_date).days == 0:
+                        # Заходил сегодня — проверяем не обновили ли уже сегодня
+                        if user.updated_at and user.updated_at.date() == today:
+                            continue  # Уже обновили сегодня
+
+                    user.login_streak_days = (user.login_streak_days or 0) + 1
+
+                    # Обновляем max_streak_days
+                    if user.login_streak_days > user.max_streak_days:
+                        user.max_streak_days = user.login_streak_days
+
+                    stats["streaks_updated"] += 1
+
+                    # Начисляем XP за стрик (+10 XP за каждый день)
+                    user.xp_points += 10
+                    stats["xp_awarded"] += 10
                 else:
-                    # Не был активен сегодня
-                    if last_activity and (today - last_activity).days > 1:
-                        # Пропустил день — сбрасываем
-                        user.streak_days = 0
+                    # Пропустил день — сбрасываем стрик
+                    if user.login_streak_days > 0:
+                        user.login_streak_days = 0
                         stats["streaks_reset"] += 1
 
             await session.commit()
 
-        return stats
+            return stats
+
+    try:
+        result = asyncio.run(_update_async())
+        logger.info(f"Daily streaks update completed: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error updating streaks: {e}")
+        return {"error": str(e)}
 
     try:
         return asyncio.run(_update_async())

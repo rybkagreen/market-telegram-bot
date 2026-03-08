@@ -151,31 +151,45 @@ async def send_campaign_report(
         bot: Экземпляр бота для отправки.
     """
     try:
+        from aiogram.types import BufferedInputFile
+
+        from src.core.services.analytics_service import analytics_service
+
         # Генерируем PDF через analytics_service
-        # TODO: реализовать analytics_service.generate_campaign_report(campaign_id)
-        # pdf_bytes = await analytics_service.generate_campaign_report(campaign_id)
+        pdf_bytes = await analytics_service.generate_campaign_pdf_report(campaign_id)
 
-        # Временная заглушка — отправляем текстовое сообщение
-        async with async_session_factory() as session:
-            campaign_repo = CampaignRepository(session)
-            campaign = await campaign_repo.get_by_id(campaign_id)
-        if not campaign:
-            logger.error(f"Campaign {campaign_id} not found")
-            return
-
-        text = (
-            f"✅ <b>Кампания завершена: {campaign.title}</b>\n\n"
-            f"📊 Статистика:\n"
-            f"• Отправлено: {campaign.sent_count or 0}\n"
-            f"• Ошибок: {campaign.failed_count or 0}\n"
-            f"• Пропущено: {campaign.skipped_count or 0}"
+        # Отправляем PDF файлом
+        await bot.send_document(
+            chat_id=user_id,
+            document=BufferedInputFile(pdf_bytes, filename=f"report_{campaign_id}.pdf"),
+            caption=f"📊 <b>Отчёт по кампании #{campaign_id}</b>\n\nФайл сгенерирован автоматически.",
+            parse_mode="HTML",
         )
 
-        await bot.send_message(user_id, text, parse_mode="HTML")
-        return
+        logger.info(f"Sent PDF report for campaign {campaign_id} to user {user_id}")
 
     except Exception as e:
         logger.error(f"Error sending report: {e}")
+        # Fallback: отправляем текстовое сообщение
+        try:
+            async with async_session_factory() as session:
+                campaign_repo = CampaignRepository(session)
+                campaign = await campaign_repo.get_by_id(campaign_id)
+            if not campaign:
+                logger.error(f"Campaign {campaign_id} not found")
+                return
+
+            text = (
+                f"✅ <b>Кампания завершена: {campaign.title}</b>\n\n"
+                f"📊 Статистика:\n"
+                f"• Отправлено: {campaign.sent_count or 0}\n"
+                f"• Ошибок: {campaign.failed_count or 0}\n"
+                f"• Пропущено: {campaign.skipped_count or 0}"
+            )
+
+            await bot.send_message(user_id, text, parse_mode="HTML")
+        except Exception as fallback_err:
+            logger.error(f"Fallback notification failed: {fallback_err}")
 
 
 # ==================== УВЕДОМЛЕНИЯ ИЗ CELERY ====================
