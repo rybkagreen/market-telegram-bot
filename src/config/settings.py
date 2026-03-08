@@ -121,6 +121,77 @@ class Settings(BaseSettings):
     credits_per_ltc: int = Field(7_000, alias="CREDITS_PER_LTC")
     credits_per_star: int = Field(2, alias="CREDITS_PER_STAR")
 
+    # Payout settings
+    min_payout_usdt: float = Field(
+        1.0, alias="MIN_PAYOUT_USDT", description="Минимальная сумма выплаты в USDT"
+    )
+
+    # Content Filter settings
+    content_filter_l3_enabled: bool = Field(
+        True, alias="CONTENT_FILTER_L3_ENABLED", description="Включить L3 (LLM) проверку контента"
+    )
+    content_filter_l3_timeout: float = Field(
+        3.0, alias="CONTENT_FILTER_L3_TIMEOUT", description="Таймаут L3 проверки в секундах"
+    )
+
+    # Analytics settings
+    analytics_estimated_cpm_rub: float = Field(
+        100.0, alias="ANALYTICS_ESTIMATED_CPM_RUB", description="Оценочный CPM (руб за 1000 просмотров)"
+    )
+    analytics_estimated_cpc_rub: float = Field(
+        25.0, alias="ANALYTICS_ESTIMATED_CPC_RUB", description="Оценочный CPC (руб за клик)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════
+    # Тарифные планы (Спринт 4 — перенесено из api/constants/tariffs.py)
+    # ═══════════════════════════════════════════════════════════════
+    # Ограничения по подписчикам
+    tariff_subscriber_limits_free: int = Field(10_000, alias="TARIFF_SUBSCRIBER_LIMIT_FREE")
+    tariff_subscriber_limits_starter: int = Field(50_000, alias="TARIFF_SUBSCRIBER_LIMIT_STARTER")
+    tariff_subscriber_limits_pro: int = Field(200_000, alias="TARIFF_SUBSCRIBER_LIMIT_PRO")
+    tariff_subscriber_limits_business: int = Field(-1, alias="TARIFF_SUBSCRIBER_LIMIT_BUSINESS")
+    tariff_subscriber_limits_admin: int = Field(-1, alias="TARIFF_SUBSCRIBER_LIMIT_ADMIN")
+
+    # Минимальный рейтинг канала
+    tariff_min_rating_free: float = Field(0.0, alias="TARIFF_MIN_RATING_FREE")
+    tariff_min_rating_starter: float = Field(5.0, alias="TARIFF_MIN_RATING_STARTER")
+    tariff_min_rating_pro: float = Field(7.0, alias="TARIFF_MIN_RATING_PRO")
+    tariff_min_rating_business: float = Field(0.0, alias="TARIFF_MIN_RATING_BUSINESS")
+    tariff_min_rating_admin: float = Field(0.0, alias="TARIFF_MIN_RATING_ADMIN")
+
+    # Стоимость тарифов в кредитах
+    tariff_cost_free: int = Field(0, alias="TARIFF_COST_FREE")
+    tariff_cost_starter: int = Field(299, alias="TARIFF_COST_STARTER")
+    tariff_cost_pro: int = Field(999, alias="TARIFF_COST_PRO")
+    tariff_cost_business: int = Field(2999, alias="TARIFF_COST_BUSINESS")
+    tariff_cost_admin: int = Field(0, alias="TARIFF_COST_ADMIN")
+
+    # Лимиты кампаний в месяц
+    tariff_campaign_limits_free: int = Field(0, alias="TARIFF_CAMPAIGN_LIMIT_FREE")
+    tariff_campaign_limits_starter: int = Field(5, alias="TARIFF_CAMPAIGN_LIMIT_STARTER")
+    tariff_campaign_limits_pro: int = Field(20, alias="TARIFF_CAMPAIGN_LIMIT_PRO")
+    tariff_campaign_limits_business: int = Field(100, alias="TARIFF_CAMPAIGN_LIMIT_BUSINESS")
+    tariff_campaign_limits_admin: int = Field(-1, alias="TARIFF_CAMPAIGN_LIMIT_ADMIN")
+
+    # Лимиты чатов на кампанию
+    tariff_chat_limits_free: int = Field(0, alias="TARIFF_CHAT_LIMIT_FREE")
+    tariff_chat_limits_starter: int = Field(50, alias="TARIFF_CHAT_LIMIT_STARTER")
+    tariff_chat_limits_pro: int = Field(200, alias="TARIFF_CHAT_LIMIT_PRO")
+    tariff_chat_limits_business: int = Field(1000, alias="TARIFF_CHAT_LIMIT_BUSINESS")
+    tariff_chat_limits_admin: int = Field(10000, alias="TARIFF_CHAT_LIMIT_ADMIN")
+
+    # Лимиты ИИ-генераций в месяц
+    tariff_ai_limits_free: int = Field(0, alias="TARIFF_AI_LIMIT_FREE")
+    tariff_ai_limits_starter: int = Field(0, alias="TARIFF_AI_LIMIT_STARTER")
+    tariff_ai_limits_pro: int = Field(5, alias="TARIFF_AI_LIMIT_PRO")
+    tariff_ai_limits_business: int = Field(20, alias="TARIFF_AI_LIMIT_BUSINESS")
+    tariff_ai_limits_admin: int = Field(-1, alias="TARIFF_AI_LIMIT_ADMIN")
+
+    # Порог premium каналов
+    premium_subscriber_threshold: int = Field(
+        1_000_000, alias="PREMIUM_SUBSCRIBER_THRESHOLD", description="Порог premium каналов (подписчиков)"
+    )
+
     # Package bonuses
     bonus_credits_standard: int = Field(100, alias="BONUS_CREDITS_STANDARD")
     bonus_credits_business: int = Field(500, alias="BONUS_CREDITS_BUSINESS")

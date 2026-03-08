@@ -121,7 +121,7 @@ class MailingService:
                 continue
 
             # Проверяем контент
-            filter_result = content_filter_check(campaign.text)
+            filter_result = await content_filter_check(campaign.text)
             if not filter_result.passed:
                 skipped_count += 1
                 logs_data.append(
