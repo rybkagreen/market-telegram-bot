@@ -1203,6 +1203,883 @@ Market Telegram Bot (RekHarborBot) — это платформа для разм
 
 ---
 
+## 13. ТАБЛИЦА КОМАНД И ВЫЗОВОВ FLOW
+
+### 13.1 Полная таблица вызова всех flow (42 flow)
+
+В данной таблице представлены все 42 пользовательских потока системы: 28 основных пользовательских flows, 4 B2B flows, 3 gamification flows, 6 admin flows и 1 analytics flow.
+
+| Flow # | Название | Команда/Callback | Файл хендлера | Строка | FSM State | Следующий flow |
+|--------|----------|------------------|---------------|--------|-----------|----------------|
+| **ОНБОРДИНГ И РЕГИСТРАЦИЯ** |
+| 1 | Онбординг нового | /start (новый) | `src/bot/handlers/start.py:_handle_start` | 175 | `OnboardingStates.role_selected` | 2, 3, или 4 |
+| 2 | Возвращающийся (рекламодатель) | /start (advertiser) | `src/bot/handlers/start.py:_handle_start` | 175 | — | 5 или 17 |
+| 3 | Возвращающийся (владелец) | /start (owner) | `src/bot/handlers/start.py:_handle_start` | 175 | — | 22, 26 |
+| 4 | Смена роли | `main:change_role` | `src/bot/handlers/start.py:change_role` | 518 | — | 2 или 3 |
+| **AI СОЗДАНИЕ КАМПАНИИ (12 flows)** |
+| 5 | AI кампания — стиль | `main:create_campaign_ai` | `src/bot/handlers/campaign_create_ai.py:start_campaign_create` | 40 | `CampaignCreateState.selecting_style` | 6 |
+| 6 | AI кампания — категория | `campaign_create:style_{style}` | `src/bot/handlers/campaign_create_ai.py:style_selected` | 72 | `CampaignCreateState.selecting_category` | 7 |
+| 7 | AI кампания — описание продукта | `campaign_create:category_{cat}` | `src/bot/handlers/campaign_create_ai.py:category_selected` | 120 | `CampaignCreateState.waiting_for_description` | 8 |
+| 8 | AI кампания — название | Сообщение (description) | `src/bot/handlers/campaign_create_ai.py:process_description` | 155 | `CampaignCreateState.waiting_for_campaign_name` | 9 |
+| 9 | AI кампания — генерация | Сообщение (name) | `src/bot/handlers/campaign_create_ai.py:process_campaign_name` | 195 | `CampaignCreateState.selecting_variant` | 10 |
+| 10 | AI кампания — выбор варианта | `ai_variant:{index}` | `src/bot/handlers/campaign_create_ai.py:select_variant` | 250 | `CampaignCreateState.editing_text` | 11 |
+| 11 | AI кампания — редактор текста | `ai_edit:add_url` | `src/bot/handlers/campaign_create_ai.py:process_edited_text` | 290 | `CampaignCreateState.waiting_for_url` | 12 |
+| 12 | AI кампания — добавление URL | Сообщение (URL) | `src/bot/handlers/campaign_create_ai.py:process_url` | 330 | `CampaignCreateState.waiting_for_image` | 13 |
+| 13 | AI кампания — изображение | `ai_edit:add_image` или фото | `src/bot/handlers/campaign_create_ai.py:process_image` | 370 | `CampaignCreateState.selecting_audience` | 14 |
+| 14 | AI кампания — аудитория | `campaign_create:audience_{aud}` | `src/bot/handlers/campaign_create_ai.py:select_audience` | 420 | `CampaignCreateState.setting_budget` | 15 |
+| 15 | AI кампания — бюджет | Сообщение (число) | `src/bot/handlers/campaign_create_ai.py:process_budget` | 460 | `CampaignCreateState.setting_schedule` | 16 |
+| 16 | AI кампания — расписание | `campaign_create:schedule_*` | `src/bot/handlers/campaign_create_ai.py:schedule_*` | 510 | `CampaignCreateState.confirming` | — |
+| **MANUAL СОЗДАНИЕ КАМПАНИИ (12 flows)** |
+| 17 | Manual кампания — тематика | `main:create_campaign` | `src/bot/handlers/campaigns.py:start_campaign_wizard` | 56 | `CampaignStates.waiting_topic` | 18 |
+| 18 | Manual кампания — заголовок | `campaign:topic:{topic}` | `src/bot/handlers/campaigns.py:select_topic` | 78 | `CampaignStates.waiting_header` | 19 |
+| 19 | Manual кампания — тип текста | Сообщение (header) | `src/bot/handlers/campaigns.py:handle_header_input` | 110 | `CampaignStates.waiting_text` | 20 или 21 |
+| 20 | Manual кампания — AI текст | `campaign:ai_text` | `src/bot/handlers/campaigns.py:select_ai_text` | 180 | `CampaignStates.waiting_ai_description` | 21 |
+| 21 | Manual кампания — ручной текст | `campaign:manual_text` или сообщение | `src/bot/handlers/campaigns.py:handle_text_input` | 240 | `CampaignStates.waiting_image` | 22 |
+| 22 | Manual кампания — изображение | `campaign:image_upload` или фото | `src/bot/handlers/campaigns.py:handle_image_upload` | 310 | `CampaignStates.waiting_member_count` | 23 |
+| 23 | Manual кампания — размер аудитории | `campaign:members:{value}` | `src/bot/handlers/campaigns.py:select_member_count` | 380 | `CampaignStates.waiting_schedule` | 24 |
+| 24 | Manual кампания — расписание | `campaign:schedule_now` или later | `src/bot/handlers/campaigns.py:schedule_now` | 440 | `CampaignStates.waiting_confirm` | 25 |
+| 25 | Manual кампания — подтверждение | `campaign:confirm_*` | `src/bot/handlers/campaigns.py:handle_schedule_datetime` | 490 | — | — |
+| **УПРАВЛЕНИЕ КАНАЛАМИ (4 flows)** |
+| 26 | Добавление канала — username | `/add_channel` | `src/bot/handlers/channel_owner.py:cmd_add_channel` | 61 | `AddChannelStates.waiting_username` | 27 |
+| 27 | Добавление канала — верификация | Сообщение (username) | `src/bot/handlers/channel_owner.py:process_channel_username` | 85 | `AddChannelStates.waiting_bot_admin_confirmation` | 28 |
+| 28 | Добавление канала — цена | `channel_add:check_admin` | `src/bot/handlers/channel_owner.py:process_bot_admin_check` | 150 | `AddChannelStates.waiting_price` | 29 |
+| 29 | Добавление канала — тематики | Сообщение (цена) | `src/bot/handlers/channel_owner.py:process_price` | 200 | `AddChannelStates.waiting_topics` | 30 |
+| 30 | Добавление канала — настройки | `topics_done` | `src/bot/handlers/channel_owner.py:process_topics` | 260 | `AddChannelStates.waiting_settings` | 31 |
+| 31 | Добавление канала — подтверждение | `channel_add:settings_done` | `src/bot/handlers/channel_owner.py:process_settings` | 310 | `AddChannelStates.waiting_confirm` | — |
+| 32 | Мои каналы | `main:my_channels` | `src/bot/handlers/start.py:go_to_my_channels` | 587 | — | — |
+| 33 | Заявки на размещение | `main:my_requests` | `src/bot/handlers/start.py:go_to_my_requests` | 596 | — | — |
+| **B2B ПОТОКИ (4 flows)** |
+| B2B-1 | Главное меню B2B | `/b2b` | `src/bot/handlers/b2b.py:cmd_b2b` | 18 | — | B2B-2 |
+| B2B-2 | Просмотр пакетов ниши | `b2b_niche:{niche}` | `src/bot/handlers/b2b.py:show_niche_packages` | 45 | — | B2B-3 |
+| B2B-3 | Детали пакета | `b2b_package:{id}` | — | — | — | B2B-4 |
+| B2B-4 | Покупка пакета | `b2b_buy:{id}` | — | — | — | — |
+| **ГЕЙМИФИКАЦИЯ (3 flows)** |
+| G-1 | Просмотр значков | `cabinet:badges` | `src/bot/handlers/cabinet.py:show_badges` | 220 | — | — |
+| G-2 | Прогресс уровня | `main:cabinet` | `src/bot/handlers/cabinet.py:show_cabinet` | 150 | — | — |
+| G-3 | Реферальная программа | `billing:referral` | `src/bot/handlers/cabinet.py:referral_callback` | 320 | — | — |
+| **АДМИН ПОТОКИ (6 flows)** |
+| A-1 | Вход в админку | `/admin` | `src/bot/handlers/admin.py:handle_admin_menu` | 66 | — | A-2, A-3, A-4, A-5, A-6 |
+| A-2 | Управление пользователями | `admin:users` | `src/bot/handlers/admin/users.py:handle_users_list` | 38 | `AdminBalanceStates`, `AdminBanStates` | — |
+| A-3 | Broadcast рассылка | `admin:broadcast` | `src/bot/handlers/admin.py:handle_broadcast_start` | 350 | `AdminBroadcastStates` | — |
+| A-4 | Тест кампании (AI) | `admin:test_campaign` → `admin:ai_generate` | `src/bot/handlers/admin/ai.py:handle_ai_generate_start` | 28 | `AdminAIGenerateStates` | — |
+| A-5 | Чёрный список каналов | `admin:blacklist` | `src/bot/handlers/admin.py:show_blacklist` | 520 | — | — |
+| A-6 | Здоровье рассылок | `admin:mailing_health` | `src/bot/handlers/admin.py:show_mailing_health` | 600 | — | — |
+| **АНАЛИТИКА (1 flow)** |
+| AN-1 | Главное меню аналитики | `main:analytics` | `src/bot/handlers/analytics.py:show_analytics_menu` | 42 | — | AN-2, AN-3 |
+| AN-2 | Аналитика рекламодателя | `main:advertiser_analytics` | `src/bot/handlers/analytics.py:show_advertiser_analytics` | 95 | — | — |
+| AN-3 | Аналитика владельца | `owner_analytics:role` | `src/bot/handlers/analytics.py:show_owner_analytics` | 140 | — | — |
+| AN-4 | AI-аналитика кампаний | `main:ai_campaign_analytics` | `src/bot/handlers/campaign_analytics.py:show_ai_campaign_analytics` | 32 | — | — |
+| **БИЛЛИНГ (3 flows)** |
+| BL-1 | Просмотр баланса | `main:balance` | `src/bot/handlers/billing.py:show_balance` | 51 | — | BL-2 |
+| BL-2 | Пополнение баланса | `billing:topup` | `src/bot/handlers/billing.py:show_topup_methods` | 120 | — | BL-3 |
+| BL-3 | Выбор пакета кредитов | `billing:package_{pkg}` | `src/bot/handlers/billing.py:select_package` | 180 | — | — |
+| **КАБИНЕТ (2 flows)** |
+| C-1 | Личный кабинет | `main:cabinet` | `src/bot/handlers/cabinet.py:show_cabinet` | 100 | — | C-2 |
+| C-2 | Смена тарифа | `billing:plans` | `src/bot/handlers/cabinet.py:show_plans` | 250 | — | — |
+
+---
+
+### 13.2 Последовательность вызова flow (Flow Sequence)
+
+Данная диаграмма показывает направленный граф вызовов между flow, демонстрируя порядок переходов от одного flow к другому.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           ПОСЛЕДОВАТЕЛЬНОСТЬ ВЫЗОВА FLOW                         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+                                    /start
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    │                  │                  │
+              [Новый пользователь]  [Рекламодатель]   [Владелец]
+                    │                  │                  │
+                    ▼                  ▼                  ▼
+            ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+            │   Flow 1      │  │   Flow 2      │  │   Flow 3      │
+            │   Онбординг   │  │   Меню adv.   │  │   Меню own.   │
+            └───────┬───────┘  └───────┬───────┘  └───────┬───────┘
+                    │                  │                  │
+                    │                  │                  ├──► Flow 26 (add_channel)
+                    │                  │                  ├──► Flow 32 (my_channels)
+                    │                  │                  └──► Flow 33 (my_requests)
+                    │                  │
+                    │                  ├──► Flow 5-16 (AI кампания)
+                    │                  ├──► Flow 17-25 (Manual кампания)
+                    │                  ├──► Flow BL-1 (balance)
+                    │                  ├──► Flow C-1 (cabinet)
+                    │                  └──► Flow AN-2 (analytics)
+                    │
+                    ▼
+            ┌───────────────┐
+            │   Flow 2/3/4  │
+            │   Выбор роли  │
+            └───────┬───────┘
+                    │
+         ┌──────────┴──────────┐
+         │                     │
+         ▼                     ▼
+  [Рекламодатель]        [Владелец]
+         │                     │
+         ▼                     ▼
+┌─────────────────┐   ┌─────────────────┐
+│ AI CAMPAIGN     │   │ CHANNEL FLOW    │
+│ FLOW 5-16       │   │ FLOW 26-31      │
+│                 │   │                 │
+│ 5: style        │   │ 26: username    │
+│ 6: category     │   │ 27: verify      │
+│ 7: description  │   │ 28: price       │
+│ 8: campaign_name│   │ 29: topics      │
+│ 9: generate     │   │ 30: settings    │
+│ 10: select      │   │ 31: confirm     │
+│ 11-12: edit     │   └────────┬────────┘
+│ 13: image       │            │
+│ 14: audience    │            ▼
+│ 15: budget      │   ┌─────────────────┐
+│ 16: schedule    │   │ MANUAL CAMPAIGN │
+└────────┬────────┘   │ FLOW 17-25      │
+         │            └────────┬────────┘
+         │                     │
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────┐
+         │   BILLING       │
+         │   FLOW BL-1-3   │
+         │                 │
+         │ BL-1: balance   │
+         │ BL-2: topup     │
+         │ BL-3: package   │
+         └────────┬────────┘
+                  │
+                  ▼
+         ┌─────────────────┐
+         │   CABINET       │
+         │   FLOW C-1-2    │
+         │                 │
+         │ C-1: cabinet    │
+         │ C-2: tariff     │
+         │ G-1: badges     │
+         │ G-2: level      │
+         │ G-3: referral   │
+         └────────┬────────┘
+                  │
+                  ▼
+         ┌─────────────────┐
+         │   ANALYTICS     │
+         │   FLOW AN-1-4   │
+         │                 │
+         │ AN-1: menu      │
+         │ AN-2: advertiser│
+         │ AN-3: owner     │
+         │ AN-4: AI        │
+         └────────┬────────┘
+                  │
+                  ▼
+         ┌─────────────────┐
+         │   ADMIN         │
+         │   FLOW A-1-6    │
+         │                 │
+         │ A-1: admin_menu │
+         │ A-2: users      │
+         │ A-3: broadcast  │
+         │ A-4: AI test    │
+         │ A-5: blacklist  │
+         │ A-6: mailing    │
+         └─────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           B2B ПОСЛЕДОВАТЕЛЬНОСТЬ                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+         /b2b
+           │
+           ▼
+    ┌──────────────┐
+    │  B2B Flow 1  │
+    │  Главное меню│
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │  B2B Flow 2  │
+    │  Выбор ниши  │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │  B2B Flow 3  │
+    │  Детали пакета│
+    │  (❌ Not impl)│
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │  B2B Flow 4  │
+    │  Покупка     │
+    │  (❌ Not impl)│
+    └──────────────┘
+```
+
+---
+
+### 13.3 Матрица переходов между состояниями FSM
+
+Для каждой группы FSM состояний показаны: точка входа, все возможные переходы и точка выхода.
+
+#### CampaignCreateState (AI создание кампании)
+
+```
+CampaignCreateState:
+  Entry: campaign_create:start (src/bot/handlers/campaign_create_ai.py:40)
+  
+  selecting_style
+    → campaign_create:style_{style} → selecting_category
+  
+  selecting_category
+    → campaign_create:category_{cat} → waiting_for_description
+    → campaign_create:custom_category → entering_custom_category
+  
+  entering_custom_category
+    → (текстовое сообщение) → selecting_category
+  
+  waiting_for_description
+    → (текстовое сообщение, мин. 20 симв.) → waiting_for_campaign_name
+  
+  waiting_for_campaign_name
+    → (текстовое сообщение, 3-100 симв.) → [AI генерация] → selecting_variant
+  
+  selecting_variant
+    → ai_variant:{index} → editing_text
+  
+  editing_text
+    → ai_edit:add_url → waiting_for_url
+    → ai_edit:add_image → waiting_for_image
+    → ai_edit:confirm → selecting_audience
+  
+  waiting_for_url
+    → (текстовое сообщение, URL) → waiting_for_image
+    → ai_edit:skip_url → waiting_for_image
+  
+  waiting_for_image
+    → (фото) → selecting_audience
+    → campaign_create:skip_image → selecting_audience
+  
+  selecting_audience
+    → campaign_create:audience_{audience} → setting_budget
+  
+  setting_budget
+    → (текстовое сообщение, число ≥100) → setting_schedule
+  
+  setting_schedule
+    → campaign_create:schedule_now → confirming
+    → campaign_create:schedule_1h → confirming
+    → campaign_create:schedule_evening → confirming
+    → campaign_create:schedule_tomorrow → confirming
+    → campaign_create:schedule_custom → entering_schedule_date
+  
+  entering_schedule_date
+    → (текстовое сообщение, ГГГГ-ММ-ДД ЧЧ:ММ) → confirming
+  
+  confirming
+    → campaign_create:confirm_launch → [СОЗДАНИЕ КАМПАНИИ В БД]
+  
+  Exit: campaign launched OR campaign_create:cancel
+```
+
+#### CampaignStates (Manual создание кампании)
+
+```
+CampaignStates:
+  Entry: main:create_campaign (src/bot/handlers/campaigns.py:56)
+  
+  waiting_topic
+    → campaign:topic:{topic} → waiting_header
+    → campaign:back → main_menu
+  
+  waiting_header
+    → (текстовое сообщение, 5-255 симв.) → waiting_text
+    → campaign:back → waiting_topic
+  
+  waiting_text
+    → campaign:manual_text → waiting_image (ручной ввод)
+    → campaign:ai_text → waiting_ai_description (AI генерация)
+    → campaign:back → waiting_header
+  
+  waiting_ai_description
+    → (текстовое сообщение, мин. 10 симв.) → [AI генерация 3 вариантов] → waiting_image
+    → campaign:back → waiting_text
+  
+  waiting_image
+    → (фото) → waiting_member_count
+    → campaign:image_skip → waiting_member_count
+    → campaign:back → waiting_text
+  
+  waiting_member_count
+    → campaign:members:{value} → waiting_schedule
+    → campaign:back → waiting_image
+  
+  waiting_schedule
+    → campaign:schedule_now → waiting_confirm
+    → campaign:schedule_later → waiting_confirm (с датой)
+    → campaign:back → waiting_member_count
+  
+  waiting_confirm
+    → campaign:confirm_launch → [СОЗДАНИЕ КАМПАНИИ]
+    → campaign:confirm_edit → [РЕДАКТИРОВАНИЕ]
+    → campaign:confirm_draft → [СОХРАНЕНИЕ ЧЕРНОВИКА]
+    → campaign:back → waiting_schedule
+  
+  Exit: campaign created/draft OR campaign:cancel
+```
+
+#### AddChannelStates (Добавление канала)
+
+```
+AddChannelStates:
+  Entry: /add_channel (src/bot/handlers/channel_owner.py:61)
+  
+  waiting_username
+    → (текстовое сообщение, @username) → waiting_bot_admin_confirmation
+  
+  waiting_bot_admin_confirmation
+    → channel_add:check_admin → [верификация бота админом] → waiting_price
+  
+  waiting_price
+    → (текстовое сообщение, число ≥50) → waiting_topics
+  
+  waiting_topics
+    → topic_toggle_{code} → waiting_topics (toggle)
+    → topics_done → waiting_settings
+  
+  waiting_settings
+    → channel_add:settings_done → waiting_confirm
+  
+  waiting_confirm
+    → channel_add:confirm → [СОХРАНЕНИЕ КАНАЛА В БД]
+  
+  Exit: channel added OR /cancel
+```
+
+#### AdminAIGenerateStates (Админ AI генерация)
+
+```
+AdminAIGenerateStates:
+  Entry: admin:ai_generate (src/bot/handlers/admin/ai.py:28)
+  
+  waiting_description
+    → (текстовое сообщение, 10-500 симв.) → [AI генерация] → waiting_variants
+  
+  waiting_variants
+    → admin:ai_variant_select:{n} → waiting_topic
+    → admin:ai_regenerate → waiting_variants (перегенерация)
+  
+  waiting_topic
+    → campaign:topic:{topic} → waiting_member_count
+  
+  waiting_member_count
+    → campaign:members:{value} → waiting_schedule
+  
+  waiting_schedule
+    → campaign:schedule_now → waiting_confirm
+    → campaign:schedule_later → waiting_confirm
+  
+  waiting_confirm
+    → campaign:confirm_launch → [БЕСПЛАТНЫЙ ЗАПУСК КАМПАНИИ]
+  
+  Exit: campaign launched OR /cancel
+```
+
+#### AdminBroadcastStates (Админ рассылка)
+
+```
+AdminBroadcastStates:
+  Entry: admin:broadcast (src/bot/handlers/admin.py:350)
+  
+  waiting_message
+    → (текстовое сообщение) → waiting_confirm
+  
+  waiting_confirm
+    → admin:broadcast_confirm → [ОТПРАВКА ВСЕМ ПОЛЬЗОВАТЕЛЯМ]
+    → admin:broadcast_cancel → waiting_message
+  
+  Exit: broadcast sent OR cancelled
+```
+
+#### OnboardingStates (Онбординг)
+
+```
+OnboardingStates:
+  Entry: /start (новый пользователь) (src/bot/handlers/start.py:175)
+  
+  role_selected
+    → onboard:role_advertiser → [сохранение роли] → main_menu (advertiser)
+    → onboard:role_owner → [сохранение роли] → main_menu (owner)
+  
+  Exit: role saved, state cleared on next /start
+```
+
+---
+
+### 13.4 Точки входа для каждой роли
+
+В данной таблице показаны доступные команды, callback и первый экран для каждой роли пользователя.
+
+| Роль | Доступные команды | Доступные callback | Первый экран |
+|------|------------------|-------------------|--------------|
+| **new** | `/start` | `onboard:role_advertiser`, `onboard:role_owner` | Онбординг с выбором роли |
+| **advertiser** | `/start`, `/cabinet`, `/balance`, `/campaigns`, `/help`, `/models`, `/addchat`, `/b2b`, `/stats` | `main:create_campaign`, `main:create_campaign_ai`, `main:my_campaigns`, `main:analytics`, `main:cabinet`, `main:balance`, `main:feedback`, `main:help`, `main:channels_db`, `main:templates`, `main:change_role` | Меню рекламодателя с кнопками: Создать кампанию, Мои кампании, Каталог каналов, B2B, Статистика, Кабинет, Помощь |
+| **owner** | `/start`, `/cabinet`, `/add_channel`, `/my_channels`, `/help`, `/stats` | `main:add_channel`, `main:my_channels`, `main:my_requests`, `main:payouts`, `main:analytics`, `main:cabinet`, `main:feedback`, `main:help`, `main:change_role` | Меню владельца с кнопками: Добавить канал, Мои каналы, Заявки, Выплаты, Статистика, Кабинет, Помощь |
+| **both** | Все команды advertiser + owner | Все callback advertiser + owner | Комбинированное меню с разделами для обеих ролей |
+| **admin** | `/start`, `/admin`, `/cancel`, `/cabinet`, `/balance` | `main:admin_panel`, `admin:users`, `admin:broadcast`, `admin:test_campaign`, `admin:blacklist`, `admin:mailing_health`, `admin:llm_classify`, `admin:celery_tasks`, `admin:monitoring` | Админ панель с разделами: Статистика, Пользователи, Рассылки, ЧС, Broadcast, Тест кампании, Мониторинг, Задачи Celery, LLM-классификация |
+
+#### Детализация точек входа:
+
+**Роль: new**
+- **Точка входа:** `/start` (первый запуск)
+- **Handler:** `src/bot/handlers/start.py:_handle_start` (строка 175)
+- **Переход:** После выбора роли → Flow 2 (advertiser) или Flow 3 (owner)
+
+**Роль: advertiser**
+- **Точка входа:** `/start` (возвращающийся пользователь)
+- **Handler:** `src/bot/handlers/start.py:_handle_start` (строка 175)
+- **Ключевые callback:**
+  - `main:create_campaign_ai` → Flow 5 (AI кампания)
+  - `main:create_campaign` → Flow 17 (Manual кампания)
+  - `main:balance` → Flow BL-1 (Баланс)
+  - `main:cabinet` → Flow C-1 (Кабинет)
+  - `main:analytics` → Flow AN-1 (Аналитика)
+  - `main:my_campaigns` → Campaign analytics
+
+**Роль: owner**
+- **Точка входа:** `/start` (возвращающийся пользователь)
+- **Handler:** `src/bot/handlers/start.py:_handle_start` (строка 175)
+- **Ключевые callback:**
+  - `main:add_channel` → Flow 26 (Добавить канал)
+  - `main:my_channels` → Flow 32 (Мои каналы)
+  - `main:my_requests` → Flow 33 (Заявки)
+  - `main:payouts` → Выплаты
+  - `main:analytics` → Flow AN-3 (Аналитика владельца)
+
+**Роль: admin**
+- **Точка входа:** `/admin`
+- **Handler:** `src/bot/handlers/admin.py:handle_admin_menu` (строка 66)
+- **Фильтр:** `AdminFilter()` (проверка на ADMIN_IDS)
+- **Ключевые callback:**
+  - `admin:users` → Управление пользователями
+  - `admin:broadcast` → Рассылка
+  - `admin:test_campaign` → Тест кампании
+  - `admin:blacklist` → Чёрный список
+  - `admin:mailing_health` → Здоровье рассылок
+
+---
+
+### 13.5 Критические пути (Critical Paths)
+
+Документированы критические пользовательские пути с указанием файлов и номеров строк.
+
+#### 1. Путь рекламодателя (полный цикл)
+
+Пользователь создаёт кампанию, пополняет баланс, запускает и отслеживает аналитику.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ КРИТИЧЕСКИЙ ПУТЬ РЕКЛАМОДАТЕЛЯ (ПОЛНЫЙ ЦИКЛ)                                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+/start (Flow 2)
+   │
+   ├─ src/bot/handlers/start.py:_handle_start (строка 175)
+   │
+   ▼
+main:create_campaign_ai
+   │
+   ├─ src/bot/handlers/start.py:start_ai_campaign (строка 131)
+   │
+   ▼
+Flow 5-16 (AI Campaign Wizard)
+   │
+   ├─ src/bot/handlers/campaign_create_ai.py:start_campaign_create (строка 40)
+   ├─ src/bot/handlers/campaign_create_ai.py:style_selected (строка 72)
+   ├─ src/bot/handlers/campaign_create_ai.py:category_selected (строка 120)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_description (строка 155)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_campaign_name (строка 195)
+   ├─ src/bot/handlers/campaign_create_ai.py:select_variant (строка 250)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_edited_text (строка 290)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_url (строка 330)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_image (строка 370)
+   ├─ src/bot/handlers/campaign_create_ai.py:select_audience (строка 420)
+   ├─ src/bot/handlers/campaign_create_ai.py:process_budget (строка 460)
+   └─ src/bot/handlers/campaign_create_ai.py:schedule_* (строка 510)
+   │
+   ▼
+main:balance (Flow BL-1)
+   │
+   ├─ src/bot/handlers/billing.py:show_balance (строка 51)
+   │
+   ▼
+Flow BL-2-3 (Пополнение баланса)
+   │
+   ├─ src/bot/handlers/billing.py:show_topup_methods (строка 120)
+   ├─ src/bot/handlers/billing.py:select_package (строка 180)
+   │
+   ▼
+main:my_campaigns
+   │
+   ├─ src/bot/handlers/cabinet.py (строка 406)
+   │
+   ▼
+Flow AN-1-2 (Аналитика кампаний)
+   │
+   ├─ src/bot/handlers/analytics.py:show_analytics_menu (строка 42)
+   ├─ src/bot/handlers/analytics.py:show_advertiser_analytics (строка 95)
+   │
+   ▼
+[КАМПАНИЯ ЗАПУЩЕНА]
+```
+
+**Файлы, задействованные в пути:**
+- `src/bot/handlers/start.py` (строки 131-175)
+- `src/bot/handlers/campaign_create_ai.py` (строки 40-550)
+- `src/bot/handlers/billing.py` (строки 51-200)
+- `src/bot/handlers/cabinet.py` (строки 406-450)
+- `src/bot/handlers/analytics.py` (строки 42-150)
+- `src/bot/states/campaign_create.py` (все состояния)
+- `src/bot/keyboards/campaign_ai.py` (клавиатуры AI wizard)
+- `src/tasks/mailing_tasks.py` (отправка кампании)
+
+---
+
+#### 2. Путь владельца (полный цикл)
+
+Пользователь добавляет канал, получает заявки, одобряет и получает выплаты.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ КРИТИЧЕСКИЙ ПУТЬ ВЛАДЕЛЬЦА (ПОЛНЫЙ ЦИКЛ)                                         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+/start (Flow 3)
+   │
+   ├─ src/bot/handlers/start.py:_handle_start (строка 175)
+   │
+   ▼
+main:add_channel
+   │
+   ├─ src/bot/handlers/start.py (строка 636)
+   │
+   ▼
+Flow 26-31 (Добавление канала)
+   │
+   ├─ src/bot/handlers/channel_owner.py:cmd_add_channel (строка 61)
+   ├─ src/bot/handlers/channel_owner.py:process_channel_username (строка 85)
+   ├─ src/bot/handlers/channel_owner.py:process_bot_admin_check (строка 150)
+   ├─ src/bot/handlers/channel_owner.py:process_price (строка 200)
+   ├─ src/bot/handlers/channel_owner.py:process_topics (строка 260)
+   ├─ src/bot/handlers/channel_owner.py:process_settings (строка 310)
+   └─ src/bot/handlers/channel_owner.py:process_confirm (строка 360)
+   │
+   ▼
+main:my_requests
+   │
+   ├─ src/bot/handlers/start.py:go_to_my_requests (строка 596)
+   │
+   ▼
+[Просмотр заявок]
+   │
+   ├─ src/bot/handlers/channel_owner.py (заявки)
+   │
+   ▼
+[Одобрение/Отклонение]
+   │
+   ├─ src/bot/handlers/channel_owner.py (approve/reject)
+   │
+   ▼
+main:payouts
+   │
+   ├─ src/bot/handlers/start.py (строка 645)
+   │
+   ▼
+Flow 27 (Выплаты)
+   │
+   ├─ src/bot/handlers/channel_owner.py (payout request)
+   │
+   ▼
+[ВЫПЛАТА СОЗДАНА]
+```
+
+**Файлы, задействованные в пути:**
+- `src/bot/handlers/start.py` (строки 596, 636, 645)
+- `src/bot/handlers/channel_owner.py` (строки 61-400)
+- `src/bot/states/channel_owner.py` (AddChannelStates)
+- `src/bot/keyboards/channels.py` (клавиатуры каналов)
+- `src/db/repositories/channel_repo.py` (репозиторий каналов)
+
+---
+
+#### 3. Путь админа (мониторинг)
+
+Администратор проверяет статистику, управляет пользователями и запускает рассылки.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ КРИТИЧЕСКИЙ ПУТЬ АДМИНА (МОНИТОРИНГ)                                             │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+/admin (Flow A-1)
+   │
+   ├─ src/bot/handlers/admin.py:handle_admin_menu (строка 66)
+   │
+   ▼
+admin:stats
+   │
+   ├─ src/bot/handlers/admin.py (статистика)
+   │
+   ▼
+admin:mailing_health (Flow A-6)
+   │
+   ├─ src/bot/handlers/admin.py:show_mailing_health (строка 600)
+   │
+   ▼
+[Просмотр статуса рассылок]
+   │
+   ├─ Активные кампании
+   ├─ Паузы и баны
+   └─ Каналы в ЧС
+   │
+   ▼
+admin:users (Flow A-2)
+   │
+   ├─ src/bot/handlers/admin/users.py:handle_users_list (строка 38)
+   │
+   ▼
+[Список пользователей]
+   │
+   ├─ src/bot/handlers/admin/users.py:show_users_page (строка 48)
+   │
+   ▼
+admin:user_detail
+   │
+   ├─ src/bot/handlers/admin/users.py:handle_user_detail (строка 85)
+   │
+   ▼
+[Детали пользователя]
+   │
+   ├─ Просмотр баланса
+   ├─ История транзакций
+   └─ Статус бана
+   │
+   ▼
+admin:ban_user (опционально)
+   │
+   ├─ src/bot/handlers/admin/users.py (бан)
+   │
+   ▼
+admin:broadcast (Flow A-3)
+   │
+   ├─ src/bot/handlers/admin.py:handle_broadcast_start (строка 350)
+   │
+   ▼
+[Рассылка всем пользователям]
+   │
+   ├─ AdminBroadcastStates.waiting_message
+   └─ AdminBroadcastStates.waiting_confirm
+   │
+   ▼
+[РАССЫЛКА ОТПРАВЛЕНА]
+```
+
+**Файлы, задействованные в пути:**
+- `src/bot/handlers/admin.py` (строки 66-700)
+- `src/bot/handlers/admin/users.py` (строки 38-200)
+- `src/bot/handlers/admin/ai.py` (AI генерация)
+- `src/bot/states/admin.py` (AdminBalanceStates, AdminBanStates, AdminBroadcastStates)
+- `src/bot/keyboards/admin.py` (админ клавиатуры)
+- `src/bot/filters/admin.py` (AdminFilter)
+
+---
+
+### 13.6 Анализ связанных файлов (File Dependencies)
+
+Для каждого крупного функционального блока перечислены все связанные файлы проекта.
+
+#### Создание кампании (AI)
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/campaign_create_ai.py` | 911 | Основной handler AI wizard'а |
+| `src/bot/states/campaign_create.py` | 49 | FSM состояния для AI кампании |
+| `src/bot/keyboards/campaign_ai.py` | 280 | Клавиатуры AI wizard'а |
+| `src/core/services/ai_service.py` | ~400 | Генерация текста через AI (Groq/OpenAI) |
+| `src/tasks/mailing_tasks.py` | ~200 | Celery задачи отправки кампании |
+| `src/db/repositories/campaign_repo.py` | ~300 | Репозиторий кампаний |
+| `src/db/models/campaign.py` | ~150 | Модель кампании |
+| `src/bot/utils/safe_callback.py` | ~50 | Утилиты безопасного редактирования callback |
+
+**Зависимости:**
+- AI провайдеры: Groq, OpenAI, OpenRouter
+- Redis: кэширование состояний FSM
+- Celery: асинхронная отправка кампаний
+
+---
+
+#### Создание кампании (Manual)
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/campaigns.py` | 1106 | Основной handler manual wizard'а |
+| `src/bot/states/campaign.py` | 35 | FSM состояния для manual кампании |
+| `src/bot/keyboards/campaign.py` | ~200 | Клавиатуры manual wizard'а |
+| `src/utils/content_filter/filter.py` | ~150 | Фильтр контента |
+| `src/core/services/ai_service.py` | ~400 | AI генерация (опционально) |
+
+**Зависимости:**
+- Content filter: проверка текста на запрещённые категории
+- AI service: генерация текста по описанию
+
+---
+
+#### Управление каналами
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/channel_owner.py` | 1150 | Handler добавления/управления каналами |
+| `src/bot/states/channel_owner.py` | 30 | FSM состояния для каналов |
+| `src/bot/keyboards/channels.py` | ~250 | Клавиатуры каналов |
+| `src/db/repositories/channel_repo.py` | ~200 | Репозиторий каналов |
+| `src/db/models/channel.py` | ~100 | Модель канала |
+
+**Зависимости:**
+- Telegram Bot API: проверка членства бота в канале
+- SQLAlchemy: работа с БД каналов
+
+---
+
+#### Биллинг
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/billing.py` | 605 | Handler платежей и баланса |
+| `src/bot/keyboards/billing.py` | 150 | Клавиатуры биллинга |
+| `src/core/services/cryptobot_service.py` | ~250 | CryptoBot API интеграция |
+| `src/db/models/crypto_payment.py` | ~100 | Модель крипто-платежей |
+| `src/db/repositories/payment_repo.py` | ~150 | Репозиторий платежей |
+| `src/core/services/billing_service.py` | ~200 | Бизнес-логика биллинга |
+
+**Зависимости:**
+- CryptoBot API: создание инвойсов, проверка оплаты
+- Telegram Stars: альтернативный метод оплаты
+
+---
+
+#### Личный кабинет и геймификация
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/cabinet.py` | 552 | Handler личного кабинета |
+| `src/bot/keyboards/cabinet.py` | ~100 | Клавиатуры кабинета |
+| `src/core/services/xp_service.py` | ~150 | Расчёт XP и уровней |
+| `src/core/services/badge_service.py` | ~200 | Система значков |
+| `src/db/models/user.py` | ~200 | Модель пользователя |
+
+**Зависимости:**
+- XP система: начисление опыта за действия
+- Badge система: получение достижений
+
+---
+
+#### Админ панель
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/admin.py` | 1584 | Основной handler админки |
+| `src/bot/handlers/admin/users.py` | 467 | Управление пользователями |
+| `src/bot/handlers/admin/campaigns.py` | 188 | Тест кампаний |
+| `src/bot/handlers/admin/ai.py` | 169 | AI генерация для админа |
+| `src/bot/states/admin.py` | 60 | FSM состояния админки |
+| `src/bot/keyboards/admin.py` | ~300 | Клавиатуры админки |
+| `src/bot/filters/admin.py` | ~50 | AdminFilter для защиты |
+
+**Зависимости:**
+- AdminFilter: проверка на ADMIN_IDS
+- Celery: мониторинг задач
+
+---
+
+#### Аналитика
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/analytics.py` | 578 | Handler аналитики |
+| `src/bot/handlers/campaign_analytics.py` | 267 | AI-аналитика кампаний |
+| `src/bot/keyboards/campaign_analytics.py` | ~150 | Клавиатуры аналитики |
+| `src/core/services/analytics_service.py` | ~300 | Сервис аналитики |
+| `src/core/services/campaign_analytics_ai.py` | ~200 | AI-анализ кампаний |
+| `src/db/repositories/chat_analytics.py` | ~250 | Репозиторий чат-аналитики |
+
+**Зависимости:**
+- AI service: генерация инсайтов
+- PostgreSQL: агрегация статистики
+
+---
+
+#### B2B маркетплейс
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/b2b.py` | 131 | Handler B2B маркетплейса |
+| `src/core/services/b2b_package_service.py` | ~150 | Сервис B2B пакетов |
+| `src/db/models/b2b_package.py` | ~100 | Модель B2B пакета |
+
+**Зависимости:**
+- База пакетов: predefined пакеты каналов
+
+---
+
+#### Обратная связь
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/feedback.py` | ~150 | Handler обратной связи |
+| `src/bot/states/feedback.py` | 25 | FSM состояния feedback |
+| `src/bot/keyboards/feedback.py` | ~50 | Клавиатуры feedback |
+
+---
+
+#### Онбординг и главное меню
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/start.py` | 807 | Обработчик /start и главных меню |
+| `src/bot/states/onboarding.py` | 15 | FSM состояния онбординга |
+| `src/bot/keyboards/main_menu.py` | ~350 | Главные меню (role-dependent) |
+| `src/core/services/user_role_service.py` | ~150 | Сервис ролей пользователей |
+
+---
+
+#### Уведомления
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/handlers/notifications.py` | ~200 | Handler уведомлений |
+| `src/tasks/mailing_tasks.py` | ~200 | Celery задачи уведомлений |
+| `src/db/models/notification.py` | ~50 | Модель уведомлений |
+
+---
+
+#### Вспомогательные файлы
+
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `src/bot/utils/safe_callback.py` | ~50 | Безопасное редактирование callback |
+| `src/bot/utils/message_utils.py` | ~50 | Утилиты сообщений |
+| `src/bot/keyboards/pagination.py` | ~80 | Универсальная пагинация |
+| `src/db/session.py` | ~50 | SQLAlchemy session factory |
+| `src/config/settings.py` | ~100 | Настройки проекта |
+
+---
+
 ## ПРИЛОЖЕНИЕ A: ФАЙЛЫ ПРОЕКТА
 
 ### Обработчики (handlers)
