@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.api.routers.analytics import router as analytics_router
 from src.api.routers.auth import router as auth_router
@@ -14,6 +15,7 @@ from src.api.routers.billing import router as billing_router
 from src.api.routers.campaigns import router as campaigns_router
 from src.api.routers.channels import router as channels_router
 from src.config.settings import settings
+from src.core.exceptions import RekHarborError
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +56,19 @@ app.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"]
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(billing_router, prefix="/api/billing", tags=["Billing"])
 app.include_router(channels_router, prefix="/api", tags=["Channels"])
+
+
+# ═══════════════════════════════════════════════════════════════
+# Exception handlers (Спринт 4)
+# ═══════════════════════════════════════════════════════════════
+
+@app.exception_handler(RekHarborError)
+async def rekharbor_error_handler(request, exc: RekHarborError):
+    """Handler для бизнес-ошибок проекта."""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc), "error_type": type(exc).__name__},
+    )
 
 
 @app.get("/health")
