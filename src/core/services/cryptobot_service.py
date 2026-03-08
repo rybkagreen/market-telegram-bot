@@ -192,6 +192,98 @@ class CryptoBotService:
         result = await self._request("GET", "getBalance")
         return {item["currency_code"]: float(item["available"]) for item in result}
 
+    async def send_transfer(
+        self,
+        telegram_id: int,
+        amount: float,
+        currency: str,
+        comment: str = "",
+        disable_notification: bool = False,
+    ) -> dict:
+        """
+        Отправить перевод пользователю через CryptoBot API.
+
+        Args:
+            telegram_id: Telegram ID получателя (должен использовать @CryptoBot).
+            amount: Сумма перевода.
+            currency: Валюта (USDT, TON, BTC, ETH, LTC).
+            comment: Комментарий к переводу (видит получатель, макс 1024 символов).
+            disable_notification: Не отправлять уведомление пользователю.
+
+        Returns:
+            dict с transfer_id, status, amount.
+
+        Raises:
+            ValueError: Если перевод не удался (недостаточно средств, пользователь не найден).
+        """
+        if currency not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"Unsupported currency: {currency}. Supported: {SUPPORTED_CURRENCIES}")
+
+        # Генерируем уникальный spend_id для идемпотентности
+        import uuid
+        spend_id = f"payout_{uuid.uuid4().hex[:16]}"
+
+        try:
+            result = await self._request(
+                "POST",
+                "transfer",
+                json={
+                    "user_id": telegram_id,
+                    "asset": currency.upper(),
+                    "amount": str(amount),
+                    "spend_id": spend_id,
+                    "comment": comment[:1024],  # Ограничение API
+                    "disable_send_notification": disable_notification,
+                },
+            )
+
+            logger.info(
+                f"Transfer completed: {result.get('transfer_id')} | "
+                f"{amount} {currency} to user {telegram_id} | "
+                f"comment: {comment[:50]}"
+            )
+
+            return {
+                "success": True,
+                "transfer_id": str(result.get("transfer_id")),
+                "spend_id": spend_id,
+                "amount": float(result.get("amount", amount)),
+                "currency": result.get("asset", currency),
+                "status": result.get("status", "completed"),
+                "completed_at": result.get("completed_at"),
+            }
+
+        except ValueError as e:
+            error_msg = str(e)
+            logger.error(f"Transfer failed: {error_msg}")
+
+            # Парсим ошибки CryptoBot API
+            if "INSUFFICIENT_FUNDS" in error_msg or "insufficient" in error_msg.lower():
+                raise InsufficientFundsError(f"Bot balance insufficient for {amount} {currency}") from e
+            elif "USER_NOT_FOUND" in error_msg or "user not found" in error_msg.lower():
+                raise UserNotFoundError(f"User {telegram_id} not found in CryptoBot") from e
+            else:
+                raise PayoutAPIError(f"CryptoBot API error: {error_msg}") from e
+
 
 # Синглтон
 cryptobot_service = CryptoBotService()
+
+
+# ═══════════════════════════════════════════════════════════════
+# Custom Exceptions for CryptoBot operations
+# ═══════════════════════════════════════════════════════════════
+
+class InsufficientFundsError(Exception):
+    """Недостаточно средств на балансе бота для выплаты."""
+    pass
+
+
+class UserNotFoundError(Exception):
+    """Пользователь не найден в CryptoBot (не использовал @CryptoBot)."""
+    pass
+
+
+class PayoutAPIError(Exception):
+    """Общая ошибка API CryptoBot при выплате."""
+    pass
