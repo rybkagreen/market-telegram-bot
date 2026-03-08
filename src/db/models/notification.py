@@ -26,6 +26,8 @@ class NotificationType(str, Enum):
     PAYMENT_SUCCESS = "payment_success"  # Успешная оплата
     PAYMENT_ERROR = "payment_error"  # Ошибка оплаты
     SYSTEM = "system"  # Системное уведомление
+    PLAN_RENEWED = "plan_renewed"  # Тариф продлён
+    PLAN_EXPIRED = "plan_expired"  # Тариф истёк (недостаточно средств)
 
 
 class Notification(Base, TimestampMixin):
