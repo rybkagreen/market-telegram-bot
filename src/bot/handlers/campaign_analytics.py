@@ -21,7 +21,8 @@ from src.core.services.campaign_analytics_ai import campaign_analytics_ai
 from src.db.models.campaign import Campaign
 from src.db.models.mailing_log import MailingLog
 from src.db.session import async_session_factory
-from src.services import get_user_service
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,9 @@ router = Router()
 @router.callback_query(MainMenuCB.filter(F.action == "ai_campaign_analytics"))
 async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
     """Показать список кампаний для AI-аналитики."""
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
@@ -143,8 +145,9 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
         "⏳ Анализирую данные кампании...\n\n"
         "Это может занять до 30 секунд.")
 
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
@@ -207,8 +210,8 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
             from sqlalchemy import update
 
             await session.execute(
-                update(svc._user_repo.model)
-                .where(svc._user_repo.model.id == user.id)
+                update(user_repo.model)
+                .where(user_repo.model.id == user.id)
                 .values(ai_generations_used=user.ai_generations_used + 1)
             )
             await session.commit()

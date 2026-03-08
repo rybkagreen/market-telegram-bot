@@ -24,9 +24,30 @@ from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.core.services.analytics_service import analytics_service
 from src.core.services.user_role_service import UserRoleService
-from src.services import get_user_service
+from src.db.repositories.user_repo import UserRepository
+from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_available_payout(user_id: int, role: str) -> Decimal:
+    """
+    Получить доступную сумму к выводу для владельца.
+
+    Args:
+        user_id: ID пользователя в БД.
+        role: Роль пользователя ("owner", "both", "advertiser").
+
+    Returns:
+        Сумма к выводу (Decimal).
+    """
+    if role not in ("owner", "both"):
+        return Decimal("0")
+
+    from src.db.repositories.payout_repo import get_available_payout_amount
+
+    return await get_available_payout_amount(user_id)
+
 
 # Пути к изображениям
 BASE_DIR = Path(__file__).parent.parent
@@ -161,8 +182,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
     # Это предотвращает возврат к онбордингу после выбора роли
     if current_state == OnboardingStates.role_selected.state:
         # Получаем данные пользователя
-        async with get_user_service() as svc:
-            user = await svc._user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
             if not user:
                 await message.answer("Ошибка. Попробуйте позже.")
                 return
@@ -196,8 +218,14 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
 
     await state.clear()
 
-    async with get_user_service() as svc:
-        user, is_new = await svc.get_or_create(  # type: ignore[union-attr]
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        
+        # Проверяем, существует ли пользователь
+        existing_user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        is_new = existing_user is None
+        
+        user = await user_repo.create_or_update(  # type: ignore[union-attr]
             telegram_id=message.from_user.id,  # type: ignore[union-attr]
             username=message.from_user.username,  # type: ignore[union-attr]
             first_name=message.from_user.first_name,  # type: ignore[union-attr]
@@ -210,6 +238,11 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             await message.answer("Ошибка. Попробуйте позже.")
             return
 
+        # Обновляем last_login_at для стриков (Спринт 3)
+        from datetime import datetime, timezone
+        user.last_login_at = datetime.now(timezone.utc)
+        await session.flush()
+
         # user гарантированно не None после проверки выше
         user_id = user.id  # type: ignore[union-attr]
         telegram_id = message.from_user.id  # type: ignore[union-attr]
@@ -221,7 +254,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
 
         # Обработка реферального кода для новых пользователей
         if ref_code and is_new:
-            referrer = await svc._user_repo.get_by_referral_code(ref_code)
+            referrer = await user_repo.get_by_referral_code(ref_code)
             if referrer and referrer.id != user.id:
                 # Начисляем реферальный бонус
                 from src.core.services.billing_service import billing_service
@@ -387,8 +420,9 @@ async def handle_balance_command(message: Message) -> None:
     Args:
         message: Сообщение от пользователя.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
 
         if user:
             user_credits = user.credits  # type: ignore[union-attr]
@@ -412,8 +446,9 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -442,7 +477,7 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
                 pending_count=user_context.pending_requests_count,
                 active_campaigns=user_context.has_campaigns,  # Упрощённо: 0 или 1
                 channels_count=user_context.has_channels,  # Упрощённо: 0 или 1
-                available_payout=0,  # TODO: получить из payout_repo
+                available_payout=await _get_available_payout(user.id, user_context.role.value),
             ),
         )
 
@@ -565,18 +600,17 @@ async def go_to_my_requests(callback: CallbackQuery) -> None:
         return
 
     # Получаем количество pending заявок
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
         from src.db.repositories.log_repo import MailingLogRepository
-        from src.db.session import async_session_factory
 
-        async with async_session_factory() as session:
-            mailing_log_repo = MailingLogRepository(session)
-            pending_count = await mailing_log_repo.count_pending_for_owner(user.id)
+        mailing_log_repo = MailingLogRepository(session)
+        pending_count = await mailing_log_repo.count_pending_for_owner(user.id)
 
     text = (
         "📋 <b>Входящие заявки на размещение</b>\n\n"
@@ -652,9 +686,14 @@ async def go_to_b2b(callback: CallbackQuery) -> None:
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="📡 Каталог каналов", callback_data=MainMenuCB(action="channels_db"))
+    builder.button(text="💻 IT", callback_data="b2b_niche:it")
+    builder.button(text="💼 Бизнес", callback_data="b2b_niche:business")
+    builder.button(text="🏠 Недвижимость", callback_data="b2b_niche:realestate")
+    builder.button(text="🔗 Крипта", callback_data="b2b_niche:crypto")
+    builder.button(text="📈 Маркетинг", callback_data="b2b_niche:marketing")
+    builder.button(text="💰 Финансы", callback_data="b2b_niche:finance")
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
-    builder.adjust(1, 1)
+    builder.adjust(2, 2, 2, 1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()

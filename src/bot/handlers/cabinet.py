@@ -4,6 +4,7 @@ Handlers личного кабинета пользователя.
 
 import logging
 from datetime import datetime
+from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -19,9 +20,9 @@ from src.core.services.badge_service import badge_service
 from src.core.services.user_role_service import UserRoleService
 from src.core.services.xp_service import xp_service
 from src.db.models.campaign import CampaignStatus
+from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
-from src.services import get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -152,9 +153,9 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         telegram_id = message.from_user.id  # type: ignore[union-attr]
         answer_method = message.answer
 
-    async with get_user_service() as svc:
-        cabinet_data = await svc.get_cabinet_data(telegram_id)
-        user = await svc._user_repo.get_by_telegram_id(telegram_id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(telegram_id)
 
         if not user:
             await answer_method("❌ Пользователь не найден. Нажмите /start")
@@ -195,10 +196,11 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         next_level_name = level_names.get(level + 1, "")
 
         # Получаем доступную сумму к выводу (для владельца)
-        available_payout = 0
+        available_payout = Decimal("0")
         if role in ("owner", "both"):
-            # TODO: получить из payout_repo
-            available_payout = 0  # Заглушка
+            from src.db.repositories.payout_repo import get_available_payout_amount
+
+            available_payout = await get_available_payout_amount(user.id)
 
         # Задача 5.3: Формируем текст в зависимости от роли
         if role in ("advertiser", "both"):
@@ -207,17 +209,23 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             plan_expires_at = getattr(user, 'plan_expires_at', None)
             days_left = None
             if plan_expires_at:
-                days_left = (plan_expires_at - datetime.now()).days
+                from datetime import timezone
+                days_left = (plan_expires_at - datetime.now(timezone.utc)).days
 
-            # Осталось кампаний — из plan лимитов
-            remaining_campaigns = cabinet_data.total_campaigns  # Заглушка
+            # Осталось кампаний — получаем из БД
+            from src.db.repositories.campaign_repo import CampaignRepository
+            campaign_repo = CampaignRepository(session)
+            total_campaigns = await campaign_repo.get_user_campaigns_count(user.id)
+            remaining_campaigns = total_campaigns  # Заглушка — в будущем нужно считать лимит
             plan_limit = 5  # Заглушка для STARTER
+
+            plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
 
             text = (
                 f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
                 f"━━━━ БАЛАНС ━━━━\n"
                 f"💳 {user.credits:,} кредитов\n"
-                f"📦 Тариф: {cabinet_data.plan}"
+                f"📦 Тариф: {plan_value}"
             )
 
             if days_left is not None and days_left > 0:
@@ -252,10 +260,11 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
 
         else:
             # Для new или других
+            plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
             text = (
                 f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
                 f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
-                f"📦 Тариф: <b>{cabinet_data.plan}</b>\n\n"
+                f"📦 Тариф: <b>{plan_value}</b>\n\n"
                 f"━━━━ УРОВЕНЬ ━━━━\n"
                 f"{level_name}  Уровень {level}\n"
                 f"   {xp_bar}\n"
@@ -313,18 +322,19 @@ async def referral_callback(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    async with get_user_service() as svc:
-        user = await svc._user_repo.get_by_telegram_id(callback.from_user.id)
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
         # Получаем количество рефералов
-        referrer_count = await svc._user_repo.get_referrers_count(user.id)
+        referrer_count = await user_repo.get_referrers_count(user.id)
 
         # Получаем список рефералов для отображения
-        referrers = await svc._user_repo.get_referrers(user.id, limit=5)
+        referrers = await user_repo.get_referrers(user.id, limit=5)
         referrers_text = ""
         if referrers:
             referrers_text = "\n\n" + "\n".join(
@@ -415,13 +425,14 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
     """
     page_size = 5
 
-    async with get_user_service() as svc:
-        campaigns, total = await svc.get_campaigns_page(
-            telegram_id=callback.from_user.id,
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaigns, total = await campaign_repo.get_by_user(
+            user_id=callback.from_user.id,
             page=page,
-            per_page=page_size,
+            page_size=page_size,
         )
-        
+
         logger.info(f"show_campaigns_list: telegram_id={callback.from_user.id}, total={total}, campaigns={len(campaigns)}")
 
         total_pages = max(1, (total + page_size - 1) // page_size)
