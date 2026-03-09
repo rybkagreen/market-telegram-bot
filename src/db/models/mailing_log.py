@@ -8,6 +8,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -29,6 +30,8 @@ class MailingStatus(str, Enum):
     PENDING_APPROVAL = "pending_approval"  # Ожидает одобрения владельца (Спринт 1)
     REJECTED = "rejected"  # Отклонено владельцем (Спринт 1)
     QUEUED = "queued"  # В очереди на отправку после одобрения (Спринт 1)
+    CHANGES_REQUESTED = "changes_requested"  # Владелец запросил правки текста (Спринт 2)
+    PAID = "paid"  # Выплата произведена (Спринт 3)
 
 
 class MailingLog(Base, TimestampMixin):
@@ -117,6 +120,26 @@ class MailingLog(Base, TimestampMixin):
         default=0.0,
         nullable=False,
         doc="Стоимость отправки в этом чате",
+    )
+
+    # Поля для размещений (Спринт 1-2)
+    scheduled_at: Mapped[datetime | None] = mapped_column(
+        nullable=True,
+        doc="Желаемое время публикации (для размещений)",
+    )
+
+    rejection_reason: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        doc="Причина отклонения размещения (Спринт 2)",
+    )
+
+    # Метаданные для размещений (Спринт 3)
+    meta_json: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        default=None,
+        doc="JSONB с метаданными (refund_sent, tracking, и др.)",
     )
 
     # Отношения
