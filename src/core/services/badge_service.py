@@ -100,7 +100,11 @@ class BadgeService:
         Returns:
             True если условие выполнено.
         """
+        from sqlalchemy import func, select
+
         from src.db.models.badge import BadgeConditionType
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog, MailingStatus
 
         condition = badge.condition_type
         value = badge.condition_value
@@ -117,9 +121,47 @@ class BadgeService:
         if condition == BadgeConditionType.EARNED_AMOUNT:
             return float(user.total_earned or 0) >= value
 
-        # Для остальных условий нужны дополнительные запросы
-        # (campaigns_count, placements_count, review_count)
-        # В упрощённой версии возвращаем False
+        # Campaigns count
+        if condition == BadgeConditionType.CAMPAIGNS_COUNT:
+            stmt = select(func.count(Campaign.id)).where(
+                Campaign.user_id == user.id
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= value
+
+        # Placements count (для владельцев)
+        if condition == BadgeConditionType.PLACEMENTS_COUNT:
+            stmt = select(func.count(MailingLog.id)).where(
+                MailingLog.chat_id.in_(
+                    select(MailingLog.chat_id).where(
+                        MailingLog.chat_id.in_(
+                            select(func.max(MailingLog.chat_id)).where(
+                                MailingLog.status == MailingStatus.SENT
+                            )
+                        )
+                    )
+                )
+            )
+            # Упрощённо: считаем размещения по каналам пользователя
+            from src.db.models.analytics import TelegramChat
+            stmt = select(func.count(MailingLog.id)).join(
+                TelegramChat, MailingLog.chat_id == TelegramChat.id
+            ).where(
+                TelegramChat.owner_user_id == user.id,
+                MailingLog.status == MailingStatus.SENT,
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= value
+
+        # Review count
+        if condition == BadgeConditionType.REVIEW_COUNT:
+            from src.db.models.review import Review
+            stmt = select(func.count(Review.id)).where(
+                Review.reviewer_id == user.id
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= value
+
         return False
 
     async def _award_badge_internal(
@@ -127,7 +169,7 @@ class BadgeService:
         session,
         user_id: int,
         badge_id: int,
-    ) -> None:
+    ) -> dict[str, int]:
         """
         Внутренний метод выдачи значка.
 
@@ -135,8 +177,12 @@ class BadgeService:
             session: DB session.
             user_id: ID пользователя.
             badge_id: ID значка.
+
+        Returns:
+            dict с начисленными XP и кредитами.
         """
-        from src.db.models.badge import UserBadge
+        from src.db.models.badge import Badge, UserBadge
+        from src.db.models.user import User
 
         user_badge = UserBadge(
             user_id=user_id,
@@ -145,17 +191,23 @@ class BadgeService:
         )
         session.add(user_badge)
 
-        # Добавляем XP за значок
-        from src.db.models.badge import Badge
-        from src.db.models.user import User
-
+        # Добавляем XP и кредиты за значок
         badge = await session.get(Badge, badge_id)
-        if badge and badge.xp_reward > 0:
+        rewards = {"xp": 0, "credits": 0}
+
+        if badge:
             user = await session.get(User, user_id)
             if user:
-                user.xp_points += badge.xp_reward
+                if badge.xp_reward > 0:
+                    user.xp_points += badge.xp_reward
+                    rewards["xp"] = badge.xp_reward
 
-        logger.info(f"Awarded badge {badge_id} to user {user_id}")
+                if badge.credits_reward > 0:
+                    user.credits += badge.credits_reward
+                    rewards["credits"] = badge.credits_reward
+
+        logger.info(f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Credits: {rewards['credits']})")
+        return rewards
 
     async def award_badge(
         self,
@@ -281,6 +333,147 @@ class BadgeService:
                 for badge in all_badges
                 if badge.id not in earned_ids
             ]
+
+    async def check_achievements(self, user_id: int) -> list[dict[str, Any]]:
+        """
+        Проверить все достижения пользователя и выдать новые значки.
+
+        Использует модель BadgeAchievement для проверки условий.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Список выданных значков с наградами.
+        """
+        from sqlalchemy import select
+
+        from src.db.models.badge import Badge, BadgeAchievement, UserBadge
+        from src.db.models.user import User
+
+        awarded_badges = []
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                return []
+
+            # Получаем уже выданные значки
+            user_badge_stmt = select(UserBadge.badge_id).where(UserBadge.user_id == user_id)
+            user_badge_result = await session.execute(user_badge_stmt)
+            earned_badge_ids = {row[0] for row in user_badge_result.all()}
+
+            # Получаем все активные достижения
+            stmt = select(BadgeAchievement).where(
+                BadgeAchievement.is_active == True  # noqa: E712
+            )
+            result = await session.execute(stmt)
+            achievements = list(result.scalars().all())
+
+            # Проверяем каждое достижение
+            for achievement in achievements:
+                if achievement.badge_id in earned_badge_ids:
+                    continue  # Уже получен
+
+                # Проверяем условие
+                condition_met = await self._check_achievement_condition(
+                    session, user, achievement
+                )
+
+                if condition_met:
+                    # Выдаём значок
+                    await self._award_badge_internal(
+                        session, user_id, achievement.badge_id
+                    )
+
+                    # Получаем информацию о значке
+                    badge = await session.get(Badge, achievement.badge_id)
+                    if badge:
+                        awarded_badges.append({
+                            "badge_id": badge.id,
+                            "code": badge.code,
+                            "name": badge.name,
+                            "icon_emoji": badge.icon_emoji,
+                            "xp_reward": badge.xp_reward,
+                            "credits_reward": badge.credits_reward,
+                            "description": badge.description,
+                        })
+
+            await session.commit()
+
+        return awarded_badges
+
+    async def _check_achievement_condition(
+        self,
+        session,
+        user,
+        achievement,
+    ) -> bool:
+        """
+        Проверить условие достижения из BadgeAchievement.
+
+        Args:
+            session: DB session.
+            user: Объект пользователя.
+            achievement: Объект достижения.
+
+        Returns:
+            True если условие выполнено.
+        """
+        from sqlalchemy import func, select
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.review import Review
+
+        achievement_type = achievement.achievement_type
+        threshold = achievement.threshold
+
+        # Campaign count
+        if achievement_type == "campaign_count":
+            stmt = select(func.count(Campaign.id)).where(
+                Campaign.user_id == user.id
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= threshold
+
+        # Placement count (для владельцев каналов)
+        if achievement_type == "placement_count":
+            stmt = select(func.count(MailingLog.id)).join(
+                TelegramChat, MailingLog.chat_id == TelegramChat.id
+            ).where(
+                TelegramChat.owner_user_id == user.id,
+                MailingLog.status == MailingStatus.SENT,
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= threshold
+
+        # Streak days
+        if achievement_type == "streak_days":
+            return (user.login_streak_days or 0) >= threshold
+
+        # XP level
+        if achievement_type == "xp_level":
+            return user.level >= threshold
+
+        # Total spent
+        if achievement_type == "total_spent":
+            return float(user.total_spent or 0) >= threshold
+
+        # Total earned
+        if achievement_type == "total_earned":
+            return float(user.total_earned or 0) >= threshold
+
+        # Review count
+        if achievement_type == "review_count":
+            stmt = select(func.count(Review.id)).where(
+                Review.reviewer_id == user.id
+            )
+            count = (await session.execute(stmt)).scalar() or 0
+            return count >= threshold
+
+        return False
 
 
 # Глобальный экземпляр

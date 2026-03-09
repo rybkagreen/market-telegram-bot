@@ -496,6 +496,72 @@ class XPService:
                 "privileges": self.get_level_privileges(user.owner_level),
             }
 
+    async def award_streak_bonus(self, user_id: int, streak_days: int) -> dict[str, Any]:
+        """
+        Начислить бонус за стрик активности.
+
+        Бонусы:
+        - 7 дней: +50 XP + 10 кредитов
+        - 14 дней: +100 XP + 25 кредитов
+        - 30 дней: +300 XP + 100 кредитов
+        - 100 дней: +1000 XP + 500 кредитов + значок
+
+        Args:
+            user_id: ID пользователя.
+            streak_days: Количество дней стрика.
+
+        Returns:
+            dict с начисленными бонусами.
+        """
+        from src.core.services.badge_service import badge_service
+        from src.db.models.user import User
+
+        # Таблица бонусов
+        bonuses = {
+            7: {"xp": 50, "credits": 10, "badge_code": None},
+            14: {"xp": 100, "credits": 25, "badge_code": None},
+            30: {"xp": 300, "credits": 100, "badge_code": "streak_30_days"},
+            100: {"xp": 1000, "credits": 500, "badge_code": "streak_100_days"},
+        }
+
+        # Находим максимальный порог который достигнут
+        earned_bonus = None
+        for threshold, bonus in sorted(bonuses.items(), reverse=True):
+            if streak_days >= threshold:
+                earned_bonus = bonus
+                break
+
+        if not earned_bonus:
+            return {"skipped": True, "reason": "threshold not reached"}
+
+        async with async_session_factory() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                return {"error": "User not found"}
+
+            # Начисляем XP
+            user.xp_points += earned_bonus["xp"]
+
+            # Начисляем кредиты
+            user.credits += earned_bonus["credits"]
+
+            # Выдаём значок если есть
+            badge_awarded = None
+            if earned_bonus.get("badge_code"):
+                result = await badge_service.award_badge(user_id, earned_bonus["badge_code"])
+                if result.get("success"):
+                    badge_awarded = result
+
+            await session.commit()
+
+            return {
+                "success": True,
+                "streak_days": streak_days,
+                "xp_awarded": earned_bonus["xp"],
+                "credits_awarded": earned_bonus["credits"],
+                "badge_awarded": badge_awarded,
+            }
+
 
 # Глобальный экземпляр
 xp_service = XPService()

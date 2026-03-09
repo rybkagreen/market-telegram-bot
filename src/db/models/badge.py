@@ -95,6 +95,25 @@ class Badge(Base, TimestampMixin):
         doc="Награда XP за получение значка",
     )
 
+    credits_reward: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Бонус кредитами за получение значка",
+    )
+
+    is_rare: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+        doc="Редкий значок",
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+        doc="Активен ли значок (можно выдавать)",
+    )
+
     category: Mapped[BadgeCategory] = mapped_column(
         String(20),
         nullable=False,
@@ -194,3 +213,88 @@ class UserBadge(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<UserBadge(user_id={self.user_id}, badge_id={self.badge_id}, earned_at={self.earned_at})>"
+
+
+class BadgeAchievement(Base, TimestampMixin):
+    """
+    Шаблоны достижений для автоматического начисления значков.
+
+    Связывает значок с условием получения.
+    Используется сервисом badge_service для автоматической проверки достижений.
+
+    Примеры:
+    - "first_campaign" → Первая кампания (threshold=1)
+    - "100_placements" → 100 успешных размещений (threshold=100)
+    - "streak_7_days" → 7 дней стрика (threshold=7)
+    - "top_advertiser" → Топ-10 рекламодателей месяца (threshold=10)
+    """
+
+    __tablename__ = "badge_achievements"
+
+    # Primary key
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    # Foreign keys
+    badge_id: Mapped[int] = mapped_column(
+        ForeignKey("badges.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="ID значка который выдаётся при достижении",
+    )
+
+    # Тип достижения
+    achievement_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+        doc="Тип достижения (campaign_count, placement_count, streak_days, etc.)",
+    )
+
+    # Порог срабатывания
+    threshold: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        doc="Порог срабатывания (например, 100 размещений)",
+    )
+
+    # Описание
+    description: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        doc="Описание достижения",
+    )
+
+    # Активность
+    is_active: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+        index=True,
+        doc="Включено ли достижение",
+    )
+
+    # Отношения
+    badge: Mapped[Badge] = relationship(
+        "Badge",
+        back_populates="achievements",
+        lazy="select",
+    )
+
+    # Индексы и ограничения
+    __table_args__ = (
+        {
+            "comment": "Шаблоны достижений для автоматической выдачи значков",
+        },
+    )
+
+    def __repr__(self) -> str:
+        return f"<BadgeAchievement(id={self.id}, badge_id={self.badge_id}, type={self.achievement_type}, threshold={self.threshold})>"
+
+
+# Добавить relationship в модель Badge
+Badge.achievements = relationship(
+    "BadgeAchievement",
+    back_populates="badge",
+    lazy="select",
+    cascade="all, delete-orphan",
+    doc="Достижения связанные с этим значком",
+)
