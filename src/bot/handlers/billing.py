@@ -503,8 +503,6 @@ async def show_plans(callback: CallbackQuery) -> None:
 async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """Выбрать и активировать тариф (списывает кредиты)."""
     plan_name = callback_data.value
-    plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
-    plan_cost = plan_costs.get(plan_name, 0)
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -513,28 +511,19 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        if plan_name == "free":
-            await user_repo.update(
-                user.id, {"plan": "free", "plan_expires_at": None, "ai_generations_used": 0}
-            )
-            await session.commit()
-            await callback.answer("✅ Переключились на FREE", show_alert=True)
-            return
+        # Используем billing_service.activate_plan()
+        from src.core.services.billing_service import billing_service
 
-        if user.credits < plan_cost:
+        success = await billing_service.activate_plan(user.id, plan_name)
+
+        if not success:
+            plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
+            plan_cost = plan_costs.get(plan_name, 0)
             await callback.answer(
                 f"❌ Недостаточно кредитов!\nНужно: {plan_cost} кр\nУ вас: {user.credits} кр",
                 show_alert=True,
             )
             return
-
-        from datetime import timedelta
-
-        await user_repo.update_credits(user.id, -plan_cost)
-        await user_repo.reset_ai_usage(user.id)
-        expires_at = datetime.now(UTC) + timedelta(days=30)
-        await user_repo.update(user.id, {"plan": plan_name, "plan_expires_at": expires_at})
-        await session.commit()
 
     await callback.answer(
         f"✅ Тариф {plan_name.upper()} активирован на 30 дней!",
