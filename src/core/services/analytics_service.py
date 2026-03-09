@@ -535,7 +535,12 @@ class AnalyticsService:
         async with async_session_factory() as session:
             campaign = await session.get(Campaign, campaign_id)
             if not campaign:
-                return {"roi_percent": 0.0, "revenue": 0.0, "cost": 0.0, "note": "Campaign not found"}
+                return {
+                    "roi_percent": 0.0,
+                    "revenue": 0.0,
+                    "cost": 0.0,
+                    "note": "Campaign not found",
+                }
 
             cost = float(campaign.cost) if campaign.cost else 0.0
             total_views = campaign.sent_count or 0
@@ -544,13 +549,12 @@ class AnalyticsService:
             # Оценочная выручка через рыночные CPM/CPC
             from src.config.settings import settings
 
-            cpm_rate = getattr(settings, 'analytics_estimated_cpm_rub', 100.0)  # 100 руб за 1000 просмотров
-            cpc_rate = getattr(settings, 'analytics_estimated_cpc_rub', 25.0)   # 25 руб за клик
+            cpm_rate = getattr(
+                settings, "analytics_estimated_cpm_rub", 100.0
+            )  # 100 руб за 1000 просмотров
+            cpc_rate = getattr(settings, "analytics_estimated_cpc_rub", 25.0)  # 25 руб за клик
 
-            estimated_revenue = (
-                (total_views / 1000) * cpm_rate +
-                total_clicks * cpc_rate
-            )
+            estimated_revenue = (total_views / 1000) * cpm_rate + total_clicks * cpc_rate
 
             # ROI = ((revenue - cost) / cost) * 100
             roi = ((estimated_revenue - cost) / cost * 100) if cost > 0 else 0.0
@@ -605,6 +609,46 @@ class AnalyticsService:
 
             logger.info(f"Generated PDF report for campaign {campaign_id}")
             return pdf_bytes
+
+    async def get_campaigns_page(
+        self,
+        user_id: int,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Получить страницу кампаний пользователя с пагинацией.
+
+        Args:
+            user_id: ID пользователя.
+            page: Номер страницы (1-based).
+            page_size: Размер страницы.
+
+        Returns:
+            dict с items, total, page, pages.
+        """
+        from sqlalchemy import select
+
+        from src.db.models.campaign import Campaign
+
+        async with async_session_factory() as session:
+            # Get total count
+            count_stmt = select(Campaign).where(Campaign.user_id == user_id)
+            result = await session.execute(count_stmt)
+            all_campaigns = result.scalars().all()
+            total = len(all_campaigns)
+            pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+            # Get paginated items
+            offset = (page - 1) * page_size
+            items = all_campaigns[offset : offset + page_size]
+
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "pages": pages,
+            }
 
 
 # Глобальный экземпляр

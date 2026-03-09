@@ -23,7 +23,7 @@ from src.bot.keyboards.campaign_ai import (
 )
 from src.bot.states.campaign_create import CampaignCreateState
 from src.bot.utils.safe_callback import safe_callback_edit
-from src.core.services.ai_service import AIService
+from src.core.services.mistral_ai_service import mistral_ai_service
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -36,6 +36,7 @@ router = Router()
 # ──────────────────────────────────────────────────────────────
 # Шаг 1: Начало - выбор стиля текста
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step == "start"))
 async def start_campaign_create(callback: CallbackQuery, state: FSMContext) -> None:
@@ -65,6 +66,7 @@ async def start_campaign_create(callback: CallbackQuery, state: FSMContext) -> N
 # ──────────────────────────────────────────────────────────────
 # Шаг 2: Выбор стиля текста
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step.startswith("style_")))
 async def style_selected(callback: CallbackQuery, state: FSMContext) -> None:
@@ -109,16 +111,23 @@ async def custom_category_requested(callback: CallbackQuery, state: FSMContext) 
     # Кнопка назад
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Назад к списку", callback_data=CampaignCreateCB(step="back_to_category").pack())]
+            [
+                InlineKeyboardButton(
+                    text="🔙 Назад к списку",
+                    callback_data=CampaignCreateCB(step="back_to_category").pack(),
+                )
+            ]
         ]
     )
+    if callback.message is None:
+        return
     await callback.message.answer("Или выберите из списка:", reply_markup=keyboard)
 
 
 @router.message(CampaignCreateState.entering_custom_category)
 async def process_custom_category(message: Message, state: FSMContext) -> None:
     """Обработка введённой пользователем категории."""
-    custom_category = message.text.strip()
+    custom_category = (message.text or "").strip()
     if len(custom_category) > 50:
         await message.answer("❌ Категория слишком длинная. Максимум 50 символов.")
         return
@@ -170,10 +179,11 @@ async def category_selected(callback: CallbackQuery, state: FSMContext) -> None:
 # Шаг 3: Описание продукта
 # ──────────────────────────────────────────────────────────────
 
+
 @router.message(CampaignCreateState.waiting_for_description)
 async def process_description(message: Message, state: FSMContext) -> None:
     """Получили описание — запрашиваем название кампании."""
-    description = message.text.strip()
+    description = (message.text or "").strip()
     if len(description) < 20:
         await message.answer("❌ Описание слишком короткое. Минимум 20 символов.")
         return
@@ -200,10 +210,11 @@ async def process_description(message: Message, state: FSMContext) -> None:
 # Шаг 4: Название кампании
 # ──────────────────────────────────────────────────────────────
 
+
 @router.message(CampaignCreateState.waiting_for_campaign_name)
 async def process_campaign_name(message: Message, state: FSMContext) -> None:
     """Получили название — генерируем тексты."""
-    campaign_name = message.text.strip()
+    campaign_name = (message.text or "").strip()
     if len(campaign_name) < 3:
         await message.answer("❌ Название слишком короткое. Минимум 3 символа.")
         return
@@ -217,7 +228,9 @@ async def process_campaign_name(message: Message, state: FSMContext) -> None:
     await state.set_state(CampaignCreateState.selecting_variant)
 
     # Генерация текстов через AI
-    await message.answer("🤖 <b>AI генерирует варианты текста...</b>\n\nЭто займёт несколько секунд.")
+    await message.answer(
+        "🤖 <b>AI генерирует варианты текста...</b>\n\nЭто займёт несколько секунд."
+    )
 
     data = await state.get_data()
     style = data.get("style", "business")
@@ -240,13 +253,11 @@ async def process_campaign_name(message: Message, state: FSMContext) -> None:
     )
 
     try:
-        ai_service = AIService()
         # Генерируем 3 варианта
         variants = []
         for _i in range(3):
-            variant = await ai_service.generate(
+            variant = await mistral_ai_service.generate(
                 prompt=prompt,
-                user_plan="business",  # Используем PRO модель
                 use_cache=False,
             )
             variants.append(variant)
@@ -280,8 +291,11 @@ async def process_campaign_name(message: Message, state: FSMContext) -> None:
 # Шаг 5: Выбор варианта текста
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(AIVariantCB.filter())
-async def select_variant(callback: CallbackQuery, callback_data: AIVariantCB, state: FSMContext) -> None:
+async def select_variant(
+    callback: CallbackQuery, callback_data: AIVariantCB, state: FSMContext
+) -> None:
     """Выбран вариант текста — переходим к редактору."""
     variant_index = callback_data.variant_index
     logger.info(f"select_variant: index={variant_index}")
@@ -307,15 +321,14 @@ async def select_variant(callback: CallbackQuery, callback_data: AIVariantCB, st
     has_image = bool(data.get("image_file_id"))
 
     await safe_callback_edit(
-        callback,
-        text,
-        reply_markup=get_campaign_editor_keyboard(selected_text, has_url, has_image)
+        callback, text, reply_markup=get_campaign_editor_keyboard(selected_text, has_url, has_image)
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # Шаг 6: Редактирование текста
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(AIEditCB.filter(F.action == "edit_text"))
 async def edit_text_requested(callback: CallbackQuery, state: FSMContext) -> None:
@@ -327,7 +340,7 @@ async def edit_text_requested(callback: CallbackQuery, state: FSMContext) -> Non
 @router.message(CampaignCreateState.editing_text)
 async def process_edited_text(message: Message, state: FSMContext) -> None:
     """Получили отредактированный текст."""
-    new_text = message.text.strip()
+    new_text = (message.text or "").strip()
     if len(new_text) < 50:
         await message.answer("❌ Текст слишком короткий. Минимум 50 символов.")
         return
@@ -344,7 +357,11 @@ async def process_edited_text(message: Message, state: FSMContext) -> None:
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_url").pack())]
+            [
+                InlineKeyboardButton(
+                    text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_url").pack()
+                )
+            ]
         ]
     )
 
@@ -364,7 +381,11 @@ async def skip_url(callback: CallbackQuery, state: FSMContext) -> None:
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_image").pack())]
+            [
+                InlineKeyboardButton(
+                    text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_image").pack()
+                )
+            ]
         ]
     )
 
@@ -375,12 +396,15 @@ async def skip_url(callback: CallbackQuery, state: FSMContext) -> None:
 # Шаг 7: Добавление URL
 # ──────────────────────────────────────────────────────────────
 
+
 @router.message(CampaignCreateState.waiting_for_url)
 async def process_url(message: Message, state: FSMContext) -> None:
     """Получили URL."""
-    url = message.text.strip()
+    url = (message.text or "").strip()
     if not url.startswith(("http://", "https://", "t.me/")):
-        await message.answer("❌ Неверный формат URL. Должен начинаться с http://, https:// или t.me/")
+        await message.answer(
+            "❌ Неверный формат URL. Должен начинаться с http://, https:// или t.me/"
+        )
         return
 
     logger.info(f"url: {url}")
@@ -395,7 +419,11 @@ async def process_url(message: Message, state: FSMContext) -> None:
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_image").pack())]
+            [
+                InlineKeyboardButton(
+                    text="⏭️ Пропустить", callback_data=CampaignCreateCB(step="skip_image").pack()
+                )
+            ]
         ]
     )
 
@@ -405,6 +433,7 @@ async def process_url(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Шаг 8: Добавление изображения
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step == "skip_image"))
 async def skip_image(callback: CallbackQuery, state: FSMContext) -> None:
@@ -418,6 +447,7 @@ async def skip_image(callback: CallbackQuery, state: FSMContext) -> None:
     )
 
     from src.bot.keyboards.campaign_ai import get_audience_keyboard
+
     keyboard = get_audience_keyboard()
 
     await safe_callback_edit(callback, text, reply_markup=keyboard)
@@ -443,6 +473,7 @@ async def process_image(message: Message, state: FSMContext) -> None:
     )
 
     from src.bot.keyboards.campaign_ai import get_audience_keyboard
+
     keyboard = get_audience_keyboard()
 
     await message.answer(text, reply_markup=keyboard)
@@ -452,10 +483,11 @@ async def process_image(message: Message, state: FSMContext) -> None:
 # Шаг 9: Настройки аудитории
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(CampaignCreateCB.filter(F.step.startswith("audience_")))
 async def select_audience(callback: CallbackQuery, state: FSMContext) -> None:
     """Выбрана аудитория — переходим к бюджету."""
-    step = callback.data.split("_")[-1]
+    step = (callback.data or "").split("_")[-1]
 
     # Обрабатываем выбор аудитории
     if step == "all":
@@ -496,6 +528,7 @@ async def select_audience(callback: CallbackQuery, state: FSMContext) -> None:
 # Обработка кнопки "Назад" к выбору аудитории
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(CampaignCreateCB.filter(F.step == "back_to_image"))
 async def back_to_audience(callback: CallbackQuery, state: FSMContext) -> None:
     """Вернуться к выбору аудитории."""
@@ -508,6 +541,7 @@ async def back_to_audience(callback: CallbackQuery, state: FSMContext) -> None:
     )
 
     from src.bot.keyboards.campaign_ai import get_image_keyboard
+
     keyboard = get_image_keyboard()
 
     await safe_callback_edit(callback, text, reply_markup=keyboard)
@@ -517,11 +551,12 @@ async def back_to_audience(callback: CallbackQuery, state: FSMContext) -> None:
 # Шаг 10: Настройка бюджета (заглушка)
 # ──────────────────────────────────────────────────────────────
 
+
 @router.message(CampaignCreateState.setting_budget)
 async def process_budget(message: Message, state: FSMContext) -> None:
     """Получили бюджет."""
     try:
-        budget = int(message.text.strip())
+        budget = int((message.text or "").strip())
         if budget < 100:
             await message.answer("❌ Минимальный бюджет — 100 кредитов.")
             return
@@ -533,12 +568,10 @@ async def process_budget(message: Message, state: FSMContext) -> None:
     await state.update_data(budget=budget)
     await state.set_state(CampaignCreateState.setting_schedule)
 
-    text = (
-        "📅 <b>Когда запустить кампанию?</b>\n\n"
-        "Выберите вариант:"
-    )
+    text = "📅 <b>Когда запустить кампанию?</b>\n\nВыберите вариант:"
 
     from src.bot.keyboards.campaign_ai import get_schedule_keyboard
+
     keyboard = get_schedule_keyboard()
 
     await message.answer(text, reply_markup=keyboard)
@@ -547,6 +580,7 @@ async def process_budget(message: Message, state: FSMContext) -> None:
 # ──────────────────────────────────────────────────────────────
 # Шаг 11: Расписание
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step == "schedule_now"))
 async def schedule_now(callback: CallbackQuery, state: FSMContext) -> None:
@@ -589,7 +623,9 @@ async def schedule_tomorrow(callback: CallbackQuery, state: FSMContext) -> None:
     from datetime import datetime, timedelta
 
     now = datetime.now(UTC)
-    tomorrow = now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=1)  # 06:00 UTC = 09:00 МСК
+    tomorrow = now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(
+        days=1
+    )  # 06:00 UTC = 09:00 МСК
 
     await state.update_data(schedule="later", scheduled_at=tomorrow.isoformat())
     await callback.answer(f"✅ Запланировано на {tomorrow.strftime('%d.%m %H:%M')}")
@@ -620,7 +656,7 @@ async def process_schedule_date(message: Message, state: FSMContext) -> None:
     """Обработать ввод даты."""
     from datetime import datetime
 
-    date_text = message.text.strip()
+    date_text = (message.text or "").strip()
 
     # Парсим дату
     scheduled_at = parse_schedule_date(date_text)
@@ -638,10 +674,7 @@ async def process_schedule_date(message: Message, state: FSMContext) -> None:
 
     # Проверяем что дата не в прошлом
     if scheduled_at <= datetime.now(UTC):
-        await message.answer(
-            "❌ Дата не может быть в прошлом.\n\n"
-            "Введите будущую дату:"
-        )
+        await message.answer("❌ Дата не может быть в прошлом.\n\nВведите будущую дату:")
         return
 
     logger.info(f"scheduled_at: {scheduled_at} (from: {date_text})")
@@ -725,6 +758,11 @@ async def final_create_campaign_message(message: Message, state: FSMContext, tex
         user_repo = UserRepository(session)
         campaign_repo = CampaignRepository(session)
 
+        # Check if from_user is available
+        if message.from_user is None:
+            await message.answer("❌ Не удалось получить данные пользователя")
+            return
+
         user = await user_repo.get_by_telegram_id(message.from_user.id)
         if not user:
             await message.answer("❌ Пользователь не найден")
@@ -737,6 +775,7 @@ async def final_create_campaign_message(message: Message, state: FSMContext, tex
 # ──────────────────────────────────────────────────────────────
 # Обработка кнопки "Назад" к бюджету
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step == "back_to_budget"))
 async def back_to_budget(callback: CallbackQuery, state: FSMContext) -> None:
@@ -756,6 +795,7 @@ async def back_to_budget(callback: CallbackQuery, state: FSMContext) -> None:
 # Финальное создание кампании
 # ──────────────────────────────────────────────────────────────
 
+
 async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     """Финальное создание кампании."""
     data = await state.get_data()
@@ -773,7 +813,9 @@ async def final_create_campaign(callback: CallbackQuery, state: FSMContext) -> N
         await create_campaign_from_data(callback, state, user, campaign_repo, data)
 
 
-async def create_campaign_from_data(target, state: FSMContext, user, campaign_repo, data: dict, custom_text: str = None) -> None:
+async def create_campaign_from_data(
+    target, state: FSMContext, user, campaign_repo, data: dict, custom_text: str = None
+) -> None:
     """
     Создать кампанию из данных state.
 
@@ -802,7 +844,9 @@ async def create_campaign_from_data(target, state: FSMContext, user, campaign_re
     scheduled_at_str = data.get("scheduled_at")
 
     # Формируем filters_json
-    actual_category = custom_category if category == "custom" else CAMPAIGN_CATEGORIES.get(category, category)
+    actual_category = (
+        custom_category if category == "custom" else CAMPAIGN_CATEGORIES.get(category, category)
+    )
     filters_json = {
         "categories": [actual_category],
         "audience": audience,
@@ -880,7 +924,7 @@ async def create_campaign_from_data(target, state: FSMContext, user, campaign_re
         ]
     )
 
-    if hasattr(target, 'answer'):
+    if hasattr(target, "answer"):
         # Message
         await target.answer(success_text, reply_markup=keyboard)
     else:
@@ -891,6 +935,7 @@ async def create_campaign_from_data(target, state: FSMContext, user, campaign_re
 # ──────────────────────────────────────────────────────────────
 # Обработчик кнопки "Написать свой текст"
 # ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(CampaignCreateCB.filter(F.step == "manual_text"))
 async def manual_text_requested(callback: CallbackQuery, state: FSMContext) -> None:
@@ -914,6 +959,7 @@ async def manual_text_requested(callback: CallbackQuery, state: FSMContext) -> N
 # TASK 7: Отмена создания AI-кампании
 # ──────────────────────────────────────────────────────────────
 
+
 @router.callback_query(CampaignCreateCB.filter(F.step == "cancel"))
 async def cancel_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
     """
@@ -929,6 +975,7 @@ async def cancel_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None
 
     if user:
         from src.bot.keyboards.main_menu import get_main_menu
+
         keyboard = get_main_menu(user.credits, user.id)
         await safe_callback_edit(callback, text, reply_markup=keyboard)
     else:
