@@ -265,8 +265,14 @@ class XPService:
 
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
+        async with async_session_factory() as session, session.begin():
+            # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
+            from sqlalchemy import select
+
+            stmt = select(User).where(User.id == user_id).with_for_update()
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
             if not user:
                 logger.error(f"User {user_id} not found")
                 return None
@@ -297,8 +303,7 @@ class XPService:
             else:
                 logger.info(f"User {user_id} gained {amount} XP ({old_xp} → {new_xp} XP)")
 
-            await session.flush()
-
+            # session.begin() автоматически commit
             return level_up_event
 
     # === Спринт 5: Раздельный XP для рекламодателей и владельцев ===
