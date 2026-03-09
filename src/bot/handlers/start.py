@@ -10,7 +10,6 @@ from pathlib import Path
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StateProxy
 from aiogram.types import (
     CallbackQuery,
     FSInputFile,
@@ -875,7 +874,7 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
 # ─────────────────────────────────────────────
 
 @router.message(Command("cancel"))
-async def cancel_fsm_handler(message: Message, state: StateProxy) -> None:
+async def cancel_fsm_handler(message: Message, state: FSMContext) -> None:
     """
     Глобальная команда для сброса любого FSM состояния.
     Работает из любого состояния.
