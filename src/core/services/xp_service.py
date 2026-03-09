@@ -534,31 +534,37 @@ class XPService:
         if not earned_bonus:
             return {"skipped": True, "reason": "threshold not reached"}
 
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
+        async with async_session_factory() as session, session.begin():
+            # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
+            from sqlalchemy import select
+
+            stmt = select(User).where(User.id == user_id).with_for_update()
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
             if not user:
                 return {"error": "User not found"}
 
             # Начисляем XP
-            user.xp_points += earned_bonus["xp"]
+            user.xp_points += earned_bonus["xp"]  # type: ignore
 
             # Начисляем кредиты
-            user.credits += earned_bonus["credits"]
+            user.credits += earned_bonus["credits"]  # type: ignore
 
             # Выдаём значок если есть
-            badge_awarded = None
-            if earned_bonus.get("badge_code"):
-                result = await badge_service.award_badge(user_id, earned_bonus["badge_code"])
-                if result.get("success"):
-                    badge_awarded = result
+            badge_awarded: dict[str, Any] | None = None
+            badge_code: str | None = earned_bonus.get("badge_code")  # type: ignore
+            if badge_code:
+                result = await badge_service.award_badge(user_id, badge_code)
+                if result.get("success"):  # type: ignore
+                    badge_awarded = result  # type: ignore
 
-            await session.commit()
-
+            # session.begin() автоматически commit
             return {
                 "success": True,
                 "streak_days": streak_days,
-                "xp_awarded": earned_bonus["xp"],
-                "credits_awarded": earned_bonus["credits"],
+                "xp_awarded": earned_bonus["xp"],  # type: ignore
+                "credits_awarded": earned_bonus["credits"],  # type: ignore
                 "badge_awarded": badge_awarded,
             }
 

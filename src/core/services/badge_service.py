@@ -196,7 +196,13 @@ class BadgeService:
         rewards = {"xp": 0, "credits": 0}
 
         if badge:
-            user = await session.get(User, user_id)
+            # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
+            from sqlalchemy import select
+
+            stmt = select(User).where(User.id == user_id).with_for_update()
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
             if user:
                 if badge.xp_reward > 0:
                     user.xp_points += badge.xp_reward
