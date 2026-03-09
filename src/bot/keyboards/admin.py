@@ -38,6 +38,22 @@ def get_admin_main_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def get_celery_tasks_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для страницы задач Celery.
+
+    Returns:
+        InlineKeyboardMarkup с кнопками.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👷 Workers", callback_data=AdminCB(action="celery_worker_stats"))
+    builder.button(text="🔄 Обновить", callback_data=AdminCB(action="celery_tasks"))
+    builder.button(text="🌸 Flower UI", url="http://localhost:5555")
+    builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
+    builder.adjust(2, 2)
+    return builder.as_markup()
+
+
 def get_admin_confirm_kb(action: str, value: str = "") -> InlineKeyboardMarkup:
     """
     Подтверждение опасного действия.
