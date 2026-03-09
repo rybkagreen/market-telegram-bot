@@ -34,7 +34,7 @@ BEAT_SCHEDULE = {
     "check-low-balance": {
         "task": "src.tasks.notification_tasks.check_low_balance",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing"},
+        "options": {"queue": "mailing", "priority": 8},
     },
     # Обновление статистики чатов — каждые 6 часов
     "update-chat-statistics": {
@@ -47,12 +47,6 @@ BEAT_SCHEDULE = {
         "task": "src.tasks.cleanup_tasks.archive_old_campaigns",
         "schedule": crontab(hour=4, minute=0, day_of_month=1),
         "options": {"queue": "cleanup"},
-    },
-    # Автоодобрение заявок — каждый час
-    "auto-approve-pending-placements": {
-        "task": "src.tasks.mailing_tasks.auto_approve_pending_placements",
-        "schedule": crontab(minute=0),
-        "options": {"queue": "mailing"},
     },
     # Пересчёт рейтингов каналов — ежедневно в 04:00 UTC
     "recalculate-ratings-daily": {
@@ -88,25 +82,25 @@ BEAT_SCHEDULE = {
     "auto-approve-placements": {
         "task": "src.tasks.notification_tasks.auto_approve_placements",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing"},
+        "options": {"queue": "mailing", "priority": 7},
     },
     # TASK 6: Напоминания о заявках — каждые 2 часа
     "placement-reminders": {
         "task": "src.tasks.notification_tasks.notify_pending_placement_reminders",
         "schedule": crontab(minute=0, hour="*/2"),
-        "options": {"queue": "mailing"},
+        "options": {"queue": "mailing", "priority": 6},
     },
     # TASK 8: Уведомления об истечении тарифа — ежедневно в 10:00 UTC
     "notify-expiring-plans": {
         "task": "src.tasks.notification_tasks.notify_expiring_plans",
         "schedule": crontab(hour=10, minute=0),
-        "options": {"queue": "mailing"},
+        "options": {"queue": "mailing", "priority": 8},
     },
     # TASK 8: Уведомления об истёкшем тарифе — ежедневно в 10:05 UTC
     "notify-expired-plans": {
         "task": "src.tasks.notification_tasks.notify_expired_plans",
         "schedule": crontab(hour=10, minute=5),
-        "options": {"queue": "mailing"},
+        "options": {"queue": "mailing", "priority": 8},
     },
     # TASK 8.3: Ежедневная проверка достижений — ежедневно в 00:00 UTC
     "daily-badge-check": {
@@ -131,6 +125,8 @@ TASK_ROUTES = {
     "mailing.*": {"queue": "mailing"},
     "src.tasks.mailing_tasks.*": {"queue": "mailing"},
     "src.tasks.notification_tasks.*": {"queue": "mailing"},
+    # Очередь notifications — уведомления пользователей
+    "notifications.*": {"queue": "notifications"},
     # Очередь parser — задачи парсера
     "parser.*": {"queue": "parser"},
     "src.tasks.parser_tasks.*": {"queue": "parser"},
@@ -149,6 +145,9 @@ TASK_ROUTES = {
     # Очередь badges — задачи достижений
     "badges.*": {"queue": "gamification"},
     "src.tasks.badge_tasks.*": {"queue": "gamification"},
+    # Очередь billing — задачи биллинга
+    "billing.*": {"queue": "billing"},
+    "src.tasks.billing_tasks.*": {"queue": "billing"},
 }
 
 # =============================================================================
