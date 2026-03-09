@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { channelsApi, type CategoryStats, type TariffStatsItem } from '@/api/channels'
@@ -219,12 +219,32 @@ function ChannelsSkeleton() {
 export default function Channels() {
   const user = useAuthStore(s => s.user)
   const currentPlan = user?.plan ?? 'free'
+  const navigate = useNavigate()
+  
+  // Состояние для выбора каналов сравнения
+  const [selectedForCompare, setSelectedForCompare] = useState<number[]>([])
 
   const { data, isLoading } = useQuery({
     queryKey: ['channels', 'stats'],
     queryFn: channelsApi.stats,
     staleTime: 10 * 60_000,  // 10 мин на фронте (бэкенд кэширует 1 час)
   })
+
+  // Обработчик переключения выбора канала
+  const toggleCompare = (channelId: number) => {
+    setSelectedForCompare(prev =>
+      prev.includes(channelId)
+        ? prev.filter(id => id !== channelId)
+        : prev.length < 5 ? [...prev, channelId] : prev
+    )
+  }
+
+  // Переход к сравнению когда выбрано 2+ канала
+  useEffect(() => {
+    if (selectedForCompare.length >= 2) {
+      // Показываем floating кнопку но не переходим автоматически
+    }
+  }, [selectedForCompare])
 
   if (isLoading) return <ChannelsSkeleton />
 
@@ -320,6 +340,64 @@ export default function Channels() {
           index={i}
         />
       ))}
+
+      {/* Floating кнопка сравнения */}
+      {selectedForCompare.length >= 2 && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+          style={{
+            position: 'fixed',
+            bottom: 100,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--accent-500)',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: 12,
+            boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            zIndex: 1000,
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 600 }}>
+            📊 Сравнить ({selectedForCompare.length})
+          </span>
+          <button
+            onClick={() => navigate(`/comparison?ids=${selectedForCompare.join(',')}`)}
+            style={{
+              background: 'white',
+              color: 'var(--accent-500)',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Открыть
+          </button>
+          <button
+            onClick={() => setSelectedForCompare([])}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              fontSize: 18,
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            ✕
+          </button>
+        </motion.div>
+      )}
 
     </div>
   )

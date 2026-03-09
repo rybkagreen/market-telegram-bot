@@ -60,12 +60,10 @@ def update_streaks_daily(self) -> dict[str, Any]:
 
                 last_login_date = user.last_login_at.date()
 
-                if last_login_date in (today, yesterday):
-                    # Пользователь заходил сегодня или вчера — продолжаем стрик
-                    if (today - last_login_date).days == 0:
-                        # Заходил сегодня — проверяем не обновили ли уже сегодня
-                        if user.updated_at and user.updated_at.date() == today:
-                            continue  # Уже обновили сегодня
+                if last_login_date in (today, yesterday) and (today - last_login_date).days == 0:
+                    # Заходил сегодня — проверяем не обновили ли уже сегодня
+                    if user.updated_at and user.updated_at.date() == today:
+                        continue  # Уже обновили сегодня
 
                     user.login_streak_days = (user.login_streak_days or 0) + 1
 
@@ -82,6 +80,7 @@ def update_streaks_daily(self) -> dict[str, Any]:
                     # TASK 8.8: Проверяем бонусы за стрик (7, 14, 30, 100 дней)
                     if user.login_streak_days % 7 == 0:
                         from src.core.services.xp_service import xp_service
+
                         await xp_service.award_streak_bonus(user.id, user.login_streak_days)
                 else:
                     # Пропустил день — сбрасываем стрик
@@ -274,27 +273,33 @@ def check_seasonal_events(self) -> dict[str, Any]:
 
         # Новый год (20 декабря - 10 января)
         if (today.month == 12 and today.day >= 20) or (today.month == 1 and today.day <= 10):
-            events.append({
-                "name": "new_year",
-                "active": True,
-                "bonus": "Праздничный значок + 100 XP",
-            })
+            events.append(
+                {
+                    "name": "new_year",
+                    "active": True,
+                    "bonus": "Праздничный значок + 100 XP",
+                }
+            )
 
         # Чёрная пятница (последняя пятница ноября)
         if today.month == 11 and today.weekday() == 4:  # Пятница
-            events.append({
-                "name": "black_friday",
-                "active": True,
-                "bonus": "Скидка 50% на все тарифы",
-            })
+            events.append(
+                {
+                    "name": "black_friday",
+                    "active": True,
+                    "bonus": "Скидка 50% на все тарифы",
+                }
+            )
 
         # День святого Валентина (14 февраля)
         if today.month == 2 and today.day == 14:
-            events.append({
-                "name": "valentines_day",
-                "active": True,
-                "bonus": "Двойные XP за рефералов",
-            })
+            events.append(
+                {
+                    "name": "valentines_day",
+                    "active": True,
+                    "bonus": "Двойные XP за рефералов",
+                }
+            )
 
         return {
             "date": today.isoformat(),
@@ -324,7 +329,6 @@ def award_daily_login_bonus(self, user_id: int) -> dict[str, Any]:
     logger.info(f"Awarding daily login bonus to user {user_id}")
 
     async def _award_async() -> dict[str, Any]:
-
         from src.core.services.xp_service import xp_service
         from src.db.models.user import User
 

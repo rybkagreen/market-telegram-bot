@@ -216,7 +216,8 @@ async def handle_feedback_edit(callback: CallbackQuery, state: FSMContext) -> No
     builder.button(text="❌ Отмена", callback_data=FeedbackCB(action="cancel"))
     builder.adjust(1)
 
-    await safe_callback_edit(callback, prompts.get(feedback_type, "Введите текст:"), reply_markup=builder.as_markup()
+    await safe_callback_edit(
+        callback, prompts.get(feedback_type, "Введите текст:"), reply_markup=builder.as_markup()
     )
     await state.set_state(FeedbackStates.waiting_text)
 

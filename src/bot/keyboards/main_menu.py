@@ -37,6 +37,7 @@ def _is_admin(user_id: int) -> bool:
 # Роль-зависимые меню (Спринт 0-4 редизайн)
 # ─────────────────────────────────────────────
 
+
 def get_onboarding_kb() -> InlineKeyboardMarkup:
     """
     Экран выбора роли для нового пользователя.
@@ -79,8 +80,7 @@ def get_advertiser_menu_kb(
 
     # Задача 2.4: Счётчик активных кампаний
     campaigns_label = (
-        f"📋 Мои кампании [{active_campaigns}]" if active_campaigns > 0
-        else "📋 Мои кампании"
+        f"📋 Мои кампании [{active_campaigns}]" if active_campaigns > 0 else "📋 Мои кампании"
     )
     builder.button(text=campaigns_label, callback_data=MainMenuCB(action="my_campaigns"))
 
@@ -130,26 +130,17 @@ def get_owner_menu_kb(
     builder = InlineKeyboardBuilder()
 
     # Задача 2.2: Счётчик каналов
-    channels_label = (
-        f"📺 Мои каналы ({channels_count})" if channels_count > 0
-        else "📺 Мои каналы"
-    )
+    channels_label = f"📺 Мои каналы ({channels_count})" if channels_count > 0 else "📺 Мои каналы"
 
     # Задача 2.2: Индикатор заявок
-    requests_label = (
-        f"📋 Заявки [{pending_count}] 🔴" if pending_count > 0
-        else "📋 Заявки"
-    )
+    requests_label = f"📋 Заявки [{pending_count}] 🔴" if pending_count > 0 else "📋 Заявки"
 
     builder.button(text=channels_label, callback_data=MainMenuCB(action="my_channels"))
     builder.button(text=requests_label, callback_data=MainMenuCB(action="my_requests"))
     builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
 
     # Задача 2.1: Сумма на кнопке "Выплаты"
-    payout_label = (
-        f"💸 Выплаты • {available_payout} кр" if available_payout > 0
-        else "💸 Выплаты"
-    )
+    payout_label = f"💸 Выплаты • {available_payout} кр" if available_payout > 0 else "💸 Выплаты"
     builder.button(text=payout_label, callback_data=MainMenuCB(action="payouts"))
 
     # Задача 2.3: Переименование кнопок
@@ -207,8 +198,7 @@ def get_combined_menu_kb(
 
     # Задача 2.6: Счётчик активных кампаний
     campaigns_label = (
-        f"Мои кампании [{active_campaigns}]" if active_campaigns > 0
-        else "Мои кампании"
+        f"Мои кампании [{active_campaigns}]" if active_campaigns > 0 else "Мои кампании"
     )
     builder.button(text=campaigns_label, callback_data=MainMenuCB(action="my_campaigns"))
 
@@ -217,14 +207,8 @@ def get_combined_menu_kb(
 
     # ── Раздел владельца канала ──
     # Задача 2.6: Счётчик каналов и индикатор заявок
-    channels_label = (
-        f"Мои каналы ({channels_count})" if channels_count > 0
-        else "Мои каналы"
-    )
-    requests_label = (
-        f"Заявки [{pending_count}] 🔴" if pending_count > 0
-        else "Заявки"
-    )
+    channels_label = f"Мои каналы ({channels_count})" if channels_count > 0 else "Мои каналы"
+    requests_label = f"Заявки [{pending_count}] 🔴" if pending_count > 0 else "Заявки"
     builder.button(
         text="── 📺 Мой канал ──",
         callback_data=MainMenuCB(action="noop"),
@@ -234,10 +218,7 @@ def get_combined_menu_kb(
     builder.button(text="Добавить канал", callback_data=MainMenuCB(action="add_channel"))
 
     # Задача 2.6: Сумма на кнопке "Выплаты"
-    payout_label = (
-        f"Выплаты • {available_payout} кр" if available_payout > 0
-        else "Выплаты"
-    )
+    payout_label = f"Выплаты • {available_payout} кр" if available_payout > 0 else "Выплаты"
     builder.button(text=payout_label, callback_data=MainMenuCB(action="payouts"))
 
     # ── Общие ──
@@ -264,6 +245,7 @@ def get_combined_menu_kb(
 # ─────────────────────────────────────────────
 # Основная функция-диспетчер
 # ─────────────────────────────────────────────
+
 
 def get_main_menu(
     credits: int,

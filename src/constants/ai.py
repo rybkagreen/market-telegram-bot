@@ -1,21 +1,32 @@
 """
 AI константы для Market Bot.
 
-Централизованные настройки для AI генерации через OpenRouter.
+Централизованные настройки для AI генерации через OpenRouter и Mistral AI.
 """
 
 # ──────────────────────────────────────────────────────────────
 # Модели OpenRouter
 # ──────────────────────────────────────────────────────────────
 
-# Бесплатная модель по умолчанию (Qwen Coder)
-FREE_MODEL = "qwen/qwen3-coder:free"
+# Бесплатная модель по умолчанию (Step — без rate limit)
+FREE_MODEL = "stepfun/step-3.5-flash:free"
 
-# Fallback модель при rate limit
-FALLBACK_MODEL = "qwen/qwen3-coder:free"
+# Fallback модель при rate limit (Qwen)
+FALLBACK_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
 
 # Платная модель (для будущего использования)
 PAID_MODEL = "qwen/qwen-plus"
+
+# ──────────────────────────────────────────────────────────────
+# Модели Mistral AI
+# ──────────────────────────────────────────────────────────────
+
+# Mistral модель для классификации и модерации (medium — лучшее качество)
+MISTRAL_MODEL = "mistral-medium-latest"
+
+# Mistral Agent ID (для beta.conversations.start)
+MISTRAL_AGENT_ID = "ag:566b88c1:20250526:untitled-agent:7464030c"
+MISTRAL_AGENT_VERSION = 1
 
 # ──────────────────────────────────────────────────────────────
 # Параметры генерации

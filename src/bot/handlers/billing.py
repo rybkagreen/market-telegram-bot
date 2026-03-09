@@ -85,6 +85,7 @@ async def show_balance(callback: CallbackQuery) -> None:
 
         # Запрос незапущенных кампаний
         from src.db.models.campaign import Campaign, CampaignStatus
+
         stmt = select(Campaign).where(
             Campaign.user_id == user.id,
             Campaign.status.in_([CampaignStatus.DRAFT, CampaignStatus.QUEUED]),
@@ -103,7 +104,7 @@ async def show_balance(callback: CallbackQuery) -> None:
 
                     recommendation_text = (
                         f"\n\n⚠️ <b>Внимание!</b>\n"
-                        f"У вас запланирована кампания <b>\"{campaign.title}\"</b>\n"
+                        f'У вас запланирована кампания <b>"{campaign.title}"</b>\n'
                         f"Стоимость: {campaign_cost} кр\n"
                         f"На балансе: {user.credits} кр\n"
                         f"❌ Не хватает: <b>{deficit} кр</b>\n\n"

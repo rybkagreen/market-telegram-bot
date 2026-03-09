@@ -36,6 +36,7 @@ class AdminFreeCampaignStates(StatesGroup):
     waiting_member_count = State()
     waiting_schedule = State()
     waiting_confirm = State()
+    confirming = State()  # Состояние для подтверждения кампании
 
 
 class AdminAIGenerateStates(StatesGroup):

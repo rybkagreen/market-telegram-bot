@@ -72,12 +72,9 @@ class PayoutService:
         from sqlalchemy import func, select
 
         async with async_session_factory() as session:
-            stmt = (
-                select(func.sum(Payout.amount))
-                .where(
-                    Payout.owner_id == owner_user_id,
-                    Payout.status == PayoutStatus.PENDING,
-                )
+            stmt = select(func.sum(Payout.amount)).where(
+                Payout.owner_id == owner_user_id,
+                Payout.status == PayoutStatus.PENDING,
             )
             result = await session.execute(stmt)
             balance = result.scalar_one() or Decimal("0")
@@ -158,8 +155,7 @@ class PayoutService:
             await session.refresh(payout)
 
             logger.info(
-                f"Created pending payout {payout.id}: "
-                f"{payout_amount} ₽ for owner {owner_user_id}"
+                f"Created pending payout {payout.id}: {payout_amount} ₽ for owner {owner_user_id}"
             )
 
             return payout
@@ -258,9 +254,13 @@ class PayoutService:
                 # Формируем комментарий
                 channel_username = ""
                 if payout.channel:
-                    channel_username = f"@{payout.channel.username}" if payout.channel.username else ""
+                    channel_username = (
+                        f"@{payout.channel.username}" if payout.channel.username else ""
+                    )
 
-                comment = f"Выплата за размещения{' ' + channel_username if channel_username else ''}"
+                comment = (
+                    f"Выплата за размещения{' ' + channel_username if channel_username else ''}"
+                )
 
                 # Выполняем перевод
                 transfer_result = await cryptobot_service.send_transfer(
@@ -342,7 +342,9 @@ class PayoutService:
                 return False
 
             if payout.status not in (PayoutStatus.PENDING, PayoutStatus.PROCESSING):
-                logger.warning(f"Payout {payout_id} cannot be marked as paid (status={payout.status.value})")
+                logger.warning(
+                    f"Payout {payout_id} cannot be marked as paid (status={payout.status.value})"
+                )
                 return False
 
             payout.status = PayoutStatus.PAID

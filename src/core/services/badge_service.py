@@ -123,9 +123,7 @@ class BadgeService:
 
         # Campaigns count
         if condition == BadgeConditionType.CAMPAIGNS_COUNT:
-            stmt = select(func.count(Campaign.id)).where(
-                Campaign.user_id == user.id
-            )
+            stmt = select(func.count(Campaign.id)).where(Campaign.user_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
 
@@ -144,11 +142,14 @@ class BadgeService:
             )
             # Упрощённо: считаем размещения по каналам пользователя
             from src.db.models.analytics import TelegramChat
-            stmt = select(func.count(MailingLog.id)).join(
-                TelegramChat, MailingLog.chat_id == TelegramChat.id
-            ).where(
-                TelegramChat.owner_user_id == user.id,
-                MailingLog.status == MailingStatus.SENT,
+
+            stmt = (
+                select(func.count(MailingLog.id))
+                .join(TelegramChat, MailingLog.chat_id == TelegramChat.id)
+                .where(
+                    TelegramChat.owner_user_id == user.id,
+                    MailingLog.status == MailingStatus.SENT,
+                )
             )
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
@@ -156,9 +157,8 @@ class BadgeService:
         # Review count
         if condition == BadgeConditionType.REVIEW_COUNT:
             from src.db.models.review import Review
-            stmt = select(func.count(Review.id)).where(
-                Review.reviewer_id == user.id
-            )
+
+            stmt = select(func.count(Review.id)).where(Review.reviewer_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
 
@@ -212,7 +212,9 @@ class BadgeService:
                     user.credits += badge.credits_reward
                     rewards["credits"] = badge.credits_reward
 
-        logger.info(f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Credits: {rewards['credits']})")
+        logger.info(
+            f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Credits: {rewards['credits']})"
+        )
         return rewards
 
     async def award_badge(
@@ -382,28 +384,26 @@ class BadgeService:
                     continue  # Уже получен
 
                 # Проверяем условие
-                condition_met = await self._check_achievement_condition(
-                    session, user, achievement
-                )
+                condition_met = await self._check_achievement_condition(session, user, achievement)
 
                 if condition_met:
                     # Выдаём значок
-                    await self._award_badge_internal(
-                        session, user_id, achievement.badge_id
-                    )
+                    await self._award_badge_internal(session, user_id, achievement.badge_id)
 
                     # Получаем информацию о значке
                     badge = await session.get(Badge, achievement.badge_id)
                     if badge:
-                        awarded_badges.append({
-                            "badge_id": badge.id,
-                            "code": badge.code,
-                            "name": badge.name,
-                            "icon_emoji": badge.icon_emoji,
-                            "xp_reward": badge.xp_reward,
-                            "credits_reward": badge.credits_reward,
-                            "description": badge.description,
-                        })
+                        awarded_badges.append(
+                            {
+                                "badge_id": badge.id,
+                                "code": badge.code,
+                                "name": badge.name,
+                                "icon_emoji": badge.icon_emoji,
+                                "xp_reward": badge.xp_reward,
+                                "credits_reward": badge.credits_reward,
+                                "description": badge.description,
+                            }
+                        )
 
             await session.commit()
 
@@ -438,19 +438,19 @@ class BadgeService:
 
         # Campaign count
         if achievement_type == "campaign_count":
-            stmt = select(func.count(Campaign.id)).where(
-                Campaign.user_id == user.id
-            )
+            stmt = select(func.count(Campaign.id)).where(Campaign.user_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
 
         # Placement count (для владельцев каналов)
         if achievement_type == "placement_count":
-            stmt = select(func.count(MailingLog.id)).join(
-                TelegramChat, MailingLog.chat_id == TelegramChat.id
-            ).where(
-                TelegramChat.owner_user_id == user.id,
-                MailingLog.status == MailingStatus.SENT,
+            stmt = (
+                select(func.count(MailingLog.id))
+                .join(TelegramChat, MailingLog.chat_id == TelegramChat.id)
+                .where(
+                    TelegramChat.owner_user_id == user.id,
+                    MailingLog.status == MailingStatus.SENT,
+                )
             )
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
@@ -473,9 +473,7 @@ class BadgeService:
 
         # Review count
         if achievement_type == "review_count":
-            stmt = select(func.count(Review.id)).where(
-                Review.reviewer_id == user.id
-            )
+            stmt = select(func.count(Review.id)).where(Review.reviewer_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
 

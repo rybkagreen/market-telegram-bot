@@ -76,13 +76,14 @@ def upgrade() -> None:
 
     # Production fix: Check column existence before adding
     has_notifications_column = any(
-        col["name"] == "notifications_enabled"
-        for col in inspector.get_columns("users")
+        col["name"] == "notifications_enabled" for col in inspector.get_columns("users")
     )
     if not has_notifications_column:
         op.add_column(
             "users",
-            sa.Column("notifications_enabled", sa.Boolean(), server_default="false", nullable=False),
+            sa.Column(
+                "notifications_enabled", sa.Boolean(), server_default="false", nullable=False
+            ),
         )
     # ### end Alembic commands ###
 

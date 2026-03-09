@@ -8,7 +8,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from src.api.constants.tariffs import TARIFF_CREDIT_COST
+from src.constants.tariffs import TARIFF_CREDIT_COST
 from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
@@ -146,7 +146,7 @@ def check_pending_invoices(self) -> dict:
     Запускается каждые 5 минут.
     """
     import asyncio
-    
+
     # Создаём новый event loop для async операций
     try:
         loop = asyncio.new_event_loop()

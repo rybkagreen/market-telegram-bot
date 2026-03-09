@@ -6,8 +6,8 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.api.constants.payments import CREDIT_PACKAGES, CURRENCIES
 from src.bot.keyboards.main_menu import MainMenuCB
+from src.constants.payments import CREDIT_PACKAGES, CURRENCIES
 
 
 class BillingCB(CallbackData, prefix="billing"):
@@ -92,9 +92,7 @@ def get_plans_kb() -> InlineKeyboardMarkup:
     # Задача 7.1: Обновлённые тексты тарифов
     plans = [
         (
-            "🆓 FREE — 0 кр/мес\n"
-            "• Кампании: недоступны\n"
-            "• AI: недоступен",
+            "🆓 FREE — 0 кр/мес\n• Кампании: недоступны\n• AI: недоступен",
             "free",
         ),
         (

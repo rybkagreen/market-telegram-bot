@@ -17,6 +17,7 @@ from src.bot.handlers import (
     b2b,  # B2B-маркетплейс (Спринт 3)
     billing,
     cabinet,
+    callback_schemas,
     campaign_analytics,  # AI-аналитика кампаний
     campaign_create_ai,  # Новый обработчик создания с AI
     campaigns,
@@ -25,7 +26,6 @@ from src.bot.handlers import (
     comparison,  # Сравнение каналов (Спринт 10)
     feedback,
     help,  # Раздел Помощь (Спринт 5)
-    models,
     monitoring,  # Мониторинг сервера и Celery
     notifications,
     start,
@@ -107,7 +107,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(stats.router)  # Публичная статистика (Спринт 0)
     dp.include_router(b2b.router)  # B2B-маркетплейс (Спринт 3)
     dp.include_router(billing.router)
-    dp.include_router(models.router)
+    dp.include_router(callback_schemas.router)
     dp.include_router(notifications.router)
     dp.include_router(analytics.router)
     dp.include_router(analytics_chats.router)

@@ -37,7 +37,7 @@ from src.bot.keyboards.campaign import (
 from src.bot.keyboards.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.campaign import CampaignStates
 from src.bot.utils.safe_callback import safe_callback_edit
-from src.core.services.ai_service import ai_service
+from src.core.services.mistral_ai_service import mistral_ai_service
 from src.db.models.campaign import CampaignStatus
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.user_repo import UserRepository
@@ -190,9 +190,16 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
 
     # Добавляем кнопку отмены под полем ввода
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✖ Отмена", callback_data=CampaignCB(action="cancel").pack())]
-    ])
+
+    cancel_keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✖ Отмена", callback_data=CampaignCB(action="cancel").pack()
+                )
+            ]
+        ]
+    )
     await message.answer(text, reply_markup=get_text_type_kb(user_plan))
     await message.answer("Нажмите кнопку ниже для отмены:", reply_markup=cancel_keyboard)
     await state.set_state(CampaignStates.waiting_text)
@@ -332,7 +339,7 @@ async def handle_ai_description(message: Message, state: FSMContext) -> None:
                 return
 
         # Генерируем варианты
-        variants = await ai_service.generate_ab_variants(
+        variants = await mistral_ai_service.generate_ab_variants(
             description=description,
             count=3,
         )
@@ -529,9 +536,7 @@ async def image_back(callback: CallbackQuery, state: FSMContext) -> None:
 # ==================== ШАГ 3.5: ПРЕДПРОСМОТР ПОСТА ====================
 
 
-@router.callback_query(
-    CampaignStates.waiting_text, CampaignCB.filter(F.action == "preview_post")
-)
+@router.callback_query(CampaignStates.waiting_text, CampaignCB.filter(F.action == "preview_post"))
 async def preview_post(callback: CallbackQuery, state: FSMContext) -> None:
     """
     Показать предпросмотр поста.
@@ -543,10 +548,7 @@ async def preview_post(callback: CallbackQuery, state: FSMContext) -> None:
     has_image = data.get("image_file_id") is not None
 
     # Формируем предпросмотр
-    preview_text = (
-        "📱 <b>Предпросмотр поста</b>\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-    )
+    preview_text = "📱 <b>Предпросмотр поста</b>\n\n━━━━━━━━━━━━━━━━━━━━\n"
 
     if header:
         preview_text += f"<b>{header}</b>\n\n"
@@ -763,9 +765,7 @@ async def show_confirmation(target: Message | CallbackQuery, state: FSMContext) 
     preselected_channel = data.get("preselected_channel_username")
     channel_price = data.get("preselected_channel_price", 0)
 
-    confirmation_text = (
-        "✅ <b>Подтверждение кампании</b>\n\n"
-    )
+    confirmation_text = "✅ <b>Подтверждение кампании</b>\n\n"
 
     # Если канал предвыбран — показать его
     if preselected_channel:
@@ -885,7 +885,9 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
 
         # Проверяем возможность запуска кампаний
         if not user.can_send_campaigns():
-            logger.warning(f"confirm_launch: user {callback.from_user.id} cannot send campaigns (plan={user.plan})")
+            logger.warning(
+                f"confirm_launch: user {callback.from_user.id} cannot send campaigns (plan={user.plan})"
+            )
             await callback.answer(
                 "❌ Ваш тариф не позволяет запускать кампании.\n"
                 "Перейдите в кабинет для смены тарифа.",
@@ -901,7 +903,9 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
         # Проверяем лимит кампаний
         campaign_count = await campaign_repo.get_user_campaigns_count(user.id)
         if campaign_count >= user.get_campaign_limit():
-            logger.warning(f"confirm_launch: campaign limit exceeded for user {callback.from_user.id}")
+            logger.warning(
+                f"confirm_launch: campaign limit exceeded for user {callback.from_user.id}"
+            )
             await callback.answer(
                 f"❌ Превышен лимит кампаний для вашего тарифа: {user.get_campaign_limit()}\n"
                 "Перейдите в кабинет для смены тарифа.",
@@ -919,7 +923,9 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
         if not user.notifications_enabled and not scheduled_at:
             logger.info("confirm_launch: asking for notifications")
             # Сохраняем данные в state и показываем запрос
-            await safe_callback_edit(callback, "🚀 Кампания готова к запуску!\n\n"
+            await safe_callback_edit(
+                callback,
+                "🚀 Кампания готова к запуску!\n\n"
                 "📬 Хотите получать уведомления о статусе кампании?\n"
                 "(паузы, ошибки, завершение)",
                 reply_markup=get_notifications_prompt_kb(),
@@ -1058,14 +1064,13 @@ async def _do_launch_campaign(
         meta["celery_task_id"] = task.id
 
         await session.execute(
-            update(type(campaign))
-            .where(type(campaign).id == campaign.id)
-            .values(meta_json=meta)
+            update(type(campaign)).where(type(campaign).id == campaign.id).values(meta_json=meta)
         )
         await session.flush()
 
     # TASK 8.4: Триггер проверки достижений после запуска кампании
     from src.tasks.badge_tasks import trigger_after_campaign_launch
+
     trigger_after_campaign_launch.delay(user.id)
 
     logger.info("_do_launch_campaign: editing callback with success message")
@@ -1128,6 +1133,7 @@ async def launch_without_notif(callback: CallbackQuery, state: FSMContext) -> No
 # Запрос отзывов после завершения кампании (Спринт 2)
 # ─────────────────────────────────────────────
 
+
 @router.callback_query(F.data.startswith("review_request:"))
 async def handle_review_request(callback: CallbackQuery) -> None:
     """
@@ -1141,19 +1147,29 @@ async def handle_review_request(callback: CallbackQuery) -> None:
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="⭐️⭐️⭐️⭐️⭐️ (5)", callback_data=f"review_submit:{placement_id}:5"),
+                InlineKeyboardButton(
+                    text="⭐️⭐️⭐️⭐️⭐️ (5)", callback_data=f"review_submit:{placement_id}:5"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⭐️⭐️⭐️⭐️ (4)", callback_data=f"review_submit:{placement_id}:4"),
+                InlineKeyboardButton(
+                    text="⭐️⭐️⭐️⭐️ (4)", callback_data=f"review_submit:{placement_id}:4"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⭐️⭐️⭐️ (3)", callback_data=f"review_submit:{placement_id}:3"),
+                InlineKeyboardButton(
+                    text="⭐️⭐️⭐️ (3)", callback_data=f"review_submit:{placement_id}:3"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⭐️⭐️ (2)", callback_data=f"review_submit:{placement_id}:2"),
+                InlineKeyboardButton(
+                    text="⭐️⭐️ (2)", callback_data=f"review_submit:{placement_id}:2"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⭐️ (1)", callback_data=f"review_submit:{placement_id}:1"),
+                InlineKeyboardButton(
+                    text="⭐️ (1)", callback_data=f"review_submit:{placement_id}:1"
+                ),
             ],
             [
                 InlineKeyboardButton(text="❌ Пропустить", callback_data="review_skip"),
@@ -1289,7 +1305,6 @@ async def handle_review_skip(callback: CallbackQuery) -> None:
 
     await safe_callback_edit(
         callback,
-        "ℹ️ <b>Отзыв пропущен</b>\n\n"
-        "Вы всегда можете оставить отзыв позже через /my_channels",
+        "ℹ️ <b>Отзыв пропущен</b>\n\nВы всегда можете оставить отзыв позже через /my_channels",
         parse_mode="HTML",
     )

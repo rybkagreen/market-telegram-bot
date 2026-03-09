@@ -67,7 +67,9 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
         username = f"@{user.username}" if user.username else "—"
         text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.credits} кр\n"
 
-    await safe_callback_edit(callback, text, reply_markup=get_users_list_kb(users, page, total_pages))
+    await safe_callback_edit(
+        callback, text, reply_markup=get_users_list_kb(users, page, total_pages)
+    )
     await callback.answer()
 
 
@@ -111,8 +113,13 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
             f"Реферальный код: <code>{user.referral_code}</code>"
         )
 
-        await safe_callback_edit(callback, text, reply_markup=get_user_actions_kb(
-            user_db_id, user.is_banned, user.notifications_enabled))
+        await safe_callback_edit(
+            callback,
+            text,
+            reply_markup=get_user_actions_kb(
+                user_db_id, user.is_banned, user.notifications_enabled
+            ),
+        )
     await callback.answer()
 
 
@@ -120,7 +127,9 @@ async def handle_user_detail(callback: CallbackQuery, callback_data: AdminCB) ->
 
 
 @router.callback_query(AdminCB.filter(F.action == "toggle_ban"))
-async def handle_toggle_ban(callback: CallbackQuery, callback_data: AdminCB, state: FSMContext) -> None:
+async def handle_toggle_ban(
+    callback: CallbackQuery, callback_data: AdminCB, state: FSMContext
+) -> None:
     """Быстрый бан/разбан пользователя из профиля."""
     user_db_id = int(callback_data.value)
 
@@ -147,7 +156,9 @@ async def handle_toggle_ban(callback: CallbackQuery, callback_data: AdminCB, sta
 
 
 @router.callback_query(AdminCB.filter(F.action == "toggle_user_notif"))
-async def admin_toggle_user_notif(callback: CallbackQuery, callback_data: AdminCB, state: FSMContext) -> None:
+async def admin_toggle_user_notif(
+    callback: CallbackQuery, callback_data: AdminCB, state: FSMContext
+) -> None:
     """Админ переключает уведомления конкретного пользователя."""
     user_db_id = int(callback_data.value)
 
@@ -164,8 +175,11 @@ async def admin_toggle_user_notif(callback: CallbackQuery, callback_data: AdminC
 async def handle_ban_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать процесс бана пользователя (ручной ввод ID)."""
     await state.set_state(AdminBanStates.waiting_user_id)
-    await safe_callback_edit(callback, "🚫 <b>Бан пользователя</b>\n\nВведите Telegram ID пользователя:",
-        reply_markup=get_back_kb())
+    await safe_callback_edit(
+        callback,
+        "🚫 <b>Бан пользователя</b>\n\nВведите Telegram ID пользователя:",
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -214,7 +228,6 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     reason = message.text
     target_db_id = data["target_db_id"]
-    target_telegram_id = data["target_telegram_id"]
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -225,13 +238,18 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
             await state.clear()
             return
 
+        # mypy type narrowing: user is guaranteed non-None after the check
         new_status = not user.is_banned
         await user_repo.update(target_db_id, {"is_banned": new_status})
 
         action = "забанен 🚫" if new_status else "разбанен ✅"
-        logger.warning(f"Admin {message.from_user.id} {action} user {target_telegram_id}. Reason: {reason}")
+        logger.info(
+            f"Admin {message.from_user.id} {action} user {user.telegram_id}. Reason: {reason}"  # type: ignore[union-attr]
+        )
 
-    await message.answer(f"✅ Пользователь {action}\nПричина: {reason}", reply_markup=get_admin_main_kb())
+    await message.answer(
+        f"✅ Пользователь {action}\nПричина: {reason}", reply_markup=get_admin_main_kb()
+    )
     await state.clear()
 
 
@@ -239,7 +257,9 @@ async def handle_ban_reason(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(AdminCB.filter(F.action == "edit_balance"))
-async def handle_edit_balance(callback: CallbackQuery, callback_data: AdminCB, state: FSMContext) -> None:
+async def handle_edit_balance(
+    callback: CallbackQuery, callback_data: AdminCB, state: FSMContext
+) -> None:
     """Начать изменение баланса пользователя из профиля."""
     user_db_id = int(callback_data.value)
 
@@ -253,13 +273,17 @@ async def handle_edit_balance(callback: CallbackQuery, callback_data: AdminCB, s
     await state.update_data(target_db_id=user_db_id, target_telegram_id=user.telegram_id)
     await state.set_state(AdminBalanceStates.waiting_amount)
 
-    await safe_callback_edit(callback, f"💰 <b>Изменение баланса пользователя</b>\n\n"
+    await safe_callback_edit(
+        callback,
+        f"💰 <b>Изменение баланса пользователя</b>\n\n"
         f"👤 {user.full_name} (Telegram ID: <code>{user.telegram_id}</code>)\n"
         f"💳 Текущий баланс: <b>{user.credits} кр</b>\n\n"
         "Введите сумму изменения:\n"
         "<code>+500</code> — пополнить на 500 кр\n"
         "<code>-200</code> — списать 200 кр\n\n"
-        "Или введите /cancel для отмены", reply_markup=get_back_kb())
+        "Или введите /cancel для отмены",
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -267,8 +291,11 @@ async def handle_edit_balance(callback: CallbackQuery, callback_data: AdminCB, s
 async def handle_balance_manage(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать изменение баланса пользователя (ручной ввод ID)."""
     await state.set_state(AdminBalanceStates.waiting_user_id)
-    await safe_callback_edit(callback, "💰 <b>Изменение баланса пользователя</b>\n\nВведите Telegram ID пользователя:",
-        reply_markup=get_back_kb())
+    await safe_callback_edit(
+        callback,
+        "💰 <b>Изменение баланса пользователя</b>\n\nВведите Telegram ID пользователя:",
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -343,18 +370,21 @@ async def handle_balance_reason(message: Message, state: FSMContext) -> None:
             await state.clear()
             return
 
+        # mypy type narrowing: user is guaranteed non-None after the check
         new_credits = await user_repo.update_credits(target_db_id, amount)
         await session.commit()
 
         sign = "+" if amount > 0 else ""
-        logger.info(f"Admin {message.from_user.id} changed credits of user {user.telegram_id} by {sign}{amount} кр. Reason: {reason}")
+        logger.info(
+            f"Admin {message.from_user.id} changed credits of user {user.telegram_id} by {sign}{amount} кр. Reason: {reason}"  # type: ignore[union-attr]
+        )
 
     await message.answer(
         f"✅ <b>Баланс изменён</b>\n\n"
         f"Изменение: <b>{sign}{amount} кр</b>\n"
         f"Новый баланс: <b>{new_credits} кр</b>\n"
         f"Причина: {reason}",
-        reply_markup=get_admin_main_kb()
+        reply_markup=get_admin_main_kb(),
     )
     await state.clear()
 
@@ -366,11 +396,14 @@ async def handle_balance_reason(message: Message, state: FSMContext) -> None:
 async def handle_broadcast_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать broadcast рассылку."""
     await state.set_state(AdminBroadcastStates.waiting_message)
-    await safe_callback_edit(callback, "📢 <b>Broadcast рассылка</b>\n\n"
+    await safe_callback_edit(
+        callback,
+        "📢 <b>Broadcast рассылка</b>\n\n"
         "Введите текст сообщения.\n"
         "Поддерживается HTML форматирование.\n\n"
         "⚠️ Сообщение получат <b>все</b> незабаненные пользователи.",
-        reply_markup=get_back_kb())
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -388,7 +421,7 @@ async def handle_broadcast_message(message: Message, state: FSMContext) -> None:
         f"{message.text}\n\n"
         f"━━━━━━━━━━━━━━━\n"
         f"Получателей: <b>{total}</b> пользователей",
-        reply_markup=get_admin_confirm_kb("broadcast")
+        reply_markup=get_admin_confirm_kb("broadcast"),
     )
 
 
@@ -419,8 +452,11 @@ async def handle_broadcast_confirm(callback: CallbackQuery, state: FSMContext) -
             logger.error(f"Failed to send broadcast to {user.telegram_id}: {e}")
             failed += 1
 
-    await safe_callback_edit(callback, f"✅ <b>Broadcast завершён</b>\n\n📤 Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
-        reply_markup=get_admin_main_kb())
+    await safe_callback_edit(
+        callback,
+        f"✅ <b>Broadcast завершён</b>\n\n📤 Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
+        reply_markup=get_admin_main_kb(),
+    )
     await callback.answer()
 
 
@@ -440,7 +476,9 @@ async def show_blacklist(callback: CallbackQuery, callback_data: AdminCB) -> Non
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     if not chats:
-        await safe_callback_edit(callback, "🚫 <b>Чёрный список каналов</b>\n\nСписок пуст.", reply_markup=get_back_kb())
+        await safe_callback_edit(
+            callback, "🚫 <b>Чёрный список каналов</b>\n\nСписок пуст.", reply_markup=get_back_kb()
+        )
         return
 
     lines = [f"🚫 <b>Чёрный список</b> (всего: {total})\n"]
@@ -449,7 +487,9 @@ async def show_blacklist(callback: CallbackQuery, callback_data: AdminCB) -> Non
         reason = (ch.blacklisted_reason or "—")[:40]
         lines.append(f"• <code>{ch.id}</code> {username}\n  └ {reason}")
 
-    await safe_callback_edit(callback, "\n".join(lines), reply_markup=get_blacklist_kb(page, total_pages))
+    await safe_callback_edit(
+        callback, "\n".join(lines), reply_markup=get_blacklist_kb(page, total_pages)
+    )
     await callback.answer()
 
 

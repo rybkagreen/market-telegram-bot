@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 # TypedDict для JSON-полей (Спринт 3 — документирование)
 # ═══════════════════════════════════════════════════════════════
 
+
 class CampaignFiltersJSON(TypedDict, total=False):
     """
     Структура поля Campaign.filters_json.
@@ -48,6 +49,7 @@ class CampaignFiltersJSON(TypedDict, total=False):
         has_bot_admin: Только каналы с ботом-админом.
         audience: Тип аудитории ("all", "it_tech", "business_finance", etc.).
     """
+
     topics: list[str]
     subcategories: list[str]
     min_members: int
@@ -76,6 +78,7 @@ class CampaignMetaJSON(TypedDict, total=False):
         source: Источник создания (wizard, manual, api).
         tracking_enabled: Включено ли отслеживание.
     """
+
     ai_generated: bool
     ab_variant: str
     source: str
@@ -93,6 +96,7 @@ class CampaignStatus(str, Enum):
     DRAFT = "draft"  # Черновик, не готов к запуску
     QUEUED = "queued"  # В очереди на запуск (запланирован)
     RUNNING = "running"  # В процессе рассылки
+    SCHEDULED = "scheduled"  # Запланирована на будущее
     DONE = "done"  # Завершена успешно
     ERROR = "error"  # Завершена с ошибкой
     PAUSED = "paused"  # На паузе

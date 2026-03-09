@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+
 @router.callback_query(F.data.startswith("channel_mediakit_public:"))
 async def show_public_mediakit(callback: CallbackQuery) -> None:
     """Показать публичную страницу медиакита (для рекламодателей)."""
@@ -54,7 +55,9 @@ async def show_public_mediakit(callback: CallbackQuery) -> None:
 
     # Сформировать текст
     filters_text = get_active_filters_bar(
-        categories=[mediakit_data["channel"].get("topic")] if mediakit_data["channel"].get("topic") else [],
+        categories=[mediakit_data["channel"].get("topic")]
+        if mediakit_data["channel"].get("topic")
+        else [],
         tariffs=[],
     )
 
@@ -120,7 +123,6 @@ async def download_public_mediakit_pdf(callback: CallbackQuery) -> None:
     await callback.answer("⏳ Генерирую PDF...", show_alert=False)
 
     async with async_session_factory() as session:
-
         # Получить медиакит
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
 
@@ -134,6 +136,7 @@ async def download_public_mediakit_pdf(callback: CallbackQuery) -> None:
 
         # Сгенерировать PDF
         from src.utils.mediakit_pdf import generate_mediakit_pdf
+
         pdf_bytes = generate_mediakit_pdf(mediakit_data)
 
         # Отправить файл

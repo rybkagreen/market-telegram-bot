@@ -116,7 +116,9 @@ class LinkTrackingService:
 
             await session.flush()
 
-            logger.info(f"Tracked click for campaign {campaign.id}: {campaign.clicks_count + 1} total")
+            logger.info(
+                f"Tracked click for campaign {campaign.id}: {campaign.clicks_count + 1} total"
+            )
 
             return campaign.tracking_url
 

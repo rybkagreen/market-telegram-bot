@@ -62,6 +62,7 @@ app.include_router(channels_router, prefix="/api", tags=["Channels"])
 # Exception handlers (Спринт 4)
 # ═══════════════════════════════════════════════════════════════
 
+
 @app.exception_handler(RekHarborError)
 async def rekharbor_error_handler(request, exc: RekHarborError):
     """Handler для бизнес-ошибок проекта."""

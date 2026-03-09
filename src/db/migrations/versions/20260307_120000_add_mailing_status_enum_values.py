@@ -5,13 +5,14 @@ Revises: 20260307_100000
 Create Date: 2026-03-07 12:00:00.000000+00:00
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '20260307_120000'
-down_revision: str | None = '20260307_100000'
+revision: str = "20260307_120000"
+down_revision: str | None = "20260307_100000"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

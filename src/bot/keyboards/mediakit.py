@@ -95,7 +95,9 @@ def get_color_selector_kb(channel_id: int) -> InlineKeyboardMarkup:
     for label, color in COLOR_PRESETS:
         builder.button(
             text=label,
-            callback_data=MediakitCB(action="color_set", channel_id=str(channel_id), color=color).pack(),
+            callback_data=MediakitCB(
+                action="color_set", channel_id=str(channel_id), color=color
+            ).pack(),
         )
 
     builder.button(
@@ -107,7 +109,9 @@ def get_color_selector_kb(channel_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_metrics_selector_kb(channel_id: int, selected: list[str] | None = None) -> InlineKeyboardMarkup:
+def get_metrics_selector_kb(
+    channel_id: int, selected: list[str] | None = None
+) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора метрик для отображения.
 
@@ -131,7 +135,9 @@ def get_metrics_selector_kb(channel_id: int, selected: list[str] | None = None) 
         prefix = "✅ " if code in selected else ""
         builder.button(
             text=f"{prefix}{label}",
-            callback_data=MediakitCB(action=f"toggle_metric_{code}", channel_id=str(channel_id)).pack(),
+            callback_data=MediakitCB(
+                action=f"toggle_metric_{code}", channel_id=str(channel_id)
+            ).pack(),
         )
 
     builder.button(

@@ -7,7 +7,13 @@ import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from src.core.services.b2b_package_service import b2b_package_service
 
@@ -54,24 +60,17 @@ async def show_niche_packages(callback: CallbackQuery) -> None:
     niche = (callback.data or "").split(":")[1]
 
     # Получаем описание ниши
-    niche_desc = b2b_package_service.NICHE_DESCRIPTIONS.get(
-        niche, "Описание недоступно"
-    )
+    niche_desc = b2b_package_service.NICHE_DESCRIPTIONS.get(niche, "Описание недоступно")
 
     # Получаем пакеты
     packages = await b2b_package_service.get_packages_by_niche(niche)
 
     if not packages:
         text = (
-            f"{niche_desc}\n\n"
-            "❌ В этой нише пока нет доступных пакетов.\n\n"
-            "Выберите другую нишу:"
+            f"{niche_desc}\n\n❌ В этой нише пока нет доступных пакетов.\n\nВыберите другую нишу:"
         )
     else:
-        text = (
-            f"{niche_desc}\n\n"
-            f"📦 <b>Доступные пакеты ({len(packages)})</b>\n\n"
-        )
+        text = f"{niche_desc}\n\n📦 <b>Доступные пакеты ({len(packages)})</b>\n\n"
 
         for pkg in packages:
             text += (
@@ -88,6 +87,12 @@ async def show_niche_packages(callback: CallbackQuery) -> None:
         ]
     )
 
+    if callback.message is None:
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
+    if isinstance(callback.message, InaccessibleMessage):
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
     await callback.message.edit_text(
         text,
         reply_markup=keyboard,
@@ -123,6 +128,12 @@ async def b2b_back(callback: CallbackQuery) -> None:
         ]
     )
 
+    if callback.message is None:
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
+    if isinstance(callback.message, InaccessibleMessage):
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
     await callback.message.edit_text(
         text,
         reply_markup=keyboard,

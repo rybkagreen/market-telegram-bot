@@ -32,18 +32,14 @@ class ComparisonService:
         from src.db.models.analytics import TelegramChat
 
         async with async_session_factory() as session:
-            stmt = select(TelegramChat).where(
-                TelegramChat.id.in_(channel_ids)
-            )
+            stmt = select(TelegramChat).where(TelegramChat.id.in_(channel_ids))
             result = await session.execute(stmt)
             channels = list(result.scalars().all())
 
             # Сортируем в порядке ID как передано
             channel_map = {ch.id: ch for ch in channels}
             return [
-                self._channel_to_dict(channel_map[cid])
-                for cid in channel_ids
-                if cid in channel_map
+                self._channel_to_dict(channel_map[cid]) for cid in channel_ids if cid in channel_map
             ]
 
     def _channel_to_dict(self, channel) -> dict[str, Any]:
@@ -81,8 +77,7 @@ class ComparisonService:
         for ch in channels_data:
             if ch["member_count"] > 0:
                 ch["price_per_1k_subscribers"] = round(
-                    ch["price_per_post"] / (ch["member_count"] / 1000),
-                    2
+                    ch["price_per_post"] / (ch["member_count"] / 1000), 2
                 )
             else:
                 ch["price_per_1k_subscribers"] = 0
@@ -105,10 +100,10 @@ class ComparisonService:
         for ch in channels_data:
             ch["is_best"] = {}
             for metric in metrics_higher_better:
-                ch["is_best"][metric] = (ch.get(metric, 0) == best_values.get(metric, 0))
+                ch["is_best"][metric] = ch.get(metric, 0) == best_values.get(metric, 0)
             for metric in metrics_lower_better:
                 if ch.get(metric, 0) > 0:
-                    ch["is_best"][metric] = (ch.get(metric, 0) == best_values.get(metric, 0))
+                    ch["is_best"][metric] = ch.get(metric, 0) == best_values.get(metric, 0)
                 else:
                     ch["is_best"][metric] = False
 
@@ -143,7 +138,9 @@ class ComparisonService:
         best_by_er = max(channels_data, key=lambda x: x.get("er", 0))
 
         # Если ER одинаковый, смотрим на avg_views
-        channels_with_best_er = [ch for ch in channels_data if ch.get("er", 0) == best_by_er.get("er", 0)]
+        channels_with_best_er = [
+            ch for ch in channels_data if ch.get("er", 0) == best_by_er.get("er", 0)
+        ]
         if len(channels_with_best_er) > 1:
             best = max(channels_with_best_er, key=lambda x: x.get("avg_views", 0))
         else:

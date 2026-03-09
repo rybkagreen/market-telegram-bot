@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 # TypedDict для JSON-полей (Спринт 3 — документирование)
 # ═══════════════════════════════════════════════════════════════
 
+
 class RecentPostJSON(TypedDict):
     """
     Структура одного поста в TelegramChat.recent_posts.
@@ -62,6 +63,7 @@ class RecentPostJSON(TypedDict):
         date: Дата публикации в ISO 8601.
         has_media: Есть ли медиа (фото, видео, и т.д.).
     """
+
     message_id: int
     text: str
     views: int
@@ -164,34 +166,46 @@ class TelegramChat(Base):
 
     # === Поля opt-in (Спринт 0) ===
     bot_is_admin: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="false",
-        comment="Бот добавлен администратором в канале"
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default="false",
+        comment="Бот добавлен администратором в канале",
     )
     admin_added_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
-        comment="Когда бот был добавлен администратором"
+        DateTime(timezone=True), nullable=True, comment="Когда бот был добавлен администратором"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
-        comment="Владелец канала (FK на users.id)"
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Владелец канала (FK на users.id)",
     )
     price_per_post: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 2), nullable=True,
-        comment="Цена за один рекламный пост в рублях"
+        Numeric(10, 2), nullable=True, comment="Цена за один рекламный пост в рублях"
     )
     is_accepting_ads: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="false",
-        comment="Канал принимает рекламные размещения"
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default="false",
+        comment="Канал принимает рекламные размещения",
     )
 
     # === Поля для настроек размещения (Спринт 5) ===
     max_posts_per_day: Mapped[int] = mapped_column(
-        Integer, default=2, nullable=False, server_default="2",
-        comment="Максимальное количество постов в день"
+        Integer,
+        default=2,
+        nullable=False,
+        server_default="2",
+        comment="Максимальное количество постов в день",
     )
     approval_mode: Mapped[str] = mapped_column(
-        String(20), default="auto", nullable=False, server_default="auto",
-        comment="Режим одобрения: 'auto' или 'manual'"
+        String(20),
+        default="auto",
+        nullable=False,
+        server_default="auto",
+        comment="Режим одобрения: 'auto' или 'manual'",
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

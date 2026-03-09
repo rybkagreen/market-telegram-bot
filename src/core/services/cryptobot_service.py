@@ -68,7 +68,9 @@ class CryptoBotService:
                     f"Payload: {kwargs.get('json', kwargs.get('params', {}))}, "
                     f"Response: {error_body.decode('utf-8', errors='replace')}"
                 )
-                raise ValueError(f"CryptoBot API error 400: {error_body.decode('utf-8', errors='replace')}")
+                raise ValueError(
+                    f"CryptoBot API error 400: {error_body.decode('utf-8', errors='replace')}"
+                )
 
             response.raise_for_status()
             data = response.json()
@@ -221,6 +223,7 @@ class CryptoBotService:
 
         # Генерируем уникальный spend_id для идемпотентности
         import uuid
+
         spend_id = f"payout_{uuid.uuid4().hex[:16]}"
 
         try:
@@ -259,7 +262,9 @@ class CryptoBotService:
 
             # Парсим ошибки CryptoBot API
             if "INSUFFICIENT_FUNDS" in error_msg or "insufficient" in error_msg.lower():
-                raise InsufficientFundsError(f"Bot balance insufficient for {amount} {currency}") from e
+                raise InsufficientFundsError(
+                    f"Bot balance insufficient for {amount} {currency}"
+                ) from e
             elif "USER_NOT_FOUND" in error_msg or "user not found" in error_msg.lower():
                 raise UserNotFoundError(f"User {telegram_id} not found in CryptoBot") from e
             else:
@@ -274,16 +279,20 @@ cryptobot_service = CryptoBotService()
 # Custom Exceptions for CryptoBot operations
 # ═══════════════════════════════════════════════════════════════
 
+
 class InsufficientFundsError(Exception):
     """Недостаточно средств на балансе бота для выплаты."""
+
     pass
 
 
 class UserNotFoundError(Exception):
     """Пользователь не найден в CryptoBot (не использовал @CryptoBot)."""
+
     pass
 
 
 class PayoutAPIError(Exception):
     """Общая ошибка API CryptoBot при выплате."""
+
     pass

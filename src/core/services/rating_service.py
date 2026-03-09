@@ -258,12 +258,9 @@ class RatingService:
 
         from src.db.models.review import Review
 
-        stmt = (
-            select(func.avg(Review.score_compliance))
-            .where(
-                Review.channel_id == channel.id,
-                Review.is_hidden == False,  # noqa: E712
-            )
+        stmt = select(func.avg(Review.score_compliance)).where(
+            Review.channel_id == channel.id,
+            Review.is_hidden == False,  # noqa: E712
         )
         result = await session.execute(stmt)
         avg_compliance = result.scalar_one() or 0
@@ -402,7 +399,9 @@ class RatingService:
                     growth_rate = ((new_subscribers - old_subscribers) / old_subscribers) * 100
 
                     if growth_rate > 50:
-                        fraud_reasons.append(f"Subscriber growth > 50% in 7 days ({growth_rate:.1f}%)")
+                        fraud_reasons.append(
+                            f"Subscriber growth > 50% in 7 days ({growth_rate:.1f}%)"
+                        )
                         severity = "high"
 
             # 2. Проверка ER < 0.5% при > 10k подписчиков
@@ -428,7 +427,9 @@ class RatingService:
             if len(snapshots_14d) >= 2:
                 # Ищем рост followed by отток
                 peak_subscribers = max(s.subscribers for s in snapshots_14d)
-                current_subscribers = snapshots_14d[0].subscribers if snapshots_14d else channel.member_count
+                current_subscribers = (
+                    snapshots_14d[0].subscribers if snapshots_14d else channel.member_count
+                )
 
                 if peak_subscribers > 0:
                     drop_rate = ((peak_subscribers - current_subscribers) / peak_subscribers) * 100
