@@ -136,7 +136,7 @@ def build_xp_progress_bar(current_xp: int, level: int) -> str:
     bar = "█" * filled + "░" * empty
     remaining = next_level_xp - current_xp
 
-    return f"{current_xp} XP  {bar}  {percent}%  →  до ур.{level+1}: {remaining} XP"
+    return f"{current_xp} XP  {bar}  {percent}%  →  до ур.{level + 1}: {remaining} XP"
 
 
 async def show_cabinet(message: Message | CallbackQuery) -> None:
@@ -182,8 +182,8 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         else:
             # Для new/both используем общие значения
             xp_stats = await xp_service.get_user_stats(telegram_id)
-            level = xp_stats.get('level', 1)
-            xp_points = xp_stats.get('xp_points', 0)
+            level = xp_stats.get("level", 1)
+            xp_points = xp_stats.get("xp_points", 0)
             level_names = LEVEL_NAMES
             level_privileges = LEVEL_NEXT_PRIVILEGE
 
@@ -208,13 +208,14 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         if role in ("advertiser", "both"):
             # Для рекламодателя
             # Дата истечения тарифа — получаем из user.plan_expires_at
-            plan_expires_at = getattr(user, 'plan_expires_at', None)
+            plan_expires_at = getattr(user, "plan_expires_at", None)
             days_left = None
             if plan_expires_at:
                 days_left = (plan_expires_at - datetime.now(UTC)).days
 
             # Осталось кампаний — получаем из БД
             from src.db.repositories.campaign_repo import CampaignRepository
+
             campaign_repo = CampaignRepository(session)
             total_campaigns = await campaign_repo.get_user_campaigns_count(user.id)
             remaining_campaigns = total_campaigns  # Заглушка — в будущем нужно считать лимит
@@ -229,17 +230,13 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
                 f"📦 Тариф: {plan_value}"
             )
 
-            if days_left is not None and days_left > 0:
+            if days_left is not None and days_left > 0 and plan_expires_at is not None:
                 text += f"  •  до {plan_expires_at.strftime('%d.%m')} ({days_left} дней)\n"
                 text += f"   Осталось кампаний: {remaining_campaigns} из {plan_limit}\n"
             else:
                 text += "\n"
 
-            text += (
-                f"\n━━━━ УРОВЕНЬ ━━━━\n"
-                f"{level_name}  Уровень {level}\n"
-                f"   {xp_bar}\n"
-            )
+            text += f"\n━━━━ УРОВЕНЬ ━━━━\n{level_name}  Уровень {level}\n   {xp_bar}\n"
 
             if next_privilege and level < 7:
                 text += f"\nНа уровне {level + 1} — {next_level_name}:\n→ {next_privilege}\n"
@@ -294,11 +291,14 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
         )
 
         # Задача 5.4: Расширенная клавиатура в зависимости от роли
-        await answer_method(text, reply_markup=get_cabinet_kb(
-            notifications_enabled=user.notifications_enabled,
-            role=role.value if hasattr(role, 'value') else role,
-            available_payout=available_payout,
-        ))
+        await answer_method(
+            text,
+            reply_markup=get_cabinet_kb(
+                notifications_enabled=user.notifications_enabled,
+                role=role.value if hasattr(role, "value") else role,
+                available_payout=int(available_payout),
+            ),
+        )
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "cabinet"))
@@ -449,12 +449,16 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
             page_size=page_size,
         )
 
-        logger.info(f"show_campaigns_list: telegram_id={callback.from_user.id}, total={total}, campaigns={len(campaigns)}")
+        logger.info(
+            f"show_campaigns_list: telegram_id={callback.from_user.id}, total={total}, campaigns={len(campaigns)}"
+        )
 
         total_pages = max(1, (total + page_size - 1) // page_size)
 
         if not campaigns:
-            logger.warning(f"show_campaigns_list: no campaigns found for user {callback.from_user.id}")
+            logger.warning(
+                f"show_campaigns_list: no campaigns found for user {callback.from_user.id}"
+            )
             text = (
                 "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию через главное меню!"
             )
@@ -475,7 +479,9 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
 
         for campaign in campaigns:
             # campaign.status может быть строкой или enum
-            status_value = campaign.status if isinstance(campaign.status, str) else campaign.status.value
+            status_value = (
+                campaign.status if isinstance(campaign.status, str) else campaign.status.value
+            )
             emoji = STATUS_EMOJI.get(status_value, "📝")
             progress = campaign.progress
 
@@ -526,6 +532,7 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
 # ─────────────────────────────────────────────
 # Геймификация — значки (Спринт 4)
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(CabinetCB.filter(F.action == "badges"))
 async def show_badges(callback: CallbackQuery) -> None:
@@ -582,6 +589,7 @@ async def campaigns_pagination_callback(
 # TASK 4: Детальная страница кампании + управление
 # ─────────────────────────────────────────────
 
+
 @router.callback_query(CampaignCB.filter(F.action == "show_detail"))
 async def show_campaign_detail(callback: CallbackQuery, callback_data: CampaignCB) -> None:
     """
@@ -608,8 +616,10 @@ async def show_campaign_detail(callback: CallbackQuery, callback_data: CampaignC
             return
 
         # Статус кампании
-        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
-        emoji = STATUS_EMOJI.get(status_value, "📝")
+        status_value = (
+            campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        )
+        emoji = STATUS_EMOJI.get(status_value, "📝")  # type: ignore[arg-type]  # status.value or status str
 
         # Прогресс
         progress = campaign.progress
@@ -743,6 +753,7 @@ async def pause_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> 
         if task_id:
             try:
                 from celery.result import AsyncResult
+
                 task_result = AsyncResult(task_id)
                 task_result.revoke(terminate=True)
                 logger.info(f"Revoked Celery task {task_id} for campaign {campaign_id}")
@@ -832,7 +843,9 @@ async def cancel_campaign_action(callback: CallbackQuery, callback_data: Campaig
             return
 
         # Проверка статуса — можно отменять только queued/running/paused
-        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        status_value = (
+            campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        )
         if status_value not in ("queued", "running", "paused"):
             await callback.answer("❌ Кампанию нельзя отменить в текущем статусе", show_alert=True)
             return
@@ -840,11 +853,13 @@ async def cancel_campaign_action(callback: CallbackQuery, callback_data: Campaig
         # ⚠️ ИСПРАВЛЕНИЕ: возврат только за незавершённые placements
         stmt = select(MailingLog).where(
             MailingLog.campaign_id == campaign_id,
-            MailingLog.status.in_([
-                MailingStatus.PENDING_APPROVAL,
-                MailingStatus.QUEUED,
-                MailingStatus.PENDING,
-            ])
+            MailingLog.status.in_(
+                [
+                    MailingStatus.PENDING_APPROVAL,
+                    MailingStatus.QUEUED,
+                    MailingStatus.PENDING,
+                ]
+            ),
         )
         result = await session.execute(stmt)
         pending_placements = list(result.scalars().all())
@@ -894,7 +909,9 @@ async def delete_campaign(callback: CallbackQuery, callback_data: CampaignCB) ->
             await callback.answer("❌ Доступ запрещён", show_alert=True)
             return
 
-        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        status_value = (
+            campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        )
         if status_value != "draft":
             await callback.answer("❌ Можно удалять только черновики", show_alert=True)
             return
@@ -932,19 +949,23 @@ async def duplicate_campaign(callback: CallbackQuery, callback_data: CampaignCB)
             return
 
         # Создаём копию
-        new_campaign = await campaign_repo.create({
-            "user_id": user.id,
-            "title": f"{original.title} (копия)",
-            "topic": original.topic,
-            "header": original.header,
-            "text": original.text,
-            "image_file_id": original.image_file_id,
-            "ai_description": original.ai_description,
-            "status": CampaignStatus.DRAFT,
-            "filters_json": original.filters_json,
-            "scheduled_at": None,
-            "cost": 0,
-        })
+        new_campaign = await campaign_repo.create(
+            {
+                "user_id": user.id,
+                "title": f"{original.title} (копия)",
+                "topic": original.topic,
+                "header": original.header,
+                "text": original.text,
+                "image_file_id": original.image_file_id,
+                "ai_description": original.ai_description,
+                "status": CampaignStatus.DRAFT,
+                "filters_json": original.filters_json,
+                "scheduled_at": None,
+                "cost": 0,
+            }
+        )
 
     await callback.answer("📋 Кампания продублирована")
-    await show_campaign_detail(callback, CampaignCB(action="show_detail", value=str(new_campaign.id)))
+    await show_campaign_detail(
+        callback, CampaignCB(action="show_detail", value=str(new_campaign.id))
+    )

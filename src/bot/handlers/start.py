@@ -252,6 +252,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
 
         # Обновляем last_login_at для стриков (Спринт 3)
         from datetime import datetime
+
         user.last_login_at = datetime.now(UTC)
         await session.flush()
 
@@ -337,7 +338,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             )
         elif user_context.role == "owner":
             # Для владельца — показываем количество каналов и заявок
-            channels_count = user_context.channels_count if hasattr(user_context, 'channels_count') else 0
+            channels_count = (
+                user_context.channels_count if hasattr(user_context, "channels_count") else 0
+            )
             pending = user_context.pending_requests_count
 
             if pending > 0:
@@ -489,7 +492,7 @@ async def main_menu_callback(callback: CallbackQuery) -> None:
                 pending_count=user_context.pending_requests_count,
                 active_campaigns=user_context.has_campaigns,  # Упрощённо: 0 или 1
                 channels_count=user_context.has_channels,  # Упрощённо: 0 или 1
-                available_payout=await _get_available_payout(user.id, user_context.role.value),
+                available_payout=int(await _get_available_payout(user.id, user_context.role.value)),
             ),
         )
 
@@ -595,6 +598,7 @@ async def handle_app_command(message: Message) -> None:
 # ─────────────────────────────────────────────
 # Новые action обработчики для роль-зависимого меню
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(MainMenuCB.filter(F.action == "my_channels"))
 async def go_to_my_channels(callback: CallbackQuery) -> None:
@@ -705,19 +709,25 @@ async def go_to_payouts(callback: CallbackQuery) -> None:
             total_available += available
 
             channel_payout = available  # Для отображения
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"📺 @{channel.username} — {channel_payout:.0f} кр",
-                    callback_data=f"ch_payouts:{channel.id}",
-                )
-            ])
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"📺 @{channel.username} — {channel_payout:.0f} кр",
+                        callback_data=f"ch_payouts:{channel.id}",
+                    )
+                ]
+            )
 
         text += f"💰 <b>Общая сумма к выводу: {total_available:.0f} кр</b>\n\n"
         text += "Выберите канал для управления выплатами:\n"
 
-    keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu")),
-    ])
+    keyboard_buttons.append(
+        [
+            InlineKeyboardButton(
+                text="🔙 В меню", callback_data=MainMenuCB(action="main_menu").pack()
+            ),
+        ]
+    )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -780,7 +790,7 @@ async def show_platform_stats(callback: CallbackQuery) -> None:
         )
     except Exception as e:
         logger.error(f"Error getting platform stats: {e}")
-        text = "📊 <b>Статистика платформы</b>\n\n" "Временно недоступна. Попробуйте позже."
+        text = "📊 <b>Статистика платформы</b>\n\nВременно недоступна. Попробуйте позже."
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Назад", callback_data=MainMenuCB(action="main_menu"))
@@ -800,8 +810,11 @@ async def noop_callback(callback: CallbackQuery) -> None:
 # Онбординг
 # ─────────────────────────────────────────────
 
+
 @router.callback_query(OnboardingCB.filter())
-async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB, state: FSMContext) -> None:
+async def handle_onboarding(
+    callback: CallbackQuery, callback_data: OnboardingCB, state: FSMContext
+) -> None:
     """
     Обработка выбора роли при первом входе.
     Показывает подходящий следующий шаг и сохраняет состояние.
@@ -855,7 +868,7 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
             "• Преимущественно русскоязычная аудитория\n\n"
             "🔒 <b>Бот получает только право публиковать посты.</b>\n"
             "   Управлять каналом он не может.\n\n"
-            "<b>Нажмите \"Добавить канал\" чтобы начать:</b>",
+            '<b>Нажмите "Добавить канал" чтобы начать:</b>',
             parse_mode="HTML",
         )
 
@@ -873,6 +886,7 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
 # Глобальный /cancel handler (Спринт 11)
 # ─────────────────────────────────────────────
 
+
 @router.message(Command("cancel"))
 async def cancel_fsm_handler(message: Message, state: FSMContext) -> None:
     """
@@ -886,9 +900,8 @@ async def cancel_fsm_handler(message: Message, state: FSMContext) -> None:
     if current_state and current_state != "-":
         await state.clear()
         await message.answer(
-            "❌ <b>Диалог отменён</b>\n\n"
-            "Выберите действие в меню:",
-            reply_markup=get_main_menu(),
+            "❌ <b>Диалог отменён</b>\n\nВыберите действие в меню:",
+            reply_markup=get_main_menu(credits=0),
         )
         logger.info(f"FSM cancelled for user {message.from_user.id}")  # type: ignore[union-attr]
     else:

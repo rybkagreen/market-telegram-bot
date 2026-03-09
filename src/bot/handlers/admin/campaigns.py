@@ -43,7 +43,9 @@ async def show_test_campaign_menu(callback: CallbackQuery) -> None:
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(1)
 
-    await safe_callback_edit(callback, "🧪 <b>Тест кампании</b>\n\nВыберите действие:", reply_markup=builder.as_markup())
+    await safe_callback_edit(
+        callback, "🧪 <b>Тест кампании</b>\n\nВыберите действие:", reply_markup=builder.as_markup()
+    )
     await callback.answer()
 
 
@@ -57,8 +59,11 @@ async def handle_free_campaign_start(callback: CallbackQuery, state: FSMContext)
     await state.update_data(is_free=True, admin_id=callback.from_user.id)
     await state.set_state(AdminFreeCampaignStates.waiting_title)
 
-    await safe_callback_edit(callback, "📣 <b>Бесплатная кампания администратора</b>\n\nВведите название кампании:",
-        reply_markup=get_back_kb())
+    await safe_callback_edit(
+        callback,
+        "📣 <b>Бесплатная кампания администратора</b>\n\nВведите название кампании:",
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -102,39 +107,59 @@ async def handle_free_campaign_text(message: Message, state: FSMContext) -> None
 
     builder = InlineKeyboardBuilder()
     for topic in ["бизнес", "маркетинг", "it", "финансы", "крипто", "образование"]:
-        builder.button(text=topic.capitalize(), callback_data=CampaignCB(action="topic", value=topic))
+        builder.button(
+            text=topic.capitalize(), callback_data=CampaignCB(action="topic", value=topic)
+        )
     builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
     builder.adjust(2)
 
     await message.answer("Выберите тематику кампании:", reply_markup=builder.as_markup())
 
 
-@router.callback_query(AdminFreeCampaignStates.waiting_topic, CampaignCB.filter(F.action == "topic"))
-async def handle_free_campaign_topic(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
+@router.callback_query(
+    AdminFreeCampaignStates.waiting_topic, CampaignCB.filter(F.action == "topic")
+)
+async def handle_free_campaign_topic(
+    callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext
+) -> None:
     """Выбрать тематику кампании."""
     topic = callback_data.value
     await state.update_data(topic=topic)
     await state.set_state(AdminFreeCampaignStates.waiting_member_count)
 
-    await safe_callback_edit(callback, f"✅ Тематика: {topic}\n\nВыберите минимальное количество подписчиков:",
-        reply_markup=get_member_count_kb())
+    await safe_callback_edit(
+        callback,
+        f"✅ Тематика: {topic}\n\nВыберите минимальное количество подписчиков:",
+        reply_markup=get_member_count_kb(),
+    )
     await callback.answer()
 
 
-@router.callback_query(AdminFreeCampaignStates.waiting_member_count, CampaignCB.filter(F.action == "member_count"))
-async def handle_free_campaign_members(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
+@router.callback_query(
+    AdminFreeCampaignStates.waiting_member_count, CampaignCB.filter(F.action == "member_count")
+)
+async def handle_free_campaign_members(
+    callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext
+) -> None:
     """Выбрать минимальное количество подписчиков."""
     min_members = int(callback_data.value)
     await state.update_data(min_members=min_members)
     await state.set_state(AdminFreeCampaignStates.waiting_schedule)
 
-    await safe_callback_edit(callback, f"✅ Минимум подписчиков: {min_members}\n\nВыберите расписание:",
-        reply_markup=get_schedule_kb())
+    await safe_callback_edit(
+        callback,
+        f"✅ Минимум подписчиков: {min_members}\n\nВыберите расписание:",
+        reply_markup=get_schedule_kb(),
+    )
     await callback.answer()
 
 
-@router.callback_query(AdminFreeCampaignStates.waiting_schedule, CampaignCB.filter(F.action == "schedule"))
-async def handle_free_campaign_schedule(callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext) -> None:
+@router.callback_query(
+    AdminFreeCampaignStates.waiting_schedule, CampaignCB.filter(F.action == "schedule")
+)
+async def handle_free_campaign_schedule(
+    callback: CallbackQuery, callback_data: CampaignCB, state: FSMContext
+) -> None:
     """Выбрать расписание."""
     schedule = callback_data.value
     await state.update_data(schedule=schedule)
@@ -147,7 +172,7 @@ async def handle_free_campaign_schedule(callback: CallbackQuery, callback_data: 
         f"Тематика: {data.get('topic')}\n"
         f"Мин. подписчиков: {data.get('min_members')}\n"
         f"Расписание: {data.get('schedule')}\n\n"
-        f"Текст:\n{data.get('text')[:500]}..."
+        f"Текст:\n{(data.get('text') or '')[:500]}..."
     )
 
     await safe_callback_edit(callback, preview, reply_markup=get_admin_confirm_kb("free_campaign"))
@@ -171,17 +196,22 @@ async def handle_free_campaign_confirm(callback: CallbackQuery, state: FSMContex
             return
 
         # Создаём кампанию
-        campaign = await campaign_repo.create({
-            "user_id": admin.id,
-            "title": data.get("title"),
-            "text": data.get("text"),
-            "topic": data.get("topic"),
-            "status": CampaignStatus.DRAFT.value,
-            "filters_json": {"min_members": data.get("min_members")},
-            "cost": 0,  # Бесплатно для админа
-        })
+        campaign = await campaign_repo.create(
+            {
+                "user_id": admin.id,
+                "title": data.get("title"),
+                "text": data.get("text"),
+                "topic": data.get("topic"),
+                "status": CampaignStatus.DRAFT.value,
+                "filters_json": {"min_members": data.get("min_members")},
+                "cost": 0,  # Бесплатно для админа
+            }
+        )
         await session.commit()
 
-    await safe_callback_edit(callback, f"✅ <b>Кампания создана!</b>\n\nID: {campaign.id}\nЗапускаю...",
-        reply_markup=get_admin_main_kb())
+    await safe_callback_edit(
+        callback,
+        f"✅ <b>Кампания создана!</b>\n\nID: {campaign.id}\nЗапускаю...",
+        reply_markup=get_admin_main_kb(),
+    )
     await callback.answer()

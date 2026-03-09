@@ -3,6 +3,7 @@
 Спринт 0: регистрация канала (/add_channel) с верификацией bot_is_admin.
 Спринт 1: управление каналами (/my_channels).
 """
+
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -118,7 +119,7 @@ async def process_channel_username(
         channel_username=username,
         channel_telegram_id=chat.id,
         channel_title=chat.title or username,
-        member_count=chat.member_count or 0,
+        member_count=getattr(chat, "member_count", 0) or 0,  # type: ignore[arg-type]  # ChatFullInfo may not have member_count
     )
 
     # Задача 4.2: Переходим в состояние ожидания подтверждения добавления бота
@@ -126,8 +127,16 @@ async def process_channel_username(
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Добавил, проверьте", callback_data="channel_add:check_admin")],
-            [InlineKeyboardButton(text="❓ Не могу найти бота", callback_data="channel_add:help_admin")],
+            [
+                InlineKeyboardButton(
+                    text="✅ Добавил, проверьте", callback_data="channel_add:check_admin"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❓ Не могу найти бота", callback_data="channel_add:help_admin"
+                )
+            ],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="channel_add:back_to_username")],
             [InlineKeyboardButton(text="✖ Отмена", callback_data="main:main_menu")],
         ]
@@ -137,11 +146,11 @@ async def process_channel_username(
         "📋 <b>Теперь добавьте @RekHarborBot администратором.</b>\n\n"
         "<b>Пошаговая инструкция:</b>\n"
         f"1. Откройте ваш канал @{username}\n"
-        "2. Нажмите на название → \"Управление каналом\"\n"
-        "3. \"Администраторы\" → \"Добавить администратора\"\n"
+        '2. Нажмите на название → "Управление каналом"\n'
+        '3. "Администраторы" → "Добавить администратора"\n'
         "4. Найдите @RekHarborBot\n"
-        "5. Оставьте включённым ТОЛЬКО \"Публикация сообщений\"\n"
-        "6. Нажмите \"Сохранить\"\n\n"
+        '5. Оставьте включённым ТОЛЬКО "Публикация сообщений"\n'
+        '6. Нажмите "Сохранить"\n\n'
         "🔒 <b>Бот не может:</b> удалять посты, управлять\n"
         "   участниками, редактировать описание канала.\n"
         "   Только публиковать.",
@@ -150,7 +159,9 @@ async def process_channel_username(
     )
 
 
-@router.callback_query(AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:check_admin")
+@router.callback_query(
+    AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:check_admin"
+)
 async def process_verify_bot_admin(
     callback: CallbackQuery,
     state: FSMContext,
@@ -219,7 +230,10 @@ async def process_verify_bot_admin(
 # Обработчики для шага waiting_bot_admin_confirmation
 # ─────────────────────────────────────────────
 
-@router.callback_query(AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:help_admin")
+
+@router.callback_query(
+    AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:help_admin"
+)
 async def process_help_admin(callback: CallbackQuery, state: FSMContext) -> None:
     """Показать помощь по добавлению бота администратором."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
@@ -227,7 +241,11 @@ async def process_help_admin(callback: CallbackQuery, state: FSMContext) -> None
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 К инструкции", callback_data="channel_add:back_to_admin_instruction")],
+            [
+                InlineKeyboardButton(
+                    text="🔙 К инструкции", callback_data="channel_add:back_to_admin_instruction"
+                )
+            ],
         ]
     )
 
@@ -244,8 +262,13 @@ async def process_help_admin(callback: CallbackQuery, state: FSMContext) -> None
     await callback.answer()
 
 
-@router.callback_query(AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:back_to_admin_instruction")
-async def process_back_to_admin_instruction(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+@router.callback_query(
+    AddChannelStates.waiting_bot_admin_confirmation,
+    F.data == "channel_add:back_to_admin_instruction",
+)
+async def process_back_to_admin_instruction(
+    callback: CallbackQuery, state: FSMContext, bot: Bot
+) -> None:
     """Показать инструкцию заново."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
         return
@@ -255,8 +278,16 @@ async def process_back_to_admin_instruction(callback: CallbackQuery, state: FSMC
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Добавил, проверьте", callback_data="channel_add:check_admin")],
-            [InlineKeyboardButton(text="❓ Не могу найти бота", callback_data="channel_add:help_admin")],
+            [
+                InlineKeyboardButton(
+                    text="✅ Добавил, проверьте", callback_data="channel_add:check_admin"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❓ Не могу найти бота", callback_data="channel_add:help_admin"
+                )
+            ],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="channel_add:back_to_username")],
         ]
     )
@@ -266,11 +297,11 @@ async def process_back_to_admin_instruction(callback: CallbackQuery, state: FSMC
         f"📋 <b>Теперь добавьте @RekHarborBot администратором.</b>\n\n"
         f"<b>Пошаговая инструкция:</b>\n"
         f"1. Откройте ваш канал @{username}\n"
-        f"2. Нажмите на название → \"Управление каналом\"\n"
-        f"3. \"Администраторы\" → \"Добавить администратора\"\n"
+        f'2. Нажмите на название → "Управление каналом"\n'
+        f'3. "Администраторы" → "Добавить администратора"\n'
         f"4. Найдите @RekHarborBot\n"
-        f"5. Оставьте включённым ТОЛЬКО \"Публикация сообщений\"\n"
-        f"6. Нажмите \"Сохранить\"\n\n"
+        f'5. Оставьте включённым ТОЛЬКО "Публикация сообщений"\n'
+        f'6. Нажмите "Сохранить"\n\n'
         f"🔒 <b>Бот не может:</b> удалять посты, управлять\n"
         f"   участниками, редактировать описание канала.\n"
         f"   Только публиковать.",
@@ -280,7 +311,9 @@ async def process_back_to_admin_instruction(callback: CallbackQuery, state: FSMC
     await callback.answer()
 
 
-@router.callback_query(AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:back_to_username")
+@router.callback_query(
+    AddChannelStates.waiting_bot_admin_confirmation, F.data == "channel_add:back_to_username"
+)
 async def process_back_to_username(callback: CallbackQuery, state: FSMContext) -> None:
     """Вернуться к шагу ввода username."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
@@ -329,7 +362,9 @@ async def process_channel_price(message: Message, state: FSMContext) -> None:
     keyboard_buttons = []
     for label, code in TOPICS:
         prefix = "✅ " if code in selected_topics else ""
-        keyboard_buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")])
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")]
+        )
 
     done_text = f"✅ Готово (выбрано: {len(selected_topics)})" if selected_topics else "✅ Готово"
     keyboard_buttons.append([InlineKeyboardButton(text=done_text, callback_data="topics_done")])
@@ -369,7 +404,9 @@ async def process_channel_topics_toggle(callback: CallbackQuery, state: FSMConte
     keyboard_buttons = []
     for label, code in TOPICS:
         prefix = "✅ " if code in selected_topics else ""
-        keyboard_buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")])
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")]
+        )
 
     done_text = f"✅ Готово (выбрано: {len(selected_topics)})" if selected_topics else "✅ Готово"
     keyboard_buttons.append([InlineKeyboardButton(text=done_text, callback_data="topics_done")])
@@ -440,6 +477,7 @@ async def process_back_to_price(callback: CallbackQuery, state: FSMContext) -> N
 # Шаг waiting_settings — параметры размещения
 # ─────────────────────────────────────────────
 
+
 async def show_settings_step(callback: CallbackQuery, state: FSMContext) -> None:
     """Показать шаг настроек размещения."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
@@ -454,7 +492,9 @@ async def show_settings_step(callback: CallbackQuery, state: FSMContext) -> None
     for n in [1, 2, 3, 5]:
         prefix = "→ " if n == max_posts else ""
         label = f"{prefix}{n} пост" if n == 1 else f"{prefix}{n} поста"
-        max_posts_buttons.append([InlineKeyboardButton(text=label, callback_data=f"channel_add:max_posts:{n}")])
+        max_posts_buttons.append(
+            [InlineKeyboardButton(text=label, callback_data=f"channel_add:max_posts:{n}")]
+        )
 
     # Кнопки для approval_mode
     approval_buttons = [
@@ -500,7 +540,9 @@ async def show_settings_step(callback: CallbackQuery, state: FSMContext) -> None
     await callback.answer()
 
 
-@router.callback_query(AddChannelStates.waiting_settings, F.data.startswith("channel_add:max_posts:"))
+@router.callback_query(
+    AddChannelStates.waiting_settings, F.data.startswith("channel_add:max_posts:")
+)
 async def process_max_posts_change(callback: CallbackQuery, state: FSMContext) -> None:
     """Изменение лимита постов в день."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
@@ -511,7 +553,9 @@ async def process_max_posts_change(callback: CallbackQuery, state: FSMContext) -
     await show_settings_step(callback, state)
 
 
-@router.callback_query(AddChannelStates.waiting_settings, F.data.startswith("channel_add:approval:"))
+@router.callback_query(
+    AddChannelStates.waiting_settings, F.data.startswith("channel_add:approval:")
+)
 async def process_approval_mode_change(callback: CallbackQuery, state: FSMContext) -> None:
     """Изменение режима одобрения."""
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
@@ -546,7 +590,9 @@ async def process_back_to_topics(callback: CallbackQuery, state: FSMContext) -> 
     keyboard_buttons = []
     for label, code in TOPICS:
         prefix = "✅ " if code in selected_topics else ""
-        keyboard_buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")])
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")]
+        )
 
     done_text = f"✅ Готово (выбрано: {len(selected_topics)})" if selected_topics else "✅ Готово"
     keyboard_buttons.append([InlineKeyboardButton(text=done_text, callback_data="topics_done")])
@@ -556,8 +602,7 @@ async def process_back_to_topics(callback: CallbackQuery, state: FSMContext) -> 
 
     await safe_callback_edit(
         callback,
-        "<b>Какую рекламу вы готовы публиковать?</b>\n"
-        "Выберите одну или несколько тематик:",
+        "<b>Какую рекламу вы готовы публиковать?</b>\nВыберите одну или несколько тематик:",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -567,6 +612,7 @@ async def process_back_to_topics(callback: CallbackQuery, state: FSMContext) -> 
 # ─────────────────────────────────────────────
 # Шаг waiting_confirm — подтверждение
 # ─────────────────────────────────────────────
+
 
 async def show_confirm_step(callback: CallbackQuery, state: FSMContext) -> None:
     """Показать шаг подтверждения."""
@@ -581,7 +627,9 @@ async def show_confirm_step(callback: CallbackQuery, state: FSMContext) -> None:
     max_posts = data.get("max_posts_per_day", 2)
     approval_mode = data.get("approval_mode", "auto")
 
-    topics_display = ", ".join([t.capitalize() for t in selected_topics]) if selected_topics else "Не указаны"
+    topics_display = (
+        ", ".join([t.capitalize() for t in selected_topics]) if selected_topics else "Не указаны"
+    )
     approval_text = "автоодобрение через 24 ч" if approval_mode == "auto" else "только вручную"
     owner_payout = int(price * 0.8) if price else 0
 
@@ -734,6 +782,7 @@ async def _finalize_channel_registration(
 # /my_channels — список каналов владельца
 # ─────────────────────────────────────────────
 
+
 @router.message(Command("my_channels"))
 async def cmd_my_channels(message: Message) -> None:
     """
@@ -752,8 +801,7 @@ async def cmd_my_channels(message: Message) -> None:
         channels = await chat_repo.get_by_owner_id(user.id)  # type: ignore[arg-type]
         if not channels:
             await message.answer(
-                "У вас нет зарегистрированных каналов.\n\n"
-                "Добавьте канал командой /add_channel"
+                "У вас нет зарегистрированных каналов.\n\nДобавьте канал командой /add_channel"
             )
             return
 
@@ -769,30 +817,44 @@ async def cmd_my_channels(message: Message) -> None:
 
             # Задача 4.7: Количество ожидающих заявок
             from src.db.models.mailing_log import MailingStatus
-            pending_count = sum(1 for log in channel.mailing_logs if log.status == MailingStatus.PENDING_APPROVAL) if channel.mailing_logs else 0
+
+            pending_count = (
+                sum(
+                    1
+                    for log in channel.mailing_logs
+                    if log.status == MailingStatus.PENDING_APPROVAL
+                )
+                if channel.mailing_logs
+                else 0
+            )
 
             price_str = f"{channel.price_per_post or 0} кр"
 
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"📺 @{channel.username} — {topic_display}",
-                    callback_data=f"channel_menu:{channel.id}",
-                )
-            ])
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"📺 @{channel.username} — {topic_display}",
+                        callback_data=f"channel_menu:{channel.id}",
+                    )
+                ]
+            )
             # Задача 4.7: Добавляем информацию под кнопкой
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"  💰 {price_str}  •  {status_icon}  •  Заявок: {pending_count}",
-                    callback_data=f"channel_menu:{channel.id}",
-                )
-            ])
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"  💰 {price_str}  •  {status_icon}  •  Заявок: {pending_count}",
+                        callback_data=f"channel_menu:{channel.id}",
+                    )
+                ]
+            )
 
-        keyboard_buttons.append([InlineKeyboardButton(text="📊 Статистика", callback_data="channels_stats")])
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="channels_stats")]
+        )
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
         await message.answer(
-            f"📺 <b>Ваши каналы ({len(channels)})</b>\n\n"
-            f"Нажмите на канал для управления:",
+            f"📺 <b>Ваши каналы ({len(channels)})</b>\n\nНажмите на канал для управления:",
             reply_markup=keyboard,
             parse_mode="HTML",
         )
@@ -820,32 +882,48 @@ async def show_channel_menu(callback: CallbackQuery) -> None:
         total_placements = len(channel.mailing_logs) if channel.mailing_logs else 0
 
         # Считаем сумму к выплате
-        pending_payouts = sum(p.amount for p in channel.payouts if p.is_pending) if channel.payouts else Decimal("0")
+        pending_payouts = (
+            sum(p.amount for p in channel.payouts if p.is_pending)
+            if channel.payouts
+            else Decimal("0")
+        )
 
         # Задача 4.7: Статус приёма рекламы
         status_text = "Принимает рекламу" if channel.is_accepting_ads else "Реклама отключена"
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[  # type: ignore[unused-ignore]
-            [
-                InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}"),
-                InlineKeyboardButton(text="📊 Медиакит", callback_data=f"ch_mediakit:{channel_id}"),
-            ],
-            [
-                InlineKeyboardButton(text="📋 Заявки", callback_data=f"ch_requests:{channel_id}"),
-                InlineKeyboardButton(text="💰 Выплаты", callback_data=f"ch_payouts:{channel_id}"),
-            ],
-            [
-                InlineKeyboardButton(text="📜 История выплат", callback_data=f"ch_payout_history:{channel_id}"),
-            ],
-            [
-                # Задача 4.7: Кнопка паузы/возобновления
-                InlineKeyboardButton(
-                    text="⏸ Пауза" if channel.is_accepting_ads else "▶️ Возобновить",
-                    callback_data=f"ch_toggle:{channel_id}",
-                ),
-            ],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="my_channels_back")],
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[  # type: ignore[unused-ignore]
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}"
+                    ),
+                    InlineKeyboardButton(
+                        text="📊 Медиакит", callback_data=f"ch_mediakit:{channel_id}"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Заявки", callback_data=f"ch_requests:{channel_id}"
+                    ),
+                    InlineKeyboardButton(
+                        text="💰 Выплаты", callback_data=f"ch_payouts:{channel_id}"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📜 История выплат", callback_data=f"ch_payout_history:{channel_id}"
+                    ),
+                ],
+                [
+                    # Задача 4.7: Кнопка паузы/возобновления
+                    InlineKeyboardButton(
+                        text="⏸ Пауза" if channel.is_accepting_ads else "▶️ Возобновить",
+                        callback_data=f"ch_toggle:{channel_id}",
+                    ),
+                ],
+                [InlineKeyboardButton(text="◀️ Назад", callback_data="my_channels_back")],
+            ]
+        )
 
         await safe_callback_edit(
             callback,
@@ -868,11 +946,21 @@ async def show_channel_settings(callback: CallbackQuery) -> None:
 
     channel_id = int((callback.data or "").split(":")[1])
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 Изменить цену", callback_data=f"ch_edit_price:{channel_id}")],
-        [InlineKeyboardButton(text="🏷 Изменить тематики", callback_data=f"ch_edit_topics:{channel_id}")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"channel_menu:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💰 Изменить цену", callback_data=f"ch_edit_price:{channel_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🏷 Изменить тематики", callback_data=f"ch_edit_topics:{channel_id}"
+                )
+            ],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data=f"channel_menu:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -895,7 +983,9 @@ async def toggle_accepting_ads(callback: CallbackQuery) -> None:
         if channel:
             channel.is_accepting_ads = not channel.is_accepting_ads
             await session.flush()
-            await callback.answer(f"Реклама {'включена' if channel.is_accepting_ads else 'отключена'}")
+            await callback.answer(
+                f"Реклама {'включена' if channel.is_accepting_ads else 'отключена'}"
+            )
             # Обновляем меню с новой кнопкой
             await show_channel_menu(callback)
 
@@ -909,6 +999,7 @@ async def my_channels_back(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 # Обработка входящих заявок на размещение
 # ─────────────────────────────────────────────
+
 
 async def show_placement_card(callback: CallbackQuery, placement_id: int) -> None:
     """Показать карточку заявки на размещение (Задача 4.8)."""
@@ -938,6 +1029,7 @@ async def show_placement_card(callback: CallbackQuery, placement_id: int) -> Non
 
         # Задача 4.8: Время истечения 24ч
         from datetime import timedelta
+
         time_left = placement.created_at + timedelta(hours=24) - datetime.now(UTC)
         hours_left = max(0, int(time_left.total_seconds() // 3600))
         mins_left = max(0, int((time_left.total_seconds() % 3600) // 60))
@@ -954,8 +1046,8 @@ async def show_placement_card(callback: CallbackQuery, placement_id: int) -> Non
         )
 
         # Задача 4.8: Добавить ссылку если есть
-        if campaign.url:
-            card_text += f"🔗 Ссылка: {campaign.url}\n"
+        if campaign.tracking_url:
+            card_text += f"🔗 Ссылка: {campaign.tracking_url}\n"
 
         # Задача 4.8: Добавить информацию о медиа если есть
         if campaign.image_file_id:
@@ -971,12 +1063,32 @@ async def show_placement_card(callback: CallbackQuery, placement_id: int) -> Non
         )
 
         # Задача 4.9: Клавиатура с кнопками
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_placement:{placement_id}")],
-            [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_placement_reason:{placement_id}")],
-            [InlineKeyboardButton(text="✏️ Запросить правки", callback_data=f"request_changes_placement:{placement_id}")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_requests:{placement.chat_id if placement.chat else 0}")],
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Одобрить", callback_data=f"approve_placement:{placement_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отклонить", callback_data=f"reject_placement_reason:{placement_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="✏️ Запросить правки",
+                        callback_data=f"request_changes_placement:{placement_id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔙 Назад",
+                        callback_data=f"ch_requests:{placement.chat_id if placement.chat else 0}",
+                    )
+                ],
+            ]
+        )
 
         await safe_callback_edit(
             callback,
@@ -1016,11 +1128,12 @@ async def approve_placement(callback: CallbackQuery) -> None:
         from src.tasks.notification_tasks import notify_owner_xp_for_publication
 
         # 10 XP за одобрение заявки (дополнительно к 30 XP за публикацию)
-        notify_owner_xp_for_publication.delay(
-            owner_id=placement.chat.owner_user_id,
-            channel_id=placement.chat_id,
-            placement_id=placement_id,
-        )
+        if placement.chat is not None and placement.chat.owner_user_id is not None:
+            notify_owner_xp_for_publication.delay(
+                owner_id=placement.chat.owner_user_id,
+                channel_id=placement.chat_id,
+                placement_id=placement_id,
+            )
 
     await callback.answer("✅ Заявка одобрена!")
 
@@ -1052,7 +1165,9 @@ async def reject_placement_reason(callback: CallbackQuery) -> None:
         [InlineKeyboardButton(text=label, callback_data=f"reject_placement:{placement_id}:{code}")]
         for label, code in reasons
     ]
-    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Отмена", callback_data=f"show_placement:{placement_id}")])
+    keyboard_buttons.append(
+        [InlineKeyboardButton(text="🔙 Отмена", callback_data=f"show_placement:{placement_id}")]
+    )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -1135,9 +1250,9 @@ async def request_changes_placement(callback: CallbackQuery) -> None:
         notify_user.delay(
             user_id=campaign.user_id,
             message=f"✏️ Владелец @{channel_username} просит исправить текст рекламного поста.\n\n"
-                    f"Кампания: \"{campaign.title}\"\n"
-                    f"Канал: @{channel_username}\n\n"
-                    f"Отредактируйте текст кампании и отправьте заявку повторно.",
+            f'Кампания: "{campaign.title}"\n'
+            f"Канал: @{channel_username}\n\n"
+            f"Отредактируйте текст кампании и отправьте заявку повторно.",
             parse_mode="HTML",
         )
 
@@ -1160,6 +1275,7 @@ async def show_placement(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 # TASK 2: Выплаты — запрос выплаты владельцем
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("ch_payouts:"))
 async def show_channel_payouts(callback: CallbackQuery) -> None:
@@ -1220,23 +1336,28 @@ async def show_channel_payouts(callback: CallbackQuery) -> None:
 
         # Проверяем минимальную сумму выплаты
         from src.config.settings import settings
+
         min_payout = settings.min_payout_usdt * settings.credits_per_usdt  # Конвертируем в кредиты
 
         keyboard_buttons = []
 
         if available_amount >= min_payout:
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text="💸 Запросить выплату",
-                    callback_data=f"request_payout:{channel_id}",
-                )
-            ])
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text="💸 Запросить выплату",
+                        callback_data=f"request_payout:{channel_id}",
+                    )
+                ]
+            )
         else:
             text += f"\n⚠️ Минимальная сумма выплаты: {min_payout:.0f} кр\n"
 
-        keyboard_buttons.append([
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}"),
-        ])
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}"),
+            ]
+        )
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -1269,11 +1390,17 @@ async def start_payout_request(callback: CallbackQuery, state: FSMContext) -> No
         "Выплата будет отправлена на указанный вами кошелёк."
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 USDT", callback_data=f"payout_method:{channel_id}:USDT")],
-        [InlineKeyboardButton(text="💎 TON", callback_data=f"payout_method:{channel_id}:TON")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_payouts:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💳 USDT", callback_data=f"payout_method:{channel_id}:USDT"
+                )
+            ],
+            [InlineKeyboardButton(text="💎 TON", callback_data=f"payout_method:{channel_id}:TON")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_payouts:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -1299,7 +1426,9 @@ async def select_payout_method(callback: CallbackQuery, state: FSMContext) -> No
     await state.update_data(payout_method=method)
 
     method_name = "USDT (TRC20)" if method == "USDT" else "TON"
-    method_example = "TxxxxxxxxxxxxxxxxxxxxxxxxxxxxB" if method == "USDT" else "EQxxxxxxxxxxxxxxxxxxxxx"
+    method_example = (
+        "TxxxxxxxxxxxxxxxxxxxxxxxxxxxxB" if method == "USDT" else "EQxxxxxxxxxxxxxxxxxxxxx"
+    )
 
     text = (
         f"💸 <b>Введите адрес кошелька {method_name}</b>\n\n"
@@ -1308,9 +1437,11 @@ async def select_payout_method(callback: CallbackQuery, state: FSMContext) -> No
         "👇 Отправьте адрес кошелька сообщением ниже:"
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"request_payout:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data=f"request_payout:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -1343,15 +1474,14 @@ async def process_payout_address(message: Message, state: FSMContext) -> None:
                 "Попробуйте ещё раз:"
             )
             return
-    elif method == "TON":
+    elif method == "TON" and not wallet_address.startswith(("EQ", "UQ")):
         # TON — адрес начинается с EQ или UQ
-        if not wallet_address.startswith(("EQ", "UQ")):
-            await message.answer(
-                "❌ Неверный формат адреса TON.\n\n"
-                "Адрес должен начинаться с 'EQ' или 'UQ'.\n\n"
-                "Попробуйте ещё раз:"
-            )
-            return
+        await message.answer(
+            "❌ Неверный формат адреса TON.\n\n"
+            "Адрес должен начинаться с 'EQ' или 'UQ'.\n\n"
+            "Попробуйте ещё раз:"
+        )
+        return
 
     await state.update_data(wallet_address=wallet_address)
     await state.set_state(PayoutRequestStates.confirming)
@@ -1387,10 +1517,20 @@ async def process_payout_address(message: Message, state: FSMContext) -> None:
         "Выберите действие:"
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_payout:{data.get('channel_id')}")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_payouts:{data.get('channel_id')}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Подтвердить", callback_data=f"confirm_payout:{data.get('channel_id')}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена", callback_data=f"ch_payouts:{data.get('channel_id')}"
+                )
+            ],
+        ]
+    )
 
     await message.answer(
         text,
@@ -1435,7 +1575,9 @@ async def confirm_payout_request(callback: CallbackQuery, state: FSMContext) -> 
             placement_id=None,  # NULL для aggregate payout (не привязан к конкретному placement)
             amount=available_amount,
             platform_fee=Decimal("0"),  # Комиссия уже удержана при создании placement
-            currency=PayoutCurrency.USDT if data.get("payout_method") == "USDT" else PayoutCurrency.TON,
+            currency=PayoutCurrency.USDT
+            if data.get("payout_method") == "USDT"
+            else PayoutCurrency.TON,
             status=PayoutStatus.PENDING,
             wallet_address=data.get("wallet_address"),
         )
@@ -1453,9 +1595,15 @@ async def confirm_payout_request(callback: CallbackQuery, state: FSMContext) -> 
         "Вы получите уведомление когда выплата будет обработана."
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels").pack())],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels").pack()
+                )
+            ],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -1469,6 +1617,7 @@ async def confirm_payout_request(callback: CallbackQuery, state: FSMContext) -> 
 # ─────────────────────────────────────────────
 # TASK 5: Редактирование настроек канала
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("ch_edit_price:"))
 async def start_edit_channel_price(callback: CallbackQuery, state: FSMContext) -> None:
@@ -1490,9 +1639,11 @@ async def start_edit_channel_price(callback: CallbackQuery, state: FSMContext) -
         "👇 Отправьте числовое значение:"
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -1545,9 +1696,11 @@ async def process_new_channel_price(message: Message, state: FSMContext) -> None
         f"Ваш заработок за пост: <b>{int(new_price * 0.8)} кр</b> (80%)"
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
+        ]
+    )
 
     await message.answer(
         text,
@@ -1578,8 +1731,8 @@ async def start_edit_channel_topics(callback: CallbackQuery, state: FSMContext) 
         await state.set_state(EditChannelStates.choosing_topics)
         await state.update_data(channel_id=channel_id, current_topics=current_topics)
 
-        # Список тематик (должен совпадать с TOPICS в add_channel)
-        TOPICS = [
+        # Список тематик (должен совпадать с topics в add_channel)
+        topics = [
             ("💻 IT", "it"),
             ("💼 Бизнес", "business"),
             ("📈 Маркетинг", "marketing"),
@@ -1593,23 +1746,31 @@ async def start_edit_channel_topics(callback: CallbackQuery, state: FSMContext) 
 
         # Строим клавиатуру с toggle кнопками
         keyboard_buttons = []
-        for label, code in TOPICS:
+        for label, code in topics:
             prefix = "✅ " if code in current_topics else ""
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"{prefix}{label}",
-                    callback_data=f"topic_toggle:{channel_id}:{code}",
-                )
-            ])
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"{prefix}{label}",
+                        callback_data=f"topic_toggle:{channel_id}:{code}",
+                    )
+                ]
+            )
 
         selected_count = len(current_topics)
-        done_text = f"✅ Сохранить ({selected_count} выбрано)" if selected_count > 0 else "✅ Сохранить"
-        keyboard_buttons.append([
-            InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
-        ])
-        keyboard_buttons.append([
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
-        ])
+        done_text = (
+            f"✅ Сохранить ({selected_count} выбрано)" if selected_count > 0 else "✅ Сохранить"
+        )
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
+            ]
+        )
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
+            ]
+        )
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -1652,7 +1813,7 @@ async def toggle_channel_topic(callback: CallbackQuery, state: FSMContext) -> No
     await state.update_data(current_topics=current_topics)
 
     # Список тематик
-    TOPICS = [
+    topics = [
         ("💻 IT", "it"),
         ("💼 Бизнес", "business"),
         ("📈 Маркетинг", "marketing"),
@@ -1666,23 +1827,29 @@ async def toggle_channel_topic(callback: CallbackQuery, state: FSMContext) -> No
 
     # Перерисовываем клавиатуру
     keyboard_buttons = []
-    for label, code in TOPICS:
+    for label, code in topics:
         prefix = "✅ " if code in current_topics else ""
-        keyboard_buttons.append([
-            InlineKeyboardButton(
-                text=f"{prefix}{label}",
-                callback_data=f"topic_toggle:{channel_id}:{code}",
-            )
-        ])
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{prefix}{label}",
+                    callback_data=f"topic_toggle:{channel_id}:{code}",
+                )
+            ]
+        )
 
     selected_count = len(current_topics)
     done_text = f"✅ Сохранить ({selected_count} выбрано)" if selected_count > 0 else "✅ Сохранить"
-    keyboard_buttons.append([
-        InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
-    ])
-    keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
-    ])
+    keyboard_buttons.append(
+        [
+            InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
+        ]
+    )
+    keyboard_buttons.append(
+        [
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
+        ]
+    )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -1733,9 +1900,11 @@ async def save_channel_topics(callback: CallbackQuery, state: FSMContext) -> Non
         f"🏷 Тематики: <b>{', '.join(current_topics)}</b>"
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,
@@ -1749,6 +1918,7 @@ async def save_channel_topics(callback: CallbackQuery, state: FSMContext) -> Non
 # ─────────────────────────────────────────────
 # СПРИНТ 9: МЕДИАКИТ КАНАЛА
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("ch_mediakit:"))
 async def show_channel_mediakit(callback: CallbackQuery) -> None:
@@ -1768,6 +1938,7 @@ async def show_channel_mediakit(callback: CallbackQuery) -> None:
 
         # Получить или создать медиакит
         from src.core.services.mediakit_service import mediakit_service
+
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
 
     text = (
@@ -1831,9 +2002,11 @@ async def edit_mediakit_description(callback: CallbackQuery, state: FSMContext) 
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -1853,8 +2026,11 @@ async def process_mediakit_description(message: Message, state: FSMContext) -> N
     data = await state.get_data()
     channel_id = data.get("mediakit_channel_id")
 
-    async with async_session_factory() as session:
+    if channel_id is None:
+        await message.answer("❌ Ошибка: канал не найден. Начните сначала.")
+        return
 
+    async with async_session_factory() as session:
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
         mediakit.custom_description = description
         await session.commit()
@@ -1888,9 +2064,11 @@ async def edit_mediakit_logo(callback: CallbackQuery, state: FSMContext) -> None
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -1899,13 +2077,20 @@ async def edit_mediakit_logo(callback: CallbackQuery, state: FSMContext) -> None
 async def process_mediakit_logo_upload(message: Message, state: FSMContext) -> None:
     """Обработать загруженный логотип."""
     # Получить file_id самого большого фото
+    if not message.photo:
+        await message.answer("❌ Фото не найдено. Отправьте изображение.")
+        return
+
     image_file_id = message.photo[-1].file_id
 
     data = await state.get_data()
     channel_id = data.get("mediakit_channel_id")
 
-    async with async_session_factory() as session:
+    if channel_id is None:
+        await message.answer("❌ Ошибка: канал не найден. Начните сначала.")
+        return
 
+    async with async_session_factory() as session:
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
         mediakit.logo_file_id = image_file_id
         await session.commit()
@@ -1923,10 +2108,7 @@ async def edit_mediakit_color(callback: CallbackQuery) -> None:
 
     channel_id = int((callback.data or "").split(":")[1])
 
-    text = (
-        "🎨 <b>Выберите цвет темы</b>\n\n"
-        "Цвет будет использоваться в PDF медиаките."
-    )
+    text = "🎨 <b>Выберите цвет темы</b>\n\nЦвет будет использоваться в PDF медиаките."
 
     from src.bot.keyboards.mediakit import get_color_selector_kb
 
@@ -1946,7 +2128,6 @@ async def set_mediakit_color(callback: CallbackQuery) -> None:
     color = parts[2] if len(parts) > 2 else "#1a73e8"
 
     async with async_session_factory() as session:
-
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
         mediakit.theme_color = color
         await session.commit()
@@ -1968,7 +2149,6 @@ async def download_mediakit_pdf(callback: CallbackQuery) -> None:
     await callback.answer("⏳ Генерирую PDF...", show_alert=False)
 
     async with async_session_factory() as session:
-
         # Получить медиакит
         mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
 
@@ -1977,6 +2157,7 @@ async def download_mediakit_pdf(callback: CallbackQuery) -> None:
 
         # Сгенерировать PDF
         from src.utils.mediakit_pdf import generate_mediakit_pdf
+
         pdf_bytes = generate_mediakit_pdf(mediakit_data)
 
         # Отправить файл
@@ -1995,6 +2176,7 @@ async def download_mediakit_pdf(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 # TASK 3: Отзывы владельца о рекламодателе
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("owner_review:"))
 async def handle_owner_review(callback: CallbackQuery) -> None:
@@ -2088,8 +2270,7 @@ async def handle_owner_review_skip(callback: CallbackQuery) -> None:
 
     await safe_callback_edit(
         callback,
-        "ℹ️ <b>Отзыв пропущен</b>\n\n"
-        "Вы всегда можете оставить отзыв позже через /my_channels",
+        "ℹ️ <b>Отзыв пропущен</b>\n\nВы всегда можете оставить отзыв позже через /my_channels",
         parse_mode="HTML",
     )
 
@@ -2097,6 +2278,7 @@ async def handle_owner_review_skip(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 # TASK 2: История выплат
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("ch_payout_history:"))
 async def show_payout_history(callback: CallbackQuery) -> None:
@@ -2136,8 +2318,7 @@ async def show_payout_history(callback: CallbackQuery) -> None:
             )
         else:
             text = (
-                f"💸 <b>История выплат по каналу</b>\n\n"
-                f"📺 @{channel.username or channel.title}\n\n"
+                f"💸 <b>История выплат по каналу</b>\n\n📺 @{channel.username or channel.title}\n\n"
             )
 
             total_paid = sum(p.amount for p in payouts if p.status.value == "paid")
@@ -2155,9 +2336,11 @@ async def show_payout_history(callback: CallbackQuery) -> None:
                 date_str = payout.created_at.strftime("%d.%m.%Y")
                 text += f"{status_icon} {date_str}: <b>{payout.amount:.0f} кр</b>\n"
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}")],
+        ]
+    )
 
     await safe_callback_edit(
         callback,

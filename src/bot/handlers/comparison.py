@@ -9,7 +9,6 @@ from aiogram.types import CallbackQuery
 from src.bot.keyboards.comparison import (
     ComparisonCB,
     get_channel_with_compare_kb,
-    get_comparison_bar_kb,
     get_comparison_result_kb,
 )
 from src.bot.utils.safe_callback import safe_callback_edit
@@ -54,6 +53,7 @@ async def toggle_channel_for_comparison(
     # Для этого нужно получить данные канала
     async with async_session_factory() as session:
         from src.db.models.analytics import TelegramChat
+
         channel = await session.get(TelegramChat, channel_id)
         if channel:
             is_selected = channel_id in selected
@@ -62,13 +62,13 @@ async def toggle_channel_for_comparison(
                 channel_username=channel.username or "",
                 is_selected=is_selected,
             )
-            
+
             # Обновить кнопку если возможно
             try:
-                if callback.message and hasattr(callback.message, 'edit_reply_markup'):
+                if callback.message and hasattr(callback.message, "edit_reply_markup"):
                     await callback.message.edit_reply_markup(reply_markup=keyboard)  # type: ignore
-            except Exception:
-                pass  # Не критично если не удалось обновить
+            except Exception as e:
+                logger.debug(f"Failed to update reply markup: {e}")
 
 
 @router.callback_query(ComparisonCB.filter(F.action == "compare"))
@@ -108,19 +108,19 @@ async def show_comparison(
 
     # Строки метрик
     metrics = [
-        ("👥 Подписчики", "member_count", lambda x: f"{x:,}"),
-        ("👁 Просмотры", "avg_views", lambda x: f"{x:,}"),
-        ("📈 ER", "er", lambda x: f"{x:.1f}%"),
-        ("📝 Постов/день", "post_frequency", lambda x: f"{x:.1f}"),
-        ("💰 Цена", "price_per_post", lambda x: f"{x:.0f} кр"),
-        ("💰 Цена/1К подп", "price_per_1k_subscribers", lambda x: f"{x:.0f} кр"),
+        ("👥 Подписчики", "member_count", lambda x: f"{x:,}"),  # type: ignore[no-untyped-call]  # lambda type inference
+        ("👁 Просмотры", "avg_views", lambda x: f"{x:,}"),  # type: ignore[no-untyped-call]  # lambda type inference
+        ("📈 ER", "er", lambda x: f"{x:.1f}%"),  # type: ignore[no-untyped-call]  # lambda type inference
+        ("📝 Постов/день", "post_frequency", lambda x: f"{x:.1f}"),  # type: ignore[no-untyped-call]  # lambda type inference
+        ("💰 Цена", "price_per_post", lambda x: f"{x:.0f} кр"),  # type: ignore[no-untyped-call]  # lambda type inference
+        ("💰 Цена/1К подп", "price_per_1k_subscribers", lambda x: f"{x:.0f} кр"),  # type: ignore[no-untyped-call]  # lambda type inference
     ]
 
     for label, metric, formatter in metrics:
         row = [label]
         for ch in comparison["channels"]:
             value = ch.get(metric, 0)
-            formatted = formatter(value)
+            formatted = formatter(value)  # type: ignore[no-untyped-call]  # lambda formatter
             # Пометить лучшее значение
             if ch.get("is_best", {}).get(metric):
                 formatted = f"✅ {formatted}"
@@ -149,6 +149,7 @@ async def clear_comparison(
 
     # Вернуться к каталогу
     from src.bot.handlers.channels_db import handle_categories
+
     await handle_categories(callback)
 
 
@@ -171,12 +172,48 @@ async def show_comparison_bar(
         text += "<b>Выбранные каналы:</b>\n"
         async with async_session_factory() as session:
             from src.db.models.analytics import TelegramChat
+
             for channel_id in selected:
                 channel = await session.get(TelegramChat, channel_id)
                 if channel:
                     name = channel.title or channel.username or f"Канал {channel_id}"
                     text += f"• {name}\n"
 
-    keyboard = get_comparison_bar_kb(len(selected))
+    # Создать новую клавиатуру с дополнительной кнопкой
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+    from src.bot.keyboards.channels import ChannelsCB
+
+    builder = InlineKeyboardBuilder()
+
+    # Копировать существующие кнопки
+    if selected:
+        builder.button(
+            text=f"📊 Сравнить ({len(selected)})",
+            callback_data=ComparisonCB(action="compare").pack(),
+        )
+        builder.button(
+            text="❌ Сбросить",
+            callback_data=ComparisonCB(action="clear").pack(),
+        )
+        builder.adjust(2)
+    else:
+        builder.button(
+            text="📋 Выбрать каналы",
+            callback_data=ChannelsCB(action="show_compare_list", value="all").pack(),
+        )
+        builder.button(
+            text="🔙 В каталог",
+            callback_data=ChannelsCB(action="categories").pack(),
+        )
+        builder.adjust(1, 1)
+
+    # Добавить кнопку "Изменить выбор" если есть выбранные
+    if selected:
+        builder.button(
+            text="📋 Изменить выбор",
+            callback_data=ChannelsCB(action="show_compare_list", value="all").pack(),
+        )
+        builder.adjust(1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup(), parse_mode="HTML")
