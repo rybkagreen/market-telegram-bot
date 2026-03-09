@@ -70,11 +70,16 @@ services:
     restart: unless-stopped
     command: poetry run python -m src.bot.main
 
-  worker:
+  # ══════════════════════════════════════════════════════════════
+  # Celery Workers — разделены по приоритетам
+  # ══════════════════════════════════════════════════════════════
+
+  # Worker 1: критические задачи — финансы, уведомления, рассылки
+  worker_critical:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
-    container_name: market_bot_worker
+    container_name: market_bot_worker_critical
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
@@ -91,9 +96,69 @@ services:
     networks:
       - market_bot_network
     restart: unless-stopped
-    command: celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser,cleanup,celery -E
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q celery,mailing,notifications,billing -n critical@%h --concurrency=2 -E
     healthcheck:
-      test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d critical@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Worker 2: фоновые задачи — парсер, очистка, аналитика
+  worker_background:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: market_bot_worker_background
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - market_bot_network
+    restart: unless-stopped
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q parser,cleanup,rating -n background@%h --concurrency=4 -E
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d background@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Worker 3: геймификация — низкий приоритет, может подождать
+  worker_game:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: market_bot_worker_game
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - market_bot_network
+    restart: unless-stopped
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q gamification,badges -n game@%h --concurrency=2 -E
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d game@$$HOSTNAME || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -115,8 +180,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      worker:
-        condition: service_healthy
     networks:
       - market_bot_network
     restart: unless-stopped
@@ -134,7 +197,9 @@ services:
     ports:
       - "${FLOWER_PORT:-5555}:5555"
     depends_on:
-      - worker
+      - worker_critical
+      - worker_background
+      - worker_game
     networks:
       - market_bot_network
     command: celery -A src.tasks.celery_app flower --port=5555

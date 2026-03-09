@@ -46,4 +46,5 @@ RUN adduser --disabled-password --gecos '' --uid 1000 celeryuser \
 USER celeryuser
 
 # Запускаем Celery worker
-CMD ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "-Q", "mailing,parser"]
+# Очереди задаются в docker-compose.yml через аргумент -Q
+CMD ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "-E"]

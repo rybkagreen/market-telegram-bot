@@ -48,6 +48,13 @@ def create_celery_app() -> Celery:
             "parser.*": {"queue": "parser"},
             "cleanup.*": {"queue": "cleanup"},
         },
+        # Приоритеты задач (Redis broker)
+        broker_transport_options={
+            "visibility_timeout": 604800,  # 7 дней
+            "priority_steps": list(range(10)),  # 0-9
+        },
+        task_default_priority=5,  # Средний приоритет по умолчанию
+        task_queue_max_priority=10,
         # Надёжность
         task_acks_late=True,
         task_reject_on_worker_lost=True,
@@ -179,15 +186,15 @@ def get_beat_schedule() -> dict[str, Any]:
         },
         # ========== PLAN RENEWALS (ежедневно в 03:00 UTC) ==========
         "check-plan-renewals": {
-            "task": "tasks.billing_tasks:check_plan_renewals",
+            "task": "billing:check_plan_renewals",
             "schedule": crontab(hour=settings.plan_renewal_check_hour, minute=0),
-            "options": {"queue": "default"},
+            "options": {"queue": "billing", "priority": 9},
         },
         # ========== CHECK PENDING INVOICES (каждые 5 минут) ==========
         "check-pending-invoices": {
-            "task": "tasks.billing_tasks:check_pending_invoices",
+            "task": "billing:check_pending_invoices",
             "schedule": 300.0,  # 5 минут
-            "options": {"queue": "default"},
+            "options": {"queue": "billing", "priority": 9},
         },
     }
 

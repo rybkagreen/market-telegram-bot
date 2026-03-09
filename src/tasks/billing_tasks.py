@@ -13,12 +13,12 @@ from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
-from src.tasks.celery_app import app
+from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(name="tasks.billing_tasks:check_plan_renewals")
+@celery_app.task(name="billing:check_plan_renewals", queue="billing")
 def check_plan_renewals() -> dict:
     """
     Проверить истекающие тарифы и продлить/понизить.
@@ -139,7 +139,7 @@ async def _check_plan_renewals() -> dict:
     return {"renewed": renewed, "downgraded": downgraded}
 
 
-@app.task(name="tasks.billing_tasks:check_pending_invoices")
+@celery_app.task(name="billing:check_pending_invoices", queue="billing")
 def check_pending_invoices() -> dict:
     """
     Проверить неоплаченные счета CryptoBot и зачислить кредиты.

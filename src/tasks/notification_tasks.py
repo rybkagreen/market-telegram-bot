@@ -115,7 +115,7 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
         await bot.session.close()
 
 
-@celery_app.task(name="notifications:notify_campaign_status", bind=True, max_retries=3)
+@celery_app.task(name="notifications:notify_campaign_status", bind=True, max_retries=3, queue="notifications")
 def notify_campaign_status(
     self,
     user_id: int,
@@ -253,7 +253,7 @@ async def _notify_user_async(
 # Уведомления владельца о заявках (Спринт 1)
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:notify_owner_new_placement")
+@celery_app.task(name="notifications:notify_owner_new_placement", queue="notifications")
 def notify_owner_new_placement_task(placement_id: int) -> bool:
     """
     Уведомляет владельца канала о новой заявке на размещение.
@@ -351,7 +351,7 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
 # Уведомления о выплатах (Спринт 1)
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:notify_owner_xp_for_publication")
+@celery_app.task(name="notifications:notify_owner_xp_for_publication", queue="notifications")
 def notify_owner_xp_for_publication(
     owner_id: int,
     channel_id: int,
@@ -390,7 +390,7 @@ def notify_owner_xp_for_publication(
         return False
 
 
-@celery_app.task(name="notifications:notify_payout_created")
+@celery_app.task(name="notifications:notify_payout_created", queue="notifications")
 def notify_payout_created_task(payout_id: int) -> bool:
     """
     Уведомляет владельца о создании выплаты.
@@ -453,7 +453,7 @@ def notify_payout_created_task(payout_id: int) -> bool:
         return False
 
 
-@celery_app.task(name="notifications:notify_payout_paid")
+@celery_app.task(name="notifications:notify_payout_paid", queue="notifications")
 def notify_payout_paid_task(payout_id: int) -> bool:
     """
     Уведомляет владельца о выплате.
@@ -522,7 +522,7 @@ def notify_payout_paid_task(payout_id: int) -> bool:
 # Уведомления для рекламодателей (Спринт 5)
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:notify_post_published")
+@celery_app.task(name="notifications:notify_post_published", queue="notifications")
 def notify_post_published(
     advertiser_id: int,
     channel_username: str,
@@ -550,7 +550,7 @@ def notify_post_published(
         return False
 
 
-@celery_app.task(name="notifications:notify_campaign_finished")
+@celery_app.task(name="notifications:notify_campaign_finished", queue="notifications")
 def notify_campaign_finished(
     advertiser_id: int,
     campaign_title: str,
@@ -608,7 +608,7 @@ def notify_campaign_finished(
         return False
 
 
-@celery_app.task(name="notifications:notify_placement_rejected")
+@celery_app.task(name="notifications:notify_placement_rejected", queue="notifications")
 def notify_placement_rejected(
     advertiser_id: int,
     channel_username: str,
@@ -651,7 +651,7 @@ def notify_placement_rejected(
         return False
 
 
-@celery_app.task(name="notifications:notify_changes_requested")
+@celery_app.task(name="notifications:notify_changes_requested", queue="notifications")
 def notify_changes_requested(
     advertiser_id: int,
     channel_username: str,
@@ -681,7 +681,7 @@ def notify_changes_requested(
         return False
 
 
-@celery_app.task(name="notifications:notify_low_balance_enhanced")
+@celery_app.task(name="notifications:notify_low_balance_enhanced", queue="notifications")
 def notify_low_balance_enhanced(
     advertiser_id: int,
     current_balance: int,
@@ -737,7 +737,7 @@ def notify_low_balance_enhanced(
         return False
 
 
-@celery_app.task(name="notifications:notify_plan_expiring")
+@celery_app.task(name="notifications:notify_plan_expiring", queue="notifications")
 def notify_plan_expiring(
     advertiser_id: int,
     plan_name: str,
@@ -774,7 +774,7 @@ def notify_plan_expiring(
 # Уведомления геймификации (Спринт 5)
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:notify_badge_earned")
+@celery_app.task(name="notifications:notify_badge_earned", queue="notifications")
 def notify_badge_earned(
     user_id: int,
     badge_name: str,
@@ -805,7 +805,7 @@ def notify_badge_earned(
         return False
 
 
-@celery_app.task(name="notifications:notify_level_up")
+@celery_app.task(name="notifications:notify_level_up", queue="notifications")
 def notify_level_up(
     user_id: int,
     new_level: int,
@@ -863,7 +863,7 @@ def notify_level_up(
         return False
 
 
-@celery_app.task(name="notifications:notify_channel_top10")
+@celery_app.task(name="notifications:notify_channel_top10", queue="notifications")
 def notify_channel_top10(
     owner_id: int,
     channel_username: str,
@@ -898,7 +898,7 @@ def notify_channel_top10(
         return False
 
 
-@celery_app.task(name="notifications:notify_referral_bonus")
+@celery_app.task(name="notifications:notify_referral_bonus", queue="notifications")
 def notify_referral_bonus(
     referrer_id: int,
     referred_name: str,
@@ -927,213 +927,10 @@ def notify_referral_bonus(
 
 
 # ─────────────────────────────────────────────
-# Еженедельный дайджест (Спринт 5)
-# ─────────────────────────────────────────────
-
-@celery_app.task(name="notifications:send_weekly_digest")
-def send_weekly_digest() -> dict[str, int]:
-    """
-    Задача 9.3: Еженедельный дайджест для пользователей.
-    Запускается каждый понедельник в 09:00 UTC.
-    """
-    from datetime import datetime
-
-    stats = {"sent": 0, "errors": 0}
-
-    async def _send_digests() -> dict[str, int]:
-        from sqlalchemy import func, select
-
-        async with async_session_factory() as session:
-            UserRepository(session)
-
-            # Получаем всех пользователей с включёнными уведомлениями
-            from src.db.models.user import User
-            stmt = select(User).where(User.is_active is True, User.notifications_enabled is True)
-            result = await session.execute(stmt)
-            users = list(result.scalars().all())
-
-            for user in users:
-                try:
-                    # Определяем роль
-                    from src.core.services.user_role_service import UserRoleService
-                    user_role_service = UserRoleService()
-                    user_context = await user_role_service.get_user_context(user.id)
-                    role = user_context.role
-
-                    # Получаем данные за последние 7 дней
-                    from src.db.models.campaign import Campaign
-
-                    seven_days_ago = datetime.now() - timedelta(days=7)
-
-                    if role in ("advertiser", "both"):
-                        # Дайджест рекламодателя
-                        campaigns_count = await session.execute(
-                            select(func.count(Campaign.id)).where(
-                                Campaign.user_id == user.id,
-                                Campaign.created_at >= seven_days_ago,
-                            )
-                        )
-                        campaigns_count = campaigns_count.scalar_one() or 0
-
-                        if campaigns_count == 0:
-                            continue  # Не отправляем если нет кампаний
-
-                        # Получаем статистику из analytics_service
-                        from src.core.services.analytics_service import analytics_service
-
-                        user_summary = await analytics_service.get_user_summary(user.id, days=7)
-                        total_views = user_summary.total_chats_reached if user_summary else 0
-                        total_spent = float(user_summary.total_spent) if user_summary else 0
-
-                        text = (
-                            f"📊 <b>Итоги недели — RekHarborBot</b>\n\n"
-                            f"Кампаний: {campaigns_count}\n"
-                        )
-
-                        if total_views:
-                            text += f"Охват: {total_views:,} каналов\n"
-                        if total_spent:
-                            text += f"Потрачено: {total_spent:,.0f} кр\n"
-
-                        text += f"\n💳 Баланс: {user.credits} кр"
-
-                        # Добавляем информацию о тарифе
-                        plan_value = user.plan.value if hasattr(user.plan, 'value') else str(user.plan)
-                        plan_display = {
-                            "free": "Бесплатный",
-                            "starter": "Starter",
-                            "pro": "PRO",
-                            "business": "Business",
-                            "admin": "Admin",
-                        }.get(plan_value.lower(), plan_value)
-
-                        if user.plan_expires_at:
-                            days_left = (user.plan_expires_at - datetime.now(UTC)).days
-                            expires_str = user.plan_expires_at.strftime("%d.%m.%Y")
-                            text += f"\n📦 Тариф: {plan_display} (до {expires_str}, {days_left} дн.)"
-                        else:
-                            text += f"\n📦 Тариф: {plan_display}"
-
-                        from aiogram import Bot
-                        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-                        from src.config.settings import settings
-
-                        keyboard = InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [InlineKeyboardButton(text="📣 Создать кампанию", callback_data="main:create_menu")]
-                            ]
-                        )
-
-                        bot = Bot(token=settings.bot_token)
-                        try:
-                            await bot.send_message(
-                                user.telegram_id,
-                                text,
-                                parse_mode="HTML",
-                                reply_markup=keyboard,
-                            )
-                            stats["sent"] += 1
-                        finally:
-                            await bot.session.close()
-
-                    elif role == "owner":
-                        # Дайджест владельца
-                        from src.db.repositories.payout_repo import get_available_payout_amount
-
-                        # Получаем доступную сумму к выводу
-                        available_payout = await get_available_payout_amount(user.id)
-
-                        # Получаем статистику выплат
-                        async with async_session_factory() as session:
-                            from sqlalchemy import func, select
-
-                            from src.db.models.payout import Payout, PayoutStatus
-
-                            # Сумма заработанных за 7 дней (PAID выплаты)
-                            seven_days_ago = datetime.now(UTC) - timedelta(days=7)
-                            stmt = (
-                                select(func.sum(Payout.amount))
-                                .where(
-                                    Payout.owner_id == user.id,
-                                    Payout.status == PayoutStatus.PAID,
-                                    Payout.created_at >= seven_days_ago,
-                                )
-                            )
-                            result = await session.execute(stmt)
-                            earned_credits = result.scalar_one() or Decimal("0")
-
-                            # Количество выплат за 7 дней
-                            stmt = (
-                                select(func.count(Payout.id))
-                                .where(
-                                    Payout.owner_id == user.id,
-                                    Payout.status == PayoutStatus.PAID,
-                                    Payout.created_at >= seven_days_ago,
-                                )
-                            )
-                            result = await session.execute(stmt)
-                            approved_count = result.scalar_one() or 0
-
-                        if available_payout <= 0 and earned_credits <= 0:
-                            continue  # Не отправляем если нет заработка
-
-                        text = (
-                            f"📺 <b>Итоги недели — Владелец</b>\n\n"
-                            f"Одобрено публикаций: {approved_count}\n"
-                            f"Заработано: {earned_credits:,.0f} кр\n"
-                        )
-
-                        if available_payout > 0:
-                            text += f"\n💸 К выводу: {available_payout:,.0f} кр"
-                        else:
-                            text += "\n💸 К выводу: 0 кр (ожидайте подтверждения)"
-
-                        text += f"\n\n💳 Баланс: {user.credits} кр"
-
-                        from aiogram import Bot
-                        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-                        from src.config.settings import settings
-
-                        keyboard = InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [InlineKeyboardButton(text="💸 Вывести средства", callback_data="main:payouts")]
-                            ]
-                        )
-
-                        bot = Bot(token=settings.bot_token)
-                        try:
-                            await bot.send_message(
-                                user.telegram_id,
-                                text,
-                                parse_mode="HTML",
-                                reply_markup=keyboard,
-                            )
-                            stats["sent"] += 1
-                        finally:
-                            await bot.session.close()
-
-                except Exception as e:
-                    logger.error(f"Error sending digest to user {user.id}: {e}")
-                    stats["errors"] += 1
-
-            return stats
-
-    try:
-        result = asyncio.run(_send_digests())
-        logger.info(f"Weekly digest completed: {result}")
-        return result
-    except Exception as e:
-        logger.error(f"Error sending weekly digest: {e}")
-        return {"sent": 0, "errors": 1}
-
-
-# ─────────────────────────────────────────────
 # TASK 6: Автоодобрение заявок и напоминания
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:auto_approve_placements")
+@celery_app.task(name="notifications:auto_approve_placements", queue="mailing")
 def auto_approve_placements() -> dict:
     """
     Автоодобрение заявок старше 24 часов.
@@ -1207,7 +1004,7 @@ def auto_approve_placements() -> dict:
         return {"status": "error", "error": str(e), "approved": 0}
 
 
-@celery_app.task(name="notifications:notify_pending_placement_reminders")
+@celery_app.task(name="notifications:notify_pending_placement_reminders", queue="mailing")
 def notify_pending_placement_reminders() -> dict:
     """
     Напоминать владельцам о заявках старше 20 часов.
@@ -1333,7 +1130,7 @@ def notify_pending_placement_reminders() -> dict:
 # TASK 8: Уведомления об истечении тарифа
 # ─────────────────────────────────────────────
 
-@celery_app.task(name="notifications:notify_expiring_plans")
+@celery_app.task(name="notifications:notify_expiring_plans", queue="mailing")
 def notify_expiring_plans() -> dict:
     """
     Уведомить пользователей у кого тариф истекает через 3 дня.
@@ -1446,7 +1243,7 @@ def notify_expiring_plans() -> dict:
         return {"status": "error", "error": str(e), "notified": 0}
 
 
-@celery_app.task(name="notifications:notify_expired_plans")
+@celery_app.task(name="notifications:notify_expired_plans", queue="mailing")
 def notify_expired_plans() -> dict:
     """
     Уведомить пользователей у кого тариф только что истёк.
