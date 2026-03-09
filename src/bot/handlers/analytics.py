@@ -74,16 +74,13 @@ async def show_analytics_role_choice(callback: CallbackQuery, user_id: int) -> N
     """
     Задача 6.1: Выбор роли для аналитики (для пользователей с обеими ролями).
     """
-    text = (
-        "📊 <b>Аналитика</b>\n\n"
-        "Выберите раздел:\n\n"
-        "📺 Как владелец канала\n"
-        "📣 Как рекламодатель"
-    )
+    text = "📊 <b>Аналитика</b>\n\nВыберите раздел:\n\n📺 Как владелец канала\n📣 Как рекламодатель"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📺 Как владелец канала", callback_data="owner_analytics:role")
-    builder.button(text="📣 Как рекламодатель", callback_data=MainMenuCB(action="advertiser_analytics"))
+    builder.button(
+        text="📣 Как рекламодатель", callback_data=MainMenuCB(action="advertiser_analytics")
+    )
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1, 1)
 
@@ -128,7 +125,7 @@ async def show_owner_analytics(callback: CallbackQuery, user_id: int) -> None:
         # Получаем каналы пользователя
         stmt = select(TelegramChat).where(
             TelegramChat.owner_user_id == user_id,
-            TelegramChat.is_active ,
+            TelegramChat.is_active,
         )
         result = await session.execute(stmt)
         channels = list(result.scalars().all())
@@ -242,7 +239,7 @@ async def show_owner_channel_analytics(
         member_count = channel.member_count or 0
 
         # Задача 6.3: Блок РЕЙТИНГ — только если поля существуют
-        rating = getattr(channel, 'rating', None)
+        rating = getattr(channel, "rating", None)
 
         # Формируем текст
         text = f"📺 @{channel.username or channel.title}  •  {days_label}\n\n"
@@ -349,12 +346,21 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
         callback: Callback query.
     """
     async with async_session_factory() as session:
-        UserRepository(session)
-        campaigns, total = await analytics_service.get_campaigns_page(
-            telegram_id=callback.from_user.id,
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+        if user is None:
+            await callback.answer("Пользователь не найден", show_alert=True)
+            return
+
+        result = await analytics_service.get_campaigns_page(
+            user_id=user.id,
             page=1,
-            per_page=10,
+            page_size=10,
         )
+
+        campaigns = result.get("items", [])
+        total = result.get("total", 0)
 
         if not campaigns:
             text = "📋 <b>У вас пока нет кампаний</b>\n\nСоздайте первую кампанию!"
@@ -373,8 +379,8 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
         text = f"📋 <b>Статистика кампаний</b> ({total} всего)\n\n"
 
         for campaign in campaigns:
-            progress_bar = make_progress_bar(campaign.progress)
-            success_rate = campaign.success_rate
+            progress_bar = make_progress_bar(campaign.progress)  # type: ignore[union-attr]
+            success_rate = campaign.success_rate  # type: ignore[union-attr]
 
             status_emoji = {
                 "draft": "📝",
@@ -384,13 +390,13 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
                 "error": "❌",
                 "paused": "⏸️",
                 "cancelled": "🚫",
-            }.get(campaign.status.value, "📝")
+            }.get(campaign.status.value, "📝")  # type: ignore[union-attr]
 
             text += (
-                f"{status_emoji} <b>{campaign.title}</b>\n"
+                f"{status_emoji} <b>{campaign.title}</b>\n"  # type: ignore[union-attr]
                 f"   Прогресс: {progress_bar}\n"
                 f"   Успешность: {success_rate:.1f}%\n"
-                f"   Отправлено: {campaign.sent_count}/{campaign.total_chats}\n\n"
+                f"   Отправлено: {campaign.sent_count}/{campaign.total_chats}\n\n"  # type: ignore[union-attr]
             )
 
         builder = InlineKeyboardBuilder()
