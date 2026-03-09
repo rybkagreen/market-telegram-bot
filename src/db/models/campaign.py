@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, TypedDict
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -298,6 +298,7 @@ class Campaign(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_campaigns_user_status", "user_id", "status"),
         Index("ix_campaigns_scheduled_status", "scheduled_at", "status"),
+        CheckConstraint("cost >= 0", name="ck_campaigns_cost_positive"),
         {
             "comment": "Рекламные кампании пользователей",
         },
