@@ -3,16 +3,23 @@ Notification tasks для уведомлений пользователей.
 """
 
 import asyncio
+import hashlib
 import logging
-from datetime import UTC, timedelta
+from datetime import UTC
 from decimal import Decimal
 from typing import Any
 
+from redis.asyncio import Redis
+
+from src.config.settings import settings
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
+
+# Redis клиент для дедупликации уведомлений
+redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
 
 
 @celery_app.task(bind=True, base=BaseTask, name="mailing:check_low_balance")
@@ -195,6 +202,18 @@ def notify_user(
     Returns:
         True если отправлено успешно.
     """
+    # ✅ ПРОВЕРКА НА ДУБЛИКАТ — предотвращаем повторную отправку
+    # Дедупликация в течение 5 минут по (telegram_id, hash(message))
+    message_hash = hashlib.md5(message.encode()).hexdigest()
+    dedup_key = f"notification:{telegram_id}:{message_hash}"
+
+    if redis_client.exists(dedup_key):
+        logger.debug(f"Duplicate notification skipped: {dedup_key}")
+        return False
+
+    # Установить блокировку на 5 минут
+    redis_client.setex(dedup_key, 300, "1")
+
     try:
         asyncio.run(_notify_user_async(telegram_id, message, parse_mode))
         return True
