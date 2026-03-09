@@ -3,16 +3,18 @@ Handlers личного кабинета пользователя.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy import select
 
 from src.bot.keyboards.billing import BillingCB, get_plans_kb
 from src.bot.keyboards.cabinet import CabinetCB, get_cabinet_kb
+from src.bot.keyboards.campaign import CampaignCB
 from src.bot.keyboards.main_menu import MainMenuCB
 from src.bot.keyboards.pagination import PaginationCB
 from src.bot.utils.message_utils import safe_edit_message
@@ -209,8 +211,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             plan_expires_at = getattr(user, 'plan_expires_at', None)
             days_left = None
             if plan_expires_at:
-                from datetime import timezone
-                days_left = (plan_expires_at - datetime.now(timezone.utc)).days
+                days_left = (plan_expires_at - datetime.now(UTC)).days
 
             # Осталось кампаний — получаем из БД
             from src.db.repositories.campaign_repo import CampaignRepository
@@ -242,6 +243,21 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
 
             if next_privilege and level < 7:
                 text += f"\nНа уровне {level + 1} — {next_level_name}:\n→ {next_privilege}\n"
+
+            # TASK 8.7: Стрики активности
+            streak_days = user.login_streak_days or 0
+            max_streak = user.max_streak_days or 0
+
+            text += "\n━━━━ 🔥 СТРИКИ ━━━━\n"
+            text += f"Текущая серия: <b>{streak_days} дн.</b>\n"
+            text += f"Максимальная: <b>{max_streak} дн.</b>\n"
+
+            # Прогресс до следующего бонуса (каждые 7 дней)
+            if streak_days > 0:
+                streak_progress = streak_days % 7
+                next_bonus_in = 7 - streak_progress if streak_progress > 0 else 7
+                streak_bar = "█" * streak_progress + "░" * (7 - streak_progress)
+                text += f"   {streak_bar}  до бонуса: {next_bonus_in} дн.\n"
 
         elif role == "owner":
             # Для владельца
@@ -473,8 +489,19 @@ async def show_campaigns_list(callback: CallbackQuery, page: int = 1) -> None:
                 f"   Отправлено: {campaign.sent_count}/{campaign.total_chats}\n\n"
             )
 
-        # Кнопки навигации
+        # Кнопки навигации + кнопка детальной страницы
         builder = InlineKeyboardBuilder()
+
+        # Добавляем кнопки для каждой кампании
+        for campaign in campaigns:
+            campaign_id = campaign.id
+            title = campaign.title[:30] + "..." if len(campaign.title) > 30 else campaign.title
+            builder.button(
+                text=f"{STATUS_EMOJI.get(campaign.status if isinstance(campaign.status, str) else campaign.status.value, '📝')} {title}",
+                callback_data=CampaignCB(action="show_detail", value=str(campaign_id)),
+            )
+
+        builder.adjust(1)  # Одна кнопка под другой
 
         if page > 1:
             builder.button(
@@ -549,3 +576,361 @@ async def campaigns_pagination_callback(
         callback_data: Данные пагинации.
     """
     await show_campaigns_list(callback, page=callback_data.page)
+
+
+# ─────────────────────────────────────────────
+# TASK 4: Детальная страница кампании + управление
+# ─────────────────────────────────────────────
+
+@router.callback_query(CampaignCB.filter(F.action == "show_detail"))
+async def show_campaign_detail(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Показать детальную страницу кампании.
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем что кампания принадлежит пользователю
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # Статус кампании
+        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        emoji = STATUS_EMOJI.get(status_value, "📝")
+
+        # Прогресс
+        progress = campaign.progress
+        sent = campaign.sent_count
+        total = campaign.total_chats
+
+        # Стоимость
+        cost = campaign.cost or 0
+
+        # Тематика
+        topic = campaign.topic or "Не указана"
+
+        # Текст (первые 200 символов)
+        text_preview = campaign.text[:200] + "..." if len(campaign.text) > 200 else campaign.text
+
+        # Дата создания
+        created = campaign.created_at.strftime("%d.%m.%Y %H:%M") if campaign.created_at else "—"
+
+        text = (
+            f"{emoji} <b>Кампания: {campaign.title}</b>\n\n"
+            f"📊 <b>Статус:</b> {status_value}\n"
+            f"📈 <b>Прогресс:</b> {progress:.0f}% ({sent}/{total} чатов)\n"
+            f"💰 <b>Стоимость:</b> {cost:.0f} кр\n"
+            f"🏷 <b>Тематика:</b> {topic}\n"
+            f"📅 <b>Создана:</b> {created}\n\n"
+            f"📝 <b>Текст:</b>\n"
+            f"<tg-spoiler>{text_preview}</tg-spoiler>\n\n"
+        )
+
+        # Клавиатура по статусу
+        from src.bot.keyboards.campaign import get_campaign_detail_kb
+
+        keyboard = get_campaign_detail_kb(campaign_id, status_value)
+
+        await safe_edit_message(callback.message, text, reply_markup=keyboard)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "launch"))
+async def launch_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Запустить кампанию из черновика.
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        from src.core.services.billing_service import billing_service
+        from src.tasks.mailing_tasks import send_campaign
+
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # Замораживаем средства
+        if campaign.cost > 0:
+            frozen = await billing_service.freeze_campaign_funds(campaign_id)
+            if not frozen:
+                await callback.answer("❌ Недостаточно средств для запуска", show_alert=True)
+                return
+
+        # Обновляем статус
+        await campaign_repo.update_status(campaign_id, CampaignStatus.RUNNING)
+
+        # ⚠️ ФИКС 7: Запускаем рассылку и сохраняем task_id
+        task = send_campaign.delay(campaign_id)
+
+        meta = campaign.meta_json or {}
+        meta["celery_task_id"] = task.id
+        campaign.meta_json = meta
+        await session.commit()
+
+    await callback.answer("✅ Кампания запущена!")
+    await show_campaign_detail(callback, callback_data)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "pause"))
+async def pause_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Поставить кампанию на паузу.
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # ⚠️ ФИКС 7: Отозвать Celery задачу при паузе
+        meta = campaign.meta_json or {}
+        task_id = meta.get("celery_task_id")
+
+        if task_id:
+            try:
+                from celery.result import AsyncResult
+                task_result = AsyncResult(task_id)
+                task_result.revoke(terminate=True)
+                logger.info(f"Revoked Celery task {task_id} for campaign {campaign_id}")
+                # Очищаем task_id чтобы не пытаться отозвать повторно
+                meta["celery_task_id"] = None
+                campaign.meta_json = meta
+            except Exception as e:
+                logger.warning(f"Failed to revoke task {task_id} for campaign {campaign_id}: {e}")
+
+        # Обновляем статус
+        await campaign_repo.update_status(campaign_id, CampaignStatus.PAUSED)
+        await session.commit()
+
+    await callback.answer("⏸ Кампания на паузе")
+    await show_campaign_detail(callback, callback_data)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "resume"))
+async def resume_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Возобновить кампанию с паузы.
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        from src.tasks.mailing_tasks import send_campaign
+
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # ⚠️ ФИКС 7: Запустить новую задачу и сохранить task_id
+        task = send_campaign.delay(campaign_id)
+
+        meta = campaign.meta_json or {}
+        meta["celery_task_id"] = task.id
+        campaign.meta_json = meta
+
+        # Обновляем статус
+        await campaign_repo.update_status(campaign_id, CampaignStatus.RUNNING)
+        await session.commit()
+
+    await callback.answer("▶️ Кампания возобновлена")
+    await show_campaign_detail(callback, callback_data)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "cancel_campaign"))
+async def cancel_campaign_action(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Отменить кампанию (queued/running/paused).
+    Возврат средств только за незавершённые placements.
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        from src.core.services.billing_service import billing_service
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # Проверка статуса — можно отменять только queued/running/paused
+        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        if status_value not in ("queued", "running", "paused"):
+            await callback.answer("❌ Кампанию нельзя отменить в текущем статусе", show_alert=True)
+            return
+
+        # ⚠️ ИСПРАВЛЕНИЕ: возврат только за незавершённые placements
+        stmt = select(MailingLog).where(
+            MailingLog.campaign_id == campaign_id,
+            MailingLog.status.in_([
+                MailingStatus.PENDING_APPROVAL,
+                MailingStatus.QUEUED,
+                MailingStatus.PENDING,
+            ])
+        )
+        result = await session.execute(stmt)
+        pending_placements = list(result.scalars().all())
+
+        # Отмена каждого незавершённого placement с возвратом
+        refunded_total = 0
+        for placement in pending_placements:
+            # Помечаем как failed для триггера возврата
+            placement.status = MailingStatus.FAILED
+            await session.flush()
+
+            # Вызываем возврат средств
+            success = await billing_service.refund_failed_placement(placement.id)
+            if success:
+                refunded_total += placement.cost or 0
+
+        # Обновляем статус кампании
+        await campaign_repo.update_status(campaign_id, CampaignStatus.CANCELLED)
+        await session.commit()
+
+    await callback.answer(f"❌ Кампания отменена. Возвращено: {refunded_total} кр")
+    await show_campaign_detail(callback, callback_data)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "delete"))
+async def delete_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Удалить кампанию (только черновики).
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        campaign = await campaign_repo.get_by_id(campaign_id)
+
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца и статус
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or campaign.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        status_value = campaign.status.value if hasattr(campaign.status, "value") else campaign.status
+        if status_value != "draft":
+            await callback.answer("❌ Можно удалять только черновики", show_alert=True)
+            return
+
+        # Удаляем
+        await campaign_repo.delete(campaign_id)
+
+    await callback.answer("🗑 Кампания удалена")
+    await show_campaigns_list(callback, page=1)
+
+
+@router.callback_query(CampaignCB.filter(F.action == "duplicate"))
+async def duplicate_campaign(callback: CallbackQuery, callback_data: CampaignCB) -> None:
+    """
+    Дублировать кампанию (создать черновик с теми же данными).
+    """
+    if callback.message is None:
+        return
+
+    campaign_id = int(callback_data.value)
+
+    async with async_session_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        original = await campaign_repo.get_by_id(campaign_id)
+
+        if not original:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Проверяем владельца
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user or original.user_id != user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # Создаём копию
+        new_campaign = await campaign_repo.create({
+            "user_id": user.id,
+            "title": f"{original.title} (копия)",
+            "topic": original.topic,
+            "header": original.header,
+            "text": original.text,
+            "image_file_id": original.image_file_id,
+            "ai_description": original.ai_description,
+            "status": CampaignStatus.DRAFT,
+            "filters_json": original.filters_json,
+            "scheduled_at": None,
+            "cost": 0,
+        })
+
+    await callback.answer("📋 Кампания продублирована")
+    await show_campaign_detail(callback, CampaignCB(action="show_detail", value=str(new_campaign.id)))
