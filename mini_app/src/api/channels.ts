@@ -48,6 +48,31 @@ export interface ChannelsPreview {
   channels: ChannelPreviewItem[]
 }
 
+export interface ComparisonChannelItem {
+  id: number
+  username: string | null
+  title: string | null
+  member_count: number
+  avg_views: number
+  er: number
+  post_frequency: number
+  price_per_post: number
+  price_per_1k_subscribers: number
+  is_best: Record<string, boolean>
+}
+
+export interface ComparisonRecommendation {
+  channel_id: number
+  channel_name: string
+  reason: string
+}
+
+export interface ComparisonResponse {
+  channels: ComparisonChannelItem[]
+  best_values: Record<string, number>
+  recommendation: ComparisonRecommendation
+}
+
 export const channelsApi = {
   // Публичный — не требует токена
   stats: (): Promise<DatabaseStats> =>
@@ -55,4 +80,8 @@ export const channelsApi = {
 
   preview: (params?: { topic?: string; limit?: number }): Promise<ChannelsPreview> =>
     apiClient.get('/channels/preview', { params }).then(r => r.data),
+
+  // Сравнение каналов
+  compare: (channelIds: number[]): Promise<ComparisonResponse> =>
+    apiClient.post('/channels/compare', { channel_ids: channelIds }),
 }

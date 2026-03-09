@@ -53,7 +53,9 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
                 "• Идеи для A/B тестов"
             )
 
-            await safe_callback_edit(callback, text,
+            await safe_callback_edit(
+                callback,
+                text,
                 reply_markup=get_ai_premium_lock_kb(),
             )
             return
@@ -125,7 +127,9 @@ async def show_ai_campaign_analytics(callback: CallbackQuery) -> None:
             for c in campaigns
         ]
 
-        await safe_callback_edit(callback, text,
+        await safe_callback_edit(
+            callback,
+            text,
             reply_markup=get_campaign_list_kb(campaigns_data),
         )
 
@@ -140,9 +144,12 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
     campaign_id = int(callback_data.campaign_id)
 
     # Показываем индикатор загрузки
-    await safe_callback_edit(callback, "✨ <b>AI-анализ кампании</b>\n\n"
+    await safe_callback_edit(
+        callback,
+        "✨ <b>AI-анализ кампании</b>\n\n"
         "⏳ Анализирую данные кампании...\n\n"
-        "Это может занять до 30 секунд.")
+        "Это может занять до 30 секунд.",
+    )
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -200,7 +207,9 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
             )
         except Exception as e:
             logger.error(f"AI analytics error: {e}")
-            await safe_callback_edit(callback, f"❌ Не удалось получить AI-анализ\n\nОшибка: {str(e)}\n\nПопробуйте позже."
+            await safe_callback_edit(
+                callback,
+                f"❌ Не удалось получить AI-анализ\n\nОшибка: {str(e)}\n\nПопробуйте позже.",
             )
             return
 
@@ -254,7 +263,9 @@ async def analyze_campaign(callback: CallbackQuery, callback_data: CampaignAICB)
         ai_limit = 5 if plan_str == "pro" else 20
         text += f"\n💡 Осталось генераций: {ai_limit - user.ai_generations_used - 1} из {ai_limit}"
 
-        await safe_callback_edit(callback, text,
+        await safe_callback_edit(
+            callback,
+            text,
             reply_markup=get_ai_analysis_result_kb(campaign_id),
         )
 

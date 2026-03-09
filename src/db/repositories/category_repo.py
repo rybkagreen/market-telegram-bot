@@ -3,7 +3,6 @@ Category Repository для работы с категориями каналов
 Расширяет BaseRepository специфичными методами для TopicCategory.
 """
 
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

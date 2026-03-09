@@ -391,23 +391,23 @@ class CampaignSender:
             chat_repo = ChatAnalyticsRepository(session)
 
             # Получаем фильтры из кампании
-            filters = getattr(campaign, 'filters_json', {}) or {}
+            filters = getattr(campaign, "filters_json", {}) or {}
 
             # Проверка флага "один предвыбранный канал"
-            if filters.get('use_preselected_only'):
+            if filters.get("use_preselected_only"):
                 from src.db.models.analytics import TelegramChat
 
-                channel_id = filters.get('preselected_channel_id')
+                channel_id = filters.get("preselected_channel_id")
                 if channel_id:
                     # Вернуть только один канал
                     chat = await session.get(TelegramChat, channel_id)
                     return [chat] if chat else []
 
             # Стандартная логика выбора каналов из каталога
-            topic = filters.get('topic')
-            min_members = filters.get('min_members', 100)
-            max_members = filters.get('max_members')
-            limit = filters.get('limit', 1000)
+            topic = filters.get("topic")
+            min_members = filters.get("min_members", 100)
+            max_members = filters.get("max_members")
+            limit = filters.get("limit", 1000)
 
             # Спринт 0: метод get_chats_for_mailing уже фильтрует по bot_is_admin и is_accepting_ads
             chats = await chat_repo.get_chats_for_mailing(

@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
 
     # ══════════════════════════════════════════════════════════════
+    # Mistral AI — для классификации и модерации
+    # Получить ключ: https://console.mistral.ai/api-keys
+    # ══════════════════════════════════════════════════════════════
+    mistral_api_key: str | None = Field(None, alias="MISTRAL_API_KEY")
+
+    # ══════════════════════════════════════════════════════════════
     # JWT для Mini App аутентификации
     # Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
     # ══════════════════════════════════════════════════════════════
@@ -136,7 +142,9 @@ class Settings(BaseSettings):
 
     # Analytics settings
     analytics_estimated_cpm_rub: float = Field(
-        100.0, alias="ANALYTICS_ESTIMATED_CPM_RUB", description="Оценочный CPM (руб за 1000 просмотров)"
+        100.0,
+        alias="ANALYTICS_ESTIMATED_CPM_RUB",
+        description="Оценочный CPM (руб за 1000 просмотров)",
     )
     analytics_estimated_cpc_rub: float = Field(
         25.0, alias="ANALYTICS_ESTIMATED_CPC_RUB", description="Оценочный CPC (руб за клик)"
@@ -189,7 +197,9 @@ class Settings(BaseSettings):
 
     # Порог premium каналов
     premium_subscriber_threshold: int = Field(
-        1_000_000, alias="PREMIUM_SUBSCRIBER_THRESHOLD", description="Порог premium каналов (подписчиков)"
+        1_000_000,
+        alias="PREMIUM_SUBSCRIBER_THRESHOLD",
+        description="Порог premium каналов (подписчиков)",
     )
 
     # Package bonuses

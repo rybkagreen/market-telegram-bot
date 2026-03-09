@@ -1,14 +1,16 @@
 """
-AI-аналитика кампаний через OpenRouter.
+AI-аналитика кампаний через Mistral AI.
 Доступна только для тарифов PRO и BUSINESS.
 
-Использует существующий ai_service.py.
+Использует mistral_ai_service.py.
 """
 
 import json
 import logging
 import re
 from datetime import UTC, datetime
+
+from src.core.services.mistral_ai_service import mistral_ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +37,11 @@ class CampaignAnalyticsAI:
         Returns:
             dict с insights, recommendations, forecast (для business)
         """
-        from src.core.services.ai_service import AIService
-
-        ai = AIService()
-
         prompt = self._build_prompt(campaign_data, plan)
 
         try:
-            response = await ai.generate(
+            response = await mistral_ai_service.generate(
                 prompt=prompt,
-                user_plan=plan,
                 use_cache=False,
             )
             return self._parse_response(response, plan)

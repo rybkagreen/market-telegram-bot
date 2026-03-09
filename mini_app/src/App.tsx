@@ -8,6 +8,7 @@ import Campaigns from '@/pages/Campaigns'
 import Analytics from '@/pages/Analytics'
 import Channels from '@/pages/Channels'
 import Billing from '@/pages/Billing'
+import Comparison from '@/pages/Comparison'
 import { PlatformStats } from '@/pages/PlatformStats'
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/campaigns"  element={<Campaigns />} />
         <Route path="/analytics"  element={<Analytics />} />
         <Route path="/channels"   element={<Channels />} />
+        <Route path="/comparison" element={<Comparison />} />
         <Route path="/billing"    element={<Billing />}   />
         <Route path="/stats"      element={<PlatformStats />} />
         <Route path="*"           element={<Navigate to="/" />} />

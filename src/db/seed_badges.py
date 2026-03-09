@@ -218,7 +218,9 @@ async def seed_badges() -> None:
 
         await session.commit()
 
-        logger.info(f"✅ Seed completed: {len(created_badges)} badges, {len(achievements_data)} achievements")
+        logger.info(
+            f"✅ Seed completed: {len(created_badges)} badges, {len(achievements_data)} achievements"
+        )
 
 
 if __name__ == "__main__":

@@ -102,3 +102,26 @@ def get_comparison_result_kb(channel_ids: list[int]) -> InlineKeyboardMarkup:
     builder.adjust(1)
 
     return builder.as_markup()
+
+
+def get_compare_action_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура когда выбраны 2+ канала.
+
+    Показывает кнопки для перехода к сравнению.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📊 Сравнить выбранные",
+        callback_data=ComparisonCB(action="compare").pack(),
+    )
+    builder.button(
+        text="🗑 Сбросить",
+        callback_data=ComparisonCB(action="clear").pack(),
+    )
+    builder.button(
+        text="📋 Изменить выбор",
+        callback_data=ChannelsCB(action="show_compare_list", value="all").pack(),
+    )
+    builder.adjust(1)
+    return builder.as_markup()

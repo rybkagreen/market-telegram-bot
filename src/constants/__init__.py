@@ -4,7 +4,7 @@
 Централизованное хранилище всех констант проекта для упрощения поддержки.
 """
 
-from src.api.constants.ai import (
+from .ai import (
     AI_MAX_TOKENS,
     AI_TEMPERATURE,
     BUSINESS_AI_GENERATIONS_LIMIT,
@@ -16,20 +16,20 @@ from src.api.constants.ai import (
     PRO_AI_GENERATIONS_LIMIT,
     STARTER_AI_GENERATIONS_LIMIT,
 )
-from src.api.constants.content_filter import (
+from .content_filter import (
     BLOCKED_CATEGORIES,
     LEVEL1_THRESHOLD,
     LEVEL2_THRESHOLD,
     LEVEL3_THRESHOLD,
 )
-from src.api.constants.parser import (
+from .parser import (
     PARSER_POSTS_SAMPLE,
     PARSER_RATE_LIMIT_DELAY,
     POPULAR_TOPICS,
     SEARCH_QUERIES,
     SEARCH_QUERIES_BY_CATEGORY,
 )
-from src.api.constants.payments import (
+from .payments import (
     CREDIT_PACKAGE_BUSINESS,
     CREDIT_PACKAGE_STANDARD,
     CREDIT_PACKAGES,
@@ -37,7 +37,7 @@ from src.api.constants.payments import (
     CURRENCIES,
     PAYMENT_METHODS,
 )
-from src.api.constants.tariffs import (
+from .tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
     TARIFF_CREDIT_COST,
     TARIFF_LABELS,

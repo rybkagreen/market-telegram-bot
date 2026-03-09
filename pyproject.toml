@@ -38,7 +38,7 @@ openai = "^1.12.0"
 
 # TGStat Parser
 beautifulsoup4 = "^4.12.3"
-httpx = "^0.27.0"
+httpx = "^0.28.1"
 
 # Payments
 yookassa = "^3.2.0"
@@ -46,6 +46,7 @@ sentry-sdk = "^2.53.0"
 
 # Server Monitoring
 psutil = "^6.1.0"
+mistralai = "^1.12.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.9.3"

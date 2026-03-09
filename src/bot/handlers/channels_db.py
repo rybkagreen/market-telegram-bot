@@ -7,7 +7,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InaccessibleMessage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # Импортировать router из mediakit handlers
@@ -169,12 +169,28 @@ async def handle_categories(callback: CallbackQuery) -> None:
         )
         total = total_result.scalar() or 0
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📁 Одиночный выбор", callback_data=ChannelsCB(action="single_select").pack())],
-        [InlineKeyboardButton(text="✅ Мультивыбор", callback_data=ChannelsCB(action="multi_select").pack())],
-        [InlineKeyboardButton(text=f"📊 Все каналы ({total:,})", callback_data=ChannelsCB(action="stats").pack())],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=ChannelsCB(action="menu").pack())],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📁 Одиночный выбор",
+                    callback_data=ChannelsCB(action="single_select").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✅ Мультивыбор", callback_data=ChannelsCB(action="multi_select").pack()
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"📊 Все каналы ({total:,})",
+                    callback_data=ChannelsCB(action="stats").pack(),
+                )
+            ],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data=ChannelsCB(action="menu").pack())],
+        ]
+    )
 
     await safe_edit_message(
         callback.message,
@@ -303,6 +319,10 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
         callback_data=ComparisonCB(action="show_bar").pack(),
     )
     builder.button(
+        text="📋 Выбрать для сравнения",
+        callback_data=ChannelsCB(action="show_compare_list", value=category).pack(),
+    )
+    builder.button(
         text="🔙 Назад",
         callback_data=ChannelsCB(action="categories"),
     )
@@ -319,6 +339,89 @@ async def handle_category_detail(callback: CallbackQuery, callback_data: Channel
     )
 
 
+@router.callback_query(ChannelsCB.filter(F.action == "show_compare_list"))
+async def show_channels_for_comparison(
+    callback: CallbackQuery,
+    callback_data: ChannelsCB,
+    state: FSMContext,
+) -> None:
+    """Показать каналы категории с кнопками 'Сравнить'."""
+    category = callback_data.value  # "all" или конкретная категория
+
+    async with async_session_factory() as session:
+        from sqlalchemy import func, select, true
+
+        from src.db.models.analytics import TelegramChat
+
+        stmt = select(TelegramChat).where(
+            TelegramChat.is_active == true(),
+            TelegramChat.is_accepting_ads == true(),
+        )
+        if category != "all":
+            stmt = stmt.where(func.lower(TelegramChat.topic) == category.lower())
+        stmt = stmt.order_by(TelegramChat.member_count.desc()).limit(20)
+
+        result = await session.execute(stmt)
+        channels = list(result.scalars().all())
+
+    if not channels:
+        await callback.answer("Каналы не найдены", show_alert=True)
+        return
+
+    # Получить уже выбранные
+    data = await state.get_data()
+    selected = data.get("comparison_selected_channels", [])
+
+    header = (
+        f"📊 <b>Выберите каналы для сравнения</b>\n\n"
+        f"Выбрано: <b>{len(selected)}/5</b>\n"
+        f"Нажмите на канал чтобы добавить/убрать\n\n"
+        f"{'📋 ' + ', '.join(f'@{c}' for c in selected[:3]) if selected else 'Пока ничего не выбрано'}"
+    )
+
+    # Обновить исходное сообщение
+    if callback.message is None:
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
+    if isinstance(callback.message, InaccessibleMessage):
+        await callback.answer("Ошибка: сообщение недоступно")
+        return
+    await callback.message.edit_text(header, parse_mode="HTML")
+
+    # Отправить каждый канал отдельным сообщением с кнопками
+    from src.bot.keyboards.comparison import get_channel_with_compare_kb
+
+    for channel in channels[:10]:  # первые 10 чтобы не спамить
+        is_selected = channel.id in selected
+        keyboard = get_channel_with_compare_kb(
+            channel_id=channel.id,
+            channel_username=channel.username or str(channel.id),
+            is_selected=is_selected,
+        )
+
+        er = channel.last_er or 0
+        views = channel.last_avg_views or 0
+        price = channel.price_per_post or 0
+
+        text = (
+            f"{'✅ ' if is_selected else ''}📡 @{channel.username or channel.id}\n"
+            f"👥 {channel.member_count:,} • 👁 {views:,} • 📈 ER {er:.1f}%\n"
+            f"💰 {price} кр/пост"
+        )
+        await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+    # Если выбрано 2+ канала — добавить кнопку "Сравнить"
+    if len(selected) >= 2:
+        from src.bot.keyboards.comparison import get_compare_action_kb
+
+        await callback.message.answer(
+            f"✅ Выбрано {len(selected)} канала. Готово к сравнению!",
+            reply_markup=get_compare_action_kb(),
+        )
+
+    await callback.answer()
+
+
 @router.callback_query(ChannelsCB.filter(F.action == "subcategories"))
 async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
@@ -330,6 +433,7 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
 
     # Получаем подкатегории из БД (с fallback)
     from src.utils.categories import get_subcategories_from_db
+
     subcats = await get_subcategories_from_db(topic)
 
     if not subcats:
@@ -369,11 +473,10 @@ async def handle_subcategories(callback: CallbackQuery, callback_data: ChannelsC
 
         # Каналы БЕЗ подкатегории
         result_without_subcat = await session.execute(
-            select(func.count(TelegramChat.id).label("total"))
-            .where(
+            select(func.count(TelegramChat.id).label("total")).where(
                 TelegramChat.is_active == true(),
                 func.lower(TelegramChat.topic) == topic.lower(),
-                TelegramChat.subcategory == None,
+                TelegramChat.subcategory.is_(None),
             )
         )
         total_without_subcat = result_without_subcat.scalar() or 0
@@ -489,6 +592,7 @@ async def handle_top_channels(callback: CallbackQuery) -> None:
 # ─────────────────────────────────────────────
 # Расширенные фильтры каталога (Спринт 3)
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(ChannelsCB.filter(F.action == "advanced_filters"))
 async def handle_advanced_filters(callback: CallbackQuery) -> None:
@@ -635,6 +739,7 @@ async def back_to_channels_menu(callback: CallbackQuery) -> None:
 # TASK 4: Детальная страница канала
 # ─────────────────────────────────────────────
 
+
 @router.callback_query(ChannelsCB.filter(F.action == "view_channel"))
 async def view_channel_detail(callback: CallbackQuery, callback_data: ChannelsCB) -> None:
     """
@@ -658,9 +763,7 @@ async def view_channel_detail(callback: CallbackQuery, callback_data: ChannelsCB
             return
 
         # Статистика размещений
-        stmt = select(func.count(MailingLog.id)).where(
-            MailingLog.chat_id == channel_id
-        )
+        stmt = select(func.count(MailingLog.id)).where(MailingLog.chat_id == channel_id)
         total_placements = (await session.execute(stmt)).scalar() or 0
 
         stmt = select(func.count(MailingLog.id)).where(
@@ -687,7 +790,7 @@ async def view_channel_detail(callback: CallbackQuery, callback_data: ChannelsCB
         # Формируем текст
         username = f"@{channel.username}" if channel.username else "—"
         member_count = f"{channel.member_count:,}" if channel.member_count else "—"
-        er = f"{channel.er:.1f}%" if hasattr(channel, 'er') and channel.er else "—"
+        er = f"{channel.er:.1f}%" if hasattr(channel, "er") and channel.er else "—"
         rating = f"{avg_rating:.1f}" if avg_rating > 0 else "Нет оценок"
         price = f"{channel.price_per_post or 0} кр"
         topics = channel.topic or "Не указаны"
@@ -708,6 +811,7 @@ async def view_channel_detail(callback: CallbackQuery, callback_data: ChannelsCB
         )
 
     from src.bot.keyboards.channels import get_channel_detail_kb
+
     keyboard = get_channel_detail_kb(channel_id)
 
     await safe_edit_message(
@@ -721,6 +825,7 @@ async def view_channel_detail(callback: CallbackQuery, callback_data: ChannelsCB
 # ─────────────────────────────────────────────
 # TASK: Добавить в кампанию
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(ChannelsCB.filter(F.action == "add_to_campaign"))
 async def add_channel_to_campaign(
@@ -805,10 +910,20 @@ async def add_channel_to_campaign(
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="▶️ Начать создание", callback_data="start_campaign_with_channel")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data=ChannelsCB(action="top_channels").pack())],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="▶️ Начать создание", callback_data="start_campaign_with_channel"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена", callback_data=ChannelsCB(action="top_channels").pack()
+                )
+            ],
+        ]
+    )
 
     await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -838,6 +953,7 @@ async def start_campaign_with_channel(
 # ─────────────────────────────────────────────
 # TASK: Мультивыбор фильтров
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(ChannelsCB.filter(F.action == "toggle_category"))
 async def toggle_category(
@@ -942,11 +1058,27 @@ async def apply_filters(
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Показать результаты", callback_data=ChannelsCB(action="show_filtered_results").pack())],
-        [InlineKeyboardButton(text="✏️ Изменить фильтры", callback_data=ChannelsCB(action="categories").pack())],
-        [InlineKeyboardButton(text="❌ Сбросить фильтры", callback_data=ChannelsCB(action="clear_filters").pack())],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📊 Показать результаты",
+                    callback_data=ChannelsCB(action="show_filtered_results").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Изменить фильтры", callback_data=ChannelsCB(action="categories").pack()
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Сбросить фильтры",
+                    callback_data=ChannelsCB(action="clear_filters").pack(),
+                )
+            ],
+        ]
+    )
 
     await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -1023,10 +1155,7 @@ async def show_filtered_results(
 
     filters_text = get_active_filters_bar(categories, tariffs)
 
-    text = (
-        f"{filters_text}\n\n"
-        f"📡 <b>Найдено каналов: {total}</b>\n\n"
-    )
+    text = f"{filters_text}\n\n📡 <b>Найдено каналов: {total}</b>\n\n"
 
     if top_channels:
         text += "<b>Топ каналов:</b>\n"
@@ -1038,10 +1167,31 @@ async def show_filtered_results(
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Изменить фильтры", callback_data=ChannelsCB(action="categories").pack())],
-        [InlineKeyboardButton(text="❌ Сбросить фильтры", callback_data=ChannelsCB(action="clear_filters").pack())],
-        [InlineKeyboardButton(text="🔙 В меню базы", callback_data=ChannelsCB(action="menu").pack())],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✏️ Изменить фильтры", callback_data=ChannelsCB(action="categories").pack()
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📊 Сравнить каналы",
+                    callback_data=ChannelsCB(action="show_compare_list", value="all").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Сбросить фильтры",
+                    callback_data=ChannelsCB(action="clear_filters").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔙 В меню базы", callback_data=ChannelsCB(action="menu").pack()
+                )
+            ],
+        ]
+    )
 
     await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")

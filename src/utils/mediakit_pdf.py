@@ -13,7 +13,6 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Flowable,
-    Image,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -39,10 +38,10 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=2*cm,
-        leftMargin=2*cm,
-        topMargin=2*cm,
-        bottomMargin=2*cm,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
     )
 
     elements: list[Flowable] = []
@@ -58,9 +57,10 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
     # 1. Заголовок с логотипом
     if logo_bytes:
         from reportlab.platypus import Image
-        logo = Image(logo_bytes, width=2*cm, height=2*cm)
+
+        logo = Image(logo_bytes, width=2 * cm, height=2 * cm)
         elements.append(logo)
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Spacer(1, 0.5 * cm))
 
     # Стили
     title_style = ParagraphStyle(
@@ -68,7 +68,7 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
         parent=styles["Heading1"],
         fontSize=24,
         textColor=theme_color_obj,
-        spaceAfter=1*cm,
+        spaceAfter=1 * cm,
         alignment=1,  # Center
     )
 
@@ -84,11 +84,11 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
             parent=styles["Normal"],
             fontSize=14,
             textColor=colors.grey,
-            spaceAfter=0.5*cm,
+            spaceAfter=0.5 * cm,
             alignment=1,
         )
         elements.append(Paragraph(f"@{channel_username}", username_style))
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Spacer(1, 0.5 * cm))
 
     # 2. Описание
     description = mediakit_data.get("mediakit", {}).get("custom_description")
@@ -101,10 +101,10 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
             parent=styles["Normal"],
             fontSize=12,
             textColor=colors.HexColor("#333333"),
-            spaceAfter=1*cm,
+            spaceAfter=1 * cm,
         )
         elements.append(Paragraph(description, desc_style))
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Spacer(1, 0.5 * cm))
 
     # 3. Ключевые метрики (таблица)
     metrics = mediakit_data.get("metrics", {})
@@ -115,58 +115,49 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
     table_data = [["📊 Метрика", "📈 Значение"]]
 
     if show_metrics.get("subscribers", True):
-        table_data.append([
-            "Подписчики",
-            f"{metrics.get('subscribers', 0):,}"
-        ])
+        table_data.append(["Подписчики", f"{metrics.get('subscribers', 0):,}"])
 
     if show_metrics.get("avg_views", True):
-        table_data.append([
-            "Ср. просмотры",
-            f"{metrics.get('avg_views', 0):,}"
-        ])
+        table_data.append(["Ср. просмотры", f"{metrics.get('avg_views', 0):,}"])
 
     if show_metrics.get("er", True):
-        table_data.append([
-            "ER (Engagement Rate)",
-            f"{metrics.get('er', 0.0):.1f}%"
-        ])
+        table_data.append(["ER (Engagement Rate)", f"{metrics.get('er', 0.0):.1f}%"])
 
     if show_metrics.get("post_frequency", True):
-        table_data.append([
-            "Постов в день",
-            f"{metrics.get('post_frequency', 0.0):.1f}"
-        ])
+        table_data.append(["Постов в день", f"{metrics.get('post_frequency', 0.0):.1f}"])
 
     if show_metrics.get("price", True):
-        table_data.append([
-            "Цена за пост",
-            f"{price.get('amount', 0)} {price.get('currency', 'кр')}"
-        ])
+        table_data.append(
+            ["Цена за пост", f"{price.get('amount', 0)} {price.get('currency', 'кр')}"]
+        )
 
     # Стиль таблицы
-    table = Table(table_data, colWidths=[7*cm, 7*cm])
-    table.setStyle(TableStyle([
-        # Заголовок
-        ("BACKGROUND", (0, 0), (-1, 0), theme_color_obj),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-        # Чётные строки
-        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 12),
-        ("TOPPADDING", (0, 1), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
-        # Границы
-        ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
-    ]))
+    table = Table(table_data, colWidths=[7 * cm, 7 * cm])
+    table.setStyle(
+        TableStyle(
+            [
+                # Заголовок
+                ("BACKGROUND", (0, 0), (-1, 0), theme_color_obj),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 14),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                # Чётные строки
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), 12),
+                ("TOPPADDING", (0, 1), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+                # Границы
+                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
+            ]
+        )
+    )
 
     elements.append(table)
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 1 * cm))
 
     # 4. Отзывы (если есть)
     reviews = mediakit_data.get("reviews", {})
@@ -176,7 +167,7 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
             parent=styles["Heading2"],
             fontSize=16,
             textColor=theme_color_obj,
-            spaceAfter=0.5*cm,
+            spaceAfter=0.5 * cm,
         )
         elements.append(Paragraph("⭐ Отзывы", reviews_style))
 
@@ -185,15 +176,17 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
             parent=styles["Normal"],
             fontSize=12,
             textColor=colors.HexColor("#333333"),
-            spaceAfter=0.5*cm,
+            spaceAfter=0.5 * cm,
         )
 
-        elements.append(Paragraph(
-            f"Средний рейтинг: <b>{reviews.get('average_rating', 0):.1f}/5</b> "
-            f"({reviews.get('count', 0)} отзывов)",
-            review_text_style
-        ))
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(
+            Paragraph(
+                f"Средний рейтинг: <b>{reviews.get('average_rating', 0):.1f}/5</b> "
+                f"({reviews.get('count', 0)} отзывов)",
+                review_text_style,
+            )
+        )
+        elements.append(Spacer(1, 0.5 * cm))
 
     # 5. Тематики (если есть)
     topic = mediakit_data.get("channel", {}).get("topic")
@@ -203,15 +196,15 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
             parent=styles["Heading2"],
             fontSize=16,
             textColor=theme_color_obj,
-            spaceAfter=0.5*cm,
+            spaceAfter=0.5 * cm,
         )
         elements.append(Paragraph("🏷 Тематика", topics_style))
 
         elements.append(Paragraph(f"{topic}", review_text_style))
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Spacer(1, 0.5 * cm))
 
     # 6. Подвал с контактами
-    elements.append(Spacer(1, 2*cm))
+    elements.append(Spacer(1, 2 * cm))
 
     footer_style = ParagraphStyle(
         "Footer",
@@ -221,14 +214,16 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
         alignment=1,
     )
 
-    contact_text = f"📧 Связь: @{channel_username}" if channel_username else "📧 Связь через платформу"
+    contact_text = (
+        f"📧 Связь: @{channel_username}" if channel_username else "📧 Связь через платформу"
+    )
     elements.append(Paragraph(contact_text, footer_style))
 
     from datetime import datetime
-    elements.append(Paragraph(
-        f"Медиакит сгенерирован: {datetime.now().strftime('%d.%m.%Y')}",
-        footer_style
-    ))
+
+    elements.append(
+        Paragraph(f"Медиакит сгенерирован: {datetime.now().strftime('%d.%m.%Y')}", footer_style)
+    )
 
     # Build PDF
     doc.build(elements)

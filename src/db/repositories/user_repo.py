@@ -268,7 +268,7 @@ class UserRepository(BaseRepository[User]):
 
         # Генерируем код на основе telegram_id и timestamp
         hash_input = f"{telegram_id}_{time.time()}"
-        hash_bytes = hashlib.md5(hash_input.encode()).hexdigest()
+        hash_bytes = hashlib.sha256(hash_input.encode()).hexdigest()
         referral_code = hash_bytes[:length].upper()
 
         # Проверяем уникальность

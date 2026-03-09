@@ -39,12 +39,9 @@ class PayoutRepository(BaseRepository[Payout]):
         Returns:
             Сумма к выплате (Decimal), 0 если нет pending выплат.
         """
-        stmt = (
-            select(func.sum(Payout.amount))
-            .where(
-                Payout.owner_id == owner_id,
-                Payout.status == PayoutStatus.PENDING,
-            )
+        stmt = select(func.sum(Payout.amount)).where(
+            Payout.owner_id == owner_id,
+            Payout.status == PayoutStatus.PENDING,
         )
         result = await self.session.execute(stmt)
         balance = result.scalar_one() or Decimal("0")
@@ -60,12 +57,9 @@ class PayoutRepository(BaseRepository[Payout]):
         Returns:
             Общая сумма заработанных средств (Decimal).
         """
-        stmt = (
-            select(func.sum(Payout.amount))
-            .where(
-                Payout.owner_id == owner_id,
-                Payout.status == PayoutStatus.PAID,
-            )
+        stmt = select(func.sum(Payout.amount)).where(
+            Payout.owner_id == owner_id,
+            Payout.status == PayoutStatus.PAID,
         )
         result = await self.session.execute(stmt)
         total = result.scalar_one() or Decimal("0")
@@ -148,6 +142,7 @@ class PayoutRepository(BaseRepository[Payout]):
 # ─────────────────────────────────────────────
 # Helper function для использования без явного создания репозитория
 # ─────────────────────────────────────────────
+
 
 async def get_available_payout_amount(owner_user_id: int) -> Decimal:
     """

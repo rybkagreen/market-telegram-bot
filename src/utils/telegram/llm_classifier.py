@@ -1,5 +1,5 @@
 """
-LLM-классификатор Telegram-каналов через Qwen (OpenRouter API).
+LLM-классификатор Telegram-каналов через Mistral AI.
 Оптимизирован для русского языка и работы с Celery workers.
 """
 
@@ -34,24 +34,23 @@ async def classify_channel_with_llm(
     posts: list[str],  # список текстов последних постов
 ) -> ClassificationResult:
     """
-    Классифицировать канал через LLM (Qwen).
+    Классифицировать канал через LLM (Mistral).
     При любой ошибке возвращает fallback-результат, не бросает исключение.
     """
-    # Используем Qwen сервис напрямую
-    from src.core.services.qwen_ai_service import qwen_ai_service
+    # Используем Mistral сервис напрямую
+    from src.core.services.mistral_ai_service import mistral_ai_service
 
     try:
         # Подготовка данных
         description_trimmed = (description or "")[:MAX_DESCRIPTION_CHARS]
 
-        # Вызываем Qwen классификацию
-        result = await qwen_ai_service.classify_channel(
+        # Вызываем Mistral классификацию
+        result = await mistral_ai_service.classify_channel(
             title=title or "—",
             username=username or "—",
             member_count=member_count or 0,
             description=description_trimmed or "(описание отсутствует)",
             posts=posts if posts else [],
-            use_paid=False,  # Используем бесплатную модель
         )
 
         return ClassificationResult(
@@ -59,12 +58,12 @@ async def classify_channel_with_llm(
             subcategory=result.subcategory or "",
             confidence=result.confidence,
             rating=result.rating,
-            reasoning=f"Qwen: {result.topic}",
-            used_fallback=result.used_fallback,
+            reasoning=f"Mistral: {result.topic}",
+            used_fallback=False,
         )
 
     except Exception as e:
-        logger.warning(f"Qwen LLM classification failed for @{username}: {e}. Using fallback.")
+        logger.warning(f"Mistral LLM classification failed for @{username}: {e}. Using fallback.")
         return ClassificationResult(
             topic="Другое",
             subcategory="",

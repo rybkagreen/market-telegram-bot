@@ -2,6 +2,7 @@
 Handlers для команды /stats — публичная статистика платформы.
 Спринт 0: доступно без авторизации (гостям).
 """
+
 import logging
 
 from aiogram import Router

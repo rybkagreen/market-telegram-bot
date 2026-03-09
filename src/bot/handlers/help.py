@@ -22,10 +22,7 @@ async def handle_help_menu(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Главное меню раздела Помощь.
     """
-    text = (
-        "❓ <b>Помощь</b>\n\n"
-        "Выберите раздел:"
-    )
+    text = "❓ <b>Помощь</b>\n\nВыберите раздел:"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🚀 Быстрый старт", callback_data="help:quickstart")

@@ -158,12 +158,9 @@ class B2BPackageService:
                 return {"error": "Package not found"}
 
             # Получаем каналы пакета
-            stmt = (
-                select(TelegramChat)
-                .where(
-                    TelegramChat.id.in_(package.channel_ids),
-                    TelegramChat.is_active == True,  # noqa: E712
-                )
+            stmt = select(TelegramChat).where(
+                TelegramChat.id.in_(package.channel_ids),
+                TelegramChat.is_active == True,  # noqa: E712
             )
             result = await session.execute(stmt)
             channels = list(result.scalars().all())

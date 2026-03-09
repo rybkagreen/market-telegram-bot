@@ -1,4 +1,5 @@
 """Утилиты для безопасной работы с callback query в aiogram 3.x."""
+
 import contextlib
 import logging
 from typing import Any

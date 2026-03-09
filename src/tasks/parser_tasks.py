@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from src.api.constants.parser import POPULAR_TOPICS
+from src.constants.parser import POPULAR_TOPICS
 from src.db.models.analytics import ChatType
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.session import async_session_factory, get_session
@@ -511,14 +511,9 @@ async def _parse_and_save_chats(
                         entity = await parser.client.get_entity(chat.telegram_id)
                         recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
 
-                        # Создаём ai_service для классификации
-                        from src.core.services.ai_service import AIService
-
-                        ai_service = AIService()
-
                         # Классифицируем через LLM
                         classification = await classify_channel_with_llm(
-                            ai_service=ai_service,
+                            ai_service=None,  # Не используется
                             title=chat.title or "",
                             username=chat.username or "",
                             member_count=chat.member_count or 0,
@@ -635,7 +630,7 @@ async def _parse_and_save_chats_by_topic(
             from src.utils.content_filter.filter import check as content_filter_check
 
             channel_content = f"{chat_info.title} {chat_info.description or ''}"
-            filter_result = content_filter_check(channel_content)
+            filter_result = await content_filter_check(channel_content)
 
             if not filter_result.passed:
                 blocked_count += 1
@@ -690,14 +685,9 @@ async def _parse_and_save_chats_by_topic(
                         entity = await parser.client.get_entity(chat.telegram_id)
                         recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
 
-                        # Создаём ai_service для классификации
-                        from src.core.services.ai_service import AIService
-
-                        ai_service = AIService()
-
                         # Классифицируем через LLM
                         classification = await classify_channel_with_llm(
-                            ai_service=ai_service,
+                            ai_service=None,  # Не используется
                             title=chat.title or "",
                             username=chat.username or "",
                             member_count=chat.member_count or 0,
@@ -789,7 +779,7 @@ async def _parse_tgstat_and_save(
             from src.utils.content_filter.filter import check as content_filter_check
 
             channel_content = f"{chat_details.title} {chat_details.description or ''}"
-            filter_result = content_filter_check(channel_content)
+            filter_result = await content_filter_check(channel_content)
 
             if not filter_result.passed:
                 blocked_count += 1
@@ -1471,7 +1461,6 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
 
     from sqlalchemy import or_, select
 
-    from src.core.services.ai_service import AIService
     from src.db.models.analytics import TelegramChat
 
     stats = {"total": 0, "updated": 0, "failed": 0, "skipped": 0}
@@ -1499,9 +1488,6 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
         chats = result.scalars().all()
         stats["total"] = len(chats)
 
-        # Создаём ai_service один раз на все каналы
-        ai_service = AIService()
-
         for chat in chats:
             try:
                 # Собираем recent posts если есть
@@ -1509,7 +1495,7 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
                 posts_texts = [p["text"] for p in posts] if posts else []
 
                 classification = await classify_channel_with_llm(
-                    ai_service=ai_service,
+                    ai_service=None,  # Не используется
                     title=chat.title or "",
                     username=chat.username or "",
                     member_count=chat.member_count or 0,
@@ -1554,6 +1540,7 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
 def autoclassify_channels(limit: int = 50) -> dict:
     """
     Автоматически классифицировать каналы без подкатегории.
+    Использует MistralAIService.classify_channel().
 
     Args:
         limit: Максимальное количество каналов для обработки.
@@ -1561,12 +1548,11 @@ def autoclassify_channels(limit: int = 50) -> dict:
     Returns:
         Статистика классификации.
     """
-    import asyncio
 
     async def _classify_async() -> dict:
         from sqlalchemy import select
 
-        from src.core.services.category_classifier import classify_channel
+        from src.core.services.mistral_ai_service import mistral_ai_service
         from src.db.models.telegram_chat import TelegramChat
 
         stats = {"classified": 0, "errors": 0, "low_confidence": 0}
@@ -1586,25 +1572,27 @@ def autoclassify_channels(limit: int = 50) -> dict:
 
             for channel in channels:
                 try:
-                    result = await classify_channel(
+                    # Используем async метод Mistral
+                    ai_result = await mistral_ai_service.classify_channel(
                         title=channel.title or "",
                         description=channel.description or "",
+                        username=channel.username or "",
+                        member_count=channel.member_count or 0,
                     )
 
-                    if result["confidence"] >= 0.7:
-                        channel.topic = result["topic"]
-                        channel.subcategory = result["subcategory"] or ""
+                    if ai_result.confidence >= 0.7:
+                        channel.topic = ai_result.topic
+                        channel.subcategory = ai_result.subcategory or ""
                         stats["classified"] += 1
                         logger.info(
                             f"Classified channel '{channel.title}': "
-                            f"{result['topic']}/{result['subcategory']} "
-                            f"(confidence={result['confidence']:.2f})"
+                            f"{ai_result.topic}/{ai_result.subcategory} "
+                            f"(confidence={ai_result.confidence:.2f})"
                         )
                     else:
                         stats["low_confidence"] += 1
                         logger.warning(
-                            f"Low confidence for channel '{channel.title}': "
-                            f"{result['confidence']:.2f}"
+                            f"Low confidence for channel '{channel.title}': {ai_result.confidence:.2f}"
                         )
 
                 except Exception as e:
@@ -1613,12 +1601,11 @@ def autoclassify_channels(limit: int = 50) -> dict:
 
             await session.commit()
 
+        logger.info(f"Auto-classification complete: {stats}")
         return stats
 
-    # Запускаем в event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        return loop.run_until_complete(_classify_async())
-    finally:
-        loop.close()
+        return asyncio.run(_classify_async())
+    except Exception as e:
+        logger.error(f"autoclassify_channels failed: {e}")
+        return {"error": str(e)}

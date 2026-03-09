@@ -72,8 +72,7 @@ class ReviewService:
 
             if placement.status not in (MailingStatus.SENT,):
                 raise ValueError(
-                    f"Cannot review placement {data.placement_id}: "
-                    f"status={placement.status.value}"
+                    f"Cannot review placement {data.placement_id}: status={placement.status.value}"
                 )
 
             # Проверяем что отзыв ещё не создан
@@ -141,18 +140,15 @@ class ReviewService:
 
         async with async_session_factory() as session:
             # Средний балл по отзывам от рекламодателей
-            stmt = (
-                select(
-                    func.avg(Review.score_compliance).label("avg_compliance"),
-                    func.avg(Review.score_audience).label("avg_audience"),
-                    func.avg(Review.score_speed).label("avg_speed"),
-                    func.count(Review.id).label("total_reviews"),
-                )
-                .where(
-                    Review.channel_id == channel_id,
-                    Review.reviewer_role == ReviewerRole.ADVERTISER,
-                    Review.is_hidden == False,  # noqa: E712
-                )
+            stmt = select(
+                func.avg(Review.score_compliance).label("avg_compliance"),
+                func.avg(Review.score_audience).label("avg_audience"),
+                func.avg(Review.score_speed).label("avg_speed"),
+                func.count(Review.id).label("total_reviews"),
+            ).where(
+                Review.channel_id == channel_id,
+                Review.reviewer_role == ReviewerRole.ADVERTISER,
+                Review.is_hidden == False,  # noqa: E712
             )
             result = await session.execute(stmt)
             row = result.one()
@@ -163,7 +159,11 @@ class ReviewService:
             total_reviews = row.total_reviews or 0
 
             # Общий средний балл
-            overall_avg = (avg_compliance + avg_audience + avg_speed) / 3 if avg_compliance or avg_audience or avg_speed else 0
+            overall_avg = (
+                (avg_compliance + avg_audience + avg_speed) / 3
+                if avg_compliance or avg_audience or avg_speed
+                else 0
+            )
 
             return {
                 "channel_id": channel_id,
@@ -190,18 +190,15 @@ class ReviewService:
 
         async with async_session_factory() as session:
             # Отзывы где пользователь — reviewee
-            stmt = (
-                select(
-                    func.avg(Review.score_material).label("avg_material"),
-                    func.avg(Review.score_requirements).label("avg_requirements"),
-                    func.avg(Review.score_payment).label("avg_payment"),
-                    func.count(Review.id).label("total_reviews"),
-                )
-                .where(
-                    Review.reviewee_id == user_id,
-                    Review.reviewer_role == ReviewerRole.OWNER,
-                    Review.is_hidden == False,  # noqa: E712
-                )
+            stmt = select(
+                func.avg(Review.score_material).label("avg_material"),
+                func.avg(Review.score_requirements).label("avg_requirements"),
+                func.avg(Review.score_payment).label("avg_payment"),
+                func.count(Review.id).label("total_reviews"),
+            ).where(
+                Review.reviewee_id == user_id,
+                Review.reviewer_role == ReviewerRole.OWNER,
+                Review.is_hidden == False,  # noqa: E712
             )
             result = await session.execute(stmt)
             row = result.one()
@@ -211,7 +208,11 @@ class ReviewService:
             avg_payment = float(row.avg_payment or 0)
             total_reviews = row.total_reviews or 0
 
-            overall_avg = (avg_material + avg_requirements + avg_payment) / 3 if avg_material or avg_requirements or avg_payment else 0
+            overall_avg = (
+                (avg_material + avg_requirements + avg_payment) / 3
+                if avg_material or avg_requirements or avg_payment
+                else 0
+            )
 
             return {
                 "user_id": user_id,

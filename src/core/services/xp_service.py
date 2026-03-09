@@ -297,8 +297,7 @@ class XPService:
                     xp_reward=XP_REWARDS.get("campaign_completed", 0),
                 )
                 logger.info(
-                    f"User {user_id} leveled up: {old_level} → {new_level} "
-                    f"({old_xp} → {new_xp} XP)"
+                    f"User {user_id} leveled up: {old_level} → {new_level} ({old_xp} → {new_xp} XP)"
                 )
             else:
                 logger.info(f"User {user_id} gained {amount} XP ({old_xp} → {new_xp} XP)")

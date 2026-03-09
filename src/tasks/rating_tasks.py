@@ -149,7 +149,16 @@ def update_weekly_toplists(self) -> dict[str, Any]:
         }
 
         # Получаем список тематик
-        topics = ["it", "business", "realestate", "crypto", "marketing", "finance", "news", "education"]
+        topics = [
+            "it",
+            "business",
+            "realestate",
+            "crypto",
+            "marketing",
+            "finance",
+            "news",
+            "education",
+        ]
 
         async with async_session_factory() as session:
             for topic in topics:

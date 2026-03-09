@@ -13,7 +13,7 @@ from src.bot.filters.admin import AdminFilter
 from src.bot.keyboards.admin import AdminCB, get_back_kb
 from src.bot.states.admin import AdminAIGenerateStates
 from src.bot.utils.safe_callback import safe_callback_edit
-from src.core.services.ai_service import admin_ai_service
+from src.core.services.mistral_ai_service import mistral_ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,15 @@ async def handle_ai_generate_start(callback: CallbackQuery, state: FSMContext) -
     await state.clear()
     await state.set_state(AdminAIGenerateStates.waiting_description)
 
-    await safe_callback_edit(callback, "🤖 <b>ИИ-генерация кампании</b>\n\n"
+    await safe_callback_edit(
+        callback,
+        "🤖 <b>ИИ-генерация кампании</b>\n\n"
         "Опишите, о чём должна быть рекламная кампания.\n"
         "ИИ сгенерирует название, текст и варианты A/B тестирования.\n\n"
         "Пример: 'Продвижение онлайн-курса по программированию для начинающих'\n\n"
-        "Введите описание:", reply_markup=get_back_kb())
+        "Введите описание:",
+        reply_markup=get_back_kb(),
+    )
     await callback.answer()
 
 
@@ -56,9 +60,8 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
 
     try:
         # Генерируем A/B варианты (админ = ADMIN тариф с бесплатной моделью)
-        variants = await admin_ai_service.generate_ab_variants(
+        variants = await mistral_ai_service.generate_ab_variants(
             description=description,
-            user_plan="admin",
             count=3,
         )
 
@@ -72,7 +75,9 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
 
         builder = InlineKeyboardBuilder()
         for i in range(1, 4):
-            builder.button(text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i)))
+            builder.button(
+                text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i))
+            )
         builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(1, 1, 1)
@@ -85,7 +90,7 @@ async def handle_ai_generate_description(message: Message, state: FSMContext) ->
             "❌ Ошибка при генерации через ИИ.\n"
             f"Попробуйте ещё раз или введите текст вручную.\n\n"
             f"Ошибка: {str(e)}",
-            reply_markup=get_back_kb()
+            reply_markup=get_back_kb(),
         )
         await state.set_state(AdminAIGenerateStates.waiting_description)
 
@@ -99,9 +104,8 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
     await safe_callback_edit(callback, "⏳ Перегенерирую варианты...")
 
     try:
-        variants = await admin_ai_service.generate_ab_variants(
+        variants = await mistral_ai_service.generate_ab_variants(
             description=description,
-            user_plan="admin",
             count=3,
         )
         await state.update_data(ai_variants=variants)
@@ -112,7 +116,9 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
 
         builder = InlineKeyboardBuilder()
         for i in range(1, 4):
-            builder.button(text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i)))
+            builder.button(
+                text=f"Вариант {i}", callback_data=AdminCB(action="ai_variant_select", value=str(i))
+            )
         builder.button(text="🔄 Перегенерировать", callback_data=AdminCB(action="ai_regenerate"))
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(1, 1, 1)
@@ -121,11 +127,17 @@ async def handle_ai_regenerate(callback: CallbackQuery, state: FSMContext) -> No
 
     except Exception as e:
         logger.error(f"AI regeneration error: {e}")
-        await safe_callback_edit(callback, "❌ Ошибка при перегенерации.\nПопробуйте ещё раз.", reply_markup=get_back_kb())
+        await safe_callback_edit(
+            callback,
+            "❌ Ошибка при перегенерации.\nПопробуйте ещё раз.",
+            reply_markup=get_back_kb(),
+        )
 
 
 @router.callback_query(AdminCB.filter(F.action == "ai_variant_select"))
-async def handle_ai_variant_select(callback: CallbackQuery, callback_data: AdminCB, state: FSMContext) -> None:
+async def handle_ai_variant_select(
+    callback: CallbackQuery, callback_data: AdminCB, state: FSMContext
+) -> None:
     """Выбрать вариант кампании."""
     from src.bot.keyboards.campaign import get_topics_kb
 
@@ -144,7 +156,7 @@ async def handle_ai_variant_select(callback: CallbackQuery, callback_data: Admin
     await safe_callback_edit(callback, "⏳ Генерирую название...")
 
     try:
-        title = await admin_ai_service.generate(
+        title = await mistral_ai_service.generate(
             prompt=f"Придумай короткое название (2-4 слова) для рекламной кампании: {data.get('ai_description', '')}",
             system="Ты профессиональный маркетолог. Придумай короткое и запоминающееся название для рекламной кампании.",
         )
@@ -152,17 +164,25 @@ async def handle_ai_variant_select(callback: CallbackQuery, callback_data: Admin
         await state.update_data(title=title)
 
         await state.set_state(AdminAIGenerateStates.waiting_topic)
-        await safe_callback_edit(callback, f"✅ <b>Кампания сгенерирована!</b>\n\n"
+        await safe_callback_edit(
+            callback,
+            f"✅ <b>Кампания сгенерирована!</b>\n\n"
             f"📋 <b>Название:</b> {title}\n"
             f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
-            f"Выберите тематику для рассылки:", reply_markup=get_topics_kb())
+            f"Выберите тематику для рассылки:",
+            reply_markup=get_topics_kb(),
+        )
 
     except Exception as e:
         logger.error(f"AI title generation error: {e}")
         title = f"Кампания #{variant_index + 1}"
         await state.update_data(title=title)
         await state.set_state(AdminAIGenerateStates.waiting_topic)
-        await safe_callback_edit(callback, f"✅ <b>Кампания сгенерирована!</b>\n\n"
+        await safe_callback_edit(
+            callback,
+            f"✅ <b>Кампания сгенерирована!</b>\n\n"
             f"📋 <b>Название:</b> {title}\n"
             f"📝 <b>Текст:</b> {selected_text[:200]}...\n\n"
-            f"Выберите тематику для рассылки:", reply_markup=get_topics_kb())
+            f"Выберите тематику для рассылки:",
+            reply_markup=get_topics_kb(),
+        )

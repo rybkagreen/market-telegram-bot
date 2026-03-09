@@ -33,9 +33,7 @@ class MediakitService:
 
         async with async_session_factory() as session:
             # Проверяем существует ли
-            stmt = select(ChannelMediakit).where(
-                ChannelMediakit.channel_id == channel_id
-            )
+            stmt = select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id)
             result = await session.execute(stmt)
             mediakit = result.scalar_one_or_none()
 
@@ -183,7 +181,9 @@ class MediakitService:
             reviews = list(result.scalars().all())
 
             if reviews:
-                avg_rating = sum(r.score_compliance for r in reviews if r.score_compliance) / len(reviews)
+                avg_rating = sum(r.score_compliance for r in reviews if r.score_compliance) / len(
+                    reviews
+                )
                 data["reviews"] = {
                     "average_rating": round(avg_rating, 1),
                     "count": len(reviews),

@@ -185,7 +185,9 @@ class ContentFilter:
                     llm_analysis=level3_result.llm_analysis,
                 )
             except TimeoutError:
-                logger.warning(f"Content filter L3 timeout ({settings.content_filter_l3_timeout}s), failing open")
+                logger.warning(
+                    f"Content filter L3 timeout ({settings.content_filter_l3_timeout}s), failing open"
+                )
                 # При таймауте — пропускаем (fail open)
             except Exception as e:
                 logger.error(f"Content filter L3 error: {e}")
@@ -304,7 +306,7 @@ class ContentFilter:
 
     def _llm_check(self, text: str) -> FilterResult:
         """
-        Уровень 3: LLM проверка через Qwen (OpenRouter API).
+        Уровень 3: LLM проверка через Mistral AI.
         Синхронная версия (для Celery).
 
         Args:
@@ -313,28 +315,28 @@ class ContentFilter:
         Returns:
             FilterResult с результатами.
         """
-        from src.core.services.qwen_ai_service import qwen_ai_service
+        from src.core.services.mistral_ai_service import mistral_ai_service
 
         try:
-            # Используем Qwen для модерации (синхронно для Celery)
-            result = qwen_ai_service.moderate_content_sync(text, timeout=30)
+            # Используем Mistral для модерации (синхронно для Celery)
+            result = asyncio.run(mistral_ai_service.moderate_content(text))
 
             return FilterResult(
                 passed=result.passed,
                 score=result.score,
                 categories=result.categories,
-                flagged_fragments=[],  # Qwen не возвращает фрагменты
+                flagged_fragments=[],  # Mistral не возвращает фрагменты
                 level3_score=result.score,
                 llm_analysis=result.analysis,
             )
         except Exception as e:
-            logger.error(f"Qwen LLM check failed: {e}")
+            logger.error(f"Mistral LLM check failed: {e}")
 
         return FilterResult(passed=True, score=0.0)
 
     async def _llm_check_async(self, text: str, timeout: float = 3.0) -> FilterResult:
         """
-        Уровень 3: LLM проверка через Qwen (OpenRouter API) с таймаутом.
+        Уровень 3: LLM проверка через Mistral AI с таймаутом.
         Асинхронная версия для использования в async контексте.
 
         Args:
@@ -347,16 +349,12 @@ class ContentFilter:
         Raises:
             asyncio.TimeoutError: При превышении таймаута.
         """
-        from src.core.services.qwen_ai_service import qwen_ai_service
+        from src.core.services.mistral_ai_service import mistral_ai_service
 
         try:
-            # Выполняем синхронный вызов в отдельном потоке с таймаутом
-            loop = asyncio.get_event_loop()
+            # Выполняем асинхронный вызов с таймаутом
             result = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: qwen_ai_service.moderate_content_sync(text, timeout=int(timeout)),
-                ),
+                mistral_ai_service.moderate_content(text),
                 timeout=timeout,
             )
 
@@ -364,14 +362,14 @@ class ContentFilter:
                 passed=result.passed,
                 score=result.score,
                 categories=result.categories,
-                flagged_fragments=[],  # Qwen не возвращает фрагменты
+                flagged_fragments=[],  # Mistral не возвращает фрагменты
                 level3_score=result.score,
                 llm_analysis=result.analysis,
             )
         except TimeoutError:
             raise  # Пробрасываем таймаут выше
         except Exception as e:
-            logger.error(f"Qwen LLM async check failed: {e}")
+            logger.error(f"Mistral LLM async check failed: {e}")
             raise  # Пробрасываем ошибку выше
 
     def _call_openrouter(self, text: str, api_key: str, model: str) -> FilterResult:
