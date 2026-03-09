@@ -23,102 +23,103 @@ router.callback_query.filter(AdminFilter())
 def get_server_metrics() -> dict:
     """
     Получить метрики сервера через psutil.
-    
+
     Returns:
         dict с disk, memory, cpu метриками.
     """
-    metrics = {
+    metrics: dict = {
         "disk": {"total": 0, "used": 0, "free": 0, "percent": 0},
         "memory": {"total": 0, "used": 0, "free": 0, "percent": 0},
         "cpu": {"percent": 0},
         "uptime": "",
     }
-    
+
     try:
         # Disk usage
         disk = psutil.disk_usage("/")
-        metrics["disk"]["total"] = f"{disk.total / (1024**3):.1f}G"
-        metrics["disk"]["used"] = f"{disk.used / (1024**3):.1f}G"
-        metrics["disk"]["free"] = f"{disk.free / (1024**3):.1f}G"
-        metrics["disk"]["percent"] = disk.percent
-        
+        metrics["disk"]["total"] = f"{disk.total / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["disk"]["used"] = f"{disk.used / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["disk"]["free"] = f"{disk.free / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["disk"]["percent"] = disk.percent  # type: ignore[index]
+
         # Memory usage
         memory = psutil.virtual_memory()
-        metrics["memory"]["total"] = f"{memory.total / (1024**3):.1f}G"
-        metrics["memory"]["used"] = f"{memory.used / (1024**3):.1f}G"
-        metrics["memory"]["free"] = f"{memory.free / (1024**3):.1f}G"
-        metrics["memory"]["percent"] = memory.percent
-        
+        metrics["memory"]["total"] = f"{memory.total / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["memory"]["used"] = f"{memory.used / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["memory"]["free"] = f"{memory.free / (1024**3):.1f}G"  # type: ignore[index]
+        metrics["memory"]["percent"] = memory.percent  # type: ignore[index]
+
         # CPU usage
-        metrics["cpu"]["percent"] = psutil.cpu_percent(interval=1)
-        
+        metrics["cpu"]["percent"] = psutil.cpu_percent(interval=1)  # type: ignore[index]
+
         # Uptime
         boot_time = psutil.boot_time()
         import datetime
+
         uptime_seconds = datetime.datetime.now().timestamp() - boot_time
         uptime_days = int(uptime_seconds // 86400)
         uptime_hours = int((uptime_seconds % 86400) // 3600)
         uptime_minutes = int((uptime_seconds % 3600) // 60)
-        
+
         if uptime_days > 0:
-            metrics["uptime"] = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+            metrics["uptime"] = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"  # type: ignore[index]
         elif uptime_hours > 0:
-            metrics["uptime"] = f"{uptime_hours}h {uptime_minutes}m"
+            metrics["uptime"] = f"{uptime_hours}h {uptime_minutes}m"  # type: ignore[index]
         else:
-            metrics["uptime"] = f"{uptime_minutes}m"
-        
+            metrics["uptime"] = f"{uptime_minutes}m"  # type: ignore[index]
+
     except Exception as e:
         logger.error(f"Error getting server metrics: {e}")
-    
+
     return metrics
 
 
 def get_celery_stats() -> dict:
     """
     Получить статистику Celery задач через inspect API.
-    
+
     Returns:
         dict с active, scheduled, reserved задачами.
     """
-    stats = {
+    stats: dict = {
         "active": 0,
         "scheduled": 0,
         "reserved": 0,
         "workers": [],
         "errors": [],
     }
-    
+
     try:
         inspect = celery_app.control.inspect(timeout=5)
-        
+
         # Active tasks
         active = inspect.active()
         if active:
             for worker, tasks in active.items():
-                stats["workers"].append(worker)
-                stats["active"] += len(tasks)
-        
+                stats["workers"].append(worker)  # type: ignore[index]
+                stats["active"] += len(tasks)  # type: ignore[index]
+
         # Scheduled tasks
         scheduled = inspect.scheduled()
         if scheduled:
             for tasks in scheduled.values():
-                stats["scheduled"] += len(tasks)
-        
+                stats["scheduled"] += len(tasks)  # type: ignore[index]
+
         # Reserved tasks
         reserved = inspect.reserved()
         if reserved:
             for tasks in reserved.values():
-                stats["reserved"] += len(tasks)
-        
+                stats["reserved"] += len(tasks)  # type: ignore[index]
+
         # Registered tasks
         registered = inspect.registered()
         if registered:
-            stats["registered_count"] = sum(len(tasks) for tasks in registered.values())
-        
+            stats["registered_count"] = sum(len(tasks) for tasks in registered.values())  # type: ignore[index]
+
     except Exception as e:
         logger.error(f"Error getting Celery stats: {e}")
-        stats["errors"].append(str(e))
-    
+        stats["errors"].append(str(e))  # type: ignore[index]
+
     return stats
 
 
@@ -129,7 +130,7 @@ async def show_server_monitoring(callback: CallbackQuery) -> None:
     """
     try:
         metrics = get_server_metrics()
-        
+
         text = (
             "🖥 <b>Мониторинг сервера</b>\n\n"
             f"⏱ <b>Uptime:</b> {metrics['uptime'] or 'N/A'}\n\n"
@@ -143,16 +144,16 @@ async def show_server_monitoring(callback: CallbackQuery) -> None:
             f"  Free: {metrics['memory']['free']}\n\n"
             f"⚙️ <b>CPU:</b> {metrics['cpu']['percent']}% usage\n"
         )
-        
+
         from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
+
         builder = InlineKeyboardBuilder()
         builder.button(text="🔄 Обновить", callback_data=AdminCB(action="server_monitoring"))
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="main"))
         builder.adjust(2)
-        
+
         await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
-        
+
     except Exception as e:
         logger.error(f"Server monitoring error: {e}")
         await callback.answer("Ошибка получения данных", show_alert=True)
@@ -165,28 +166,25 @@ async def show_celery_tasks(callback: CallbackQuery) -> None:
     """
     try:
         stats = get_celery_stats()
-        
-        text = (
-            "📋 <b>Задачи Celery</b>\n\n"
-            f"👷 <b>Workers:</b> {len(stats['workers'])}\n"
-        )
-        
+
+        text = f"📋 <b>Задачи Celery</b>\n\n👷 <b>Workers:</b> {len(stats['workers'])}\n"
+
         if stats["workers"]:
             for worker in stats["workers"][:5]:
                 text += f"  • {worker}\n"
-        
+
         text += (
             f"\n🔥 <b>Active:</b> {stats['active']}\n"
             f"⏰ <b>Scheduled:</b> {stats['scheduled']}\n"
             f"📦 <b>Reserved:</b> {stats['reserved']}\n"
             f"📝 <b>Registered:</b> {stats.get('registered_count', 0)} tasks\n\n"
         )
-        
+
         if stats["errors"]:
-            text += f"❌ <b>Errors:</b>\n"
+            text += "❌ <b>Errors:</b>\n"
             for error in stats["errors"]:
                 text += f"  • {error}\n"
-        
+
         text += (
             "\n<b>Планировщик (Celery Beat):</b>\n"
             "• refresh-chat-database — каждые 24ч\n"
@@ -204,13 +202,13 @@ async def show_celery_tasks(callback: CallbackQuery) -> None:
             "• auto-approve-placements — каждый час\n"
             "• placement-reminders — каждые 2 часа\n"
         )
-        
+
         from src.bot.keyboards.admin import get_celery_tasks_kb
-        
+
         keyboard = get_celery_tasks_kb()
-        
+
         await safe_callback_edit(callback, text, reply_markup=keyboard)
-        
+
     except Exception as e:
         logger.error(f"Celery tasks error: {e}")
         await callback.answer("Ошибка получения данных", show_alert=True)
@@ -223,38 +221,38 @@ async def show_celery_worker_stats(callback: CallbackQuery) -> None:
     """
     try:
         inspect = celery_app.control.inspect(timeout=5)
-        
+
         # Stats per worker
         worker_stats = inspect.stats()
-        
+
         text = "👷 <b>Celery Workers</b>\n\n"
-        
+
         if worker_stats:
             for worker, stats in worker_stats.items():
                 text += f"<b>{worker}</b>\n"
-                
+
                 # Broker
                 broker = stats.get("broker", {})
                 text += f"  Broker: {broker.get('hostname', 'N/A')}\n"
-                
+
                 # Pool
                 pool = stats.get("pool", {})
                 text += f"  Pool: {pool.get('max-concurrency', 'N/A')} concurrency\n"
-                
+
                 # Uptime
                 uptime = stats.get("uptime", {})
                 text += f"  Uptime: {uptime.get('humanized', 'N/A')}\n\n"
         else:
             text += "❌ No workers available\n"
-        
+
         from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
+
         builder = InlineKeyboardBuilder()
         builder.button(text="🔙 Назад", callback_data=AdminCB(action="celery_tasks"))
         builder.adjust(1)
-        
+
         await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
-        
+
     except Exception as e:
         logger.error(f"Celery worker stats error: {e}")
         await callback.answer("Ошибка получения данных", show_alert=True)

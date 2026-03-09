@@ -68,8 +68,7 @@ def get_ai_style_keyboard() -> InlineKeyboardMarkup:
 
     for style_key, style_name in TEXT_STYLES.items():
         builder.button(
-            text=style_name,
-            callback_data=CampaignCreateCB(step=f"style_{style_key}").pack()
+            text=style_name, callback_data=CampaignCreateCB(step=f"style_{style_key}").pack()
         )
 
     builder.adjust(2, 2, 2)
@@ -90,16 +89,14 @@ def get_ai_category_keyboard() -> InlineKeyboardMarkup:
     # Показываем по 3 категории в ряд
     categories_list = list(CAMPAIGN_CATEGORIES.items())
     for i in range(0, len(categories_list), 3):
-        for cat_key, cat_name in categories_list[i:i+3]:
+        for cat_key, cat_name in categories_list[i : i + 3]:
             builder.button(
-                text=cat_name,
-                callback_data=CampaignCreateCB(step=f"category_{cat_key}").pack()
+                text=cat_name, callback_data=CampaignCreateCB(step=f"category_{cat_key}").pack()
             )
         builder.adjust(3)
 
     builder.button(
-        text="✍️ Своя категория",
-        callback_data=CampaignCreateCB(step="custom_category").pack()
+        text="✍️ Своя категория", callback_data=CampaignCreateCB(step="custom_category").pack()
     )
     builder.adjust(1)
 
@@ -209,29 +206,21 @@ def get_audience_keyboard() -> InlineKeyboardMarkup:
     }
 
     for key, name in audience_options.items():
-        builder.button(
-            text=name,
-            callback_data=CampaignCreateCB(step=f"audience_{key}").pack()
-        )
+        builder.button(text=name, callback_data=CampaignCreateCB(step=f"audience_{key}").pack())
 
     builder.adjust(2, 2, 2, 2)
 
     # Кнопки "Все тематики" и "Пропустить"
     builder.button(
-        text="📡 Все доступные каналы",
-        callback_data=CampaignCreateCB(step="audience_all").pack()
+        text="📡 Все доступные каналы", callback_data=CampaignCreateCB(step="audience_all").pack()
     )
     builder.button(
-        text="⏭️ Пропустить →",
-        callback_data=CampaignCreateCB(step="audience_skip").pack()
+        text="⏭️ Пропустить →", callback_data=CampaignCreateCB(step="audience_skip").pack()
     )
     builder.adjust(2)
 
     # Кнопка "Назад"
-    builder.button(
-        text="🔙 Назад",
-        callback_data=CampaignCreateCB(step="back_to_image").pack()
-    )
+    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_image").pack())
     builder.adjust(1)
 
     return builder.as_markup()
@@ -251,36 +240,56 @@ def get_schedule_keyboard() -> InlineKeyboardMarkup:
 
     # Быстрые опции
     builder.button(
-        text="🚀 Запустить сейчас",
-        callback_data=CampaignCreateCB(step="schedule_now").pack()
+        text="🚀 Запустить сейчас", callback_data=CampaignCreateCB(step="schedule_now").pack()
     )
-    builder.button(
-        text="⏰ Через 1 час",
-        callback_data=CampaignCreateCB(step="schedule_1h").pack()
-    )
+    builder.button(text="⏰ Через 1 час", callback_data=CampaignCreateCB(step="schedule_1h").pack())
     builder.button(
         text="🌆 Сегодня вечером (20:00)",
-        callback_data=CampaignCreateCB(step="schedule_evening").pack()
+        callback_data=CampaignCreateCB(step="schedule_evening").pack(),
     )
     builder.button(
         text="🌅 Завтра утром (09:00)",
-        callback_data=CampaignCreateCB(step="schedule_tomorrow").pack()
+        callback_data=CampaignCreateCB(step="schedule_tomorrow").pack(),
     )
 
     builder.adjust(1)
 
     # Кнопка выбора даты
     builder.button(
-        text="📅 Выбрать дату",
-        callback_data=CampaignCreateCB(step="schedule_custom").pack()
+        text="📅 Выбрать дату", callback_data=CampaignCreateCB(step="schedule_custom").pack()
     )
     builder.adjust(1)
 
     # Кнопка "Назад"
+    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_budget").pack())
+    builder.adjust(1)
+
+    return builder.as_markup()
+
+
+def get_image_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для шага загрузки изображения.
+
+    Returns:
+        InlineKeyboardMarkup с кнопками "📷 Загрузить фото", "⏭ Пропустить", "❌ Отмена".
+    """
+    builder = InlineKeyboardBuilder()
+
     builder.button(
-        text="🔙 Назад",
-        callback_data=CampaignCreateCB(step="back_to_budget").pack()
+        text="📷 Загрузить фото",
+        callback_data=CampaignCreateCB(step="upload_image").pack(),
     )
+    builder.adjust(1)
+
+    builder.button(
+        text="⏭ Пропустить",
+        callback_data=CampaignCreateCB(step="skip_image").pack(),
+    )
+    builder.adjust(1)
+
+    # Кнопка "Назад"
+    builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_text").pack())
     builder.adjust(1)
 
     return builder.as_markup()
