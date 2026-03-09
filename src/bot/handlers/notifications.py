@@ -132,9 +132,39 @@ async def handle_report_request(callback: CallbackQuery) -> None:
     Args:
         callback: Callback query.
     """
-    # Извлекаем campaign_id из callback_data
-    # В production нужно передавать campaign_id через callback_data
-    await callback.answer("🚧 Функция в разработке", show_alert=True)
+    await callback.answer("⏳ Генерирую отчёт...")
+
+    async with async_session_factory() as session:
+        from src.db.repositories.campaign_repo import CampaignRepository
+
+        # Получаем последнюю кампанию пользователя для демонстрации
+        campaign_repo = CampaignRepository(session)
+        campaigns, _ = await campaign_repo.get_by_user(
+            user_id=callback.from_user.id,
+            page=1,
+            page_size=1,
+        )
+
+        if not campaigns:
+            await callback.answer("❌ У вас нет кампаний", show_alert=True)
+            return
+
+        campaign = campaigns[0]
+
+        # Отправляем отчёт
+        from aiogram import Bot
+
+        from src.config.settings import settings
+
+        bot = Bot(token=settings.bot_token)
+        try:
+            await send_campaign_report(
+                user_id=callback.from_user.id,
+                campaign_id=campaign.id,
+                bot=bot,
+            )
+        finally:
+            await bot.session.close()
 
 
 async def send_campaign_report(

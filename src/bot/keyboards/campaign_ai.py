@@ -75,7 +75,8 @@ def get_ai_style_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(2, 2, 2)
 
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_menu").pack())
-    builder.adjust(1)
+    builder.button(text="✖ Отмена", callback_data=CampaignCreateCB(step="cancel").pack())
+    builder.adjust(1, 1)
 
     return builder.as_markup()
 
@@ -103,7 +104,8 @@ def get_ai_category_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
 
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_style").pack())
-    builder.adjust(1)
+    builder.button(text="✖ Отмена", callback_data=CampaignCreateCB(step="cancel").pack())
+    builder.adjust(1, 1)
 
     return builder.as_markup()
 
@@ -133,8 +135,9 @@ def get_ai_variants_keyboard(variants: list[str]) -> InlineKeyboardMarkup:
         text="✏️ Написать свой текст", callback_data=CampaignCreateCB(step="manual_text").pack()
     )
     builder.button(text="🔙 Назад", callback_data=CampaignCreateCB(step="back_to_category").pack())
+    builder.button(text="✖ Отмена", callback_data=CampaignCreateCB(step="cancel").pack())
 
-    builder.adjust(1)
+    builder.adjust(1, 1, 1, 1)
 
     return builder.as_markup()
 
