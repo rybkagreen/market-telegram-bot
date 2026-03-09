@@ -8,7 +8,16 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -157,6 +166,7 @@ class Transaction(Base, TimestampMixin):
         UniqueConstraint("payment_id", name="uq_transactions_payment_id"),
         Index("ix_transactions_user_type", "user_id", "type"),
         Index("ix_transactions_created", "created_at"),
+        CheckConstraint("amount > 0", name="ck_transactions_amount_positive"),
         {
             "comment": "Финансовые транзакции пользователей",
         },
