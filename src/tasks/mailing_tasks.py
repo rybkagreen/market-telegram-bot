@@ -99,6 +99,9 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                     if success:
                         stats["sent"] += 1
 
+                        # ⚠️ ИСПРАВЛЕНИЕ: рассчитываем стоимость из цены канала
+                        placement_cost = chat.price_per_post or 0
+
                         # Создаём запись в mailing_logs для начисления XP и выплаты
                         mailing_log = MailingLog(
                             campaign_id=campaign.id,
@@ -106,9 +109,17 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                             chat_telegram_id=chat.telegram_id,
                             status=MailingStatus.SENT,
                             sent_at=datetime.now(UTC),
+                            cost=placement_cost,  # Реальная цена канала
                         )
                         session.add(mailing_log)
                         await session.flush()  # Получаем mailing_log.id
+
+                        # Task 1 & 2: Освобождаем средства эскроу после успешной публикации
+                        from src.core.services.billing_service import billing_service
+
+                        released = await billing_service.release_escrow_funds(mailing_log.id)
+                        if not released:
+                            logger.warning(f"Failed to release escrow for placement {mailing_log.id}")
 
                         # Спринт 5: Начисляем XP владельцу канала за публикацию
                         if chat.owner_user_id and mailing_log.id:
@@ -120,8 +131,40 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                                 channel_id=chat.id,
                                 placement_id=mailing_log.id,  # РЕАЛЬНЫЙ ID размещения
                             )
+
+                        # TASK 3: Отправить запрос отзыва владельцу о рекламодателе
+                        if chat.owner_user_id:
+                            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+                            from src.bot.main import bot as telegram_bot
+
+                            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                                [InlineKeyboardButton(text="⭐⭐⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:5")],
+                                [InlineKeyboardButton(text="⭐⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:4")],
+                                [InlineKeyboardButton(text="⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:3")],
+                                [InlineKeyboardButton(text="⭐⭐", callback_data=f"owner_review:{mailing_log.id}:2")],
+                                [InlineKeyboardButton(text="⭐", callback_data=f"owner_review:{mailing_log.id}:1")],
+                                [InlineKeyboardButton(text="⏭ Пропустить", callback_data="owner_review_skip")],
+                            ])
+
+                            try:
+                                await telegram_bot.send_message(
+                                    chat_id=chat.owner_user_id,
+                                    text=(
+                                        "📋 <b>Оцените рекламодателя</b>\n\n"
+                                        "Рекламный пост был размещён в вашем канале.\n"
+                                        "Оцените качество рекламного контента:"
+                                    ),
+                                    reply_markup=keyboard,
+                                    parse_mode="HTML",
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to send owner review request: {e}")
                     else:
                         stats["failed"] += 1
+
+                        # ⚠️ ИСПРАВЛЕНИЕ: рассчитываем стоимость для возврата
+                        placement_cost = chat.price_per_post or 0
 
                         # Создаём запись о неудачной отправке
                         mailing_log = MailingLog(
@@ -129,9 +172,17 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                             chat_id=chat.id,
                             chat_telegram_id=chat.telegram_id,
                             status=MailingStatus.FAILED,
+                            cost=placement_cost,  # Цена для возврата
                         )
                         session.add(mailing_log)
                         await session.flush()
+
+                        # Task 3: Возврат средств за несостоявшееся размещение
+                        from src.core.services.billing_service import billing_service
+
+                        refunded = await billing_service.refund_failed_placement(mailing_log.id)
+                        if not refunded:
+                            logger.warning(f"Failed to refund placement {mailing_log.id}")
 
                 except AccountBannedError as e:
                     # КРИТИЧНО: весь аккаунт забанен — останавливаем кампанию
@@ -232,6 +283,10 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
                 amount=campaign_xp,
                 reason=f"campaign_completed:{campaign_id}",
             )
+
+            # TASK 8.5: Триггер проверки достижений после завершения кампании
+            from src.tasks.badge_tasks import trigger_after_campaign_complete
+            trigger_after_campaign_complete.delay(campaign.user_id)
 
             logger.info(
                 f"Campaign {campaign_id} completed: "
@@ -571,3 +626,112 @@ def auto_approve_pending_placements() -> dict:
     except Exception as e:
         logger.error(f"auto_approve_pending_placements failed: {e}")
         return {"status": "error", "error": str(e)}
+
+
+# ─────────────────────────────────────────────
+# Публикация отдельного placement (для автоодобрения)
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="mailing:publish_single_placement")
+def publish_single_placement(placement_id: int) -> dict:
+    """
+    Опубликовать отдельное placement после одобрения.
+    Вызывается из auto_approve_placements после перевода в QUEUED.
+
+    Args:
+        placement_id: ID размещения.
+
+    Returns:
+        Статистика публикации.
+    """
+    import asyncio
+
+    async def _publish_async() -> dict:
+        from aiogram import Bot
+        from sqlalchemy import select
+
+        from src.config.settings import settings
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        async with async_session_factory() as session:
+            # Получить placement
+            stmt = select(MailingLog).where(MailingLog.id == placement_id)
+            result = await session.execute(stmt)
+            placement = result.scalar_one_or_none()
+
+            if not placement:
+                logger.error(f"publish_single_placement: placement {placement_id} not found")
+                return {"error": "Placement not found"}
+
+            if placement.status != MailingStatus.QUEUED:
+                logger.warning(f"publish_single_placement: placement {placement_id} status is {placement.status}, expected QUEUED")
+                return {"skipped": f"Status is {placement.status}"}
+
+            # Получить кампанию
+            stmt = select(Campaign).where(Campaign.id == placement.campaign_id)
+            result = await session.execute(stmt)
+            campaign = result.scalar_one_or_none()
+
+            if not campaign:
+                logger.error(f"publish_single_placement: campaign {placement.campaign_id} not found")
+                return {"error": "Campaign not found"}
+
+            # Отправить пост в канал
+            bot = Bot(token=settings.bot_token)
+
+            try:
+                # Получить chat_id канала
+                from src.db.models.analytics import TelegramChat
+
+                stmt = select(TelegramChat).where(TelegramChat.id == placement.chat_id)
+                result = await session.execute(stmt)
+                chat = result.scalar_one_or_none()
+
+                if not chat or not chat.telegram_id:
+                    logger.error(f"publish_single_placement: channel {placement.chat_id} not found")
+                    return {"error": "Channel not found"}
+
+                # Отправить сообщение
+                if campaign.image_file_id:
+                    await bot.send_photo(
+                        chat_id=chat.telegram_id,
+                        photo=campaign.image_file_id,
+                        caption=campaign.text,
+                        parse_mode="HTML",
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=chat.telegram_id,
+                        text=campaign.text,
+                        parse_mode="HTML",
+                    )
+
+                # Обновить статус на SENT
+                from datetime import datetime
+
+                placement.status = MailingStatus.SENT
+                placement.sent_at = datetime.now(UTC)
+                placement.message_id = None  # Можно сохранить ID сообщения если нужно
+                await session.flush()
+
+                logger.info(f"publish_single_placement: published placement {placement_id} to channel {chat.telegram_id}")
+
+                return {"success": True, "placement_id": placement_id}
+
+            except Exception as e:
+                logger.error(f"publish_single_placement: failed to publish placement {placement_id}: {e}")
+                placement.status = MailingStatus.FAILED
+                placement.error_msg = str(e)
+                await session.flush()
+
+                return {"error": str(e)}
+
+            finally:
+                await bot.session.close()
+
+    try:
+        return asyncio.run(_publish_async())
+    except Exception as e:
+        logger.error(f"publish_single_placement failed: {e}")
+        return {"error": str(e)}

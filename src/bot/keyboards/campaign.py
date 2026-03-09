@@ -6,6 +6,8 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.bot.keyboards.main_menu import MainMenuCB
+
 
 class CampaignCB(CallbackData, prefix="campaign"):
     """CallbackData для навигации wizard'а кампании."""
@@ -154,5 +156,70 @@ def get_image_upload_kb() -> InlineKeyboardMarkup:
     builder.button(text="📷 Загрузить фото", callback_data=CampaignCB(action="image_upload"))
     builder.button(text="⏭ Пропустить", callback_data=CampaignCB(action="image_skip"))
     builder.button(text="← Назад", callback_data=CampaignCB(action="back"))
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def get_campaign_detail_kb(campaign_id: int, status: str) -> InlineKeyboardMarkup:
+    """
+    Клавиатура действий в зависимости от статуса кампании.
+
+    Args:
+        campaign_id: ID кампании.
+        status: Статус кампании (draft, queued, running, paused, completed, cancelled, done, error).
+
+    Returns:
+        InlineKeyboardMarkup с кнопками управления.
+    """
+    builder = InlineKeyboardBuilder()
+
+    if status == "draft":
+        builder.button(
+            text="▶️ Запустить",
+            callback_data=CampaignCB(action="launch", value=str(campaign_id)),
+        )
+        builder.button(
+            text="🗑 Удалить",
+            callback_data=CampaignCB(action="delete", value=str(campaign_id)),
+        )
+    elif status == "queued":
+        builder.button(
+            text="❌ Отменить",
+            callback_data=CampaignCB(action="cancel_campaign", value=str(campaign_id)),
+        )
+    elif status == "running":
+        builder.button(
+            text="⏸ Пауза",
+            callback_data=CampaignCB(action="pause", value=str(campaign_id)),
+        )
+        builder.button(
+            text="❌ Отменить",
+            callback_data=CampaignCB(action="cancel_campaign", value=str(campaign_id)),
+        )
+    elif status == "paused":
+        builder.button(
+            text="▶️ Продолжить",
+            callback_data=CampaignCB(action="resume", value=str(campaign_id)),
+        )
+        builder.button(
+            text="❌ Отменить",
+            callback_data=CampaignCB(action="cancel_campaign", value=str(campaign_id)),
+        )
+    elif status in ("completed", "done"):
+        builder.button(
+            text="📊 Аналитика",
+            callback_data=CampaignCB(action="analytics", value=str(campaign_id)),
+        )
+        builder.button(
+            text="📋 Дублировать",
+            callback_data=CampaignCB(action="duplicate", value=str(campaign_id)),
+        )
+    elif status == "error" or status == "cancelled":
+        builder.button(
+            text="📋 Дублировать",
+            callback_data=CampaignCB(action="duplicate", value=str(campaign_id)),
+        )
+
+    builder.button(text="🔙 Назад", callback_data=MainMenuCB(action="my_campaigns"))
     builder.adjust(2, 1)
     return builder.as_markup()

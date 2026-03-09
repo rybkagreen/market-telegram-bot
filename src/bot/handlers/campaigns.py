@@ -188,7 +188,13 @@ async def handle_header_input(message: Message, state: FSMContext) -> None:
 
     text = "✍️ <b>Текст кампании</b>\n\nШаг 3 из 7: Как вы хотите создать текст для рассылки?"
 
+    # Добавляем кнопку отмены под полем ввода
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✖ Отмена", callback_data=CampaignCB(action="cancel").pack())]
+    ])
     await message.answer(text, reply_markup=get_text_type_kb(user_plan))
+    await message.answer("Нажмите кнопку ниже для отмены:", reply_markup=cancel_keyboard)
     await state.set_state(CampaignStates.waiting_text)
     await state.update_data(step="text_type")
 
@@ -618,6 +624,24 @@ async def select_member_count(
     """
     Выбрать размер аудитории.
     """
+    data = await state.get_data()
+
+    # Проверить есть ли предвыбранный канал
+    preselected_channel_id = data.get("preselected_channel_id")
+
+    if preselected_channel_id:
+        # Пропустить выбор размера, перейти к расписанию
+        await state.update_data(
+            min_members=0,
+            max_members=1000000,
+        )
+        text = "⏰ <b>Расписание запуска</b>\n\nКогда запустить кампанию?"
+        await safe_callback_edit(callback, text, reply_markup=get_schedule_kb())
+        await state.set_state(CampaignStates.waiting_schedule)
+        await state.update_data(step="schedule")
+        return
+
+    # Стандартная логика для выбора из каталога
     value = callback_data.value
     if value == "any":
         min_members = 0
@@ -735,8 +759,22 @@ async def show_confirmation(target: Message | CallbackQuery, state: FSMContext) 
         "Немедленно" if data.get("schedule") == "now" else data.get("scheduled_at", "Не указано")
     )
 
+    # Проверить есть ли предвыбранный канал
+    preselected_channel = data.get("preselected_channel_username")
+    channel_price = data.get("preselected_channel_price", 0)
+
     confirmation_text = (
         "✅ <b>Подтверждение кампании</b>\n\n"
+    )
+
+    # Если канал предвыбран — показать его
+    if preselected_channel:
+        confirmation_text += (
+            f"📡 <b>Канал:</b> @{preselected_channel}\n"
+            f"💰 <b>Цена за пост:</b> {channel_price} кр\n\n"
+        )
+
+    confirmation_text += (
         f"📌 <b>Тема:</b> {topic}\n"
         f"📰 <b>Заголовок:</b> {header}\n"
         f"📝 <b>Текст:</b> {text}...\n"
@@ -835,7 +873,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
     Запустить кампанию.
     """
     logger.info(f"confirm_launch: user={callback.from_user.id}")
-    
+
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
@@ -857,7 +895,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
 
         data = await state.get_data()
         logger.info(f"confirm_launch: state_data={data}")
-        
+
         campaign_repo = CampaignRepository(session)
 
         # Проверяем лимит кампаний
@@ -879,7 +917,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
 
         # Проверяем уведомления — если выключены, спрашиваем перед запуском
         if not user.notifications_enabled and not scheduled_at:
-            logger.info(f"confirm_launch: asking for notifications")
+            logger.info("confirm_launch: asking for notifications")
             # Сохраняем данные в state и показываем запрос
             await safe_callback_edit(callback, "🚀 Кампания готова к запуску!\n\n"
                 "📬 Хотите получать уведомления о статусе кампании?\n"
@@ -889,7 +927,7 @@ async def confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
             return
 
         # Запускаем кампанию (создание и отправка)
-        logger.info(f"confirm_launch: calling _do_launch_campaign")
+        logger.info("confirm_launch: calling _do_launch_campaign")
         await _do_launch_campaign(callback, state, session, user, data, campaign_repo, scheduled_at)
 
 
@@ -905,10 +943,22 @@ async def _do_launch_campaign(
     """
     Приватная функция для фактического запуска кампании.
     Вызывается из confirm_launch или после включения уведомлений.
+
+    Логика:
+    1. Создать кампанию в статусе DRAFT
+    2. Рассчитать стоимость
+    3. Заморозить средства через billing_service.freeze_campaign_funds()
+    4. Если заморозка успешна — запустить рассылку (или запланировать)
     """
+    from src.core.services.billing_service import billing_service
+
     logger.info(f"_do_launch_campaign: user={user.id}, scheduled_at={scheduled_at}")
 
-    # Создаём кампанию
+    # Проверить есть ли предвыбранный канал
+    preselected_channel_id = data.get("preselected_channel_id")
+    preselected_channel_price = data.get("preselected_channel_price", 0)
+
+    # Создаём кампанию в статусе DRAFT (сначала создаём, потом замораживаем)
     campaign_data = {
         "user_id": user.id,
         "title": data.get("header", "Без названия"),
@@ -917,20 +967,60 @@ async def _do_launch_campaign(
         "text": data.get("text", ""),
         "image_file_id": data.get("image_file_id"),
         "ai_description": data.get("ai_description"),
-        "status": CampaignStatus.QUEUED if scheduled_at else CampaignStatus.RUNNING,
+        "status": CampaignStatus.DRAFT,  # Сначала DRAFT, потом freeze_campaign_funds переведёт в QUEUED
         "filters_json": {
             "topics": [data.get("topic")],
             "min_members": data.get("min_members", 0),
             "max_members": data.get("max_members", 1000000),
         },
         "scheduled_at": scheduled_at,
+        "cost": 0,  # Стоимость будет рассчитана позже
     }
+
+    # Если канал предвыбран — добавить в filters_json
+    if preselected_channel_id:
+        campaign_data["filters_json"]["use_preselected_only"] = True
+        campaign_data["filters_json"]["preselected_channel_id"] = preselected_channel_id
+        campaign_data["filters_json"]["preselected_channel_price"] = preselected_channel_price
+        # Установить стоимость = цена канала
+        campaign_data["cost"] = float(preselected_channel_price)
+
     logger.info(f"_do_launch_campaign: creating campaign with data={campaign_data}")
-    
+
     campaign = await campaign_repo.create(campaign_data)
     logger.info(f"_do_launch_campaign: campaign created with id={campaign.id}")
 
+    # Рассчитываем стоимость кампании
+    # Если канал предвыбран — стоимость уже установлена
+    if campaign.cost == 0:
+        # Заглушка — в реальности нужно считать по чатам
+        campaign.cost = 0
+
+    # Замораживаем средства (если стоимость > 0)
+    if campaign.cost > 0:
+        frozen = await billing_service.freeze_campaign_funds(campaign.id)
+        if not frozen:
+            logger.warning(f"_do_launch_campaign: insufficient funds for campaign {campaign.id}")
+            await state.clear()
+            await callback.answer(
+                "❌ Недостаточно средств для запуска кампании.\n"
+                "Пополните баланс и попробуйте снова.",
+                show_alert=True,
+            )
+            return
+        logger.info(f"_do_launch_campaign: funds frozen for campaign {campaign.id}")
+    else:
+        # Если стоимость 0 — просто переводим в QUEUED/RUNNING
+        if scheduled_at:
+            await campaign_repo.update_status(campaign.id, CampaignStatus.QUEUED)
+        else:
+            await campaign_repo.update_status(campaign.id, CampaignStatus.RUNNING)
+
     await state.clear()
+
+    # Проверить есть ли предвыбранный канал для кастомного сообщения
+    preselected_channel = data.get("preselected_channel_username")
+    preselected_price = data.get("preselected_channel_price", 0)
 
     if scheduled_at:
         text = (
@@ -940,17 +1030,45 @@ async def _do_launch_campaign(
             f"Вы получите уведомление о запуске."
         )
     else:
-        text = (
-            f"🚀 <b>Кампания запущена!</b>\n\n"
-            f"📋 {campaign.title}\n\n"
-            f"Мы отправим уведомление о завершении."
-        )
+        # Кастомное сообщение для предвыбранного канала
+        if preselected_channel:
+            text = (
+                f"✅ <b>Кампания запущена!</b>\n\n"
+                f"📡 <b>Канал:</b> @{preselected_channel}\n"
+                f"💰 <b>Стоимость:</b> {preselected_price} кр\n\n"
+                f"Пост будет опубликован в ближайшее время.\n"
+                f"Вы получите уведомление о завершении."
+            )
+        else:
+            text = (
+                f"🚀 <b>Кампания запущена!</b>\n\n"
+                f"📋 {campaign.title}\n\n"
+                f"Мы отправим уведомление о завершении."
+            )
 
         # Запускаем рассылку через Celery
         logger.info(f"_do_launch_campaign: sending campaign {campaign.id} to celery")
-        send_campaign.delay(campaign.id)
+        task = send_campaign.delay(campaign.id)
 
-    logger.info(f"_do_launch_campaign: editing callback with success message")
+        # ⚠️ ФИКС 7: Сохраняем task_id для управления паузой/возобновлением
+        # Используем session напрямую для сохранения meta_json
+        from sqlalchemy import update
+
+        meta = campaign.meta_json or {}
+        meta["celery_task_id"] = task.id
+
+        await session.execute(
+            update(type(campaign))
+            .where(type(campaign).id == campaign.id)
+            .values(meta_json=meta)
+        )
+        await session.flush()
+
+    # TASK 8.4: Триггер проверки достижений после запуска кампании
+    from src.tasks.badge_tasks import trigger_after_campaign_launch
+    trigger_after_campaign_launch.delay(user.id)
+
+    logger.info("_do_launch_campaign: editing callback with success message")
     await safe_callback_edit(callback, text, reply_markup=get_main_menu(user.credits, user.id))
 
 
@@ -1056,7 +1174,7 @@ async def handle_review_request(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("review_submit:"))
 async def handle_review_submit(callback: CallbackQuery, state: FSMContext) -> None:
     """
-    Отправка отзыва с оценкой.
+    Отправка отзыва с оценкой — сохранение в БД.
     """
     if callback.message is None or isinstance(callback.message, Message):
         return
@@ -1069,16 +1187,67 @@ async def handle_review_submit(callback: CallbackQuery, state: FSMContext) -> No
     placement_id = int(data_parts[1])
     score = int(data_parts[2])
 
-    # Сохраняем оценку в FSM для последующей отправки
-    await state.update_data(
-        review_placement_id=placement_id,
-        review_score=score,
-    )
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog
+        from src.db.models.review import Review, ReviewerRole
+
+        # Получить placement
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Размещение не найдено", show_alert=True)
+            return
+
+        # Получить кампанию для получения advertiser_id
+        campaign = await session.get(Campaign, placement.campaign_id)
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Получить канал для получения channel_id и owner_id
+        channel = await session.get(TelegramChat, placement.chat_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Проверить что пользователь ещё не оставлял отзыв для этого placement
+        stmt = select(Review).where(
+            Review.placement_id == placement_id,
+            Review.reviewer_id == campaign.user_id,
+            Review.reviewer_role == ReviewerRole.ADVERTISER,
+        )
+        result = await session.execute(stmt)
+        existing_review = result.scalar_one_or_none()
+
+        if existing_review:
+            await callback.answer("⚠️ Вы уже оставляли отзыв для этого размещения", show_alert=True)
+            return
+
+        # Создать отзыв
+        review = Review(
+            reviewer_id=campaign.user_id,  # Рекламодатель оставляет отзыв
+            reviewee_id=channel.owner_user_id,  # Владелец канала — тот кого оценивают
+            channel_id=channel.id,
+            placement_id=placement_id,
+            reviewer_role=ReviewerRole.ADVERTISER,
+            score_compliance=score,  # Соответствие договорённостям
+            score_audience=score,  # Качество аудитории (упрощённо — та же оценка)
+            score_speed=score,  # Скорость взаимодействия
+            is_hidden=False,
+        )
+
+        session.add(review)
+
+        # Пересчитать рейтинг канала
+        await recalculate_channel_rating(session, channel.id)
+
+        await session.commit()
 
     await callback.answer(f"✅ Оценка {score} принята!")
 
-    # Здесь будет вызов review_service.create_review()
-    # Для now просто уведомляем
     await safe_callback_edit(
         callback,
         "✅ <b>Спасибо за отзыв!</b>\n\n"
@@ -1087,6 +1256,27 @@ async def handle_review_submit(callback: CallbackQuery, state: FSMContext) -> No
         parse_mode="HTML",
     )
     await state.clear()
+
+
+async def recalculate_channel_rating(session, channel_id: int) -> None:
+    """Пересчитать средний рейтинг канала по всем отзывам."""
+    from sqlalchemy import false, func, select
+
+    from src.db.models.analytics import TelegramChat
+    from src.db.models.review import Review, ReviewerRole
+
+    stmt = select(func.avg(Review.score_compliance)).where(
+        Review.channel_id == channel_id,
+        Review.reviewer_role == ReviewerRole.ADVERTISER,
+        Review.is_hidden == false(),
+    )
+    result = await session.execute(stmt)
+    avg_rating = result.scalar() or 0.0
+
+    channel = await session.get(TelegramChat, channel_id)
+    if channel:
+        channel.rating = float(avg_rating)
+        await session.flush()
 
 
 @router.callback_query(F.data == "review_skip")
