@@ -13,8 +13,10 @@ class ChannelsCB(CallbackData, prefix="channels"):
     """CallbackData для базы каналов."""
 
     action: str
-    value: str = ""
+    value: str = ""  # Для одиночного выбора
+    values: str = ""  # Для мультивыбора (JSON через запятую)
     page: int = 1
+    filter_type: str = ""  # "category", "tariff", "members"
 
 
 # Категории каналов для фильтра
@@ -68,22 +70,131 @@ def get_channels_menu_kb() -> InlineKeyboardMarkup:
 
 
 def get_categories_kb() -> InlineKeyboardMarkup:
-    """Выбор категории канала."""
+    """Выбор категории канала (одиночный выбор)."""
     builder = InlineKeyboardBuilder()
 
     for label, value in CHANNEL_CATEGORIES:
         builder.button(
             text=label,
-            callback_data=ChannelsCB(action="category", value=value),
+            callback_data=ChannelsCB(action="category", value=value).pack(),
         )
 
     builder.button(
         text="🔙 Назад",
-        callback_data=ChannelsCB(action="menu"),
+        callback_data=ChannelsCB(action="menu").pack(),
     )
     builder.adjust(2, 2, 2, 2, 2, 2, 1)
 
     return builder.as_markup()
+
+
+def get_multi_select_categories_kb(
+    selected: list[str] | None = None,
+) -> InlineKeyboardMarkup:
+    """
+    Клавиатура с мультивыбором категорий.
+
+    Args:
+        selected: Список выбранных категорий (коды).
+    """
+    builder = InlineKeyboardBuilder()
+    selected = selected or []
+
+    for label, code in CHANNEL_CATEGORIES:
+        # Галочка если выбрано
+        prefix = "✅ " if code in selected else ""
+        builder.button(
+            text=f"{prefix}{label}",
+            callback_data=ChannelsCB(
+                action="toggle_category",
+                value=code,
+            ).pack(),
+        )
+
+    # Кнопки действий
+    builder.button(
+        text="🔙 Назад",
+        callback_data=ChannelsCB(action="categories").pack(),
+    )
+    builder.button(
+        text="🎯 Применить фильтры",
+        callback_data=ChannelsCB(action="apply_filters").pack(),
+    )
+    builder.adjust(2, 2, 2, 2, 2, 2, 2)
+
+    return builder.as_markup()
+
+
+def get_multi_select_tariffs_kb(
+    selected: list[str] | None = None,
+) -> InlineKeyboardMarkup:
+    """
+    Клавиатура с мультивыбором тарифов.
+
+    Args:
+        selected: Список выбранных тарифов (коды).
+    """
+    builder = InlineKeyboardBuilder()
+    selected = selected or []
+
+    for label, value in TARIFFS:
+        # Галочка если выбрано
+        prefix = "✅ " if value in selected else ""
+        builder.button(
+            text=f"{prefix}{label}",
+            callback_data=ChannelsCB(
+                action="toggle_tariff",
+                value=value,
+            ).pack(),
+        )
+
+    # Кнопки действий
+    builder.button(
+        text="🔙 Назад",
+        callback_data=ChannelsCB(action="categories").pack(),
+    )
+    builder.button(
+        text="🎯 Применить фильтры",
+        callback_data=ChannelsCB(action="apply_filters").pack(),
+    )
+    builder.adjust(2, 2, 2)
+
+    return builder.as_markup()
+
+
+def get_active_filters_bar(
+    categories: list[str],
+    tariffs: list[str],
+) -> str:
+    """
+    Сгенерировать строку активных фильтров.
+
+    Returns:
+        Текст для отображения над результатами.
+    """
+    filters = []
+
+    if categories:
+        cat_names = [cat.capitalize() for cat in categories]
+        filters.append(f"📁 Категории: {', '.join(cat_names)}")
+
+    if tariffs:
+        tariff_names = [t.upper() for t in tariffs]
+        filters.append(f"💎 Тарифы: {', '.join(tariff_names)}")
+
+    if filters:
+        return "🔍 <b>Активные фильтры:</b>\n" + "\n".join(filters) + "\n"
+    return ""
+
+
+def get_filter_indicator(selected_count: int) -> str:
+    """Вернуть иконку с количеством выбранных фильтров."""
+    if selected_count == 0:
+        return "🔍 Фильтры"
+    elif selected_count <= 3:
+        return f"🔍 Фильтры ({selected_count})"
+    else:
+        return f"🔍 Фильтры ({selected_count}+)"
 
 
 def get_tariff_filter_kb(category: str | None = None) -> InlineKeyboardMarkup:
@@ -109,28 +220,6 @@ def get_tariff_filter_kb(category: str | None = None) -> InlineKeyboardMarkup:
         callback_data=ChannelsCB(action="categories" if category else "menu"),
     )
     builder.adjust(2, 2)
-
-    return builder.as_markup()
-
-
-def get_channel_detail_kb(channel_username: str) -> InlineKeyboardMarkup:
-    """
-    Детальная информация о канале.
-
-    Args:
-        channel_username: Username канала.
-    """
-    builder = InlineKeyboardBuilder()
-
-    builder.button(
-        text="🔗 Открыть канал",
-        url=f"https://t.me/{channel_username}",
-    )
-    builder.button(
-        text="🔙 Назад к списку",
-        callback_data=ChannelsCB(action="categories"),
-    )
-    builder.adjust(1)
 
     return builder.as_markup()
 
@@ -212,5 +301,27 @@ def get_channels_pagination_kb(
         builder.adjust(1, 2, 1)
     else:
         builder.adjust(2, 1)
+
+    return builder.as_markup()
+
+
+def get_channel_detail_kb(channel_id: int) -> InlineKeyboardMarkup:
+    """
+    Клавиатура для детальной страницы канала.
+
+    Args:
+        channel_id: ID канала.
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.button(
+        text="📋 Добавить в кампанию",
+        callback_data=ChannelsCB(action="add_to_campaign", value=str(channel_id)),
+    )
+    builder.button(
+        text="🔙 Назад к каталогу",
+        callback_data=ChannelsCB(action="top_channels"),
+    )
+    builder.adjust(1)
 
     return builder.as_markup()
