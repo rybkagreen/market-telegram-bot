@@ -439,25 +439,18 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
 
             return stats
 
+    # Создаём новый event loop для async операций
+    # Это предотвращает конфликт с event loop Celery
+    import asyncio
+    
     try:
-        # asyncio.run() создаёт новый event loop и закрывает его после выполнения
-        # Это корректный способ запуска async кода в синхронном Celery task
-        result = asyncio.run(_check_async())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(_check_async())
         logger.info(f"Scheduled campaigns check completed: {result}")
         return result
-
-    except RuntimeError as e:
-        # Обрабатываем ошибки закрытия event loop
-        if "Event loop is closed" in str(e) or "handler is closed" in str(e):
-            logger.warning(
-                f"Event loop closed during scheduled campaigns check (non-critical): {e}"
-            )
-            return {"error": "Event loop closed", "recovered": True}
-        logger.error(f"Error checking scheduled campaigns: {e}")
-        return {"error": str(e)}
-    except Exception as e:
-        logger.error(f"Error checking scheduled campaigns: {e}")
-        return {"error": str(e)}
+    finally:
+        loop.close()
 
 
 # ─────────────────────────────────────────────

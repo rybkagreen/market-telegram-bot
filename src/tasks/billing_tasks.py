@@ -139,13 +139,22 @@ async def _check_plan_renewals() -> dict:
     return {"renewed": renewed, "downgraded": downgraded}
 
 
-@celery_app.task(name="billing:check_pending_invoices", queue="billing")
-def check_pending_invoices() -> dict:
+@celery_app.task(name="billing:check_pending_invoices", queue="billing", bind=True)
+def check_pending_invoices(self) -> dict:
     """
     Проверить неоплаченные счета CryptoBot и зачислить кредиты.
     Запускается каждые 5 минут.
     """
-    return asyncio.run(_check_pending_invoices())
+    import asyncio
+    
+    # Создаём новый event loop для async операций
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(_check_pending_invoices())
+        return result
+    finally:
+        loop.close()
 
 
 async def _check_pending_invoices() -> dict:
