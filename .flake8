@@ -1,0 +1,8 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503, E501
+per-file-ignores =
+    src/bot/data/templates.py: E501
+    src/utils/telegram/topic_classifier.py: E501
+    src/utils/telegram/llm_classifier_prompt.py: E501
+    src/bot/data/stopwords_ru.json: E501
