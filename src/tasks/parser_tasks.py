@@ -1543,3 +1543,82 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
 
     logger.info(f"LLM reclassify complete: {stats}")
     return stats
+
+
+# ─────────────────────────────────────────────
+# Авто-классификация каналов без подкатегории (Спринт 12)
+# ─────────────────────────────────────────────
+
+
+@celery_app.task(name="parser:autoclassify_channels", queue="parser")
+def autoclassify_channels(limit: int = 50) -> dict:
+    """
+    Автоматически классифицировать каналы без подкатегории.
+
+    Args:
+        limit: Максимальное количество каналов для обработки.
+
+    Returns:
+        Статистика классификации.
+    """
+    import asyncio
+
+    async def _classify_async() -> dict:
+        from sqlalchemy import select
+
+        from src.core.services.category_classifier import classify_channel
+        from src.db.models.telegram_chat import TelegramChat
+
+        stats = {"classified": 0, "errors": 0, "low_confidence": 0}
+
+        async with async_session_factory() as session:
+            # Выбираем каналы без подкатегории
+            query = (
+                select(TelegramChat)
+                .where(
+                    TelegramChat.is_active,
+                    (TelegramChat.subcategory.is_(None)) | (TelegramChat.subcategory == ""),
+                )
+                .limit(limit)
+            )
+            result = await session.execute(query)
+            channels = result.scalars().all()
+
+            for channel in channels:
+                try:
+                    result = await classify_channel(
+                        title=channel.title or "",
+                        description=channel.description or "",
+                    )
+
+                    if result["confidence"] >= 0.7:
+                        channel.topic = result["topic"]
+                        channel.subcategory = result["subcategory"] or ""
+                        stats["classified"] += 1
+                        logger.info(
+                            f"Classified channel '{channel.title}': "
+                            f"{result['topic']}/{result['subcategory']} "
+                            f"(confidence={result['confidence']:.2f})"
+                        )
+                    else:
+                        stats["low_confidence"] += 1
+                        logger.warning(
+                            f"Low confidence for channel '{channel.title}': "
+                            f"{result['confidence']:.2f}"
+                        )
+
+                except Exception as e:
+                    logger.error(f"Error classifying channel {channel.id}: {e}")
+                    stats["errors"] += 1
+
+            await session.commit()
+
+        return stats
+
+    # Запускаем в event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_classify_async())
+    finally:
+        loop.close()
