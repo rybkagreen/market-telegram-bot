@@ -84,6 +84,42 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour=8, minute=0),
         "options": {"queue": "gamification"},
     },
+    # TASK 6: Автоодобрение заявок — каждый час в 00 минут
+    "auto-approve-placements": {
+        "task": "src.tasks.notification_tasks.auto_approve_placements",
+        "schedule": crontab(minute=0),
+        "options": {"queue": "mailing"},
+    },
+    # TASK 6: Напоминания о заявках — каждые 2 часа
+    "placement-reminders": {
+        "task": "src.tasks.notification_tasks.notify_pending_placement_reminders",
+        "schedule": crontab(minute=0, hour="*/2"),
+        "options": {"queue": "mailing"},
+    },
+    # TASK 8: Уведомления об истечении тарифа — ежедневно в 10:00 UTC
+    "notify-expiring-plans": {
+        "task": "src.tasks.notification_tasks.notify_expiring_plans",
+        "schedule": crontab(hour=10, minute=0),
+        "options": {"queue": "mailing"},
+    },
+    # TASK 8: Уведомления об истёкшем тарифе — ежедневно в 10:05 UTC
+    "notify-expired-plans": {
+        "task": "src.tasks.notification_tasks.notify_expired_plans",
+        "schedule": crontab(hour=10, minute=5),
+        "options": {"queue": "mailing"},
+    },
+    # TASK 8.3: Ежедневная проверка достижений — ежедневно в 00:00 UTC
+    "daily-badge-check": {
+        "task": "src.tasks.badge_tasks.daily_badge_check",
+        "schedule": crontab(hour=0, minute=0),
+        "options": {"queue": "gamification"},
+    },
+    # TASK 8.6: Топ рекламодателей месяца — 1-го числа каждого месяца в 00:00 UTC
+    "monthly-top-advertisers": {
+        "task": "src.tasks.badge_tasks.monthly_top_advertisers",
+        "schedule": crontab(hour=0, minute=0, day_of_month=1),
+        "options": {"queue": "gamification"},
+    },
 }
 
 # =============================================================================
@@ -110,6 +146,9 @@ TASK_ROUTES = {
     # Очередь gamification — задачи геймификации
     "gamification.*": {"queue": "gamification"},
     "src.tasks.gamification_tasks.*": {"queue": "gamification"},
+    # Очередь badges — задачи достижений
+    "badges.*": {"queue": "gamification"},
+    "src.tasks.badge_tasks.*": {"queue": "gamification"},
 }
 
 # =============================================================================

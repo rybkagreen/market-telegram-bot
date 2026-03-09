@@ -60,7 +60,7 @@ def update_streaks_daily(self) -> dict[str, Any]:
 
                 last_login_date = user.last_login_at.date()
 
-                if last_login_date == today or last_login_date == yesterday:
+                if last_login_date in (today, yesterday):
                     # Пользователь заходил сегодня или вчера — продолжаем стрик
                     if (today - last_login_date).days == 0:
                         # Заходил сегодня — проверяем не обновили ли уже сегодня
@@ -78,6 +78,11 @@ def update_streaks_daily(self) -> dict[str, Any]:
                     # Начисляем XP за стрик (+10 XP за каждый день)
                     user.xp_points += 10
                     stats["xp_awarded"] += 10
+
+                    # TASK 8.8: Проверяем бонусы за стрик (7, 14, 30, 100 дней)
+                    if user.login_streak_days % 7 == 0:
+                        from src.core.services.xp_service import xp_service
+                        await xp_service.award_streak_bonus(user.id, user.login_streak_days)
                 else:
                     # Пропустил день — сбрасываем стрик
                     if user.login_streak_days > 0:
