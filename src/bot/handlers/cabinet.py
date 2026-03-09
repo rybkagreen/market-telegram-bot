@@ -659,6 +659,7 @@ async def launch_campaign(callback: CallbackQuery, callback_data: CampaignCB) ->
 
     async with async_session_factory() as session:
         from src.core.services.billing_service import billing_service
+        from src.db.models.campaign import CampaignStatus
         from src.tasks.mailing_tasks import send_campaign
 
         campaign_repo = CampaignRepository(session)
@@ -673,6 +674,19 @@ async def launch_campaign(callback: CallbackQuery, callback_data: CampaignCB) ->
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user or campaign.user_id != user.id:
             await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # ✅ ЗАЩИТА ОТ DOUBLE-CLICK — проверяем статус
+        if campaign.status == CampaignStatus.RUNNING:
+            await callback.answer("⚠️ Кампания уже запущена", show_alert=True)
+            return
+
+        if campaign.status == CampaignStatus.DONE:
+            await callback.answer("⚠️ Кампания уже завершена", show_alert=True)
+            return
+
+        if campaign.status == CampaignStatus.CANCELLED:
+            await callback.answer("⚠️ Кампания отменена", show_alert=True)
             return
 
         # Замораживаем средства
