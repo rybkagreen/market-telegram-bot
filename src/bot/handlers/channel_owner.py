@@ -19,8 +19,11 @@ from aiogram.types import (
 )
 from sqlalchemy import func, select
 
-from src.bot.states.channel_owner import AddChannelStates
+from src.bot.keyboards.main_menu import MainMenuCB
+from src.bot.states.channel_owner import AddChannelStates, EditChannelStates, PayoutRequestStates
+from src.bot.states.mediakit import MediakitStates
 from src.bot.utils.safe_callback import safe_callback_edit
+from src.core.services.mediakit_service import mediakit_service
 from src.db.models.analytics import TelegramChat
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
 from src.db.repositories.user_repo import UserRepository
@@ -126,6 +129,7 @@ async def process_channel_username(
             [InlineKeyboardButton(text="✅ Добавил, проверьте", callback_data="channel_add:check_admin")],
             [InlineKeyboardButton(text="❓ Не могу найти бота", callback_data="channel_add:help_admin")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="channel_add:back_to_username")],
+            [InlineKeyboardButton(text="✖ Отмена", callback_data="main:main_menu")],
         ]
     )
 
@@ -330,6 +334,7 @@ async def process_channel_price(message: Message, state: FSMContext) -> None:
     done_text = f"✅ Готово (выбрано: {len(selected_topics)})" if selected_topics else "✅ Готово"
     keyboard_buttons.append([InlineKeyboardButton(text=done_text, callback_data="topics_done")])
     keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_price")])
+    keyboard_buttons.append([InlineKeyboardButton(text="✖ Отмена", callback_data="main:main_menu")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -823,11 +828,14 @@ async def show_channel_menu(callback: CallbackQuery) -> None:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[  # type: ignore[unused-ignore]
             [
                 InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}"),
-                InlineKeyboardButton(text="📊 Аналитика", callback_data=f"ch_analytics:{channel_id}"),
+                InlineKeyboardButton(text="📊 Медиакит", callback_data=f"ch_mediakit:{channel_id}"),
             ],
             [
                 InlineKeyboardButton(text="📋 Заявки", callback_data=f"ch_requests:{channel_id}"),
                 InlineKeyboardButton(text="💰 Выплаты", callback_data=f"ch_payouts:{channel_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="📜 История выплат", callback_data=f"ch_payout_history:{channel_id}"),
             ],
             [
                 # Задача 4.7: Кнопка паузы/возобновления
@@ -1003,10 +1011,10 @@ async def approve_placement(callback: CallbackQuery) -> None:
 
         placement.status = MailingStatus.QUEUED
         await session.flush()
-        
+
         # Спринт 5: Начисляем XP владельцу за одобрение размещения
         from src.tasks.notification_tasks import notify_owner_xp_for_publication
-        
+
         # 10 XP за одобрение заявки (дополнительно к 30 XP за публикацию)
         notify_owner_xp_for_publication.delay(
             owner_id=placement.chat.owner_user_id,
@@ -1147,3 +1155,1013 @@ async def show_placement(callback: CallbackQuery) -> None:
 
     placement_id = int((callback.data or "").split(":")[1])
     await show_placement_card(callback, placement_id)
+
+
+# ─────────────────────────────────────────────
+# TASK 2: Выплаты — запрос выплаты владельцем
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("ch_payouts:"))
+async def show_channel_payouts(callback: CallbackQuery) -> None:
+    """
+    Показать экран выплат канала.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.repositories.payout_repo import PayoutRepository
+
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        # Проверяем что канал принадлежит пользователю
+        if channel.owner_user_id != user.id:
+            await callback.answer("❌ Это не ваш канал", show_alert=True)
+            return
+
+        # Получаем доступную сумму к выплате
+        payout_repo = PayoutRepository(session)
+        available_amount = await payout_repo.get_available_amount(user.id)
+
+        # Получаем последние 5 выплат
+        recent_payouts = await payout_repo.get_by_owner(user.id, limit=5, offset=0)
+
+        # Формируем текст
+        text = (
+            f"💸 <b>Выплаты по каналу</b>\n\n"
+            f"📺 @{channel.username or channel.title}\n\n"
+            f"💰 <b>Доступно к выводу: {available_amount:.0f} кр</b>\n\n"
+        )
+
+        if recent_payouts:
+            text += "<b>Последние выплаты:</b>\n"
+            for payout in recent_payouts[:5]:
+                status_icon = {
+                    "pending": "⏳",
+                    "processing": "🔄",
+                    "paid": "✅",
+                    "failed": "❌",
+                    "cancelled": "🚫",
+                }.get(payout.status.value, "📝")
+                text += f"{status_icon} {payout.amount:.0f} кр ({payout.created_at.strftime('%d.%m')})\n"
+        else:
+            text += "История выплат пуста.\n"
+
+        # Проверяем минимальную сумму выплаты
+        from src.config.settings import settings
+        min_payout = settings.min_payout_usdt * settings.credits_per_usdt  # Конвертируем в кредиты
+
+        keyboard_buttons = []
+
+        if available_amount >= min_payout:
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text="💸 Запросить выплату",
+                    callback_data=f"request_payout:{channel_id}",
+                )
+            ])
+        else:
+            text += f"\n⚠️ Минимальная сумма выплаты: {min_payout:.0f} кр\n"
+
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}"),
+        ])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+        await safe_callback_edit(
+            callback,
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data.startswith("request_payout:"))
+async def start_payout_request(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Начать запрос выплаты — выбор метода.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    await state.set_state(PayoutRequestStates.selecting_method)
+    await state.update_data(channel_id=channel_id)
+
+    text = (
+        "💸 <b>Запрос выплаты</b>\n\n"
+        "Выберите способ получения выплаты:\n\n"
+        "💳 <b>USDT (TRC20)</b> — комиссия сети ~1 USDT\n"
+        "💎 <b>TON</b> — комиссия сети ~0.1 TON\n\n"
+        "Выплата будет отправлена на указанный вами кошелёк."
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 USDT", callback_data=f"payout_method:{channel_id}:USDT")],
+        [InlineKeyboardButton(text="💎 TON", callback_data=f"payout_method:{channel_id}:TON")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_payouts:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("payout_method:"))
+async def select_payout_method(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Выбор метода выплаты — переход к вводу адреса.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    data = (callback.data or "").split(":")
+    channel_id = int(data[1])
+    method = data[2]
+
+    await state.set_state(PayoutRequestStates.entering_address)
+    await state.update_data(payout_method=method)
+
+    method_name = "USDT (TRC20)" if method == "USDT" else "TON"
+    method_example = "TxxxxxxxxxxxxxxxxxxxxxxxxxxxxB" if method == "USDT" else "EQxxxxxxxxxxxxxxxxxxxxx"
+
+    text = (
+        f"💸 <b>Введите адрес кошелька {method_name}</b>\n\n"
+        f"Пример: <code>{method_example}</code>\n\n"
+        "⚠️ Проверьте адрес внимательно — выплата будет отправлена на этот кошелёк.\n\n"
+        "👇 Отправьте адрес кошелька сообщением ниже:"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"request_payout:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.message(PayoutRequestStates.entering_address)
+async def process_payout_address(message: Message, state: FSMContext) -> None:
+    """
+    Обработка адреса кошелька для выплаты.
+    """
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте адрес кошелька текстом.")
+        return
+
+    wallet_address = message.text.strip()
+    data = await state.get_data()
+    method = data.get("payout_method")
+
+    # Валидация адреса
+    if method == "USDT":
+        # USDT (TRC20) — адрес начинается с T, длина 34 символа
+        if len(wallet_address) < 34 or not wallet_address.startswith("T"):
+            await message.answer(
+                "❌ Неверный формат адреса USDT (TRC20).\n\n"
+                "Адрес должен начинаться с 'T' и быть длиной 34 символа.\n\n"
+                "Попробуйте ещё раз:"
+            )
+            return
+    elif method == "TON":
+        # TON — адрес начинается с EQ или UQ
+        if not wallet_address.startswith(("EQ", "UQ")):
+            await message.answer(
+                "❌ Неверный формат адреса TON.\n\n"
+                "Адрес должен начинаться с 'EQ' или 'UQ'.\n\n"
+                "Попробуйте ещё раз:"
+            )
+            return
+
+    await state.update_data(wallet_address=wallet_address)
+    await state.set_state(PayoutRequestStates.confirming)
+
+    # Получаем сумму к выплате
+    async with async_session_factory() as session:
+        from src.db.repositories.payout_repo import PayoutRepository
+
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        if not user:
+            await message.answer("❌ Пользователь не найден.")
+            await state.clear()
+            return
+
+        payout_repo = PayoutRepository(session)
+        available_amount = await payout_repo.get_available_amount(user.id)
+
+    # Обрезаем адрес для отображения
+    if len(wallet_address) > 16:
+        address_display = f"{wallet_address[:8]}...{wallet_address[-8:]}"
+    else:
+        address_display = wallet_address
+
+    method_name = "USDT" if method == "USDT" else "TON"
+
+    text = (
+        "✅ <b>Подтвердите выплату</b>\n\n"
+        f"💰 Сумма: <b>{available_amount:.0f} кр</b>\n"
+        f"💳 Метод: <b>{method_name}</b>\n"
+        f"🏦 Кошелёк: <code>{address_display}</code>\n\n"
+        "⏱ Обработка занимает до 24 часов.\n\n"
+        "Выберите действие:"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_payout:{data.get('channel_id')}")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_payouts:{data.get('channel_id')}")],
+    ])
+
+    await message.answer(
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("confirm_payout:"))
+async def confirm_payout_request(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Подтверждение запроса выплаты — создание Payout.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+    data = await state.get_data()
+
+    async with async_session_factory() as session:
+        from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+        from src.db.repositories.payout_repo import PayoutRepository
+
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        # Получаем доступную сумму
+        payout_repo = PayoutRepository(session)
+        available_amount = await payout_repo.get_available_amount(user.id)
+
+        if available_amount <= 0:
+            await callback.answer("❌ Нет доступных средств для выплаты", show_alert=True)
+            return
+
+        # Создаём запись о выплате
+        payout = Payout(
+            owner_id=user.id,
+            channel_id=channel_id,
+            placement_id=None,  # NULL для aggregate payout (не привязан к конкретному placement)
+            amount=available_amount,
+            platform_fee=Decimal("0"),  # Комиссия уже удержана при создании placement
+            currency=PayoutCurrency.USDT if data.get("payout_method") == "USDT" else PayoutCurrency.TON,
+            status=PayoutStatus.PENDING,
+            wallet_address=data.get("wallet_address"),
+        )
+
+        session.add(payout)
+        await session.flush()
+
+    await state.clear()
+
+    text = (
+        "✅ <b>Заявка на выплату создана!</b>\n\n"
+        f"💰 Сумма: <b>{available_amount:.0f} {data.get('payout_method', 'USDT')}</b>\n"
+        f"🏦 Кошелёк: <code>{data.get('wallet_address')}</code>\n\n"
+        "⏱ Обработка занимает до 24 часов.\n\n"
+        "Вы получите уведомление когда выплата будет обработана."
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels").pack())],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+    await callback.answer("✅ Заявка создана!")
+
+
+# ─────────────────────────────────────────────
+# TASK 5: Редактирование настроек канала
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("ch_edit_price:"))
+async def start_edit_channel_price(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Начать редактирование цены канала.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    await state.set_state(EditChannelStates.waiting_new_price)
+    await state.update_data(channel_id=channel_id)
+
+    text = (
+        "💰 <b>Изменение цены за пост</b>\n\n"
+        "Введите новую цену за рекламный пост (в кредитах).\n\n"
+        "⚠️ Минимальная цена: <b>50 кр</b>\n\n"
+        "👇 Отправьте числовое значение:"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.message(EditChannelStates.waiting_new_price)
+async def process_new_channel_price(message: Message, state: FSMContext) -> None:
+    """
+    Обработка новой цены канала.
+    """
+    if not message.text:
+        await message.answer("Пожалуйста, введите число.")
+        return
+
+    text = message.text.strip()
+    if not text.isdigit():
+        await message.answer("❌ Пожалуйста, введите число (только цифры).")
+        return
+
+    new_price = int(text)
+    if new_price < 50:
+        await message.answer("❌ Минимальная цена — 50 кредитов. Введите другую цену:")
+        return
+
+    data = await state.get_data()
+    channel_id = data.get("channel_id")
+
+    async with async_session_factory() as session:
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await message.answer("❌ Канал не найден.")
+            await state.clear()
+            return
+
+        old_price = channel.price_per_post
+        channel.price_per_post = new_price
+        await session.flush()
+
+    await state.clear()
+
+    text = (
+        "✅ <b>Цена обновлена!</b>\n\n"
+        f"📺 Канал: @{channel.username}\n"
+        f"💰 Старая цена: {old_price} кр\n"
+        f"💰 Новая цена: <b>{new_price} кр</b>\n\n"
+        f"Ваш заработок за пост: <b>{int(new_price * 0.8)} кр</b> (80%)"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
+    ])
+
+    await message.answer(
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("ch_edit_topics:"))
+async def start_edit_channel_topics(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Начать редактирование тематик канала.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Получаем текущие тематики
+        current_topics = channel.topic.split(",") if channel.topic else []
+
+        await state.set_state(EditChannelStates.choosing_topics)
+        await state.update_data(channel_id=channel_id, current_topics=current_topics)
+
+        # Список тематик (должен совпадать с TOPICS в add_channel)
+        TOPICS = [
+            ("💻 IT", "it"),
+            ("💼 Бизнес", "business"),
+            ("📈 Маркетинг", "marketing"),
+            ("💰 Финансы", "finance"),
+            ("🏠 Недвижимость", "realestate"),
+            ("🔗 Крипта", "crypto"),
+            ("📰 Новости", "news"),
+            ("🎓 Образование", "education"),
+            ("🌐 Другое", "other"),
+        ]
+
+        # Строим клавиатуру с toggle кнопками
+        keyboard_buttons = []
+        for label, code in TOPICS:
+            prefix = "✅ " if code in current_topics else ""
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"{prefix}{label}",
+                    callback_data=f"topic_toggle:{channel_id}:{code}",
+                )
+            ])
+
+        selected_count = len(current_topics)
+        done_text = f"✅ Сохранить ({selected_count} выбрано)" if selected_count > 0 else "✅ Сохранить"
+        keyboard_buttons.append([
+            InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
+        ])
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
+        ])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+        text = (
+            "🏷 <b>Редактирование тематик</b>\n\n"
+            "Выберите тематики вашего канала.\n"
+            "Нажмите на тематику чтобы добавить/убрать.\n\n"
+            f"Текущие: {', '.join(current_topics) if current_topics else ' none'}"
+        )
+
+        await safe_callback_edit(
+            callback,
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data.startswith("topic_toggle:"))
+async def toggle_channel_topic(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Переключить тематику канала (toggle).
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    data = (callback.data or "").split(":")
+    channel_id = int(data[1])
+    topic_code = data[2]
+
+    data_store = await state.get_data()
+    current_topics: list[str] = data_store.get("current_topics", [])
+
+    # Toggle тематики
+    if topic_code in current_topics:
+        current_topics.remove(topic_code)
+    else:
+        current_topics.append(topic_code)
+
+    await state.update_data(current_topics=current_topics)
+
+    # Список тематик
+    TOPICS = [
+        ("💻 IT", "it"),
+        ("💼 Бизнес", "business"),
+        ("📈 Маркетинг", "marketing"),
+        ("💰 Финансы", "finance"),
+        ("🏠 Недвижимость", "realestate"),
+        ("🔗 Крипта", "crypto"),
+        ("📰 Новости", "news"),
+        ("🎓 Образование", "education"),
+        ("🌐 Другое", "other"),
+    ]
+
+    # Перерисовываем клавиатуру
+    keyboard_buttons = []
+    for label, code in TOPICS:
+        prefix = "✅ " if code in current_topics else ""
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"{prefix}{label}",
+                callback_data=f"topic_toggle:{channel_id}:{code}",
+            )
+        ])
+
+    selected_count = len(current_topics)
+    done_text = f"✅ Сохранить ({selected_count} выбрано)" if selected_count > 0 else "✅ Сохранить"
+    keyboard_buttons.append([
+        InlineKeyboardButton(text=done_text, callback_data=f"topics_save:{channel_id}"),
+    ])
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="🔙 Назад", callback_data=f"ch_settings:{channel_id}"),
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    text = (
+        "🏷 <b>Редактирование тематик</b>\n\n"
+        "Выберите тематики вашего канала.\n\n"
+        f"Текущие: {', '.join(current_topics) if current_topics else ' none'}"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topics_save:"))
+async def save_channel_topics(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Сохранить выбранные тематики канала.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+    data = await state.get_data()
+    current_topics: list[str] = data.get("current_topics", [])
+
+    if not current_topics:
+        await callback.answer("⚠️ Выберите хотя бы одну тематику", show_alert=True)
+        return
+
+    async with async_session_factory() as session:
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        channel.topic = ",".join(current_topics)
+        await session.flush()
+
+    await state.clear()
+
+    text = (
+        "✅ <b>Тематики обновлены!</b>\n\n"
+        f"📺 Канал: @{channel.username}\n"
+        f"🏷 Тематики: <b>{', '.join(current_topics)}</b>"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ Настройки", callback_data=f"ch_settings:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+    await callback.answer("✅ Тематики сохранены!")
+
+
+# ─────────────────────────────────────────────
+# СПРИНТ 9: МЕДИАКИТ КАНАЛА
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("ch_mediakit:"))
+async def show_channel_mediakit(callback: CallbackQuery) -> None:
+    """Показать медиакит канала (режим редактирования для владельца)."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from src.db.models.analytics import TelegramChat
+
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel or channel.owner_user_id != callback.from_user.id:
+            await callback.answer("❌ Доступ запрещён", show_alert=True)
+            return
+
+        # Получить или создать медиакит
+        from src.core.services.mediakit_service import mediakit_service
+        mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
+
+    text = (
+        f"📊 <b>Медиакит канала</b>\n\n"
+        f"📡 @{channel.username or channel.title}\n\n"
+        f"Статус: {'✅ Публичный' if mediakit.is_public else '🔒 Приватный'}\n"
+        f"Просмотров: {mediakit.views_count}\n"
+        f"Скачиваний: {mediakit.downloads_count}\n\n"
+        f"Настройте медиакит чтобы привлечь больше рекламодателей."
+    )
+
+    from src.bot.keyboards.mediakit import get_mediakit_menu_kb
+
+    keyboard = get_mediakit_menu_kb(channel_id)
+
+    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("mediakit_edit:"))
+async def edit_mediakit(callback: CallbackQuery) -> None:
+    """Редактирование медиакита."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    text = (
+        "✏️ <b>Редактирование медиакита</b>\n\n"
+        "Выберите что хотите изменить:\n\n"
+        "📝 Описание\n"
+        "🖼 Логотип\n"
+        "🎨 Цвет темы\n"
+        "📊 Метрики для отображения\n"
+        "🔒 Настройки приватности"
+    )
+
+    from src.bot.keyboards.mediakit import get_mediakit_edit_kb
+
+    keyboard = get_mediakit_edit_kb(channel_id)
+
+    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("mediakit_desc:"))
+async def edit_mediakit_description(callback: CallbackQuery, state: FSMContext) -> None:
+    """Редактирование описания медиакита."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    await state.set_state(MediakitStates.waiting_description)
+    await state.update_data(mediakit_channel_id=channel_id)
+
+    text = (
+        "📝 <b>Описание канала</b>\n\n"
+        "Введите краткое описание вашего канала.\n"
+        "Это поможет рекламодателям лучше понять вашу аудиторию.\n\n"
+        "👇 Введите описание:"
+    )
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
+    ])
+
+    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.message(MediakitStates.waiting_description)
+async def process_mediakit_description(message: Message, state: FSMContext) -> None:
+    """Обработать введённое описание."""
+    if not message.text:
+        await message.answer("Пожалуйста, введите текст.")
+        return
+
+    description = message.text.strip()
+    if len(description) > 2000:
+        await message.answer("❌ Описание слишком длинное (максимум 2000 символов).")
+        return
+
+    data = await state.get_data()
+    channel_id = data.get("mediakit_channel_id")
+
+    async with async_session_factory() as session:
+
+        mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
+        mediakit.custom_description = description
+        await session.commit()
+
+    await state.clear()
+
+    text = "✅ Описание сохранено!"
+    await message.answer(text)
+
+
+@router.callback_query(F.data.startswith("mediakit_logo:"))
+async def edit_mediakit_logo(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запросить загрузку логотипа."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    await state.set_state(MediakitStates.waiting_logo)
+    await state.update_data(mediakit_channel_id=channel_id)
+
+    text = (
+        "🖼 <b>Загрузка логотипа</b>\n\n"
+        "Отправьте изображение логотипа канала.\n\n"
+        "Требования:\n"
+        "• Формат: PNG, JPG\n"
+        "• Размер: до 5 MB\n"
+        "• Соотношение: 1:1 (квадрат)\n\n"
+        "👇 Отправьте изображение:"
+    )
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Отмена", callback_data=f"ch_mediakit:{channel_id}")],
+    ])
+
+    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.message(MediakitStates.waiting_logo, F.photo)
+async def process_mediakit_logo_upload(message: Message, state: FSMContext) -> None:
+    """Обработать загруженный логотип."""
+    # Получить file_id самого большого фото
+    image_file_id = message.photo[-1].file_id
+
+    data = await state.get_data()
+    channel_id = data.get("mediakit_channel_id")
+
+    async with async_session_factory() as session:
+
+        mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
+        mediakit.logo_file_id = image_file_id
+        await session.commit()
+
+    await state.clear()
+
+    await message.answer("✅ Логотип сохранён!")
+
+
+@router.callback_query(F.data.startswith("mediakit_color:"))
+async def edit_mediakit_color(callback: CallbackQuery) -> None:
+    """Выбор цвета темы."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    text = (
+        "🎨 <b>Выберите цвет темы</b>\n\n"
+        "Цвет будет использоваться в PDF медиаките."
+    )
+
+    from src.bot.keyboards.mediakit import get_color_selector_kb
+
+    keyboard = get_color_selector_kb(channel_id)
+
+    await safe_callback_edit(callback, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("mediakit_color_set:"))
+async def set_mediakit_color(callback: CallbackQuery) -> None:
+    """Установить цвет темы."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    parts = (callback.data or "").split(":")
+    channel_id = int(parts[1])
+    color = parts[2] if len(parts) > 2 else "#1a73e8"
+
+    async with async_session_factory() as session:
+
+        mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
+        mediakit.theme_color = color
+        await session.commit()
+
+    await callback.answer(f"✅ Цвет установлен: {color}", show_alert=False)
+
+    # Вернуться к меню редактирования
+    await edit_mediakit(callback)
+
+
+@router.callback_query(F.data.startswith("mediakit_download:"))
+async def download_mediakit_pdf(callback: CallbackQuery) -> None:
+    """Скачать PDF медиакита."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    await callback.answer("⏳ Генерирую PDF...", show_alert=False)
+
+    async with async_session_factory() as session:
+
+        # Получить медиакит
+        mediakit = await mediakit_service.get_or_create_mediakit(channel_id)
+
+        # Получить данные
+        mediakit_data = await mediakit_service.get_mediakit_data(channel_id)
+
+        # Сгенерировать PDF
+        from src.utils.mediakit_pdf import generate_mediakit_pdf
+        pdf_bytes = generate_mediakit_pdf(mediakit_data)
+
+        # Отправить файл
+        from aiogram.types import BufferedInputFile
+
+        await callback.message.answer_document(
+            document=BufferedInputFile(pdf_bytes, filename=f"mediakit_{channel_id}.pdf"),
+            caption=f"📊 Медиакит канала\n\nСгенерирован: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+        )
+
+        # Засчитать скачивание
+        mediakit.downloads_count += 1
+        await session.commit()
+
+
+# ─────────────────────────────────────────────
+# TASK 3: Отзывы владельца о рекламодателе
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("owner_review:"))
+async def handle_owner_review(callback: CallbackQuery) -> None:
+    """
+    Владелец оценивает рекламодателя после публикации.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    data_parts = (callback.data or "").split(":")
+    if len(data_parts) != 3:
+        await callback.answer("❌ Неверный формат", show_alert=True)
+        return
+
+    placement_id = int(data_parts[1])
+    score = int(data_parts[2])
+
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.campaign import Campaign
+        from src.db.models.mailing_log import MailingLog
+        from src.db.models.review import Review, ReviewerRole
+
+        # Получить placement
+        placement = await session.get(MailingLog, placement_id)
+        if not placement:
+            await callback.answer("❌ Размещение не найдено", show_alert=True)
+            return
+
+        # Получить кампанию для получения advertiser_id
+        campaign = await session.get(Campaign, placement.campaign_id)
+        if not campaign:
+            await callback.answer("❌ Кампания не найдена", show_alert=True)
+            return
+
+        # Получить канал для получения owner_id
+        channel = await session.get(TelegramChat, placement.chat_id)
+        if not channel or not channel.owner_user_id:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Проверить что владелец ещё не оставлял отзыв
+        stmt = select(Review).where(
+            Review.placement_id == placement_id,
+            Review.reviewer_id == channel.owner_user_id,
+            Review.reviewer_role == ReviewerRole.OWNER,
+        )
+        result = await session.execute(stmt)
+        existing_review = result.scalar_one_or_none()
+
+        if existing_review:
+            await callback.answer("⚠️ Вы уже оставляли отзыв для этого размещения", show_alert=True)
+            return
+
+        # Создать отзыв
+        review = Review(
+            reviewer_id=channel.owner_user_id,  # Владелец оставляет отзыв
+            reviewee_id=campaign.user_id,  # Рекламодатель — тот кого оценивают
+            channel_id=channel.id,
+            placement_id=placement_id,
+            reviewer_role=ReviewerRole.OWNER,
+            score_material=score,  # Качество материала
+            score_requirements=score,  # Адекватность требований
+            score_payment=score,  # Скорость оплаты
+            is_hidden=False,
+        )
+
+        session.add(review)
+        await session.commit()
+
+    await callback.answer(f"✅ Оценка {score} принята!")
+
+    await safe_callback_edit(
+        callback,
+        "✅ <b>Спасибо за отзыв!</b>\n\n"
+        f"Вы поставили оценку: {score} ⭐\n\n"
+        "Ваше мнение поможет улучшить платформу.",
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "owner_review_skip")
+async def handle_owner_review_skip(callback: CallbackQuery) -> None:
+    """
+    Пропуск отзыва владельца.
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    await safe_callback_edit(
+        callback,
+        "ℹ️ <b>Отзыв пропущен</b>\n\n"
+        "Вы всегда можете оставить отзыв позже через /my_channels",
+        parse_mode="HTML",
+    )
+
+
+# ─────────────────────────────────────────────
+# TASK 2: История выплат
+# ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("ch_payout_history:"))
+async def show_payout_history(callback: CallbackQuery) -> None:
+    """
+    Показать историю выплат по каналу (последние 20).
+    """
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        return
+
+    channel_id = int((callback.data or "").split(":")[1])
+
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+
+        from src.db.models.payout import Payout
+
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            await callback.answer("❌ Канал не найден", show_alert=True)
+            return
+
+        # Получить последние 20 выплат
+        stmt = (
+            select(Payout)
+            .where(Payout.channel_id == channel_id)
+            .order_by(Payout.created_at.desc())
+            .limit(20)
+        )
+        result = await session.execute(stmt)
+        payouts = list(result.scalars().all())
+
+        if not payouts:
+            text = (
+                f"💸 <b>История выплат по каналу</b>\n\n"
+                f"📺 @{channel.username or channel.title}\n\n"
+                f"История выплат пуста."
+            )
+        else:
+            text = (
+                f"💸 <b>История выплат по каналу</b>\n\n"
+                f"📺 @{channel.username or channel.title}\n\n"
+            )
+
+            total_paid = sum(p.amount for p in payouts if p.status.value == "paid")
+            text += f"<b>Всего выплачено: {total_paid:.0f} кр</b>\n\n"
+
+            for payout in payouts[:20]:
+                status_icon = {
+                    "pending": "⏳",
+                    "processing": "🔄",
+                    "paid": "✅",
+                    "failed": "❌",
+                    "cancelled": "🚫",
+                }.get(payout.status.value, "📝")
+
+                date_str = payout.created_at.strftime("%d.%m.%Y")
+                text += f"{status_icon} {date_str}: <b>{payout.amount:.0f} кр</b>\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"channel_menu:{channel_id}")],
+    ])
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )

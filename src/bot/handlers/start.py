@@ -3,14 +3,23 @@ Handlers для команд /start и /help.
 """
 
 import logging
+from datetime import UTC
 from decimal import Decimal
 from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, FSInputFile, InaccessibleMessage, Message
+from aiogram.types import (
+    CallbackQuery,
+    FSInputFile,
+    InaccessibleMessage,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy import select
 
 from src.bot.keyboards.main_menu import (
     MainMenuCB,
@@ -220,11 +229,11 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        
+
         # Проверяем, существует ли пользователь
         existing_user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
         is_new = existing_user is None
-        
+
         user = await user_repo.create_or_update(  # type: ignore[union-attr]
             telegram_id=message.from_user.id,  # type: ignore[union-attr]
             username=message.from_user.username,  # type: ignore[union-attr]
@@ -239,8 +248,8 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             return
 
         # Обновляем last_login_at для стриков (Спринт 3)
-        from datetime import datetime, timezone
-        user.last_login_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        user.last_login_at = datetime.now(UTC)
         await session.flush()
 
         # user гарантированно не None после проверки выше
@@ -644,26 +653,77 @@ async def go_to_add_channel(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(MainMenuCB.filter(F.action == "payouts"))
 async def go_to_payouts(callback: CallbackQuery) -> None:
-    """Показать экран выплат владельца."""
+    """Показать экран выплат владельца — список каналов с суммами."""
     if callback.message is None:
         return
 
-    text = (
-        "💸 <b>Выплаты</b>\n\n"
-        "Управление выплатами доступно в разделе «Мои каналы».\n\n"
-        "Выплаты автоматически создаются после публикации "
-        "рекламного поста в вашем канале.\n"
-        "80% от стоимости размещения поступает вам, "
-        "20% — комиссия платформы."
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        from src.db.models.analytics import TelegramChat
+        from src.db.repositories.payout_repo import PayoutRepository
+
+        # Получаем каналы пользователя
+        channels = await session.execute(
+            select(TelegramChat).where(TelegramChat.owner_user_id == user.id)
+        )
+        channels = channels.scalars().all()
+
+        if not channels:
+            text = (
+                "💸 <b>Выплаты</b>\n\n"
+                "У вас нет зарегистрированных каналов.\n\n"
+                "Зарегистрируйте канал командой /add_channel чтобы начать зарабатывать."
+            )
+            builder = InlineKeyboardBuilder()
+            builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
+            builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
+            builder.adjust(1, 1)
+
+            await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+            return
+
+        # Получаем доступные суммы для каждого канала
+        payout_repo = PayoutRepository(session)
+        total_available = Decimal("0")
+
+        text = "💸 <b>Ваши каналы и выплаты</b>\n\n"
+
+        keyboard_buttons = []
+        for channel in channels:
+            if not channel.username:
+                continue
+
+            available = await payout_repo.get_available_amount(user.id)
+            total_available += available
+
+            channel_payout = available  # Для отображения
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"📺 @{channel.username} — {channel_payout:.0f} кр",
+                    callback_data=f"ch_payouts:{channel.id}",
+                )
+            ])
+
+        text += f"💰 <b>Общая сумма к выводу: {total_available:.0f} кр</b>\n\n"
+        text += "Выберите канал для управления выплатами:\n"
+
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu")),
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    await safe_callback_edit(
+        callback,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
     )
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📺 Мои каналы", callback_data=MainMenuCB(action="my_channels"))
-    builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
-    builder.adjust(1, 1)
-
-    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
-    await callback.answer()
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "b2b"))

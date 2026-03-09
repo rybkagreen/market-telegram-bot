@@ -18,3 +18,12 @@ class EditChannelStates(StatesGroup):
 
     waiting_new_price = State()  # ввод новой цены
     choosing_topics = State()  # выбор тематик
+
+
+class PayoutRequestStates(StatesGroup):
+    """Состояния запроса выплаты."""
+
+    selecting_channel = State()  # выбор канала для выплаты
+    selecting_method = State()  # выбор USDT / TON
+    entering_address = State()  # ввод адреса кошелька
+    confirming = State()  # подтверждение выплаты
