@@ -359,7 +359,7 @@ def notify_owner_xp_for_publication(
 ) -> bool:
     """
     Спринт 5: Начислить XP владельцу за публикацию поста.
-    
+
     Args:
         owner_id: ID владельца канала.
         channel_id: ID канала.
@@ -530,7 +530,7 @@ def notify_post_published(
 ) -> bool:
     """
     Задача 9.2: Уведомление после публикации поста.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         channel_username: Username канала.
@@ -561,7 +561,7 @@ def notify_campaign_finished(
 ) -> bool:
     """
     Задача 9.2: Уведомление о завершении кампании.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         campaign_title: Название кампании.
@@ -618,7 +618,7 @@ def notify_placement_rejected(
 ) -> bool:
     """
     Задача 9.2: Уведомление об отклонении заявки.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         channel_username: Username канала.
@@ -659,7 +659,7 @@ def notify_changes_requested(
 ) -> bool:
     """
     Задача 9.2: Уведомление о запросе правок.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         channel_username: Username канала.
@@ -690,7 +690,7 @@ def notify_low_balance_enhanced(
 ) -> bool:
     """
     Задача 9.2: Уведомление о низком балансе для кампании.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         current_balance: Текущий баланс.
@@ -747,7 +747,7 @@ def notify_plan_expiring(
 ) -> bool:
     """
     Задача 9.2: Уведомление об истечении тарифа.
-    
+
     Args:
         advertiser_id: ID рекламодателя.
         plan_name: Название тарифа.
@@ -783,7 +783,7 @@ def notify_badge_earned(
 ) -> bool:
     """
     Задача 9.2: Уведомление о получении значка.
-    
+
     Args:
         user_id: ID пользователя.
         badge_name: Название значка.
@@ -812,7 +812,7 @@ def notify_level_up(
 ) -> bool:
     """
     Задача 9.2: Уведомление о новом уровне.
-    
+
     Args:
         user_id: ID пользователя.
         new_level: Новый уровень.
@@ -873,7 +873,7 @@ def notify_channel_top10(
 ) -> bool:
     """
     Задача 9.2: Уведомление о попадании в топ-10 каналов.
-    
+
     Args:
         owner_id: ID владельца.
         channel_username: Username канала.
@@ -906,7 +906,7 @@ def notify_referral_bonus(
 ) -> bool:
     """
     Задача 9.2: Уведомление о реферальном бонусе.
-    
+
     Args:
         referrer_id: ID реферера.
         referred_name: Имя реферала.
@@ -944,11 +944,11 @@ def send_weekly_digest() -> dict[str, int]:
         from sqlalchemy import func, select
 
         async with async_session_factory() as session:
-            user_repo = UserRepository(session)
+            UserRepository(session)
 
             # Получаем всех пользователей с включёнными уведомлениями
             from src.db.models.user import User
-            stmt = select(User).where(User.is_active == True, User.notifications_enabled == True)
+            stmt = select(User).where(User.is_active is True, User.notifications_enabled is True)
             result = await session.execute(stmt)
             users = list(result.scalars().all())
 
@@ -1127,3 +1127,421 @@ def send_weekly_digest() -> dict[str, int]:
     except Exception as e:
         logger.error(f"Error sending weekly digest: {e}")
         return {"sent": 0, "errors": 1}
+
+
+# ─────────────────────────────────────────────
+# TASK 6: Автоодобрение заявок и напоминания
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:auto_approve_placements")
+def auto_approve_placements() -> dict:
+    """
+    Автоодобрение заявок старше 24 часов.
+    Запускать каждый час через Celery Beat.
+
+    Логика:
+    1. Найти все placements где:
+       - status == "pending_approval"
+       - created_at < now() - 24 часа
+    2. Для каждого: установить status = "queued"
+    3. Запустить задачу публикации
+    4. Логировать: "Auto-approved placement {id} for channel {channel_id}"
+    5. Вернуть {"approved": N}
+    """
+    import asyncio
+
+    async def _auto_approve_async() -> dict:
+        from datetime import datetime, timedelta
+
+        from sqlalchemy import select
+
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+
+        deadline = datetime.now(UTC) - timedelta(hours=24)
+        approved_count = 0
+        failed_count = 0
+
+        async with async_session_factory() as session:
+            # Находим все PENDING_APPROVAL размещения старше 24 часов
+            stmt = (
+                select(MailingLog)
+                .where(
+                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
+                    MailingLog.created_at < deadline,
+                )
+                .with_for_update()  # Блокировка для предотвращения гонок
+            )
+            result = await session.execute(stmt)
+            placements = result.scalars().all()
+
+            for placement in placements:
+                try:
+                    placement.status = MailingStatus.QUEUED
+                    await session.flush()
+
+                    # ⚠️ КРИТИЧНО: запустить задачу публикации
+                    # Импортируем здесь чтобы избежать circular imports
+                    from src.tasks.mailing_tasks import publish_single_placement
+
+                    publish_single_placement.delay(placement.id)
+
+                    approved_count += 1
+                    logger.info(f"Auto-approved placement {placement.id} for channel {placement.chat_id}")
+
+                except Exception as e:
+                    logger.error(f"Auto-approve failed for placement {placement.id}: {e}")
+                    failed_count += 1
+
+            await session.commit()
+
+        return {
+            "status": "ok",
+            "approved": approved_count,
+            "failed": failed_count,
+        }
+
+    try:
+        return asyncio.run(_auto_approve_async())
+    except Exception as e:
+        logger.error(f"auto_approve_placements failed: {e}")
+        return {"status": "error", "error": str(e), "approved": 0}
+
+
+@celery_app.task(name="notifications:notify_pending_placement_reminders")
+def notify_pending_placement_reminders() -> dict:
+    """
+    Напоминать владельцам о заявках старше 20 часов.
+    Запускать каждые 2 часа через Celery Beat.
+
+    Логика:
+    1. Найти placements где:
+       - status == "pending_approval"
+       - created_at между (now()-24ч) и (now()-20ч)
+       - напоминание ещё не отправлялось
+    2. Отправить владельцу уведомление
+    3. Вернуть {"sent": N}
+    """
+    import asyncio
+
+    async def _notify_reminders_async() -> dict:
+        from datetime import datetime, timedelta
+
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+        from sqlalchemy import select
+
+        from src.config.settings import settings
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.user import User
+
+        now = datetime.now(UTC)
+        # ⚠️ ИСПРАВЛЕНИЕ: правильное условие для placements 20-24 часа назад
+        # older_than = 24 часа назад (граница "старой" стороны)
+        # newer_than = 20 часов назад (граница "молодой" стороны)
+        # Placement создан 22ч назад:
+        #   created_at > older_than  → создан НЕ раньше чем 24ч назад (т.е. меньше 24ч назад) ✅
+        #   created_at < newer_than  → создан раньше чем 20ч назад (т.е. больше 20ч назад) ✅
+        older_than = now - timedelta(hours=24)  # 24 часа назад
+        newer_than = now - timedelta(hours=20)  # 20 часов назад
+
+        sent_count = 0
+        error_count = 0
+
+        async with async_session_factory() as session:
+            # ⚠️ ИСПРАВЛЕННОЕ условие: created_at между older_than и newer_than
+            stmt = (
+                select(MailingLog)
+                .where(
+                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
+                    MailingLog.created_at > older_than,  # НЕ старше 24ч (создан меньше 24ч назад)
+                    MailingLog.created_at < newer_than,  # Старше 20ч (создан больше 20ч назад)
+                )
+            )
+            result = await session.execute(stmt)
+            placements = result.scalars().all()
+
+            bot = Bot(token=settings.bot_token)
+
+            for placement in placements:
+                try:
+                    # Проверяем, отправлялось ли уже напоминание (по meta_json)
+                    meta = placement.meta_json or {}
+                    if meta.get("reminder_sent"):
+                        logger.debug(f"Reminder already sent for placement {placement.id}")
+                        continue
+
+                    # Получаем канал и владельца
+                    channel = await session.get(TelegramChat, placement.chat_id)
+                    if not channel or not channel.owner_user_id:
+                        continue
+
+                    owner = await session.get(User, channel.owner_user_id)
+                    if not owner or not owner.notifications_enabled:
+                        continue
+
+                    # Считаем время до автоодобрения
+                    time_left = placement.created_at + timedelta(hours=24) - now
+                    hours_left = max(0, int(time_left.total_seconds() // 3600))
+
+                    # Отправляем уведомление
+                    message = (
+                        f"⏰ <b>Напоминание о заявке</b>\n\n"
+                        f"Заявка #{placement.id} ожидает решения.\n"
+                        f"Канал: @{channel.username or channel.title}\n"
+                        f"До автоодобрения: ~{hours_left} ч\n\n"
+                        f"Откройте «Мои каналы» → «Заявки»"
+                    )
+
+                    await bot.send_message(
+                        owner.telegram_id,
+                        message,
+                        parse_mode="HTML",
+                    )
+
+                    # Помечаем что напоминание отправлено
+                    meta["reminder_sent"] = True
+                    placement.meta_json = meta
+                    await session.flush()
+
+                    sent_count += 1
+                    logger.info(f"Sent placement reminder to owner {owner.id} for placement {placement.id}")
+
+                except TelegramForbiddenError:
+                    logger.warning(f"Owner blocked bot, skipping reminder for placement {placement.id}")
+                    error_count += 1
+                except Exception as e:
+                    logger.error(f"Error sending placement reminder: {e}")
+                    error_count += 1
+
+            await bot.session.close()
+
+        return {
+            "status": "ok",
+            "sent": sent_count,
+            "errors": error_count,
+        }
+
+    try:
+        return asyncio.run(_notify_reminders_async())
+    except Exception as e:
+        logger.error(f"notify_pending_placement_reminders failed: {e}")
+        return {"status": "error", "error": str(e), "sent": 0}
+
+
+# ─────────────────────────────────────────────
+# TASK 8: Уведомления об истечении тарифа
+# ─────────────────────────────────────────────
+
+@celery_app.task(name="notifications:notify_expiring_plans")
+def notify_expiring_plans() -> dict:
+    """
+    Уведомить пользователей у кого тариф истекает через 3 дня.
+    Запускать раз в день в 10:00 UTC.
+
+    Логика:
+    1. Найти users где:
+       - plan != "free"
+       - plan_expires_at между now() и now() + 3 дня
+       - уведомление ещё не отправлялось сегодня
+    2. Отправить уведомление
+    3. Установить plan_expiry_notified_at = now
+    4. Вернуть {"notified": N}
+    """
+    import asyncio
+
+    async def _notify_expiring_async() -> dict:
+        from datetime import datetime, timedelta
+
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+        from sqlalchemy import select
+
+        from src.config.settings import settings
+        from src.db.models.user import User, UserPlan
+
+        now = datetime.now(UTC)
+        three_days_later = now + timedelta(days=3)
+
+        notified_count = 0
+        error_count = 0
+
+        async with async_session_factory() as session:
+            # Находим пользователей с истекающим тарифом
+            stmt = (
+                select(User)
+                .where(
+                    User.plan != UserPlan.FREE,
+                    User.plan_expires_at != None,  # noqa: E711
+                    User.plan_expires_at <= three_days_later,
+                    User.plan_expires_at >= now,
+                )
+            )
+            result = await session.execute(stmt)
+            users = result.scalars().all()
+
+            bot = Bot(token=settings.bot_token)
+
+            for user in users:
+                try:
+                    if not user.notifications_enabled:
+                        continue
+
+                    # ⚠️ ЗАЩИТА: пропускаем если уже отправляли сегодня
+                    if user.plan_expiry_notified_at and user.plan_expiry_notified_at.date() == now.date():
+                        logger.debug(f"User {user.id} already notified today, skipping")
+                        continue
+
+                    days_left = (user.plan_expires_at - now).days
+                    plan_name = user.plan.value if hasattr(user.plan, "value") else user.plan
+
+                    # Стоимость продления (заглушка — в реальности нужно считать по тарифу)
+                    renewal_cost = {
+                        "starter": 299,
+                        "pro": 999,
+                        "business": 2999,
+                    }.get(plan_name, 0)
+
+                    message = (
+                        f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
+                        f"Дата окончания: {user.plan_expires_at.strftime('%d.%m.%Y')}\n"
+                        f"Стоимость продления: {renewal_cost} кр\n"
+                        f"Текущий баланс: {user.credits} кр\n\n"
+                        f"Продлите тариф чтобы не потерять доступ к функциям.\n"
+                        f"Кабинет → Сменить тариф"
+                    )
+
+                    await bot.send_message(
+                        user.telegram_id,
+                        message,
+                        parse_mode="HTML",
+                    )
+
+                    # ⚠️ Устанавливаем флаг что отправили уведомление
+                    user.plan_expiry_notified_at = now
+                    await session.flush()
+
+                    notified_count += 1
+                    logger.info(f"Sent plan expiring notification to user {user.id}")
+
+                except TelegramForbiddenError:
+                    logger.warning(f"User blocked bot, skipping plan expiring notification for user {user.id}")
+                    error_count += 1
+                except Exception as e:
+                    logger.error(f"Error sending plan expiring notification: {e}")
+                    error_count += 1
+
+            await bot.session.close()
+
+        return {
+            "status": "ok",
+            "notified": notified_count,
+            "errors": error_count,
+        }
+
+    try:
+        return asyncio.run(_notify_expiring_async())
+    except Exception as e:
+        logger.error(f"notify_expiring_plans failed: {e}")
+        return {"status": "error", "error": str(e), "notified": 0}
+
+
+@celery_app.task(name="notifications:notify_expired_plans")
+def notify_expired_plans() -> dict:
+    """
+    Уведомить пользователей у кого тариф только что истёк.
+    Запускать раз в день в 10:05 UTC.
+
+    Логика:
+    1. Найти users где:
+       - plan != "free"
+       - plan_expires_at < now()
+       - plan ещё не сброшен до "free"
+    2. Сбросить plan = "free"
+    3. Отправить уведомление о сбросе
+    4. Вернуть {"downgraded": N}
+    """
+    import asyncio
+
+    async def _notify_expired_async() -> dict:
+        from datetime import datetime
+
+        from aiogram import Bot
+        from aiogram.exceptions import TelegramForbiddenError
+        from sqlalchemy import select
+
+        from src.config.settings import settings
+        from src.db.models.user import User, UserPlan
+
+        now = datetime.now(UTC)
+        downgraded_count = 0
+        error_count = 0
+
+        async with async_session_factory() as session:
+            # Находим пользователей с истёкшим тарифом
+            stmt = (
+                select(User)
+                .where(
+                    User.plan != UserPlan.FREE,
+                    User.plan_expires_at != None,  # noqa: E711
+                    User.plan_expires_at < now,
+                )
+            )
+            result = await session.execute(stmt)
+            users = result.scalars().all()
+
+            bot = Bot(token=settings.bot_token)
+
+            for user in users:
+                try:
+                    # ⚠️ ЗАЩИТА: если expires_at обновился (пользователь продлил) — не трогаем
+                    # Проверяем ещё раз внутри цикла на случай гонки
+                    if user.plan_expires_at >= now:
+                        logger.info(f"User {user.id} renewed plan, skipping expiry")
+                        continue
+
+                    old_plan = user.plan.value if hasattr(user.plan, "value") else user.plan
+                    user.plan = UserPlan.FREE
+                    user.plan_expires_at = None
+                    user.ai_generations_used = 0
+
+                    await session.flush()
+
+                    if user.notifications_enabled:
+                        message = (
+                            f"📦 <b>Ваш тариф {old_plan} истёк</b>\n\n"
+                            f"Тариф автоматически изменён на <b>FREE</b>.\n\n"
+                            f"Для доступа к расширенным функциям:\n"
+                            f"Кабинет → Сменить тариф"
+                        )
+
+                        await bot.send_message(
+                            user.telegram_id,
+                            message,
+                            parse_mode="HTML",
+                        )
+
+                    downgraded_count += 1
+                    logger.info(f"Downgraded user {user.id} from {old_plan} to FREE")
+
+                except TelegramForbiddenError:
+                    logger.warning(f"User blocked bot, skipping plan expired notification for user {user.id}")
+                    # Всё равно сбрасываем тариф
+                    downgraded_count += 1
+                except Exception as e:
+                    logger.error(f"Error expiring plan for user {user.id}: {e}")
+                    error_count += 1
+
+            await bot.session.close()
+
+        return {
+            "status": "ok",
+            "downgraded": downgraded_count,
+            "errors": error_count,
+        }
+
+    try:
+        return asyncio.run(_notify_expired_async())
+    except Exception as e:
+        logger.error(f"notify_expired_plans failed: {e}")
+        return {"status": "error", "error": str(e), "downgraded": 0}

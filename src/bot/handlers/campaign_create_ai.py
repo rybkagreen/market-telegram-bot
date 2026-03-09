@@ -908,3 +908,28 @@ async def manual_text_requested(callback: CallbackQuery, state: FSMContext) -> N
     )
 
     await safe_callback_edit(callback, text)
+
+
+# ──────────────────────────────────────────────────────────────
+# TASK 7: Отмена создания AI-кампании
+# ──────────────────────────────────────────────────────────────
+
+@router.callback_query(CampaignCreateCB.filter(F.step == "cancel"))
+async def cancel_ai_campaign(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Отменить создание AI-кампании из любого шага.
+    """
+    await state.clear()
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+    text = "❌ <b>Создание кампании отменено</b>\n\nВы вернулись в главное меню."
+
+    if user:
+        from src.bot.keyboards.main_menu import get_main_menu
+        keyboard = get_main_menu(user.credits, user.id)
+        await safe_callback_edit(callback, text, reply_markup=keyboard)
+    else:
+        await safe_callback_edit(callback, text)

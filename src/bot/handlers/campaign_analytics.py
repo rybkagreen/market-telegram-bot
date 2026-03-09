@@ -20,7 +20,6 @@ from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.campaign_analytics_ai import campaign_analytics_ai
 from src.db.models.campaign import Campaign
 from src.db.models.mailing_log import MailingLog
-from src.db.session import async_session_factory
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 

@@ -14,7 +14,6 @@ from src.bot.utils.message_utils import safe_edit_message
 from src.core.services.analytics_service import analytics_service
 from src.core.services.user_role_service import UserRoleService
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
-from src.db.session import async_session_factory
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -317,7 +316,7 @@ async def handle_user_summary(callback: CallbackQuery) -> None:
             return
 
         # Получаем топ тематику из БД
-        analytics_repo = ChatAnalyticsRepository(svc._session)
+        analytics_repo = ChatAnalyticsRepository(session)
         top_topic = await analytics_repo.get_top_topic(user.id) or "Нет данных"
 
         # Форматируем успешность с прогресс-баром
@@ -350,8 +349,8 @@ async def handle_campaigns_stats(callback: CallbackQuery) -> None:
         callback: Callback query.
     """
     async with async_session_factory() as session:
-        user_repo = UserRepository(session)
-        campaigns, total = await svc.get_campaigns_page(
+        UserRepository(session)
+        campaigns, total = await analytics_service.get_campaigns_page(
             telegram_id=callback.from_user.id,
             page=1,
             per_page=10,
@@ -520,16 +519,14 @@ async def handle_topics_distribution(callback: CallbackQuery) -> None:
         from sqlalchemy import select
 
         from src.db.models.campaign import Campaign
-        from src.db.session import async_session_factory
 
-        async with async_session_factory() as session:
-            result = await session.execute(
-                select(Campaign.filters_json).where(
-                    Campaign.user_id == user.id,
-                    Campaign.status == "done",
-                )
+        result = await session.execute(
+            select(Campaign.filters_json).where(
+                Campaign.user_id == user.id,
+                Campaign.status == "done",
             )
-            rows = result.scalars().all()
+        )
+        rows = result.scalars().all()
 
         # Подсчитываем тематики
         from collections import Counter
