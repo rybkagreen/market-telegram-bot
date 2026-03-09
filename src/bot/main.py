@@ -38,6 +38,7 @@ from src.bot.handlers.admin import (
     campaigns_router,
     users_router,
 )
+from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
 from src.config.settings import settings
 
@@ -86,13 +87,15 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     """
     # Import all models to ensure SQLAlchemy relationships are resolved
     from src.db.models import __all__ as models_all  # noqa: F401
-    
+
     storage = RedisStorage(redis)
     dp = Dispatcher(storage=storage)
 
     # Регистрация middleware
     dp.message.middleware(ThrottlingMiddleware(redis))
     dp.callback_query.middleware(ThrottlingMiddleware(redis))
+    dp.message.middleware(FSMTimeoutMiddleware())
+    dp.callback_query.middleware(FSMTimeoutMiddleware())
 
     # Регистрация роутеров — admin последним (у него глобальный фильтр)!
     dp.include_router(start.router)
