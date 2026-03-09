@@ -90,7 +90,13 @@ class CampaignRepository(BaseRepository[Campaign]):
         Returns:
             Обновленная кампания или None.
         """
-        campaign = await self.get_by_id(campaign_id)
+        # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
+        from sqlalchemy import select
+
+        stmt = select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+        result = await self.session.execute(stmt)
+        campaign = result.scalar_one_or_none()
+
         if campaign is None:
             return None
 
