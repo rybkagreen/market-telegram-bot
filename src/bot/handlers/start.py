@@ -207,6 +207,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 await state.clear()
                 # Продолжаем обычную логику ниже
             else:
+                # ✅ Сбросить состояние перед показом меню
+                await state.clear()
+
                 # Пользователь всё ещё в онбординге — показываем меню без онбординга
                 plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
                 text = (
