@@ -8,7 +8,16 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.settings import settings
@@ -177,7 +186,7 @@ class User(Base, TimestampMixin):
         Integer,
         default=0,
         nullable=False,
-        server_default='0',
+        server_default="0",
         doc="XP рекламодателя (за запуск кампаний)",
     )
 
@@ -185,7 +194,7 @@ class User(Base, TimestampMixin):
         Integer,
         default=0,
         nullable=False,
-        server_default='0',
+        server_default="0",
         doc="XP владельца (за публикации в канале)",
     )
 
@@ -193,7 +202,7 @@ class User(Base, TimestampMixin):
         Integer,
         default=1,
         nullable=False,
-        server_default='1',
+        server_default="1",
         doc="Уровень рекламодателя",
     )
 
@@ -201,7 +210,7 @@ class User(Base, TimestampMixin):
         Integer,
         default=1,
         nullable=False,
-        server_default='1',
+        server_default="1",
         doc="Уровень владельца канала",
     )
 
@@ -367,6 +376,8 @@ class User(Base, TimestampMixin):
     # Индексы
     __table_args__ = (
         UniqueConstraint("telegram_id", name="uq_users_telegram_id"),
+        CheckConstraint("credits >= 0", name="ck_users_credits_positive"),
+        CheckConstraint("balance >= 0", name="ck_users_balance_positive"),
         {
             "comment": "Пользователи Telegram бота",
         },
