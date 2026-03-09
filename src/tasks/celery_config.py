@@ -34,7 +34,7 @@ BEAT_SCHEDULE = {
     "check-low-balance": {
         "task": "src.tasks.notification_tasks.check_low_balance",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing", "priority": 8},
+        "options": {"queue": "mailing", "priority": 8, "expires": 60},
     },
     # Обновление статистики чатов — каждые 6 часов
     "update-chat-statistics": {
@@ -82,25 +82,25 @@ BEAT_SCHEDULE = {
     "auto-approve-placements": {
         "task": "src.tasks.notification_tasks.auto_approve_placements",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing", "priority": 7},
+        "options": {"queue": "mailing", "priority": 7, "expires": 60},
     },
     # TASK 6: Напоминания о заявках — каждые 2 часа
     "placement-reminders": {
         "task": "src.tasks.notification_tasks.notify_pending_placement_reminders",
         "schedule": crontab(minute=0, hour="*/2"),
-        "options": {"queue": "mailing", "priority": 6},
+        "options": {"queue": "mailing", "priority": 6, "expires": 120},
     },
     # TASK 8: Уведомления об истечении тарифа — ежедневно в 10:00 UTC
     "notify-expiring-plans": {
         "task": "src.tasks.notification_tasks.notify_expiring_plans",
         "schedule": crontab(hour=10, minute=0),
-        "options": {"queue": "mailing", "priority": 8},
+        "options": {"queue": "mailing", "priority": 8, "expires": 300},
     },
     # TASK 8: Уведомления об истёкшем тарифе — ежедневно в 10:05 UTC
     "notify-expired-plans": {
         "task": "src.tasks.notification_tasks.notify_expired_plans",
         "schedule": crontab(hour=10, minute=5),
-        "options": {"queue": "mailing", "priority": 8},
+        "options": {"queue": "mailing", "priority": 8, "expires": 300},
     },
     # TASK 8.3: Ежедневная проверка достижений — ежедневно в 00:00 UTC
     "daily-badge-check": {
