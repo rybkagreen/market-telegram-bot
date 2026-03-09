@@ -21,11 +21,15 @@ WORKDIR /app
 # Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем установленные пакеты из builder
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Устанавливаем psutil для мониторинга
+RUN pip install --no-cache-dir psutil
 
 # Копируем исходный код
 COPY src/ ./src/
