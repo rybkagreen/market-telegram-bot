@@ -388,7 +388,7 @@ class User(Base):
     telegram_id: int             # UNIQUE, BIGINT
     username: str | None
     first_name: str | None
-    credits: int                 # баланс в кредитах (1 кр = 1₽)
+    credits: int                 # баланс в кредитах (1 кр = 1₽), CHECK >= 0
     plan: UserPlan               # FREE/STARTER/PRO/BUSINESS
     plan_expires_at: datetime    # когда истекает тариф
     ai_generations_used: int     # счётчик ИИ в текущем месяце
@@ -410,7 +410,7 @@ class Campaign(Base):
     status: CampaignStatus       # draft/queued/running/done/error/paused/banned
     filters_json: dict           # {topics, min_members, max_members}
     scheduled_at: datetime | None
-    cost: Decimal                # стоимость в кредитах
+    cost: Decimal                # стоимость в кредитах, CHECK >= 0
     total_chats: int             # всего чатов
     sent_count: int              # отправлено
     failed_count: int            # ошибок
@@ -442,14 +442,45 @@ class TelegramChat(Base):
 class Transaction(Base):
     id: int                      # PK
     user_id: int                 # FK → User
-    amount: Decimal              # сумма в рублях
+    amount: Decimal              # сумма в рублях, CHECK > 0
     type: TransactionType        # topup/spend/bonus/adjustment
-    payment_id: str | None       # ID в платёжной системе
+    payment_id: str | None       # ID в платёжной системе, UNIQUE
     meta_json: dict              # {credits, description, ...}
     created_at: datetime
 ```
 
+### Целостность базы данных
+
+**Check Constraints:**
+- `ck_users_credits_positive` — `credits >= 0`
+- `ck_users_balance_positive` — `balance >= 0`
+- `ck_campaigns_cost_positive` — `cost >= 0`
+- `ck_transactions_amount_positive` — `amount > 0`
+
+**Unique Constraints:**
+- `uq_users_telegram_id` — `users.telegram_id`
+- `uq_users_referral_code` — `users.referral_code`
+- `uq_transactions_payment_id` — `transactions.payment_id`
+- `uq_mailing_logs_campaign_chat` — `(campaign_id, chat_telegram_id)`
+
+**Foreign Keys с CASCADE:**
+- `campaigns.user_id` → `users.id` (ON DELETE CASCADE)
+- `transactions.user_id` → `users.id` (ON DELETE CASCADE)
+- `mailing_logs.campaign_id` → `campaigns.id` (ON DELETE CASCADE)
+- `mailing_logs.chat_id` → `telegram_chats.id` (ON DELETE SET NULL)
+
+**Индексы:**
+- `ix_users_telegram_id` — поиск по Telegram ID
+- `ix_campaigns_user_status` — фильтрация кампаний по пользователю и статусу
+- `ix_campaigns_status` — фильтрация по статусу
+- `ix_transactions_user_type` — фильтрация транзакций по типу
+- `ix_mailing_logs_status_campaign` — фильтрация логов по статусу
+
+---
+
 ### Миграции
+
+**Alembic** управляет миграциями базы данных.
 
 ```bash
 # Создать новую миграцию
@@ -463,9 +494,27 @@ poetry run alembic downgrade -1
 
 # Проверить статус
 poetry run alembic current
+
+# Показать историю миграций
+poetry run alembic history
 ```
 
-**Последняя миграция:** `20260303_180000_a1b2c3d4e5f7_add_language_russian_score.py`
+**Текущая миграция:** `8885dc6d508e (head)` — add_check_constraint_transactions_amount
+
+**История миграций:**
+```
+<base> -> 0014 (Previous schema migration - placeholder)
+0014 -> 0015 (Initial schema - create all tables)
+0015 -> d58411813eee (add_check_constraints_users)
+d58411813eee -> 49ba417be2a8 (add_check_constraint_campaigns_cost)
+49ba417be2a8 -> 8885dc6d508e (add_check_constraint_transactions_amount) [HEAD]
+```
+
+**Check Constraints в БД:**
+- `ck_users_credits_positive` — credits >= 0
+- `ck_users_balance_positive` — balance >= 0
+- `ck_campaigns_cost_positive` — cost >= 0
+- `ck_transactions_amount_positive` — amount > 0
 
 ---
 

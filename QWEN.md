@@ -116,12 +116,22 @@ All models inherit from `TimestampMixin` (adds `created_at`, `updated_at`).
 
 | Model | Key fields |
 |---|---|
-| `User` | `telegram_id` (BigInt PK), `username`, `balance` (Numeric 12,2), `plan` (Enum), `referral_code`, `is_banned` |
-| `Campaign` | `id`, `user_id` (FK), `title`, `text`, `status` (Enum: draft/queued/running/done/error), `filters_json` (JSONB), `scheduled_at` |
-| `Chat` | `telegram_id` (BigInt UNIQUE), `title`, `username`, `member_count`, `topic`, `is_active`, `rating` (Float), `last_checked` |
-| `MailingLog` | `campaign_id` (FK), `chat_id` (FK), `status` (Enum: sent/failed/skipped), `error_msg`, `sent_at` |
-| `Transaction` | `user_id` (FK), `amount` (Numeric), `type` (Enum: topup/spend), `payment_id`, `meta_json` (JSONB) |
-| `ContentFlag` | `campaign_id` (FK), `categories` (ARRAY), `flagged_fragments` (JSONB), `decision` (Enum), `reviewed_by` |
+| `User` | `telegram_id` (BigInt PK, UNIQUE), `username`, `balance` (Numeric 12,2, **CHECK >= 0**), `credits` (Int, **CHECK >= 0**), `plan` (Enum), `referral_code` (UNIQUE), `is_banned` |
+| `Campaign` | `id`, `user_id` (FK → CASCADE), `title`, `text`, `status` (Enum), `filters_json` (JSONB), `scheduled_at`, `cost` (Numeric, **CHECK >= 0**) |
+| `Chat` | `telegram_id` (BigInt UNIQUE), `title`, `username` (UNIQUE), `member_count`, `topic`, `is_active`, `rating` (Float), `last_checked` |
+| `MailingLog` | `campaign_id` (FK → CASCADE), `chat_id` (FK → SET NULL), `status` (Enum), `error_msg`, `sent_at`, `cost` (Numeric) |
+| `Transaction` | `user_id` (FK → CASCADE), `amount` (Numeric, **CHECK > 0**), `type` (Enum), `payment_id` (UNIQUE), `meta_json` (JSONB) |
+| `ContentFlag` | `campaign_id` (FK → CASCADE), `categories` (ARRAY), `flagged_fragments` (JSONB), `decision` (Enum), `reviewed_by` |
+
+### Database Integrity (Спринт 11)
+
+**Check Constraints:**
+- `ck_users_credits_positive` — `credits >= 0`
+- `ck_users_balance_positive` — `balance >= 0`
+- `ck_campaigns_cost_positive` — `cost >= 0`
+- `ck_transactions_amount_positive` — `amount > 0`
+
+**Migrations:** Alembic (5 миграций, текущая: `8885dc6d508e`)
 
 ---
 
