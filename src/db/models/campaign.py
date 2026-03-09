@@ -189,6 +189,14 @@ class Campaign(Base, TimestampMixin):
         doc="JSONB с фильтрами таргетинга (темы, размер чатов, blacklist)",
     )
 
+    # Метаданные (JSONB) — для хранения celery_task_id и других данных
+    meta_json: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        default=None,
+        doc="JSONB с метаданными (celery_task_id, tracking_enabled, и др.)",
+    )
+
     # Планирование
     scheduled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

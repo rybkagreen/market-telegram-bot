@@ -79,12 +79,12 @@ class Payout(Base, TimestampMixin):
         doc="ID канала (telegram_chats.id)",
     )
 
-    placement_id: Mapped[int] = mapped_column(
+    placement_id: Mapped[int | None] = mapped_column(
         ForeignKey("mailing_logs.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
+        nullable=True,
+        default=None,
         index=True,
-        doc="ID размещения (mailing_logs.id)",
+        doc="ID размещения (mailing_logs.id). NULL для агрегированных выплат",
     )
 
     # Суммы

@@ -5,23 +5,23 @@ Revises: previous_revision
 Create Date: 2026-03-08 14:10:04.000000
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+from datetime import UTC
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '20260308_141004'
-down_revision: Union[str, None] = None  # Will be set by Alembic
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None  # Will be set by Alembic
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """Create topic_categories table and populate with data."""
-    from datetime import datetime, timezone
-    
+    from datetime import datetime
+
     # Create table
     op.create_table(
         'topic_categories',
@@ -37,19 +37,19 @@ def upgrade() -> None:
         sa.UniqueConstraint('topic', 'subcategory', name='uq_topic_subcategory'),
         comment='Категории и подкатегории Telegram каналов'
     )
-    
+
     # Create indexes
     op.create_index('ix_topic_categories_topic', 'topic_categories', ['topic'])
     op.create_index('ix_topic_categories_subcategory', 'topic_categories', ['subcategory'])
     op.create_index('ix_topic_categories_is_active', 'topic_categories', ['is_active'])
-    
+
     # Populate with data from categories.py
     from src.utils.categories import SUBCATEGORIES
-    
+
     categories_data = []
     sort_order = 0
-    now = datetime.now(timezone.utc)
-    
+    now = datetime.now(UTC)
+
     for topic, subcats in SUBCATEGORIES.items():
         for subcat, display_name in subcats.items():
             categories_data.append({
@@ -62,7 +62,7 @@ def upgrade() -> None:
                 'updated_at': now,
             })
             sort_order += 1
-    
+
     # Bulk insert
     op.bulk_insert(
         sa.table(

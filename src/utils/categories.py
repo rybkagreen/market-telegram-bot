@@ -18,14 +18,14 @@
 # Ключи верхнего уровня = реальные значения TelegramChat.topic
 # Это FALLBACK на случай недоступности БД
 SUBCATEGORIES: dict[str, dict[str, str]] = {
-    "бизнес": {
+    "business": {
         "startup": "Стартапы и инновации",
         "small_business": "Малый бизнес и ИП",
         "franchise": "Франчайзинг",
         "personal_finance": "Личные финансы",
         "real_estate": "Недвижимость",
     },
-    "маркетинг": {
+    "marketing": {
         "digital": "Digital-маркетинг",
         "smm": "SMM и соцсети",
         "target_ads": "Таргетированная реклама",
@@ -42,24 +42,41 @@ SUBCATEGORIES: dict[str, dict[str, str]] = {
         "security": "Кибербезопасность",
         "gamedev": "Разработка игр",
     },
-    "финансы": {
+    "finance": {
         "investments": "Инвестиции и трейдинг",
         "stock_market": "Фондовый рынок",
         "banking": "Банки и вклады",
         "insurance": "Страхование",
     },
-    "крипто": {
+    "crypto": {
         "defi": "DeFi и протоколы",
         "nft": "NFT",
         "trading": "Крипто-трейдинг",
         "bitcoin": "Bitcoin и Ethereum",
     },
-    "образование": {
+    "education": {
         "online_courses": "Онлайн-курсы",
         "languages": "Изучение языков",
         "professional": "Профессии и переквалификация",
         "kids": "Детское образование",
         "university": "Высшее образование",
+    },
+    "health": {
+        "fitness": "Фитнес и спорт",
+        "nutrition": "Питание и диеты",
+        "mental_health": "Психическое здоровье",
+        "medicine": "Медицина и здоровье",
+    },
+    "news": {
+        "politics": "Политика",
+        "world": "Мировые новости",
+        "tech_news": "Технологические новости",
+        "economy": "Экономика",
+    },
+    "other": {
+        "humor": "Юмор",
+        "lifestyle": "Образ жизни",
+        "hobbies": "Хобби",
     },
 }
 
@@ -113,6 +130,11 @@ SUBCATEGORY_KEYWORDS: dict[str, list[str]] = {
     "professional": ["профессия", "переквалификация", "смена профессии", "карьера"],
     "kids": ["детское", "дети", "школьники", "подготовка к школе", "репетитор"],
     "university": ["университет", "вуз", "абитуриент", "егэ", "бакалавр", "магистр"],
+    # здоровье
+    "fitness": ["фитнес", "спорт", "тренировки", "зал", "качалка", "воркаут"],
+    "nutrition": ["питание", "диета", "пп", "еда", "здоровое питание"],
+    "mental_health": ["психология", "психотерапия", "ментальное здоровье", "стресс"],
+    "medicine": ["медицина", "здоровье", "врач", "болезни", "лечение"],
 }
 
 
@@ -138,11 +160,26 @@ def classify_subcategory(
     # Нормализуем topic к нижнему регистру для сравнения
     topic_lower = topic.lower()
 
-    if topic_lower not in SUBCATEGORIES:
+    # Маппинг русских тем на английские ключи
+    topic_mapping = {
+        "бизнес": "business",
+        "финансы": "finance",
+        "крипто": "crypto",
+        "образование": "education",
+        "маркетинг": "marketing",
+        "новости": "news",
+        "другое": "other",
+        "здоровье": "health",
+    }
+    
+    # Используем маппинг если topic на русском
+    topic_key = topic_mapping.get(topic_lower, topic_lower)
+
+    if topic_key not in SUBCATEGORIES:
         return None
 
     text = f"{title or ''} {description or ''}".lower()
-    valid_subcats = set(SUBCATEGORIES[topic_lower].keys())
+    valid_subcats = set(SUBCATEGORIES[topic_key].keys())
 
     scores: dict[str, int] = {}
     for subcat, keywords in SUBCATEGORY_KEYWORDS.items():

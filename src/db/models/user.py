@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
     from src.db.models.badge import UserBadge
     from src.db.models.campaign import Campaign
+    from src.db.models.channel_mediakit import ChannelMediakit
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
     from src.db.models.payout import Payout
@@ -122,6 +123,13 @@ class User(Base, TimestampMixin):
         DateTime(timezone=True),
         nullable=True,
         doc="Когда истекает текущий тариф",
+    )
+
+    plan_expiry_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+        doc="Когда отправлено уведомление об истечении тарифа (для защиты от повторов)",
     )
 
     ai_generations_used: Mapped[int] = mapped_column(
@@ -346,6 +354,14 @@ class User(Base, TimestampMixin):
         lazy="select",
         cascade="all, delete-orphan",
         doc="Значки пользователя",
+    )
+
+    # Медиакиты каналов (Спринт 9)
+    mediakits: Mapped[list["ChannelMediakit"]] = relationship(
+        "ChannelMediakit",
+        back_populates="owner",
+        lazy="select",
+        doc="Медиакиты каналов владельца",
     )
 
     # Индексы
