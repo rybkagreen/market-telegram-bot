@@ -10,6 +10,7 @@ from pathlib import Path
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StateProxy
 from aiogram.types import (
     CallbackQuery,
     FSInputFile,
@@ -867,3 +868,37 @@ async def handle_onboarding(callback: CallbackQuery, callback_data: OnboardingCB
         )
 
     await callback.answer()
+
+
+# ─────────────────────────────────────────────
+# Глобальный /cancel handler (Спринт 11)
+# ─────────────────────────────────────────────
+
+@router.message(Command("cancel"))
+async def cancel_fsm_handler(message: Message, state: StateProxy) -> None:
+    """
+    Глобальная команда для сброса любого FSM состояния.
+    Работает из любого состояния.
+    """
+    from src.bot.keyboards.main_menu import get_main_menu
+
+    current_state = await state.get_state()
+
+    if current_state and current_state != "-":
+        await state.clear()
+        await message.answer(
+            "❌ <b>Диалог отменён</b>\n\n"
+            "Выберите действие в меню:",
+            reply_markup=get_main_menu(),
+        )
+        logger.info(f"FSM cancelled for user {message.from_user.id}")  # type: ignore[union-attr]
+    else:
+        # Нет активного состояния — показать справку
+        await message.answer(
+            "ℹ️ <b>Нет активного диалога</b>\n\n"
+            "Используйте команды:\n"
+            "/start — Главное меню\n"
+            "/help — Помощь\n"
+            "/cabinet — Личный кабинет\n"
+            "/cancel — Отменить текущий диалог"
+        )
