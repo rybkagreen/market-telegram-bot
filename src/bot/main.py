@@ -22,6 +22,7 @@ from src.bot.handlers import (
     campaigns,
     channel_owner,  # Владельцы каналов (Спринт 0)
     channels_db,  # База каналов
+    comparison,  # Сравнение каналов (Спринт 10)
     feedback,
     help,  # Раздел Помощь (Спринт 5)
     models,
@@ -83,6 +84,9 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     Returns:
         Dispatcher: Настроенный диспетчер.
     """
+    # Import all models to ensure SQLAlchemy relationships are resolved
+    from src.db.models import __all__ as models_all  # noqa: F401
+    
     storage = RedisStorage(redis)
     dp = Dispatcher(storage=storage)
 
@@ -105,6 +109,7 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.include_router(analytics.router)
     dp.include_router(analytics_chats.router)
     dp.include_router(channels_db.router)  # База каналов
+    dp.include_router(comparison.router)  # Сравнение каналов (Спринт 10)
     dp.include_router(templates.router)
     dp.include_router(feedback.router)
     dp.include_router(help.router)  # Раздел Помощь (Спринт 5)

@@ -392,6 +392,18 @@ class CampaignSender:
 
             # Получаем фильтры из кампании
             filters = getattr(campaign, 'filters_json', {}) or {}
+
+            # Проверка флага "один предвыбранный канал"
+            if filters.get('use_preselected_only'):
+                from src.db.models.analytics import TelegramChat
+
+                channel_id = filters.get('preselected_channel_id')
+                if channel_id:
+                    # Вернуть только один канал
+                    chat = await session.get(TelegramChat, channel_id)
+                    return [chat] if chat else []
+
+            # Стандартная логика выбора каналов из каталога
             topic = filters.get('topic')
             min_members = filters.get('min_members', 100)
             max_members = filters.get('max_members')

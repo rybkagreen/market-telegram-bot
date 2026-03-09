@@ -55,25 +55,25 @@ def upgrade() -> None:
         server_default=None,
         existing_nullable=False,
     )
-    
+
     # Production fix: Check index existence before dropping
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    
+
     has_language_index = any(
         idx["name"] == "ix_telegram_chats_language"
         for idx in inspector.get_indexes("telegram_chats")
     )
     if has_language_index:
         op.drop_index(op.f("ix_telegram_chats_language"), table_name="telegram_chats")
-    
+
     has_russian_score_index = any(
         idx["name"] == "ix_telegram_chats_russian_score"
         for idx in inspector.get_indexes("telegram_chats")
     )
     if has_russian_score_index:
         op.drop_index(op.f("ix_telegram_chats_russian_score"), table_name="telegram_chats")
-    
+
     # Production fix: Check column existence before adding
     has_notifications_column = any(
         col["name"] == "notifications_enabled"
