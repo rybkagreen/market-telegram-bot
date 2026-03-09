@@ -40,16 +40,14 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
     """
     # ✅ ПРОВЕРКА НА ДУБЛИКАТ — предотвращаем повторный запуск
     task_key = f"campaign_running:{campaign_id}"
-    existing_task_id = redis_client.get(task_key)
+    existing_task_id = asyncio.run(redis_client.get(task_key))
 
     if existing_task_id:
-        logger.warning(
-            f"Campaign {campaign_id} already running (task: {existing_task_id})"
-        )
+        logger.warning(f"Campaign {campaign_id} already running (task: {existing_task_id})")
         return {"skipped": "Already running"}
 
     # Установить блокировку на 2 часа (максимальное время кампании)
-    redis_client.setex(task_key, 7200, self.request.id)
+    asyncio.run(redis_client.setex(task_key, 7200, self.request.id))
 
     logger.info(f"Starting campaign {campaign_id}")
 
@@ -57,7 +55,7 @@ def send_campaign(self, campaign_id: int) -> dict[str, Any]:
         return _execute_campaign(campaign_id)
     finally:
         # Очистить блокировку после завершения
-        redis_client.delete(task_key)
+        asyncio.run(redis_client.delete(task_key))
 
 
 def _execute_campaign(campaign_id: int) -> dict[str, Any]:
@@ -70,6 +68,7 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
     Returns:
         Статистика отправки.
     """
+
     async def _send_async() -> dict[str, Any]:
         from aiogram import Bot
         from sqlalchemy import select
@@ -150,7 +149,9 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
 
                         released = await billing_service.release_escrow_funds(mailing_log.id)
                         if not released:
-                            logger.warning(f"Failed to release escrow for placement {mailing_log.id}")
+                            logger.warning(
+                                f"Failed to release escrow for placement {mailing_log.id}"
+                            )
 
                         # Спринт 5: Начисляем XP владельцу канала за публикацию
                         if chat.owner_user_id and mailing_log.id:
@@ -165,18 +166,48 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
 
                         # TASK 3: Отправить запрос отзыва владельцу о рекламодателе
                         if chat.owner_user_id:
-                            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+                            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup  # noqa: I001
+                            from src.bot.main import bot as telegram_bot  # type: ignore[attr-defined]  # legacy bot instance
 
-                            from src.bot.main import bot as telegram_bot
-
-                            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                                [InlineKeyboardButton(text="⭐⭐⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:5")],
-                                [InlineKeyboardButton(text="⭐⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:4")],
-                                [InlineKeyboardButton(text="⭐⭐⭐", callback_data=f"owner_review:{mailing_log.id}:3")],
-                                [InlineKeyboardButton(text="⭐⭐", callback_data=f"owner_review:{mailing_log.id}:2")],
-                                [InlineKeyboardButton(text="⭐", callback_data=f"owner_review:{mailing_log.id}:1")],
-                                [InlineKeyboardButton(text="⏭ Пропустить", callback_data="owner_review_skip")],
-                            ])
+                            keyboard = InlineKeyboardMarkup(
+                                inline_keyboard=[
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⭐⭐⭐⭐⭐",
+                                            callback_data=f"owner_review:{mailing_log.id}:5",
+                                        )
+                                    ],
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⭐⭐⭐⭐",
+                                            callback_data=f"owner_review:{mailing_log.id}:4",
+                                        )
+                                    ],
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⭐⭐⭐",
+                                            callback_data=f"owner_review:{mailing_log.id}:3",
+                                        )
+                                    ],
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⭐⭐",
+                                            callback_data=f"owner_review:{mailing_log.id}:2",
+                                        )
+                                    ],
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⭐",
+                                            callback_data=f"owner_review:{mailing_log.id}:1",
+                                        )
+                                    ],
+                                    [
+                                        InlineKeyboardButton(
+                                            text="⏭ Пропустить", callback_data="owner_review_skip"
+                                        )
+                                    ],
+                                ]
+                            )
 
                             try:
                                 await telegram_bot.send_message(
@@ -317,6 +348,7 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
 
             # TASK 8.5: Триггер проверки достижений после завершения кампании
             from src.tasks.badge_tasks import trigger_after_campaign_complete
+
             trigger_after_campaign_complete.delay(campaign.user_id)
 
             logger.info(
@@ -335,9 +367,7 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
     except RuntimeError as e:
         # Обрабатываем ошибки закрытия event loop
         if "Event loop is closed" in str(e) or "handler is closed" in str(e):
-            logger.warning(
-                f"Event loop closed during campaign {campaign_id} (non-critical): {e}"
-            )
+            logger.warning(f"Event loop closed during campaign {campaign_id} (non-critical): {e}")
             return {"error": "Event loop closed", "recovered": True}
         logger.error(f"Error in _execute_campaign: {e}")
         return {"error": str(e)}
@@ -442,7 +472,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
     # Создаём новый event loop для async операций
     # Это предотвращает конфликт с event loop Celery
     import asyncio
-    
+
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -456,6 +486,7 @@ def check_scheduled_campaigns(self) -> dict[str, Any]:
 # ─────────────────────────────────────────────
 # Задача автоодобрения заявок (Спринт 1)
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="mailing:auto_approve_pending_placements")
 def auto_approve_pending_placements() -> dict:
@@ -483,12 +514,9 @@ def auto_approve_pending_placements() -> dict:
             # Найдем все PENDING_APPROVAL размещения старше 24 часов
             from sqlalchemy import select
 
-            stmt = (
-                select(MailingLog)
-                .where(
-                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
-                    MailingLog.created_at < deadline,
-                )
+            stmt = select(MailingLog).where(
+                MailingLog.status == MailingStatus.PENDING_APPROVAL,
+                MailingLog.created_at < deadline,
             )
             result = await session.execute(stmt)
             placements = result.scalars().all()
@@ -519,6 +547,7 @@ def auto_approve_pending_placements() -> dict:
 # ─────────────────────────────────────────────
 # Публикация отдельного placement (для автоодобрения)
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="mailing:publish_single_placement")
 def publish_single_placement(placement_id: int) -> dict:
@@ -553,16 +582,20 @@ def publish_single_placement(placement_id: int) -> dict:
                 return {"error": "Placement not found"}
 
             if placement.status != MailingStatus.QUEUED:
-                logger.warning(f"publish_single_placement: placement {placement_id} status is {placement.status}, expected QUEUED")
+                logger.warning(
+                    f"publish_single_placement: placement {placement_id} status is {placement.status}, expected QUEUED"
+                )
                 return {"skipped": f"Status is {placement.status}"}
 
             # Получить кампанию
             stmt = select(Campaign).where(Campaign.id == placement.campaign_id)
             result = await session.execute(stmt)
-            campaign = result.scalar_one_or_none()
+            campaign: Campaign | None = result.scalar_one_or_none()
 
-            if not campaign:
-                logger.error(f"publish_single_placement: campaign {placement.campaign_id} not found")
+            if campaign is None:
+                logger.error(
+                    f"publish_single_placement: campaign {placement.campaign_id} not found"
+                )
                 return {"error": "Campaign not found"}
 
             # Отправить пост в канал
@@ -574,23 +607,28 @@ def publish_single_placement(placement_id: int) -> dict:
 
                 stmt = select(TelegramChat).where(TelegramChat.id == placement.chat_id)
                 result = await session.execute(stmt)
-                chat = result.scalar_one_or_none()
+                chat: TelegramChat | None = result.scalar_one_or_none()
 
-                if not chat or not chat.telegram_id:
+                if chat is None:
                     logger.error(f"publish_single_placement: channel {placement.chat_id} not found")
                     return {"error": "Channel not found"}
 
+                if chat.telegram_id is None:
+                    logger.error(f"publish_single_placement: channel {placement.chat_id} has no telegram_id")
+                    return {"error": "Channel has no telegram_id"}
+
                 # Отправить сообщение
+                chat_telegram_id = chat.telegram_id
                 if campaign.image_file_id:
                     await bot.send_photo(
-                        chat_id=chat.telegram_id,
+                        chat_id=chat_telegram_id,
                         photo=campaign.image_file_id,
                         caption=campaign.text,
                         parse_mode="HTML",
                     )
                 else:
                     await bot.send_message(
-                        chat_id=chat.telegram_id,
+                        chat_id=chat_telegram_id,
                         text=campaign.text,
                         parse_mode="HTML",
                     )
@@ -603,12 +641,16 @@ def publish_single_placement(placement_id: int) -> dict:
                 placement.message_id = None  # Можно сохранить ID сообщения если нужно
                 await session.flush()
 
-                logger.info(f"publish_single_placement: published placement {placement_id} to channel {chat.telegram_id}")
+                logger.info(
+                    f"publish_single_placement: published placement {placement_id} to channel {chat_telegram_id}"
+                )
 
                 return {"success": True, "placement_id": placement_id}
 
             except Exception as e:
-                logger.error(f"publish_single_placement: failed to publish placement {placement_id}: {e}")
+                logger.error(
+                    f"publish_single_placement: failed to publish placement {placement_id}: {e}"
+                )
                 placement.status = MailingStatus.FAILED
                 placement.error_msg = str(e)
                 await session.flush()

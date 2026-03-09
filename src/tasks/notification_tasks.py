@@ -122,7 +122,9 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
         await bot.session.close()
 
 
-@celery_app.task(name="notifications:notify_campaign_status", bind=True, max_retries=3, queue="notifications")
+@celery_app.task(
+    name="notifications:notify_campaign_status", bind=True, max_retries=3, queue="notifications"
+)
 def notify_campaign_status(
     self,
     user_id: int,
@@ -157,9 +159,7 @@ def notify_campaign_status(
             error_str = str(exc).lower()
             # Не повторяем попыток если пользователь заблокировал бота
             if "chat not found" in error_str or "blocked" in error_str:
-                logger.warning(
-                    f"User {user_id} blocked the bot, skipping campaign notification"
-                )
+                logger.warning(f"User {user_id} blocked the bot, skipping campaign notification")
                 return
             logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
             raise self.retry(countdown=60, exc=exc) from exc
@@ -204,15 +204,15 @@ def notify_user(
     """
     # ✅ ПРОВЕРКА НА ДУБЛИКАТ — предотвращаем повторную отправку
     # Дедупликация в течение 5 минут по (telegram_id, hash(message))
-    message_hash = hashlib.md5(message.encode()).hexdigest()
+    message_hash = hashlib.sha256(message.encode()).hexdigest()
     dedup_key = f"notification:{telegram_id}:{message_hash}"
 
-    if redis_client.exists(dedup_key):
+    if asyncio.run(redis_client.exists(dedup_key)):
         logger.debug(f"Duplicate notification skipped: {dedup_key}")
         return False
 
     # Установить блокировку на 5 минут
-    redis_client.setex(dedup_key, 300, "1")
+    asyncio.run(redis_client.setex(dedup_key, 300, "1"))
 
     try:
         asyncio.run(_notify_user_async(telegram_id, message, parse_mode))
@@ -271,6 +271,7 @@ async def _notify_user_async(
 # ─────────────────────────────────────────────
 # Уведомления владельца о заявках (Спринт 1)
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="notifications:notify_owner_new_placement", queue="notifications")
 def notify_owner_new_placement_task(placement_id: int) -> bool:
@@ -350,9 +351,7 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
             except Exception as e:
                 error_str = str(e).lower()
                 if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(
-                        f"Owner {owner.telegram_id} blocked the bot: {e}"
-                    )
+                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
                     return False
                 logger.error(f"Error notifying owner about placement {placement_id}: {e}")
                 return False
@@ -370,6 +369,7 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
 # Уведомления о выплатах (Спринт 1)
 # ─────────────────────────────────────────────
 
+
 @celery_app.task(name="notifications:notify_owner_xp_for_publication", queue="notifications")
 def notify_owner_xp_for_publication(
     owner_id: int,
@@ -384,6 +384,7 @@ def notify_owner_xp_for_publication(
         channel_id: ID канала.
         placement_id: ID размещения.
     """
+
     async def _add_xp() -> bool:
         from src.core.services.xp_service import xp_service
 
@@ -398,6 +399,7 @@ def notify_owner_xp_for_publication(
             logger.info(f"Owner {owner_id} leveled up to {new_level} (owner XP)")
             # Можно отправить уведомление о повышении уровня
             from src.tasks.notification_tasks import notify_level_up
+
             notify_level_up.delay(owner_id, new_level)
 
         return True
@@ -456,9 +458,7 @@ def notify_payout_created_task(payout_id: int) -> bool:
             except Exception as e:
                 error_str = str(e).lower()
                 if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(
-                        f"Owner {owner.telegram_id} blocked the bot: {e}"
-                    )
+                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
                     return False
                 logger.error(f"Error notifying payout created {payout_id}: {e}")
                 return False
@@ -521,9 +521,7 @@ def notify_payout_paid_task(payout_id: int) -> bool:
             except Exception as e:
                 error_str = str(e).lower()
                 if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(
-                        f"Owner {owner.telegram_id} blocked the bot: {e}"
-                    )
+                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
                     return False
                 logger.error(f"Error notifying payout paid {payout_id}: {e}")
                 return False
@@ -541,6 +539,7 @@ def notify_payout_paid_task(payout_id: int) -> bool:
 # Уведомления для рекламодателей (Спринт 5)
 # ─────────────────────────────────────────────
 
+
 @celery_app.task(name="notifications:notify_post_published", queue="notifications")
 def notify_post_published(
     advertiser_id: int,
@@ -555,12 +554,14 @@ def notify_post_published(
         channel_username: Username канала.
         expected_views: Ожидаемый охват.
     """
+
     async def _notify() -> bool:
         text = (
             f"✅ <b>Пост опубликован в @{channel_username}</b>.\n\n"
             f"Ожидаемый охват: ~{expected_views:,} просмотров."
         )
-        return await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_async(advertiser_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -589,6 +590,7 @@ def notify_campaign_finished(
         total_views: Суммарный охват.
         campaign_id: ID кампании для кнопки.
     """
+
     async def _notify() -> bool:
         from aiogram import Bot
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -604,7 +606,12 @@ def notify_campaign_finished(
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="📊 Посмотреть аналитику", callback_data=f"analytics:by_campaign:{campaign_id}")]
+                [
+                    InlineKeyboardButton(
+                        text="📊 Посмотреть аналитику",
+                        callback_data=f"analytics:by_campaign:{campaign_id}",
+                    )
+                ]
             ]
         )
 
@@ -661,7 +668,8 @@ def notify_placement_rejected(
             f"Причина: {reason}\n"
             f"Средства {refund_amount} кр вернулись на ваш баланс."
         )
-        return await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_async(advertiser_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -684,6 +692,7 @@ def notify_changes_requested(
         channel_username: Username канала.
         campaign_title: Название кампании.
     """
+
     async def _notify() -> bool:
         text = (
             f"✏️ <b>Владелец @{channel_username} просит исправить текст</b>.\n\n"
@@ -691,7 +700,8 @@ def notify_changes_requested(
             f"Канал: @{channel_username}\n\n"
             f"Отредактируйте текст кампании и отправьте заявку повторно."
         )
-        return await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_async(advertiser_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -716,6 +726,7 @@ def notify_low_balance_enhanced(
         campaign_title: Название кампании.
         campaign_cost: Стоимость кампании.
     """
+
     async def _notify() -> bool:
         from aiogram import Bot
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -774,13 +785,15 @@ def notify_plan_expiring(
         renewal_cost: Стоимость продления.
         current_balance: Текущий баланс.
     """
+
     async def _notify() -> bool:
         text = (
             f"📦 <b>Тариф {plan_name} истекает {expires_at_str}</b>.\n\n"
             f"Продление: {renewal_cost} кр\n"
             f"Баланс сейчас: {current_balance} кр"
         )
-        return await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_async(advertiser_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -792,6 +805,7 @@ def notify_plan_expiring(
 # ─────────────────────────────────────────────
 # Уведомления геймификации (Спринт 5)
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="notifications:notify_badge_earned", queue="notifications")
 def notify_badge_earned(
@@ -809,13 +823,15 @@ def notify_badge_earned(
         xp_bonus: Бонус XP.
         remaining_to_next_level: Остаток до следующего уровня.
     """
+
     async def _notify() -> bool:
         text = (
             f"🏅 <b>Новый значок '{badge_name}'!</b>\n\n"
             f"+{xp_bonus} XP.\n"
             f"Осталось до уровня {remaining_to_next_level} XP."
         )
-        return await _notify_user_async(user_id, text, "HTML")
+        await _notify_user_async(user_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -837,7 +853,7 @@ def notify_level_up(
         new_level: Новый уровень.
     """
     # Импортируем словари из cabinet.py
-    LEVEL_NAMES = {
+    level_names = {
         1: "Новичок 🌱",
         2: "Участник ⭐",
         3: "Активный 🔥",
@@ -847,7 +863,7 @@ def notify_level_up(
         7: "Мастер 👑",
     }
 
-    LEVEL_NEXT_PRIVILEGE = {
+    level_next_privilege = {
         1: "расширенные фильтры в каталоге каналов",
         2: "скидка 3% на все размещения",
         3: "скидка 7% + персональный менеджер",
@@ -858,8 +874,8 @@ def notify_level_up(
     }
 
     async def _notify() -> bool:
-        level_name = LEVEL_NAMES.get(new_level, f"Уровень {new_level}")
-        privilege = LEVEL_NEXT_PRIVILEGE.get(new_level - 1)
+        level_name = level_names.get(new_level, f"Уровень {new_level}")
+        privilege = level_next_privilege.get(new_level - 1)
 
         if privilege:
             text = (
@@ -873,7 +889,8 @@ def notify_level_up(
                 f"Это максимальный уровень. Поздравляем!"
             )
 
-        return await _notify_user_async(user_id, text, "HTML")
+        await _notify_user_async(user_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -900,6 +917,7 @@ def notify_channel_top10(
         topic: Тематика.
         total_in_topic: Всего каналов в тематике.
     """
+
     async def _notify() -> bool:
         text = (
             f"🏆 <b>@{channel_username} вошёл в топ-{position}!</b>\n\n"
@@ -908,7 +926,8 @@ def notify_channel_top10(
             f"Метка 🏆 теперь отображается в карточке канала.\n"
             f"Ожидайте больше заявок от рекламодателей."
         )
-        return await _notify_user_async(owner_id, text, "HTML")
+        await _notify_user_async(owner_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -931,12 +950,14 @@ def notify_referral_bonus(
         referred_name: Имя реферала.
         bonus_amount: Сумма бонуса.
     """
+
     async def _notify() -> bool:
         text = (
             f"💰 <b>Ваш реферал {referred_name} пополнил баланс!</b>\n\n"
             f"Ваш бонус: +{bonus_amount} кр на баланс."
         )
-        return await _notify_user_async(referrer_id, text, "HTML")
+        await _notify_user_async(referrer_id, text, "HTML")
+        return True
 
     try:
         return asyncio.run(_notify())
@@ -948,6 +969,7 @@ def notify_referral_bonus(
 # ─────────────────────────────────────────────
 # TASK 6: Автоодобрение заявок и напоминания
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="notifications:auto_approve_placements", queue="mailing")
 def auto_approve_placements() -> dict:
@@ -1002,7 +1024,9 @@ def auto_approve_placements() -> dict:
                     publish_single_placement.delay(placement.id)
 
                     approved_count += 1
-                    logger.info(f"Auto-approved placement {placement.id} for channel {placement.chat_id}")
+                    logger.info(
+                        f"Auto-approved placement {placement.id} for channel {placement.chat_id}"
+                    )
 
                 except Exception as e:
                     logger.error(f"Auto-approve failed for placement {placement.id}: {e}")
@@ -1066,13 +1090,10 @@ def notify_pending_placement_reminders() -> dict:
 
         async with async_session_factory() as session:
             # ⚠️ ИСПРАВЛЕННОЕ условие: created_at между older_than и newer_than
-            stmt = (
-                select(MailingLog)
-                .where(
-                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
-                    MailingLog.created_at > older_than,  # НЕ старше 24ч (создан меньше 24ч назад)
-                    MailingLog.created_at < newer_than,  # Старше 20ч (создан больше 20ч назад)
-                )
+            stmt = select(MailingLog).where(
+                MailingLog.status == MailingStatus.PENDING_APPROVAL,
+                MailingLog.created_at > older_than,  # НЕ старше 24ч (создан меньше 24ч назад)
+                MailingLog.created_at < newer_than,  # Старше 20ч (создан больше 20ч назад)
             )
             result = await session.execute(stmt)
             placements = result.scalars().all()
@@ -1121,10 +1142,14 @@ def notify_pending_placement_reminders() -> dict:
                     await session.flush()
 
                     sent_count += 1
-                    logger.info(f"Sent placement reminder to owner {owner.id} for placement {placement.id}")
+                    logger.info(
+                        f"Sent placement reminder to owner {owner.id} for placement {placement.id}"
+                    )
 
                 except TelegramForbiddenError:
-                    logger.warning(f"Owner blocked bot, skipping reminder for placement {placement.id}")
+                    logger.warning(
+                        f"Owner blocked bot, skipping reminder for placement {placement.id}"
+                    )
                     error_count += 1
                 except Exception as e:
                     logger.error(f"Error sending placement reminder: {e}")
@@ -1148,6 +1173,7 @@ def notify_pending_placement_reminders() -> dict:
 # ─────────────────────────────────────────────
 # TASK 8: Уведомления об истечении тарифа
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="notifications:notify_expiring_plans", queue="mailing")
 def notify_expiring_plans() -> dict:
@@ -1184,14 +1210,11 @@ def notify_expiring_plans() -> dict:
 
         async with async_session_factory() as session:
             # Находим пользователей с истекающим тарифом
-            stmt = (
-                select(User)
-                .where(
-                    User.plan != UserPlan.FREE,
-                    User.plan_expires_at != None,  # noqa: E711
-                    User.plan_expires_at <= three_days_later,
-                    User.plan_expires_at >= now,
-                )
+            stmt = select(User).where(
+                User.plan != UserPlan.FREE,
+                User.plan_expires_at != None,  # noqa: E711
+                User.plan_expires_at <= three_days_later,
+                User.plan_expires_at >= now,
             )
             result = await session.execute(stmt)
             users = result.scalars().all()
@@ -1204,8 +1227,15 @@ def notify_expiring_plans() -> dict:
                         continue
 
                     # ⚠️ ЗАЩИТА: пропускаем если уже отправляли сегодня
-                    if user.plan_expiry_notified_at and user.plan_expiry_notified_at.date() == now.date():
+                    if (
+                        user.plan_expiry_notified_at
+                        and user.plan_expiry_notified_at.date() == now.date()
+                    ):
                         logger.debug(f"User {user.id} already notified today, skipping")
+                        continue
+
+                    if user.plan_expires_at is None:
+                        logger.debug(f"User {user.id} has no plan expiry date, skipping")
                         continue
 
                     days_left = (user.plan_expires_at - now).days
@@ -1218,9 +1248,10 @@ def notify_expiring_plans() -> dict:
                         "business": 2999,
                     }.get(plan_name, 0)
 
+                    expires_str = user.plan_expires_at.strftime("%d.%m.%Y")
                     message = (
                         f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
-                        f"Дата окончания: {user.plan_expires_at.strftime('%d.%m.%Y')}\n"
+                        f"Дата окончания: {expires_str}\n"
                         f"Стоимость продления: {renewal_cost} кр\n"
                         f"Текущий баланс: {user.credits} кр\n\n"
                         f"Продлите тариф чтобы не потерять доступ к функциям.\n"
@@ -1241,7 +1272,9 @@ def notify_expiring_plans() -> dict:
                     logger.info(f"Sent plan expiring notification to user {user.id}")
 
                 except TelegramForbiddenError:
-                    logger.warning(f"User blocked bot, skipping plan expiring notification for user {user.id}")
+                    logger.warning(
+                        f"User blocked bot, skipping plan expiring notification for user {user.id}"
+                    )
                     error_count += 1
                 except Exception as e:
                     logger.error(f"Error sending plan expiring notification: {e}")
@@ -1295,13 +1328,10 @@ def notify_expired_plans() -> dict:
 
         async with async_session_factory() as session:
             # Находим пользователей с истёкшим тарифом
-            stmt = (
-                select(User)
-                .where(
-                    User.plan != UserPlan.FREE,
-                    User.plan_expires_at != None,  # noqa: E711
-                    User.plan_expires_at < now,
-                )
+            stmt = select(User).where(
+                User.plan != UserPlan.FREE,
+                User.plan_expires_at != None,  # noqa: E711
+                User.plan_expires_at < now,
             )
             result = await session.execute(stmt)
             users = result.scalars().all()
@@ -1312,8 +1342,8 @@ def notify_expired_plans() -> dict:
                 try:
                     # ⚠️ ЗАЩИТА: если expires_at обновился (пользователь продлил) — не трогаем
                     # Проверяем ещё раз внутри цикла на случай гонки
-                    if user.plan_expires_at >= now:
-                        logger.info(f"User {user.id} renewed plan, skipping expiry")
+                    if user.plan_expires_at is None or user.plan_expires_at >= now:
+                        logger.info(f"User {user.id} renewed plan or has no expiry, skipping")
                         continue
 
                     old_plan = user.plan.value if hasattr(user.plan, "value") else user.plan
@@ -1341,7 +1371,9 @@ def notify_expired_plans() -> dict:
                     logger.info(f"Downgraded user {user.id} from {old_plan} to FREE")
 
                 except TelegramForbiddenError:
-                    logger.warning(f"User blocked bot, skipping plan expired notification for user {user.id}")
+                    logger.warning(
+                        f"User blocked bot, skipping plan expired notification for user {user.id}"
+                    )
                     # Всё равно сбрасываем тариф
                     downgraded_count += 1
                 except Exception as e:

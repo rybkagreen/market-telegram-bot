@@ -354,10 +354,9 @@ class BillingService:
                 logger.error(f"Failed to activate plan {plan} for user {user_id}: {e}")
                 return False
 
-
-# ─────────────────────────────────────────────
-# Реферальная программа (Спринт 4)
-# ─────────────────────────────────────────────
+    # ─────────────────────────────────────────────
+    # Реферальная программа (Спринт 4)
+    # ─────────────────────────────────────────────
 
     async def apply_referral_signup_bonus(
         self,
@@ -468,10 +467,7 @@ class BillingService:
 
         async with async_session_factory() as session:
             # Считаем количество рефералов
-            stmt = (
-                select(func.count(User.id))
-                .where(User.referred_by_id == user_id)
-            )
+            stmt = select(func.count(User.id)).where(User.referred_by_id == user_id)
             result = await session.execute(stmt)
             total_referrals = result.scalar_one() or 0
 
@@ -541,9 +537,12 @@ class BillingService:
             stmt = select(User).where(User.id == campaign.user_id).with_for_update()
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
-            if not user:
+            if user is None:
                 logger.error(f"User {campaign.user_id} not found for campaign {campaign_id}")
                 return False
+
+            # Type guard: user is guaranteed to be User here
+            assert isinstance(user, User), "user must be User instance"
 
             # 3. Проверить баланс
             if user.credits < campaign.cost:
@@ -607,107 +606,124 @@ class BillingService:
 
         from sqlalchemy import select
 
-        from src.db.models.analytics import TelegramChat
         from src.db.models.mailing_log import MailingLog, MailingStatus
         from src.db.models.transaction import Transaction
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            async with session.begin():
-                # 1. Получить placement с блокировкой
-                stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
-                result = await session.execute(stmt)
-                placement = result.scalar_one_or_none()
-                if not placement:
-                    logger.error(f"Placement {placement_id} not found")
-                    return False
+        async with async_session_factory() as session, session.begin():
+            # 1. Получить placement с блокировкой
+            stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
+            result = await session.execute(stmt)
+            placement = result.scalar_one_or_none()
+            if not placement:
+                logger.error(f"Placement {placement_id} not found")
+                return False
 
-                # ⚠️ ИДЕМПОТЕНТНОСТЬ: не начислять повторно
-                if placement.status == MailingStatus.PAID:
-                    logger.warning(f"release_escrow_funds: placement {placement_id} already paid, skipping")
-                    return True  # не ошибка, просто уже сделано
+            # ⚠️ ИДЕМПОТЕНТНОСТЬ: не начислять повторно
+            if placement.status == MailingStatus.PAID:
+                logger.warning(
+                    f"release_escrow_funds: placement {placement_id} already paid, skipping"
+                )
+                return True  # не ошибка, просто уже сделано
 
-                if placement.status != MailingStatus.SENT:
-                    logger.error(f"release_escrow_funds: unexpected status {placement.status} for placement {placement_id}")
-                    return False
+            if placement.status != MailingStatus.SENT:
+                logger.error(
+                    f"release_escrow_funds: unexpected status {placement.status} for placement {placement_id}"
+                )
+                return False
 
-                # 2. Получить канал и владельца с блокировкой
-                stmt = select(TelegramChat).where(TelegramChat.id == placement.chat_id).with_for_update()
-                result = await session.execute(stmt)
-                chat = result.scalar_one_or_none()
-                if not chat or not chat.owner_user_id:
-                    logger.error(f"Channel or owner not found for placement {placement_id}")
-                    return False
+            # 2. Получить канал и владельца с блокировкой
+            from src.db.models.analytics import TelegramChat as TelegramChatModel
 
-                stmt = select(User).where(User.id == chat.owner_user_id).with_for_update()
-                result = await session.execute(stmt)
-                owner = result.scalar_one_or_none()
-                if not owner:
-                    logger.error(f"Owner not found for placement {placement_id}")
-                    return False
+            stmt = (
+                select(TelegramChatModel)
+                .where(TelegramChatModel.id == placement.chat_id)
+                .with_for_update()
+            )
+            result = await session.execute(stmt)
+            chat: TelegramChatModel | None = result.scalar_one_or_none()
+            if chat is None:
+                logger.error(f"Channel or owner not found for placement {placement_id}")
+                return False
 
-                # 3. Расчёт с Decimal и quantize для округления
-                owner_amount = (
-                    Decimal(str(placement.cost)) * Decimal("0.80")
-                ).quantize(Decimal("0.01"))
-                platform_fee = (
-                    Decimal(str(placement.cost)) * Decimal("0.20")
-                ).quantize(Decimal("0.01"))
+            if chat.owner_user_id is None:
+                logger.error(f"Channel owner_user_id is None for placement {placement_id}")
+                return False
 
-                # Проверка на ноль
-                if owner_amount <= 0:
-                    logger.warning(f"release_escrow_funds: zero cost for placement {placement_id}")
-                    return False
+            stmt = select(User).where(User.id == chat.owner_user_id).with_for_update()
+            result = await session.execute(stmt)
+            owner = result.scalar_one_or_none()
+            if owner is None:
+                logger.error(f"Owner not found for placement {placement_id}")
+                return False
 
-                try:
-                    # 4. Начислить и сменить статус атомарно
-                    owner.credits += int(owner_amount)
-                    placement.status = MailingStatus.PAID
+            # Type guard: owner is guaranteed to be User here
+            assert isinstance(owner, User), "owner must be User instance"
 
-                    # Создать транзакцию напрямую
-                    transaction = Transaction(
-                        user_id=owner.id,
-                        amount=owner_amount,
-                        type="bonus",
-                        payment_id=None,
-                        meta_json={
-                            "type": "escrow_release",
-                            "placement_id": placement_id,
-                            "campaign_id": placement.campaign_id,
-                            "channel_id": chat.id,
-                            "owner_amount": float(owner_amount),
-                            "platform_fee": float(platform_fee),
-                        },
-                        balance_before=Decimal(str(owner.credits - int(owner_amount))),
-                        balance_after=Decimal(str(owner.credits)),
-                        created_at=datetime.now(UTC),
-                    )
-                    session.add(transaction)
+            # 3. Расчёт с Decimal и quantize для округления
+            owner_amount = (Decimal(str(placement.cost)) * Decimal("0.80")).quantize(
+                Decimal("0.01")
+            )
+            platform_fee = (Decimal(str(placement.cost)) * Decimal("0.20")).quantize(
+                Decimal("0.01")
+            )
 
-                    # TASK 2: Создать запись Payout для истории выплат
-                    from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+            # Проверка на ноль
+            if owner_amount <= 0:
+                logger.warning(f"release_escrow_funds: zero cost for placement {placement_id}")
+                return False
 
-                    payout = Payout(
-                        owner_id=owner.id,
-                        channel_id=chat.id,
-                        placement_id=placement_id,
-                        amount=Decimal(str(owner_amount)),
-                        platform_fee=Decimal(str(platform_fee)),
-                        currency=PayoutCurrency.RUB,  # Внутренняя валюта платформы
-                        status=PayoutStatus.PAID,  # Автоматическая выплата
-                        paid_at=datetime.now(UTC),
-                    )
-                    session.add(payout)
+            try:
+                # 4. Начислить и сменить статус атомарно
+                owner.credits += int(owner_amount)
+                placement.status = MailingStatus.PAID
 
-                    # session.begin() автоматически commit
-                    logger.info(
-                        f"Released {owner_amount} credits to owner {owner.id} for placement {placement_id} (payout {payout.id})"
-                    )
-                    return True
+                # Создать транзакцию напрямую
+                transaction = Transaction(
+                    user_id=owner.id,
+                    amount=owner_amount,
+                    type="bonus",
+                    payment_id=None,
+                    meta_json={
+                        "type": "escrow_release",
+                        "placement_id": placement_id,
+                        "campaign_id": placement.campaign_id,
+                        "channel_id": chat.id,
+                        "owner_amount": float(owner_amount),
+                        "platform_fee": float(platform_fee),
+                    },
+                    balance_before=Decimal(str(owner.credits - int(owner_amount))),
+                    balance_after=Decimal(str(owner.credits)),
+                    created_at=datetime.now(UTC),
+                )
+                session.add(transaction)
 
-                except Exception as e:
-                    logger.error(f"Failed to release escrow funds for placement {placement_id}: {e}")
-                    return False
+                # TASK 2: Создать запись Payout для истории выплат
+                from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+
+                payout = Payout(
+                    owner_id=owner.id,
+                    channel_id=chat.id,
+                    placement_id=placement_id,
+                    amount=Decimal(str(owner_amount)),
+                    platform_fee=Decimal(str(platform_fee)),
+                    currency=PayoutCurrency.RUB,  # Внутренняя валюта платформы
+                    status=PayoutStatus.PAID,  # Автоматическая выплата
+                    paid_at=datetime.now(UTC),
+                )
+                session.add(payout)
+
+                # session.begin() автоматически commit
+                logger.info(
+                    f"Released {owner_amount} credits to owner {owner.id} for placement {placement_id} (payout {payout.id})"
+                )
+                return True
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to release escrow funds for placement {placement_id}: {e}"
+                )
+                return False
 
     async def refund_failed_placement(self, placement_id: int) -> bool:
         """
@@ -735,82 +751,90 @@ class BillingService:
         from src.db.models.transaction import Transaction
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            async with session.begin():
-                # 1. Получить placement с блокировкой
-                stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
-                result = await session.execute(stmt)
-                placement = result.scalar_one_or_none()
-                if not placement:
-                    logger.error(f"Placement {placement_id} not found")
-                    return False
+        async with async_session_factory() as session, session.begin():
+            # 1. Получить placement с блокировкой
+            stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
+            result = await session.execute(stmt)
+            placement = result.scalar_one_or_none()
+            if not placement:
+                logger.error(f"Placement {placement_id} not found")
+                return False
 
-                # Проверить статус
-                if placement.status != MailingStatus.FAILED:
-                    logger.warning(f"Placement {placement_id} status is not FAILED ({placement.status})")
-                    return False
+            # Проверить статус
+            if placement.status != MailingStatus.FAILED:
+                logger.warning(
+                    f"Placement {placement_id} status is not FAILED ({placement.status})"
+                )
+                return False
 
-                # ⚠️ ИДЕМПОТЕНТНОСТЬ: проверить флаг возврата
-                meta = placement.meta_json or {}
-                if meta.get("refund_sent"):
-                    logger.warning(f"refund_failed_placement: already refunded for placement {placement_id}")
-                    return True  # уже возвращено
+            # ⚠️ ИДЕМПОТЕНТНОСТЬ: проверить флаг возврата
+            meta = placement.meta_json or {}
+            if meta.get("refund_sent"):
+                logger.warning(
+                    f"refund_failed_placement: already refunded for placement {placement_id}"
+                )
+                return True  # уже возвращено
 
-                # 2. Получить кампанию и рекламодателя
-                stmt = select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
-                result = await session.execute(stmt)
-                campaign = result.scalar_one_or_none()
-                if not campaign:
-                    logger.error(f"Campaign {placement.campaign_id} not found")
-                    return False
+            # 2. Получить кампанию и рекламодателя
+            stmt = (
+                select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
+            )
+            result = await session.execute(stmt)
+            campaign: Campaign | None = result.scalar_one_or_none()
+            if campaign is None:
+                logger.error(f"Campaign {placement.campaign_id} not found")
+                return False
 
-                stmt = select(User).where(User.id == campaign.user_id).with_for_update()
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-                if not user:
-                    logger.error(f"User {campaign.user_id} not found for refund")
-                    return False
+            stmt = select(User).where(User.id == campaign.user_id).with_for_update()
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            if user is None:
+                logger.error(f"User {campaign.user_id} not found for refund")
+                return False
 
-                try:
-                    # 3. Вернуть средства + установить флаг атомарно
-                    refund_amount = Decimal(str(placement.cost))
-                    user.credits += int(refund_amount)
+            # Type guard: user is guaranteed to be User here
+            assert isinstance(user, User), "user must be User instance"
 
-                    # Установить флаг что возврат отправлен
-                    meta["refund_sent"] = True
-                    meta["refund_at"] = datetime.now(UTC).isoformat()
-                    placement.meta_json = meta
+            try:
+                # 3. Вернуть средства + установить флаг атомарно
+                refund_amount = Decimal(str(placement.cost))
+                user.credits += int(refund_amount)
 
-                    # 4. Создать транзакцию возврата
-                    transaction = Transaction(
-                        user_id=user.id,
-                        amount=refund_amount,
-                        type="refund",
-                        payment_id=None,
-                        meta_json={
-                            "type": "refund",
-                            "placement_id": placement_id,
-                            "campaign_id": placement.campaign_id,
-                            "reason": "failed_placement",
-                        },
-                        balance_before=Decimal(str(user.credits - int(refund_amount))),
-                        balance_after=Decimal(str(user.credits)),
-                        created_at=datetime.now(UTC),
-                    )
-                    session.add(transaction)
+                # Установить флаг что возврат отправлен
+                meta["refund_sent"] = True
+                meta["refund_at"] = datetime.now(UTC).isoformat()
+                placement.meta_json = meta
 
-                    # session.begin() автоматически commit
-                    logger.info(
-                        f"Refunded {refund_amount} credits to advertiser {user.id} for placement {placement_id}"
-                    )
+                # 4. Создать транзакцию возврата
+                transaction = Transaction(
+                    user_id=user.id,
+                    amount=refund_amount,
+                    type="refund",
+                    payment_id=None,
+                    meta_json={
+                        "type": "refund",
+                        "placement_id": placement_id,
+                        "campaign_id": placement.campaign_id,
+                        "reason": "failed_placement",
+                    },
+                    balance_before=Decimal(str(user.credits - int(refund_amount))),
+                    balance_after=Decimal(str(user.credits)),
+                    created_at=datetime.now(UTC),
+                )
+                session.add(transaction)
 
-                    # Сохраняем данные для уведомления (после коммита)
-                    user_telegram_id = user.telegram_id
-                    campaign_title = campaign.title or f"Кампания #{campaign.id}"
+                # session.begin() автоматически commit
+                logger.info(
+                    f"Refunded {refund_amount} credits to advertiser {user.id} for placement {placement_id}"
+                )
 
-                except Exception as e:
-                    logger.error(f"Failed to refund placement {placement_id}: {e}")
-                    return False
+                # Сохраняем данные для уведомления (после коммита)
+                user_telegram_id = user.telegram_id
+                campaign_title = campaign.title or f"Кампания #{campaign.id}"
+
+            except Exception as e:
+                logger.error(f"Failed to refund placement {placement_id}: {e}")
+                return False
 
         # 5. Уведомление ПОСЛЕ коммита транзакции (не внутри begin())
         try:
@@ -827,7 +851,9 @@ class BillingService:
                 parse_mode="HTML",
             )
         except Exception as e:
-            logger.error(f"refund_failed_placement: notification failed for placement {placement_id}: {e}")
+            logger.error(
+                f"refund_failed_placement: notification failed for placement {placement_id}: {e}"
+            )
             # Не падаем — деньги уже вернули
 
         return True
