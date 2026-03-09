@@ -29,6 +29,7 @@ def check_user_achievements(self, user_id: int) -> dict:
     Returns:
         dict со списком выданных значков.
     """
+
     async def _check_async() -> dict:
         from src.core.services.badge_service import badge_service
 
@@ -69,6 +70,7 @@ def daily_badge_check(self) -> dict:
     Returns:
         dict со статистикой проверки.
     """
+
     async def _check_daily_async() -> dict:
         from sqlalchemy import select
 
@@ -84,8 +86,8 @@ def daily_badge_check(self) -> dict:
             week_ago = datetime.now(UTC) - timedelta(days=7)
 
             stmt = select(User).where(
-                User.is_active is True,
-                User.is_banned is False,
+                User.is_active.is_(True),
+                User.is_banned.is_(False),
                 User.last_login_at >= week_ago,
             )
             result = await session.execute(stmt)
@@ -127,6 +129,7 @@ def monthly_top_advertisers(self) -> dict:
     Returns:
         dict со списком победителей.
     """
+
     async def _check_monthly_async() -> dict:
         from sqlalchemy import func, select
 
@@ -157,9 +160,7 @@ def monthly_top_advertisers(self) -> dict:
             top_advertisers = list(result.all())
 
             # Находим значок "Топ рекламодатель"
-            badge_stmt = select(Badge).where(
-                Badge.code == "top_advertiser_monthly"
-            )
+            badge_stmt = select(Badge).where(Badge.code == "top_advertiser_monthly")
             badge_result = await session.execute(badge_stmt)
             badge = badge_result.scalar_one_or_none()
 
@@ -176,12 +177,14 @@ def monthly_top_advertisers(self) -> dict:
                 total_spent = row.total_spent
 
                 try:
-                    result = await badge_service.award_badge(user_id, badge.code)
-                    if result.get("success"):
-                        awarded.append({
-                            "user_id": user_id,
-                            "total_spent": float(total_spent),
-                        })
+                    award_result: dict = await badge_service.award_badge(user_id, badge.code)
+                    if award_result.get("success"):
+                        awarded.append(
+                            {
+                                "user_id": user_id,
+                                "total_spent": float(total_spent),
+                            }
+                        )
 
                         # Отправляем уведомление
                         notify_badge_earned.delay(
@@ -259,6 +262,7 @@ def notify_badge_earned(
 # ─────────────────────────────────────────────
 # Триггеры для проверки достижений
 # ─────────────────────────────────────────────
+
 
 @celery_app.task(name="badges:trigger_after_campaign_launch")
 def trigger_after_campaign_launch(user_id: int) -> dict:

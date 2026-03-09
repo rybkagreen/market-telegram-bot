@@ -63,7 +63,7 @@ class TimingService:
 
             # Анализируем время постов (заглушка — в реальности нужен Telethon)
             # В Спринте 2 это базовая реализация
-            best_hour = self._analyze_posts_time(channel.recent_posts)
+            best_hour = self._analyze_posts_time(channel.recent_posts)  # type: ignore[arg-type]  # TypedDict vs dict compatibility
 
             recommended_time = f"{best_hour:02d}:00"
 
@@ -174,8 +174,12 @@ class TimingService:
                         continue
 
             # Находим лучшие дни и часы
-            best_days = sorted(day_counts.keys(), key=lambda d: day_counts.get(d, 0), reverse=True)[:3]
-            best_hours = sorted(hour_counts.keys(), key=lambda h: hour_counts.get(h, 0), reverse=True)[:3]
+            best_days = sorted(day_counts.keys(), key=lambda d: day_counts.get(d, 0), reverse=True)[
+                :3
+            ]
+            best_hours = sorted(
+                hour_counts.keys(), key=lambda h: hour_counts.get(h, 0), reverse=True
+            )[:3]
 
             day_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 

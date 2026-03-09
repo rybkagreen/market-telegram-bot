@@ -11,19 +11,19 @@ import logging
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select, true
 
-from src.api.constants.tariffs import (
+from src.api.dependencies import CurrentUser
+from src.config.settings import settings
+from src.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
     TARIFF_LABELS,
     TARIFF_MIN_RATING,
     TARIFF_SUBSCRIBER_LIMITS,
     TARIFF_TOPICS,
 )
-from src.api.dependencies import CurrentUser
-from src.config.settings import settings
 from src.db.models.analytics import TelegramChat
 from src.db.session import async_session_factory
 
@@ -378,3 +378,79 @@ async def get_subcategory_stats(parent_topic: str) -> dict:
             if row.subcat
         ],
     }
+
+
+# ─── Сравнение каналов ──────────────────────────────────────────
+
+
+class ChannelIdsRequest(BaseModel):
+    channel_ids: list[int]
+
+
+class ComparisonChannelItem(BaseModel):
+    id: int
+    username: str | None
+    title: str | None
+    member_count: int
+    avg_views: int
+    er: float
+    post_frequency: float
+    price_per_post: float
+    price_per_1k_subscribers: float
+    is_best: dict[str, bool]
+
+
+class ComparisonRecommendation(BaseModel):
+    channel_id: int
+    channel_name: str
+    reason: str
+
+
+class ComparisonResponse(BaseModel):
+    channels: list[ComparisonChannelItem]
+    best_values: dict[str, float]
+    recommendation: ComparisonRecommendation
+
+
+@router.post("/compare", response_model=ComparisonResponse)
+async def compare_channels(
+    request: ChannelIdsRequest,
+    current_user: CurrentUser,
+) -> ComparisonResponse:
+    """
+    Сравнить 2-5 каналов по метрикам.
+
+    Body: {"channel_ids": [1, 2, 3]}
+    """
+    from src.core.services.comparison_service import ComparisonService
+
+    if len(request.channel_ids) < 2:
+        raise HTTPException(status_code=400, detail="Минимум 2 канала для сравнения")
+    if len(request.channel_ids) > 5:
+        raise HTTPException(status_code=400, detail="Максимум 5 каналов для сравнения")
+
+    service = ComparisonService()
+    channels_data = await service.get_channels_for_comparison(request.channel_ids)
+
+    if len(channels_data) < 2:
+        raise HTTPException(status_code=404, detail="Недостаточно каналов найдено")
+
+    result = service.calculate_comparison_metrics(channels_data)
+    return ComparisonResponse(**result)  # type: ignore[arg-type]  # dict unpacking to Response model
+
+
+@router.get("/compare/preview")
+async def compare_channels_preview(
+    ids: str,  # "1,2,3"
+    current_user: CurrentUser,
+) -> ComparisonResponse:
+    """GET /channels/compare/preview?ids=1,2,3"""
+    try:
+        channel_ids = [int(x) for x in ids.split(",")]
+    except ValueError as err:
+        raise HTTPException(400, "Неверный формат ids") from err
+
+    return await compare_channels(
+        ChannelIdsRequest(channel_ids=channel_ids),
+        current_user,
+    )
