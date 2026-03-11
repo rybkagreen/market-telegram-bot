@@ -13,8 +13,6 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.config.settings import settings
-
 
 class MainMenuCB(CallbackData, prefix="main"):
     """CallbackData для главного меню."""
@@ -33,11 +31,6 @@ class OnboardingCB(CallbackData, prefix="onboard"):
     """Выбор роли при первом входе."""
 
     role: str  # "advertiser" | "owner" | "both"
-
-
-def _is_admin(user_id: int) -> bool:
-    """Проверить, является ли пользователь админом."""
-    return user_id in settings.admin_ids
 
 
 # ─────────────────────────────────────────────
@@ -74,14 +67,14 @@ def get_main_menu_kb() -> InlineKeyboardMarkup:
 
 def get_advertiser_menu_kb(
     active_campaigns: int = 0,
-    user_id: int | None = None,
+    is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Меню рекламодателя — ровно 5 кнопок.
 
     Args:
         active_campaigns: если > 0, добавляет счётчик в кнопку "Мои кампании".
-        user_id: Telegram ID для проверки прав администратора.
+        is_admin: True если пользователь администратор.
 
     Кнопки:
     - 📊 Статистика и аналитика → main:analytics
@@ -126,7 +119,7 @@ def get_advertiser_menu_kb(
     )
 
     # Добавляем кнопку Админ для администраторов
-    if user_id and _is_admin(user_id):
+    if is_admin:
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
         builder.adjust(2, 2, 1, 1)
     else:
@@ -143,7 +136,7 @@ def get_advertiser_menu_kb(
 def get_owner_menu_kb(
     pending_requests: int = 0,
     available_payout: int = 0,
-    user_id: int | None = None,
+    is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Меню владельца — ровно 5 кнопок.
@@ -151,7 +144,7 @@ def get_owner_menu_kb(
     Args:
         pending_requests: если > 0, добавляет счётчик в кнопку "Заявки".
         available_payout: опционально отображать в кнопке "Выплаты".
-        user_id: Telegram ID для проверки прав администратора.
+        is_admin: True если пользователь администратор.
 
     Кнопки:
     - 📊 Статистика → main:owner_analytics
@@ -199,7 +192,7 @@ def get_owner_menu_kb(
     )
 
     # Добавляем кнопку Админ для администраторов
-    if user_id and _is_admin(user_id):
+    if is_admin:
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
         builder.adjust(2, 2, 1, 1)
     else:
@@ -217,7 +210,7 @@ def get_combined_menu_kb(
     active_campaigns: int = 0,
     pending_requests: int = 0,
     available_payout: int = 0,
-    user_id: int | None = None,
+    is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Объединённое меню для dual-role — секции advertiser + owner + возврат.
@@ -226,7 +219,7 @@ def get_combined_menu_kb(
         active_campaigns: для счётчика кампаний.
         pending_requests: для счётчика заявок.
         available_payout: для суммы выплат.
-        user_id: Telegram ID для проверки прав администратора.
+        is_admin: True если пользователь администратор.
     """
     builder = InlineKeyboardBuilder()
 
@@ -292,7 +285,7 @@ def get_combined_menu_kb(
         callback_data=MainMenuCB(action="main_menu"),
     )
 
-    if user_id and _is_admin(user_id):
+    if is_admin:
         builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
         builder.adjust(1, 2, 2, 1, 2, 2, 1, 1)
     else:
@@ -311,7 +304,7 @@ def get_role_menu_kb(
     active_campaigns: int = 0,
     pending_requests: int = 0,
     available_payout: int = 0,
-    user_id: int | None = None,
+    is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Диспетчер по роли:
@@ -325,7 +318,7 @@ def get_role_menu_kb(
         active_campaigns: для advertiser/both.
         pending_requests: для owner/both.
         available_payout: для owner/both.
-        user_id: для проверки администратора.
+        is_admin: True если пользователь администратор.
 
     Returns:
         InlineKeyboardMarkup соответствующий роли пользователя.
@@ -335,20 +328,20 @@ def get_role_menu_kb(
     elif role == "advertiser":
         return get_advertiser_menu_kb(
             active_campaigns=active_campaigns,
-            user_id=user_id,
+            is_admin=is_admin,
         )
     elif role == "owner":
         return get_owner_menu_kb(
             pending_requests=pending_requests,
             available_payout=available_payout,
-            user_id=user_id,
+            is_admin=is_admin,
         )
     elif role == "both":
         return get_combined_menu_kb(
             active_campaigns=active_campaigns,
             pending_requests=pending_requests,
             available_payout=available_payout,
-            user_id=user_id,
+            is_admin=is_admin,
         )
     else:
         # Fallback для неизвестной роли

@@ -70,7 +70,10 @@ TARIFF_MODELS = {
 
 
 def is_admin(user_id: int) -> bool:
-    """Проверить, является ли пользователь админом."""
+    """Проверить, является ли пользователь админом через БД."""
+    # Эта функция оставлена для обратной совместимости
+    # Используется только внутри этого файла
+    # Для новых проверок используйте user.is_admin из БД
     return user_id in settings.admin_ids
 
 
@@ -90,7 +93,8 @@ async def handle_models(message: Message) -> None:
             await message.answer("❌ Пользователь не найден. Нажмите /start")
             return
 
-        if is_admin(message.from_user.id):  # type: ignore[union-attr]
+        # Проверка через БД
+        if user.is_admin:
             await show_admin_models_menu(message, user)
         else:
             await show_user_models_info(message, user)
@@ -216,16 +220,12 @@ async def tariff_info_callback(callback: CallbackQuery) -> None:
 @router.callback_query(ModelCB.filter(F.provider == "select"))
 async def models_select_callback(callback: CallbackQuery) -> None:
     """Callback handler для кнопки выбора модели ИИ (админ)."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer("❌ Доступ только для админов", show_alert=True)
-        return
-
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
 
-        if not user:
-            await callback.answer("❌ Пользователь не найден", show_alert=True)
+        if not user or not user.is_admin:
+            await callback.answer("❌ Доступ только для админов", show_alert=True)
             return
 
         await show_admin_models_menu(callback, user)
@@ -261,9 +261,13 @@ async def models_back_callback(callback: CallbackQuery) -> None:
 )
 async def model_provider_callback(callback: CallbackQuery, callback_data: ModelCB) -> None:
     """Callback handler для выбора провайдера (только админ)."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer("❌ Доступ только для админов", show_alert=True)
-        return
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+        if not user or not user.is_admin:
+            await callback.answer("❌ Доступ только для админов", show_alert=True)
+            return
 
     provider = callback_data.provider
     provider_info = AI_PROVIDERS.get(provider)
