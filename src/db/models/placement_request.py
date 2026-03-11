@@ -26,6 +26,7 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.analytics import TelegramChat
     from src.db.models.campaign import Campaign
+    from src.db.models.reputation_history import ReputationHistory
     from src.db.models.transaction import Transaction
     from src.db.models.user import User
 
