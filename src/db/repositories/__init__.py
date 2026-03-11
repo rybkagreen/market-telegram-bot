@@ -10,10 +10,16 @@ from src.db.repositories.log_repo import LogData, MailingLogRepository
 from src.db.repositories.notification_repo import NotificationRepository
 from src.db.repositories.user_repo import UserRepository
 
+# Type aliases for backwards compatibility
+UserRepo = UserRepository
+CampaignRepo = CampaignRepository
+
 __all__ = [
     "BaseRepository",
     "UserRepository",
+    "UserRepo",
     "CampaignRepository",
+    "CampaignRepo",
     "MailingLogRepository",
     "LogData",
     "ChatAnalyticsRepository",

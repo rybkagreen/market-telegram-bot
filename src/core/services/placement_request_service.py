@@ -115,7 +115,7 @@ class PlacementRequestService:
         placement_repo: PlacementRequestRepo,
         channel_settings_repo: ChannelSettingsRepo,
         reputation_repo: ReputationRepo,
-        billing_service: "BillingService",
+        billing_service: "BillingService | None" = None,
     ):
         """
         Инициализация сервиса.
@@ -125,7 +125,7 @@ class PlacementRequestService:
             placement_repo: Репозиторий заявок.
             channel_settings_repo: Репозиторий настроек каналов.
             reputation_repo: Репозиторий репутации.
-            billing_service: Сервис платежей.
+            billing_service: Сервис платежей (опционально для create_request).
         """
         self.session = session
         self.placement_repo = placement_repo
