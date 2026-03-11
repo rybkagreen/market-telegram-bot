@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.filters.admin import AdminFilter
-from src.bot.keyboards.admin import AdminCB, get_back_kb
+from src.bot.keyboards.admin.admin import AdminCB, get_back_kb
 from src.bot.states.admin import AdminAIGenerateStates
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.mistral_ai_service import mistral_ai_service
@@ -139,7 +139,7 @@ async def handle_ai_variant_select(
     callback: CallbackQuery, callback_data: AdminCB, state: FSMContext
 ) -> None:
     """Выбрать вариант кампании."""
-    from src.bot.keyboards.campaign import get_topics_kb
+    from src.bot.keyboards.advertiser.campaign import get_topics_kb
 
     variant_index = int(callback_data.value) - 1
     data = await state.get_data()

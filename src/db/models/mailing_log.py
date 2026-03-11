@@ -122,6 +122,15 @@ class MailingLog(Base, TimestampMixin):
         doc="Стоимость отправки в этом чате",
     )
 
+    # Поля для размещений (Спринт 6)
+    placement_request_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("placement_requests.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="ID заявки на размещение",
+    )
+
     # Поля для размещений (Спринт 1-2)
     scheduled_at: Mapped[datetime | None] = mapped_column(
         nullable=True,

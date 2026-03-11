@@ -6,7 +6,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -159,6 +159,14 @@ class Transaction(Base, TimestampMixin):
     user: Mapped["User"] = relationship(
         back_populates="transactions",
         lazy="selectin",
+    )
+
+    # Заявки на размещение (Спринт 6)
+    placement_request: Mapped[Optional["PlacementRequest"]] = relationship(
+        "PlacementRequest",
+        back_populates="escrow_transaction",
+        lazy="select",
+        uselist=False,
     )
 
     # Индексы

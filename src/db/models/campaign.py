@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Optional, TypedDict
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -15,6 +15,7 @@ from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.mailing_log import MailingLog
+    from src.db.models.placement_request import PlacementRequest
     from src.db.models.user import User
 
 
@@ -102,6 +103,13 @@ class CampaignStatus(str, Enum):
     PAUSED = "paused"  # На паузе
     CANCELLED = "cancelled"  # Отменена пользователем
     ACCOUNT_BANNED = "banned"  # Telegram-аккаунт заблокирован
+
+
+class CampaignType(str, Enum):
+    """Типы кампаний."""
+
+    BROADCAST = "broadcast"  # Старый тип: массовая рассылка
+    PLACEMENT = "placement"  # Новый тип: размещение через арбитраж
 
 
 class Campaign(Base, TimestampMixin):
@@ -201,6 +209,24 @@ class Campaign(Base, TimestampMixin):
         doc="JSONB с метаданными (celery_task_id, tracking_enabled, и др.)",
     )
 
+    # Тип кампании (Спринт 6)
+    type: Mapped[CampaignType] = mapped_column(
+        String(50),
+        default=CampaignType.BROADCAST,
+        server_default="broadcast",
+        nullable=False,
+        doc="Тип кампании (broadcast или placement)",
+    )
+
+    # Связь с PlacementRequest (Спринт 6)
+    placement_request_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("placement_requests.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="ID заявки на размещение (для placement кампаний)",
+    )
+
     # Планирование
     scheduled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -298,10 +324,22 @@ class Campaign(Base, TimestampMixin):
         doc="Логи рассылки кампании",
     )
 
+    # Связь с PlacementRequest (Спринт 6)
+    # Примечание: one-to-one связь через placement_request_id FK
+    # back_populates не используется чтобы избежать direction конфликта
+    placement_request: Mapped[Optional["PlacementRequest"]] = relationship(
+        "PlacementRequest",
+        foreign_keys=[placement_request_id],
+        lazy="selectin",
+        uselist=False,
+    )
+
     # Индексы
     __table_args__ = (
         Index("ix_campaigns_user_status", "user_id", "status"),
         Index("ix_campaigns_scheduled_status", "scheduled_at", "status"),
+        Index("ix_campaigns_type", "type"),
+        Index("ix_campaigns_placement_request_id", "placement_request_id"),
         CheckConstraint("cost >= 0", name="ck_campaigns_cost_positive"),
         {
             "comment": "Рекламные кампании пользователей",

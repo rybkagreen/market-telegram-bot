@@ -32,6 +32,7 @@ from src.db.base import Base
 if TYPE_CHECKING:
     from src.db.models.channel_mediakit import ChannelMediakit
     from src.db.models.channel_rating import ChannelRating
+    from src.db.models.channel_settings import ChannelSettings
     from src.db.models.mailing_log import MailingLog
     from src.db.models.payout import Payout
     from src.db.models.review import Review
@@ -259,6 +260,20 @@ class TelegramChat(Base):
         back_populates="channel",
         lazy="select",
         uselist=False,
+    )
+    
+    settings: Mapped["ChannelSettings | None"] = relationship(
+        "ChannelSettings",
+        back_populates="channel",
+        uselist=False,
+        lazy="selectin",
+    )
+
+    # Заявки на размещение (Спринт 6)
+    placement_requests: Mapped[list["PlacementRequest"]] = relationship(
+        "PlacementRequest",
+        back_populates="channel",
+        lazy="select",
     )
 
     def __repr__(self) -> str:

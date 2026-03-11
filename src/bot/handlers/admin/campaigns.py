@@ -10,8 +10,8 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.filters.admin import AdminFilter
-from src.bot.keyboards.admin import AdminCB, get_admin_confirm_kb, get_admin_main_kb, get_back_kb
-from src.bot.keyboards.campaign import (
+from src.bot.keyboards.admin.admin import AdminCB, get_admin_confirm_kb, get_admin_main_kb, get_back_kb
+from src.bot.keyboards.advertiser.campaign import (
     CampaignCB,
     get_member_count_kb,
     get_schedule_kb,

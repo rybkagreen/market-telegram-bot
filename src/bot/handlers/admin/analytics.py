@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import func, select
 
-from src.bot.keyboards.admin import AdminCB, get_mailing_health_kb
+from src.bot.keyboards.admin.admin import AdminCB, get_mailing_health_kb
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.db.models.campaign import CampaignStatus
 from src.db.models.transaction import Transaction, TransactionType

@@ -230,15 +230,6 @@ export default function Channels() {
     staleTime: 10 * 60_000,  // 10 мин на фронте (бэкенд кэширует 1 час)
   })
 
-  // Обработчик переключения выбора канала
-  const toggleCompare = (channelId: number) => {
-    setSelectedForCompare(prev =>
-      prev.includes(channelId)
-        ? prev.filter(id => id !== channelId)
-        : prev.length < 5 ? [...prev, channelId] : prev
-    )
-  }
-
   // Переход к сравнению когда выбрано 2+ канала
   useEffect(() => {
     if (selectedForCompare.length >= 2) {

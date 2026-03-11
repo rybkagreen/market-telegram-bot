@@ -6,7 +6,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -339,6 +339,15 @@ class User(Base, TimestampMixin):
         doc="Выплаты владельцу канала",
     )
 
+    # Заявки на размещение (Спринт 6)
+    placement_requests: Mapped[list["PlacementRequest"]] = relationship(
+        "PlacementRequest",
+        foreign_keys="PlacementRequest.advertiser_id",
+        back_populates="advertiser",
+        lazy="select",
+        doc="Заявки на размещение созданные пользователем",
+    )
+
     # Отзывы (Спринт 2)
     reviews_given: Mapped[list["Review"]] = relationship(
         "Review",
@@ -371,6 +380,31 @@ class User(Base, TimestampMixin):
         back_populates="owner",
         lazy="select",
         doc="Медиакиты каналов владельца",
+    )
+
+    # Настройки каналов (Спринт 6)
+    channel_settings: Mapped[list["ChannelSettings"]] = relationship(
+        "ChannelSettings",
+        back_populates="owner",
+        lazy="select",
+        doc="Настройки монетизации каналов владельца",
+    )
+
+    # История репутации (Спринт 6)
+    reputation_history: Mapped[list["ReputationHistory"]] = relationship(
+        "ReputationHistory",
+        back_populates="user",
+        lazy="select",
+        doc="История изменений репутации пользователя",
+    )
+
+    # Репутация (Спринт 6)
+    reputation_score: Mapped[Optional["ReputationScore"]] = relationship(
+        "ReputationScore",
+        back_populates="user",
+        lazy="selectin",
+        uselist=False,
+        doc="Текущий счёт репутации пользователя",
     )
 
     # Индексы

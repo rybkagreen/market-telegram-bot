@@ -1,7 +1,0 @@
-tunnel: MARKET_BOT_TUNNEL_ID
-credentials-file: C:\Users\alex_\.cloudflared\MARKET_BOT_TUNNEL_ID.json
-
-ingress:
-  - hostname: market-bot.trycloudflare.com
-    service: http://localhost:8080
-  - service: http_status:404

@@ -8,8 +8,9 @@ Tests cover:
 - Payout requests
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 from sqlalchemy import select
 
 from src.core.services.billing_service import billing_service

@@ -114,6 +114,22 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour=0, minute=0, day_of_month=1),
         "options": {"queue": "gamification"},
     },
+    # PLACEMENT SLA CHECKS (каждые 5 минут)
+    "placement-check-owner-sla": {
+        "task": "placement:check_owner_response_sla",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "worker_critical", "expires": 60},
+    },
+    "placement-check-payment-sla": {
+        "task": "placement:check_payment_sla",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "worker_critical", "expires": 60},
+    },
+    "placement-check-counter-sla": {
+        "task": "placement:check_counter_offer_sla",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "worker_critical", "expires": 60},
+    },
 }
 
 # =============================================================================
@@ -148,6 +164,9 @@ TASK_ROUTES = {
     # Очередь billing — задачи биллинга
     "billing.*": {"queue": "billing"},
     "src.tasks.billing_tasks.*": {"queue": "billing"},
+    # Очередь placement — задачи размещения (критические)
+    "placement.*": {"queue": "worker_critical"},
+    "src.tasks.placement_tasks.*": {"queue": "worker_critical"},
 }
 
 # =============================================================================

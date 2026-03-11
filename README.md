@@ -1,55 +1,99 @@
-# Market Telegram Bot — Платформа рекламных рассылок в Telegram
+# RekHarborBot — Telegram Advertising Exchange
 
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![aiogram 3.x](https://img.shields.io/badge/aiogram-3.x-green.svg)](https://docs.aiogram.dev/)
 [![SQLAlchemy 2](https://img.shields.io/badge/SQLAlchemy-2-red.svg)](https://docs.sqlalchemy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Market Telegram Bot** — это SaaS-платформа для автоматизированной рекламы в русскоязычных Telegram-сообществах. Пользователи создают рекламные кампании, пополняют баланс, настраивают таргетинг, а бот автономно находит подходящие публичные чаты и транслирует рекламу.
+**RekHarborBot** — Telegram-бот, рекламная биржа для Telegram-каналов. Платформа соединяет рекламодателей (малый и средний бизнес) с владельцами тематических каналов. Весь цикл — от выбора каналов до оплаты, публикации и аналитики — происходит внутри Telegram без перехода на сторонние сайты.
+
+**Конкурентная среда:** Telega.in, Epicstars, TGStat.
+**Ключевое отличие:** Telegram-native, простота для МСБ, эскроу-защита, аналитика из коробки.
 
 ---
 
 ## 📋 Оглавление
 
-- [Возможности](#-возможности)
+- [Ценностное предложение](#-ценностное-предложение)
+- [Финансовая модель](#-финансовая-модель)
+- [Тарифы](#-тарифы)
+- [Роли пользователей](#-роли-пользователей)
 - [Архитектура](#-архитектура)
 - [Стек технологий](#-стек-технологий)
 - [Быстрый старт](#-быстрый-старт)
 - [Структура проекта](#-структура-проекта)
 - [База данных](#-база-данных)
 - [Контент-фильтр](#-контент-фильтр)
-- [Система кредитов](#-система-кредитов)
-- [Тарифы](#-тарифы)
-- [Админ-панель](#-админ-панель)
-- [Защита от бана](#-защита-от-бана)
+- [Система репутации](#-система-репутации)
 - [Разработка](#-разработка)
-- [Git Workflow](#-git-workflow)
 - [Деплой](#-деплой)
 - [Мониторинг](#-мониторинг)
 - [Лицензия](#-лицензия)
 
 ---
 
-## ✨ Возможности
+## ✨ Ценностное предложение
 
-### Для пользователей
+### Для рекламодателя
 
-- ✅ **Создание кампаний** — мастер из 7 шагов (тематика, заголовок, текст, изображение, размер аудитории, расписание, подтверждение)
-- ✅ **ИИ-генерация текстов** — Claude Sonnet 4.6 через OpenRouter (A/B тестирование, 3 варианта)
-- ✅ **Таргетинг** — по тематикам (15+ категорий), размеру чатов (от 50 до 1M+ подписчиков)
-- ✅ **Планирование** — запуск немедленно или по расписанию
-- ✅ **Аналитика** — статистика кампаний, охваты, конверсии, ROI
-- ✅ **Баланс и оплата** — кредиты (1 кр = 1₽), CryptoBot (USDT, TON, BTC), Telegram Stars
-- ✅ **Тарифы** — FREE, STARTER, PRO, BUSINESS с разными лимитами
-- ✅ **Mini App** — веб-интерфейс на React для управления кампаниями
+**Запустить рекламу в 10 каналах за 5 минут прямо в Telegram.** Деньги заморожены до публикации. После — отчёт с CPM, CTR, ROI.
 
-### Для администраторов
+- ✅ **9-шаговый мастер создания кампании** — категория → каналы → текст → арбитраж → оплата → публикация
+- ✅ **ИИ-генерация текстов** — Mistral/Claude через OpenRouter (3 варианта)
+- ✅ **Таргетинг** — по 11 категориям, размеру чатов, рейтингу
+- ✅ **Эскроу-защита** — средства блокируются до публикации
+- ✅ **Аналитика** — CPM, CTR, ROI, топ каналов
+- ✅ **B2B-пакеты** — Стартап (1500 кр), Бизнес (5000 кр), Премиум (25000 кр)
 
-- ✅ **Управление пользователями** — просмотр, бан/разбан, изменение баланса
-- ✅ **Модерация кампаний** — 3-уровневый контент-фильтр (regex → pymorphy3 → LLM)
-- ✅ **Статистика платформы** — пользователи, кампании, выручка
-- ✅ **Бесплатные кампании** — запуск от имени админа (для тестов)
-- ✅ **Broadcast** — рассылка всем пользователям
+### Для владельца канала
+
+**Подключи бота один раз — получай заявки и автоматические выплаты.** Ты контролируешь что публиковать. Деньги поступают только после размещения.
+
+- ✅ **Opt-in регистрация** — владелец сам добавляет бота администратором
+- ✅ **Автоматические заявки** — уведомления о новых размещениях
+- ✅ **Арбитраж** — принятие/отклонение/контр-предложение (макс 3 раунда)
+- ✅ **Настройки монетизации** — цена, пакеты, расписание, авто-принятие
+- ✅ **Выплаты 80%** — после публикации 80% владельцу, 20% комиссия платформы
+- ✅ **Репутация** — система доверия 0-10, отзывы после размещения
+
+---
+
+## 💰 Финансовая модель
+
+- **1 кредит = 1 RUB** (виртуальная единица для упрощения расчётов)
+- **Комиссия платформы:** 20% с каждого размещения
+- **Владелец канала получает:** 80% от суммы размещения
+- **Только opt-in каналы:** владелец сам добавляет бота администратором
+
+### Способы оплаты
+
+- **Telegram Stars** — 2 кредита за 1 ⭐
+- **CryptoBot** — USDT, TON, BTC, ETH, LTC
+- **Банковская карта** — ЮKassa
+- **СБП** — быстрый платёж
+
+---
+
+## 📦 Тарифы
+
+| Тариф | Цена | Кампаний/мес | AI запросов/мес | Каналов в кампании | Аналитика (дни) | B2B доступ |
+|-------|------|--------------|-----------------|-------------------|-----------------|------------|
+| **Free** | 0 кр/мес | 1 | 5 | 3 | 7 | ❌ |
+| **Start** | 299 кр/мес | 3 | 30 | 10 | 30 | ❌ |
+| **Pro** | 990 кр/мес | 10 | 100 | 50 | 90 | ✅ |
+| **Agency** | 2999 кр/мес | ∞ | ∞ | ∞ | 365 | ✅ |
+
+---
+
+## 👥 Роли пользователей
+
+| Роль | Код | Как получить | Функционал |
+|------|-----|--------------|------------|
+| **Новый** | `new` | По умолчанию при /start | Онбординг, выбор роли |
+| **Рекламодатель** | `advertiser` | После выбора роли | Создание кампаний, аналитика, B2B |
+| **Владелец канала** | `owner` | После регистрации канала | Управление каналами, заявки, выплаты |
+| **Обе роли** | `both` | Если зарегистрирован в обеих | Комбинированное меню |
+| **Администратор** | `admin` | Назначается вручную | Полный доступ, модерация |
 
 ---
 
@@ -57,7 +101,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                            Market Telegram Bot                          │
+│                            RekHarborBot                                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐              │
@@ -77,7 +121,7 @@
 │  ┌──────▼───────┐   ┌──────▼───────┐   ┌──────▼───────┐               │
 │  │  aiogram     │   │  Celery      │   │  Parser      │               │
 │  │  Handlers    │   │  Workers     │   │  (Telethon)  │               │
-│  │  (FSM)       │   │  (mailing)   │   │  (250+ queries)│              │
+│  │  (FSM)       │   │  (3 queues)  │   │  (read-only) │               │
 │  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘               │
 │         │                   │                   │                       │
 │         └───────────────────┼───────────────────┘                       │
@@ -90,8 +134,8 @@
 │         ┌───────────────────┼───────────────────┐                       │
 │         │                   │                   │                       │
 │  ┌──────▼───────┐   ┌──────▼───────┐   ┌──────▼───────┐               │
-│  │  PostgreSQL  │   │    Redis     │   │   OpenRouter │               │
-│  │  (asyncpg)   │   │  (FSM+Cache) │   │   (Claude)   │               │
+│  │  PostgreSQL  │   │    Redis     │   │  OpenRouter  │               │
+│  │  (asyncpg)   │   │  (FSM+Cache) │   │  (Mistral)   │               │
 │  └──────────────┘   └──────────────┘   └──────────────┘               │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -104,12 +148,12 @@
 | **Bot** | aiogram 3.x | Обработка команд, FSM диалоги |
 | **Mini App** | React 19 + TypeScript | Веб-интерфейс (Telegram WebApp) |
 | **API** | FastAPI | JWT аутентификация через Telegram initData |
-| **Parser** | Telethon | Поиск и парсинг Telegram каналов (250+ запросов) |
-| **Workers** | Celery + Beat | Асинхронные задачи (рассылки, парсинг, очистка) |
+| **Parser** | Telethon | Поиск и парсинг Telegram каналов (read-only) |
+| **Workers** | Celery + Beat | Асинхронные задачи (3 очереди) |
 | **DB** | PostgreSQL 16 | Хранение данных (SQLAlchemy 2 async) |
 | **Cache** | Redis 7 | FSM storage, rate limiting, AI кэш |
-| **AI** | OpenRouter (Claude Sonnet 4.6) | Генерация текстов, контент-фильтр L3 |
-| **Payments** | CryptoBot, Telegram Stars | Пополнение баланса в кредитах |
+| **AI** | OpenRouter (Mistral/Claude) | Генерация текстов, классификация |
+| **Payments** | CryptoBot, Telegram Stars, ЮKassa, СБП | Пополнение баланса |
 
 ---
 
@@ -131,7 +175,7 @@
 | **AI** | openai (OpenRouter) | 1.12+ |
 | **Parser** | Telethon | 1.36+ |
 | **Content Filter** | pymorphy3, rapidfuzz | 2.0+, 3.6+ |
-| **Payments** | yookassa, cryptobot | 3.2+ |
+| **Payments** | cryptobot | — |
 | **Monitoring** | sentry-sdk | 2.53+ |
 | **PDF Reports** | reportlab | 4.3+ |
 
@@ -191,34 +235,54 @@ poetry install
 
 ```bash
 cp .env.example .env
-# Отредактировать .env:
-# - BOT_TOKEN (от @BotFather)
-# - DATABASE_URL (postgresql+asyncpg://...)
-# - REDIS_URL (redis://...)
-# - OPENROUTER_API_KEY (для ИИ)
-# - ADMIN_IDS (Telegram ID админов)
+# Отредактировать .env (см. шаблон ниже)
 ```
 
 **Минимальный `.env` для разработки:**
 
 ```env
-# Telegram Bot
+# Bot
 BOT_TOKEN=1234567890:AABBccDDeeFFggHHiiJJkkLLmmNNooP
+BOT_USERNAME=RekHarborBot
 
 # Database
-POSTGRES_USER=market_bot
-POSTGRES_PASSWORD=market_bot_pass
-POSTGRES_DB=market_bot_db
-DATABASE_URL=postgresql+asyncpg://market_bot:market_bot_pass@localhost:5432/market_bot_db
+DATABASE_URL=postgresql+asyncpg://rekharbor:password@localhost:5432/rekharbor
+DATABASE_SYNC_URL=postgresql://rekharbor:password@localhost:5432/rekharbor
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
+REDIS_FSM_DB=1
 
-# AI (OpenRouter)
+# AI
+AI_MODEL=qwen/qwen3-235b-a22b:free
 OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 
-# Admin IDs (ваш Telegram ID)
-ADMIN_IDS=123456789
+# Payments
+CRYPTOBOT_TOKEN=...
+CRYPTOBOT_WEBHOOK_URL=https://yourdomain.com/billing/cryptobot/webhook
+YUKASSA_SHOP_ID=...
+YUKASSA_SECRET_KEY=...
+
+# Telethon
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=abcdef1234567890
+TELEGRAM_SESSION_NAME=parser
+
+# Admin
+ADMIN_TELEGRAM_IDS=[123456789]
+
+# Security
+API_SECRET_KEY=your-secret-key-here
+
+# Platform
+PLATFORM_COMMISSION=0.20
+MIN_PRICE_PER_POST=100
+MIN_PAYOUT=100
+MIN_TOPUP=100
+PLACEMENT_TIMEOUT_HOURS=24
+PAYMENT_TIMEOUT_HOURS=24
+MAX_COUNTER_OFFERS=3
 
 # Environment
 ENVIRONMENT=development
@@ -257,6 +321,33 @@ poetry run python -m src.bot.main
 
 Бот запущен в режиме **polling** (для production используется webhook).
 
+#### 7. Запустить Celery workers
+
+```bash
+# Worker (все очереди)
+celery -A src.tasks.celery_app worker -Q critical,background,game -l info
+
+# Отдельные worker'ы по очередям
+celery -A src.tasks.celery_app worker -Q critical -l info -c 4
+celery -A src.tasks.celery_app worker -Q background -l info -c 8
+celery -A src.tasks.celery_app worker -Q game -l info -c 2
+
+# Beat (периодические задачи)
+celery -A src.tasks.celery_app beat -l info
+
+# Flower (мониторинг Celery)
+celery -A src.tasks.celery_app flower --port=5555
+```
+
+#### 8. Запустить Mini App (development, опционально)
+
+```bash
+cd mini_app
+npm install
+npm run dev
+# Прокси на /api → http://localhost:8001
+```
+
 ---
 
 ## 📁 Структура проекта
@@ -265,113 +356,193 @@ poetry run python -m src.bot.main
 market-telegram-bot/
 ├── src/
 │   ├── bot/                      # aiogram бот
-│   │   ├── handlers/             # обработчики команд
-│   │   │   ├── admin.py          # админ-панель
-│   │   │   ├── start.py          # /start, регистрация
-│   │   │   ├── campaigns.py      # создание кампаний
-│   │   │   ├── billing.py        # оплата, тарифы
-│   │   │   ├── cabinet.py        # личный кабинет
-│   │   │   └── ...
-│   │   ├── keyboards/            # inline клавиатуры
-│   │   │   ├── admin.py          # админские кнопки
-│   │   │   ├── billing.py        # оплата
-│   │   │   └── ...
-│   │   ├── states/               # FSM состояния
-│   │   │   ├── admin.py          # состояния админки
-│   │   │   └── campaign.py       # мастер кампании
-│   │   ├── filters/              # кастомные фильтры
-│   │   │   └── admin.py          # AdminFilter
-│   │   └── middlewares/          # middleware
-│   │       └── throttling.py     # rate limiting
+│   │   ├── handlers/             # обработчики команд (иерархическая структура)
+│   │   │   ├── __init__.py       # Главный router (включает все sub-packages)
+│   │   │   ├── shared/           # Общие handlers
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── start.py      # /start, онбординг, меню навигация ✅ Этап 0
+│   │   │   │   ├── cabinet.py    # личный кабинет (профиль, XP, репутация)
+│   │   │   │   ├── help.py       # помощь
+│   │   │   │   ├── feedback.py   # обратная связь
+│   │   │   │   └── notifications.py  # уведомления
+│   │   │   ├── advertiser/       # Handlers рекламодателя
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── campaigns.py
+│   │   │   │   ├── campaign_create_ai.py  # AI-wizard (13 FSM) — НЕ ТРОГАТЬ
+│   │   │   │   ├── campaign_analytics.py  # аналитика по кампании
+│   │   │   │   ├── analytics.py      # аналитика (advertiser + owner, раздельно)
+│   │   │   │   ├── analytics_chats.py
+│   │   │   │   ├── comparison.py     # сравнение каналов
+│   │   │   │   └── b2b.py            # B2B-пакеты
+│   │   │   ├── owner/            # Handlers владельца
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── channel_owner.py  # управление каналами владельца, выплаты
+│   │   │   │   ├── channels_db.py    # каталог каналов, фильтрация
+│   │   │   │   └── channels_db_mediakit.py  # медиакит канала
+│   │   │   ├── placement/        # Handlers размещения (Этап 3)
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── placement.py      # Заглушка (Этап 3.2)
+│   │   │   │   ├── arbitration.py    # Заглушка (Этап 3.2)
+│   │   │   │   └── channel_settings.py  # ✅ Этап 3.1: CRUD настроек канала (11 handlers, 9 FSM)
+│   │   │   ├── billing/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── billing.py        # оплата, тарифы
+│   │   │   │   └── templates.py
+│   │   │   ├── infra/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── callback_schemas.py  # CallbackData схемы
+│   │   │   └── admin/            # панель администратора
+│   │   │       ├── __init__.py
+│   │   │       ├── ai.py
+│   │   │       ├── analytics.py
+│   │   │       ├── campaigns.py
+│   │   │       ├── users.py
+│   │   │       ├── stats.py      # публичная статистика
+│   │   │       └── monitoring.py # системный мониторинг
+│   │   ├── keyboards/            # inline клавиатуры (иерархическая структура)
+│   │   │   ├── __init__.py       # Только __all__
+│   │   │   ├── shared/           # Общие клавиатуры
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── main_menu.py  # главное меню + роль-меню ✅ Этап 0
+│   │   │   │   ├── cabinet.py
+│   │   │   │   ├── feedback.py
+│   │   │   │   ├── pagination.py
+│   │   │   │   └── channels_catalog.py  # каталог каналов
+│   │   │   ├── advertiser/       # Клавиатуры рекламодателя
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── campaign.py
+│   │   │   │   ├── campaign_ai.py    # AI wizard — НЕ ТРОГАТЬ
+│   │   │   │   ├── campaign_analytics.py
+│   │   │   │   └── comparison.py
+│   │   │   ├── owner/            # Клавиатуры владельца
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── mediakit.py
+│   │   │   ├── placement/        # Клавиатуры размещения ✅ Этап 3.1
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── channel_settings.py  # настройки канала
+│   │   │   │   ├── placement.py         # заявки на размещение
+│   │   │   │   └── arbitration.py       # арбитраж
+│   │   │   ├── billing/          # Биллинг
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── billing.py
+│   │   │   └── admin/            # Админка
+│   │   │       ├── __init__.py
+│   │   │       └── admin.py
+│   │   ├── states/               # FSM StatesGroup
+│   │   │   ├── campaign.py       # 9 состояний
+│   │   │   ├── campaign_create.py  # 13 состояний AI wizard — НЕ ТРОГАТЬ
+│   │   │   ├── channel_owner.py  # 6 состояний
+│   │   │   ├── onboarding.py
+│   │   │   ├── feedback.py
+│   │   │   ├── comparison.py
+│   │   │   ├── mediakit.py
+│   │   │   ├── placement.py      # НОВЫЙ (Этап 4): 9 состояний
+│   │   │   ├── arbitration.py    # НОВЫЙ (Этап 4): 5 состояний
+│   │   │   └── channel_settings.py  # НОВЫЙ (Этап 4): 6 состояний
+│   │   ├── filters/
+│   │   │   └── admin.py          # IsAdmin filter
+│   │   ├── middlewares/
+│   │   │   ├── fsm_timeout.py    # таймаут FSM состояний
+│   │   │   └── throttling.py     # rate limiting
+│   │   └── utils/
+│   │       ├── message_utils.py
+│   │       └── safe_callback.py
 │   │
-│   ├── api/                      # FastAPI для Mini App
-│   │   ├── routers/
-│   │   │   ├── auth.py           # JWT auth via Telegram
-│   │   │   ├── billing.py        # API оплаты
-│   │   │   └── analytics.py      # API аналитики
-│   │   ├── constants/            # централизованные константы
-│   │   │   ├── tariffs.py        # тарифы и лимиты
-│   │   │   ├── payments.py       # платёжные константы
-│   │   │   ├── parser.py         # поисковые запросы (~400)
-│   │   │   ├── celery.py         # Celery расписание
-│   │   │   ├── limits.py         # ограничения по тарифам
-│   │   │   └── content_filter.py # пороги фильтра
-│   │   └── dependencies.py       # FastAPI зависимости
+│   ├── api/                      # FastAPI REST API
+│   │   ├── main.py               # FastAPI app
+│   │   ├── auth_utils.py         # JWT авторизация
+│   │   ├── dependencies.py       # DI: get_db, get_current_user
+│   │   └── routers/
+│   │       ├── auth.py           # POST /auth/telegram
+│   │       ├── analytics.py      # GET /analytics/*
+│   │       ├── campaigns.py      # CRUD /campaigns/*
+│   │       ├── channels.py       # GET /channels/catalog, /channels/{id}
+│   │       ├── billing.py        # POST /billing/topup, /billing/withdraw
+│   │       ├── placements.py     # НОВЫЙ (Этап 6)
+│   │       ├── channel_settings.py  # НОВЫЙ (Этап 6)
+│   │       └── reputation.py     # НОВЫЙ (Этап 6)
 │   │
 │   ├── db/                       # работа с БД
-│   │   ├── models/               # SQLAlchemy модели
-│   │   │   ├── user.py           # User (credits, plan)
-│   │   │   ├── campaign.py       # Campaign (статусы, фильтры)
-│   │   │   ├── chat.py           # TelegramChat (language, russian_score)
-│   │   │   ├── transaction.py    # Transaction (topup/spend)
+│   │   ├── base.py               # DeclarativeBase
+│   │   ├── session.py            # async_sessionmaker, get_db()
+│   │   ├── models/               # SQLAlchemy модели (15 моделей)
+│   │   │   ├── user.py           # User (role, credits, plan, XP, levels)
+│   │   │   ├── campaign.py       # Campaign (status, type: Broadcast/Placement)
+│   │   │   ├── analytics.py      # TelegramChat, ChatSnapshot
+│   │   │   ├── placement_request.py  # PlacementRequest ✅ Этап 1
+│   │   │   ├── channel_settings.py   # ChannelSettings ✅ Этап 1
+│   │   │   ├── reputation_score.py   # ReputationScore ✅ Этап 1
+│   │   │   ├── reputation_history.py # ReputationHistory ✅ Этап 1
+│   │   │   ├── transaction.py    # Transaction (topup/spend/escrow)
+│   │   │   ├── mailing_log.py    # MailingLog (+placement_request_id)
+│   │   │   ├── payout.py         # Payout
+│   │   │   ├── review.py         # Review
+│   │   │   ├── badge.py          # Badge, UserBadge
+│   │   │   ├── channel_rating.py # ChannelRating
+│   │   │   ├── b2b_package.py    # B2BPackage
 │   │   │   └── ...
-│   │   ├── repositories/         # Repository pattern
-│   │   │   ├── base.py           # BaseRepository[T]
-│   │   │   ├── user_repo.py      # UserRepository
-│   │   │   └── ...
-│   │   └── migrations/           # Alembic миграции
+│   │   ├── migrations/           # Alembic миграции (head: 006)
+│   │   └── repositories/         # Repository pattern
+│   │       ├── base.py           # BaseRepository
+│   │       ├── user_repo.py
+│   │       ├── campaign_repo.py
+│   │       ├── log_repo.py
+│   │       ├── transaction_repo.py
+│   │       ├── payout_repo.py
+│   │       ├── placement_request_repo.py  # НОВЫЙ ✅ Этап 2
+│   │       ├── channel_settings_repo.py   # НОВЫЙ ✅ Этап 2
+│   │       ├── reputation_repo.py         # НОВЫЙ ✅ Этап 2
+│   │       └── ...
 │   │
 │   ├── core/                     # бизнес-логика
+│   │   ├── exceptions.py         # кастомные исключения
 │   │   └── services/
-│   │       ├── ai_service.py     # ИИ-генерация (OpenRouter)
-│   │       ├── billing_service.py# платежи, кредиты
-│   │       ├── mailing_service.py# рассылки
-│   │       └── notification_service.py # уведомления
+│   │       ├── billing_service.py      # платежи, эскроу
+│   │       ├── mailing_service.py      # рассылки, публикация placement
+│   │       ├── payout_service.py       # выплаты
+│   │       ├── notification_service.py # уведомления
+│   │       ├── analytics_service.py    # аналитика
+│   │       ├── mistral_ai_service.py   # ИИ-генерация (OpenRouter)
+│   │       ├── user_role_service.py    # роли пользователей
+│   │       ├── xp_service.py           # геймификация (НЕ ТРОГАТЬ)
+│   │       ├── badge_service.py        # бейджи (НЕ ТРОГАТЬ)
+│   │       ├── placement_request_service.py  # НОВЫЙ ✅ Этап 2
+│   │       ├── reputation_service.py       # НОВЫЙ ✅ Этап 2
+│   │       └── ...
 │   │
 │   ├── tasks/                    # Celery задачи
-│   │   ├── celery_app.py         # конфигурация Celery
-│   │   ├── mailing_tasks.py      # рассылки
-│   │   ├── parser_tasks.py       # парсинг каналов
-│   │   ├── billing_tasks.py      # продление тарифов
-│   │   └── cleanup_tasks.py      # очистка старых данных
+│   │   ├── celery_app.py         # Celery instance, 3 очереди
+│   │   ├── celery_config.py      # Beat расписание
+│   │   ├── billing_tasks.py      # expire placements, unblock users
+│   │   ├── mailing_tasks.py      # send campaigns, publish placements
+│   │   ├── notification_tasks.py # expiry notifications
+│   │   ├── parser_tasks.py       # parse channels
+│   │   ├── gamification_tasks.py # reputation recovery
+│   │   ├── rating_tasks.py       # update channel ratings
+│   │   └── cleanup_tasks.py      # cleanup old logs
 │   │
 │   ├── utils/                    # утилиты
 │   │   ├── telegram/
-│   │   │   ├── parser.py         # Telethon parser
-│   │   │   ├── sender.py         # отправка сообщений
-│   │   │   ├── topic_classifier.py # классификатор тем
-│   │   │   └── russian_lang_detector.py # детектор русского языка
+│   │   │   ├── parser.py         # Telethon (read-only)
+│   │   │   ├── sender.py         # отправка постов (Bot API)
+│   │   │   ├── channel_rules_checker.py  # bot_is_admin проверка
+│   │   │   ├── llm_classifier.py # LLM классификация тем
+│   │   │   └── russian_lang_detector.py
 │   │   └── content_filter/
 │   │       ├── filter.py         # 3-уровневый фильтр
-│   │       └── stopwords_ru.json # стоп-слова (8 категорий)
+│   │       └── stopwords_ru.json
 │   │
 │   └── config/
 │       └── settings.py           # Pydantic Settings
 │
-├── mini_app/                     # Telegram Mini App
-│   ├── src/
-│   │   ├── components/           # React компоненты
-│   │   ├── pages/                # страницы (/campaigns, /analytics)
-│   │   ├── hooks/                # custom hooks
-│   │   ├── store/                # Zustand store
-│   │   └── main.tsx              # entry point
-│   └── dist/                     # build output → src/static/mini_app/
-│
+├── mini_app/                     # Telegram Mini App (React)
 ├── tests/
-│   ├── unit/                     # unit-тесты
-│   │   ├── test_content_filter.py
-│   │   └── test_ai_service.py
-│   └── integration/              # integration-тесты (testcontainers)
-│       ├── test_user_repo.py
-│       └── test_campaign_repo.py
-│
-├── docker/                       # Docker конфигурации
-│   ├── Dockerfile.bot
-│   ├── Dockerfile.api
-│   ├── Dockerfile.worker
-│   ├── Dockerfile.nginx
-│   └── nginx.conf
-│
-├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml                # lint+test на PR
-│   │   └── deploy.yml            # deploy на main
-│   └── CODEOWNERS                # владельцы кода
-│
-├── docker-compose.yml            # local development
-├── Makefile                      # make команды
-├── pyproject.toml                # Poetry зависимости
-└── README.md                     # этот файл
+├── docker/
+├── docs/                         # техническая документация v3.0
+├── docker-compose.yml
+├── Makefile
+├── pyproject.toml
+└── README.md
 ```
 
 ---
@@ -380,103 +551,180 @@ market-telegram-bot/
 
 ### Основные модели
 
-#### User (Пользователи)
+#### 1. User (Пользователи)
 
-```python
-class User(Base):
-    id: int                      # PK
-    telegram_id: int             # UNIQUE, BIGINT
-    username: str | None
-    first_name: str | None
-    credits: int                 # баланс в кредитах (1 кр = 1₽), CHECK >= 0
-    plan: UserPlan               # FREE/STARTER/PRO/BUSINESS
-    plan_expires_at: datetime    # когда истекает тариф
-    ai_generations_used: int     # счётчик ИИ в текущем месяце
-    referral_code: str           # уникальный реф. код
-    is_banned: bool              # забанен ли
-    is_active: bool              # активен ли
-    language: str                # "ru" (по умолчанию)
-    russian_score: float         # 1.0 (по умолчанию)
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | Integer PK | — |
+| `telegram_id` | BigInteger UNIQUE | Telegram user_id |
+| `username` | String(64) | @username без @ |
+| `first_name` | String(128) | Имя в Telegram |
+| `role` | String(20) | new/advertiser/owner/both/admin |
+| `credits` | Numeric(12,2) | Баланс кредитов (1 кр = 1₽) |
+| `plan` | String(20) | free/start/pro/agency |
+| `advertiser_xp` / `owner_xp` | Integer | XP рекламодателя / владельца |
+| `advertiser_level` / `owner_level` | Integer | Уровень (0-6) |
+| `is_banned` | Boolean | Глобальная блокировка |
+| `referral_code` | String(20) UNIQUE | Реферальный код |
+
+**⚠️ XP/levels не связаны с ReputationScore — разные системы.**
+
+#### 2. TelegramChat (Каналы)
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | Integer PK | — |
+| `telegram_id` | BigInteger UNIQUE | Telegram channel id |
+| `username` | String(64) UNIQUE | @handle |
+| `title` | String(255) | Название канала |
+| `owner_id` | Integer FK→users.id | Владелец (SET NULL) |
+| `member_count` | Integer | Подписчиков |
+| `avg_views` | Integer | Среднее просмотров |
+| `rating` | Float | Рейтинг канала (0-10) |
+| `topic` / `subcategory` | String | Тематика (AI классификация) |
+| `is_opt_in` | Boolean | Добровольная регистрация |
+| `bot_is_admin` | Boolean | Бот — администратор |
+
+#### 3. Campaign (Кампании)
+
+**Enum CampaignStatus:** DRAFT, QUEUED, RUNNING, SCHEDULED, DONE, ERROR, PAUSED, CANCELLED, MODERATION
+
+**Enum CampaignType:** BROADCAST, PLACEMENT
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | Integer PK | — |
+| `advertiser_id` | Integer FK→users.id | CASCADE |
+| `title` | String(255) | Название |
+| `text` | Text | Текст объявления |
+| `status` | CampaignStatus | — |
+| `type` | CampaignType | broadcast/placement |
+| `placement_request_id` | Integer FK | SET NULL ✅ Этап 1 |
+| `budget` / `spent` | Numeric(12,2) | Бюджет / потрачено |
+| `ctr` | Float | CTR (%) |
+| `views_total` / `clicks_total` | Integer | Просмотры / клики |
+
+#### 4. PlacementRequest (Заявки на размещение) ✅ Этап 1
+
+**Enum PlacementStatus:** PENDING_OWNER, COUNTER_OFFER, PENDING_PAYMENT, ESCROW, PUBLISHED, FAILED, REFUNDED, CANCELLED
+
+**Жизненный цикл:**
+```
+pending_owner ──► counter_offer ──► pending_owner (макс 3 раунда)
+     │                                     │
+     ▼                                     ▼
+pending_payment ◄────────────────────────────
+     │
+     ▼
+  escrow ──► published ──► выплата 80/20
+     │
+     └──► failed ──► refunded
 ```
 
-#### Campaign (Кампании)
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | Integer PK | — |
+| `advertiser_id` / `channel_id` / `campaign_id` | Integer FK | CASCADE |
+| `proposed_price` / `final_price` | Numeric(10,2) | Цена |
+| `proposed_schedule` / `final_schedule` | DateTime | Время публикации |
+| `final_text` | Text | Финальный текст |
+| `status` | PlacementStatus | — |
+| `rejection_reason` | String(500) | Мин 10 символов с буквами |
+| `counter_offer_count` | Integer | Макс 3 |
+| `escrow_transaction_id` | Integer FK | SET NULL |
+| `expires_at` | DateTime | Дедлайн +24ч |
 
-```python
-class Campaign(Base):
-    id: int                      # PK
-    user_id: int                 # FK → User
-    title: str
-    text: str
-    status: CampaignStatus       # draft/queued/running/done/error/paused/banned
-    filters_json: dict           # {topics, min_members, max_members}
-    scheduled_at: datetime | None
-    cost: Decimal                # стоимость в кредитах, CHECK >= 0
-    total_chats: int             # всего чатов
-    sent_count: int              # отправлено
-    failed_count: int            # ошибок
-```
+#### 5. ChannelSettings (Настройки канала) ✅ Этап 1
 
-#### TelegramChat (Каналы для рассылок)
+PK = `channel_id` (one-to-one с TelegramChat).
 
-```python
-class TelegramChat(Base):
-    id: int                      # PK
-    telegram_id: int             # UNIQUE, BIGINT
-    username: str                # UNIQUE
-    title: str
-    description: str | None
-    member_count: int            # количество подписчиков
-    topic: str | None            # тематика
-    subcategory: str | None      # подкатегория
-    rating: float                # 0-10
-    language: str                # "ru", "en", "mixed", "unknown"
-    russian_score: float         # 0.0-1.0
-    is_active: bool              # активен ли
-    is_blacklisted: bool         # в чёрном списке
-    complaint_count: int         # количество жалоб
-```
+**Системные константы:**
+- `MIN_PRICE_PER_POST = 100` (кредитов)
+- `PLATFORM_COMMISSION = 0.20` (20%)
+- `MAX_PACKAGE_DISCOUNT = 50` (%)
+- `MAX_POSTS_PER_DAY = 5`, `MAX_POSTS_PER_WEEK = 35`
 
-#### Transaction (Транзакции)
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `channel_id` | Integer PK FK | CASCADE |
+| `owner_id` | Integer FK | CASCADE |
+| `price_per_post` | Numeric(10,2) | ≥ 100 |
+| `daily_package_enabled` / `weekly_package_enabled` | Boolean | Пакеты |
+| `subscription_enabled` | Boolean | Подписка |
+| `publish_start_time` / `publish_end_time` | Time | 09:00-21:00 |
+| `auto_accept_enabled` | Boolean | Авто-принятие |
 
-```python
-class Transaction(Base):
-    id: int                      # PK
-    user_id: int                 # FK → User
-    amount: Decimal              # сумма в рублях, CHECK > 0
-    type: TransactionType        # topup/spend/bonus/adjustment
-    payment_id: str | None       # ID в платёжной системе, UNIQUE
-    meta_json: dict              # {credits, description, ...}
-    created_at: datetime
-```
+#### 6. ReputationScore (Репутация) ✅ Этап 1
 
-### Целостность базы данных
+PK = `user_id` (one-to-one с User). **НЕ путать с XP/levels.**
 
-**Check Constraints:**
-- `ck_users_credits_positive` — `credits >= 0`
-- `ck_users_balance_positive` — `balance >= 0`
-- `ck_campaigns_cost_positive` — `cost >= 0`
-- `ck_transactions_amount_positive` — `amount > 0`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `user_id` | Integer PK FK | CASCADE |
+| `advertiser_score` / `owner_score` | Float | 0.0–10.0, старт 5.0 |
+| `advertiser_violations` / `owner_violations` | Integer | Счётчик нарушений |
+| `is_advertiser_blocked` / `is_owner_blocked` | Boolean | Блокировка |
+| `blocked_until` | DateTime | Срок блокировки |
 
-**Unique Constraints:**
-- `uq_users_telegram_id` — `users.telegram_id`
-- `uq_users_referral_code` — `users.referral_code`
-- `uq_transactions_payment_id` — `transactions.payment_id`
-- `uq_mailing_logs_campaign_chat` — `(campaign_id, chat_telegram_id)`
+**Ключевые правила:**
+- После 7-дневного бана: сброс до 2.0
+- 5+ нарушений: перманентная блокировка
+- 3 невалидных отказа подряд: бан 7 дней
 
-**Foreign Keys с CASCADE:**
-- `campaigns.user_id` → `users.id` (ON DELETE CASCADE)
-- `transactions.user_id` → `users.id` (ON DELETE CASCADE)
-- `mailing_logs.campaign_id` → `campaigns.id` (ON DELETE CASCADE)
-- `mailing_logs.chat_id` → `telegram_chats.id` (ON DELETE SET NULL)
+#### 7. ReputationHistory (История репутации) ✅ Этап 1
 
-**Индексы:**
-- `ix_users_telegram_id` — поиск по Telegram ID
-- `ix_campaigns_user_status` — фильтрация кампаний по пользователю и статусу
-- `ix_campaigns_status` — фильтрация по статусу
-- `ix_transactions_user_type` — фильтрация транзакций по типу
-- `ix_mailing_logs_status_campaign` — фильтрация логов по статусу
+**Enum ReputationAction (16 значений):**
+- Бонусы: PUBLICATION (+1), REVIEW_5STAR (+2), REVIEW_4STAR (+1), RECOVERY_30DAYS (+5)
+- Штрафы: CANCEL_BEFORE (-5), CANCEL_AFTER (-20), REJECT_INVALID_1 (-10), REJECT_INVALID_2 (-15), REJECT_INVALID_3 (-20 + бан)
 
----
+#### 8. Transaction (Транзакции)
+
+**Enum TransactionType:** TOPUP, WITHDRAWAL, PAYMENT, REFUND, ESCROW_FREEZE, ESCROW_RELEASE, COMMISSION, BONUS
+
+#### 9. MailingLog (Логи рассылок)
+
+**Enum MailingStatus:** PENDING, SENT, FAILED, SKIPPED, CANCELLED, RETRY, TIMEOUT, BOUNCED, BLOCKED
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `campaign_id` / `channel_id` | Integer FK | CASCADE |
+| `placement_request_id` | Integer FK | SET NULL ✅ Этап 1 |
+| `status` | MailingStatus | — |
+| `message_id` | BigInteger | Telegram message_id |
+| `views_count` / `clicks_count` | Integer | Метрики |
+
+#### 10. Payout (Выплаты)
+
+**Enum PayoutStatus:** PENDING, PROCESSING, PAID, FAILED, CANCELLED
+
+#### 11. Review (Отзывы)
+
+**Enum ReviewerRole:** ADVERTISER, OWNER
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `reviewer_id` / `reviewed_id` | Integer FK | Кто о ком |
+| `placement_id` | Integer FK | SET NULL |
+| `stars` | Integer | 1–5 |
+| `comment` | String(1000) | Текст |
+
+#### 12. Badge / UserBadge (Бейджи)
+
+Геймификация: достижения пользователей.
+
+#### 13. ChannelRating (Рейтинг канала)
+
+**⚠️ ChannelRating ≠ ReputationScore:**
+- `ChannelRating` — характеристика канала (качество контента, аудитории)
+- `ReputationScore` — характеристика пользователя (надёжность контрагента)
+
+#### 14. B2BPackage (B2B пакеты)
+
+| Пакет | Цена | Каналов | Бюджет/канал | Охват | Срок |
+|-------|------|---------|--------------|-------|------|
+| Стартап | 1500 кр | 5 | 300 кр | ~25K | 7 дней |
+| Бизнес | 5000 кр | 10 | 500 кр | ~60K | 14 дней |
+| Премиум | 25000 кр | 25 | 1000 кр | ~200K | 30 дней |
 
 ### Миграции
 
@@ -494,27 +742,26 @@ poetry run alembic downgrade -1
 
 # Проверить статус
 poetry run alembic current
-
-# Показать историю миграций
-poetry run alembic history
 ```
 
-**Текущая миграция:** `8885dc6d508e (head)` — add_check_constraint_transactions_amount
+**Текущая миграция:** `006_add_type_to_campaigns` (HEAD)
 
 **История миграций:**
 ```
-<base> -> 0014 (Previous schema migration - placeholder)
-0014 -> 0015 (Initial schema - create all tables)
-0015 -> d58411813eee (add_check_constraints_users)
-d58411813eee -> 49ba417be2a8 (add_check_constraint_campaigns_cost)
-49ba417be2a8 -> 8885dc6d508e (add_check_constraint_transactions_amount) [HEAD]
+82cd153da6b8  initial_schema
+  ↓
+001_create_placement_requests
+  ↓
+002_create_channel_settings
+  ↓
+003_create_reputation_scores
+  ↓
+004_create_reputation_history
+  ↓
+005_add_placement_request_to_mailing_log
+  ↓
+006_add_type_to_campaigns  ← HEAD
 ```
-
-**Check Constraints в БД:**
-- `ck_users_credits_positive` — credits >= 0
-- `ck_users_balance_positive` — balance >= 0
-- `ck_campaigns_cost_positive` — cost >= 0
-- `ck_transactions_amount_positive` — amount > 0
 
 ---
 
@@ -529,28 +776,25 @@ d58411813eee -> 49ba417be2a8 (add_check_constraint_campaigns_cost)
 ┌─────────────────────────────────┐
 │ Уровень 1: regex_check()        │  < 1ms
 │ - Компилированные паттерны      │
-│ - stop words из stopwords_ru.json│
-│ - Score < 0.2 → PASS            │
+│ - HIGH_RISK (≥3) → BLOCK        │
+│ - MEDIUM_RISK (1-2) → L2        │
 └──────────────┬──────────────────┘
-               │ Score >= 0.2
+               │
                ▼
 ┌─────────────────────────────────┐
 │ Уровень 2: morph_check()        │  < 10ms
 │ - pymorphy3 (все формы слов)   │
-│ - Склонения, спряжения          │
-│ - Score < 0.5 → PASS            │
 └──────────────┬──────────────────┘
-               │ Score >= 0.5
+               │
                ▼
 ┌─────────────────────────────────┐
 │ Уровень 3: llm_check()          │  1-3 сек
-│ - Claude API (OpenRouter)       │
+│ - Mistral API (OpenRouter)      │
 │ - Контекстный анализ            │
-│ - Score < 0.7 → PASS            │
 └──────────────┬──────────────────┘
-               │ Score >= 0.7
+               │
                ▼
-         BLOCKED ❌
+         BLOCKED ❌ или PASS ✅
 ```
 
 ### 8 заблокированных категорий
@@ -564,206 +808,59 @@ d58411813eee -> 49ba417be2a8 (add_check_constraint_campaigns_cost)
 7. **extremism** — экстремизм
 8. **gambling** — азартные игры
 
-### Использование
-
-```python
-from src.utils.content_filter.filter import check as content_filter_check
-
-result = content_filter_check("Текст рекламы")
-
-if not result.passed:
-    print(f"Заблокировано: {', '.join(result.categories)}")
-    print(f"Фрагменты: {result.flagged_fragments}")
-else:
-    print("Текст прошёл проверку")
-```
-
 ---
 
-## 💰 Система кредитов
+## ⭐ Система репутации
 
-### Конвертация валют в кредиты
+### Диапазон и значения
 
-| Валюта | Кредитов за 1 единицу |
-|--------|----------------------|
-| **USDT** | 90 кр |
-| **TON** | 400 кр |
-| **BTC** | 9 000 000 кр |
-| **ETH** | 300 000 кр |
-| **LTC** | 7 000 кр |
-| **Telegram Stars** | 2 кр за 1 ⭐ |
+- **Диапазон:** 0.0 – 10.0
+- **Стартовое значение:** 5.0
+- **После 7-дневного бана:** сброс до 2.0
+- **5+ нарушений:** перманентная блокировка
 
-**1 кредит = 1 рублю** (виртуальная единица для упрощения расчётов).
+### Бонусы
 
-### Пополнение баланса
+| Событие | Δ Репутация | Кому |
+|---------|-------------|------|
+| Успешная публикация | +1 | advertiser + owner |
+| Отзыв 5⭐ | +2 | получатель отзыва |
+| Отзыв 4⭐ | +1 | — |
+| Отзыв 3⭐ | 0 | — |
+| Отзыв 2⭐ | -1 | — |
+| Отзыв 1⭐ | -2 | — |
+| 30 дней без нарушений | +5 | — |
 
-```python
-# Через CryptoBot
-from src.core.services.cryptobot_service import cryptobot_service
+### Штрафы
 
-invoice = await cryptobot_service.create_invoice(
-    currency="USDT",
-    amount=10.0,  # 10 USDT = 900 кр
-    payload=f"user:{user_id}:credits:900",
-)
+| Событие | Δ Репутация | Последствия |
+|---------|-------------|-------------|
+| Отмена до эскроу | -5 | — |
+| Отмена после эскроу | -20 | — |
+| 3 отмены за 30 дней | -20 | + предупреждение |
+| Невалидный отказ (1й) | -10 | — |
+| Невалидный отказ (2й) | -15 | — |
+| Невалидный отказ (3й) | -20 | Бан 7 дней |
+| Частые отказы (>50%) | -5 | — |
 
-# Через Telegram Stars
-await bot.send_invoice(
-    currency="XTR",  # Stars
-    prices=[LabeledPrice(label="Кредиты", amount=50)],  # 50 ⭐ = 100 кр
-)
-```
+### Блокировки
 
-### Списание кредитов
+| Условие | Тип | Продолжительность |
+|---------|-------|-------------------|
+| 3й невалидный отказ подряд | owner_blocked | 7 дней |
+| Score ≤ 0 | role_blocked | Перманентная |
+| violations ≥ 5 | role_blocked | Перманентная |
+| is_banned (глобально) | full_ban | Перманентная (admin) |
 
-```python
-# Оплата тарифа
-await user_repo.update_credits(user_id, -999)  # PRO тариф
-
-# Оплата кампании
-await user_repo.update_credits(user_id, -100)  # 100 кр за кампанию
-
-# ИИ-генерация (если превышен лимит)
-await user_repo.update_credits(user_id, -10)  # 10 кр за генерацию
-```
-
----
-
-## 📦 Тарифы
-
-| Тариф | Цена | Кампаний/мес | Чатов/кампанию | ИИ-генераций | Лимит подписчиков |
-|-------|------|--------------|----------------|--------------|-------------------|
-| **FREE** | 0 кр/мес | 0 | 0 | 0 | до 10K |
-| **STARTER** | 299 кр/мес | 5 | 50 | за кредиты | до 50K |
-| **PRO** | 999 кр/мес | 20 | 200 | 5 включено | до 200K |
-| **BUSINESS** | 2999 кр/мес | 100 | 1000 | 20 включено | безлимит |
-
-### Продление тарифа
-
-Тариф продлевается **автоматически** каждые 30 дней. Если на балансе недостаточно кредитов — тариф сбрасывается на **FREE**.
+### Валидация причины отклонения
 
 ```python
-# src/tasks/billing_tasks.py
-@celery_app.task(name="billing:check_plan_renewals")
-def check_plan_renewals():
-    # Проверка истекающих тарифов
-    # Списывание кредитов
-    # Продление или сброс на FREE
+# Правила валидной rejection_reason:
+min_length = 10 символов
+must_contain = re.search(r'[а-яёa-z]', reason, re.IGNORECASE)
+blacklist = ["asdfgh", "aaaaaa", "123456", "qwerty", "нет", "no", "не хочу"]
+# Невалидная причина → штраф репутации + повтор ввода
 ```
-
----
-
-## 🔐 Админ-панель
-
-### Доступные функции
-
-- **Статистика платформы** — пользователи, кампании, выручка
-- **Управление пользователями**:
-  - Просмотр списка (пагинация)
-  - Бан/разбан (кнопка в профиле)
-  - Изменение баланса (пополнение/списание)
-- **ИИ-генерация кампании** — создание от имени админа (бесплатно)
-- **Broadcast** — рассылка всем пользователям
-- **Контент-фильтр** — ручная модерация спорных случаев
-
-### Вход в админку
-
-```python
-# Команда /admin (доступно только ADMIN_IDS)
-/admin
-
-# Через главное меню (кнопка "🔐 Админ-панель")
-```
-
-### Исправленные функции (Март 2026)
-
-- ✅ **`toggle_ban`** — быстрый бан/разбан из профиля
-- ✅ **`edit_balance`** — изменение баланса из профиля
-- ✅ **`/cancel`** — отмена текущего действия админа
-
----
-
-## 🛡️ Защита от бана
-
-### Приоритет 1: Реализовано
-
-#### Обработка Telegram ошибок
-
-```python
-from telethon.errors import (
-    FloodWaitError,
-    ChatWriteForbiddenError,
-    UserBannedInChannelError,
-)
-
-async def send_message_safe(chat_id: int, message: str):
-    try:
-        await bot.send_message(chat_id, message)
-        return SendResult(status="sent")
-        
-    except FloodWaitError as e:
-        return SendResult(status="rate_limited", retry_after=e.seconds)
-    
-    except ChatWriteForbiddenError:
-        chat.is_blacklisted = True
-        return SendResult(status="chat_blocked")
-    
-    except UserBannedInChannelError:
-        campaign.status = CampaignStatus.ACCOUNT_BANNED
-        await notify_admins(f"🚫 Аккаунт забанен!")
-        return SendResult(status="user_banned")
-```
-
-#### Статусы кампании
-
-- `PAUSED` — пауза из-за FloodWait (>5 мин)
-- `ACCOUNT_BANNED` — аккаунт забанен в Telegram
-
-#### Лимиты и задержки
-
-```python
-MAILING_SETTINGS = {
-    "delay_between_messages": 5,        # базовая задержка (сек)
-    "random_delay_range": [3, 10],      # случайная вариация
-    "max_per_minute": 10,
-    "max_per_hour": 300,
-    "max_per_day": 2000,
-}
-```
-
-### Приоритет 2: В разработке
-
-#### Система жалоб
-
-```python
-class TelegramChat(Base):
-    complaint_count: int         # количество жалоб
-    is_blacklisted: bool         # в чёрном списке
-    blacklisted_reason: str      # причина блокировки
-```
-
-**Пороги:**
-- **3 жалобы** — пауза 24 часа
-- **10 жалоб** — чёрный список навсегда
-
-**Пороги контент-фильтра:**
-- **LEVEL1_THRESHOLD = 0.2** — если score > 0.2, переходим на уровень 2 (morph)
-- **LEVEL2_THRESHOLD = 0.5** — если score > 0.5, переходим на уровень 3 (LLM)
-- **LEVEL3_THRESHOLD = 0.7** — если LLM score > 0.7, контент блокируется
-
-#### Автоматическая блокировка чатов
-
-```python
-if chat.complaint_count >= 10:
-    chat.is_blacklisted = True
-    chat.blacklisted_reason = "Too many complaints"
-```
-
-### Приоритет 3: План
-
-- [ ] Дашборд здоровья рассылок для админа
-- [ ] Уведомления пользователей о статусе кампании
-- [ ] Аналитика успешности по чатам
 
 ---
 
@@ -798,11 +895,16 @@ make run
 ### Запуск Celery workers
 
 ```bash
-# Worker (mailing, parser очереди)
-celery -A src.tasks.celery_app worker --loglevel=info -Q mailing,parser
+# Worker (все очереди)
+celery -A src.tasks.celery_app worker -Q critical,background,game -l info
+
+# Отдельные worker'ы по очередям
+celery -A src.tasks.celery_app worker -Q critical -l info -c 4
+celery -A src.tasks.celery_app worker -Q background -l info -c 8
+celery -A src.tasks.celery_app worker -Q game -l info -c 2
 
 # Beat (периодические задачи)
-celery -A src.tasks.celery_app beat --loglevel=info
+celery -A src.tasks.celery_app beat -l info
 
 # Flower (мониторинг Celery)
 celery -A src.tasks.celery_app flower --port=5555
@@ -830,72 +932,27 @@ poetry run pytest tests/integration/
 poetry run pytest --cov=src --cov-report=html
 ```
 
----
+### Статический анализ
 
-## 🔀 Git Workflow
+```bash
+# Linter + автоисправление
+ruff check src/ --fix
+ruff format src/
 
-Проект использует **упрощённый Git Flow**:
+# Типизация
+mypy src/ --ignore-missing-imports
 
-```
-main ────────────────●───────────────→ production (стабильные релизы)
-                      ╲
-develop ──────────────●──────────────→ integration (фичи сливаются сюда)
-                       ╲
-feature/* ─────────────●─────────────→ временные ветки для задач
-```
+# Безопасность
+bandit -r src/ -ll  # только medium/high
 
-### Ветки
+# Стиль
+flake8 src/ --max-line-length=120 --extend-ignore=E203,W503
 
-| Ветка | Назначение | Защита |
-|-------|------------|--------|
-| `main` | Production релизы | 🔒 PR + 1 review |
-| `develop` | Integration фич | 🔒 PR + 1 review |
-| `developer/*` | Ветки разработчиков | ⚠️ CI при PR |
-| `feature/*` | Временные фичи | ⚠️ CI при PR |
-
-### Процесс разработки
-
-1. **Создать ветку от `develop`:**
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b feature/your-feature
-   ```
-
-2. **Внести изменения и закоммитить:**
-   ```bash
-   git add .
-   git commit -m "feat: add new feature"
-   ```
-
-3. **Отправить и создать PR:**
-   ```bash
-   git push origin feature/your-feature
-   ```
-   
-   Создать PR: `feature/*` → `develop`
-
-4. **Code Review:**
-   - Минимум 1 approval
-   - Все CI чеки проходят (lint, typecheck, test)
-
-5. **Merge в `develop`** → тестирование → PR в `main`
-
-### Conventional Commits
-
-```
-feat(scope): short description
-fix(scope): short description
-refactor(scope): ...
-test(scope): ...
-docs(scope): ...
-chore(scope): ...
+# Проверка миграций
+alembic check
 ```
 
-**Примеры:**
-- `feat(parser): add Russian language detector`
-- `fix(admin): toggle_ban callback handler`
-- `refactor(billing): migrate to credits system`
+**Целевые показатели:** Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 
 ---
 
@@ -911,7 +968,10 @@ chore(scope): ...
 
 **Сервисы:**
 - `bot` — aiogram (webhook)
-- `worker` — Celery workers
+- `worker-critical` — Celery worker (queue: critical, 4 concurrency)
+- `worker-background` — Celery worker (queue: background, 8 concurrency)
+- `worker-game` — Celery worker (queue: game, 2 concurrency)
+- `beat` — Celery Beat (ТОЛЬКО ОДИН ЭКЗЕМПЛЯР)
 - `api` — FastAPI uvicorn
 - `postgres:16` — база данных
 - `redis:7` — кэш + брокер
@@ -962,16 +1022,30 @@ ENVIRONMENT=production
 DEBUG=false
 
 BOT_TOKEN=...
-DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/db
-REDIS_URL=redis://redis:6379/0
+BOT_USERNAME=RekHarborBot
 
+DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/db
+DATABASE_SYNC_URL=postgresql://user:pass@postgres:5432/db
+
+REDIS_URL=redis://redis:6379/0
+REDIS_FSM_DB=1
+
+AI_MODEL=claude-sonnet-4-6
 OPENROUTER_API_KEY=...
+
 CRYPTOBOT_TOKEN=...
+YUKASSA_SHOP_ID=...
+
+TELEGRAM_API_ID=...
+TELEGRAM_API_HASH=...
+
+ADMIN_TELEGRAM_IDS=[123456789]
+
+API_SECRET_KEY=...
 
 WEBHOOK_URL=https://yourdomain.com/webhook
 MINI_APP_URL=https://yourdomain.com/app
 
-ADMIN_IDS=123456789
 SENTRY_DSN=https://...@sentry.io/...
 ```
 
@@ -986,8 +1060,8 @@ SENTRY_DSN=https://...@sentry.io/...
 import sentry_sdk
 
 sentry_sdk.init(
-    dsn=settings.sentry_dsn,
-    environment=settings.environment,
+    dsn=settings.SENTRY_DSN,
+    environment=settings.ENVIRONMENT,
     traces_sample_rate=0.1,
 )
 ```
@@ -1009,7 +1083,7 @@ sentry_sdk.init(
 
 **Мониторинг задач:**
 - Активные воркеры
-- Очереди (mailing, parser, cleanup)
+- Очереди (critical, background, game)
 - Выполненные задачи
 - Ошибки
 
@@ -1027,16 +1101,23 @@ sentry_sdk.init(
 
 - **Repository:** https://github.com/rybkagreen/market-telegram-bot
 - **Issues:** https://github.com/rybkagreen/market-telegram-bot/issues
-- **Support:** @marketbot_support (Telegram)
+- **Support:** @rekharbor_support (Telegram)
 
 ---
 
 ## 📚 Дополнительная документация
 
+Документация проекта находится в папке `docs/`:
+
+- **[DOC_01_overview.md](docs/DOC_01_overview.md)** — Обзор проекта, архитектура, структура
+- **[DOC_02_data_models.md](docs/DOC_02_data_models.md)** — Модели данных (все поля, ограничения, связи)
+- **[DOC_03_ux_and_flows.md](docs/DOC_03_ux_and_flows.md)** — UX, меню, клавиатуры, FSM, пользовательские флоу
+- **[DOC_04_services.md](docs/DOC_04_services.md)** — Сервисы, репозитории, бизнес-логика
+- **[DOC_05_infrastructure.md](docs/DOC_05_infrastructure.md)** — Celery, FastAPI, конфигурация, деплой
+- **[refactoring_v0.3/08_stage2_completion_report.md](docs/refactoring_v0.3/08_stage2_completion_report.md)** — Отчёт о завершении Этапа 2
+
+**Другие документы:**
 - [LOCAL_CHECKS.md](LOCAL_CHECKS.md) — локальные проверки кода
 - [DOCKER_README.md](DOCKER_README.md) — Docker инструкция
 - [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md) — настройка Cloudflare Tunnel
-- [EXPANDED_ANALYTICS_AND_TARIFFS_v2.md](EXPANDED_ANALYTICS_AND_TARIFFS_v2.md) — аналитика и тарифы
-- [PARSER_REFACTORING_FINAL.md](PARSER_REFACTORING_FINAL.md) — рефакторинг парсера
-- [SECURITY_ACTION.md](SECURITY_ACTION.md) — безопасность
 - [QWEN.md](QWEN.md) — контекст проекта для Qwen Code
