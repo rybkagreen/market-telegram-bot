@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from src.db.models.channel_settings import ChannelSettings
     from src.db.models.mailing_log import MailingLog
     from src.db.models.payout import Payout
+    from src.db.models.placement_request import PlacementRequest
     from src.db.models.review import Review
     from src.db.models.user import User
 
@@ -261,8 +262,8 @@ class TelegramChat(Base):
         lazy="select",
         uselist=False,
     )
-    
-    settings: Mapped["ChannelSettings | None"] = relationship(
+
+    settings: Mapped[ChannelSettings | None] = relationship(
         "ChannelSettings",
         back_populates="channel",
         uselist=False,
@@ -270,7 +271,7 @@ class TelegramChat(Base):
     )
 
     # Заявки на размещение (Спринт 6)
-    placement_requests: Mapped[list["PlacementRequest"]] = relationship(
+    placement_requests: Mapped[list[PlacementRequest]] = relationship(
         "PlacementRequest",
         back_populates="channel",
         lazy="select",

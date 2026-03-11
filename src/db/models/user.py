@@ -28,9 +28,13 @@ if TYPE_CHECKING:
     from src.db.models.badge import UserBadge
     from src.db.models.campaign import Campaign
     from src.db.models.channel_mediakit import ChannelMediakit
+    from src.db.models.channel_settings import ChannelSettings
     from src.db.models.crypto_payment import CryptoPayment
     from src.db.models.notification import Notification
     from src.db.models.payout import Payout
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.reputation_history import ReputationHistory
+    from src.db.models.reputation_score import ReputationScore
     from src.db.models.review import Review
     from src.db.models.transaction import Transaction
 

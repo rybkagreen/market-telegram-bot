@@ -184,7 +184,7 @@ class PlacementRequestService:
             raise ValueError("Channel not found or inactive")
 
         # Создаём заявку
-        placement = await self.placement_repo.create(
+        placement = await self.placement_repo.create_placement(
             advertiser_id=advertiser_id,
             campaign_id=campaign_id,
             channel_id=channel_id,

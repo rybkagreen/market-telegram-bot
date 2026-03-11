@@ -25,7 +25,7 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
         """Инициализация репозитория."""
         super().__init__(session)
 
-    async def create(
+    async def create_placement(
         self,
         advertiser_id: int,
         campaign_id: int,
