@@ -175,11 +175,9 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
                 # Возврат средств (100%, ещё не в эскроу)
                 from src.core.services.billing_service import BillingService
 
-                billing_service = BillingService(session)
-                await billing_service.refund(
-                    user_id=placement.advertiser_id,
-                    amount=placement.proposed_price,
-                    reference_id=placement.id,
+                billing_service = BillingService()
+                await billing_service.refund_failed_placement(
+                    placement_id=placement.id,
                 )
 
                 # Уведомления через новый сервис
@@ -357,11 +355,9 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
                 # Возврат средств
                 from src.core.services.billing_service import BillingService
 
-                billing_service = BillingService(session)
-                await billing_service.refund(
-                    user_id=placement.advertiser_id,
-                    amount=placement.final_price or placement.proposed_price,
-                    reference_id=placement.id,
+                billing_service = BillingService()
+                await billing_service.refund_failed_placement(
+                    placement_id=placement.id,
                 )
 
                 # Уведомления
@@ -498,7 +494,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             # Выплата 80% владельцу
             from src.core.services.billing_service import BillingService
 
-            billing_service = BillingService(session)
+            billing_service = BillingService()
             owner_payout = (placement.final_price or placement.proposed_price) * Decimal("0.80")
             await billing_service.release_escrow_for_placement(
                 placement_id=placement_id,
@@ -530,14 +526,9 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             # Возврат 50%
             from src.core.services.billing_service import BillingService
 
-            billing_service = BillingService(session)
-            refund_amount = (placement.final_price or placement.proposed_price) * Decimal(
-                str(REFUND_AFTER_ESCROW_PCT / 100)
-            )
-            await billing_service.refund(
-                user_id=placement.advertiser_id,
-                amount=refund_amount,
-                reference_id=placement_id,
+            billing_service = BillingService()
+            await billing_service.refund_failed_placement(
+                placement_id=placement_id,
             )
 
             # Уведомления
