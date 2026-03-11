@@ -1007,6 +1007,24 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
         return {"error": str(e)}
 
 
+# Алиасы для 7 слотов парсинга (каждая категория — отдельная задача для Beat)
+# Используем правильный паттерн регистрации алиасов с пробросом query_category
+def _make_category_task(category: str):
+    """Создать task wrapper для категории."""
+    @celery_app.task(bind=True, base=BaseTask, name=f"parser:refresh_chat_database_{category}")
+    def category_task(self):
+        return refresh_chat_database(self, query_category=category)
+    return category_task
+
+refresh_chat_database_business = _make_category_task("business")
+refresh_chat_database_marketing = _make_category_task("marketing")
+refresh_chat_database_it = _make_category_task("it")
+refresh_chat_database_lifestyle = _make_category_task("lifestyle")
+refresh_chat_database_health = _make_category_task("health")
+refresh_chat_database_education = _make_category_task("education")
+refresh_chat_database_news = _make_category_task("news")
+
+
 async def _validate_username_async(username: str) -> dict[str, Any] | None:
     """
     Асинхронная валидация username.

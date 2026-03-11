@@ -383,6 +383,74 @@ class PayoutService:
             logger.info(f"Payout {payout_id} cancelled")
             return True
 
+    # ─────────────────────────────────────────────
+    # Метод для PlacementRequest (Этап 2)
+    # ─────────────────────────────────────────────
+
+    async def request_payout_for_placement(
+        self,
+        owner_id: int,
+        amount: Decimal,
+        placement_request_id: int,
+    ) -> Payout:
+        """
+        Создать запрос на выплату для владельца после публикации.
+
+        Проверки:
+        1. amount >= 100 кр (MIN_PAYOUT)
+        2. owner не заблокирован
+
+        Args:
+            owner_id: ID владельца.
+            amount: Сумма к выплате.
+            placement_request_id: ID заявки.
+
+        Returns:
+            Payout объект.
+
+        Raises:
+            ValueError: Если amount < MIN_PAYOUT или owner заблокирован.
+        """
+        from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+
+        # Проверка 1: amount >= MIN_PAYOUT
+        if amount < settings.min_payout_usdt:  # Используем настройку
+            raise ValueError(f"Amount {amount} < MIN_PAYOUT {settings.min_payout_usdt}")
+
+        # Проверка 2: owner не заблокирован
+        from src.db.repositories.reputation_repo import ReputationRepo
+        async with async_session_factory() as session:
+            rep_repo = ReputationRepo(session)
+            rep_score = await rep_repo.get_by_user(owner_id)
+
+            if rep_score and rep_score.is_owner_blocked:
+                if rep_score.owner_blocked_until and rep_score.owner_blocked_until > datetime.now(UTC):
+                    raise ValueError("Owner is blocked")
+
+        # Создаём payout
+        payout = Payout(
+            owner_id=owner_id,
+            channel_id=0,  # Будет установлено из placement_request
+            placement_id=None,  # placement_request_id не FK на mailing_logs
+            amount=amount,
+            platform_fee=amount * Decimal("0.25"),  # 20% комиссия
+            currency=PayoutCurrency.USDT,
+            status=PayoutStatus.PENDING,
+            wallet_address=None,
+            tx_hash=None,
+            paid_at=None,
+        )
+
+        async with async_session_factory() as session:
+            session.add(payout)
+            await session.flush()
+
+            logger.info(
+                f"Payout request created: {amount} USDT for owner {owner_id}, placement {placement_request_id}"
+            )
+
+            return payout
+
 
 # Глобальный экземпляр
 payout_service = PayoutService()

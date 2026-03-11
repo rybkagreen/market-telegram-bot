@@ -19,3 +19,14 @@ __all__ = [
     "ChatAnalyticsRepository",
     "NotificationRepository",
 ]
+
+# Новые репозитории (Этап 2)
+from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+from src.db.repositories.placement_request_repo import PlacementRequestRepo
+from src.db.repositories.reputation_repo import ReputationRepo
+
+__all__.extend([
+    "PlacementRequestRepo",
+    "ChannelSettingsRepo",
+    "ReputationRepo",
+])

@@ -4,6 +4,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -17,7 +18,15 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.config.settings import settings
+from src.core.services.placement_request_service import PlacementRequestService
+from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
+from src.db.models.analytics import TelegramChat
+from src.db.models.campaign import Campaign
+from src.db.models.user import User
+from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+from src.db.repositories.placement_request_repo import PlacementRequestRepo
+from src.db.repositories.reputation_repo import ReputationRepo
 
 # ────────────────────────────────────────────
 # Event loop fixtures
@@ -34,7 +43,7 @@ def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
 def event_loop(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoop:
     """
     Create an instance of the event loop for the test session.
-    
+
     This fixture has session scope to match test_engine scope.
     """
     loop = asyncio.get_event_loop_policy().new_event_loop()
@@ -81,6 +90,40 @@ async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession]:
     """Сессия БД с автоматическим rollback после каждого теста."""
     async_session = async_sessionmaker(
         test_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+    async with async_session() as session:
+        yield session
+        await session.rollback()
+
+
+# ────────────────────────────────────────────
+# In-memory SQLite fixtures for unit tests
+# ────────────────────────────────────────────
+
+
+@pytest_asyncio.fixture
+async def sqlite_engine() -> Any:
+    """In-memory SQLite движок для unit-тестов."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def sqlite_session(sqlite_engine: Any) -> AsyncGenerator[AsyncSession]:
+    """Сессия SQLite с автоматическим rollback."""
+    async_session = async_sessionmaker(
+        sqlite_engine,
         expire_on_commit=False,
         class_=AsyncSession,
     )
@@ -252,3 +295,161 @@ def chat_test_data() -> dict[str, Any]:
         "member_count": 5000,
         "topic": "business",
     }
+
+
+# =============================================================================
+# FIXTURES ДЛЯ PLACEMENT/ARBITRATION/REPUTATION ТЕСТОВ
+# =============================================================================
+
+
+@pytest.fixture
+def advertiser_test_data() -> dict[str, Any]:
+    """Тестовые данные для рекламодателя."""
+    return {
+        "telegram_id": 111111111,
+        "username": "advertiser",
+        "first_name": "Advertiser",
+        "role": "advertiser",
+        "credits": Decimal("5000.00"),
+    }
+
+
+@pytest.fixture
+def owner_test_data() -> dict[str, Any]:
+    """Тестовые данные для владельца канала."""
+    return {
+        "telegram_id": 222222222,
+        "username": "owner",
+        "first_name": "Owner",
+        "role": "owner",
+        "credits": Decimal("1000.00"),
+    }
+
+
+@pytest.fixture
+def channel_test_data() -> dict[str, Any]:
+    """Тестовые данные для канала."""
+    return {
+        "telegram_id": -1009876543210,
+        "title": "Test Channel",
+        "username": "test_channel",
+        "member_count": 5000,
+        "is_active": True,
+    }
+
+
+@pytest_asyncio.fixture
+async def advertiser_user(db_session: AsyncSession, advertiser_test_data: dict) -> User:
+    """Создать тестового рекламодателя."""
+    from src.db.models.user import User
+
+    user = User(**advertiser_test_data)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def owner_user(db_session: AsyncSession, owner_test_data: dict) -> User:
+    """Создать тестового владельца."""
+    from src.db.models.user import User
+
+    user = User(**owner_test_data)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def test_channel(
+    db_session: AsyncSession,
+    channel_test_data: dict,
+    owner_user: User,
+) -> TelegramChat:
+    """Создать тестовый канал."""
+    from src.db.models.analytics import TelegramChat
+
+    channel = TelegramChat(**channel_test_data, owner_user_id=owner_user.id)
+    db_session.add(channel)
+    await db_session.commit()
+    await db_session.refresh(channel)
+    return channel
+
+
+@pytest_asyncio.fixture
+async def test_campaign(db_session: AsyncSession, advertiser_user: User) -> Campaign:
+    """Создать тестовую кампанию."""
+    from src.db.models.campaign import Campaign, CampaignStatus
+
+    campaign = Campaign(
+        advertiser_id=advertiser_user.id,
+        title="Test Campaign",
+        text="Test ad text",
+        status=CampaignStatus.DRAFT,
+    )
+    db_session.add(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
+    return campaign
+
+
+@pytest_asyncio.fixture
+async def placement_request_service(db_session: AsyncSession) -> PlacementRequestService:
+    """Создать PlacementRequestService для тестов."""
+
+    return PlacementRequestService(
+        session=db_session,
+        placement_repo=PlacementRequestRepo(db_session),
+        channel_settings_repo=ChannelSettingsRepo(db_session),
+        reputation_repo=ReputationRepo(db_session),
+        billing_service=None,
+    )
+
+
+@pytest_asyncio.fixture
+async def reputation_service(db_session: AsyncSession) -> ReputationService:
+    """Создать ReputationService для тестов."""
+
+    return ReputationService(
+        session=db_session,
+        reputation_repo=ReputationRepo(db_session),
+    )
+
+
+@pytest_asyncio.fixture
+async def channel_settings_repo(db_session: AsyncSession) -> ChannelSettingsRepo:
+    """Создать ChannelSettingsRepo для тестов."""
+
+    return ChannelSettingsRepo(db_session)
+
+
+@pytest_asyncio.fixture
+async def placement_request_repo(db_session: AsyncSession) -> PlacementRequestRepo:
+    """Создать PlacementRequestRepo для тестов."""
+
+    return PlacementRequestRepo(db_session)
+
+
+@pytest_asyncio.fixture
+async def reputation_repo(db_session: AsyncSession) -> ReputationRepo:
+    """Создать ReputationRepo для тестов."""
+
+    return ReputationRepo(db_session)
+
+
+@pytest_asyncio.fixture
+async def api_client_with_auth(advertiser_user: User) -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент с авторизацией через JWT."""
+    from src.api.auth_utils import create_access_token
+    from src.api.main import app
+
+    token = create_access_token(advertiser_user.id)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {token}"},
+    ) as client:
+        yield client

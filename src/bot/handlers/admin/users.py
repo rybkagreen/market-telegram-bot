@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.filters.admin import AdminFilter
-from src.bot.keyboards.admin import (
+from src.bot.keyboards.admin.admin import (
     AdminCB,
     get_admin_confirm_kb,
     get_admin_main_kb,

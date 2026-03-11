@@ -8,6 +8,8 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.constants.tariffs import TARIFF_CREDIT_COST
 from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan
@@ -160,13 +162,23 @@ def check_pending_invoices(self) -> dict:
 async def _check_pending_invoices() -> dict:
     """Асинхронная реализация проверки инвойсов."""
     from sqlalchemy import select, update
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
     from src.core.services.cryptobot_service import cryptobot_service
+    from src.config.settings import settings
+
+    # Создаём новый engine для этого event loop
+    engine = create_async_engine(
+        str(settings.database_url),
+        echo=False,
+        pool_pre_ping=True,
+    )
+    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     credited = 0
     expired_count = 0
 
-    async with async_session_factory() as session:
+    async with async_session() as session:
         result = await session.execute(
             select(CryptoPayment).where(
                 CryptoPayment.status == PaymentStatus.PENDING,
@@ -213,5 +225,7 @@ async def _check_pending_invoices() -> dict:
 
             except Exception as e:
                 logger.error(f"Failed to check invoice {payment.invoice_id}: {e}")
+
+    await engine.dispose()
 
     return {"credited": credited, "expired": expired_count}

@@ -5,7 +5,7 @@ Billing Service для управления платежами и балансо
 
 import logging
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -16,6 +16,11 @@ from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
+
+
+class InsufficientFundsError(Exception):
+    """Недостаточно средств на балансе."""
+    pass
 
 
 class BillingService:
@@ -857,6 +862,151 @@ class BillingService:
             # Не падаем — деньги уже вернули
 
         return True
+
+    # ─────────────────────────────────────────────
+    # Методы для PlacementRequest (Этап 2)
+    # ─────────────────────────────────────────────
+
+    async def freeze_escrow_for_placement(
+        self,
+        placement_id: int,
+        advertiser_id: int,
+        amount: Decimal,
+    ) -> "Transaction":
+        """
+        Заблокировать средства для PlacementRequest.
+        1. Списать amount с баланса advertiser (credits)
+        2. Создать Transaction(type=escrow_freeze, amount=amount)
+        3. Вернуть Transaction
+
+        Args:
+            placement_id: ID заявки.
+            advertiser_id: ID рекламодателя.
+            amount: Сумма для блокировки.
+
+        Returns:
+            Транзакция эскроу.
+
+        Raises:
+            InsufficientFundsError: Если недостаточно средств.
+        """
+        from src.db.models.transaction import Transaction
+
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(advertiser_id)
+
+            if not user:
+                raise ValueError(f"User {advertiser_id} not found")
+
+            # Проверка баланса
+            if user.credits < int(amount):
+                raise InsufficientFundsError(
+                    f"Insufficient credits: {user.credits} < {int(amount)}"
+                )
+
+            # Списание средств
+            user.credits -= int(amount)
+
+            # Создание транзакции
+            transaction = Transaction(
+                user_id=advertiser_id,
+                amount=amount,
+                type=TransactionType.ESCROW_FREEZE,
+                payment_id=None,
+                meta_json={
+                    "type": "escrow_freeze",
+                    "placement_id": placement_id,
+                },
+                balance_before=Decimal(str(user.credits + int(amount))),
+                balance_after=Decimal(str(user.credits)),
+                created_at=datetime.now(UTC),
+            )
+            session.add(transaction)
+            await session.flush()
+
+            logger.info(
+                f"Escrow frozen: {amount} credits from advertiser {advertiser_id} for placement {placement_id}"
+            )
+
+            return transaction
+
+    async def release_escrow_for_placement(
+        self,
+        placement_id: int,
+        owner_id: int,
+        total_amount: Decimal,
+    ) -> tuple["Transaction", "Transaction"]:
+        """
+        Разблокировать средства при успешной публикации.
+        owner_amount = total_amount * 0.80
+        commission_amount = total_amount * 0.20
+
+        Args:
+            placement_id: ID заявки.
+            owner_id: ID владельца.
+            total_amount: Общая сумма.
+
+        Returns:
+            Кортеж (owner_transaction, commission_transaction).
+        """
+        from src.db.models.transaction import Transaction
+
+        async with async_session_factory() as session:
+            # 80% владельцу
+            owner_amount = total_amount * Decimal("0.80")
+            # 20% платформе
+            commission_amount = total_amount * Decimal("0.20")
+
+            # Зачисление владельцу
+            user_repo = UserRepository(session)
+            owner = await user_repo.get_by_id(owner_id)
+
+            if not owner:
+                raise ValueError(f"Owner {owner_id} not found")
+
+            owner.credits += int(owner_amount)
+
+            owner_transaction = Transaction(
+                user_id=owner_id,
+                amount=owner_amount,
+                type=TransactionType.ESCROW_RELEASE,
+                payment_id=None,
+                meta_json={
+                    "type": "escrow_release",
+                    "placement_id": placement_id,
+                    "share": "owner",
+                },
+                balance_before=Decimal(str(owner.credits - int(owner_amount))),
+                balance_after=Decimal(str(owner.credits)),
+                created_at=datetime.now(UTC),
+            )
+            session.add(owner_transaction)
+
+            # Зачисление платформе (комиссия)
+            commission_transaction = Transaction(
+                user_id=owner_id,  # Платформа (условно)
+                amount=commission_amount,
+                type=TransactionType.COMMISSION,
+                payment_id=None,
+                meta_json={
+                    "type": "commission",
+                    "placement_id": placement_id,
+                    "share": "platform",
+                },
+                balance_before=Decimal("0"),
+                balance_after=commission_amount,
+                created_at=datetime.now(UTC),
+            )
+            session.add(commission_transaction)
+
+            await session.flush()
+
+            logger.info(
+                f"Escrow released: {owner_amount} to owner {owner_id}, {commission_amount} commission for placement {placement_id}"
+            )
+
+            return owner_transaction, commission_transaction
 
 
 # Глобальный экземпляр

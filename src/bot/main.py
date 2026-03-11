@@ -11,33 +11,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
-from src.bot.handlers import (
-    analytics,
-    analytics_chats,
-    b2b,  # B2B-маркетплейс (Спринт 3)
-    billing,
-    cabinet,
-    callback_schemas,
-    campaign_analytics,  # AI-аналитика кампаний
-    campaign_create_ai,  # Новый обработчик создания с AI
-    campaigns,
-    channel_owner,  # Владельцы каналов (Спринт 0)
-    channels_db,  # База каналов
-    comparison,  # Сравнение каналов (Спринт 10)
-    feedback,
-    help,  # Раздел Помощь (Спринт 5)
-    monitoring,  # Мониторинг сервера и Celery
-    notifications,
-    start,
-    stats,  # Публичная статистика (Спринт 0)
-    templates,
-)
-from src.bot.handlers.admin import (
-    ai_router,
-    analytics_router,
-    campaigns_router,
-    users_router,
-)
+from src.bot.handlers import router as handlers_router
 from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
 from src.config.settings import settings
@@ -97,31 +71,9 @@ def create_dispatcher(redis: Redis) -> Dispatcher:
     dp.message.middleware(FSMTimeoutMiddleware())
     dp.callback_query.middleware(FSMTimeoutMiddleware())
 
-    # Регистрация роутеров — admin последним (у него глобальный фильтр)!
-    dp.include_router(start.router)
-    dp.include_router(cabinet.router)
-    dp.include_router(campaigns.router)
-    dp.include_router(campaign_analytics.router)  # AI-аналитика кампаний
-    dp.include_router(campaign_create_ai.router)  # Создание кампании с AI
-    dp.include_router(channel_owner.router)  # Владельцы каналов (Спринт 0)
-    dp.include_router(stats.router)  # Публичная статистика (Спринт 0)
-    dp.include_router(b2b.router)  # B2B-маркетплейс (Спринт 3)
-    dp.include_router(billing.router)
-    dp.include_router(callback_schemas.router)
-    dp.include_router(notifications.router)
-    dp.include_router(analytics.router)
-    dp.include_router(analytics_chats.router)
-    dp.include_router(channels_db.router)  # База каналов
-    dp.include_router(comparison.router)  # Сравнение каналов (Спринт 10)
-    dp.include_router(templates.router)
-    dp.include_router(feedback.router)
-    dp.include_router(help.router)  # Раздел Помощь (Спринт 5)
-    dp.include_router(monitoring.router)  # Мониторинг сервера и Celery
-    # Admin routers (новые подмодули)
-    dp.include_router(users_router)
-    dp.include_router(campaigns_router)
-    dp.include_router(analytics_router)
-    dp.include_router(ai_router)
+    # Регистрация роутеров — handlers_router включает все подмодули
+    # admin — последним (внутри handlers_router)!
+    dp.include_router(handlers_router)
 
     return dp
 

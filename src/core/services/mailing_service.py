@@ -313,3 +313,91 @@ class MailingService:
 
         finally:
             await r.close()
+
+    # ─────────────────────────────────────────────
+    # Метод для PlacementRequest (Этап 2)
+    # ─────────────────────────────────────────────
+
+    async def publish_placement(
+        self,
+        placement_id: int,
+    ) -> bool:
+        """
+        Опубликовать рекламный пост для PlacementRequest.
+
+        1. Получить PlacementRequest по placement_id
+        2. Получить channel (TelegramChat) по channel_id
+        3. Опубликовать final_text в канал через Telegram Bot API
+        4. При успехе: создать MailingLog(status=sent, placement_request_id=placement_id)
+        5. При ошибке: создать MailingLog(status=failed), вернуть False
+
+        Args:
+            placement_id: ID заявки.
+
+        Returns:
+            True при успехе.
+        """
+        from datetime import UTC, datetime
+
+        from src.bot.main import bot  # Глобальный экземпляр бота
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest
+
+        # Получаем заявку
+        placement = await self.session.get(PlacementRequest, placement_id)
+        if not placement:
+            logger.error(f"Placement {placement_id} not found")
+            return False
+
+        # Получаем канал
+        channel = await self.session.get(TelegramChat, placement.channel_id)
+        if not channel:
+            logger.error(f"Channel {placement.channel_id} not found")
+            return False
+
+        try:
+            # Публикация в канал
+            telegram_chat_id = channel.telegram_id or channel.username
+            if not telegram_chat_id:
+                raise ValueError("Channel has no telegram_id or username")
+
+            # Отправляем пост
+            await bot.send_message(
+                chat_id=telegram_chat_id,
+                text=placement.final_text,
+                parse_mode="HTML",
+            )
+
+            # Создаём MailingLog (успех)
+            mailing_log = MailingLog(
+                campaign_id=placement.campaign_id,
+                chat_id=placement.channel_id,
+                chat_telegram_id=telegram_chat_id if isinstance(telegram_chat_id, int) else 0,
+                status=MailingStatus.SENT,
+                cost=float(placement.final_price or placement.proposed_price),
+                sent_at=datetime.now(UTC),
+                placement_request_id=placement_id,  # Новая связь
+            )
+            self.session.add(mailing_log)
+            await self.session.flush()
+
+            logger.info(f"Placement {placement_id} published to channel {placement.channel_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to publish placement {placement_id}: {e}")
+
+            # Создаём MailingLog (ошибка)
+            mailing_log = MailingLog(
+                campaign_id=placement.campaign_id,
+                chat_id=placement.channel_id,
+                chat_telegram_id=channel.telegram_id or 0,
+                status=MailingStatus.FAILED,
+                error_msg=str(e),
+                placement_request_id=placement_id,
+            )
+            self.session.add(mailing_log)
+            await self.session.flush()
+
+            return False

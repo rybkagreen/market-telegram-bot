@@ -45,8 +45,8 @@ class FilterResult:
 
 
 # Пороги для перехода между уровнями
-LEVEL1_THRESHOLD = 0.2  # Если score > 0.2, переходим на уровень 2
-LEVEL2_THRESHOLD = 0.5  # Если score > 0.5, переходим на уровень 3
+LEVEL1_THRESHOLD = 0.1  # Если score > 0.1, переходим на уровень 2 (было 0.2)
+LEVEL2_THRESHOLD = 0.15  # Если score > 0.15, блокируем (было 0.5) — одно ключевое слово = 0.2
 LEVEL3_THRESHOLD = 0.7  # Если LLM score > 0.7, контент блокируется
 
 
@@ -146,8 +146,10 @@ class ContentFilter:
 
         if combined_score < LEVEL2_THRESHOLD:
             # Низкий риск, не требуется LLM
+            # Блокируем если есть запрещённые категории независимо от score
+            has_blocked_category = len(level2_result.categories) > 0
             return FilterResult(
-                passed=combined_score < LEVEL3_THRESHOLD,
+                passed=not has_blocked_category and combined_score < LEVEL3_THRESHOLD,
                 score=combined_score,
                 categories=level2_result.categories,
                 flagged_fragments=level2_result.flagged_fragments,

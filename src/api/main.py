@@ -14,6 +14,9 @@ from src.api.routers.auth import router as auth_router
 from src.api.routers.billing import router as billing_router
 from src.api.routers.campaigns import router as campaigns_router
 from src.api.routers.channels import router as channels_router
+from src.api.routers.channel_settings import router as channel_settings_router
+from src.api.routers.placements import router as placements_router
+from src.api.routers.reputation import router as reputation_router
 from src.config.settings import settings
 from src.core.exceptions import RekHarborError
 
@@ -56,6 +59,9 @@ app.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"]
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(billing_router, prefix="/api/billing", tags=["Billing"])
 app.include_router(channels_router, prefix="/api", tags=["Channels"])
+app.include_router(placements_router, tags=["Placements"])
+app.include_router(channel_settings_router, tags=["Channel Settings"])
+app.include_router(reputation_router, tags=["Reputation"])
 
 
 # ═══════════════════════════════════════════════════════════════
