@@ -19,6 +19,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -114,6 +115,13 @@ class PlacementRequest(Base, TimestampMixin):
         doc="Финальный текст рекламы",
     )
 
+    # Медиа
+    media_file_id: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+        doc="ID медиафайла (фото/видео)",
+    )
+
     # Статус
     status: Mapped[PlacementStatus] = mapped_column(
         String(50),
@@ -150,6 +158,13 @@ class PlacementRequest(Base, TimestampMixin):
         ForeignKey("transactions.id", ondelete="SET NULL"),
         nullable=True,
         doc="ID транзакции эскроу",
+    )
+
+    # Метаданные
+    meta_json: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        doc="Дополнительные данные (retry_count, etc.)",
     )
 
     # Временные метки
