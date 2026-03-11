@@ -50,6 +50,16 @@ class PlacementRequest(Base, TimestampMixin):
     Заявка на размещение рекламы через арбитраж.
     """
 
+    # System constants (class-level, immutable)
+    MIN_PRICE_PER_POST: int = 100  # Минимум 100 кредитов
+    MAX_PACKAGE_DISCOUNT: int = 50  # Скидка пакета макс 50%
+    MIN_SUBSCRIPTION_DAYS: int = 7  # Минимум 7 дней подписки
+    MAX_SUBSCRIPTION_DAYS: int = 365  # Максимум 1 год
+    MAX_POSTS_PER_DAY: int = 5  # Рекламных постов в день макс 5
+    MAX_POSTS_PER_WEEK: int = 35  # В неделю макс 35
+    MIN_HOURS_BETWEEN_POSTS: int = 4  # Между постами минимум 4 часа
+    PLATFORM_COMMISSION: Decimal = Decimal("0.20")  # 20% комиссия платформы
+
     __tablename__ = "placement_requests"
 
     # Primary key

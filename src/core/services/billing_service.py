@@ -867,6 +867,62 @@ class BillingService:
     # Методы для PlacementRequest (Этап 2)
     # ─────────────────────────────────────────────
 
+    async def refund_escrow(
+        self,
+        placement_id: int,
+        advertiser_id: int,
+        amount: Decimal,
+    ) -> bool:
+        """
+        Вернуть средства из эскроу рекламодателю.
+        1. Начислить amount на баланс advertiser (credits)
+        2. Создать Transaction(type=escrow_release, amount=amount)
+        3. Вернуть True
+
+        Args:
+            placement_id: ID заявки.
+            advertiser_id: ID рекламодателя.
+            amount: Сумма для возврата.
+
+        Returns:
+            True если возврат успешен.
+        """
+        from src.db.models.transaction import Transaction
+
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(advertiser_id)
+
+            if not user:
+                logger.error(f"User {advertiser_id} not found for escrow refund")
+                return False
+
+            # Начисление средств
+            user.credits += int(amount)
+
+            # Создание транзакции
+            transaction = Transaction(
+                user_id=advertiser_id,
+                amount=amount,
+                type=TransactionType.ESCROW_RELEASE,
+                payment_id=None,
+                meta_json={
+                    "type": "escrow_refund",
+                    "placement_id": placement_id,
+                },
+                balance_before=Decimal(str(user.credits - int(amount))),
+                balance_after=Decimal(str(user.credits)),
+                created_at=datetime.now(UTC),
+            )
+            session.add(transaction)
+            await session.flush()
+
+            logger.info(
+                f"Escrow refunded: {amount} credits to advertiser {advertiser_id} for placement {placement_id}"
+            )
+
+            return True
+
     async def freeze_escrow_for_placement(
         self,
         placement_id: int,
