@@ -76,6 +76,7 @@ async def send_banner_with_menu(
     active_campaigns: int = 0,
     channels_count: int = 0,
     available_payout: int = 0,
+    is_admin: bool = False,
 ) -> None:
     """
     Отправить баннер с меню соответствующим роли.
@@ -90,10 +91,11 @@ async def send_banner_with_menu(
         active_campaigns: Количество активных кампаний.
         channels_count: Количество каналов (не используется).
         available_payout: Сумма доступная к выводу.
+        is_admin: True если пользователь администратор.
     """
     # caption_text определяется ОДИН раз до любых условий
     caption_text = caption if caption else "Выберите действие:"
-    
+
     try:
         # Используем get_role_menu_kb для всех ролей
         keyboard = get_role_menu_kb(
@@ -101,7 +103,7 @@ async def send_banner_with_menu(
             active_campaigns=active_campaigns,
             pending_requests=pending_count,
             available_payout=available_payout,
-            user_id=user_id,
+            is_admin=is_admin,
         )
 
         if BANNER_PATH.exists():
@@ -121,7 +123,7 @@ async def send_banner_with_menu(
             active_campaigns=active_campaigns,
             pending_requests=pending_count,
             available_payout=available_payout,
-            user_id=user_id,
+            is_admin=is_admin,
         )
         await message.answer(caption_text, reply_markup=keyboard)
 
@@ -214,6 +216,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                     message.from_user.id,  # type: ignore[union-attr]
                     caption=text,
                     role="advertiser",
+                    is_admin=user.is_admin if hasattr(user, 'is_admin') else False,
                 )
                 return
 
@@ -239,15 +242,25 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             await message.answer("Ошибка. Попробуйте позже.")
             return
 
+        # Получаем telegram_id для проверки admin
+        telegram_id = message.from_user.id  # type: ignore[union-attr]
+
         # Обновляем last_login_at для стриков (Спринт 3)
         from datetime import datetime
 
         user.last_login_at = datetime.now(UTC)
+
+        # Выставляем is_admin=True если telegram_id в settings.admin_ids
+        from src.config.settings import settings
+
+        if telegram_id in settings.admin_ids and not getattr(user, 'is_admin', False):
+            user.is_admin = True  # type: ignore[attr-defined]
+            logger.info(f"Admin user {telegram_id} is_admin flag set to True")
+
         await session.flush()
 
         # user гарантированно не None после проверки выше
         user_id = user.id  # type: ignore[union-attr]
-        telegram_id = message.from_user.id  # type: ignore[union-attr]
 
         # Логирование для отладки регистрации
         logger.info(
@@ -310,6 +323,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             telegram_id,
             caption=text,
             role="new",
+            is_admin=user.is_admin if hasattr(user, 'is_admin') else False,
         )
     else:
         # Возвращающийся пользователь или с рефералом → показываем роль-зависимое меню
@@ -798,6 +812,12 @@ async def handle_onboarding(
     await state.update_data(role=role)
     await state.set_state(OnboardingStates.role_selected)
 
+    # Получаем пользователя для проверки is_admin
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(user_id)
+        is_admin = user.is_admin if user else False
+
     if role == "advertiser":
         # Задача 1.3: Сообщение перед показом меню рекламодателя
         await callback.message.answer(
@@ -815,7 +835,7 @@ async def handle_onboarding(
         )
 
         # Показать меню рекламодателя
-        keyboard = get_advertiser_menu_kb(user_id=user_id)
+        keyboard = get_advertiser_menu_kb(is_admin=is_admin)
         await callback.message.answer(
             "Выберите действие:",
             reply_markup=keyboard,
@@ -841,7 +861,7 @@ async def handle_onboarding(
         )
 
         # Показать меню владельца
-        keyboard = get_owner_menu_kb()
+        keyboard = get_owner_menu_kb(is_admin=is_admin)
         await callback.message.answer(
             "Выберите действие:",
             reply_markup=keyboard,

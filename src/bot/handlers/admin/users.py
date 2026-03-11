@@ -21,7 +21,6 @@ from src.bot.keyboards.admin.admin import (
 )
 from src.bot.states.admin import AdminBalanceStates, AdminBanStates, AdminBroadcastStates
 from src.bot.utils.safe_callback import safe_callback_edit
-from src.config.settings import settings
 from src.db.models.user import User
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.chat_analytics import ChatAnalyticsRepository
@@ -141,7 +140,7 @@ async def handle_toggle_ban(
         await callback.answer("❌ Пользователь не найден", show_alert=True)
         return
 
-    if user.telegram_id in settings.admin_ids:
+    if user.is_admin:
         await callback.answer("❌ Нельзя забанить администратора", show_alert=True)
         return
 
@@ -200,7 +199,7 @@ async def handle_ban_user_id(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
 
-    if user.telegram_id in settings.admin_ids:
+    if user.is_admin:
         await message.answer("❌ Нельзя забанить администратора.")
         await state.clear()
         return

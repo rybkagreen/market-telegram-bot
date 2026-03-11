@@ -285,6 +285,15 @@ class User(Base, TimestampMixin):
         doc="Включены ли уведомления пользователя (кампании, баланс)",
     )
 
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        index=True,
+        doc="Администратор платформы — полный доступ к admin-панели",
+    )
+
     # AI настройки пользователя
     ai_provider: Mapped[str | None] = mapped_column(
         String(50),

@@ -5,12 +5,12 @@
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
-from src.config.settings import settings
+from src.db.repositories.user_repo import UserRepository
 
 
 class AdminFilter(BaseFilter):
     """
-    Фильтр — пропускает только пользователей из ADMIN_IDS.
+    Фильтр — проверяет is_admin флаг в БД.
 
     Использование:
         router.message.filter(AdminFilter())
@@ -20,17 +20,31 @@ class AdminFilter(BaseFilter):
     handler не вызывается.
     """
 
-    async def __call__(self, event: Message | CallbackQuery) -> bool:
+    async def __call__(self, event: Message | CallbackQuery, data: dict) -> bool:
         """
-        Проверить является ли пользователь администратором.
+        Проверить является ли пользователь администратором через БД.
 
         Args:
             event: Сообщение или callback query.
+            data: Context data (должен содержать session).
 
         Returns:
-            True если пользователь в ADMIN_IDS.
+            True если user.is_admin == True.
         """
+        # Получить session из data dict
+        session = data.get("session")
+        if session is None:
+            return False
+
+        # Получить from_user
         user = event.from_user if hasattr(event, "from_user") else None
         if user is None:
             return False
-        return user.id in settings.admin_ids
+
+        # Проверить в БД
+        user_repo = UserRepository(session)
+        db_user = await user_repo.get_by_telegram_id(user.id)
+        if db_user is None:
+            return False
+
+        return db_user.is_admin
