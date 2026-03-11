@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.repositories.campaign_repo import CampaignRepository
@@ -43,6 +44,7 @@ class MailingService:
         session: AsyncSession,
         campaign_repo: CampaignRepository,
         log_repo: MailingLogRepository,
+        bot: Bot | None = None,
     ) -> None:
         """
         Инициализация сервиса.
@@ -51,10 +53,12 @@ class MailingService:
             session: Асинхронная сессия SQLAlchemy.
             campaign_repo: Репозиторий кампаний.
             log_repo: Репозиторий логов.
+            bot: Bot для отправки сообщений (опционально).
         """
         self.session = session
         self.campaign_repo = campaign_repo
         self.log_repo = log_repo
+        self.bot = bot
 
     async def run_campaign(self, campaign_id: int) -> dict[str, Any]:
         """
@@ -344,10 +348,14 @@ class MailingService:
         """
         from datetime import UTC, datetime
 
-        from src.bot.main import bot  # Глобальный экземпляр бота
         from src.db.models.analytics import TelegramChat
         from src.db.models.mailing_log import MailingLog, MailingStatus
         from src.db.models.placement_request import PlacementRequest
+
+        # Проверка что bot инициализирован
+        if self.bot is None:
+            logger.error("Bot not initialized in MailingService")
+            return False
 
         # Получаем заявку
         placement = await self.session.get(PlacementRequest, placement_id)
@@ -368,7 +376,7 @@ class MailingService:
                 raise ValueError("Channel has no telegram_id or username")
 
             # Отправляем пост
-            await bot.send_message(
+            await self.bot.send_message(
                 chat_id=telegram_chat_id,
                 text=placement.final_text,
                 parse_mode="HTML",

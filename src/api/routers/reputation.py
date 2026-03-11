@@ -7,10 +7,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
 from src.db.repositories.reputation_repo import ReputationRepo
-from src.db.session import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ async def get_user_reputation_history(
 ) -> list[ReputationHistoryEntry]:
     """История репутации пользователя (только admin)."""
     # Проверка на админа
-    if current_user.role != "admin":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
 
     repo = ReputationRepo(session)

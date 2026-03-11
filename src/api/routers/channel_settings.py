@@ -8,10 +8,10 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
-from src.db.session import AsyncSession
 
 logger = logging.getLogger(__name__)
 

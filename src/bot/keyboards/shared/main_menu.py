@@ -361,6 +361,7 @@ def get_main_menu(
     active_campaigns: int = 0,
     channels_count: int = 0,  # unused
     available_payout: int = 0,
+    is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Устаревшая функция-обёртка для обратной совместимости.
@@ -374,6 +375,7 @@ def get_main_menu(
         active_campaigns: Количество активных кампаний.
         channels_count: Не используется.
         available_payout: Сумма доступная к выводу.
+        is_admin: True если пользователь администратор.
 
     Returns:
         InlineKeyboardMarkup соответствующий роли пользователя.
@@ -383,7 +385,7 @@ def get_main_menu(
         active_campaigns=active_campaigns,
         pending_requests=pending_count,
         available_payout=available_payout,
-        user_id=user_id,
+        is_admin=is_admin,
     )
 
 
