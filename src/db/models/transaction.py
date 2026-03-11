@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.db.models.placement_request import PlacementRequest
     from src.db.models.user import User
 
 
@@ -35,6 +36,9 @@ class TransactionType(str, Enum):
     REFUND = "refund"  # Возврат средств
     BONUS = "bonus"  # Бонус (реферальная программа, промокод)
     ADJUSTMENT = "adjustment"  # Корректировка вручную (admin)
+    ESCROW_FREEZE = "escrow_freeze"  # Заморозка средств при переходе в escrow
+    ESCROW_RELEASE = "escrow_release"  # Разморозка и зачисление владельцу
+    COMMISSION = "commission"  # Комиссия платформы 20%
 
 
 class Transaction(Base, TimestampMixin):
