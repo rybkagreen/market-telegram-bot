@@ -419,7 +419,7 @@ async def notify_rejected(
     Returns:
         True если отправлено.
     """
-    reason_ru = REJECTION_REASON_MAP.get(rejection_reason, rejection_reason or "Не указана")
+    reason_ru = REJECTION_REASON_MAP.get(rejection_reason or "", rejection_reason or "Не указана")
     refund_amount = placement.proposed_price
 
     text = "\n".join([
