@@ -6,6 +6,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.db.repositories.campaign_repo import CampaignRepository
 from src.db.repositories.log_repo import LogData, MailingLogRepository
 from src.utils.content_filter.filter import check as content_filter_check
@@ -38,6 +40,7 @@ class MailingService:
 
     def __init__(
         self,
+        session: AsyncSession,
         campaign_repo: CampaignRepository,
         log_repo: MailingLogRepository,
     ) -> None:
@@ -45,9 +48,11 @@ class MailingService:
         Инициализация сервиса.
 
         Args:
+            session: Асинхронная сессия SQLAlchemy.
             campaign_repo: Репозиторий кампаний.
             log_repo: Репозиторий логов.
         """
+        self.session = session
         self.campaign_repo = campaign_repo
         self.log_repo = log_repo
 

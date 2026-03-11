@@ -476,7 +476,7 @@ class PlacementRequestService:
             refund_percentage = Decimal("0.0")
 
         # Возврат средств через billing_service
-        if placement.escrow_transaction_id:
+        if placement.escrow_transaction_id and self.billing_service:
             refund_amount = (placement.final_price or placement.proposed_price) * refund_percentage
             await self.billing_service.refund_escrow(
                 placement_id=placement_id,
@@ -552,6 +552,9 @@ class PlacementRequestService:
             raise ValueError(f"Invalid status: {placement.status}")
 
         # Блокируем средства
+        if not self.billing_service:
+            raise RuntimeError("BillingService not initialized")
+
         transaction = await self.billing_service.freeze_escrow_for_placement(
             placement_id=placement_id,
             advertiser_id=advertiser_id,
@@ -599,9 +602,13 @@ class PlacementRequestService:
             logger.error(f"Channel not found for placement {placement_id}")
             return await self.placement_repo.get_by_id(placement_id)
 
+        if not self.billing_service:
+            logger.error("BillingService not initialized for escrow release")
+            return await self.placement_repo.get_by_id(placement_id)
+
         await self.billing_service.release_escrow_for_placement(
             placement_id=placement_id,
-            owner_id=placement.channel.owner_user_id,
+            owner_id=owner_id,
             total_amount=placement.final_price or placement.proposed_price,
         )
 
@@ -646,7 +653,7 @@ class PlacementRequestService:
             raise ValueError("Placement not found")
 
         # Возврат 100%
-        if placement.escrow_transaction_id:
+        if placement.escrow_transaction_id and self.billing_service:
             await self.billing_service.refund_escrow(
                 placement_id=placement_id,
                 advertiser_id=placement.advertiser_id,
@@ -682,7 +689,7 @@ class PlacementRequestService:
             raise ValueError("Placement not found")
 
         # Возврат 100%
-        if placement.escrow_transaction_id:
+        if placement.escrow_transaction_id and self.billing_service:
             await self.billing_service.refund_escrow(
                 placement_id=placement_id,
                 advertiser_id=placement.advertiser_id,
