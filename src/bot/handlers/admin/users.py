@@ -63,8 +63,24 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
 
     for i, user in enumerate(users, 1):
         ban_emoji = "🚫 " if user.is_banned else "✅ "
-        username = f"@{user.username}" if user.username else "—"
-        text += f"<b>{i}.</b> {ban_emoji}ID:{user.telegram_id} | {username} | {user.credits} кр\n"
+
+        # Формируем отображаемое имя
+        display_name_parts = []
+        if user.first_name:
+            display_name_parts.append(user.first_name)
+        if user.last_name:
+            display_name_parts.append(user.last_name)
+        display_name = " ".join(display_name_parts).strip() or f"ID:{user.telegram_id}"
+
+        # Формируем username или ссылку на профиль
+        if user.username:
+            username_display = f"@{user.username}"
+        else:
+            username_display = f"tg://user?id={user.telegram_id}"
+
+        # Показываем три баланса
+        text += f"<b>{i}.</b> {ban_emoji}{display_name} | {username_display}\n"
+        text += f"    💵 {user.balance_rub:.0f} ₽  🎯 {user.credits} кр  💸 {user.earned_rub:.0f} ₽\n"
 
     await safe_callback_edit(
         callback, text, reply_markup=get_users_list_kb(users, page, total_pages)

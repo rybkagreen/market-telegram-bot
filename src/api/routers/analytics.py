@@ -340,7 +340,7 @@ async def get_campaign_ai_insights(
     current_user: CurrentUser,
 ) -> AIInsightsResponse:
     """
-    AI-аналитика конкретной кампании через OpenRouter.
+    AI-аналитика конкретной кампании через Mistral AI.
     Доступна только для PRO и BUSINESS тарифов.
     Списывает 1 ИИ-генерацию из лимита пользователя.
     """

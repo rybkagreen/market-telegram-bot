@@ -34,38 +34,31 @@ AI_PROVIDERS = {
             "gemma2-9b-it",
         ],
     },
-    "openai": {
-        "name": "OpenAI (production)",
+}
+
+# Провайдеры AI — только Mistral AI
+AI_PROVIDERS = {
+    "mistral": {
+        "name": "Mistral AI (официальный SDK)",
         "models": [
-            "gpt-4o-mini",
-            "gpt-4o",
-            "gpt-4-turbo",
-            "gpt-3.5-turbo",
-        ],
-    },
-    "openrouter": {
-        "name": "OpenRouter (универсальный)",
-        "models": [
-            "anthropic/claude-sonnet-4-20250514",
-            "anthropic/claude-3-5-sonnet",
-            "anthropic/claude-3-opus",
-            "meta-llama/llama-3-70b-instruct",
-            "mistralai/mistral-large",
-            "google/gemma-7b-it",
+            "mistral-medium-latest",
+            "mistral-small-latest",
+            "mistral-large-latest",
+            "open-mistral-nemo",
         ],
     },
 }
 
-# Модели по тарифам
+# Модели по тарифам — все используют Mistral AI
 TARIFF_MODELS = {
-    UserPlan.FREE: {"provider": "groq", "model": "llama-3.3-70b-versatile"},
-    UserPlan.STARTER: {"provider": "groq", "model": "llama-3.3-70b-versatile"},
-    UserPlan.PRO: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
-    UserPlan.BUSINESS: {"provider": "openrouter", "model": "anthropic/claude-sonnet-4-20250514"},
+    UserPlan.FREE: {"provider": "mistral", "model": "mistral-medium-latest"},
+    UserPlan.STARTER: {"provider": "mistral", "model": "mistral-medium-latest"},
+    UserPlan.PRO: {"provider": "mistral", "model": "mistral-medium-latest"},
+    UserPlan.BUSINESS: {"provider": "mistral", "model": "mistral-medium-latest"},
     UserPlan.ADMIN: {
-        "provider": "openrouter",
-        "model": "nousresearch/hermes-3-llama-3.1-405b:free",
-    },  # ADMIN — бесплатная модель
+        "provider": "mistral",
+        "model": "mistral-medium-latest",
+    },  # ADMIN — Mistral модель
 }
 
 
@@ -104,28 +97,25 @@ async def show_admin_models_menu(message: Message | CallbackQuery, user: User) -
     """Показать меню выбора модели для админа."""
     answer_method = message.message.answer if isinstance(message, CallbackQuery) else message.answer  # type: ignore[union-attr]
 
-    # Используем getattr с fallback так как ai_provider/ai_model могут отсутствовать в Settings
-    current_provider = getattr(settings, "ai_provider", "openrouter")
-    current_model = getattr(settings, "ai_model", "qwen/qwen-plus")
+    # Используем getattr с fallback так как ai_model может отсутствовать в Settings
+    current_model = getattr(settings, "ai_model", "mistral-medium-latest")
 
     text = (
         f"🤖 <b>Настройки ИИ (Админ-панель)</b>\n\n"
         f"📌 <b>Глобальные настройки:</b>\n"
-        f"Провайдер: <code>{current_provider}</code>\n"
         f"Модель: <code>{current_model}</code>\n\n"
         f"⚙️ <b>Как изменить:</b>\n"
         f"Измените переменные окружения в .env:\n"
-        f"<code>AI_PROVIDER=groq</code>\n"
-        f"<code>AI_MODEL=llama-3.3-70b-versatile</code>\n\n"
-        f"📋 <b>Доступные провайдеры:</b>\n"
+        f"<code>AI_MODEL=mistral-medium-latest</code>\n\n"
+        f"📋 <b>Доступные модели Mistral:</b>\n"
     )
 
     builder = InlineKeyboardBuilder()
 
+    # Только один провайдер — Mistral AI
     for provider_key, provider_info in AI_PROVIDERS.items():
-        status = "✅" if provider_key == current_provider else "⚪"
         builder.button(
-            text=f"{status} {provider_info['name']}", callback_data=ModelCB(provider=provider_key)
+            text=f"✅ {provider_info['name']}", callback_data=ModelCB(provider=provider_key)
         )
 
     builder.button(text="🔙 В меню", callback_data=ModelCB(provider="back"))
@@ -172,8 +162,7 @@ async def show_user_models_info(message: Message | CallbackQuery, user: User) ->
     # Информация о доступных моделях по тарифам
     text += (
         "📊 <b>Модели по тарифам:</b>\n"
-        "FREE/STARTER → Groq (Llama 3.3 70B)\n"
-        "PRO/BUSINESS → OpenRouter (Claude Sonnet 4)\n\n"
+        "Все тарифы используют Mistral AI (medium-latest)\n\n"
         "💡 <b>Хотите сменить модель?</b>\n"
         "Обновите тарифный план в разделе «Кабинет»."
     )
@@ -192,18 +181,18 @@ async def tariff_info_callback(callback: CallbackQuery) -> None:
     text = (
         "📦 <b>Тарифные планы и ИИ модели</b>\n\n"
         "🆓 <b>FREE</b> — 0₽/мес\n"
-        "  • Groq (Llama 3.3 70B)\n"
+        "  • Mistral AI (medium-latest)\n"
         "  • Базовая генерация\n\n"
         "🚀 <b>STARTER</b> — 299₽/мес\n"
-        "  • Groq (Llama 3.3 70B)\n"
+        "  • Mistral AI (medium-latest)\n"
         "  • 5 кампаний в месяц\n"
         "  • 50 чатов на кампанию\n\n"
         "💎 <b>PRO</b> — 999₽/мес\n"
-        "  • OpenRouter (Claude Sonnet 4)\n"
+        "  • Mistral AI (medium-latest)\n"
         "  • 20 кампаний в месяц\n"
         "  • 200 чатов на кампанию\n\n"
         "🏢 <b>BUSINESS</b> — 2999₽/мес\n"
-        "  • OpenRouter (Claude Sonnet 4)\n"
+        "  • Mistral AI (medium-latest)\n"
         "  • 100 кампаний в месяц\n"
         "  • 1000 чатов на кампанию\n\n"
         "💡 <b>Для админов:</b>\n"
@@ -276,33 +265,30 @@ async def model_provider_callback(callback: CallbackQuery, callback_data: ModelC
         await callback.answer("❌ Неизвестный провайдер", show_alert=True)
         return
 
-    # Используем getattr с fallback так как ai_provider/ai_model могут отсутствовать в Settings
-    current_model = getattr(settings, "ai_model", "qwen/qwen-plus")
-    current_provider = getattr(settings, "ai_provider", "openrouter")
+    # Используем getattr с fallback так как ai_model может отсутствовать в Settings
+    current_model = getattr(settings, "ai_model", "mistral-medium-latest")
 
     # Формируем текст с моделями провайдера
     text = (
         f"🤖 <b>{provider_info['name']}</b>\n\n"
-        f"📌 <b>Текущий провайдер:</b> <code>{current_provider}</code>\n"
         f"📌 <b>Текущая модель:</b> <code>{current_model}</code>\n\n"
-        f"💡 <b>Доступные модели:</b>\n"
+        f"💡 <b>Доступные модели Mistral:</b>\n"
     )
 
     for model in provider_info["models"]:
-        is_current = "✅" if model == current_model and provider == current_provider else "⚪"
+        is_current = "✅" if model == current_model else "⚪"
         text += f"{is_current} <code>{model}</code>\n"
 
     text += (
-        f"\n⚠️ <b>Внимание:</b>\n"
-        f"Для смены провайдера измените <code>AI_PROVIDER</code> в .env файле:\n"
-        f"<code>AI_PROVIDER={provider}</code>\n\n"
-        f"После изменения перезапустите бота."
+        "\n⚠️ <b>Внимание:</b>\n"
+        "Для смены модели измените <code>AI_MODEL</code> в .env файле.\n\n"
+        "Доступные модели: mistral-medium-latest, mistral-small-latest, mistral-large-latest"
     )
 
     builder = InlineKeyboardBuilder()
 
     for model in provider_info["models"]:
-        is_current = "✅" if model == current_model and provider == current_provider else ""
+        is_current = "✅" if model == current_model else ""
         builder.button(
             text=f"{is_current} {model}",
             callback_data=ModelCB(provider=f"model_{provider}_{model}"),

@@ -141,8 +141,8 @@ async def notify_new_request(
         "📋 <b>Новая заявка на размещение!</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Предложенная цена: <b>{placement.proposed_price} кр</b>",
-        f"  → Вы получите: <b>{owner_payout} кр</b> (80%)",
+        f"💰 Предложенная цена: <b>{placement.proposed_price} ₽</b>",
+        f"  → Вы получите: <b>{owner_payout} ₽</b> (80%)",
         f"📅 Дата публикации: {scheduled}",
         "⏱ Ответьте в течение <b>24 часов</b>",
         "",
@@ -188,8 +188,8 @@ async def notify_counter_offer(
         "💱 <b>Владелец предложил другую цену</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Ваша цена: <s>{placement.proposed_price} кр</s>",
-        f"💰 Встречная цена: <b>{counter_price} кр</b>",
+        f"💰 Ваша цена: <s>{placement.proposed_price} ₽</s>",
+        f"💰 Встречная цена: <b>{counter_price} ₽</b>",
         f"💬 Комментарий: {comment}",
         "⏱ Ответьте в течение <b>24 часов</b>",
         f"🔄 Раунд переговоров: {placement.counter_offer_count}/{max_rounds}",
@@ -230,8 +230,8 @@ async def notify_counter_accepted(
         "✅ <b>Рекламодатель принял ваше предложение!</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Согласованная цена: <b>{final_price} кр</b>",
-        f"  → Вы получите: <b>{owner_payout} кр</b>",
+        f"💰 Согласованная цена: <b>{final_price} ₽</b>",
+        f"  → Вы получите: <b>{owner_payout} ₽</b>",
         "⏳ Ожидаем оплату от рекламодателя (до 24 ч)",
     ])
 
@@ -268,7 +268,7 @@ async def notify_owner_accepted(
         "✅ <b>Владелец принял вашу заявку!</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Сумма к оплате: <b>{final_price} кр</b>",
+        f"💰 Сумма к оплате: <b>{final_price} ₽</b>",
         f"📅 Дата публикации: {scheduled}",
         "⏱ Оплатите в течение <b>24 часов</b>",
         "",
@@ -309,7 +309,7 @@ async def notify_payment_received(
         "🔒 <b>Средства заморожены — публикация запланирована</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Ваш доход: <b>{owner_payout} кр</b> (будет начислен после публикации)",
+        f"💰 Ваш доход: <b>{owner_payout} ₽</b> (будет начислен после публикации)",
         f"📅 Публикация: <b>{scheduled}</b>",
         "",
         "Подготовьте канал к размещению рекламы ✅",
@@ -319,7 +319,7 @@ async def notify_payment_received(
         "🔒 <b>Средства заморожены — всё готово!</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Зарезервировано: <b>{final_price} кр</b>",
+        f"💰 Зарезервировано: <b>{final_price} ₽</b>",
         f"📅 Публикация: <b>{scheduled}</b>",
         "",
         "Мы уведомим вас когда пост выйдет 🔔",
@@ -369,7 +369,7 @@ async def notify_published(
         "",
         f"📺 Канал: @{channel_username}",
         f"📅 Опубликован: {published}",
-        f"💰 Списано: {final_price} кр",
+        f"💰 Списано: {final_price} ₽",
         "",
         "Успешной рекламной кампании! 🚀",
     ])
@@ -378,7 +378,7 @@ async def notify_published(
         "✅ <b>Пост опубликован — доход начислен!</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Начислено: <b>+{owner_payout} кр</b>",
+        f"💰 Начислено: <b>+{owner_payout} ₽</b>",
         f"📅 Дата: {published}",
         "",
         "Спасибо за качественное сотрудничество 🤝",
@@ -427,7 +427,7 @@ async def notify_rejected(
         "",
         f"📺 Канал: @{channel_username}",
         f"📝 Причина: {reason_ru}",
-        f"💰 Возврат: <b>{refund_amount} кр</b> зачислен на баланс",
+        f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
         "",
         "Попробуйте другой канал 👇",
     ])
@@ -474,7 +474,7 @@ async def notify_sla_expired(
         "⏱ <b>Владелец не ответил вовремя</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} кр</b> зачислен на баланс",
+        f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
         "",
         "Попробуйте разместить рекламу в другом канале 👇",
     ])
@@ -523,7 +523,7 @@ async def notify_cancelled(
         "🚫 <b>Заявка отменена</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} кр</b>",
+        f"💰 Возврат: <b>{refund_amount} ₽</b>",
         f"📉 Изменение репутации: <b>{reputation_delta}</b>",
     ])
 
@@ -577,7 +577,7 @@ async def notify_publication_failed(
         "❌ <b>Ошибка публикации</b>",
         "",
         f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} кр</b> (50% от суммы)",
+        f"💰 Возврат: <b>{refund_amount} ₽</b> (50% от суммы)",
         "",
         "Возможно бот был удалён из канала.",
         "Обратитесь в поддержку если вопросы остались.",
@@ -608,3 +608,32 @@ async def notify_publication_failed(
     )
 
     return (sent_owner, sent_advertiser)
+
+
+# =============================================================================
+# YOOKASSA УВЕДОМЛЕНИЯ
+# =============================================================================
+
+
+def format_yookassa_payment_success(
+    amount_rub: Decimal,
+    credits: int,
+    new_balance: int,
+) -> str:
+    """
+    Текст уведомления об успешном пополнении через ЮKassa.
+
+    Args:
+        amount_rub: Сумма в рублях.
+        credits: Количество зачисленных кредитов.
+        new_balance: Новый баланс пользователя.
+
+    Returns:
+        str: Форматированный текст уведомления.
+    """
+    return (
+        f"✅ <b>Баланс пополнен!</b>\n\n"
+        f"💳 Оплачено: {amount_rub} ₽\n"
+        f"💎 Зачислено: +{credits} кредитов\n"
+        f"📊 Текущий баланс: {new_balance} ₽"
+    )

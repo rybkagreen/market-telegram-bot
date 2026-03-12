@@ -1,28 +1,18 @@
 """
 AI константы для Market Bot.
 
-Централизованные настройки для AI генерации через OpenRouter и Mistral AI.
+Централизованные настройки для AI генерации через Mistral AI.
+Использует официальный Mistral AI SDK (mistralai >= 1.12.0).
 """
 
 # ──────────────────────────────────────────────────────────────
-# Модели OpenRouter
+# Модель Mistral AI (единая для всех задач)
 # ──────────────────────────────────────────────────────────────
 
-# Бесплатная модель по умолчанию (Step — без rate limit)
-FREE_MODEL = "stepfun/step-3.5-flash:free"
-
-# Fallback модель при rate limit (Qwen)
-FALLBACK_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
-
-# Платная модель (для будущего использования)
-PAID_MODEL = "qwen/qwen-plus"
-
-# ──────────────────────────────────────────────────────────────
-# Модели Mistral AI
-# ──────────────────────────────────────────────────────────────
-
-# Mistral модель для классификации и модерации (medium — лучшее качество)
-MISTRAL_MODEL = "mistral-medium-latest"
+# mistral-medium-latest — баланс качества и скорости
+# Другие варианты: mistral-small-latest, mistral-large-latest
+AI_MODEL = "mistral-medium-latest"
+MISTRAL_MODEL = AI_MODEL  # Алиас для совместимости
 
 # Mistral Agent ID (для beta.conversations.start)
 MISTRAL_AGENT_ID = "ag:566b88c1:20250526:untitled-agent:7464030c"
@@ -83,10 +73,11 @@ TOPIC_PROMPTS = {
 DEFAULT_SYSTEM_PROMPT = TOPIC_PROMPTS["default"]
 
 __all__ = [
-    # Models
-    "FREE_MODEL",
-    "FALLBACK_MODEL",
-    "PAID_MODEL",
+    # Model
+    "AI_MODEL",
+    "MISTRAL_MODEL",
+    "MISTRAL_AGENT_ID",
+    "MISTRAL_AGENT_VERSION",
     # Generation params
     "AI_MAX_TOKENS",
     "AI_TEMPERATURE",

@@ -49,6 +49,9 @@ dmypy.json
 *.log
 logs/
 
+# Alembic (auto-generated migrations directory)
+alembic/
+
 # Docker
 *.pid
 *.seed

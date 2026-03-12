@@ -32,9 +32,8 @@ telethon = "^1.36.0"
 pymorphy3 = "^2.0.0"
 rapidfuzz = "^3.6.0"
 
-# AI Services — OpenRouter (единый провайдер)
-# OpenRouter использует OpenAI-совместимый API
-openai = "^1.12.0"
+# AI Services — Mistral AI (официальный SDK)
+mistralai = "^1.12.4"
 
 # TGStat Parser
 beautifulsoup4 = "^4.12.3"
@@ -46,7 +45,6 @@ sentry-sdk = "^2.53.0"
 
 # Server Monitoring
 psutil = "^6.1.0"
-mistralai = "^1.12.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.9.3"

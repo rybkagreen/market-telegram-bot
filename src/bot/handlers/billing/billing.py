@@ -1,15 +1,19 @@
 """
-Handlers для биллинга и платежей: кредиты, CryptoBot, Telegram Stars.
+Handlers для биллинга и платежей: кредиты, YooKassa, Telegram Stars.
 """
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, LabeledPrice, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy import desc, select
 
 from src.bot.keyboards.billing.billing import (  # type: ignore[attr-defined]
+    BuyAndActivateCB,
     CREDIT_PACKAGES,
     BillingCB,
     get_currency_kb,
@@ -20,8 +24,11 @@ from src.bot.keyboards.billing.billing import (  # type: ignore[attr-defined]
 from src.bot.keyboards.shared.main_menu import MainMenuCB
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
+from src.constants.payments import YOOKASSA_PACKAGES
 from src.core.services.cryptobot_service import cryptobot_service
+from src.core.services.yookassa_service import yookassa_service
 from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
+from src.db.models.yookassa_payment import YooKassaPayment
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -126,7 +133,137 @@ async def show_balance(callback: CallbackQuery) -> None:
         await safe_callback_edit(callback, text, reply_markup=get_topup_methods_kb())
 
 
-# ─── CRYPTO BOT ──────────────────────────────────────────────────────────────
+# ─── YOOKASSA ──────────────────────────────────────────────────────────────
+
+
+@router.callback_query(BillingCB.filter(F.action == "topup_yookassa"))
+async def show_yookassa_packages(callback: CallbackQuery) -> None:
+    """Показать пакеты пополнения через ЮKassa."""
+    packages_list = "\n".join([
+        f"• <b>{p['label']}</b>"
+        for p in YOOKASSA_PACKAGES
+    ])
+
+    text = (
+        f"💳 <b>Пополнение картой / СБП</b>\n\n"
+        f"Выберите сумму пополнения:\n\n"
+        f"{packages_list}\n\n"
+        f"💡 Оплата через ЮKassa: карты, СБП, ЮMoney.\n"
+        f"Кредиты зачисляются автоматически после оплаты."
+    )
+
+    # Создать клавиатуру с пакетами
+    builder = InlineKeyboardBuilder()
+    for pkg in YOOKASSA_PACKAGES:
+        builder.button(
+            text=pkg["label"],
+            callback_data=f"billing:yk_buy:{pkg['rub']}:{pkg['credits']}",
+        )
+    builder.button(text="🔙 Назад", callback_data=MainMenuCB(action="balance"))
+    builder.adjust(2, 2, 1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.regexp(r"^billing:yk_buy:(\d+):(\d+)$"))
+async def yookassa_buy_selected(callback: CallbackQuery) -> None:
+    """Создать платёж и отправить ссылку пользователю."""
+    try:
+        # Спарсить rub и credits из callback_data
+        parts = (callback.data or "").split(":")
+        if len(parts) != 4:
+            raise ValueError("Invalid callback data format")
+        rub = Decimal(parts[2])
+        credits = int(parts[3])
+
+        async with async_session_factory() as session:
+            user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+            if not user:
+                await callback.answer("❌ Пользователь не найден", show_alert=True)
+                return
+
+            # Создать платёж
+            record = await yookassa_service.create_payment(
+                amount_rub=rub,
+                credits=credits,
+                user_id=user.id,
+            )
+
+        # Отправить сообщение с кнопками
+        text = (
+            f"💳 <b>Оплата {rub} ₽</b>\n\n"
+            f"Нажмите кнопку ниже для перехода к оплате.\n\n"
+            f"⏳ Ссылка действительна 15 минут.\n"
+            f"💎 После оплаты будет начислено: {credits} кредитов"
+        )
+
+        builder = InlineKeyboardBuilder()
+        builder.button(
+            text=f"💳 Оплатить {rub} ₽",
+            url=record.confirmation_url,
+        )
+        builder.button(
+            text="🔄 Я оплатил — проверить",
+            callback_data=f"billing:yk_check:{record.payment_id}",
+        )
+        builder.button(text="🔙 Назад", callback_data="billing:topup_yookassa")
+        builder.adjust(1, 1, 1)
+
+        await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+
+    except Exception as e:
+        logger.error("Ошибка создания ЮKassa платежа: %s", e)
+        await callback.answer("❌ Ошибка создания платежа. Попробуйте позже.", show_alert=True)
+
+
+@router.callback_query(F.data.regexp(r"^billing:yk_check:(.+)$"))
+async def yookassa_check_payment(callback: CallbackQuery) -> None:
+    """Ручная проверка статуса платежа по кнопке пользователя."""
+    try:
+        payment_id = (callback.data or "").split(":", 2)[2]
+        if not payment_id:
+            await callback.answer("Платёж не найден", show_alert=True)
+            return
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)
+            )
+            record = result.scalar_one_or_none()
+
+            if record is None:
+                await callback.answer("Платёж не найден", show_alert=True)
+                return
+
+            if record.status == "succeeded":
+                await callback.answer("✅ Платёж уже зачислен на баланс", show_alert=True)
+                return
+
+            if record.status == "canceled":
+                await callback.answer("❌ Платёж отменён", show_alert=True)
+                return
+
+        # Проверить статус через ЮKassa
+        status = await yookassa_service.get_payment_status(payment_id)
+
+        if status == "succeeded":
+            # Обработать webhook вручную
+            await yookassa_service.handle_webhook({
+                "event": "payment.succeeded",
+                "object": {"id": payment_id},
+            })
+            await callback.answer("✅ Оплата подтверждена! Кредиты зачислены.", show_alert=True)
+        elif status == "canceled":
+            await callback.answer("❌ Платёж отменён", show_alert=True)
+        else:
+            await callback.answer("⏳ Платёж ещё не оплачен. Попробуйте через минуту.", show_alert=False)
+
+    except Exception as e:
+        logger.error("Ошибка проверки статуса ЮKassa: %s", e)
+        await callback.answer("❌ Ошибка проверки. Попробуйте позже.", show_alert=True)
+
+
+# ─── CRYPTO BOT (ОБРАТНАЯ СОВМЕСТИМОСТЬ) ───────────────────────────────────
 
 
 @router.callback_query(BillingCB.filter(F.action == "topup_crypto"))
@@ -485,15 +622,18 @@ async def show_plans(callback: CallbackQuery) -> None:
         "🚀 <b>STARTER</b> — 299 кр/мес\n"
         "  • 5 кампаний в месяц\n"
         "  • 50 чатов/кампанию\n"
-        "  • ИИ-генерация за кредиты\n\n"
+        "  • ИИ-генерация за кредиты\n"
+        "  • Оплата: 299 кр (покупаются за 299 ₽ с рублёвого баланса)\n\n"
         "💎 <b>PRO</b> — 999 кр/мес\n"
         "  • 20 кампаний в месяц\n"
         "  • 200 чатов/кампанию\n"
-        "  • 5 ИИ-генераций включено\n\n"
+        "  • 5 ИИ-генераций включено\n"
+        "  • Оплата: 999 кр (покупаются за 999 ₽ с рублёвого баланса)\n\n"
         "🏢 <b>BUSINESS</b> — 2 999 кр/мес\n"
         "  • 100 кампаний в месяц\n"
         "  • 1 000 чатов/кампанию\n"
-        "  • 20 ИИ-генераций включено\n\n"
+        "  • 20 ИИ-генераций включено\n"
+        "  • Оплата: 2 999 кр (покупаются за 2 999 ₽ с рублёвого баланса)\n\n"
         "💡 Тариф автоматически продлевается каждые 30 дней.\n"
         "При нехватке кредитов — план сбросится на FREE."
     )
@@ -502,8 +642,12 @@ async def show_plans(callback: CallbackQuery) -> None:
 
 @router.callback_query(BillingCB.filter(F.action == "plan"))
 async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> None:
-    """Выбрать и активировать тариф (списывает кредиты)."""
+    """Выбрать и активировать тариф (списывает кредиты или предлагает купить)."""
+    from src.bot.keyboards.billing.billing import BuyAndActivateCB
+    
     plan_name = callback_data.value
+    plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
+    plan_cost = plan_costs.get(plan_name, 0)
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -512,24 +656,133 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        # Используем billing_service.activate_plan()
-        from src.core.services.billing_service import billing_service
+        # Если credits достаточно — активируем сразу
+        if user.credits >= plan_cost:
+            from src.core.services.billing_service import billing_service
 
-        success = await billing_service.activate_plan(user.id, plan_name)
+            success = await billing_service.activate_plan(user.id, plan_name)
 
-        if not success:
-            plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
-            plan_cost = plan_costs.get(plan_name, 0)
+            if not success:
+                await callback.answer(
+                    f"❌ Недостаточно кредитов!\nНужно: {plan_cost} кр\nУ вас: {user.credits} кр",
+                    show_alert=True,
+                )
+                return
+
             await callback.answer(
-                f"❌ Недостаточно кредитов!\nНужно: {plan_cost} кр\nУ вас: {user.credits} кр",
+                f"✅ Тариф {plan_name.upper()} активирован на 30 дней!",
                 show_alert=True,
             )
             return
 
-    await callback.answer(
-        f"✅ Тариф {plan_name.upper()} активирован на 30 дней!",
-        show_alert=True,
-    )
+        # Credits недостаточно — предлагаем купить
+        need_credits = plan_cost - user.credits
+        need_rub = Decimal(str(need_credits))  # 1 кредит = 1 рубль
+        
+        # Проверяем рублёвый баланс
+        if user.balance_rub < need_rub:
+            await callback.answer(
+                f"❌ Недостаточно средств!\n"
+                f"Нужно купить {need_credits} кр за {need_rub} ₽\n"
+                f"Ваш рублёвый баланс: {user.balance_rub} ₽\n\n"
+                f"Пополните баланс и попробуйте снова.",
+                show_alert=True,
+            )
+            return
+
+        # Показываем предложение купить кредиты и активировать
+        remaining_balance = user.balance_rub - need_rub
+        
+        text = (
+            f"🎯 <b>Активация тарифа {plan_name.upper()}</b>\n\n"
+            f"Недостаточно кредитов.\n"
+            f"├ Нужно: <b>{plan_cost} кр</b>\n"
+            f"├ У вас: <b>{user.credits} кр</b>\n"
+            f"└ Не хватает: <b>{need_credits} кр</b>\n\n"
+            f"💵 Будет списано с рублёвого баланса: <b>{need_rub} ₽</b>\n"
+            f"💵 Остаток рублёвого баланса: <b>{remaining_balance:.0f} ₽</b>\n\n"
+            f"1 кредит = 1 ₽. Кредиты будут зачислены и сразу списаны за тариф."
+        )
+        
+        kb = InlineKeyboardBuilder()
+        kb.button(
+            text=f"✅ Купить {need_credits} кр и активировать",
+            callback_data=BuyAndActivateCB(plan=plan_name),
+        )
+        kb.button(text="🔙 Отмена", callback_data=BillingCB(action="plans"))
+        kb.adjust(1)
+
+        await safe_callback_edit(callback, text, reply_markup=kb)
+
+
+@router.callback_query(BuyAndActivateCB.filter())
+async def buy_credits_and_activate_plan(callback: CallbackQuery, callback_data: BuyAndActivateCB) -> None:
+    """Купить кредиты за рубли и активировать тариф."""
+    from src.core.services.billing_service import billing_service, InsufficientFundsError
+    
+    plan_name = callback_data.plan
+    plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
+    plan_cost = plan_costs.get(plan_name, 0)
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            return
+
+        need_credits = plan_cost - user.credits
+        need_rub = Decimal(str(need_credits))
+
+        # Проверяем баланс ещё раз (мог измениться)
+        if user.balance_rub < need_rub:
+            await callback.answer(
+                f"❌ Баланс изменился. Недостаточно средств.\n"
+                f"Нужно: {need_rub} ₽, у вас: {user.balance_rub} ₽",
+                show_alert=True,
+            )
+            return
+
+        try:
+            # Покупаем кредиты
+            credits_purchased, spend_tx, topup_tx = await billing_service.buy_credits_for_plan(
+                user.id, need_rub
+            )
+
+            # Активируем тариф
+            success = await billing_service.activate_plan(user.id, plan_name)
+
+            if not success:
+                await callback.answer(
+                    "❌ Ошибка активации тарифа. Кредиты были зачислены, попробуйте активировать вручную.",
+                    show_alert=True,
+                )
+                return
+
+            # Получаем свежий баланс
+            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+            text = (
+                f"✅ <b>Тариф {plan_name.upper()} активирован!</b>\n\n"
+                f"💵 Списано с рублёвого баланса: <b>{need_rub} ₽</b>\n"
+                f"🎯 Куплено кредитов: <b>{credits_purchased} кр</b>\n"
+                f"📦 Списано за тариф: <b>{plan_cost} кр</b>\n"
+                f"🎯 Осталось кредитов: <b>{user.credits} кр</b>\n\n"
+                f"Тариф действителен 30 дней."
+            )
+
+            kb = InlineKeyboardBuilder()
+            kb.button(text="👤 Кабинет", callback_data=MainMenuCB(action="cabinet"))
+            kb.button(text="📦 Мои тарифы", callback_data=BillingCB(action="history"))
+            kb.adjust(2)
+
+            await safe_callback_edit(callback, text, reply_markup=kb)
+
+        except InsufficientFundsError as e:
+            await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
+        except Exception as e:
+            logger.error(f"Error in buy_credits_and_activate_plan: {e}", exc_info=True)
+            await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
 
 
 # ─── ИСТОРИЯ ТРАНЗАКЦИЙ ──────────────────────────────────────────────────────
@@ -537,16 +790,15 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
 
 @router.callback_query(BillingCB.filter(F.action == "history"))
 async def show_history(callback: CallbackQuery) -> None:
-    """История пополнений кредитов."""
+    """История пополнений кредитов (CryptoBot + YooKassa)."""
     async with async_session_factory() as session:
-        from sqlalchemy import desc, select
-
         user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
         if not user:
             await callback.answer("❌ Пользователь не найден", show_alert=True)
             return
 
-        result = await session.execute(
+        # CryptoBot payments
+        crypto_result = await session.execute(
             select(CryptoPayment)
             .where(
                 CryptoPayment.user_id == user.id,
@@ -555,17 +807,44 @@ async def show_history(callback: CallbackQuery) -> None:
             .order_by(desc(CryptoPayment.credited_at))
             .limit(10)
         )
-        payments = result.scalars().all()
+        crypto_payments = list(crypto_result.scalars().all())
 
-        if not payments:
+        # YooKassa payments
+        yk_result = await session.execute(
+            select(YooKassaPayment)
+            .where(
+                YooKassaPayment.user_id == user.id,
+                YooKassaPayment.status == "succeeded",
+            )
+            .order_by(desc(YooKassaPayment.created_at))
+            .limit(10)
+        )
+        yk_payments = list(yk_result.scalars().all())
+
+        # Объединить и отсортировать по дате
+        all_payments: list[dict[str, Any]] = []
+        for p in crypto_payments:
+            all_payments.append({
+                "date": p.credited_at or p.created_at,
+                "text": f"✅ +{p.total_credits:,} кр — 💎 {p.currency} — {(p.credited_at or p.created_at).strftime('%d.%m.%Y %H:%M')}",
+            })
+        for p in yk_payments:  # type: ignore[assignment]
+            paid_at = p.paid_at or p.created_at
+            all_payments.append({
+                "date": paid_at,
+                "text": f"✅ +{p.credits:,} кр — 💳 {p.amount_rub} ₽ (ЮKassa) — {paid_at.strftime('%d.%m.%Y %H:%M')}",
+            })
+
+        # Сортировать по дате (новые сверху)
+        all_payments.sort(key=lambda x: x["date"] or datetime.min.replace(tzinfo=UTC), reverse=True)  # type: ignore[arg-type, return-value]
+        all_payments = all_payments[:10]  # Ограничить 10 записями
+
+        if not all_payments:
             text = "📋 <b>История пополнений пуста</b>\n\nВаши пополнения будут отображаться здесь."
         else:
             text = "📋 <b>Последние пополнения</b>\n\n"
-            for p in payments:
-                date = p.credited_at.strftime("%d.%m.%Y %H:%M") if p.credited_at else "—"
-                total = p.total_credits
-                method = "⭐ Stars" if p.method == PaymentMethod.STARS else f"💎 {p.currency}"
-                text += f"✅ +{total:,} кр — {method} — {date}\n"
+            for p in all_payments:
+                text += p["text"] + "\n"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 К балансу", callback_data=MainMenuCB(action="balance"))

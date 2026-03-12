@@ -1,6 +1,6 @@
 """
 Billing Service для управления платежами и балансом.
-Работает с кредитами (1 кредит = 1 рублю).
+Двухвалютная система: рубли (размещения) + кредиты (подписки).
 """
 
 import logging
@@ -28,15 +28,157 @@ class BillingService:
     Сервис для управления платежами и балансом.
 
     Методы:
-        create_payment: Создать платёж
+        create_payment: Создать платёж (пополняет balance_rub)
         check_payment: Проверить статус платежа
-        deduct_credits: Списать кредиты
-        apply_referral_bonus: Начислить реферальный бонус
+        add_balance_rub: Зачислить рубли на баланс
+        buy_credits_for_plan: Купить кредиты для тарифа (с balance_rub → credits)
+        freeze_escrow_for_placement: Заморозить рубли для размещения
+        release_escrow_for_placement: Разморозить и распределить рубли
+        apply_referral_bonus: Начислить реферальный бонус (в рублях)
     """
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
         pass
+
+    async def add_balance_rub(
+        self,
+        user_id: int,
+        amount_rub: Decimal,
+        payment_method: str = "yookassa",
+        payment_id: str | None = None,
+    ) -> Transaction:
+        """
+        Зачислить рубли на balance_rub пользователя.
+
+        Args:
+            user_id: ID пользователя.
+            amount_rub: Сумма в рублях.
+            payment_method: Метод оплаты.
+            payment_id: ID платежа.
+
+        Returns:
+            Транзакция пополнения.
+        """
+        from src.db.models.transaction import Transaction
+
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(user_id)
+
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+
+            balance_before = user.balance_rub
+            user.balance_rub += amount_rub
+
+            transaction = Transaction(
+                user_id=user_id,
+                amount=amount_rub,
+                type=TransactionType.TOPUP,
+                payment_id=payment_id,
+                description=f"Пополнение через {payment_method}",
+                meta_json={
+                    "method": payment_method,
+                    "currency": "rub",
+                },
+                balance_before=balance_before,
+                balance_after=user.balance_rub,
+                created_at=datetime.now(UTC),
+            )
+            session.add(transaction)
+            await session.flush()
+
+            logger.info(
+                f"Balance topped up: +{amount_rub} ₽ for user {user_id}, new balance: {user.balance_rub} ₽"
+            )
+
+            return transaction
+
+    async def buy_credits_for_plan(
+        self,
+        user_id: int,
+        amount_rub: Decimal,
+    ) -> tuple[int, Transaction, Transaction]:
+        """
+        Купить кредиты для тарифа с рублёвого баланса.
+
+        Args:
+            user_id: ID пользователя.
+            amount_rub: Сумма в рублях (списывается с balance_rub).
+
+        Returns:
+            Кортеж (credits_purchased, spend_transaction, topup_transaction).
+
+        Raises:
+            InsufficientFundsError: Если недостаточно balance_rub.
+        """
+        from src.config.settings import settings
+        from src.db.models.transaction import Transaction
+
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(user_id)
+
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+
+            # Проверка баланса
+            if user.balance_rub < amount_rub:
+                raise InsufficientFundsError(
+                    f"Insufficient balance_rub: {user.balance_rub} < {amount_rub}"
+                )
+
+            # Конвертация: 1 кредит = 1 рубль
+            credits_to_add = int(amount_rub * settings.credits_per_rub_for_plan)
+
+            # Списываем рубли
+            balance_rub_before = user.balance_rub
+            user.balance_rub -= amount_rub
+
+            spend_transaction = Transaction(
+                user_id=user_id,
+                amount=amount_rub,
+                type=TransactionType.PAYMENT,
+                payment_id=None,
+                description=f"Покупка {credits_to_add} кр для тарифа",
+                meta_json={
+                    "type": "buy_credits",
+                    "currency": "rub",
+                },
+                balance_before=balance_rub_before,
+                balance_after=user.balance_rub,
+                created_at=datetime.now(UTC),
+            )
+            session.add(spend_transaction)
+
+            # Зачисляем кредиты
+            credits_before = user.credits
+            user.credits += credits_to_add
+
+            topup_transaction = Transaction(
+                user_id=user_id,
+                amount=Decimal(str(credits_to_add)),
+                type=TransactionType.BONUS,
+                payment_id=None,
+                description=f"Начислено {credits_to_add} кр за {amount_rub} ₽",
+                meta_json={
+                    "type": "credits_purchase",
+                    "currency": "credits",
+                },
+                balance_before=Decimal(str(credits_before)),
+                balance_after=Decimal(str(user.credits)),
+                created_at=datetime.now(UTC),
+            )
+            session.add(topup_transaction)
+
+            await session.flush()
+
+            logger.info(
+                f"Credits purchased: {credits_to_add} кр for {amount_rub} ₽ by user {user_id}"
+            )
+
+            return credits_to_add, spend_transaction, topup_transaction
 
     async def create_payment(
         self,
@@ -214,12 +356,12 @@ class BillingService:
         bonus_amount: Decimal,
     ) -> bool:
         """
-        Начислить реферальный бонус.
+        Начислить реферальный бонус в рублях на balance_rub.
 
         Args:
             referrer_id: ID пригласившего.
             referred_user_id: ID приглашённого.
-            bonus_amount: Сумма бонуса в рублях (конвертируется в кредиты 1:1).
+            bonus_amount: Сумма бонуса в рублях.
 
         Returns:
             True если бонус начислен.
@@ -232,9 +374,9 @@ class BillingService:
             if not referrer:
                 return False
 
-            # Начисляем бонус в кредитах (1 рубль = 1 кредит)
-            bonus_credits = int(bonus_amount)
-            await user_repo.update_credits(referrer_id, bonus_credits)
+            # Начисляем бонус в рублях на balance_rub
+            balance_before = referrer.balance_rub
+            referrer.balance_rub += bonus_amount
 
             # Создаём транзакцию
             transaction_repo = TransactionRepository(session)
@@ -243,14 +385,18 @@ class BillingService:
                 amount=bonus_amount,
                 transaction_type=TransactionType.BONUS,
                 payment_id=None,
+                description=f"Реферальный бонус за пользователя {referred_user_id}",
                 meta_json={
                     "type": "referral_bonus",
                     "referred_user_id": referred_user_id,
-                    "bonus_credits": bonus_credits,
+                    "bonus_rub": float(bonus_amount),
+                    "currency": "rub",
                 },
+                balance_before=balance_before,
+                balance_after=referrer.balance_rub,
             )
 
-            logger.info(f"Referral bonus {bonus_credits} credits to user {referrer_id}")
+            logger.info(f"Referral bonus {bonus_amount} ₽ to user {referrer_id}, new balance: {referrer.balance_rub} ₽")
 
             # Уведомляем
             await notification_service.notify_referral_bonus(
@@ -931,20 +1077,20 @@ class BillingService:
     ) -> "Transaction":
         """
         Заблокировать средства для PlacementRequest.
-        1. Списать amount с баланса advertiser (credits)
-        2. Создать Transaction(type=escrow_freeze, amount=amount)
-        3. Вернуть Transaction
+        1. Проверить balance_rub рекламодателя
+        2. Списать amount с balance_rub
+        3. Создать Transaction(type=escrow_freeze, amount=amount)
 
         Args:
             placement_id: ID заявки.
             advertiser_id: ID рекламодателя.
-            amount: Сумма для блокировки.
+            amount: Сумма для блокировки (в рублях).
 
         Returns:
             Транзакция эскроу.
 
         Raises:
-            InsufficientFundsError: Если недостаточно средств.
+            InsufficientFundsError: Если недостаточно balance_rub.
         """
         from src.db.models.transaction import Transaction
 
@@ -955,14 +1101,15 @@ class BillingService:
             if not user:
                 raise ValueError(f"User {advertiser_id} not found")
 
-            # Проверка баланса
-            if user.credits < int(amount):
+            # Проверка баланса (balance_rub для размещений)
+            if user.balance_rub < amount:
                 raise InsufficientFundsError(
-                    f"Insufficient credits: {user.credits} < {int(amount)}"
+                    f"Insufficient balance_rub: {user.balance_rub} < {amount}"
                 )
 
-            # Списание средств
-            user.credits -= int(amount)
+            # Списание средств с balance_rub
+            balance_before = user.balance_rub
+            user.balance_rub -= amount
 
             # Создание транзакции
             transaction = Transaction(
@@ -973,16 +1120,17 @@ class BillingService:
                 meta_json={
                     "type": "escrow_freeze",
                     "placement_id": placement_id,
+                    "currency": "rub",
                 },
-                balance_before=Decimal(str(user.credits + int(amount))),
-                balance_after=Decimal(str(user.credits)),
+                balance_before=balance_before,
+                balance_after=user.balance_rub,
                 created_at=datetime.now(UTC),
             )
             session.add(transaction)
             await session.flush()
 
             logger.info(
-                f"Escrow frozen: {amount} credits from advertiser {advertiser_id} for placement {placement_id}"
+                f"Escrow frozen: {amount} ₽ from advertiser {advertiser_id} for placement {placement_id}"
             )
 
             return transaction
@@ -995,13 +1143,13 @@ class BillingService:
     ) -> tuple["Transaction", "Transaction"]:
         """
         Разблокировать средства при успешной публикации.
-        owner_amount = total_amount * 0.80
-        commission_amount = total_amount * 0.20
+        owner_amount = total_amount * 0.80 (зачисляется в earned_rub)
+        commission_amount = total_amount * 0.20 (комиссия платформы)
 
         Args:
             placement_id: ID заявки.
-            owner_id: ID владельца.
-            total_amount: Общая сумма.
+            owner_id: ID владельца канала.
+            total_amount: Общая сумма (в рублях).
 
         Returns:
             Кортеж (owner_transaction, commission_transaction).
@@ -1009,19 +1157,20 @@ class BillingService:
         from src.db.models.transaction import Transaction
 
         async with async_session_factory() as session:
-            # 80% владельцу
+            # 80% владельцу в earned_rub
             owner_amount = total_amount * Decimal("0.80")
-            # 20% платформе
+            # 20% платформе (комиссия)
             commission_amount = total_amount * Decimal("0.20")
 
-            # Зачисление владельцу
+            # Зачисление владельцу в earned_rub
             user_repo = UserRepository(session)
             owner = await user_repo.get_by_id(owner_id)
 
             if not owner:
                 raise ValueError(f"Owner {owner_id} not found")
 
-            owner.credits += int(owner_amount)
+            earned_before = owner.earned_rub
+            owner.earned_rub += owner_amount
 
             owner_transaction = Transaction(
                 user_id=owner_id,
@@ -1032,9 +1181,10 @@ class BillingService:
                     "type": "escrow_release",
                     "placement_id": placement_id,
                     "share": "owner",
+                    "currency": "rub",
                 },
-                balance_before=Decimal(str(owner.credits - int(owner_amount))),
-                balance_after=Decimal(str(owner.credits)),
+                balance_before=earned_before,
+                balance_after=owner.earned_rub,
                 created_at=datetime.now(UTC),
             )
             session.add(owner_transaction)
@@ -1049,6 +1199,7 @@ class BillingService:
                     "type": "commission",
                     "placement_id": placement_id,
                     "share": "platform",
+                    "currency": "rub",
                 },
                 balance_before=Decimal("0"),
                 balance_after=commission_amount,
@@ -1059,7 +1210,7 @@ class BillingService:
             await session.flush()
 
             logger.info(
-                f"Escrow released: {owner_amount} to owner {owner_id}, {commission_amount} commission for placement {placement_id}"
+                f"Escrow released: {owner_amount} ₽ to owner {owner_id} (earned_rub), {commission_amount} ₽ commission for placement {placement_id}"
             )
 
             return owner_transaction, commission_transaction

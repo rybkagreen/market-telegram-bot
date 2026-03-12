@@ -210,7 +210,7 @@ async def handle_view_request(callback: CallbackQuery) -> None:
     text = (
         f"📋 <b>Заявка #{placement.id} от рекламодателя</b>\n\n"
         f"📺 Канал: @{channel_username}\n"
-        f"💰 Предложенная цена: {placement.proposed_price:.0f} кр → вы получите: {owner_payout:.0f} кр\n"
+        f"💰 Предложенная цена: {placement.proposed_price:.0f} ₽ → вы получите: {owner_payout:.0f} ₽\n"
         f"📅 Желаемая дата: {placement.proposed_schedule.strftime('%d.%m.%Y') if placement.proposed_schedule else 'Не указана'}\n"
         f"⏱ Истекает через: {time_left}\n"
         f"💱 Раунд переговоров: {placement.counter_offer_count}/{MAX_COUNTER_OFFER_ROUNDS}\n"
@@ -547,8 +547,8 @@ async def handle_counter_offer_init(callback: CallbackQuery, state: FSMContext) 
 
     text = (
         f"💱 <b>Контр-предложение</b>\n\n"
-        f"Текущая цена: {placement.proposed_price:.0f} кр\n"
-        f"Введите вашу цену (минимум 100 кр):"
+        f"Текущая цена: {placement.proposed_price:.0f} ₽\n"
+        f"Введите вашу цену (минимум 100 ₽):"
     )
 
     kb = InlineKeyboardBuilder()
@@ -580,7 +580,7 @@ async def process_counter_price(message: Message, state: FSMContext) -> None:
     counter_price = int(text)
 
     if counter_price < 100:
-        await message.answer("❌ Минимальная цена: 100 кр.")
+        await message.answer("❌ Минимальная цена: 100 ₽.")
         return
 
     await state.update_data(counter_price=counter_price)
@@ -641,7 +641,7 @@ async def process_counter_comment(message: Message, state: FSMContext) -> None:
 
             text = (
                 f"💱 <b>Контр-предложение отправлено!</b>\n\n"
-                f"Новая цена: {counter_price:.0f} кр\n"
+                f"Новая цена: {counter_price:.0f} ₽\n"
                 f"Рекламодатель ответит в течение {SLA_COUNTER_OFFER_HOURS} ч."
             )
 

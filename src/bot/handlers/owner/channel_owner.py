@@ -23,6 +23,7 @@ from sqlalchemy import func, select
 from src.bot.keyboards.shared.main_menu import MainMenuCB
 from src.bot.states.channel_owner import AddChannelStates, EditChannelStates, PayoutRequestStates
 from src.bot.states.mediakit import MediakitStates
+from src.bot.utils.parser_singleton import get_parser
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.mediakit_service import mediakit_service
 from src.db.models.analytics import TelegramChat
@@ -71,7 +72,6 @@ async def cmd_add_channel(message: Message, state: FSMContext) -> None:
         "Введите @username вашего канала (например: @mychannel)\n\n"
         "<b>Убедитесь что канал:</b>\n"
         "• Публичный (есть @username)\n"
-        "• Не менее 500 подписчиков\n"
         "• Открытый (не закрытый для вступления)\n\n"
         "⚠️ Канал должен быть публичным (иметь @username)",
         parse_mode="HTML",
@@ -114,12 +114,26 @@ async def process_channel_username(
         await message.answer("❌ Это не канал. Пожалуйста, укажите @username Telegram-канала.")
         return
 
+    # ✅ Получаем member_count через Telethon (User API)
+    # Bot API не возвращает subscriber count для каналов
+    member_count = 0
+    try:
+        parser = get_parser()
+        member_count = await parser.get_chat_members_count(chat.id)
+        logger.info(f"Channel @{username} has {member_count} subscribers (via Telethon)")
+    except Exception as e:
+        logger.warning(f"Failed to get member count via Telethon for @{username}: {e}")
+        # Fallback: пробуем получить из Bot API (может вернуть None для каналов)
+        member_count = getattr(chat, "member_count", 0) or 0
+        if member_count == 0:
+            logger.warning(f"Using fallback member_count=0 for @{username}")
+
     # Сохраняем данные в FSM
     await state.update_data(
         channel_username=username,
         channel_telegram_id=chat.id,
         channel_title=chat.title or username,
-        member_count=getattr(chat, "member_count", 0) or 0,  # type: ignore[arg-type]  # ChatFullInfo may not have member_count
+        member_count=member_count,
     )
 
     # Задача 4.2: Переходим в состояние ожидания подтверждения добавления бота
@@ -216,11 +230,11 @@ async def process_verify_bot_admin(
         f"👥 Подписчиков: {member_count:,}\n\n"
         f"Теперь укажите <b>цену за один рекламный пост</b> (в кредитах).\n\n"
         f"<b>Рекомендации для канала ~{member_count:,} подп.:</b>\n"
-        f"• Минимальная: {min_price} кр\n"
-        f"• Оптимальная: {rec_price} кр ← рекомендуем\n"
-        f"• Максимальная конкурентная: {min_price * 5} кр\n\n"
+        f"• Минимальная: {min_price} ₽\n"
+        f"• Оптимальная: {rec_price} ₽ ← рекомендуем\n"
+        f"• Максимальная конкурентная: {min_price * 5} ₽\n\n"
         f"Вы получаете 80% от указанной цены.\n"
-        f"При цене {rec_price} кр → ваш заработок: {int(rec_price * 0.8)} кр/пост\n\n"
+        f"При цене {rec_price} ₽ → ваш заработок: {int(rec_price * 0.8)} ₽/пост\n\n"
         f"Введите число:",
         parse_mode="HTML",
     )
@@ -327,8 +341,8 @@ async def process_back_to_username(callback: CallbackQuery, state: FSMContext) -
         "Введите @username вашего канала (например: @mychannel)\n\n"
         "<b>Убедитесь что канал:</b>\n"
         "• Публичный (есть @username)\n"
-        "• Не менее 500 подписчиков\n"
-        "• Открытый (не закрытый для вступления)",
+        "• Открытый (не закрытый для вступления)\n\n"
+        "⚠️ Канал должен быть публичным (иметь @username)",
         parse_mode="HTML",
     )
     await callback.answer()
@@ -374,7 +388,7 @@ async def process_channel_price(message: Message, state: FSMContext) -> None:
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
     await message.answer(
-        f"💰 Цена <b>{price} кр</b> за пост — записано.\n\n"
+        f"💰 Цена <b>{price} ₽</b> за пост — записано.\n\n"
         "<b>Какую рекламу вы готовы публиковать?</b>\n"
         "Выберите одну или несколько тематик:",
         reply_markup=keyboard,
@@ -462,11 +476,11 @@ async def process_back_to_price(callback: CallbackQuery, state: FSMContext) -> N
         callback,
         f"💰 <b>Укажите цену за один рекламный пост</b> (в кредитах).\n\n"
         f"<b>Рекомендации для канала ~{member_count:,} подп.:</b>\n"
-        f"• Минимальная: {min_price} кр\n"
-        f"• Оптимальная: {rec_price} кр ← рекомендуем\n"
-        f"• Максимальная конкурентная: {min_price * 5} кр\n\n"
+        f"• Минимальная: {min_price} ₽\n"
+        f"• Оптимальная: {rec_price} ₽ ← рекомендуем\n"
+        f"• Максимальная конкурентная: {min_price * 5} ₽\n\n"
         f"Вы получаете 80% от указанной цены.\n"
-        f"При цене {rec_price} кр → ваш заработок: {int(rec_price * 0.8)} кр/пост\n\n"
+        f"При цене {rec_price} ₽ → ваш заработок: {int(rec_price * 0.8)} ₽/пост\n\n"
         f"Введите число:",
         parse_mode="HTML",
     )
@@ -647,7 +661,7 @@ async def show_confirm_step(callback: CallbackQuery, state: FSMContext) -> None:
         f"📺 @{username}\n"
         f"👥 {member_count:,} подписчиков\n"
         f"🏷 Тематика: {topics_display}\n"
-        f"💰 Цена: {price} кр → вы получаете: {owner_payout} кр/пост\n"
+        f"💰 Цена: {price} ₽ → вы получаете: {owner_payout} ₽/пост\n"
         f"📋 Режим: {approval_text}\n"
         f"📅 Лимит: {max_posts} поста в день\n\n"
         f"Канал появится в каталоге рекламодателей сразу после добавления.",
@@ -711,7 +725,7 @@ async def process_confirm_add_channel(callback: CallbackQuery, state: FSMContext
             chat.is_accepting_ads = True
             chat.is_active = True
 
-            await session.flush()
+            await session.commit()
 
     await state.clear()
 
@@ -722,7 +736,7 @@ async def process_confirm_add_channel(callback: CallbackQuery, state: FSMContext
         f"🎉 <b>Канал @{channel_username} успешно зарегистрирован!</b>\n\n"
         f"📺 Канал: {channel_title}\n"
         f"👥 {member_count:,} подписчиков\n"
-        f"💰 Цена за пост: {price_per_post} кр\n"
+        f"💰 Цена за пост: {price_per_post} ₽\n"
         f"🏷 Тематики: {topics_display}\n"
         f"📅 Лимит постов: {max_posts_per_day}/день\n"
         f"📋 Режим: {'авто' if approval_mode == 'auto' else 'ручной'}\n\n"
@@ -760,7 +774,7 @@ async def _finalize_channel_registration(
             chat.price_per_post = price_per_post
             chat.is_accepting_ads = True  # Теперь канал готов принимать рекламу
 
-            await session.flush()
+            await session.commit()
 
     await state.clear()
 
@@ -828,7 +842,7 @@ async def cmd_my_channels(message: Message) -> None:
                 else 0
             )
 
-            price_str = f"{channel.price_per_post or 0} кр"
+            price_str = f"{channel.price_per_post or 0} ₽"
 
             keyboard_buttons.append(
                 [
@@ -929,9 +943,9 @@ async def show_channel_menu(callback: CallbackQuery) -> None:
             callback,
             f"📺 <b>@{channel.username or channel.title}</b>\n\n"
             f"👥 Подписчиков: {channel.member_count:,}\n"
-            f"💰 Цена за пост: {channel.price_per_post or 0} кр\n"
+            f"💰 Цена за пост: {channel.price_per_post or 0} ₽\n"
             f"📈 Размещений всего: {total_placements}\n"
-            f"💸 К выплате: {pending_payouts:.0f} кр\n"
+            f"💸 К выплате: {pending_payouts:.0f} ₽\n"
             f"{status_text}",
             reply_markup=keyboard,
             parse_mode="HTML",
@@ -1057,7 +1071,7 @@ async def show_placement_card(callback: CallbackQuery, placement_id: int) -> Non
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📅 Желаемое время: {placement.scheduled_at.strftime('%d.%m.%Y %H:%M') if placement.scheduled_at else 'Как можно скорее'}\n"
             f"⏱ Заявка истекает через: {hours_left} ч {mins_left} мин\n"
-            f"💰 Ваша выплата: {payout_amount} кр (80% от {placement.cost} кр)\n"
+            f"💰 Ваша выплата: {payout_amount} ₽ (80% от {placement.cost} ₽)\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"ℹ️ Рекламодатель: {advertiser_campaigns_count} кампаний"
         )
@@ -1317,7 +1331,7 @@ async def show_channel_payouts(callback: CallbackQuery) -> None:
         text = (
             f"💸 <b>Выплаты по каналу</b>\n\n"
             f"📺 @{channel.username or channel.title}\n\n"
-            f"💰 <b>Доступно к выводу: {available_amount:.0f} кр</b>\n\n"
+            f"💰 <b>Доступно к выводу: {available_amount:.0f} ₽</b>\n\n"
         )
 
         if recent_payouts:
@@ -1330,7 +1344,7 @@ async def show_channel_payouts(callback: CallbackQuery) -> None:
                     "failed": "❌",
                     "cancelled": "🚫",
                 }.get(payout.status.value, "📝")
-                text += f"{status_icon} {payout.amount:.0f} кр ({payout.created_at.strftime('%d.%m')})\n"
+                text += f"{status_icon} {payout.amount:.0f} ₽ ({payout.created_at.strftime('%d.%m')})\n"
         else:
             text += "История выплат пуста.\n"
 
@@ -1351,7 +1365,7 @@ async def show_channel_payouts(callback: CallbackQuery) -> None:
                 ]
             )
         else:
-            text += f"\n⚠️ Минимальная сумма выплаты: {min_payout:.0f} кр\n"
+            text += f"\n⚠️ Минимальная сумма выплаты: {min_payout:.0f} ₽\n"
 
         keyboard_buttons.append(
             [
@@ -1510,7 +1524,7 @@ async def process_payout_address(message: Message, state: FSMContext) -> None:
 
     text = (
         "✅ <b>Подтвердите выплату</b>\n\n"
-        f"💰 Сумма: <b>{available_amount:.0f} кр</b>\n"
+        f"💰 Сумма: <b>{available_amount:.0f} ₽</b>\n"
         f"💳 Метод: <b>{method_name}</b>\n"
         f"🏦 Кошелёк: <code>{address_display}</code>\n\n"
         "⏱ Обработка занимает до 24 часов.\n\n"
@@ -1635,7 +1649,7 @@ async def start_edit_channel_price(callback: CallbackQuery, state: FSMContext) -
     text = (
         "💰 <b>Изменение цены за пост</b>\n\n"
         "Введите новую цену за рекламный пост (в кредитах).\n\n"
-        "⚠️ Минимальная цена: <b>50 кр</b>\n\n"
+        "⚠️ Минимальная цена: <b>50 ₽</b>\n\n"
         "👇 Отправьте числовое значение:"
     )
 
@@ -1691,9 +1705,9 @@ async def process_new_channel_price(message: Message, state: FSMContext) -> None
     text = (
         "✅ <b>Цена обновлена!</b>\n\n"
         f"📺 Канал: @{channel.username}\n"
-        f"💰 Старая цена: {old_price} кр\n"
-        f"💰 Новая цена: <b>{new_price} кр</b>\n\n"
-        f"Ваш заработок за пост: <b>{int(new_price * 0.8)} кр</b> (80%)"
+        f"💰 Старая цена: {old_price} ₽\n"
+        f"💰 Новая цена: <b>{new_price} ₽</b>\n\n"
+        f"Ваш заработок за пост: <b>{int(new_price * 0.8)} ₽</b> (80%)"
     )
 
     keyboard = InlineKeyboardMarkup(
@@ -2322,7 +2336,7 @@ async def show_payout_history(callback: CallbackQuery) -> None:
             )
 
             total_paid = sum(p.amount for p in payouts if p.status.value == "paid")
-            text += f"<b>Всего выплачено: {total_paid:.0f} кр</b>\n\n"
+            text += f"<b>Всего выплачено: {total_paid:.0f} ₽</b>\n\n"
 
             for payout in payouts[:20]:
                 status_icon = {
@@ -2334,7 +2348,7 @@ async def show_payout_history(callback: CallbackQuery) -> None:
                 }.get(payout.status.value, "📝")
 
                 date_str = payout.created_at.strftime("%d.%m.%Y")
-                text += f"{status_icon} {date_str}: <b>{payout.amount:.0f} кр</b>\n"
+                text += f"{status_icon} {date_str}: <b>{payout.amount:.0f} ₽</b>\n"
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
