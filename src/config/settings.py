@@ -66,16 +66,12 @@ class Settings(BaseSettings):
     debug: bool = Field(False, alias="DEBUG")
 
     # ══════════════════════════════════════════════════════════════
-    # OpenRouter — единственный AI провайдер
-    # Получить ключ: https://openrouter.ai/keys
-    # ══════════════════════════════════════════════════════════════
-    openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
-
-    # ══════════════════════════════════════════════════════════════
-    # Mistral AI — для классификации и модерации
+    # Mistral AI — единственный AI провайдер (официальный SDK)
     # Получить ключ: https://console.mistral.ai/api-keys
+    # Модель: mistral-medium-latest (баланс качества и скорости)
     # ══════════════════════════════════════════════════════════════
     mistral_api_key: str | None = Field(None, alias="MISTRAL_API_KEY")
+    ai_model: str = Field("mistral-medium-latest", alias="AI_MODEL")
 
     # ══════════════════════════════════════════════════════════════
     # JWT для Mini App аутентификации
@@ -89,47 +85,42 @@ class Settings(BaseSettings):
         24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)"
     )
 
-    # Модели (менять не рекомендуется — они привязаны к тарифам)
-    # FREE/STARTER → Step 3.5 Flash (бесплатная, БЕЗ rate limit, отличная поддержка RU)
-    # Fallback при ошибках: Qwen модели
-    model_free: str = Field("stepfun/step-3.5-flash:free", alias="MODEL_FREE")
-    model_free_fallback: str = Field("qwen/qwen3-coder:free", alias="MODEL_FREE_FALLBACK")
-    # PRO/BUSINESS → Qwen Plus (платная, высокое качество)
-    model_paid: str = Field("qwen/qwen-plus", alias="MODEL_PAID")
-
-    # ========== QWEN MODELS (через OpenRouter) ==========
-    # Qwen — модели от Alibaba с отличной поддержкой русского языка
-    model_qwen_coder_free: str = Field(
-        "qwen/qwen3-coder:free", alias="MODEL_QWEN_CODER_FREE"
-    )  # Для классификации
-    model_qwen_turbo: str = Field(
-        "qwen/qwen-turbo", alias="MODEL_QWEN_TURBO"
-    )  # Дешёвая ($0.002/1K)
-    model_qwen_plus: str = Field(
-        "qwen/qwen-plus", alias="MODEL_QWEN_PLUS"
-    )  # Качественная ($0.04/1K)
-
     # Параметры генерации
     ai_timeout: int = Field(60, alias="AI_TIMEOUT")
     ai_max_tokens: int = Field(1500, alias="AI_MAX_TOKENS")
     ai_temperature: float = Field(0.7, alias="AI_TEMPERATURE")
 
-    # ========== CREDIT SYSTEM ==========
+    # ========== PAYMENT SYSTEM (TWO-CURRENCY: RUB + CREDITS) ==========
     # CryptoBot
     cryptobot_token: str | None = Field(None, alias="CRYPTOBOT_TOKEN")
     stars_enabled: bool = Field(True, alias="STARS_ENABLED")
 
-    # Credit rates (кредитов за 1 единицу валюты)
-    credits_per_usdt: int = Field(90, alias="CREDITS_PER_USDT")
-    credits_per_ton: int = Field(400, alias="CREDITS_PER_TON")
-    credits_per_btc: int = Field(9_000_000, alias="CREDITS_PER_BTC")
-    credits_per_eth: int = Field(300_000, alias="CREDITS_PER_ETH")
-    credits_per_ltc: int = Field(7_000, alias="CREDITS_PER_LTC")
-    credits_per_star: int = Field(2, alias="CREDITS_PER_STAR")
+    # ЮKassa
+    yookassa_shop_id: str = Field("", alias="YOOKASSA_SHOP_ID")
+    yookassa_secret_key: str = Field("", alias="YOOKASSA_SECRET_KEY")
+    yookassa_return_url: str = Field("https://t.me/YOUR_BOT", alias="YOOKASSA_RETURN_URL")
+    yookassa_webhook_path: str = Field("/webhooks/yookassa", alias="YOOKASSA_WEBHOOK_PATH")
 
-    # Payout settings
-    min_payout_usdt: float = Field(
-        1.0, alias="MIN_PAYOUT_USDT", description="Минимальная сумма выплаты в USDT"
+    # ═══════════════════════════════════════════════════════════════
+    # КУРСЫ КРИПТОВАЛЮТ → РУБЛИ (для пополнения balance_rub)
+    # ═══════════════════════════════════════════════════════════════
+    rub_per_usdt: int = Field(90, alias="RUB_PER_USDT")
+    rub_per_ton: int = Field(400, alias="RUB_PER_TON")
+    rub_per_btc: int = Field(9_000_000, alias="RUB_PER_BTC")
+    rub_per_eth: int = Field(300_000, alias="RUB_PER_ETH")
+    rub_per_ltc: int = Field(7_000, alias="RUB_PER_LTC")
+    rub_per_star: int = Field(2, alias="RUB_PER_STAR")
+
+    # ═══════════════════════════════════════════════════════════════
+    # КУРС ПОКУПКИ КРЕДИТОВ ДЛЯ ПОДПИСОК (1 кредит = 1 рубль)
+    # ═══════════════════════════════════════════════════════════════
+    credits_per_rub_for_plan: float = Field(
+        1.0, alias="CREDITS_PER_RUB_FOR_PLAN", description="Кредитов за 1 рубль при покупке для тарифа"
+    )
+
+    # Payout settings (v4.2)
+    min_payout_rub: float = Field(
+        1000.0, alias="MIN_PAYOUT_RUB", description="Минимальная сумма выплаты в рублях"
     )
 
     # Content Filter settings
@@ -167,11 +158,11 @@ class Settings(BaseSettings):
     tariff_min_rating_business: float = Field(0.0, alias="TARIFF_MIN_RATING_BUSINESS")
     tariff_min_rating_admin: float = Field(0.0, alias="TARIFF_MIN_RATING_ADMIN")
 
-    # Стоимость тарифов в кредитах
+    # Стоимость тарифов в кредитах (v4.2)
     tariff_cost_free: int = Field(0, alias="TARIFF_COST_FREE")
-    tariff_cost_starter: int = Field(299, alias="TARIFF_COST_STARTER")
-    tariff_cost_pro: int = Field(999, alias="TARIFF_COST_PRO")
-    tariff_cost_business: int = Field(2999, alias="TARIFF_COST_BUSINESS")
+    tariff_cost_starter: int = Field(490, alias="TARIFF_COST_STARTER")
+    tariff_cost_pro: int = Field(1490, alias="TARIFF_COST_PRO")
+    tariff_cost_business: int = Field(4990, alias="TARIFF_COST_BUSINESS")
     tariff_cost_admin: int = Field(0, alias="TARIFF_COST_ADMIN")
 
     # Лимиты кампаний в месяц
@@ -208,10 +199,6 @@ class Settings(BaseSettings):
 
     # Plan renewal
     plan_renewal_check_hour: int = Field(3, alias="PLAN_RENEWAL_CHECK_HOUR")
-
-    # Payments (legacy)
-    yookassa_shop_id: str | None = Field(None, alias="YOOKASSA_SHOP_ID")
-    yookassa_secret_key: str | None = Field(None, alias="YOOKASSA_SECRET_KEY")
 
     # Mailing rate limits
     mailing_max_per_minute: int = Field(10, alias="MAILING_MAX_PER_MINUTE")
@@ -286,30 +273,22 @@ class Settings(BaseSettings):
         }
 
     @property
-    def openrouter_base_url(self) -> str:
-        """Базовый URL для OpenRouter API."""
-        return "https://openrouter.ai/api/v1"
+    def ai_base_url(self) -> str:
+        """Базовый URL для Mistral AI API."""
+        return "https://api.mistral.ai/v1"
 
     def get_model_for_plan(self, plan: str) -> str:
         """
-        Вернуть модель OpenRouter для указанного тарифа.
-
-        FREE/STARTER/ADMIN → бесплатная модель
-        PRO/BUSINESS → платная модель
+        Вернуть модель Mistral для указанного тарифа.
+        Все тарифы используют единую модель из settings.ai_model.
 
         Args:
             plan: Название тарифа (free, starter, pro, business, admin).
 
         Returns:
-            ID модели в формате OpenRouter.
+            ID модели Mistral.
         """
-        # ADMIN тариф использует бесплатную модель
-        paid_plans = {"pro", "business"}
-        plan_value = plan.lower() if isinstance(plan, str) else plan.value.lower()
-
-        if plan_value in paid_plans:
-            return self.model_paid
-        return self.model_free  # free, starter, admin
+        return self.ai_model
 
 
 @lru_cache

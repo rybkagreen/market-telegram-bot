@@ -8,6 +8,23 @@
 
 from src.config.settings import settings
 
+# ══════════════════════════════════════════════════════════════
+# ОТОБРАЖЕНИЕ ТАРИФОВ (v4.2)
+# ══════════════════════════════════════════════════════════════
+PLAN_DISPLAY_NAMES: dict[str, str] = {
+    "free": "Free",
+    "starter": "Starter",
+    "pro": "Pro",
+    "business": "Agency",  # UserPlan.business = "business", display name = "Agency"
+}
+
+PLAN_EMOJIS: dict[str, str] = {
+    "free": "🆓",
+    "starter": "🚀",
+    "pro": "💎",
+    "business": "🏢",
+}
+
 # Ограничения по подписчикам для каждого тарифа
 TARIFF_SUBSCRIBER_LIMITS: dict[str, int] = {
     "free": settings.tariff_subscriber_limits_free,
