@@ -6,6 +6,7 @@ Handlers для раздела "Помощь".
 import logging
 
 from aiogram import F, Router
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -17,19 +18,30 @@ logger = logging.getLogger(__name__)
 router = Router(name="help")
 
 
+class HelpCB(CallbackData, prefix="help"):
+    """CallbackData для раздела Помощь."""
+    action: str
+
+
 @router.callback_query(MainMenuCB.filter(F.action == "help"))
 async def handle_help_menu(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Главное меню раздела Помощь.
     """
-    text = "❓ <b>Помощь</b>\n\nВыберите раздел:"
+    text = (
+        "❓ <b>Помощь</b>\n\n"
+        "💰 <b>Валюты платформы:</b>\n"
+        "• <b>Рубли (₽)</b> — для размещений рекламы\n"
+        "• <b>Кредиты</b> — для тарифных подписок\n\n"
+        "Выберите раздел:"
+    )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚀 Быстрый старт", callback_data="help:quickstart")
-    builder.button(text="💰 Оплата и выплаты", callback_data="help:billing")
-    builder.button(text="🔒 Гарантии и безопасность", callback_data="help:safety")
-    builder.button(text="📊 Как считается рейтинг", callback_data="help:rating")
-    builder.button(text="📺 Подключение канала", callback_data="help:add_channel")
+    builder.button(text="🚀 Быстрый старт", callback_data=HelpCB(action="quickstart"))
+    builder.button(text="💰 Оплата и выплаты", callback_data=HelpCB(action="billing"))
+    builder.button(text="🔒 Гарантии и безопасность", callback_data=HelpCB(action="safety"))
+    builder.button(text="📊 Как считается рейтинг", callback_data=HelpCB(action="rating"))
+    builder.button(text="📺 Подключение канала", callback_data=HelpCB(action="add_channel"))
     builder.button(text="✉️ Написать в поддержку", callback_data=MainMenuCB(action="feedback"))
     builder.button(text="🔙 В меню", callback_data=MainMenuCB(action="main_menu"))
     builder.adjust(1, 1, 1, 1, 1, 1)
@@ -38,7 +50,7 @@ async def handle_help_menu(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "quickstart"))
+@router.callback_query(HelpCB.filter(F.action == "quickstart"))
 async def handle_quickstart(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Быстрый старт.
@@ -68,35 +80,34 @@ async def handle_quickstart(callback: CallbackQuery) -> None:
     builder.button(text="💰 Пополнить баланс", callback_data=MainMenuCB(action="balance"))
     builder.button(text="📣 Создать кампанию", callback_data=MainMenuCB(action="create_menu"))
     builder.button(text="📺 Добавить канал", callback_data=MainMenuCB(action="add_channel"))
-    builder.button(text="🔙 Назад", callback_data="main:help")
+    builder.button(text="🔙 Назад", callback_data=HelpCB(action="back"))
     builder.adjust(1, 1, 1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "billing"))
+@router.callback_query(HelpCB.filter(F.action == "billing"))
 async def handle_billing_help(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Вопросы оплаты.
     """
     text = (
         "💰 <b>Оплата и выплаты</b>\n\n"
-        "<b>Пополнение баланса:</b>\n"
-        "• Криптовалюты: USDT, TON, BTC, ETH, LTC\n"
-        "• Telegram Stars\n"
-        "• Минимальная сумма: 100 кредитов\n\n"
-        "<b>Курс кредитов:</b>\n"
-        "• 1 USDT = 90 кредитов\n"
-        "• 1 TON = 400 кредитов\n"
-        "• 1 Star = 2 кредита\n\n"
+        "<b>Валюты платформы:</b>\n"
+        "• <b>Рубли (₽)</b> — для размещений рекламы\n"
+        "  Пополнение через ЮKassa (карты, СБП) или Telegram Stars\n"
+        "  Минимальное пополнение: 100 ₽\n\n"
+        "• <b>Кредиты</b> — для тарифных подписок\n"
+        "  Покупаются за рубли: 1 кредит = 1 ₽\n"
+        "  Используются только для активации тарифов\n\n"
         "<b>Выплаты владельцам каналов:</b>\n"
         "• 80% от стоимости поста — вам\n"
         "• 20% — комиссия платформы\n"
-        "• Минимальная сумма вывода: 500 кредитов\n"
+        "• Минимальная сумма вывода: 500 ₽\n"
         "• Выплаты автоматически после публикации\n\n"
         "<b>Возврат средств:</b>\n"
-        "• Если пост не вышел — средства вернутся\n"
+        "• Если пост не вышел — рубли вернутся на баланс\n"
         "• При отклонении заявки — возврат рекламодателю\n"
         "• При запросе правок — средства замораживаются"
     )
@@ -104,14 +115,14 @@ async def handle_billing_help(callback: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="💰 Пополнить баланс", callback_data=MainMenuCB(action="balance"))
     builder.button(text="💸 Выплаты", callback_data=MainMenuCB(action="payouts"))
-    builder.button(text="🔙 Назад", callback_data="main:help")
+    builder.button(text="🔙 Назад", callback_data=HelpCB(action="back"))
     builder.adjust(1, 1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "safety"))
+@router.callback_query(HelpCB.filter(F.action == "safety"))
 async def handle_safety_help(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Гарантии и безопасность.
@@ -138,14 +149,14 @@ async def handle_safety_help(callback: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="📺 Добавить канал", callback_data=MainMenuCB(action="add_channel"))
     builder.button(text="📣 Создать кампанию", callback_data=MainMenuCB(action="create_menu"))
-    builder.button(text="🔙 Назад", callback_data="main:help")
+    builder.button(text="🔙 Назад", callback_data=HelpCB(action="back"))
     builder.adjust(1, 1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "rating"))
+@router.callback_query(HelpCB.filter(F.action == "rating"))
 async def handle_rating_help(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Как считается рейтинг.
@@ -173,14 +184,14 @@ async def handle_rating_help(callback: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="📺 Добавить канал", callback_data=MainMenuCB(action="add_channel"))
     builder.button(text="📊 Аналитика", callback_data=MainMenuCB(action="analytics"))
-    builder.button(text="🔙 Назад", callback_data="main:help")
+    builder.button(text="🔙 Назад", callback_data=HelpCB(action="back"))
     builder.adjust(1, 1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "add_channel"))
+@router.callback_query(HelpCB.filter(F.action == "add_channel"))
 async def handle_add_channel_help(callback: CallbackQuery) -> None:
     """
     Задача 8.1: Подключение канала.
@@ -209,8 +220,17 @@ async def handle_add_channel_help(callback: CallbackQuery) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.button(text="➕ Добавить канал", callback_data=MainMenuCB(action="add_channel"))
-    builder.button(text="🔙 Назад", callback_data="main:help")
+    builder.button(text="🔙 Назад", callback_data=HelpCB(action="back"))
     builder.adjust(1)
 
     await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
     await callback.answer()
+
+
+@router.callback_query(HelpCB.filter(F.action == "back"))
+async def handle_help_back(callback: CallbackQuery) -> None:
+    """
+    Вернуться в главное меню помощи.
+    """
+    # Просто показываем главное меню помощи заново
+    await handle_help_menu(callback)

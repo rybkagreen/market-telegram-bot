@@ -24,6 +24,7 @@ from sqlalchemy import select
 from src.bot.keyboards.shared.main_menu import (
     MainMenuCB,
     OnboardingCB,
+    TermsCB,  # Для пользовательского соглашения
     get_advertiser_menu_kb,
     get_main_menu_kb,  # Новая функция для главного меню
     get_owner_menu_kb,
@@ -205,7 +206,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
                 text = (
                     f"👋 <b>С возвращением, {message.from_user.first_name or user.username or 'друг'}!</b>\n\n"  # type: ignore[union-attr]
-                    f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                    f"💳 Баланс: <b>{user.credits:,} ₽</b>\n"  # type: ignore[union-attr]
                     f"📦 Тариф: <b>{plan_value}</b>\n\n"
                     f"Выберите действие в меню ниже:"
                 )
@@ -229,6 +230,55 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         existing_user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
         is_new = existing_user is None
 
+        # ✅ T2-S05: Проверяем принял ли пользователь соглашение
+        if existing_user and existing_user.terms_accepted_at is not None:
+            # Пользователь уже принял соглашение — показываем обычное меню
+            pass  # Продолжаем обычный flow ниже
+        elif existing_user and existing_user.terms_accepted_at is None:
+            # Пользователь существует но не принял соглашение — показываем соглашение
+            from src.bot.keyboards.shared.main_menu import get_terms_kb
+            from src.constants.legal import TERMS_SHORT
+
+            await message.answer(
+                TERMS_SHORT,
+                parse_mode="HTML",
+                reply_markup=get_terms_kb(),
+            )
+            # Сохраняем ref_code в FSM для последующего использования
+            if ref_code:
+                await state.update_data(ref_code=ref_code)
+            return
+        else:
+            # Новый пользователь — сначала показываем соглашение, НЕ создаём в БД
+            from src.bot.keyboards.shared.main_menu import get_terms_kb
+            from src.constants.legal import TERMS_SHORT
+
+            await message.answer(
+                TERMS_SHORT,
+                parse_mode="HTML",
+                reply_markup=get_terms_kb(),
+            )
+            # Сохраняем данные для последующего создания пользователя
+            if ref_code:
+                await state.update_data(
+                    ref_code=ref_code,
+                    telegram_id=message.from_user.id,
+                    username=message.from_user.username,
+                    first_name=message.from_user.first_name,
+                    last_name=message.from_user.last_name,
+                    language_code=message.from_user.language_code,
+                )
+            else:
+                await state.update_data(
+                    telegram_id=message.from_user.id,
+                    username=message.from_user.username,
+                    first_name=message.from_user.first_name,
+                    last_name=message.from_user.last_name,
+                    language_code=message.from_user.language_code,
+                )
+            return
+
+        # Обычный flow для пользователей принявших соглашение
         user = await user_repo.create_or_update(  # type: ignore[union-attr]
             telegram_id=message.from_user.id,  # type: ignore[union-attr]
             username=message.from_user.username,  # type: ignore[union-attr]
@@ -282,6 +332,9 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 )
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
 
+        # ✅ ФИКС: Коммитим транзакцию чтобы сохранить пользователя в БД
+        await session.commit()
+
     # Получаем контекст роли пользователя
     user_role_service = UserRoleService()
     user_context = await user_role_service.get_user_context(user_id)
@@ -334,7 +387,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             # Для рекламодателя — показываем баланс и тариф
             text = (
                 f"👋 <b>С возвращением, {first_name}!</b>\n\n"
-                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                f"💳 Баланс: <b>{user.credits:,} ₽</b>\n"  # type: ignore[union-attr]
                 f"📦 Тариф: <b>{plan_value}</b>"
                 f"{stats_text}\n\n"
                 f"Выберите действие в меню ниже:"
@@ -358,7 +411,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                 text = (
                     f"👋 <b>С возвращением, {first_name}!</b>\n\n"
                     f"📺 Ваших каналов: <b>{channels_count}</b>\n"
-                    f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                    f"💳 Баланс: <b>{user.credits:,} ₽</b>\n"  # type: ignore[union-attr]
                     f"{stats_text}\n\n"
                     f"Выберите действие в меню ниже:"
                 )
@@ -366,7 +419,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             # Для роли "both" или других
             text = (
                 f"👋 <b>С возвращением, {first_name}!</b>\n\n"
-                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"  # type: ignore[union-attr]
+                f"💳 Баланс: <b>{user.credits:,} ₽</b>\n"  # type: ignore[union-attr]
                 f"📦 Тариф: <b>{plan_value}</b>"
                 f"{stats_text}\n\n"
                 f"Выберите действие в меню ниже:"
@@ -380,12 +433,12 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             await message.answer_photo(
                 photo=banner,
                 caption=text,
-                reply_markup=get_main_menu_kb(),
+                reply_markup=get_main_menu_kb(is_admin=user.is_admin),  # type: ignore[union-attr]
             )
         else:
             await message.answer(
                 text,
-                reply_markup=get_main_menu_kb(),
+                reply_markup=get_main_menu_kb(is_admin=user.is_admin),  # type: ignore[union-attr]
             )
 
 
@@ -452,7 +505,7 @@ async def handle_balance_command(message: Message) -> None:
             user_credits = user.credits  # type: ignore[union-attr]
             text = (
                 f"💳 <b>Ваш баланс</b>\n\n"
-                f"Текущая сумма: <b>{user_credits:,} кр</b>\n\n"
+                f"Текущая сумма: <b>{user_credits:,} ₽</b>\n\n"
                 f"Для пополнения нажмите «Пополнить» в главном меню."
             )
             from src.bot.keyboards.billing.billing import get_amount_kb
@@ -472,11 +525,110 @@ async def go_to_main_menu(callback: CallbackQuery) -> None:
         callback: Callback query.
     """
     # Главное меню не зависит от роли — всегда 4 кнопки
+    # Но кнопка Админ зависит от is_admin пользователя
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+        is_admin = user.is_admin if user else False
+
     await safe_callback_edit(
         callback,
         "👋 Выберите действие:",
-        reply_markup=get_main_menu_kb(),
+        reply_markup=get_main_menu_kb(is_admin=is_admin),
     )
+
+
+# ══════════════════════════════════════════════════════════════
+# Пользовательское соглашение (Task 2)
+# ══════════════════════════════════════════════════════════════
+
+
+@router.callback_query(TermsCB.filter(F.action == "accept"))
+async def terms_accept(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    T2-S06: Пользователь принял соглашение.
+    Создаём пользователя или обновляем terms_accepted_at.
+    """
+    from datetime import datetime
+    
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        await callback.answer("Сообщение устарело", show_alert=True)
+        return
+    
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        
+        # Получаем данные из FSM если это новый пользователь
+        fsm_data = await state.get_data()
+        telegram_id = callback.from_user.id
+        
+        # Проверяем существует ли пользователь
+        existing_user = await user_repo.get_by_telegram_id(telegram_id)
+        
+        if existing_user:
+            # Существующий пользователь — обновляем terms_accepted_at
+            existing_user.terms_accepted_at = datetime.now(UTC)
+            user = existing_user
+            is_new = False
+        else:
+            # Новый пользователь — создаём с terms_accepted_at
+            user = await user_repo.create(
+                {
+                    "telegram_id": telegram_id,
+                    "username": fsm_data.get("username"),
+                    "first_name": fsm_data.get("first_name"),
+                    "last_name": fsm_data.get("last_name"),
+                    "language_code": fsm_data.get("language_code", "ru"),
+                    "terms_accepted_at": datetime.now(UTC),
+                }
+            )
+            is_new = True
+        
+        await session.commit()
+        
+        # Если был реферальный код — обрабатываем
+        ref_code = fsm_data.get("ref_code")
+        if ref_code and is_new:
+            referrer = await user_repo.get_by_referral_code(ref_code)
+            if referrer and referrer.id != user.id:
+                from src.core.services.billing_service import billing_service
+                
+                bonus_amount = 50.0
+                await billing_service.apply_referral_bonus(
+                    referrer_id=referrer.id,
+                    referred_user_id=user.id,
+                    bonus_amount=Decimal(str(bonus_amount)),
+                )
+                logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
+    
+    # Очищаем FSM и показываем главное меню
+    await state.clear()
+    
+    # Отправляем приветственное сообщение
+    await callback.message.answer(
+        "✅ <b>Спасибо! Соглашение принято.</b>\n\n"
+        "Теперь вы можете пользоваться всеми функциями RekHarborBot.\n\n"
+        "Выберите действие в меню ниже:",
+        parse_mode="HTML",
+        reply_markup=get_main_menu_kb(is_admin=user.is_admin),
+    )
+    await callback.answer()
+
+
+@router.callback_query(TermsCB.filter(F.action == "decline"))
+async def terms_decline(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    T2-S06: Пользователь отклонил соглашение.
+    НЕ создаём пользователя, показываем сообщение.
+    """
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ <b>Без принятия соглашения использование бота невозможно.</b>\n\n"
+        "Если передумаете — отправьте /start",
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 @router.callback_query(MainMenuCB.filter(F.action == "admin_panel"))
@@ -694,13 +846,13 @@ async def go_to_payouts(callback: CallbackQuery) -> None:
             keyboard_buttons.append(
                 [
                     InlineKeyboardButton(
-                        text=f"📺 @{channel.username} — {channel_payout:.0f} кр",
+                        text=f"📺 @{channel.username} — {channel_payout:.0f} ₽",
                         callback_data=f"ch_payouts:{channel.id}",
                     )
                 ]
             )
 
-        text += f"💰 <b>Общая сумма к выводу: {total_available:.0f} кр</b>\n\n"
+        text += f"💰 <b>Общая сумма к выводу: {total_available:.0f} ₽</b>\n\n"
         text += "Выберите канал для управления выплатами:\n"
 
     keyboard_buttons.append(
@@ -767,7 +919,7 @@ async def show_platform_stats(callback: CallbackQuery) -> None:
             "📊 <b>RekHarborBot — платформа в цифрах</b>\n\n"
             f"🏪 Каналов на платформе: <b>{platform_stats.active_channels:,}</b>\n"
             f"📣 Кампаний запущено: <b>{platform_stats.campaigns_launched:,}</b>\n"
-            f"💸 Выплачено владельцам: <b>{platform_stats.total_payouts:,.0f} кр</b>\n\n"
+            f"💸 Выплачено владельцам: <b>{platform_stats.total_payouts:,.0f} ₽</b>\n\n"
             f"<i>Данные обновляются в реальном времени.</i>"
         )
     except Exception as e:
@@ -885,9 +1037,16 @@ async def cancel_fsm_handler(message: Message, state: FSMContext) -> None:
 
     if current_state and current_state != "-":
         await state.clear()
+
+        # Загрузить пользователя для определения is_admin
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+            is_admin = user.is_admin if user else False
+
         await message.answer(
             "❌ <b>Диалог отменён</b>\n\nВыберите действие в меню:",
-            reply_markup=get_main_menu_kb(),
+            reply_markup=get_main_menu_kb(is_admin=is_admin),
         )
         logger.info(f"FSM cancelled for user {message.from_user.id}")  # type: ignore[union-attr]
     else:

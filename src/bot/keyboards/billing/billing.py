@@ -17,9 +17,19 @@ class BillingCB(CallbackData, prefix="billing"):
     value: str = ""
 
 
+class BuyAndActivateCB(CallbackData, prefix="buy_activate"):
+    """CallbackData для покупки кредитов и активации тарифа."""
+
+    plan: str
+
+
 def get_topup_methods_kb() -> InlineKeyboardMarkup:
     """Выбор метода пополнения."""
     builder = InlineKeyboardBuilder()
+    builder.button(
+        text="💳 Карта / СБП (ЮKassa)",
+        callback_data=BillingCB(action="topup_yookassa"),
+    )
     builder.button(
         text="💎 Криптовалюта (CryptoBot)",
         callback_data=BillingCB(action="topup_crypto"),
@@ -36,7 +46,7 @@ def get_topup_methods_kb() -> InlineKeyboardMarkup:
         text="🔙 В меню",
         callback_data=MainMenuCB(action="main_menu"),
     )
-    builder.adjust(1, 1, 1, 1)
+    builder.adjust(1, 1, 1, 1, 1)
     return builder.as_markup()
 
 

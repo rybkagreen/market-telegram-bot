@@ -57,7 +57,6 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./src:/app/src
-      - ./alembic:/app/alembic
       - ./alembic.docker.ini:/app/alembic.ini:ro
       - ./alembic_sync.ini:/app/alembic_sync.ini:ro
       - ./pyproject.toml:/app/pyproject.toml:ro

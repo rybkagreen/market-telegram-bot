@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from src.bot.handlers import router as handlers_router
 from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
+from src.bot.utils.parser_singleton import init_parser, shutdown_parser
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ def setup_sentry() -> None:
     """
     Инициализация Sentry для мониторинга ошибок.
     """
-    if settings.sentry_dsn:
+    if settings.sentry_dsn and settings.sentry_dsn.strip():
         sentry_sdk.init(
             dsn=settings.sentry_dsn,
             environment=settings.environment,
@@ -99,6 +100,9 @@ async def main() -> None:
     bot = create_bot()
     dp = create_dispatcher(redis)
 
+    # Инициализируем Telethon парсер (для получения subscriber count)
+    await init_parser()
+
     # Получаем username бота
     try:
         bot_info = await bot.get_me()
@@ -131,6 +135,8 @@ async def main() -> None:
         # Закрываем сессии
         await bot.session.close()
         await redis.close()
+        # Останавливаем парсер
+        await shutdown_parser()
         logger.info("Bot stopped")
 
 

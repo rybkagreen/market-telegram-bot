@@ -4,7 +4,7 @@ Content Filter — 3-уровневая система проверки конт
 Уровни:
 1. regex_check — быстрая проверка по стоп-словам (< 1 мс)
 2. morph_check — проверка нормализованных словоформ (pymorphy3)
-3. llm_check — LLM анализ через OpenRouter (бесплатная модель)
+3. llm_check — LLM анализ через Mistral AI (mistral-medium-latest)
 
 8 заблокированных категорий:
 - drugs, terrorism, weapons, adult
@@ -17,7 +17,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 try:
     import pymorphy3
@@ -373,95 +372,6 @@ class ContentFilter:
         except Exception as e:
             logger.error(f"Mistral LLM async check failed: {e}")
             raise  # Пробрасываем ошибку выше
-
-    def _call_openrouter(self, text: str, api_key: str, model: str) -> FilterResult:
-        """
-        Вызвать OpenRouter API для анализа контента.
-
-        Args:
-            text: Текст для проверки.
-            api_key: OpenRouter API ключ.
-            model: Модель для анализа (из settings.model_free).
-
-        Returns:
-            FilterResult с результатами.
-        """
-        try:
-            from openai import AsyncOpenAI
-
-            # OpenRouter совместим с OpenAI API
-            client = AsyncOpenAI(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1",
-                default_headers={
-                    "HTTP-Referer": "https://github.com/rybkagreen/market-telegram-bot",
-                    "X-OpenRouter-Title": "Market Telegram Bot",
-                },
-            )
-
-            system_prompt = """Ты модератор контента для Telegram бота.
-Твоя задача — определить, содержит ли текст запрещенный контент по законодательству РФ.
-
-Категории для проверки:
-- drugs: наркотики, продажа, употребление
-- terrorism: терроризм, призывы к насилию
-- weapons: оружие, продажа оружия
-- adult: порнография, эротика 18+
-- fraud: мошенничество, обман, пирамиды
-- suicide: суицид, призывы к самоубийству
-- extremism: экстремизм, нацизм, разжигание розни
-- gambling: азартные игры, казино, ставки
-
-Верни ответ в формате JSON:
-{
-    "passed": true/false,
-    "score": 0.0-1.0,
-    "categories": ["category1", "category2"],
-    "analysis": "краткий анализ"
-}
-
-Если текст чистый — passed: true, score: 0.0
-Если текст содержит нарушения — passed: false, score: 0.5-1.0"""
-
-            user_prompt = f"Проверь этот текст на запрещенный контент:\n\n{text[:3000]}"
-
-            import asyncio
-            import concurrent.futures
-
-            # Выполняем async код в отдельном потоке для совместимости с Celery
-            async def _call_api() -> Any:
-                return await client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    max_tokens=500,
-                    response_format={"type": "json_object"},
-                )
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, _call_api())
-                response = future.result(timeout=30)  # 30 секунд таймаут
-
-            import json
-
-            content = response.choices[0].message.content
-            if content is None:
-                return FilterResult(passed=True, score=0.0)
-
-            result = json.loads(content)
-
-            return FilterResult(
-                passed=result.get("passed", True),
-                score=float(result.get("score", 0.0)),
-                categories=result.get("categories", []),
-                llm_analysis=result.get("analysis", ""),
-            )
-
-        except Exception as e:
-            logger.error(f"OpenRouter API error: {e}")
-            return FilterResult(passed=True, score=0.0)
 
     def _merge_categories(self, *category_lists: list[str]) -> list[str]:
         """Объединить списки категорий."""

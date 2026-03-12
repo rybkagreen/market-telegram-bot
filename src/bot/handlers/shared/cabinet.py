@@ -225,8 +225,9 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
 
             text = (
                 f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
-                f"━━━━ БАЛАНС ━━━━\n"
-                f"💳 {user.credits:,} кредитов\n"
+                f"━━━━ БАЛАНСЫ ━━━━\n"
+                f"💵 Рублёвый баланс: <b>{user.balance_rub:,} ₽</b>\n"
+                f"🎯 Кредиты (подписки): <b>{user.credits:,} ₽</b>\n"
                 f"📦 Тариф: {plan_value}"
             )
 
@@ -257,12 +258,13 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
                 text += f"   {streak_bar}  до бонуса: {next_bonus_in} дн.\n"
 
         elif role == "owner":
-            # Для владельца
+            # Для владельца — показываем earned_rub
             text = (
                 f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
-                f"━━━━ БАЛАНС ━━━━\n"
-                f"💳 {user.credits:,} кр  (общий баланс платформы)\n"
-                f"💸 {available_payout:,} кр  (доступно к выводу)\n"
+                f"━━━━ БАЛАНСЫ ━━━━\n"
+                f"💵 Рублёвый баланс: <b>{user.balance_rub:,} ₽</b>\n"
+                f"🎯 Кредиты (подписки): <b>{user.credits:,} ₽</b>\n"
+                f"💸 Заработано к выводу: <b>{user.earned_rub:,} ₽</b>\n"
                 f"\n━━━━ ПРОГРЕСС ВЛАДЕЛЬЦА ━━━━\n"
                 f"{level_name}  Уровень {level}\n"
                 f"   {xp_bar}\n"
@@ -276,7 +278,9 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
             plan_value = user.plan.value if hasattr(user.plan, "value") else user.plan
             text = (
                 f"👤 <b>Кабинет  •  {user.first_name or user.username}</b>\n\n"
-                f"💳 Баланс: <b>{user.credits:,} кр</b>\n"
+                f"━━━━ БАЛАНСЫ ━━━━\n"
+                f"💵 Рублёвый баланс: <b>{user.balance_rub:,} ₽</b>\n"
+                f"🎯 Кредиты (подписки): <b>{user.credits:,} ₽</b>\n"
                 f"📦 Тариф: <b>{plan_value}</b>\n\n"
                 f"━━━━ УРОВЕНЬ ━━━━\n"
                 f"{level_name}  Уровень {level}\n"
@@ -642,7 +646,7 @@ async def show_campaign_detail(callback: CallbackQuery, callback_data: CampaignC
             f"{emoji} <b>Кампания: {campaign.title}</b>\n\n"
             f"📊 <b>Статус:</b> {status_value}\n"
             f"📈 <b>Прогресс:</b> {progress:.0f}% ({sent}/{total} чатов)\n"
-            f"💰 <b>Стоимость:</b> {cost:.0f} кр\n"
+            f"💰 <b>Стоимость:</b> {cost:.0f} ₽\n"
             f"🏷 <b>Тематика:</b> {topic}\n"
             f"📅 <b>Создана:</b> {created}\n\n"
             f"📝 <b>Текст:</b>\n"
@@ -880,7 +884,7 @@ async def cancel_campaign_action(callback: CallbackQuery, callback_data: Campaig
         await campaign_repo.update_status(campaign_id, CampaignStatus.CANCELLED)
         await session.commit()
 
-    await callback.answer(f"❌ Кампания отменена. Возвращено: {refunded_total} кр")
+    await callback.answer(f"❌ Кампания отменена. Возвращено: {refunded_total} ₽")
     await show_campaign_detail(callback, callback_data)
 
 

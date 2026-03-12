@@ -774,7 +774,29 @@ class TelegramParser:
             entity = await self.client.get_entity(chat_id)
             match entity:
                 case Channel() | Chat():
-                    return getattr(entity, "participants_count", 0)
+                    # Метод 1: Пробуем get_participants(limit=0).total — надёжнее
+                    try:
+                        participants = await self.client.get_participants(entity, limit=0)
+                        count = participants.total
+                        logger.debug(f"Got member count via get_participants: {count}")
+                        return count
+                    except Exception:
+                        pass
+
+                    # Метод 2: GetFullChannelRequest
+                    try:
+                        from telethon.tl.functions.channels import GetFullChannelRequest
+                        full = await self.client(GetFullChannelRequest(entity))
+                        count = getattr(full.full_chat, "participants_count", 0)
+                        logger.debug(f"Got member count via GetFullChannelRequest: {count}")
+                        return count
+                    except Exception:
+                        pass
+
+                    # Метод 3: Direct attribute (fallback)
+                    count = getattr(entity, "participants_count", 0)
+                    logger.debug(f"Got member count via direct attr: {count}")
+                    return count
         except Exception as e:
             logger.error(f"Error getting members count for {chat_id}: {e}")
         return 0

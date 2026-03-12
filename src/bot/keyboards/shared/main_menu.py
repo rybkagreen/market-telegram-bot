@@ -33,12 +33,18 @@ class OnboardingCB(CallbackData, prefix="onboard"):
     role: str  # "advertiser" | "owner" | "both"
 
 
+class TermsCB(CallbackData, prefix="terms"):
+    """CallbackData для принятия/отклонения пользовательского соглашения."""
+
+    action: str  # "accept" | "decline"
+
+
 # ─────────────────────────────────────────────
 # Уровень 1 — Главное меню (shared, 4 кнопки)
 # ─────────────────────────────────────────────
 
 
-def get_main_menu_kb() -> InlineKeyboardMarkup:
+def get_main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     """
     Главное меню — 4 кнопки, shared для всех ролей.
     Вызывается из handle_start() и по callback main:main_menu.
@@ -48,6 +54,10 @@ def get_main_menu_kb() -> InlineKeyboardMarkup:
     - 🔄 Выбрать роль → main:change_role
     - 💬 Помощь → main:help
     - ✉️ Обратная связь → main:feedback
+    - 🔐 Админ → main:admin_panel (только если is_admin=True)
+
+    Args:
+        is_admin: True если пользователь администратор.
     """
     builder = InlineKeyboardBuilder()
 
@@ -56,7 +66,13 @@ def get_main_menu_kb() -> InlineKeyboardMarkup:
     builder.button(text="💬 Помощь", callback_data=MainMenuCB(action="help"))
     builder.button(text="✉️ Обратная связь", callback_data=MainMenuCB(action="feedback"))
 
-    builder.adjust(2, 2)
+    # Добавляем кнопку Админ для администраторов
+    if is_admin:
+        builder.button(text="🔐 Админ", callback_data=MainMenuCB(action="admin_panel"))
+        builder.adjust(2, 2, 1)
+    else:
+        builder.adjust(2, 2)
+
     return builder.as_markup()
 
 
@@ -407,5 +423,16 @@ def get_onboarding_kb() -> InlineKeyboardMarkup:
         text="📊 Как устроена платформа",
         callback_data=MainMenuCB(action="platform_stats"),
     )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_terms_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для принятия/отклонения пользовательского соглашения.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Принять", callback_data=TermsCB(action="accept"))
+    builder.button(text="❌ Отклонить", callback_data=TermsCB(action="decline"))
     builder.adjust(1)
     return builder.as_markup()

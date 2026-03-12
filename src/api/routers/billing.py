@@ -6,7 +6,8 @@ Endpoints:
   GET  /api/billing/history          — история платежей с пагинацией
   POST /api/billing/topup/crypto     — создать CryptoBot инвойс
   POST /api/billing/topup/stars      — создать Telegram Stars инвойс
-  POST /api/billing/plan             — сменить тариф
+  POST /api/billing/topup/yookassa   — создать ЮKassa платёж
+  POST /webhooks/yookassa            — webhook от ЮKassa
   GET  /api/billing/invoice/{id}     — проверить статус инвойса
 """
 
@@ -14,13 +15,14 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
 
 from src.api.dependencies import CurrentUser
 from src.config.settings import settings
 from src.core.services.cryptobot_service import cryptobot_service
+from src.core.services.yookassa_service import yookassa_service
 from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
@@ -481,3 +483,35 @@ async def get_invoice_status(
         credits=payment.credits + payment.bonus_credits,
         credited=payment_status == "paid",
     )
+
+
+# =============================================================================
+# YOOKASSA WEBHOOK
+# =============================================================================
+
+
+@router.post("/webhooks/yookassa", status_code=200)
+async def yookassa_webhook(
+    request: Request,
+) -> dict[str, str]:
+    """
+    Webhook от ЮKassa для обработки событий платежей.
+
+    ЮKassa требует ответ 200 при любом исходе — иначе будет ретрай.
+
+    Допустимые IP ЮKassa:
+    - 185.71.76.0/27
+    - 185.71.77.0/27
+    - 77.75.153.0/25
+    - 77.75.156.11
+    - 77.75.156.35
+    - 77.75.154.128/25
+    - 2a02:5180::/32
+    """
+    try:
+        body = await request.json()
+        logger.info("ЮKassa webhook event: %s", body.get("event", "unknown"))
+        await yookassa_service.handle_webhook(body)
+    except Exception as e:
+        logger.error("Ошибка обработки webhook ЮKassa: %s", e)
+    return {"status": "ok"}

@@ -234,9 +234,9 @@ async def handle_create_placement(callback: CallbackQuery, state: FSMContext) ->
         f"📺 <b>Создание заявки на размещение</b>\n\n"
         f"Канал: @{channel.username or channel.title}\n"
         f"Подписчиков: {channel.member_count:,}\n"
-        f"Цена за пост: {settings.price_per_post:.0f} кр\n"
-        f"Вы получаете: {float(settings.price_per_post) * 0.8:.0f} кр (80%)\n"
-        f"Комиссия платформы: {float(settings.price_per_post) * 0.2:.0f} кр (20%)\n\n"
+        f"Цена за пост: {settings.price_per_post:.0f} ₽\n"
+        f"Вы получаете: {float(settings.price_per_post) * 0.8:.0f} ₽ (80%)\n"
+        f"Комиссия платформы: {float(settings.price_per_post) * 0.2:.0f} ₽ (20%)\n\n"
         f"Введите текст вашего рекламного поста:"
     )
 
@@ -469,11 +469,11 @@ async def handle_view_placement(callback: CallbackQuery) -> None:
     text = (
         f"{status_emoji} <b>Заявка #{placement.id} — {status_ru}</b>\n\n"
         f"📺 Канал: @{channel_username}\n"
-        f"💰 Предложенная цена: {placement.proposed_price:.0f} кр\n"
+        f"💰 Предложенная цена: {placement.proposed_price:.0f} ₽\n"
     )
 
     if placement.final_price:
-        text += f"💰 Финальная цена: {placement.final_price:.0f} кр\n"
+        text += f"💰 Финальная цена: {placement.final_price:.0f} ₽\n"
 
     if placement.final_schedule:
         text += f"📅 Дата публикации: {placement.final_schedule.strftime('%d.%m.%Y %H:%M')}\n"
@@ -660,11 +660,11 @@ async def handle_pay_placement(callback: CallbackQuery) -> None:
 
         final_price = float(placement.final_price or placement.proposed_price)
 
-        if user.credits < final_price:
+        if user.balance_rub < final_price:
             text = (
                 f"❌ <b>Недостаточно средств</b>\n\n"
-                f"Требуется: {final_price:.0f} кр\n"
-                f"Ваш баланс: {float(user.credits):.0f} кр\n\n"
+                f"Требуется: {final_price:.0f} ₽\n"
+                f"Ваш рублёвый баланс: {user.balance_rub:.0f} ₽\n\n"
                 f"Пополните баланс и попробуйте снова."
             )
             kb = InlineKeyboardBuilder()
@@ -690,7 +690,7 @@ async def handle_pay_placement(callback: CallbackQuery) -> None:
 
             text = (
                 f"🔒 <b>Средства заморожены</b>\n\n"
-                f"Сумма: {final_price:.0f} кр\n"
+                f"Сумма: {final_price:.0f} ₽\n"
                 f"Публикация запланирована на: {placement.final_schedule.strftime('%d.%m.%Y %H:%M') if placement.final_schedule else 'будет согласована'}"
             )
 

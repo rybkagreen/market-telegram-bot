@@ -108,12 +108,21 @@ class User(Base, TimestampMixin):
         doc="Язык пользователя (ISO код)",
     )
 
-    # Баланс и тариф
-    balance: Mapped[Decimal] = mapped_column(
+    # Баланс и тариф (двухвалютная система: рубли + кредиты)
+    balance_rub: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         default=Decimal("0.00"),
+        server_default="0.00",
         nullable=False,
-        doc="Баланс пользователя в рублях (legacy, используется credits)",
+        doc="Рублёвый баланс рекламодателя — для оплаты размещений и пополнения через ЮKassa/Stars",
+    )
+
+    earned_rub: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        server_default="0.00",
+        nullable=False,
+        doc="Заработанные рубли владельца канала — от публикаций (80% от стоимости размещения)",
     )
 
     credits: Mapped[int] = mapped_column(
@@ -121,7 +130,15 @@ class User(Base, TimestampMixin):
         default=0,
         server_default="0",
         nullable=False,
-        doc="Баланс пользователя в кредитах",
+        doc="Кредиты — исключительно для покупки тарифных подписок",
+    )
+
+    # Legacy поле (для обратной совместимости, не используется)
+    balance: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=True,
+        doc="Legacy баланс (устарело, используйте balance_rub)",
     )
 
     plan: Mapped[UserPlan] = mapped_column(
@@ -277,6 +294,12 @@ class User(Base, TimestampMixin):
         doc="Активен ли пользователь",
     )
 
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Дата принятия пользовательского соглашения",
+    )
+
     notifications_enabled: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
@@ -298,7 +321,7 @@ class User(Base, TimestampMixin):
     ai_provider: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
-        doc="AI провайдер пользователя (groq/openai/anthropic/openrouter)",
+        doc="AI провайдер пользователя (mistral)",
     )
 
     ai_model: Mapped[str | None] = mapped_column(
@@ -424,7 +447,8 @@ class User(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("telegram_id", name="uq_users_telegram_id"),
         CheckConstraint("credits >= 0", name="ck_users_credits_positive"),
-        CheckConstraint("balance >= 0", name="ck_users_balance_positive"),
+        CheckConstraint("balance_rub >= 0", name="ck_users_balance_rub_positive"),
+        CheckConstraint("earned_rub >= 0", name="ck_users_earned_rub_positive"),
         {
             "comment": "Пользователи Telegram бота",
         },
@@ -500,22 +524,14 @@ class User(Base, TimestampMixin):
         Возвращает AI провайдер для пользователя на основе тарифа.
 
         Returns:
-            AI провайдер (groq/openai/openrouter).
+            AI провайдер (mistral).
         """
         # Если у пользователя установлен свой провайдер — используем его
         if self.ai_provider:
             return self.ai_provider
 
-        # Привязка провайдеров к тарифам
-        # ADMIN использует бесплатную модель через OpenRouter
-        provider_map = {
-            UserPlan.FREE: "groq",  # Бесплатный тариф — базовый Groq
-            UserPlan.STARTER: "groq",  # STARTER — Groq
-            UserPlan.PRO: "openrouter",  # PRO — OpenRouter (Claude Sonnet)
-            UserPlan.BUSINESS: "openrouter",  # BUSINESS — OpenRouter (Claude Sonnet)
-            UserPlan.ADMIN: "openrouter",  # ADMIN — OpenRouter (бесплатная модель)
-        }
-        return provider_map.get(self.plan, "groq")
+        # Все тарифы используют Mistral AI
+        return "mistral"
 
     def get_ai_model(self) -> str:
         """

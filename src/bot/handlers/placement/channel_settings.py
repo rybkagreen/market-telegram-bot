@@ -84,7 +84,7 @@ async def show_channel_cfg_menu(
 
     text = (
         f"⚙️ <b>Настройки канала {channel_username}</b>\n\n"
-        f"💰 Цена за пост: {settings.price_per_post:.0f} кр → вы получаете {owner_earnings:.0f} кр ({(1 - PLATFORM_COMMISSION_FLOAT) * 100:.0f}%)\n"
+        f"💰 Цена за пост: {settings.price_per_post:.0f} ₽ → вы получаете {owner_earnings:.0f} ₽ ({(1 - PLATFORM_COMMISSION_FLOAT) * 100:.0f}%)\n"
         f"🕐 Публикации: {time_to_str(settings.publish_start_time)} – {time_to_str(settings.publish_end_time)}\n"
         f"☕ Перерыв: {time_to_str(settings.break_start_time)} – {time_to_str(settings.break_end_time)}\n"
         f"📅 Макс постов/день: {settings.daily_package_max}\n"
@@ -200,10 +200,10 @@ async def handle_edit_price(callback: CallbackQuery, state: FSMContext) -> None:
 
     text = (
         f"💰 <b>Изменение цены за пост</b>\n\n"
-        f"Текущая цена: {current_price:.0f} кр\n"
-        f"Вы получаете: {owner_earnings:.0f} кр (80%)\n"
-        f"Комиссия платформы: {current_price - owner_earnings:.0f} кр (20%)\n\n"
-        f"Минимальная цена: {MIN_PRICE_PER_POST_INT} кр\n\n"
+        f"Текущая цена: {current_price:.0f} ₽\n"
+        f"Вы получаете: {owner_earnings:.0f} ₽ (80%)\n"
+        f"Комиссия платформы: {current_price - owner_earnings:.0f} ₽ (20%)\n\n"
+        f"Минимальная цена: {MIN_PRICE_PER_POST_INT} ₽\n\n"
         f"Введите новую цену в кредитах:"
     )
 
@@ -239,7 +239,7 @@ async def process_price_input(message: Message, state: FSMContext) -> None:
 
     if new_price < MIN_PRICE_PER_POST_INT:
         await message.answer(
-            f"❌ Минимальная цена: {MIN_PRICE_PER_POST_INT} кр.\n"
+            f"❌ Минимальная цена: {MIN_PRICE_PER_POST_INT} ₽.\n"
             f"Введите значение не меньше {MIN_PRICE_PER_POST_INT}."
         )
         return
@@ -265,9 +265,9 @@ async def process_price_input(message: Message, state: FSMContext) -> None:
 
     text = (
         f"✅ <b>Цена обновлена!</b>\n\n"
-        f"Новая цена: {new_price} кр\n"
-        f"Вы получаете: {owner_earnings:.0f} кр (80%)\n"
-        f"Комиссия платформы: {new_price - owner_earnings:.0f} кр (20%)"
+        f"Новая цена: {new_price} ₽\n"
+        f"Вы получаете: {owner_earnings:.0f} ₽ (80%)\n"
+        f"Комиссия платформы: {new_price - owner_earnings:.0f} ₽ (20%)"
     )
 
     kb = InlineKeyboardBuilder()
