@@ -6,11 +6,21 @@ Billing Service для управления платежами и балансо
 import logging
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.constants.payments import (
+    MAX_TOPUP,
+    MIN_CAMPAIGN_BUDGET,
+    MIN_TOPUP,
+    OWNER_SHARE,
+    YOOKASSA_FEE_RATE,
+)
 from src.core.services.notification_service import notification_service
 from src.db.models.transaction import Transaction, TransactionType
+from src.db.repositories.platform_account_repo import PlatformAccountRepo
 from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -1013,17 +1023,14 @@ class BillingService:
     # Методы для PlacementRequest (Этап 2)
     # ─────────────────────────────────────────────
 
-    async def refund_escrow(
+    async def refund_escrow_credits(
         self,
         placement_id: int,
         advertiser_id: int,
         amount: Decimal,
     ) -> bool:
         """
-        Вернуть средства из эскроу рекламодателю.
-        1. Начислить amount на баланс advertiser (credits)
-        2. Создать Transaction(type=escrow_release, amount=amount)
-        3. Вернуть True
+        Вернуть средства из эскроу рекламодателю (в credits).
 
         Args:
             placement_id: ID заявки.
@@ -1214,6 +1221,364 @@ class BillingService:
             )
 
             return owner_transaction, commission_transaction
+
+    # ══════════════════════════════════════════════════════════════
+    # S-05: BillingService v4.2 — новые методы
+    # ══════════════════════════════════════════════════════════════
+
+    def calculate_topup_payment(self, desired_balance: Decimal) -> dict[str, Decimal]:
+        """
+        Рассчитать комиссию и итоговую сумму пополнения.
+
+        Args:
+            desired_balance: Желаемая сумма зачисления (desired_balance).
+
+        Returns:
+            dict с desired_balance, fee_amount, gross_amount.
+
+        Raises:
+            ValueError: Если desired_balance < MIN_TOPUP или > MAX_TOPUP.
+        """
+        if desired_balance < MIN_TOPUP:
+            raise ValueError(f"Минимальное пополнение {MIN_TOPUP} ₽")
+        if desired_balance > MAX_TOPUP:
+            raise ValueError(f"Максимальное пополнение {MAX_TOPUP} ₽")
+
+        fee_amount = (desired_balance * YOOKASSA_FEE_RATE).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        gross_amount = desired_balance + fee_amount
+
+        return {
+            "desired_balance": desired_balance,
+            "fee_amount": fee_amount,
+            "gross_amount": gross_amount,
+        }
+
+    async def process_topup_webhook(
+        self,
+        session: AsyncSession,
+        payment_id: str,
+        gross_amount: Decimal,
+        metadata: dict,
+    ) -> None:
+        """
+        Обработать вебхук успешного пополнения от ЮKassa.
+
+        Args:
+            session: Асинхронная сессия.
+            payment_id: ID платежа в ЮKassa.
+            gross_amount: Фактически оплаченная сумма (gross).
+            metadata: Метаданные платежа (desired_balance, user_id).
+
+        Note:
+            Зачислять metadata['desired_balance'] (НЕ gross_amount).
+            Разница = комиссия ЮKassa которую уже забрала ЮKassa.
+        """
+        desired_balance = Decimal(metadata["desired_balance"])
+        user_id = int(metadata["user_id"])
+
+        # Идемпотентность: проверить что payment_id не обработан ранее
+        txn_repo = TransactionRepository(session)
+        existing = await txn_repo.find_one(Transaction.payment_id == payment_id)
+        if existing and existing.meta_json and existing.meta_json.get("processed"):
+            logger.warning(f"Payment {payment_id} already processed")
+            return
+
+        async with session.begin():
+            # SELECT FOR UPDATE
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(user_id)
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+
+            # Зачислить desired_balance (НЕ gross_amount!)
+            balance_before = user.balance_rub
+            user.balance_rub += desired_balance
+
+            # PlatformAccount: total_topups += desired_balance
+            platform_repo = PlatformAccountRepo(session)
+            await platform_repo.add_to_topups(session, desired_balance)
+
+            # Transaction(type=TOPUP, amount=desired_balance)
+            transaction = Transaction(
+                user_id=user_id,
+                amount=desired_balance,
+                type=TransactionType.TOPUP,
+                payment_id=payment_id,
+                payment_status="succeeded",
+                description=f"Пополнение через ЮKassa (payment_id={payment_id})",
+                meta_json={
+                    "method": "yookassa",
+                    "currency": "rub",
+                    "gross_amount": str(gross_amount),
+                    "processed": True,
+                },
+                balance_before=balance_before,
+                balance_after=user.balance_rub,
+            )
+            session.add(transaction)
+            await session.flush()
+
+            logger.info(
+                f"Topup webhook processed: +{desired_balance} ₽ for user {user_id}, "
+                f"payment_id={payment_id}, gross={gross_amount} ₽"
+            )
+
+    async def freeze_escrow(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        placement_id: int,
+        amount: Decimal,
+    ) -> None:
+        """
+        Заморозить средства на эскроу для размещения.
+
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID рекламодателя.
+            placement_id: ID заявки.
+            amount: Сумма для заморозки.
+
+        Raises:
+            ValueError: Если amount < MIN_CAMPAIGN_BUDGET.
+            InsufficientFundsError: Если недостаточно balance_rub.
+        """
+        if amount < MIN_CAMPAIGN_BUDGET:
+            raise ValueError(f"Минимальный бюджет размещения {MIN_CAMPAIGN_BUDGET} ₽")
+
+        async with session.begin():
+            # SELECT FOR UPDATE user
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_id(user_id)
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+
+            if user.balance_rub < amount:
+                raise InsufficientFundsError(
+                    f"Insufficient balance_rub: {user.balance_rub} < {amount}"
+                )
+
+            # UPDATE users SET balance_rub = balance_rub - amount
+            balance_before = user.balance_rub
+            user.balance_rub -= amount
+
+            # platform_account_repo.add_to_escrow(session, amount)
+            platform_repo = PlatformAccountRepo(session)
+            await platform_repo.add_to_escrow(session, amount)
+
+            # Transaction(type=ESCROW_FREEZE, amount=amount, user_id=user_id)
+            transaction = Transaction(
+                user_id=user_id,
+                amount=amount,
+                type=TransactionType.ESCROW_FREEZE,
+                payment_id=None,
+                meta_json={
+                    "type": "escrow_freeze",
+                    "placement_id": placement_id,
+                    "currency": "rub",
+                },
+                balance_before=balance_before,
+                balance_after=user.balance_rub,
+            )
+            session.add(transaction)
+            await session.flush()
+
+            logger.info(
+                f"Escrow frozen: {amount} ₽ from advertiser {user_id} for placement {placement_id}"
+            )
+
+    async def release_escrow(
+        self,
+        session: AsyncSession,
+        placement_id: int,
+        final_price: Decimal,
+        advertiser_id: int,
+        owner_id: int,
+    ) -> None:
+        """
+        Освободить эскроу при успешной публикации.
+
+        Args:
+            session: Асинхронная сессия.
+            placement_id: ID заявки.
+            final_price: Финальная стоимость размещения.
+            advertiser_id: ID рекламодателя.
+            owner_id: ID владельца канала.
+
+        Note:
+            owner_amount = final_price * OWNER_SHARE (округление ROUND_HALF_UP)
+            platform_fee = final_price - owner_amount (остаток, НЕ final_price * 0.15)
+        """
+        async with session.begin():
+            # owner_amount = final_price * OWNER_SHARE (округление)
+            owner_amount = (final_price * OWNER_SHARE).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            # platform_fee = final_price - owner_amount (остаток)
+            platform_fee = final_price - owner_amount
+
+            # UPDATE users SET earned_rub = earned_rub + owner_amount WHERE id = owner_id
+            user_repo = UserRepository(session)
+            owner = await user_repo.get_by_id(owner_id)
+            if not owner:
+                raise ValueError(f"Owner {owner_id} not found")
+
+            earned_before = owner.earned_rub
+            owner.earned_rub += owner_amount
+
+            # Transaction(type=ESCROW_RELEASE, amount=owner_amount, user_id=owner_id)
+            owner_transaction = Transaction(
+                user_id=owner_id,
+                amount=owner_amount,
+                type=TransactionType.ESCROW_RELEASE,
+                payment_id=None,
+                meta_json={
+                    "type": "escrow_release",
+                    "placement_id": placement_id,
+                    "share": "owner",
+                    "currency": "rub",
+                },
+                balance_before=earned_before,
+                balance_after=owner.earned_rub,
+            )
+            session.add(owner_transaction)
+
+            # platform_account_repo.release_from_escrow(session, amount=final_price, platform_fee=platform_fee)
+            platform_repo = PlatformAccountRepo(session)
+            await platform_repo.release_from_escrow(session, final_price, platform_fee)
+
+            # Transaction(type=COMMISSION, amount=platform_fee)
+            commission_transaction = Transaction(
+                user_id=advertiser_id,  # Платформа (условно)
+                amount=platform_fee,
+                type=TransactionType.COMMISSION,
+                payment_id=None,
+                meta_json={
+                    "type": "commission",
+                    "placement_id": placement_id,
+                    "share": "platform",
+                    "currency": "rub",
+                },
+                balance_before=Decimal("0"),
+                balance_after=platform_fee,
+            )
+            session.add(commission_transaction)
+            await session.flush()
+
+            logger.info(
+                f"Escrow released: {owner_amount} ₽ to owner {owner_id} (earned_rub), "
+                f"{platform_fee} ₽ commission for placement {placement_id}"
+            )
+
+    async def refund_escrow(
+        self,
+        session: AsyncSession,
+        placement_id: int,
+        final_price: Decimal,
+        advertiser_id: int,
+        owner_id: int,
+        scenario: str,
+    ) -> None:
+        """
+        Вернуть средства с эскроу при отмене размещения.
+
+        Args:
+            session: Асинхронная сессия.
+            placement_id: ID заявки.
+            final_price: Финальная стоимость размещения.
+            advertiser_id: ID рекламодателя.
+            owner_id: ID владельца канала.
+            scenario: Сценарий отмены ('before_escrow', 'after_escrow_before_confirmation', 'after_confirmation').
+
+        Scenarios:
+            before_escrow: advertiser +100%, owner 0%, platform 0%
+            after_escrow_before_confirmation: advertiser +100%, owner 0%, platform 0%, reputation -5
+            after_confirmation: advertiser +50%, owner +42.5%, platform +7.5%, reputation -20
+        """
+        async with session.begin():
+            if scenario == "before_escrow" or scenario == "after_escrow_before_confirmation":
+                # advertiser +100%, owner 0%, platform 0%
+                advertiser_refund = final_price
+                owner_compensation = Decimal("0")
+                platform_share = Decimal("0")
+
+            elif scenario == "after_confirmation":
+                # advertiser +50%, owner +42.5%, platform +7.5%
+                advertiser_refund = (final_price * Decimal("0.50")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                owner_compensation = (final_price * Decimal("0.425")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                # platform_share = final_price - advertiser_refund - owner_compensation (остаток)
+                platform_share = final_price - advertiser_refund - owner_compensation
+
+            else:
+                raise ValueError(f"Unknown scenario: {scenario}")
+
+            # UPDATE users SET balance_rub = balance_rub + advertiser_refund WHERE id = advertiser_id
+            user_repo = UserRepository(session)
+            advertiser = await user_repo.get_by_id(advertiser_id)
+            if advertiser:
+                advertiser.balance_rub += advertiser_refund
+
+            # UPDATE users SET earned_rub = earned_rub + owner_compensation WHERE id = owner_id
+            owner = await user_repo.get_by_id(owner_id)
+            if owner and owner_compensation > 0:
+                owner.earned_rub += owner_compensation
+
+            # platform_account: escrow_reserved -= final_price, profit_accumulated += platform_share
+            platform_repo = PlatformAccountRepo(session)
+            # escrow_reserved -= final_price (через release_from_escrow с amount=final_price, fee=0)
+            # Но здесь нужно просто уменьшить escrow_reserved
+            # Используем прямую логику: escrow_reserved -= final_price
+            # profit_accumulated += platform_share
+            # Для простоты: вызываем release_from_escrow с platform_fee=platform_share
+            await platform_repo.release_from_escrow(session, final_price, platform_share)
+
+            # Transactions
+            if advertiser_refund > 0:
+                advertiser_txn = Transaction(
+                    user_id=advertiser_id,
+                    amount=advertiser_refund,
+                    type=TransactionType.REFUND,
+                    payment_id=None,
+                    meta_json={
+                        "type": "refund",
+                        "scenario": scenario,
+                        "placement_id": placement_id,
+                        "share": "advertiser",
+                    },
+                    balance_before=advertiser.balance_rub - advertiser_refund if advertiser else Decimal("0"),
+                    balance_after=advertiser.balance_rub if advertiser else Decimal("0"),
+                )
+                session.add(advertiser_txn)
+
+            if owner_compensation > 0 and owner:
+                owner_txn = Transaction(
+                    user_id=owner_id,
+                    amount=owner_compensation,
+                    type=TransactionType.ESCROW_RELEASE,
+                    payment_id=None,
+                    meta_json={
+                        "type": "owner_compensation",
+                        "scenario": scenario,
+                        "placement_id": placement_id,
+                        "share": "owner",
+                    },
+                    balance_before=owner.earned_rub - owner_compensation,
+                    balance_after=owner.earned_rub,
+                )
+                session.add(owner_txn)
+
+            await session.flush()
+
+            logger.info(
+                f"Escrow refunded: scenario={scenario}, advertiser={advertiser_refund} ₽, "
+                f"owner={owner_compensation} ₽, platform={platform_share} ₽"
+            )
 
 
 # Глобальный экземпляр
