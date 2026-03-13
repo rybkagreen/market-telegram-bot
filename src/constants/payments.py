@@ -80,7 +80,7 @@ PLAN_LIMITS: dict[str, dict] = {
         "ai_per_month": 20,
         "formats": ["post_24h", "post_48h", "post_7d"],
     },
-    "agency": {
+    "business": {
         "active_campaigns": -1,  # Безлимит
         "ai_per_month": -1,  # Безлимит
         "formats": ["post_24h", "post_48h", "post_7d", "pin_24h", "pin_48h"],
