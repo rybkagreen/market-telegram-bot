@@ -122,6 +122,12 @@ async def show_channel_cfg_menu(
         callback_data=f"ch_cfg:auto_accept:{channel_id}",
     )
 
+    # S-11: Форматы публикаций
+    kb_builder.button(
+        text="📝 Форматы публикаций",
+        callback_data=f"ch_cfg:formats:{channel_id}",
+    )
+
     kb_builder.button(
         text="◀️ Назад",
         callback_data=f"channel_menu:{channel_id}",
@@ -1070,3 +1076,134 @@ async def handle_auto_accept_toggle(callback: CallbackQuery) -> None:
     # Перерисовать главное меню
     settings.auto_accept_enabled = new_val
     await show_channel_cfg_menu(callback, channel_id, settings)
+
+
+# ══════════════════════════════════════════════════════════════
+# S-11: ФОРМАТЫ ПУБЛИКАЦИЙ — display и toggle
+# ══════════════════════════════════════════════════════════════
+
+
+@router.callback_query(F.data.startswith("ch_cfg:formats:"))
+async def handle_formats_display(callback: CallbackQuery) -> None:
+    """
+    S-11: Показать текущее состояние форматов канала.
+
+    post_24h — всегда включён (базовый формат).
+    Остальные форматы можно переключать.
+    """
+    if not await check_channel_owner(callback, int(callback.data.split(":")[2])):
+        return
+
+    channel_id = int(callback.data.split(":")[2])
+
+    async with async_session_factory() as session:
+        repo = ChannelSettingsRepo(session)
+        settings = await repo.get_by_channel(channel_id)
+        if not settings:
+            await callback.answer("❌ Настройки не найдены", show_alert=True)
+            return
+
+        # Формируем текст
+        username = getattr(callback.message, "chat", None)
+        channel_username = f"@{username.username}" if username and hasattr(username, "username") and username.username else f"ID:{channel_id}"
+
+        # Эмодзи для каждого формата
+        def fmt_status(field_name: str, label: str, is_base: bool = False) -> str:
+            value = getattr(settings, field_name, False)
+            emoji = "✅" if value else "❌"
+            locked = "🔒" if is_base else ""
+            return f"{emoji} {label} {locked}" if is_base else f"{emoji} {label}"
+
+        text = (
+            f"⚙️ <b>Форматы публикации для канала {channel_username}</b>\n\n"
+            f"{fmt_status('allow_format_post_24h', '📝 Пост 24ч (базовый)', is_base=True)}\n"
+            f"{fmt_status('allow_format_post_48h', '📝 Пост 48ч (+40%)')}\n"
+            f"{fmt_status('allow_format_post_7d', '📝 Пост 7 дней (+100%)')}\n"
+            f"{fmt_status('allow_format_pin_24h', '📌 Закреп 24ч (+200%)')}\n"
+            f"{fmt_status('allow_format_pin_48h', '📌 Закреп 48ч (+300%)')}\n\n"
+            f"Нажмите на формат чтобы переключить:\n"
+            f"🔒 Базовый формат нельзя отключить"
+        )
+
+        # Формируем клавиатуру
+        kb_builder = InlineKeyboardBuilder()
+
+        # Кнопки для переключения (кроме post_24h)
+        kb_builder.button(
+            text=f"{'✅' if settings.allow_format_post_48h else '❌'} Пост 48ч",
+            callback_data=f"ch_cfg:format_toggle:{channel_id}:post_48h",
+        )
+        kb_builder.button(
+            text=f"{'✅' if settings.allow_format_post_7d else '❌'} Пост 7д",
+            callback_data=f"ch_cfg:format_toggle:{channel_id}:post_7d",
+        )
+        kb_builder.button(
+            text=f"{'✅' if settings.allow_format_pin_24h else '❌'} Закреп 24ч",
+            callback_data=f"ch_cfg:format_toggle:{channel_id}:pin_24h",
+        )
+        kb_builder.button(
+            text=f"{'✅' if settings.allow_format_pin_48h else '❌'} Закреп 48ч",
+            callback_data=f"ch_cfg:format_toggle:{channel_id}:pin_48h",
+        )
+
+        kb_builder.button(
+            text="◀️ Назад",
+            callback_data=f"ch_cfg:view:{channel_id}",
+        )
+
+        kb_builder.adjust(2, 2, 1)
+
+        await safe_callback_edit(
+            callback.message,
+            text,
+            reply_markup=kb_builder.as_markup(),
+        )
+        await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ch_cfg:format_toggle:"))
+async def handle_format_toggle(callback: CallbackQuery) -> None:
+    """
+    S-11: Переключить формат публикации.
+
+    post_24h нельзя отключить — это базовый формат.
+    """
+    if not await check_channel_owner(callback, int(callback.data.split(":")[2])):
+        return
+
+    parts = callback.data.split(":")
+    channel_id = int(parts[2])
+    format_code = parts[3]
+
+    # post_24h нельзя отключить
+    if format_code == "post_24h":
+        await callback.answer("🔒 Базовый формат нельзя отключить", show_alert=True)
+        return
+
+    async with async_session_factory() as session:
+        repo = ChannelSettingsRepo(session)
+        settings = await repo.get_by_channel(channel_id)
+        if not settings:
+            await callback.answer("❌ Настройки не найдены", show_alert=True)
+            return
+
+        # Переключаем поле
+        field_name = f"allow_format_{format_code}"
+        current_value = getattr(settings, field_name, False)
+        setattr(settings, field_name, not current_value)
+
+        await repo.upsert(
+            channel_id=channel_id,
+            owner_id=callback.from_user.id,
+            **{field_name: not current_value},
+        )
+        await session.commit()
+
+    # Обновляем сообщение с новым состоянием
+    settings.allow_format_post_48h = getattr(settings, "allow_format_post_48h", False)
+    settings.allow_format_post_7d = getattr(settings, "allow_format_post_7d", False)
+    settings.allow_format_pin_24h = getattr(settings, "allow_format_pin_24h", False)
+    settings.allow_format_pin_48h = getattr(settings, "allow_format_pin_48h", False)
+
+    await handle_formats_display(callback)
+    await callback.answer()

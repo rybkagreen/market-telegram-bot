@@ -518,4 +518,45 @@ async def unblacklist_channel(callback: CallbackQuery, callback_data: AdminCB) -
         await chat_repo.unblacklist(chat_db_id)
 
     await callback.answer("✅ Канал разблокирован", show_alert=False)
-    await show_blacklist(callback, AdminCB(action="blacklist"))
+
+
+# ══════════════════════════════════════════════════════════════
+# S-13: /platform — Dashboard счёта платформы
+# ══════════════════════════════════════════════════════════════
+
+
+@router.message(F.command == "platform")
+async def cmd_platform(message: Message) -> None:
+    """
+    S-13: Показать счёт платформы (только для admin).
+
+    Отображает:
+    - escrow_reserved
+    - payout_reserved
+    - profit_accumulated
+    - total_topups
+    - total_payouts
+    """
+    async with async_session_factory() as session:
+        from src.db.models.platform_account import PlatformAccount
+        from src.db.repositories.platform_account_repo import PlatformAccountRepo
+
+        # Получаем platform_account (singleton id=1)
+        platform = await session.get(PlatformAccount, 1)
+
+        if not platform:
+            await message.answer("❌ PlatformAccount не найден")
+            return
+
+        text = (
+            "🏦 <b>Счёт платформы</b>\n\n"
+            f"🔒 Эскроу: <b>{platform.escrow_reserved:.2f} ₽</b>\n"
+            f"⏳ К выплате: <b>{platform.payout_reserved:.2f} ₽</b>\n"
+            f"💰 Прибыль: <b>{platform.profit_accumulated:.2f} ₽</b>\n\n"
+            f"📊 Исторические данные:\n"
+            f"Пополнений: <b>{platform.total_topups:.2f} ₽</b>\n"
+            f"Выплачено: <b>{platform.total_payouts:.2f} ₽</b>\n\n"
+            f"🕐 Обновлено: <b>{platform.updated_at.strftime('%d.%m.%Y %H:%M')}</b>"
+        )
+
+        await message.answer(text)
