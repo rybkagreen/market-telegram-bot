@@ -15,7 +15,8 @@ from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentSt
 from src.db.models.mailing_log import MailingLog, MailingStatus
 from src.db.models.notification import Notification, NotificationType
 from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
-from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.placement_request import PlacementRequest, PlacementStatus, PublicationFormat
+from src.db.models.platform_account import PlatformAccount
 from src.db.models.reputation_history import ReputationAction, ReputationHistory
 from src.db.models.reputation_score import ReputationScore
 from src.db.models.review import Review, ReviewerRole
@@ -47,6 +48,7 @@ __all__ = [
     "Payout",
     "PayoutStatus",
     "PayoutCurrency",
+    "PlatformAccount",
     "Review",
     "ReviewerRole",
     "ChannelRating",
@@ -57,6 +59,7 @@ __all__ = [
     "B2BPackage",
     "PlacementRequest",
     "PlacementStatus",
+    "PublicationFormat",
     "ReputationScore",
     "ReputationHistory",
     "ReputationAction",

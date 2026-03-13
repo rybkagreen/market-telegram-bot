@@ -38,7 +38,8 @@ class TransactionType(str, Enum):
     ADJUSTMENT = "adjustment"  # Корректировка вручную (admin)
     ESCROW_FREEZE = "escrow_freeze"  # Заморозка средств при переходе в escrow
     ESCROW_RELEASE = "escrow_release"  # Разморозка и зачисление владельцу
-    COMMISSION = "commission"  # Комиссия платформы 20%
+    COMMISSION = "commission"  # Комиссия платформы
+    PAYOUT_FEE = "payout_fee"  # Комиссия за вывод средств (1.5%)
 
 
 class Transaction(Base, TimestampMixin):
