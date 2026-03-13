@@ -12,9 +12,9 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
 
+from src.bot.keyboards.advertiser.campaign import CampaignCB
 from src.bot.keyboards.billing.billing import BillingCB, get_plans_kb
 from src.bot.keyboards.shared.cabinet import CabinetCB, get_cabinet_kb
-from src.bot.keyboards.advertiser.campaign import CampaignCB
 from src.bot.keyboards.shared.main_menu import MainMenuCB
 from src.bot.keyboards.shared.pagination import PaginationCB
 from src.bot.utils.message_utils import safe_edit_message
@@ -228,8 +228,14 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
                 f"━━━━ БАЛАНСЫ ━━━━\n"
                 f"💵 Рублёвый баланс: <b>{user.balance_rub:,} ₽</b>\n"
                 f"🎯 Кредиты (подписки): <b>{user.credits:,} ₽</b>\n"
-                f"📦 Тариф: {plan_value}"
             )
+
+            # Для роли "both" показываем также заработок владельца
+            if role == "both":
+                text += f"💸 Заработано к выводу: <b>{user.earned_rub:,} ₽</b>\n"
+                text += "📋 Не забудьте задекларировать доход самостоятельно\n"
+
+            text += f"📦 Тариф: {plan_value}"
 
             if days_left is not None and days_left > 0 and plan_expires_at is not None:
                 text += f"  •  до {plan_expires_at.strftime('%d.%m')} ({days_left} дней)\n"
@@ -265,6 +271,7 @@ async def show_cabinet(message: Message | CallbackQuery) -> None:
                 f"💵 Рублёвый баланс: <b>{user.balance_rub:,} ₽</b>\n"
                 f"🎯 Кредиты (подписки): <b>{user.credits:,} ₽</b>\n"
                 f"💸 Заработано к выводу: <b>{user.earned_rub:,} ₽</b>\n"
+                f"📋 Вы самостоятельно несёте ответственность за уплату налогов\n"
                 f"\n━━━━ ПРОГРЕСС ВЛАДЕЛЬЦА ━━━━\n"
                 f"{level_name}  Уровень {level}\n"
                 f"   {xp_bar}\n"

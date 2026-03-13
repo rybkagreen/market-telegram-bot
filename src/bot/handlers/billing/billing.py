@@ -8,20 +8,22 @@ from decimal import Decimal
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, LabeledPrice, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import desc, select
 
 from src.bot.keyboards.billing.billing import (  # type: ignore[attr-defined]
-    BuyAndActivateCB,
     CREDIT_PACKAGES,
     BillingCB,
+    BuyAndActivateCB,
     get_currency_kb,
     get_packages_kb,
     get_plans_kb,
     get_topup_methods_kb,
 )
 from src.bot.keyboards.shared.main_menu import MainMenuCB
+from src.bot.states.billing import TopupStates
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
 from src.constants.payments import YOOKASSA_PACKAGES
@@ -644,7 +646,7 @@ async def show_plans(callback: CallbackQuery) -> None:
 async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> None:
     """Выбрать и активировать тариф (списывает кредиты или предлагает купить)."""
     from src.bot.keyboards.billing.billing import BuyAndActivateCB
-    
+
     plan_name = callback_data.value
     plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
     plan_cost = plan_costs.get(plan_name, 0)
@@ -678,7 +680,7 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
         # Credits недостаточно — предлагаем купить
         need_credits = plan_cost - user.credits
         need_rub = Decimal(str(need_credits))  # 1 кредит = 1 рубль
-        
+
         # Проверяем рублёвый баланс
         if user.balance_rub < need_rub:
             await callback.answer(
@@ -692,7 +694,7 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
 
         # Показываем предложение купить кредиты и активировать
         remaining_balance = user.balance_rub - need_rub
-        
+
         text = (
             f"🎯 <b>Активация тарифа {plan_name.upper()}</b>\n\n"
             f"Недостаточно кредитов.\n"
@@ -703,7 +705,7 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
             f"💵 Остаток рублёвого баланса: <b>{remaining_balance:.0f} ₽</b>\n\n"
             f"1 кредит = 1 ₽. Кредиты будут зачислены и сразу списаны за тариф."
         )
-        
+
         kb = InlineKeyboardBuilder()
         kb.button(
             text=f"✅ Купить {need_credits} кр и активировать",
@@ -718,8 +720,8 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
 @router.callback_query(BuyAndActivateCB.filter())
 async def buy_credits_and_activate_plan(callback: CallbackQuery, callback_data: BuyAndActivateCB) -> None:
     """Купить кредиты за рубли и активировать тариф."""
-    from src.core.services.billing_service import billing_service, InsufficientFundsError
-    
+    from src.core.services.billing_service import InsufficientFundsError, billing_service
+
     plan_name = callback_data.plan
     plan_costs = {"free": 0, "starter": 299, "pro": 999, "business": 2999}
     plan_cost = plan_costs.get(plan_name, 0)
@@ -871,3 +873,259 @@ async def topup_from_cabinet(callback: CallbackQuery) -> None:
 async def topup_menu(callback: CallbackQuery) -> None:
     """Вернуться в меню пополнения."""
     await show_balance(callback)
+
+
+# ══════════════════════════════════════════════════════════════
+# S-10: Двухшаговый флоу пополнения баланса (ЮKassa)
+# ══════════════════════════════════════════════════════════════
+
+
+@router.callback_query(BillingCB.filter(F.action == "topup_yookassa"))
+async def start_topup_yookassa(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Шаг 1: Выбор суммы пополнения.
+
+    Показывает клавиатуру с быстрыми суммами и кнопкой ввода вручную.
+    """
+    from src.bot.keyboards.billing.topup import kb_topup_amounts
+    from src.bot.states.billing import TopupStates
+
+    text = (
+        "💳 <b>Пополнение баланса через ЮKassa</b>\n\n"
+        "Выберите сумму пополнения или введите свою:\n"
+        "• Минимальное пополнение: 500 ₽\n"
+        "• Максимальное пополнение: 300 000 ₽\n"
+        "• Комиссия ЮKassa: 3.5%\n\n"
+        "Введите сумму или выберите из предложенных:"
+    )
+
+    await state.clear()
+    await safe_callback_edit(callback, text, reply_markup=kb_topup_amounts())
+    await state.set_state(TopupStates.entering_amount)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topup:amount:"))
+async def select_quick_amount(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Шаг 2a: Выбор быстрой суммы.
+
+    Показывает расчёт (desired/fee/gross) и кнопку подтверждения.
+    """
+    from decimal import Decimal
+
+    from src.bot.keyboards.billing.topup import kb_topup_confirm
+    from src.bot.states.billing import TopupStates
+    from src.core.services.billing_service import BillingService
+
+    # Parse amount from callback data
+    try:
+        amount = int(callback.data.split(":")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Неверная сумма", show_alert=True)
+        return
+
+    # Calculate topup payment
+    billing_service = BillingService()
+    try:
+        calculation = billing_service.calculate_topup_payment(Decimal(amount))
+    except ValueError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+
+    desired = calculation["desired_balance"]
+    fee = calculation["fee_amount"]
+    gross = calculation["gross_amount"]
+
+    # Format numbers with spaces
+    desired_fmt = f"{desired:,}".replace(",", " ")
+    fee_fmt = f"{fee:,}".replace(",", " ")
+    gross_fmt = f"{gross:,}".replace(",", " ")
+
+    text = (
+        "💳 <b>Подтверждение пополнения</b>\n\n"
+        f"Зачислить: {desired_fmt} ₽\n"
+        f"Комиссия ЮKassa: {fee_fmt} ₽\n"
+        f"<b>К оплате: {gross_fmt} ₽</b>\n\n"
+        "Нажмите «Оплатить» для перехода к оплате:"
+    )
+
+    # Store calculation in state
+    await state.update_data(
+        desired_balance=str(desired),
+        fee_amount=str(fee),
+        gross_amount=str(gross),
+    )
+    await state.set_state(TopupStates.confirming)
+
+    await safe_callback_edit(callback, text, reply_markup=kb_topup_confirm(int(gross)))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "topup:manual")
+async def prompt_manual_amount(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Запрос ручной суммы.
+
+    Пользователь вводит сумму текстовым сообщением.
+    """
+
+    text = (
+        "✏️ <b>Введите сумму пополнения</b>\n\n"
+        "Введите число, например: 1500\n"
+        "Минимум: 500 ₽ | Максимум: 300 000 ₽"
+    )
+
+    await state.update_data(manual_input=True)
+    await safe_callback_edit(callback, text)
+    await callback.answer()
+
+
+@router.message(TopupStates.entering_amount)
+async def process_manual_amount(message: Message, state: FSMContext) -> None:
+    """
+    Шаг 2b: Обработка ручной суммы.
+
+    Парсит текст, рассчитывает комиссию, показывает подтверждение.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from src.bot.keyboards.billing.topup import kb_topup_confirm
+    from src.bot.states.billing import TopupStates
+    from src.core.services.billing_service import BillingService
+
+    if not message.text:
+        await message.answer("❌ Введите числовое значение.")
+        return
+
+    # Parse amount
+    try:
+        amount = Decimal(message.text.strip().replace(",", "."))
+    except InvalidOperation:
+        await message.answer("❌ Введите число, например 1500")
+        return
+
+    # Calculate topup payment
+    billing_service = BillingService()
+    try:
+        calculation = billing_service.calculate_topup_payment(amount)
+    except ValueError as e:
+        await message.answer(f"❌ {e}")
+        return
+
+    desired = calculation["desired_balance"]
+    fee = calculation["fee_amount"]
+    gross = calculation["gross_amount"]
+
+    # Format numbers
+    desired_fmt = f"{desired:,}".replace(",", " ")
+    fee_fmt = f"{fee:,}".replace(",", " ")
+    gross_fmt = f"{gross:,}".replace(",", " ")
+
+    text = (
+        "💳 <b>Подтверждение пополнения</b>\n\n"
+        f"Зачислить: {desired_fmt} ₽\n"
+        f"Комиссия ЮKassa: {fee_fmt} ₽\n"
+        f"<b>К оплате: {gross_fmt} ₽</b>\n\n"
+        "Нажмите «Оплатить» для перехода к оплате:"
+    )
+
+    # Store calculation in state
+    await state.update_data(
+        desired_balance=str(desired),
+        fee_amount=str(fee),
+        gross_amount=str(gross),
+    )
+    await state.set_state(TopupStates.confirming)
+
+    await message.answer(text, reply_markup=kb_topup_confirm(int(gross)))
+
+
+@router.callback_query(F.data == "topup:confirm")
+async def confirm_topup(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Шаг 3: Создание платежа ЮKassa.
+
+    Создаёт платёж с metadata={'desired_balance': ..., 'user_id': ...}.
+    """
+    from src.core.services.yookassa_service import yookassa_service
+
+    # Get calculation from state
+    data = await state.get_data()
+    desired_balance = data.get("desired_balance")
+
+    if not desired_balance:
+        await callback.answer("❌ Ошибка сессии. Попробуйте ещё раз.", show_alert=True)
+        await state.clear()
+        return
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_telegram_id(callback.from_user.id)
+
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            await state.clear()
+            return
+
+        # Create YooKassa payment
+        try:
+            payment_data = await yookassa_service.create_payment(
+                session=session,
+                user_id=user.id,
+                amount_rub=Decimal(desired_balance),
+                description=f"Пополнение баланса: {desired_balance} ₽",
+                metadata={
+                    "desired_balance": desired_balance,
+                    "user_id": str(user.id),
+                },
+            )
+
+            # Send payment link to user
+            if payment_data.get("confirmation_url"):
+                text = (
+                    "💳 <b>Оплата пополнения</b>\n\n"
+                    f"Сумма к оплате: {payment_data.get('amount', desired_balance)} ₽\n\n"
+                    "Нажмите на кнопку ниже для оплаты:"
+                )
+
+                builder = InlineKeyboardBuilder()
+                builder.button(
+                    text="💳 Оплатить",
+                    url=payment_data["confirmation_url"],
+                )
+                builder.button(
+                    text="❌ Отмена",
+                    callback_data="topup:cancel",
+                )
+                builder.adjust(1)
+
+                await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+                await state.set_state(TopupStates.waiting_payment)
+            else:
+                await callback.answer("❌ Не удалось создать платёж", show_alert=True)
+                await state.clear()
+
+        except Exception as e:
+            logger.error(f"Failed to create YooKassa payment: {e}")
+            await callback.answer("❌ Ошибка создания платежа. Попробуйте ещё раз.", show_alert=True)
+            await state.clear()
+
+
+@router.callback_query(F.data == "topup:cancel")
+async def cancel_topup(callback: CallbackQuery, state: FSMContext) -> None:
+    """
+    Отмена пополнения.
+
+    Возвращает в кабинет.
+    """
+    await state.clear()
+
+    text = "❌ Пополнение отменено."
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📋 В кабинет", callback_data=MainMenuCB(action="main_menu"))
+    builder.adjust(1)
+
+    await safe_callback_edit(callback, text, reply_markup=builder.as_markup())
+    await callback.answer()
