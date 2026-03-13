@@ -485,3 +485,110 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
         )
         result = await self.session.execute(query)
         return result.scalar_one() or 0
+
+    # ══════════════════════════════════════════════════════════════
+    # S-04: Методы для работы с publication_format и deletion
+    # ══════════════════════════════════════════════════════════════
+
+    async def get_by_status_and_format(
+        self,
+        session: AsyncSession,
+        status: str,
+        publication_format: str,
+    ) -> list[PlacementRequest]:
+        """
+        Получить заявки по статусу и формату публикации.
+
+        Args:
+            session: Асинхронная сессия.
+            status: Статус заявки.
+            publication_format: Формат публикации.
+
+        Returns:
+            Список заявок.
+        """
+        stmt = select(PlacementRequest).where(
+            PlacementRequest.status == status,
+            PlacementRequest.publication_format == publication_format,
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_scheduled_for_deletion(
+        self,
+        session: AsyncSession,
+    ) -> list[PlacementRequest]:
+        """
+        Получить посты у которых scheduled_delete_at <= NOW().
+
+        Args:
+            session: Асинхронная сессия.
+
+        Returns:
+            Список заявок на удаление.
+        """
+        from sqlalchemy import and_
+
+        now = datetime.now(UTC)
+        stmt = select(PlacementRequest).where(
+            and_(
+                PlacementRequest.status == PlacementStatus.PUBLISHED,
+                PlacementRequest.scheduled_delete_at <= now,
+                PlacementRequest.deleted_at.is_(None),
+            )
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def mark_deleted(
+        self,
+        session: AsyncSession,
+        placement_id: int,
+    ) -> None:
+        """
+        Отметить заявку как удалённую.
+
+        Args:
+            session: Асинхронная сессия.
+            placement_id: ID заявки.
+        """
+        from sqlalchemy import text
+
+        stmt = text("""
+            UPDATE placement_requests
+            SET deleted_at = NOW(),
+                status = 'completed'
+            WHERE id = :pid
+        """)
+        await session.execute(stmt, {"pid": placement_id})
+
+    async def set_message_id(
+        self,
+        session: AsyncSession,
+        placement_id: int,
+        message_id: int,
+        scheduled_delete_at: datetime,
+    ) -> None:
+        """
+        Сохранить Telegram message_id и scheduled_delete_at после публикации.
+
+        Args:
+            session: Асинхронная сессия.
+            placement_id: ID заявки.
+            message_id: ID сообщения в Telegram.
+            scheduled_delete_at: Запланированное время удаления.
+        """
+        from sqlalchemy import text
+
+        stmt = text("""
+            UPDATE placement_requests
+            SET message_id = :mid,
+                scheduled_delete_at = :sda,
+                status = 'published'
+            WHERE id = :pid
+        """)
+        await session.execute(stmt, {
+            "pid": placement_id,
+            "mid": message_id,
+            "sda": scheduled_delete_at,
+        })

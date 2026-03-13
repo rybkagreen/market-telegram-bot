@@ -118,3 +118,64 @@ class TransactionRepository(BaseRepository[Transaction]):
                 "meta_json": meta_json,
             }
         )
+
+    # ══════════════════════════════════════════════════════════════
+    # S-04: Методы для velocity check и payout fee
+    # ══════════════════════════════════════════════════════════════
+
+    async def sum_topups_window(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        days: int,
+    ) -> Decimal:
+        """
+        Сумма пополнений пользователя за последние N дней (для velocity check).
+
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID пользователя.
+            days: Количество дней.
+
+        Returns:
+            Сумма пополнений (минимум Decimal('0')).
+        """
+        from sqlalchemy import text
+
+        stmt = text("""
+            SELECT COALESCE(SUM(amount), 0)
+            FROM transactions
+            WHERE user_id = :uid
+              AND type = 'topup'
+              AND created_at >= NOW() - INTERVAL ':days days'
+        """)
+        result = await session.execute(stmt, {"uid": user_id, "days": days})
+        return result.scalar_one() or Decimal("0")
+
+    async def create_payout_fee(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        amount: Decimal,
+        payout_id: int,
+    ) -> Transaction:
+        """
+        Зафиксировать комиссию за вывод как транзакцию PAYOUT_FEE.
+
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID пользователя.
+            amount: Сумма комиссии.
+            payout_id: ID заявки на выплату.
+
+        Returns:
+            Созданная транзакция.
+        """
+        attributes = {
+            "user_id": user_id,
+            "amount": amount,
+            "type": TransactionType.PAYOUT_FEE,
+            "meta_json": {"payout_id": payout_id},
+            "description": f"Payout fee for payout #{payout_id}",
+        }
+        return await self.create(attributes)

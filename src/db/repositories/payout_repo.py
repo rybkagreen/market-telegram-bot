@@ -138,28 +138,88 @@ class PayoutRepository(BaseRepository[Payout]):
         result = await self.session.execute(stmt)
         return {row.owner_id: (row[1] or Decimal("0")) for row in result.all()}
 
+    # ══════════════════════════════════════════════════════════════
+    # S-04: Методы для velocity check и создания payout
+    # ══════════════════════════════════════════════════════════════
 
-# ─────────────────────────────────────────────
-# Helper function для использования без явного создания репозитория
-# ─────────────────────────────────────────────
+    async def sum_completed_payouts_window(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        days: int,
+    ) -> Decimal:
+        """
+        Сумма выплат пользователя за последние N дней (для velocity check).
 
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID пользователя.
+            days: Количество дней.
 
-async def get_available_payout_amount(owner_user_id: int) -> Decimal:
-    """
-    Получить доступную сумму к выводу для владельца канала.
+        Returns:
+            Сумма выплат (минимум Decimal('0')).
+        """
+        from sqlalchemy import text
 
-    Args:
-        owner_user_id: ID владельца в БД (users.id).
+        stmt = text("""
+            SELECT COALESCE(SUM(COALESCE(gross_amount, amount, 0)), 0)
+            FROM payouts
+            WHERE owner_id = :uid
+              AND status IN ('paid', 'processing')
+              AND created_at >= NOW() - INTERVAL ':days days'
+        """)
+        result = await session.execute(stmt, {"uid": user_id, "days": days})
+        return result.scalar_one() or Decimal("0")
 
-    Returns:
-        Сумма к выводу (Decimal).
+    async def get_active_payout(
+        self,
+        session: AsyncSession,
+        user_id: int,
+    ) -> Payout | None:
+        """
+        Проверить наличие активной заявки на выплату.
 
-    Usage:
-        from src.db.repositories.payout_repo import get_available_payout_amount
-        amount = await get_available_payout_amount(user.id)
-    """
-    from src.db.session import async_session_factory
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID пользователя.
 
-    async with async_session_factory() as session:
-        repo = PayoutRepository(session)
-        return await repo.get_available_amount(owner_user_id)
+        Returns:
+            Payout или None.
+        """
+        stmt = select(Payout).where(
+            Payout.owner_id == user_id,
+            Payout.status.in_([PayoutStatus.PENDING, PayoutStatus.PROCESSING]),
+        ).limit(1)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_payout(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        gross_amount: Decimal,
+        fee_amount: Decimal,
+        net_amount: Decimal,
+    ) -> Payout:
+        """
+        Создать заявку на выплату с полями v4.2.
+
+        Args:
+            session: Асинхронная сессия.
+            user_id: ID пользователя.
+            gross_amount: Запрошенная сумма (gross).
+            fee_amount: Комиссия платформы.
+            net_amount: Сумма к выплате (net).
+
+        Returns:
+            Созданная заявка на выплату.
+        """
+        attributes = {
+            "owner_id": user_id,
+            "gross_amount": gross_amount,
+            "fee_amount": fee_amount,
+            "net_amount": net_amount,
+            "status": PayoutStatus.PENDING,
+            "tax_withheld": None,  # MVP Вариант A
+        }
+        return await super().create(attributes)
