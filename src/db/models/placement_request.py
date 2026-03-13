@@ -18,7 +18,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,6 +45,16 @@ class PlacementStatus(str, Enum):
     CANCELLED = "cancelled"  # Отменено (рекламодателем или авто)
 
 
+class PublicationFormat(str, Enum):
+    """Форматы публикаций v4.2."""
+
+    POST_24H = "post_24h"  # Обычный пост на 24 часа (база)
+    POST_48H = "post_48h"  # Обычный пост на 48 часов (+40%)
+    POST_7D = "post_7d"  # Обычный пост на 7 дней (+100%)
+    PIN_24H = "pin_24h"  # Закреплённый пост на 24 часа (+200%)
+    PIN_48H = "pin_48h"  # Закреплённый пост на 48 часов (+300%)
+
+
 class PlacementRequest(Base, TimestampMixin):
     """
     Заявка на размещение рекламы через арбитраж.
@@ -58,7 +68,7 @@ class PlacementRequest(Base, TimestampMixin):
     MAX_POSTS_PER_DAY: int = 5  # Рекламных постов в день макс 5
     MAX_POSTS_PER_WEEK: int = 35  # В неделю макс 35
     MIN_HOURS_BETWEEN_POSTS: int = 4  # Между постами минимум 4 часа
-    PLATFORM_COMMISSION: Decimal = Decimal("0.20")  # 20% комиссия платформы
+    # PLATFORM_COMMISSION импортируется из src.constants.payments
 
     __tablename__ = "placement_requests"
 
@@ -130,6 +140,32 @@ class PlacementRequest(Base, TimestampMixin):
         String(512),
         nullable=True,
         doc="ID медиафайла (фото/видео)",
+    )
+
+    # Формат публикации (v4.2)
+    publication_format: Mapped[str] = mapped_column(
+        String(20),
+        default="post_24h",
+        nullable=False,
+        doc="Формат публикации (post_24h/post_48h/post_7d/pin_24h/pin_48h)",
+    )
+
+    message_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        doc="ID опубликованного сообщения в Telegram",
+    )
+
+    scheduled_delete_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Запланированное время удаления поста",
+    )
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Фактическое время удаления поста",
     )
 
     # Статус

@@ -87,17 +87,43 @@ class Payout(Base, TimestampMixin):
         doc="ID размещения (mailing_logs.id). NULL для агрегированных выплат",
     )
 
-    # Суммы
+    # Суммы (v4.2 — gross/fee/net)
     amount: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
-        doc="Сумма выплаты владельцу (80% от цены поста)",
+        doc="Сумма выплаты владельцу (80% от цены поста) — legacy поле",
     )
 
     platform_fee: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
-        doc="Комиссия платформы (20% от цены поста)",
+        doc="Комиссия платформы (20% от цены поста) — legacy поле",
+    )
+
+    # v4.2 — новая схема выплат
+    gross_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+        doc="Запрошено владельцем (списывается с earned_rub)",
+    )
+
+    fee_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+        doc="Комиссия платформы (gross × 0.015)",
+    )
+
+    net_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+        doc="Фактически перечисляется (gross - fee)",
+    )
+
+    tax_withheld: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+        default=None,
+        doc="Удержанный налог (NULL в MVP, заполняется post-MVP)",
     )
 
     # Валюта и статус

@@ -20,6 +20,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.states.channel_settings import ChannelSettingsStates
 from src.bot.utils.safe_callback import safe_callback_edit
+from src.constants.payments import PLATFORM_COMMISSION
 from src.db.models.analytics import TelegramChat
 from src.db.models.channel_settings import (
     MAX_PACKAGE_DISCOUNT,
@@ -38,9 +39,9 @@ router = Router(name="channel_settings_owner")
 # =============================================================================
 
 MIN_PRICE_PER_POST_INT: int = 100  # минимальная цена за пост в кредитах
-PLATFORM_COMMISSION_FLOAT: float = 0.20  # комиссия платформы 20%
 MAX_POSTS_PER_DAY_INT: int = 5  # максимум постов в день
 MIN_HOURS_BETWEEN_POSTS_INT: int = 4  # минимум часов между постами
+# PLATFORM_COMMISSION импортируется из src.constants.payments
 
 # =============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -80,11 +81,11 @@ async def show_channel_cfg_menu(
     channel_username = f"@{username.username}" if username and hasattr(username, "username") and username.username else f"ID:{channel_id}"
 
     # Формируем текст
-    owner_earnings = float(settings.price_per_post) * (1 - PLATFORM_COMMISSION_FLOAT)
+    owner_earnings = float(settings.price_per_post) * (1 - float(PLATFORM_COMMISSION))
 
     text = (
         f"⚙️ <b>Настройки канала {channel_username}</b>\n\n"
-        f"💰 Цена за пост: {settings.price_per_post:.0f} ₽ → вы получаете {owner_earnings:.0f} ₽ ({(1 - PLATFORM_COMMISSION_FLOAT) * 100:.0f}%)\n"
+        f"💰 Цена за пост: {settings.price_per_post:.0f} ₽ → вы получаете {owner_earnings:.0f} ₽ ({(1 - float(PLATFORM_COMMISSION)) * 100:.0f}%)\n"
         f"🕐 Публикации: {time_to_str(settings.publish_start_time)} – {time_to_str(settings.publish_end_time)}\n"
         f"☕ Перерыв: {time_to_str(settings.break_start_time)} – {time_to_str(settings.break_end_time)}\n"
         f"📅 Макс постов/день: {settings.daily_package_max}\n"
@@ -196,7 +197,7 @@ async def handle_edit_price(callback: CallbackQuery, state: FSMContext) -> None:
         settings = await repo.get_by_channel(channel_id)
 
     current_price = float(settings.price_per_post) if settings else 500
-    owner_earnings = current_price * (1 - PLATFORM_COMMISSION_FLOAT)
+    owner_earnings = current_price * (1 - float(PLATFORM_COMMISSION))
 
     text = (
         f"💰 <b>Изменение цены за пост</b>\n\n"
@@ -261,7 +262,7 @@ async def process_price_input(message: Message, state: FSMContext) -> None:
         )
         await session.commit()
 
-    owner_earnings = new_price * (1 - PLATFORM_COMMISSION_FLOAT)
+    owner_earnings = new_price * (1 - float(PLATFORM_COMMISSION))
 
     text = (
         f"✅ <b>Цена обновлена!</b>\n\n"

@@ -62,3 +62,38 @@ class InvalidStateError(RekHarborError):
     """Некорректное состояние FSM."""
 
     pass
+
+
+# ══════════════════════════════════════════════════════════════
+# S-02: Новые исключения для финансовой модели v4.2
+# ══════════════════════════════════════════════════════════════
+
+
+class SelfDealingError(ValueError):
+    """Попытка разместить рекламу на собственном канале."""
+
+    pass
+
+
+class VelocityCheckError(PermissionError):
+    """Превышен лимит вывода средств (velocity check)."""
+
+    pass
+
+
+class InsufficientPermissionsError(PermissionError):
+    """Недостаточно прав для выполнения операции."""
+
+    pass
+
+
+class PlanLimitError(PermissionError):
+    """Превышен лимит тарифного плана."""
+
+    pass
+
+
+class EscrowError(RuntimeError):
+    """Ошибка работы с эскроу."""
+
+    pass

@@ -27,7 +27,7 @@ MAX_SUBSCRIPTION_DAYS = 365
 MAX_POSTS_PER_DAY = 5
 MAX_POSTS_PER_WEEK = 35
 MIN_HOURS_BETWEEN_POSTS = 4
-PLATFORM_COMMISSION = Decimal("0.20")  # 20%
+# PLATFORM_COMMISSION импортируется из src.constants.payments
 
 
 class ChannelSettings(Base, TimestampMixin):
@@ -195,6 +195,47 @@ class ChannelSettings(Base, TimestampMixin):
         Numeric(10, 2),
         nullable=True,
         doc="Мин. цена для авто-принятия",
+    )
+
+    # Форматы публикаций (v4.2)
+    allow_format_post_24h: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        doc="Разрешён формат: обычный пост 24 часа",
+    )
+
+    allow_format_post_48h: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        doc="Разрешён формат: обычный пост 48 часов",
+    )
+
+    allow_format_post_7d: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        doc="Разрешён формат: обычный пост 7 дней",
+    )
+
+    allow_format_pin_24h: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        doc="Разрешён формат: закреплённый пост 24 часа",
+    )
+
+    allow_format_pin_48h: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        doc="Разрешён формат: закреплённый пост 48 часов",
     )
 
     # Отношения
