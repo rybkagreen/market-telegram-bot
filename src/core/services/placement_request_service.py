@@ -735,5 +735,142 @@ class PlacementRequestService:
 
         return True
 
+    # ══════════════════════════════════════════════════════════════
+    # S-08: PlacementRequestService v4.2 — новые методы
+    # ══════════════════════════════════════════════════════════════
+
+    async def create_placement_request(
+        self,
+        session: AsyncSession,
+        advertiser_id: int,
+        channel_id: int,
+        publication_format: str,
+        ad_text: str,
+        proposed_price: Decimal | None = None,
+    ) -> PlacementRequest:
+        """
+        Создать заявку на размещение v4.2.
+
+        Порядок проверок:
+        1. channel exists
+        2. self-dealing (channel.owner_id == advertiser_id)
+        3. plan format limit
+        4. channel allows format
+        5. price calculation
+        6. MIN_CAMPAIGN_BUDGET
+        7. create
+
+        Args:
+            session: Асинхронная сессия.
+            advertiser_id: ID рекламодателя.
+            channel_id: ID канала.
+            publication_format: Формат публикации (post_24h/post_48h/post_7d/pin_24h/pin_48h).
+            ad_text: Текст рекламы.
+            proposed_price: Предлагаемая цена (опционально).
+
+        Returns:
+            Созданная заявка.
+
+        Raises:
+            SelfDealingError: Если advertiser == channel.owner.
+            PlanLimitError: Если формат недоступен на тарифе.
+            ValueError: Если канал не принимает формат или цена < MIN_CAMPAIGN_BUDGET.
+        """
+
+        from src.constants.payments import (
+            FORMAT_MULTIPLIERS,
+            MIN_CAMPAIGN_BUDGET,
+            MIN_PRICE_PER_POST,
+            PLAN_LIMITS,
+        )
+        from src.db.models.analytics import TelegramChat
+        from src.db.models.user import User
+
+        # 1. Получить канал
+        channel = await session.get(TelegramChat, channel_id)
+        if channel is None:
+            raise ValueError("Канал не найден")
+
+        # 2. ПЕРВАЯ проверка — self-dealing (до любых запросов в БД кроме channel)
+        if channel.owner_user_id == advertiser_id:
+            from src.core.exceptions import SelfDealingError
+            raise SelfDealingError("Нельзя размещать рекламу на собственном канале")
+
+        # 3. Получить рекламодателя
+        advertiser = await session.get(User, advertiser_id)
+        if not advertiser:
+            raise ValueError("Рекламодатель не найден")
+
+        # 3. Проверить формат по тарифу
+        allowed_formats = PLAN_LIMITS.get(advertiser.plan.value, {}).get("formats", [])
+        if publication_format not in allowed_formats:
+            from src.core.exceptions import PlanLimitError
+            raise PlanLimitError(f"Формат {publication_format} недоступен на тарифе {advertiser.plan.value}")
+
+        # 4. Получить настройки канала
+        channel_settings = await self.channel_settings_repo.get_by_channel(channel_id)
+        if not channel_settings:
+            raise ValueError(f"Настройки канала {channel_id} не найдены")
+
+        allow_field = f"allow_format_{publication_format}"
+        if not getattr(channel_settings, allow_field, False):
+            raise ValueError(f"Владелец канала не принимает формат {publication_format}")
+
+        # 5. Расчёт цены
+        base_price = channel_settings.price_per_post
+        if base_price < MIN_PRICE_PER_POST:
+            raise ValueError(f"Цена поста не может быть меньше {MIN_PRICE_PER_POST} ₽")
+
+        multiplier = FORMAT_MULTIPLIERS.get(publication_format)
+        if multiplier is None:
+            raise ValueError(f"Неизвестный формат: {publication_format}")
+
+        from decimal import ROUND_HALF_UP
+        calculated_price = (base_price * multiplier).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+        # 6. Проверка MIN_CAMPAIGN_BUDGET
+        if calculated_price < MIN_CAMPAIGN_BUDGET:
+            raise ValueError(f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽")
+
+        # 7. Создать PlacementRequest
+        return await self.placement_repo.create_placement(
+            advertiser_id=advertiser_id,
+            campaign_id=0,  # Will be set later if needed
+            channel_id=channel_id,
+            proposed_price=calculated_price,
+            final_text=ad_text,
+            proposed_schedule=None,
+            proposed_frequency=None,
+        )
+
+    def calculate_placement_price(
+        self,
+        base_price: Decimal,
+        publication_format: str,
+    ) -> Decimal:
+        """
+        Рассчитать цену размещения по формату.
+
+        Args:
+            base_price: Базовая цена поста.
+            publication_format: Формат публикации.
+
+        Returns:
+            Цена с учётом формата.
+
+        Raises:
+            ValueError: Если неизвестный формат.
+        """
+        from src.constants.payments import FORMAT_MULTIPLIERS
+
+        multiplier = FORMAT_MULTIPLIERS.get(publication_format)
+        if multiplier is None:
+            raise ValueError(f"Неизвестный формат: {publication_format}")
+
+        from decimal import ROUND_HALF_UP
+        return (base_price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
 
 # Импортируем Any для type hint
