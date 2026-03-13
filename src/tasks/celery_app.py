@@ -49,6 +49,7 @@ def create_celery_app() -> Celery:
             "mailing.*": {"queue": "mailing"},
             "parser.*": {"queue": "parser"},
             "cleanup.*": {"queue": "cleanup"},
+            "publication.*": {"queue": "critical"},
         },
         # Приоритеты задач (Redis broker)
         broker_transport_options={
@@ -88,6 +89,13 @@ def create_celery_app() -> Celery:
         ],
         force=True,
     )
+
+    # Регистрация периодических задач для publication
+    app.conf.beat_schedule["check-scheduled-deletions"] = {
+        "task": "publication:check_scheduled_deletions",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "default"},
+    }
 
     return app
 

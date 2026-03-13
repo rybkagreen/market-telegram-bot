@@ -97,3 +97,20 @@ class EscrowError(RuntimeError):
     """Ошибка работы с эскроу."""
 
     pass
+
+
+# ══════════════════════════════════════════════════════════════
+# S-07: Publication exceptions
+# ══════════════════════════════════════════════════════════════
+
+
+class BotNotAdminError(InsufficientPermissionsError):
+    """Бот не является администратором канала."""
+
+    pass
+
+
+class PostDeletionError(RuntimeError):
+    """Ошибка удаления публикации."""
+
+    pass
