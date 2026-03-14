@@ -184,18 +184,14 @@ def get_owner_menu_kb(
     )
 
     # Кнопка 3: Заявки (со счётчиком если есть ожидающие)
-    requests_label = (
-        f"📋 Заявки 🔴 ({pending_requests})" if pending_requests > 0 else "📋 Заявки"
-    )
+    requests_label = f"📋 Заявки 🔴 ({pending_requests})" if pending_requests > 0 else "📋 Заявки"
     builder.button(
         text=requests_label,
         callback_data=MainMenuCB(action="my_requests"),
     )
 
     # Кнопка 4: Выплаты (с суммой если доступна)
-    payout_label = (
-        f"💸 Выплаты • {available_payout} кр" if available_payout > 0 else "💸 Выплаты"
-    )
+    payout_label = f"💸 Выплаты • {available_payout} кр" if available_payout > 0 else "💸 Выплаты"
     builder.button(
         text=payout_label,
         callback_data=MainMenuCB(action="payouts"),
@@ -279,17 +275,13 @@ def get_combined_menu_kb(
         callback_data=MainMenuCB(action="my_channels"),
     )
 
-    requests_label = (
-        f"📋 Заявки 🔴 ({pending_requests})" if pending_requests > 0 else "📋 Заявки"
-    )
+    requests_label = f"📋 Заявки 🔴 ({pending_requests})" if pending_requests > 0 else "📋 Заявки"
     builder.button(
         text=requests_label,
         callback_data=MainMenuCB(action="my_requests"),
     )
 
-    payout_label = (
-        f"💸 Выплаты • {available_payout} кр" if available_payout > 0 else "💸 Выплаты"
-    )
+    payout_label = f"💸 Выплаты • {available_payout} кр" if available_payout > 0 else "💸 Выплаты"
     builder.button(
         text=payout_label,
         callback_data=MainMenuCB(action="payouts"),

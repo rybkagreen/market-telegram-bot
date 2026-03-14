@@ -90,7 +90,9 @@ async def get_my_reputation(
         is_advertiser_blocked=rep_score.is_advertiser_blocked,
         is_owner_blocked=rep_score.is_owner_blocked,
         advertiser_ban_until=(
-            rep_score.advertiser_blocked_until.isoformat() if rep_score.advertiser_blocked_until else None
+            rep_score.advertiser_blocked_until.isoformat()
+            if rep_score.advertiser_blocked_until
+            else None
         ),
         owner_ban_until=(
             rep_score.owner_blocked_until.isoformat() if rep_score.owner_blocked_until else None

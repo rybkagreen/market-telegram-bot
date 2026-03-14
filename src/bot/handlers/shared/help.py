@@ -20,6 +20,7 @@ router = Router(name="help")
 
 class HelpCB(CallbackData, prefix="help"):
     """CallbackData для раздела Помощь."""
+
     action: str
 
 

@@ -6,8 +6,8 @@ from datetime import datetime
 from aiogram import F, Router
 from aiogram.types import BufferedInputFile, CallbackQuery, InaccessibleMessage
 
-from src.bot.keyboards.shared.channels_catalog import get_active_filters_bar
 from src.bot.keyboards.owner.mediakit import get_public_mediakit_kb
+from src.bot.keyboards.shared.channels_catalog import get_active_filters_bar
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.core.services.mediakit_service import mediakit_service
 from src.db.session import async_session_factory

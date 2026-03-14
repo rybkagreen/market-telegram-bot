@@ -32,7 +32,10 @@ async def _notify_create_request(placement, advertiser, owner, channel):
     """Отправить уведомление о новой заявке."""
     try:
         from src.bot.handlers.shared.notifications import notify_new_request
-        await notify_new_request(placement, advertiser, owner, channel.username or f"ID:{channel.id}")
+
+        await notify_new_request(
+            placement, advertiser, owner, channel.username or f"ID:{channel.id}"
+        )
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
@@ -41,6 +44,7 @@ async def _notify_owner_accept(placement, advertiser, channel):
     """Отправить уведомление о принятии заявки владельцем."""
     try:
         from src.bot.handlers.shared.notifications import notify_owner_accepted
+
         await notify_owner_accepted(placement, advertiser, channel.username or f"ID:{channel.id}")
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
@@ -50,6 +54,7 @@ async def _notify_counter_offer(placement, advertiser, channel):
     """Отправить уведомление о контр-предложении."""
     try:
         from src.bot.handlers.shared.notifications import notify_counter_offer
+
         await notify_counter_offer(placement, advertiser, channel.username or f"ID:{channel.id}")
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
@@ -59,7 +64,10 @@ async def _notify_counter_accepted(placement, advertiser, owner, channel):
     """Отправить уведомление о принятии контр-предложения."""
     try:
         from src.bot.handlers.shared.notifications import notify_counter_accepted
-        await notify_counter_accepted(placement, advertiser, owner, channel.username or f"ID:{channel.id}")
+
+        await notify_counter_accepted(
+            placement, advertiser, owner, channel.username or f"ID:{channel.id}"
+        )
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
@@ -68,7 +76,10 @@ async def _notify_payment_received(placement, advertiser, owner, channel):
     """Отправить уведомление о получении оплаты."""
     try:
         from src.bot.handlers.shared.notifications import notify_payment_received
-        await notify_payment_received(placement, advertiser, owner, channel.username or f"ID:{channel.id}")
+
+        await notify_payment_received(
+            placement, advertiser, owner, channel.username or f"ID:{channel.id}"
+        )
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
@@ -77,6 +88,7 @@ async def _notify_rejected(placement, advertiser, channel):
     """Отправить уведомление об отклонении заявки."""
     try:
         from src.bot.handlers.shared.notifications import notify_rejected
+
         await notify_rejected(placement, advertiser, channel.username or f"ID:{channel.id}")
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
@@ -86,7 +98,10 @@ async def _notify_cancelled(placement, advertiser, owner, channel, reputation_de
     """Отправить уведомление об отмене заявки."""
     try:
         from src.bot.handlers.shared.notifications import notify_cancelled
-        await notify_cancelled(placement, advertiser, owner, channel.username or f"ID:{channel.id}", reputation_delta)
+
+        await notify_cancelled(
+            placement, advertiser, owner, channel.username or f"ID:{channel.id}", reputation_delta
+        )
     except Exception as e:
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
@@ -171,7 +186,10 @@ class PlacementRequestService:
         # Проверка 1: advertiser не заблокирован
         rep_score = await self.reputation_repo.get_by_user(advertiser_id)
         if rep_score and rep_score.is_advertiser_blocked:
-            if rep_score.advertiser_blocked_until and rep_score.advertiser_blocked_until > datetime.now(UTC):
+            if (
+                rep_score.advertiser_blocked_until
+                and rep_score.advertiser_blocked_until > datetime.now(UTC)
+            ):
                 raise ValueError("Advertiser is blocked")
 
         # Проверка 2: цена >= минимальной
@@ -309,6 +327,7 @@ class PlacementRequestService:
         if not self.validate_rejection_reason(rejection_reason):
             # Штраф репутации
             from src.core.services.reputation_service import ReputationService
+
             rep_service = ReputationService(self.session, self.reputation_repo)
             await rep_service.on_invalid_rejection(
                 owner_id=owner_id,
@@ -425,7 +444,9 @@ class PlacementRequestService:
 
         # Отправляем уведомление владельцу
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(User, placement.channel.owner_user_id if placement.channel else 0)
+        owner = await self.session.get(
+            User, placement.channel.owner_user_id if placement.channel else 0
+        )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
             await _notify_counter_accepted(result, advertiser, owner, channel)
@@ -486,6 +507,7 @@ class PlacementRequestService:
 
         # Штраф репутации
         from src.core.services.reputation_service import ReputationService
+
         rep_service = ReputationService(self.session, self.reputation_repo)
         await rep_service.on_advertiser_cancel(
             advertiser_id=advertiser_id,
@@ -498,6 +520,7 @@ class PlacementRequestService:
         if cancellations >= 3:
             # Используем существующий метод с правильным названием
             from src.db.models.reputation_history import ReputationAction
+
             await rep_service._apply_delta(
                 user_id=advertiser_id,
                 role="advertiser",
@@ -515,7 +538,9 @@ class PlacementRequestService:
 
         # Отправляем уведомление
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(User, placement.channel.owner_user_id if placement.channel else 0)
+        owner = await self.session.get(
+            User, placement.channel.owner_user_id if placement.channel else 0
+        )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
             await _notify_cancelled(result, advertiser, owner, channel, delta)
@@ -569,7 +594,9 @@ class PlacementRequestService:
 
         # Отправляем уведомления
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(User, placement.channel.owner_user_id if placement.channel else 0)
+        owner = await self.session.get(
+            User, placement.channel.owner_user_id if placement.channel else 0
+        )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
             await _notify_payment_received(result, advertiser, owner, channel)
@@ -614,6 +641,7 @@ class PlacementRequestService:
 
         # Репутация +1 за публикацию
         from src.core.services.reputation_service import ReputationService
+
         rep_service = ReputationService(self.session, self.reputation_repo)
         await rep_service.on_publication(
             advertiser_id=placement.advertiser_id,
@@ -719,14 +747,14 @@ class PlacementRequestService:
             return False
 
         # Проверка на наличие букв
-        if not re.search(r'[а-яёa-z]', reason, re.IGNORECASE):
+        if not re.search(r"[а-яёa-z]", reason, re.IGNORECASE):
             return False
 
         # Проверка на бессмысленные комбинации
         meaningless_patterns = [
-            r'^(asdf|asdfgh|aaaaaa|bbbbbb|123456|111111|qwerty)+$',
-            r'^([a-z])\1{4,}$',  # 5+ одинаковых символов
-            r'^([0-9])\1{4,}$',  # 5+ одинаковых цифр
+            r"^(asdf|asdfgh|aaaaaa|bbbbbb|123456|111111|qwerty)+$",
+            r"^([a-z])\1{4,}$",  # 5+ одинаковых символов
+            r"^([0-9])\1{4,}$",  # 5+ одинаковых цифр
         ]
 
         for pattern in meaningless_patterns:
@@ -794,6 +822,7 @@ class PlacementRequestService:
         # 2. ПЕРВАЯ проверка — self-dealing (до любых запросов в БД кроме channel)
         if channel.owner_user_id == advertiser_id:
             from src.core.exceptions import SelfDealingError
+
             raise SelfDealingError("Нельзя размещать рекламу на собственном канале")
 
         # 3. Получить рекламодателя
@@ -805,7 +834,10 @@ class PlacementRequestService:
         allowed_formats = PLAN_LIMITS.get(advertiser.plan.value, {}).get("formats", [])
         if publication_format not in allowed_formats:
             from src.core.exceptions import PlanLimitError
-            raise PlanLimitError(f"Формат {publication_format} недоступен на тарифе {advertiser.plan.value}")
+
+            raise PlanLimitError(
+                f"Формат {publication_format} недоступен на тарифе {advertiser.plan.value}"
+            )
 
         # 4. Получить настройки канала
         channel_settings = await self.channel_settings_repo.get_by_channel(channel_id)
@@ -826,13 +858,16 @@ class PlacementRequestService:
             raise ValueError(f"Неизвестный формат: {publication_format}")
 
         from decimal import ROUND_HALF_UP
+
         calculated_price = (base_price * multiplier).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
         # 6. Проверка MIN_CAMPAIGN_BUDGET
         if calculated_price < MIN_CAMPAIGN_BUDGET:
-            raise ValueError(f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽")
+            raise ValueError(
+                f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽"
+            )
 
         # 7. Создать PlacementRequest
         return await self.placement_repo.create_placement(
@@ -870,6 +905,7 @@ class PlacementRequestService:
             raise ValueError(f"Неизвестный формат: {publication_format}")
 
         from decimal import ROUND_HALF_UP
+
         return (base_price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 

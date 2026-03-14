@@ -276,8 +276,7 @@ async def process_post_text(message: Message, state: FSMContext) -> None:
     await state.set_state(PlacementStates.waiting_post_media)
 
     await message.answer(
-        "✅ Текст принят.\n\n"
-        "Отправьте изображение для поста или нажмите /skip чтобы пропустить:"
+        "✅ Текст принят.\n\nОтправьте изображение для поста или нажмите /skip чтобы пропустить:"
     )
 
 
@@ -310,8 +309,7 @@ async def process_post_media(message: Message, state: FSMContext) -> None:
     kb.adjust(2, 2, 1)
 
     await message.answer(
-        "✅ Медиа сохранено.\n\n"
-        "Выберите дату публикации:",
+        "✅ Медиа сохранено.\n\nВыберите дату публикации:",
         reply_markup=kb,
     )
 
@@ -340,7 +338,11 @@ async def handle_schedule_select(callback: CallbackQuery, state: FSMContext) -> 
     # Собрать данные для превью
     data = await state.get_data()
     channel_id = data.get("channel_id")
-    post_text = data.get("post_text", "")[:100] + "..." if len(data.get("post_text", "")) > 100 else data.get("post_text", "")
+    post_text = (
+        data.get("post_text", "")[:100] + "..."
+        if len(data.get("post_text", "")) > 100
+        else data.get("post_text", "")
+    )
 
     text = (
         f"✅ <b>Предпросмотр заявки</b>\n\n"

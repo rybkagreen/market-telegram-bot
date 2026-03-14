@@ -115,7 +115,9 @@ class Settings(BaseSettings):
     # КУРС ПОКУПКИ КРЕДИТОВ ДЛЯ ПОДПИСОК (1 кредит = 1 рубль)
     # ═══════════════════════════════════════════════════════════════
     credits_per_rub_for_plan: float = Field(
-        1.0, alias="CREDITS_PER_RUB_FOR_PLAN", description="Кредитов за 1 рубль при покупке для тарифа"
+        1.0,
+        alias="CREDITS_PER_RUB_FOR_PLAN",
+        description="Кредитов за 1 рубль при покупке для тарифа",
     )
 
     # Payout settings (v4.2)

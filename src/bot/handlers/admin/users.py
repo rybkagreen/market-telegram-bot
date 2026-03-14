@@ -80,7 +80,9 @@ async def show_users_page(callback: CallbackQuery, page: int = 1) -> None:
 
         # Показываем три баланса
         text += f"<b>{i}.</b> {ban_emoji}{display_name} | {username_display}\n"
-        text += f"    💵 {user.balance_rub:.0f} ₽  🎯 {user.credits} кр  💸 {user.earned_rub:.0f} ₽\n"
+        text += (
+            f"    💵 {user.balance_rub:.0f} ₽  🎯 {user.credits} кр  💸 {user.earned_rub:.0f} ₽\n"
+        )
 
     await safe_callback_edit(
         callback, text, reply_markup=get_users_list_kb(users, page, total_pages)

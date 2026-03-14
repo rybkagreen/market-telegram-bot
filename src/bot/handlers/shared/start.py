@@ -217,7 +217,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
                     message.from_user.id,  # type: ignore[union-attr]
                     caption=text,
                     role="advertiser",
-                    is_admin=user.is_admin if hasattr(user, 'is_admin') else False,
+                    is_admin=user.is_admin if hasattr(user, "is_admin") else False,
                 )
                 return
 
@@ -303,7 +303,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
         # Выставляем is_admin=True если telegram_id в settings.admin_ids
         from src.config.settings import settings
 
-        if telegram_id in settings.admin_ids and not getattr(user, 'is_admin', False):
+        if telegram_id in settings.admin_ids and not getattr(user, "is_admin", False):
             user.is_admin = True  # type: ignore[attr-defined]
             logger.info(f"Admin user {telegram_id} is_admin flag set to True")
 
@@ -376,7 +376,7 @@ async def _handle_start(message: Message, state: FSMContext, ref_code: str | Non
             telegram_id,
             caption=text,
             role="new",
-            is_admin=user.is_admin if hasattr(user, 'is_admin') else False,
+            is_admin=user.is_admin if hasattr(user, "is_admin") else False,
         )
     else:
         # Возвращающийся пользователь или с рефералом → показываем роль-зависимое меню
@@ -550,28 +550,29 @@ async def terms_accept(callback: CallbackQuery, state: FSMContext) -> None:
     Создаём пользователя или обновляем terms_accepted_at.
     """
     from datetime import datetime
-    
+
     if callback.message is None or isinstance(callback.message, InaccessibleMessage):
         await callback.answer("Сообщение устарело", show_alert=True)
         return
-    
+
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
-        
+
         # Получаем данные из FSM если это новый пользователь
         fsm_data = await state.get_data()
         telegram_id = callback.from_user.id
-        
+
         # Проверяем существует ли пользователь
         existing_user = await user_repo.get_by_telegram_id(telegram_id)
-        
+
         if existing_user:
             # Существующий пользователь — обновляем terms_accepted_at
             existing_user.terms_accepted_at = datetime.now(UTC)
             user = existing_user
             is_new = False
         else:
-            # Новый пользователь — создаём с terms_accepted_at
+            # Новый пользователь — создаём с terms_accepted_at и referral_code
+            referral_code = await user_repo.generate_unique_referral_code(telegram_id)
             user = await user_repo.create(
                 {
                     "telegram_id": telegram_id,
@@ -580,19 +581,20 @@ async def terms_accept(callback: CallbackQuery, state: FSMContext) -> None:
                     "last_name": fsm_data.get("last_name"),
                     "language_code": fsm_data.get("language_code", "ru"),
                     "terms_accepted_at": datetime.now(UTC),
+                    "referral_code": referral_code,
                 }
             )
             is_new = True
-        
+
         await session.commit()
-        
+
         # Если был реферальный код — обрабатываем
         ref_code = fsm_data.get("ref_code")
         if ref_code and is_new:
             referrer = await user_repo.get_by_referral_code(ref_code)
             if referrer and referrer.id != user.id:
                 from src.core.services.billing_service import billing_service
-                
+
                 bonus_amount = 50.0
                 await billing_service.apply_referral_bonus(
                     referrer_id=referrer.id,
@@ -600,10 +602,10 @@ async def terms_accept(callback: CallbackQuery, state: FSMContext) -> None:
                     bonus_amount=Decimal(str(bonus_amount)),
                 )
                 logger.info(f"Referral bonus applied: {referrer.id} -> {user.id}")
-    
+
     # Очищаем FSM и показываем главное меню
     await state.clear()
-    
+
     # Отправляем приветственное сообщение
     await callback.message.answer(
         "✅ <b>Спасибо! Соглашение принято.</b>\n\n"

@@ -435,12 +435,15 @@ class PayoutService:
 
         # Проверка 2: owner не заблокирован
         from src.db.repositories.reputation_repo import ReputationRepo
+
         async with async_session_factory() as session:
             rep_repo = ReputationRepo(session)
             rep_score = await rep_repo.get_by_user(owner_id)
 
             if rep_score and rep_score.is_owner_blocked:
-                if rep_score.owner_blocked_until and rep_score.owner_blocked_until > datetime.now(UTC):
+                if rep_score.owner_blocked_until and rep_score.owner_blocked_until > datetime.now(
+                    UTC
+                ):
                     raise ValueError("Owner is blocked")
 
         # Создаём payout
@@ -494,7 +497,9 @@ class PayoutService:
 
         # payouts_30d = await payout_repo.sum_completed_payouts_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         payout_repo = PayoutRepository(session)
-        payouts_30d = await payout_repo.sum_completed_payouts_window(session, user_id, VELOCITY_WINDOW_DAYS)
+        payouts_30d = await payout_repo.sum_completed_payouts_window(
+            session, user_id, VELOCITY_WINDOW_DAYS
+        )
 
         if topups_30d == Decimal("0"):
             # Нет пополнений за 30 дней — нечего проверять
@@ -631,7 +636,9 @@ class PayoutService:
 
             await session.flush()
 
-            logger.info(f"Payout {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽")
+            logger.info(
+                f"Payout {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"
+            )
 
     async def reject_payout(
         self,

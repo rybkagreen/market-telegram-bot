@@ -140,9 +140,7 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_pending_for_owner(
-        self, owner_id: int
-    ) -> list[PlacementRequest]:
+    async def get_pending_for_owner(self, owner_id: int) -> list[PlacementRequest]:
         """
         Все заявки со статусом pending_owner для всех каналов владельца.
         JOIN с telegram_chats по owner_id.
@@ -460,9 +458,7 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
         result = await self.session.execute(query)
         return result.scalar_one() or 0
 
-    async def count_cancellations_in_30_days(
-        self, advertiser_id: int
-    ) -> int:
+    async def count_cancellations_in_30_days(self, advertiser_id: int) -> int:
         """
         Количество cancelled заявок advertiser_id за последние 30 дней.
         Используется ReputationService для правила '3 отмены за 30 дней'.
@@ -475,13 +471,10 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
         """
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
 
-        query = (
-            select(func.count(PlacementRequest.id))
-            .where(
-                PlacementRequest.advertiser_id == advertiser_id,
-                PlacementRequest.status == PlacementStatus.CANCELLED,
-                PlacementRequest.updated_at >= thirty_days_ago,
-            )
+        query = select(func.count(PlacementRequest.id)).where(
+            PlacementRequest.advertiser_id == advertiser_id,
+            PlacementRequest.status == PlacementStatus.CANCELLED,
+            PlacementRequest.updated_at >= thirty_days_ago,
         )
         result = await self.session.execute(query)
         return result.scalar_one() or 0
@@ -587,8 +580,11 @@ class PlacementRequestRepo(BaseRepository[PlacementRequest]):
                 status = 'published'
             WHERE id = :pid
         """)
-        await session.execute(stmt, {
-            "pid": placement_id,
-            "mid": message_id,
-            "sda": scheduled_delete_at,
-        })
+        await session.execute(
+            stmt,
+            {
+                "pid": placement_id,
+                "mid": message_id,
+                "sda": scheduled_delete_at,
+            },
+        )

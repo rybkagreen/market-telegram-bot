@@ -148,9 +148,7 @@ class ReputationRepo(BaseRepository[ReputationScore]):
         await self.session.refresh(score)
         return score
 
-    async def increment_violations(
-        self, user_id: int, role: str
-    ) -> ReputationScore | None:
+    async def increment_violations(self, user_id: int, role: str) -> ReputationScore | None:
         """
         advertiser_violations += 1 или owner_violations += 1.
 
@@ -261,27 +259,22 @@ class ReputationRepo(BaseRepository[ReputationScore]):
         """
         now = datetime.now(UTC)
 
-        query = (
-            select(self.model)
-            .where(
-                or_(
-                    and_(
-                        self.model.is_advertiser_blocked,
-                        self.model.advertiser_blocked_until < now,
-                    ),
-                    and_(
-                        self.model.is_owner_blocked,
-                        self.model.owner_blocked_until < now,
-                    ),
-                )
+        query = select(self.model).where(
+            or_(
+                and_(
+                    self.model.is_advertiser_blocked,
+                    self.model.advertiser_blocked_until < now,
+                ),
+                and_(
+                    self.model.is_owner_blocked,
+                    self.model.owner_blocked_until < now,
+                ),
             )
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def count_invalid_rejections_streak(
-        self, user_id: int
-    ) -> int:
+    async def count_invalid_rejections_streak(self, user_id: int) -> int:
         """
         Количество последовательных reject_invalid_* записей в истории.
         Используется для правила '3 невалидных отказа подряд → бан'.

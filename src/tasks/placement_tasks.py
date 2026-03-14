@@ -183,14 +183,23 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
                 # Уведомления через новый сервис
                 try:
                     from src.bot.handlers.shared.notifications import notify_sla_expired
+
                     advertiser = await session.get(User, placement.advertiser_id)
-                    owner = await session.get(User, placement.channel.owner_user_id if placement.channel else 0)
-                    channel_username = placement.channel.username if placement.channel else f"ID:{placement.channel_id}"
+                    owner = await session.get(
+                        User, placement.channel.owner_user_id if placement.channel else 0
+                    )
+                    channel_username = (
+                        placement.channel.username
+                        if placement.channel
+                        else f"ID:{placement.channel_id}"
+                    )
                     if advertiser and owner:
                         await notify_sla_expired(placement, advertiser, owner, channel_username)
                         stats["notified"] += 2
                 except Exception as e:
-                    logger.warning(f"Failed to send SLA notification for placement {placement.id}: {e}")
+                    logger.warning(
+                        f"Failed to send SLA notification for placement {placement.id}: {e}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing placement {placement.id}: {e}")
@@ -270,9 +279,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
                 # Уведомления
                 await _notify_user(
                     placement.advertiser_id,
-                    f"⏱ Время оплаты истекло.\n"
-                    f"Заявка #{placement.id} отменена.\n"
-                    f"Репутация -20.",
+                    f"⏱ Время оплаты истекло.\nЗаявка #{placement.id} отменена.\nРепутация -20.",
                 )
 
                 await _notify_user(

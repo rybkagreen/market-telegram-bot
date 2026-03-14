@@ -94,7 +94,7 @@ class ReputationService:
             owner_id: ID владельца.
             placement_request_id: ID заявки.
         """
-        #Advertiser +1
+        # Advertiser +1
         await self._apply_delta(
             user_id=advertiser_id,
             role="advertiser",
@@ -185,7 +185,9 @@ class ReputationService:
             after_confirmation: После подтверждения владельцем.
         """
         delta = self.DELTA_CANCEL_AFTER if after_confirmation else self.DELTA_CANCEL_BEFORE
-        action = ReputationAction.CANCEL_AFTER if after_confirmation else ReputationAction.CANCEL_BEFORE
+        action = (
+            ReputationAction.CANCEL_AFTER if after_confirmation else ReputationAction.CANCEL_BEFORE
+        )
 
         await self._apply_delta(
             user_id=advertiser_id,
@@ -197,6 +199,7 @@ class ReputationService:
 
         # Проверка на систематические отмены
         from src.db.repositories.placement_request_repo import PlacementRequestRepo
+
         placement_repo = PlacementRequestRepo(self.session)
         cancellations = await placement_repo.count_cancellations_in_30_days(advertiser_id)
 
@@ -255,9 +258,7 @@ class ReputationService:
                 reason="3 invalid rejections in a row",
             )
 
-    async def on_frequent_rejections(
-        self, owner_id: int
-    ) -> None:
+    async def on_frequent_rejections(self, owner_id: int) -> None:
         """
         Штраф -5 за частые отказы (>50% заявок).
 
@@ -272,9 +273,7 @@ class ReputationService:
             comment="Frequent rejections (>50%)",
         )
 
-    async def on_30days_clean(
-        self, user_id: int, role: str
-    ) -> None:
+    async def on_30days_clean(self, user_id: int, role: str) -> None:
         """
         +5 за 30 дней без нарушений.
         Вызывается Celery-задачей раз в день.
@@ -347,9 +346,7 @@ class ReputationService:
 
         return unblocked
 
-    async def is_blocked(
-        self, user_id: int, role: str
-    ) -> bool:
+    async def is_blocked(self, user_id: int, role: str) -> bool:
         """
         Проверить заблокирован ли пользователь в роли role.
 
@@ -366,7 +363,10 @@ class ReputationService:
 
         if role == "advertiser":
             if score.is_advertiser_blocked:
-                if not score.advertiser_blocked_until or score.advertiser_blocked_until > datetime.now(UTC):
+                if (
+                    not score.advertiser_blocked_until
+                    or score.advertiser_blocked_until > datetime.now(UTC)
+                ):
                     return True
         elif role == "owner":
             if score.is_owner_blocked:
@@ -375,9 +375,7 @@ class ReputationService:
 
         return False
 
-    async def get_score(
-        self, user_id: int, role: str
-    ) -> float:
+    async def get_score(self, user_id: int, role: str) -> float:
         """
         Получить текущий score. 5.0 если записи нет.
 
@@ -464,7 +462,9 @@ class ReputationService:
             # Проверка на перманентную блокировку
             score = await self.reputation_repo.get_by_user(user_id)
             if score:
-                violations = score.advertiser_violations if role == "advertiser" else score.owner_violations
+                violations = (
+                    score.advertiser_violations if role == "advertiser" else score.owner_violations
+                )
                 if violations >= self.PERMANENT_BAN_VIOLATIONS:
                     # Перманентная блокировка
                     await self.reputation_repo.set_block(

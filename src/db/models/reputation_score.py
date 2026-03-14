@@ -131,7 +131,9 @@ class ReputationScore(Base, TimestampMixin):
         """Проверяет, активен ли пользователь как рекламодатель."""
         if self.is_advertiser_blocked:
             return False
-        return not (self.advertiser_blocked_until and self.advertiser_blocked_until > datetime.now())
+        return not (
+            self.advertiser_blocked_until and self.advertiser_blocked_until > datetime.now()
+        )
 
     @property
     def is_owner_active(self) -> bool:

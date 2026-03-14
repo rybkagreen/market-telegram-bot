@@ -160,7 +160,9 @@ class YooKassaService:
                 record.status = "succeeded"
                 record.paid_at = datetime.now(UTC)
                 await session.commit()
-                await self._credit_user(record.user_id, record.credits, record.amount_rub, payment_id)
+                await self._credit_user(
+                    record.user_id, record.credits, record.amount_rub, payment_id
+                )
 
             elif event_type == "payment.canceled":
                 record.status = "canceled"
@@ -184,14 +186,11 @@ class YooKassaService:
             payment_id: UUID платежа.
         """
         try:
-
             from sqlalchemy import select
 
             # Начислить кредиты напрямую через БД
             async with async_session_factory() as session:
-                result = await session.execute(
-                    select(User).where(User.id == user_id)
-                )
+                result = await session.execute(select(User).where(User.id == user_id))
                 user = result.scalar_one_or_none()
 
                 if not user:

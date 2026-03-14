@@ -137,20 +137,22 @@ async def notify_new_request(
     post_preview = _truncate_text(placement.final_text)
     scheduled = _format_datetime(placement.proposed_schedule)
 
-    text_owner = "\n".join([
-        "📋 <b>Новая заявка на размещение!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Предложенная цена: <b>{placement.proposed_price} ₽</b>",
-        f"  → Вы получите: <b>{owner_payout} ₽</b> (80%)",
-        f"📅 Дата публикации: {scheduled}",
-        "⏱ Ответьте в течение <b>24 часов</b>",
-        "",
-        "📝 Текст поста:",
-        f"<blockquote>{post_preview}</blockquote>",
-        "",
-        "Откройте приложение для ответа 👇",
-    ])
+    text_owner = "\n".join(
+        [
+            "📋 <b>Новая заявка на размещение!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Предложенная цена: <b>{placement.proposed_price} ₽</b>",
+            f"  → Вы получите: <b>{owner_payout} ₽</b> (80%)",
+            f"📅 Дата публикации: {scheduled}",
+            "⏱ Ответьте в течение <b>24 часов</b>",
+            "",
+            "📝 Текст поста:",
+            f"<blockquote>{post_preview}</blockquote>",
+            "",
+            "Откройте приложение для ответа 👇",
+        ]
+    )
 
     sent_owner = await _send_notification(
         owner.telegram_id,
@@ -184,18 +186,20 @@ async def notify_counter_offer(
     comment = counter_comment or "—"
     max_rounds = 3
 
-    text = "\n".join([
-        "💱 <b>Владелец предложил другую цену</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Ваша цена: <s>{placement.proposed_price} ₽</s>",
-        f"💰 Встречная цена: <b>{counter_price} ₽</b>",
-        f"💬 Комментарий: {comment}",
-        "⏱ Ответьте в течение <b>24 часов</b>",
-        f"🔄 Раунд переговоров: {placement.counter_offer_count}/{max_rounds}",
-        "",
-        "Принять или предложить свои условия 👇",
-    ])
+    text = "\n".join(
+        [
+            "💱 <b>Владелец предложил другую цену</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Ваша цена: <s>{placement.proposed_price} ₽</s>",
+            f"💰 Встречная цена: <b>{counter_price} ₽</b>",
+            f"💬 Комментарий: {comment}",
+            "⏱ Ответьте в течение <b>24 часов</b>",
+            f"🔄 Раунд переговоров: {placement.counter_offer_count}/{max_rounds}",
+            "",
+            "Принять или предложить свои условия 👇",
+        ]
+    )
 
     return await _send_notification(
         advertiser.telegram_id,
@@ -226,14 +230,16 @@ async def notify_counter_accepted(
     final_price = placement.final_price or placement.proposed_price
     owner_payout = _format_owner_payout(final_price)
 
-    text_owner = "\n".join([
-        "✅ <b>Рекламодатель принял ваше предложение!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Согласованная цена: <b>{final_price} ₽</b>",
-        f"  → Вы получите: <b>{owner_payout} ₽</b>",
-        "⏳ Ожидаем оплату от рекламодателя (до 24 ч)",
-    ])
+    text_owner = "\n".join(
+        [
+            "✅ <b>Рекламодатель принял ваше предложение!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Согласованная цена: <b>{final_price} ₽</b>",
+            f"  → Вы получите: <b>{owner_payout} ₽</b>",
+            "⏳ Ожидаем оплату от рекламодателя (до 24 ч)",
+        ]
+    )
 
     sent_owner = await _send_notification(
         owner.telegram_id,
@@ -264,16 +270,18 @@ async def notify_owner_accepted(
     final_price = placement.final_price or placement.proposed_price
     scheduled = _format_datetime(placement.final_schedule)
 
-    text = "\n".join([
-        "✅ <b>Владелец принял вашу заявку!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Сумма к оплате: <b>{final_price} ₽</b>",
-        f"📅 Дата публикации: {scheduled}",
-        "⏱ Оплатите в течение <b>24 часов</b>",
-        "",
-        "Перейдите в приложение для оплаты 👇",
-    ])
+    text = "\n".join(
+        [
+            "✅ <b>Владелец принял вашу заявку!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Сумма к оплате: <b>{final_price} ₽</b>",
+            f"📅 Дата публикации: {scheduled}",
+            "⏱ Оплатите в течение <b>24 часов</b>",
+            "",
+            "Перейдите в приложение для оплаты 👇",
+        ]
+    )
 
     return await _send_notification(
         advertiser.telegram_id,
@@ -305,25 +313,29 @@ async def notify_payment_received(
     owner_payout = _format_owner_payout(final_price)
     scheduled = _format_datetime(placement.final_schedule)
 
-    text_owner = "\n".join([
-        "🔒 <b>Средства заморожены — публикация запланирована</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Ваш доход: <b>{owner_payout} ₽</b> (будет начислен после публикации)",
-        f"📅 Публикация: <b>{scheduled}</b>",
-        "",
-        "Подготовьте канал к размещению рекламы ✅",
-    ])
+    text_owner = "\n".join(
+        [
+            "🔒 <b>Средства заморожены — публикация запланирована</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Ваш доход: <b>{owner_payout} ₽</b> (будет начислен после публикации)",
+            f"📅 Публикация: <b>{scheduled}</b>",
+            "",
+            "Подготовьте канал к размещению рекламы ✅",
+        ]
+    )
 
-    text_advertiser = "\n".join([
-        "🔒 <b>Средства заморожены — всё готово!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Зарезервировано: <b>{final_price} ₽</b>",
-        f"📅 Публикация: <b>{scheduled}</b>",
-        "",
-        "Мы уведомим вас когда пост выйдет 🔔",
-    ])
+    text_advertiser = "\n".join(
+        [
+            "🔒 <b>Средства заморожены — всё готово!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Зарезервировано: <b>{final_price} ₽</b>",
+            f"📅 Публикация: <b>{scheduled}</b>",
+            "",
+            "Мы уведомим вас когда пост выйдет 🔔",
+        ]
+    )
 
     sent_owner = await _send_notification(
         owner.telegram_id,
@@ -364,25 +376,29 @@ async def notify_published(
     owner_payout = _format_owner_payout(final_price)
     published = _format_datetime(placement.published_at)
 
-    text_advertiser = "\n".join([
-        "🎉 <b>Ваш пост опубликован!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"📅 Опубликован: {published}",
-        f"💰 Списано: {final_price} ₽",
-        "",
-        "Успешной рекламной кампании! 🚀",
-    ])
+    text_advertiser = "\n".join(
+        [
+            "🎉 <b>Ваш пост опубликован!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"📅 Опубликован: {published}",
+            f"💰 Списано: {final_price} ₽",
+            "",
+            "Успешной рекламной кампании! 🚀",
+        ]
+    )
 
-    text_owner = "\n".join([
-        "✅ <b>Пост опубликован — доход начислен!</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Начислено: <b>+{owner_payout} ₽</b>",
-        f"📅 Дата: {published}",
-        "",
-        "Спасибо за качественное сотрудничество 🤝",
-    ])
+    text_owner = "\n".join(
+        [
+            "✅ <b>Пост опубликован — доход начислен!</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Начислено: <b>+{owner_payout} ₽</b>",
+            f"📅 Дата: {published}",
+            "",
+            "Спасибо за качественное сотрудничество 🤝",
+        ]
+    )
 
     sent_advertiser = await _send_notification(
         advertiser.telegram_id,
@@ -422,15 +438,17 @@ async def notify_rejected(
     reason_ru = REJECTION_REASON_MAP.get(rejection_reason or "", rejection_reason or "Не указана")
     refund_amount = placement.proposed_price
 
-    text = "\n".join([
-        "❌ <b>Владелец отклонил заявку</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"📝 Причина: {reason_ru}",
-        f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
-        "",
-        "Попробуйте другой канал 👇",
-    ])
+    text = "\n".join(
+        [
+            "❌ <b>Владелец отклонил заявку</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"📝 Причина: {reason_ru}",
+            f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
+            "",
+            "Попробуйте другой канал 👇",
+        ]
+    )
 
     return await _send_notification(
         advertiser.telegram_id,
@@ -460,24 +478,28 @@ async def notify_sla_expired(
     """
     refund_amount = placement.proposed_price
 
-    text_owner = "\n".join([
-        f"⚠️ <b>Заявка #{placement.id} просрочена</b>",
-        "",
-        "Вы не ответили на заявку в течение 24 часов.",
-        f"📺 Канал: @{channel_username}",
-        "",
-        "Заявка автоматически отклонена.",
-        "Частые просрочки снижают репутацию канала.",
-    ])
+    text_owner = "\n".join(
+        [
+            f"⚠️ <b>Заявка #{placement.id} просрочена</b>",
+            "",
+            "Вы не ответили на заявку в течение 24 часов.",
+            f"📺 Канал: @{channel_username}",
+            "",
+            "Заявка автоматически отклонена.",
+            "Частые просрочки снижают репутацию канала.",
+        ]
+    )
 
-    text_advertiser = "\n".join([
-        "⏱ <b>Владелец не ответил вовремя</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
-        "",
-        "Попробуйте разместить рекламу в другом канале 👇",
-    ])
+    text_advertiser = "\n".join(
+        [
+            "⏱ <b>Владелец не ответил вовремя</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Возврат: <b>{refund_amount} ₽</b> зачислен на баланс",
+            "",
+            "Попробуйте разместить рекламу в другом канале 👇",
+        ]
+    )
 
     sent_owner = await _send_notification(
         owner.telegram_id,
@@ -519,22 +541,26 @@ async def notify_cancelled(
     refund_amount = placement.proposed_price
     scheduled = _format_datetime(placement.proposed_schedule)
 
-    text_advertiser = "\n".join([
-        "🚫 <b>Заявка отменена</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} ₽</b>",
-        f"📉 Изменение репутации: <b>{reputation_delta}</b>",
-    ])
+    text_advertiser = "\n".join(
+        [
+            "🚫 <b>Заявка отменена</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Возврат: <b>{refund_amount} ₽</b>",
+            f"📉 Изменение репутации: <b>{reputation_delta}</b>",
+        ]
+    )
 
-    text_owner = "\n".join([
-        "ℹ️ <b>Рекламодатель отменил заявку</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"📅 Планировалось: {scheduled}",
-        "",
-        "Слот свободен для новых размещений.",
-    ])
+    text_owner = "\n".join(
+        [
+            "ℹ️ <b>Рекламодатель отменил заявку</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"📅 Планировалось: {scheduled}",
+            "",
+            "Слот свободен для новых размещений.",
+        ]
+    )
 
     sent_advertiser = await _send_notification(
         advertiser.telegram_id,
@@ -573,25 +599,29 @@ async def notify_publication_failed(
     """
     refund_amount = (placement.final_price or placement.proposed_price) * Decimal("0.50")
 
-    text_advertiser = "\n".join([
-        "❌ <b>Ошибка публикации</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        f"💰 Возврат: <b>{refund_amount} ₽</b> (50% от суммы)",
-        "",
-        "Возможно бот был удалён из канала.",
-        "Обратитесь в поддержку если вопросы остались.",
-    ])
+    text_advertiser = "\n".join(
+        [
+            "❌ <b>Ошибка публикации</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            f"💰 Возврат: <b>{refund_amount} ₽</b> (50% от суммы)",
+            "",
+            "Возможно бот был удалён из канала.",
+            "Обратитесь в поддержку если вопросы остались.",
+        ]
+    )
 
-    text_owner = "\n".join([
-        "❌ <b>Не удалось опубликовать пост</b>",
-        "",
-        f"📺 Канал: @{channel_username}",
-        "Проверьте что бот является администратором канала",
-        "и имеет право публиковать сообщения.",
-        "",
-        "⚠️ Рекламодателю возвращено 50% средств.",
-    ])
+    text_owner = "\n".join(
+        [
+            "❌ <b>Не удалось опубликовать пост</b>",
+            "",
+            f"📺 Канал: @{channel_username}",
+            "Проверьте что бот является администратором канала",
+            "и имеет право публиковать сообщения.",
+            "",
+            "⚠️ Рекламодателю возвращено 50% средств.",
+        ]
+    )
 
     sent_advertiser = await _send_notification(
         advertiser.telegram_id,

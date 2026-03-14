@@ -141,10 +141,7 @@ async def show_balance(callback: CallbackQuery) -> None:
 @router.callback_query(BillingCB.filter(F.action == "topup_yookassa"))
 async def show_yookassa_packages(callback: CallbackQuery) -> None:
     """Показать пакеты пополнения через ЮKassa."""
-    packages_list = "\n".join([
-        f"• <b>{p['label']}</b>"
-        for p in YOOKASSA_PACKAGES
-    ])
+    packages_list = "\n".join([f"• <b>{p['label']}</b>" for p in YOOKASSA_PACKAGES])
 
     text = (
         f"💳 <b>Пополнение картой / СБП</b>\n\n"
@@ -250,15 +247,19 @@ async def yookassa_check_payment(callback: CallbackQuery) -> None:
 
         if status == "succeeded":
             # Обработать webhook вручную
-            await yookassa_service.handle_webhook({
-                "event": "payment.succeeded",
-                "object": {"id": payment_id},
-            })
+            await yookassa_service.handle_webhook(
+                {
+                    "event": "payment.succeeded",
+                    "object": {"id": payment_id},
+                }
+            )
             await callback.answer("✅ Оплата подтверждена! Кредиты зачислены.", show_alert=True)
         elif status == "canceled":
             await callback.answer("❌ Платёж отменён", show_alert=True)
         else:
-            await callback.answer("⏳ Платёж ещё не оплачен. Попробуйте через минуту.", show_alert=False)
+            await callback.answer(
+                "⏳ Платёж ещё не оплачен. Попробуйте через минуту.", show_alert=False
+            )
 
     except Exception as e:
         logger.error("Ошибка проверки статуса ЮKassa: %s", e)
@@ -718,7 +719,9 @@ async def plan_selected(callback: CallbackQuery, callback_data: BillingCB) -> No
 
 
 @router.callback_query(BuyAndActivateCB.filter())
-async def buy_credits_and_activate_plan(callback: CallbackQuery, callback_data: BuyAndActivateCB) -> None:
+async def buy_credits_and_activate_plan(
+    callback: CallbackQuery, callback_data: BuyAndActivateCB
+) -> None:
     """Купить кредиты за рубли и активировать тариф."""
     from src.core.services.billing_service import InsufficientFundsError, billing_service
 
@@ -826,16 +829,20 @@ async def show_history(callback: CallbackQuery) -> None:
         # Объединить и отсортировать по дате
         all_payments: list[dict[str, Any]] = []
         for p in crypto_payments:
-            all_payments.append({
-                "date": p.credited_at or p.created_at,
-                "text": f"✅ +{p.total_credits:,} кр — 💎 {p.currency} — {(p.credited_at or p.created_at).strftime('%d.%m.%Y %H:%M')}",
-            })
+            all_payments.append(
+                {
+                    "date": p.credited_at or p.created_at,
+                    "text": f"✅ +{p.total_credits:,} кр — 💎 {p.currency} — {(p.credited_at or p.created_at).strftime('%d.%m.%Y %H:%M')}",
+                }
+            )
         for p in yk_payments:  # type: ignore[assignment]
             paid_at = p.paid_at or p.created_at
-            all_payments.append({
-                "date": paid_at,
-                "text": f"✅ +{p.credits:,} кр — 💳 {p.amount_rub} ₽ (ЮKassa) — {paid_at.strftime('%d.%m.%Y %H:%M')}",
-            })
+            all_payments.append(
+                {
+                    "date": paid_at,
+                    "text": f"✅ +{p.credits:,} кр — 💳 {p.amount_rub} ₽ (ЮKassa) — {paid_at.strftime('%d.%m.%Y %H:%M')}",
+                }
+            )
 
         # Сортировать по дате (новые сверху)
         all_payments.sort(key=lambda x: x["date"] or datetime.min.replace(tzinfo=UTC), reverse=True)  # type: ignore[arg-type, return-value]
@@ -1108,7 +1115,9 @@ async def confirm_topup(callback: CallbackQuery, state: FSMContext) -> None:
 
         except Exception as e:
             logger.error(f"Failed to create YooKassa payment: {e}")
-            await callback.answer("❌ Ошибка создания платежа. Попробуйте ещё раз.", show_alert=True)
+            await callback.answer(
+                "❌ Ошибка создания платежа. Попробуйте ещё раз.", show_alert=True
+            )
             await state.clear()
 
 

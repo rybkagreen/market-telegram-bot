@@ -28,8 +28,7 @@ def get_parser() -> TelegramParser:
     """
     if _parser is None:
         raise RuntimeError(
-            "TelegramParser not initialized. "
-            "Call init_parser() before using get_parser()."
+            "TelegramParser not initialized. Call init_parser() before using get_parser()."
         )
     return _parser
 

@@ -1011,10 +1011,13 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
 # Используем правильный паттерн регистрации алиасов с пробросом query_category
 def _make_category_task(category: str):
     """Создать task wrapper для категории."""
+
     @celery_app.task(bind=True, base=BaseTask, name=f"parser:refresh_chat_database_{category}")
     def category_task(self):
         return refresh_chat_database(self, query_category=category)
+
     return category_task
+
 
 refresh_chat_database_business = _make_category_task("business")
 refresh_chat_database_marketing = _make_category_task("marketing")

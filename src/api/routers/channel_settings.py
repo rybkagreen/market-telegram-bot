@@ -122,7 +122,9 @@ async def get_channel_settings(
         owner_payout=owner_payout,
         start_time=settings.publish_start_time.isoformat(),
         end_time=settings.publish_end_time.isoformat(),
-        break_start_time=settings.break_start_time.isoformat() if settings.break_start_time else None,
+        break_start_time=settings.break_start_time.isoformat()
+        if settings.break_start_time
+        else None,
         break_end_time=settings.break_end_time.isoformat() if settings.break_end_time else None,
         max_posts_per_day=settings.daily_package_max,
         min_hours_between_posts=4,  # Константа
@@ -161,9 +163,7 @@ async def update_channel_settings(
         start = time.fromisoformat(request.start_time)
         end = time.fromisoformat(request.end_time)
         if end <= start:
-            raise HTTPException(
-                status_code=422, detail="end_time must be greater than start_time"
-            )
+            raise HTTPException(status_code=422, detail="end_time must be greater than start_time")
 
     # Валидация break times
     if request.break_start_time and request.break_end_time:
@@ -175,7 +175,11 @@ async def update_channel_settings(
             )
 
     # Валидация sub_max_days > sub_min_days
-    if request.sub_min_days and request.sub_max_days and request.sub_max_days <= request.sub_min_days:
+    if (
+        request.sub_min_days
+        and request.sub_max_days
+        and request.sub_max_days <= request.sub_min_days
+    ):
         raise HTTPException(
             status_code=422, detail="sub_max_days must be greater than sub_min_days"
         )
@@ -231,7 +235,9 @@ async def update_channel_settings(
         owner_payout=owner_payout,
         start_time=settings.publish_start_time.isoformat(),
         end_time=settings.publish_end_time.isoformat(),
-        break_start_time=settings.break_start_time.isoformat() if settings.break_start_time else None,
+        break_start_time=settings.break_start_time.isoformat()
+        if settings.break_start_time
+        else None,
         break_end_time=settings.break_end_time.isoformat() if settings.break_end_time else None,
         max_posts_per_day=settings.daily_package_max,
         min_hours_between_posts=4,

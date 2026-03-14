@@ -1,0 +1,1048 @@
+{
+  "_meta": {
+    "project": "RekHarborBot",
+    "version": "4.3",
+    "date": "2026-03-14",
+    "purpose": "Единый эталонный документ: все экраны, callback_data, FSM, бизнес-правила. Объединяет bot_menu_spec_v4.2.json + ARCH_SPEC_v4.3. Источник правды для Qwen Code.",
+    "changes_from_v4_2": [
+      "Удалён раздел B2B (экран b2b, callback main:b2b, кнопки в adv_menu и camp_step1)",
+      "Исправлена схема эскроу: release_escrow() вызывается ПОСЛЕ авто-удаления поста, НЕ при публикации",
+      "Добавлен Dispute флоу (6 новых экранов + модель PlacementDispute)",
+      "Добавлены уведомления о мониторинге поста (post_published_owner, post_completed_*)",
+      "Кабинет расширен: реферальная программа, геймификация, вывод средств",
+      "Broadcast оставлен ТОЛЬКО для admin (удалён из advertiser флоу)",
+      "Добавлен экран admin_disputes"
+    ]
+  },
+
+  "screens": {
+
+    "start": {
+      "screen_id": "start",
+      "trigger": "/start",
+      "handler": "src/bot/handlers/shared/start.py::cmd_start",
+      "fsm_state": null,
+      "message": "👋 Привет, *{first_name}*!\n\nДобро пожаловать в **RekHarborBot** — рекламную биржу Telegram-каналов.\n\n🔹 Рекламодатели размещают рекламу в каналах\n🔹 Владельцы каналов зарабатывают на публикациях\n🔹 Платформа берёт 15% комиссии",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "👤 Кабинет", "callback_data": "main:cabinet"}],
+        [{"text": "🔄 Выбрать роль", "callback_data": "main:change_role"}],
+        [{"text": "💬 Помощь", "callback_data": "main:help"}, {"text": "✉️ Обратная связь", "callback_data": "main:feedback"}]
+      ],
+      "notes": "Если роль уже выбрана — показать соответствующее меню роли. Если новый пользователь — показать ToS сначала."
+    },
+
+    "tos": {
+      "screen_id": "tos",
+      "trigger": "Новый пользователь без terms_accepted_at",
+      "handler": "src/bot/handlers/shared/start.py::show_tos",
+      "fsm_state": null,
+      "message": "📋 *Условия использования*\n\nДля продолжения необходимо принять условия использования платформы.\n\n🔹 Платформа не является налоговым агентом для владельцев каналов\n🔹 Вы самостоятельно несёте ответственность за уплату налогов\n🔹 Минимальный возраст: 18 лет\n\n[Ознакомиться с полными условиями](https://rekharbor.ru/terms)",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Принять условия", "callback_data": "terms:accept"}],
+        [{"text": "❌ Отклонить", "callback_data": "terms:decline"}]
+      ]
+    },
+
+    "main_menu": {
+      "screen_id": "main_menu",
+      "trigger": "callback_data: main:main_menu | /menu",
+      "handler": "src/bot/handlers/shared/start.py::go_to_main_menu",
+      "fsm_state": null,
+      "message": "📱 *Главное меню*\n\nВыберите раздел:",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "👤 Кабинет", "callback_data": "main:cabinet"}],
+        [{"text": "🔄 Выбрать роль", "callback_data": "main:change_role"}],
+        [{"text": "💬 Помощь", "callback_data": "main:help"}, {"text": "✉️ Обратная связь", "callback_data": "main:feedback"}]
+      ]
+    },
+
+    "role_select": {
+      "screen_id": "role_select",
+      "trigger": "callback_data: main:change_role",
+      "handler": "src/bot/handlers/shared/start.py::show_role_select",
+      "message": "🔄 *Выберите роль*\n\n📣 *Рекламодатель* — размещаю рекламу в чужих каналах\n📺 *Владелец канала* — принимаю рекламу в своём канале\n\n💡 Можно совмещать обе роли",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📣 Рекламодатель", "callback_data": "role:advertiser"}],
+        [{"text": "📺 Владелец канала", "callback_data": "role:owner"}],
+        [{"text": "🔙 Главное меню", "callback_data": "main:main_menu"}]
+      ]
+    },
+
+    "cabinet": {
+      "screen_id": "cabinet",
+      "trigger": "callback_data: main:cabinet",
+      "handler": "src/bot/handlers/shared/cabinet.py::show_cabinet",
+      "message": "👤 *Кабинет*\n\n💳 Баланс (рекламодатель): *{balance_rub} ₽*\n💰 Заработок (владелец): *{earned_rub} ₽*\n\n📊 Репутация рекл.: *{adv_rep}/10* | Репутация вл.: *{own_rep}/10*\n\n⭐ Тариф: *{plan_name}*\n🏆 Ур. рекл.: *{adv_level}* ({adv_xp} XP) | Ур. вл.: *{own_level}* ({own_xp} XP)\n\n🆔 ID: `{user_id}`{tax_notice_block}",
+      "parse_mode": "Markdown",
+      "extra_blocks": {
+        "tax_notice_block": {
+          "condition": "earned_rub > 0 AND role in (owner, both)",
+          "text": "\n\n💡 Заработок за {current_month}: *{monthly_earned} ₽*\nНе забудьте задекларировать доход в приложении «Мой налог»."
+        }
+      },
+      "buttons": [
+        [{"text": "💳 Пополнить баланс", "callback_data": "billing:topup_start", "conditions": "role in (advertiser, both)"}],
+        [{"text": "💸 Запросить вывод", "callback_data": "payout:request_start", "conditions": "role in (owner, both) AND earned_rub >= 1000"}],
+        [{"text": "⭐ Изменить тариф", "callback_data": "billing:plans"}],
+        [{"text": "🎁 Реферальная программа", "callback_data": "cabinet:referral"}],
+        [{"text": "🏆 Геймификация", "callback_data": "cabinet:gamification"}],
+        [{"text": "🔙 Главное меню", "callback_data": "main:main_menu"}]
+      ]
+    },
+
+    "cabinet_referral": {
+      "screen_id": "cabinet_referral",
+      "trigger": "callback_data: cabinet:referral",
+      "handler": "src/bot/handlers/shared/cabinet.py::show_referral",
+      "message": "🎁 *Реферальная программа*\n\nПриглашайте друзей и получайте бонусы!\n\n🔗 Ваша ссылка:\n`t.me/RekHarborBot?start=REF_{referral_code}`\n\n👥 Приглашено: *{ref_count}* чел.\n💰 Начислено бонусов: *{ref_bonus_total} ₽*\n\n📋 Условия:\n• За каждого приглашённого рекламодателя — +50 ₽ на баланс\n• Бонус начисляется после первого пополнения реферала",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📋 Скопировать ссылку", "callback_data": "cabinet:referral:copy"}],
+        [{"text": "🔙 Кабинет", "callback_data": "main:cabinet"}]
+      ]
+    },
+
+    "cabinet_gamification": {
+      "screen_id": "cabinet_gamification",
+      "trigger": "callback_data: cabinet:gamification",
+      "handler": "src/bot/handlers/shared/cabinet.py::show_gamification",
+      "message": "🏆 *Геймификация*\n\n─── Рекламодатель ───\n⭐ Уровень: *{adv_level}*\n📊 XP: *{adv_xp}* / *{adv_xp_next}* (до след. уровня)\n\n─── Владелец ───\n⭐ Уровень: *{own_level}*\n📊 XP: *{own_xp}* / *{own_xp_next}*\n\n─── Бейджи ───\n{badges_list}\n\n─── Как получить XP ───\n• Завершённое размещение: +50 XP (оба)\n• Отзыв 5★ от рекламодателя: +20 XP (владелец)\n• Успешный вывод: +10 XP (владелец)\n• Новая кампания: +10 XP (рекламодатель)",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "🔙 Кабинет", "callback_data": "main:cabinet"}]
+      ]
+    },
+
+    "topup_start": {
+      "screen_id": "topup_start",
+      "trigger": "callback_data: billing:topup_start",
+      "handler": "src/bot/handlers/billing/billing.py::topup_start",
+      "fsm_state": "TopupStates.entering_amount",
+      "message": "💳 *Пополнение баланса*\n\nТекущий баланс: *{balance_rub} ₽*\n\nВыберите сумму или введите свою.\n💡 Комиссия ЮKassa (3,5%) добавляется сверху.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "500 ₽", "callback_data": "topup:amount:500"}, {"text": "1 000 ₽", "callback_data": "topup:amount:1000"}, {"text": "2 000 ₽", "callback_data": "topup:amount:2000"}],
+        [{"text": "5 000 ₽", "callback_data": "topup:amount:5000"}, {"text": "10 000 ₽", "callback_data": "topup:amount:10000"}, {"text": "20 000 ₽", "callback_data": "topup:amount:20000"}],
+        [{"text": "✏️ Ввести свою сумму", "callback_data": "topup:amount:custom"}],
+        [{"text": "🔙 Отмена", "callback_data": "main:cabinet"}]
+      ]
+    },
+
+    "topup_enter_custom": {
+      "screen_id": "topup_enter_custom",
+      "trigger": "callback_data: topup:amount:custom",
+      "handler": "src/bot/handlers/billing/billing.py::topup_enter_custom",
+      "fsm_state": "TopupStates.entering_amount",
+      "message": "💳 Введите сумму пополнения (в рублях):\n\n📌 Минимум: 500 ₽\n📌 Максимум: 300 000 ₽\n\nПример: 10000",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "❌ Отмена", "callback_data": "billing:topup_start"}]],
+      "input_validation": {
+        "type": "integer", "min": 500, "max": 300000,
+        "error_min": "❌ Минимальная сумма пополнения — 500 ₽",
+        "error_max": "❌ Максимальная сумма пополнения — 300 000 ₽",
+        "error_type": "❌ Введите целое число (например: 5000)"
+      }
+    },
+
+    "topup_confirm": {
+      "screen_id": "topup_confirm",
+      "trigger": "callback_data: topup:amount:{N} | после ввода суммы",
+      "handler": "src/bot/handlers/billing/billing.py::topup_confirm",
+      "fsm_state": "TopupStates.confirming",
+      "message": "💳 *Подтверждение пополнения*\n\n✅ Будет зачислено на баланс: *{desired_balance} ₽*\n➕ Комиссия ЮKassa (3,5%): *+{fee_amount} ₽*\n──────────────────\n💳 Итого к оплате: *{gross_amount} ₽*\n\nОплата через ЮKassa (банковская карта или СБП).",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Перейти к оплате", "callback_data": "topup:pay"}],
+        [{"text": "🔙 Изменить сумму", "callback_data": "billing:topup_start"}]
+      ],
+      "notes": "desired_balance = введённая сумма, fee = desired * 0.035 rounded(0.01), gross = desired + fee"
+    },
+
+    "topup_processing": {
+      "screen_id": "topup_processing",
+      "trigger": "callback_data: topup:pay",
+      "handler": "src/bot/handlers/billing/billing.py::topup_pay",
+      "fsm_state": "TopupStates.waiting_payment",
+      "message": "⏳ *Создаём платёж...*\n\nСумма к оплате: *{gross_amount} ₽*",
+      "parse_mode": "Markdown",
+      "followup": {
+        "on_payment_url": {
+          "message": "💳 *Оплата*\n\nПерейдите по ссылке для оплаты:\n👉 {payment_url}\n\n⏱ Ссылка действует 15 минут.",
+          "buttons": [
+            [{"text": "💳 Оплатить", "url": "{payment_url}"}],
+            [{"text": "✅ Я оплатил — проверить", "callback_data": "topup:check:{payment_id}"}],
+            [{"text": "❌ Отмена", "callback_data": "topup:cancel:{payment_id}"}]
+          ]
+        },
+        "on_webhook_success": {
+          "message": "✅ *Баланс пополнен!*\n\nЗачислено: *{desired_balance} ₽*\nНовый баланс: *{new_balance} ₽*",
+          "buttons": [
+            [{"text": "📣 Создать кампанию", "callback_data": "main:create_campaign"}],
+            [{"text": "👤 В кабинет", "callback_data": "main:cabinet"}]
+          ]
+        }
+      }
+    },
+
+    "plans": {
+      "screen_id": "plans",
+      "trigger": "callback_data: billing:plans",
+      "handler": "src/bot/handlers/billing/billing.py::show_plans",
+      "message": "⭐ *Тарифные планы*\n\nВаш текущий тариф: *{current_plan}*\n\n──────────────────\n🆓 *Free* — 0 ₽/мес\n• 1 активная кампания\n• Формат: Пост 24ч\n\n🚀 *Starter* — 490 ₽/мес\n• 5 кампаний\n• Форматы: Пост 24ч, 48ч\n• AI-генерация × 3/мес\n\n💎 *Pro* — 1 490 ₽/мес\n• 20 кампаний\n• Форматы: Пост 24ч, 48ч, 7 дней\n• AI × 20/мес\n\n🏢 *Agency* — 4 990 ₽/мес\n• Безлимит кампаний и AI\n• Все 5 форматов (включая закрепы!)",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "🚀 Starter — 490 ₽/мес", "callback_data": "plan:buy:starter", "conditions": "current_plan != starter"}],
+        [{"text": "💎 Pro — 1 490 ₽/мес", "callback_data": "plan:buy:pro", "conditions": "current_plan != pro"}],
+        [{"text": "🏢 Agency — 4 990 ₽/мес", "callback_data": "plan:buy:agency", "conditions": "current_plan != agency"}],
+        [{"text": "🔙 В кабинет", "callback_data": "main:cabinet"}]
+      ]
+    },
+
+    "help": {
+      "screen_id": "help",
+      "trigger": "callback_data: main:help | /help",
+      "handler": "src/bot/handlers/shared/help.py::show_help",
+      "message": "💬 *Помощь*\n\nЧем могу помочь?",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📣 Для рекламодателей", "callback_data": "help:advertiser"}],
+        [{"text": "📺 Для владельцев каналов", "callback_data": "help:owner"}],
+        [{"text": "💳 Пополнение и оплата", "callback_data": "help:billing"}],
+        [{"text": "⭐ О тарифах", "callback_data": "help:plans"}],
+        [{"text": "🔙 Главное меню", "callback_data": "main:main_menu"}]
+      ]
+    },
+
+    "feedback": {
+      "screen_id": "feedback",
+      "trigger": "callback_data: main:feedback",
+      "handler": "src/bot/handlers/shared/feedback.py::feedback_start",
+      "fsm_state": "FeedbackStates.entering_text",
+      "message": "✉️ *Обратная связь*\n\nНапишите ваше сообщение, и мы ответим в течение 24 часов.",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "❌ Отмена", "callback_data": "main:main_menu"}]]
+    },
+
+    "adv_menu": {
+      "screen_id": "adv_menu",
+      "trigger": "callback_data: role:advertiser | main:adv_menu",
+      "handler": "src/bot/handlers/shared/start.py::show_adv_menu",
+      "message": "📣 *Меню рекламодателя*\n\n💳 Баланс: *{balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📊 Статистика и аналитика", "callback_data": "main:analytics"}],
+        [{"text": "📣 Создать кампанию", "callback_data": "main:create_campaign"}],
+        [{"text": "📋 Мои кампании", "callback_data": "main:my_campaigns"}],
+        [{"text": "🔙 Главное меню", "callback_data": "main:main_menu"}]
+      ],
+      "notes": "B2B кнопка УДАЛЕНА в v4.3"
+    },
+
+    "adv_analytics": {
+      "screen_id": "adv_analytics",
+      "trigger": "callback_data: main:analytics",
+      "handler": "src/bot/handlers/advertiser/analytics.py::show_advertiser_analytics",
+      "message": "📊 *Статистика рекламодателя*\n\n📣 Размещений создано: *{total_placements}*\n✅ Завершено: *{completed}*\n💰 Потрачено: *{total_spent} ₽*\n👁 Охват (оценка): *≈{total_reach}*\n🖱 Кликов: *{total_clicks}*\n📈 CTR: *{avg_ctr}%*\n\n─── По статусам ───\n🔵 Активные: *{active}*\n🟢 Завершённые: *{completed_count}*\n🔴 Отменённые: *{cancelled}*\n\n─── Топ каналов по охвату ───\n{top_channels_list}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✨ AI-анализ", "callback_data": "analytics:ai_report", "conditions": "plan in (pro, agency)"}],
+        [{"text": "📥 Экспорт CSV", "callback_data": "analytics:export", "conditions": "plan in (pro, agency)"}],
+        [{"text": "🔙 Меню рекламодателя", "callback_data": "main:adv_menu"}]
+      ],
+      "notes": "RT-001: callback main:analytics — строго для рекламодателя. Для владельца: main:owner_analytics. reach = snapshot member_count при публикации. CTR = clicks / reach * 100."
+    },
+
+    "camp_step1_category": {
+      "screen_id": "camp_step1_category",
+      "trigger": "callback_data: main:create_campaign",
+      "handler": "src/bot/handlers/placement/placement.py::camp_start",
+      "fsm_state": "PlacementStates.selecting_category",
+      "message": "📣 *Создание кампании*\nШаг 1 из 6: Выберите тематику каналов",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💻 IT и технологии", "callback_data": "camp:cat:it"}, {"text": "💰 Бизнес и финансы", "callback_data": "camp:cat:business"}],
+        [{"text": "🎓 Образование", "callback_data": "camp:cat:education"}, {"text": "👗 Розница", "callback_data": "camp:cat:retail"}],
+        [{"text": "💄 Красота и здоровье", "callback_data": "camp:cat:beauty"}, {"text": "🍔 Еда и рестораны", "callback_data": "camp:cat:food"}],
+        [{"text": "✈️ Путешествия", "callback_data": "camp:cat:travel"}, {"text": "🏠 Недвижимость", "callback_data": "camp:cat:realty"}],
+        [{"text": "🚗 Автомобили", "callback_data": "camp:cat:auto"}, {"text": "⚽ Спорт", "callback_data": "camp:cat:sport"}],
+        [{"text": "🎬 Развлечения", "callback_data": "camp:cat:entertainment"}],
+        [{"text": "❌ Отмена", "callback_data": "main:adv_menu"}]
+      ],
+      "notes": "Кнопка B2B УДАЛЕНА в v4.3. Предварительные проверки: balance_rub >= 2000, plan_limit не превышен.",
+      "conditions": {
+        "pre_check": {
+          "balance_check": "user.balance_rub >= MIN_CAMPAIGN_BUDGET (2000 ₽)",
+          "balance_fail_message": "❌ *Недостаточно средств*\n\nДля создания кампании нужно минимум *2 000 ₽*.\nВаш баланс: *{balance_rub} ₽*",
+          "balance_fail_buttons": [
+            [{"text": "💳 Пополнить баланс", "callback_data": "billing:topup_start"}],
+            [{"text": "🔙 Меню рекламодателя", "callback_data": "main:adv_menu"}]
+          ],
+          "plan_limit_fail_message": "❌ *Достигнут лимит кампаний*\n\nТариф *{plan_name}*: максимум *{limit}* активных кампаний.",
+          "plan_limit_fail_buttons": [
+            [{"text": "⭐ Обновить тариф", "callback_data": "billing:plans"}],
+            [{"text": "🔙 Назад", "callback_data": "main:adv_menu"}]
+          ]
+        }
+      }
+    },
+
+    "camp_step2_subcategory": {
+      "screen_id": "camp_step2_subcategory",
+      "trigger": "callback_data: camp:cat:{category}",
+      "handler": "src/bot/handlers/placement/placement.py::camp_select_subcategory",
+      "fsm_state": "PlacementStates.selecting_subcategory",
+      "message": "📣 *Создание кампании*\nШаг 2 из 6: Подкатегория (необязательно)\n\nВыбрана тематика: *{category_name}*",
+      "parse_mode": "Markdown",
+      "buttons_example_it": [
+        [{"text": "💻 Программирование", "callback_data": "camp:subcat:programming"}, {"text": "🚀 Стартапы", "callback_data": "camp:subcat:startups"}],
+        [{"text": "⏩ Пропустить", "callback_data": "camp:subcat:skip"}],
+        [{"text": "🔙 Назад", "callback_data": "main:create_campaign"}]
+      ]
+    },
+
+    "camp_step3_channels": {
+      "screen_id": "camp_step3_channels",
+      "trigger": "callback_data: camp:subcat:{subcat} | camp:subcat:skip",
+      "handler": "src/bot/handlers/placement/placement.py::camp_show_channel",
+      "fsm_state": "PlacementStates.selecting_channels",
+      "message": "📣 *Создание кампании*\nШаг 3 из 6: Выбор канала\n\n*{channel_index}* из *{total_channels}*\n\n📺 *{channel_name}* (@{channel_username})\n👥 Подписчиков: *{member_count}*\n📈 ER: *{er}%* | 👁 Ср. просмотры: *{avg_views}*\n⭐ Рейтинг: *{rating}*\n\n─── Настройки владельца ───\n💰 Базовая цена: *{price_per_post} ₽*\n📅 Макс. постов/день: *{max_posts_per_day}*\n\n─── Форматы и цены ───\n{formats_list}\n\n─── Выбрано ───\nКаналов: *{selected_count}* | Итого: *{selected_total} ₽*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Выбрать канал", "callback_data": "camp:channel:select:{channel_id}"}],
+        [{"text": "❌ Пропустить", "callback_data": "camp:channel:skip"}],
+        [{"text": "▶️ Далее ({selected_count} выбрано)", "callback_data": "camp:channels:done", "conditions": "selected_count > 0"}],
+        [{"text": "🔙 Назад", "callback_data": "camp:back:subcategory"}]
+      ],
+      "notes": "Каналы где channel.owner_id == user.id — скрыть (self-dealing protection). Форматы показывать только те что allow_format_* = True у канала."
+    },
+
+    "camp_step4_format": {
+      "screen_id": "camp_step4_format",
+      "trigger": "callback_data: camp:channels:done",
+      "handler": "src/bot/handlers/placement/placement.py::camp_select_format",
+      "fsm_state": "PlacementStates.selecting_format",
+      "message": "📣 *Создание кампании*\nШаг 4 из 6: Формат публикации\n\nВыбраны каналы: *{selected_channels_names}*\n\n{format_prices_breakdown}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📄 Пост 24ч — {price_24h} ₽", "callback_data": "camp:format:post_24h"}],
+        [{"text": "📄 Пост 48ч — {price_48h} ₽", "callback_data": "camp:format:post_48h", "conditions": "all_channels_allow AND plan in (starter,pro,agency)"}],
+        [{"text": "📄 Пост 7 дней — {price_7d} ₽", "callback_data": "camp:format:post_7d", "conditions": "all_channels_allow AND plan in (pro,agency)"}],
+        [{"text": "📌 Закреп 24ч — {price_pin_24h} ₽", "callback_data": "camp:format:pin_24h", "conditions": "all_channels_allow AND plan=agency"}],
+        [{"text": "📌 Закреп 48ч — {price_pin_48h} ₽", "callback_data": "camp:format:pin_48h", "conditions": "all_channels_allow AND plan=agency"}],
+        [{"text": "🔙 Назад", "callback_data": "camp:back:channels"}]
+      ],
+      "notes": "Кнопка скрывается если: (1) хоть один канал не поддерживает формат ИЛИ (2) тариф не включает формат. Цена = SUM(channel.price_per_post * multiplier)."
+    },
+
+    "camp_step5_text": {
+      "screen_id": "camp_step5_text",
+      "trigger": "callback_data: camp:format:{format}",
+      "handler": "src/bot/handlers/placement/placement.py::camp_enter_text",
+      "fsm_state": "PlacementStates.entering_text",
+      "message": "📣 *Создание кампании*\nШаг 5 из 6: Текст объявления\n\nВыберите способ:",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "🤖 Сгенерировать с AI", "callback_data": "camp:text:ai", "conditions": "plan != free AND ai_uses_left > 0"}],
+        [{"text": "✏️ Написать вручную", "callback_data": "camp:text:manual"}],
+        [{"text": "🔙 Назад", "callback_data": "camp:back:format"}]
+      ],
+      "sub_screens": {
+        "manual_enter": {
+          "message": "✏️ Введите текст объявления (макс. 1000 символов):",
+          "input_validation": {"max_length": 1000, "min_length": 10}
+        },
+        "ai_generate": {
+          "message": "🤖 *AI-генерация*\n\nОстаток: *{ai_uses_left}* использований\n\nОпишите вашу рекламу:",
+          "followup_message": "🤖 *Варианты текста:*\n\n*Вариант 1:*\n{v1}\n\n*Вариант 2:*\n{v2}\n\n*Вариант 3:*\n{v3}",
+          "followup_buttons": [
+            [{"text": "1️⃣ Вариант 1", "callback_data": "camp:text:choose:1"}],
+            [{"text": "2️⃣ Вариант 2", "callback_data": "camp:text:choose:2"}],
+            [{"text": "3️⃣ Вариант 3", "callback_data": "camp:text:choose:3"}],
+            [{"text": "🔄 Сгенерировать ещё", "callback_data": "camp:text:ai:regenerate"}],
+            [{"text": "✏️ Написать вручную", "callback_data": "camp:text:manual"}]
+          ]
+        }
+      }
+    },
+
+    "camp_step6_confirm": {
+      "screen_id": "camp_step6_confirm",
+      "trigger": "после выбора/ввода текста",
+      "handler": "src/bot/handlers/placement/placement.py::camp_arbitration",
+      "fsm_state": "PlacementStates.arbitrating",
+      "message": "📣 *Создание кампании*\nШаг 6 из 6: Подтверждение\n\n{channels_breakdown}\n\n─── Итого ───\n📋 Каналов: *{channels_count}*\n📄 Формат: *{format_name}*\n💰 К оплате: *{total_price} ₽*\n\n⚠️ После отправки владелец получит уведомление и должен ответить в течение 24 часов.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Отправить заявку", "callback_data": "camp:submit"}],
+        [{"text": "🔙 Изменить текст", "callback_data": "camp:back:text"}],
+        [{"text": "❌ Отменить", "callback_data": "main:adv_menu"}]
+      ]
+    },
+
+    "camp_waiting_owner": {
+      "screen_id": "camp_waiting_owner",
+      "trigger": "после camp:submit",
+      "handler": "src/bot/handlers/placement/placement.py::camp_submitted",
+      "fsm_state": "PlacementStates.waiting_response",
+      "message": "⏳ *Заявка #{request_id} отправлена!*\n\n📺 Канал: *@{channel_name}*\n📄 Формат: *{format_name}*\n💰 Цена: *{price} ₽*\n\n⏱ Ожидает ответа владельца до *{expires_at}* (24 часа)",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📋 Мои кампании", "callback_data": "main:my_campaigns"}],
+        [{"text": "❌ Отменить заявку", "callback_data": "camp:cancel:{request_id}"}]
+      ]
+    },
+
+    "camp_owner_accepted_notify": {
+      "screen_id": "camp_owner_accepted_notify",
+      "trigger": "Автоматически после принятия владельцем",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_advertiser_accepted",
+      "message": "✅ *Владелец принял вашу заявку!*\n\n📺 @{channel_name}\n📄 Формат: *{format_name}*\n💰 Итоговая цена: *{final_price} ₽*\n⏰ Время публикации: *{final_schedule}*\n\n⏱ Оплатите в течение 24 часов.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💳 Оплатить {final_price} ₽", "callback_data": "camp:pay:{request_id}"}],
+        [{"text": "❌ Отменить", "callback_data": "camp:cancel:{request_id}"}]
+      ]
+    },
+
+    "camp_owner_counter_notify": {
+      "screen_id": "camp_owner_counter_notify",
+      "trigger": "Автоматически после контр-предложения",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_advertiser_counter",
+      "message": "✏️ *Владелец предлагает другие условия*\n\n📺 @{channel_name}\nРаунд: *{counter_round}/3*\n\n💰 Цена: ~~{old_price}₽~~ → *{new_price} ₽*\n⏰ Время: ~~{old_time}~~ → *{new_time}*\n💬 Комментарий: _{owner_comment}_\n\n⏱ Ответьте в течение 24 часов.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Принять условия", "callback_data": "camp:counter:accept:{request_id}"}],
+        [{"text": "✏️ Контр-предложение", "callback_data": "camp:counter:reply:{request_id}", "conditions": "counter_round < 3"}],
+        [{"text": "❌ Отклонить и отменить", "callback_data": "camp:cancel:{request_id}"}]
+      ]
+    },
+
+    "camp_payment": {
+      "screen_id": "camp_payment",
+      "trigger": "callback_data: camp:pay:{request_id}",
+      "handler": "src/bot/handlers/placement/placement.py::camp_pay",
+      "message": "💳 *Оплата заявки #{request_id}*\n\n📺 @{channel_name}\n📄 Формат: *{format_name}*\n⏰ Время: *{final_schedule}*\n\n─── К оплате ───\n💰 Сумма эскроу: *{final_price} ₽*\n🔒 Средства заморожены до автоматического удаления поста\n\n─── Как распределится ───\n• Владельцу (после удаления поста): *{owner_amount} ₽* (85%)\n• Комиссия платформы: *{platform_amount} ₽* (15%)\n\n⚠️ Деньги владелец получит только ПОСЛЕ того как бот автоматически удалит пост по расписанию.\n⚠️ Отмена после оплаты: возврат только 50%",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💳 Оплатить с баланса ({balance_rub} ₽)", "callback_data": "camp:pay:balance:{request_id}", "conditions": "balance_rub >= final_price"}],
+        [{"text": "💳 Пополнить баланс", "callback_data": "billing:topup_start", "conditions": "balance_rub < final_price"}],
+        [{"text": "❌ Отменить заявку", "callback_data": "camp:cancel:{request_id}"}]
+      ]
+    },
+
+    "camp_escrow_confirmed": {
+      "screen_id": "camp_escrow_confirmed",
+      "trigger": "После успешного freeze_escrow",
+      "handler": "src/bot/handlers/placement/placement.py::camp_escrow_confirmed",
+      "message": "🔒 *Средства заморожены в эскроу!*\n\n✅ Заблокировано: *{final_price} ₽*\n📅 Публикация: *{final_schedule}*\n📺 Канал: @{channel_name}\n\n💡 Бот автоматически опубликует рекламу и удалит её по расписанию. Деньги владелец получит после удаления.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📋 Отслеживать статус", "callback_data": "camp:status:{request_id}"}],
+        [{"text": "❌ Отменить (возврат 50%)", "callback_data": "camp:cancel_after_escrow:{request_id}"}]
+      ]
+    },
+
+    "camp_published_notify": {
+      "screen_id": "camp_published_notify",
+      "trigger": "Автоматически после публикации ботом",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_advertiser_published",
+      "message": "📢 *Реклама опубликована!*\n\n📺 @{channel_name} — опубликовано в *{published_at}*\n📄 Формат: *{format_name}*\n🗑 Авто-удаление: *{delete_at}*\n\n⏳ Средства в эскроу до авто-удаления.\n💬 Если что-то пошло не так — нажмите «Пожаловаться».",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "⚠️ Пожаловаться", "callback_data": "dispute:open:{placement_id}", "conditions": "published_within_48h"}],
+        [{"text": "📊 Мои кампании", "callback_data": "main:my_campaigns"}]
+      ],
+      "notes": "ВАЖНО: release_escrow() НЕ вызывается здесь. Деньги разморозятся только после delete_published_post."
+    },
+
+    "camp_completed_notify": {
+      "screen_id": "camp_completed_notify",
+      "trigger": "Автоматически после delete_published_post + release_escrow",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_advertiser_completed",
+      "message": "✅ *Рекламная кампания завершена!*\n\n📺 @{channel_name}\n📄 Формат: *{format_name}*\n⏱ Пост пробыл: *{actual_duration}*\n\n─── Финансы ───\n💰 Списано с баланса: *{final_price} ₽*\n👁 Охват: *≈{reach}*\n🖱 Кликов: *{clicks}*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "⭐ Оставить отзыв", "callback_data": "review:create:{placement_id}"}],
+        [{"text": "📊 Статистика", "callback_data": "main:analytics"}],
+        [{"text": "📣 Создать ещё", "callback_data": "main:create_campaign"}]
+      ]
+    },
+
+    "my_campaigns": {
+      "screen_id": "my_campaigns",
+      "trigger": "callback_data: main:my_campaigns",
+      "handler": "src/bot/handlers/advertiser/campaigns.py::show_my_campaigns",
+      "message": "📋 *Мои кампании*\n\n🔵 Активных: *{active_count}*\n🟢 Завершённых: *{completed_count}*\n🔴 Отменённых: *{cancelled_count}*",
+      "parse_mode": "Markdown",
+      "buttons_dynamic": "По одной кнопке на кампанию (последние 10) + пагинация",
+      "extra_buttons": [
+        [{"text": "📣 Создать кампанию", "callback_data": "main:create_campaign"}],
+        [{"text": "🔙 Меню рекламодателя", "callback_data": "main:adv_menu"}]
+      ]
+    },
+
+    "own_menu": {
+      "screen_id": "own_menu",
+      "trigger": "callback_data: role:owner | main:own_menu",
+      "handler": "src/bot/handlers/shared/start.py::show_own_menu",
+      "message": "📺 *Меню владельца канала*\n\n💰 Заработок: *{earned_rub} ₽*{pending_badge}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📊 Статистика", "callback_data": "main:owner_analytics"}],
+        [{"text": "📺 Мои каналы", "callback_data": "main:my_channels"}],
+        [{"text": "📋 Заявки{pending_count_label}", "callback_data": "main:my_requests"}],
+        [{"text": "💸 Выплаты", "callback_data": "main:payouts"}],
+        [{"text": "🔙 Главное меню", "callback_data": "main:main_menu"}]
+      ],
+      "notes": "RT-001: callback main:owner_analytics (НЕ main:analytics!). {pending_count_label} = ' 🔴 N' если есть новые заявки."
+    },
+
+    "own_analytics": {
+      "screen_id": "own_analytics",
+      "trigger": "callback_data: main:owner_analytics",
+      "handler": "src/bot/handlers/owner/analytics.py::show_owner_analytics",
+      "message": "📊 *Статистика владельца*\n\n📺 Каналов: *{channels_count}*\n✅ Публикаций: *{total_publications}*\n💰 Заработано: *{total_earned} ₽*\n💰 Ср. чек: *{avg_check} ₽*\n⭐ Средний рейтинг: *{avg_rating}*\n\n─── Периоды ───\n📅 Сегодня: *{today_earned} ₽*\n📅 Неделя: *{week_earned} ₽*\n📅 Месяц: *{month_earned} ₽*\n\n─── По каналам ───\n{channels_breakdown}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📅 Календарь", "callback_data": "own:analytics:calendar"}],
+        [{"text": "🔙 Меню владельца", "callback_data": "main:own_menu"}]
+      ],
+      "notes": "RT-001: callback main:owner_analytics — строго для владельца."
+    },
+
+    "own_channels": {
+      "screen_id": "own_channels",
+      "trigger": "callback_data: main:my_channels",
+      "handler": "src/bot/handlers/owner/channel_owner.py::show_my_channels",
+      "message": "📺 *Мои каналы*\n\nВсего: *{total_channels}*",
+      "parse_mode": "Markdown",
+      "buttons_dynamic": "Кнопка на каждый канал",
+      "extra_buttons": [
+        [{"text": "➕ Добавить канал", "callback_data": "own:add_channel"}],
+        [{"text": "🔙 Меню владельца", "callback_data": "main:own_menu"}]
+      ]
+    },
+
+    "own_add_channel": {
+      "screen_id": "own_add_channel",
+      "trigger": "callback_data: own:add_channel",
+      "handler": "src/bot/handlers/owner/channel_owner.py::add_channel_start",
+      "fsm_state": "AddChannelStates.entering_username",
+      "message": "➕ *Добавление канала*\n\n⚠️ *Перед добавлением:*\n1. Сделайте @RekHarborBot администратором\n2. Выдайте права:\n   ✅ Публиковать сообщения\n   ✅ *Удалять сообщения* (обязательно!)\n   ✅ *Закреплять сообщения* (для форматов «Закреп»)\n\nВведите @username канала:",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "❌ Отмена", "callback_data": "main:my_channels"}]],
+      "followup": {
+        "success": {
+          "message": "📺 *Канал найден!*\n\n*{title}* (@{username})\n👥 Подписчиков: *{member_count}*\n\n─── Права бота ───\nПубликовать: {can_post} | Удалять: {can_delete} | Закреплять: {can_pin}\n\n{rights_warning}",
+          "buttons": [
+            [{"text": "➕ Добавить канал", "callback_data": "own:add_channel:confirm:{channel_id}"}],
+            [{"text": "❌ Отмена", "callback_data": "main:my_channels"}]
+          ],
+          "rights_warning": "⚠️ Без права удалять — форматы с авто-удалением недоступны.\n⚠️ Без права закреплять — форматы «Закреп» недоступны."
+        },
+        "error_not_admin": {
+          "message": "❌ Бот не является администратором @{username}."
+        }
+      }
+    },
+
+    "own_channel_detail": {
+      "screen_id": "own_channel_detail",
+      "trigger": "callback_data: own:channel:{channel_id}",
+      "handler": "src/bot/handlers/owner/channel_owner.py::show_channel_detail",
+      "message": "📺 *@{username}*\n\n👥 Подписчиков: *{member_count}*\n⭐ Рейтинг: *{rating}*\n✅ Публикаций: *{publications_count}*\n💰 Заработано: *{total_earned} ₽*\n\n─── Настройки ───\n💰 Базовая цена: *{price_per_post} ₽*\n📅 Макс. постов/день: *{max_posts_per_day}*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "⚙️ Настройки", "callback_data": "own:settings:{channel_id}"}],
+        [{"text": "📋 Заявки ({pending})", "callback_data": "own:channel_requests:{channel_id}"}],
+        [{"text": "❌ Удалить канал", "callback_data": "own:delete_channel:{channel_id}"}],
+        [{"text": "🔙 Мои каналы", "callback_data": "main:my_channels"}]
+      ]
+    },
+
+    "own_channel_settings": {
+      "screen_id": "own_channel_settings",
+      "trigger": "callback_data: own:settings:{channel_id}",
+      "handler": "src/bot/handlers/owner/channel_settings.py::show_settings",
+      "message": "⚙️ *Настройки @{username}*\n\n💰 Цена: *{price_per_post} ₽*\n⏰ Время: *{publish_start}*–*{publish_end}*\n☕ Перерыв: *{break_start}*–*{break_end}*\n📅 Макс./день: *{max_posts_per_day}*\n\n─── Форматы ───\n{formats_status}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💰 Изменить цену", "callback_data": "own:settings:price:{channel_id}"}],
+        [{"text": "📄 Форматы публикаций", "callback_data": "own:settings:formats:{channel_id}"}],
+        [{"text": "⏰ Расписание", "callback_data": "own:settings:schedule:{channel_id}"}],
+        [{"text": "🤖 Автоподтверждение", "callback_data": "own:settings:autoaccept:{channel_id}"}],
+        [{"text": "🔙 Детали канала", "callback_data": "own:channel:{channel_id}"}]
+      ]
+    },
+
+    "own_requests": {
+      "screen_id": "own_requests",
+      "trigger": "callback_data: main:my_requests",
+      "handler": "src/bot/handlers/owner/arbitration.py::show_owner_requests",
+      "message": "📋 *Заявки на размещение*\n\n🔴 Новые: *{pending_count}*\n🟡 В обработке: *{processing_count}*\n🔵 В эскроу: *{escrow_count}*\n🟢 Опубликованные: *{published_count}*",
+      "parse_mode": "Markdown",
+      "buttons_dynamic": "Кнопка на каждую заявку (до 10) + пагинация",
+      "extra_buttons": [[{"text": "🔙 Меню владельца", "callback_data": "main:own_menu"}]]
+    },
+
+    "own_request_detail": {
+      "screen_id": "own_request_detail",
+      "trigger": "callback_data: own:request:{request_id}",
+      "handler": "src/bot/handlers/owner/arbitration.py::show_request_detail",
+      "fsm_state": "ArbitrationStates.viewing_request",
+      "message": "📋 *Заявка #{request_id}*\n\n👤 Рекламодатель: @{advertiser_username}\n📄 Формат: *{format_name}*\n💰 Предложение: *{proposed_price} ₽* (ваша цена: {your_price} ₽)\n⏰ Запрошенное время: *{proposed_time}*\n\n─── Текст объявления ───\n{ad_text_preview}\n\n⏱ Ответьте до: *{expires_at}*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Принять", "callback_data": "own:accept:{request_id}"}],
+        [{"text": "✏️ Контр-предложение", "callback_data": "own:counter:{request_id}"}],
+        [{"text": "❌ Отклонить", "callback_data": "own:reject:{request_id}"}],
+        [{"text": "👁 Полный текст", "callback_data": "own:request:fulltext:{request_id}"}],
+        [{"text": "🔙 Все заявки", "callback_data": "main:my_requests"}]
+      ]
+    },
+
+    "own_request_reject": {
+      "screen_id": "own_request_reject",
+      "trigger": "callback_data: own:reject:{request_id}",
+      "handler": "src/bot/handlers/owner/arbitration.py::reject_request_start",
+      "fsm_state": "ArbitrationStates.waiting_reject_comment",
+      "message": "❌ *Отклонение заявки #{request_id}*\n\n⚠️ Укажите причину отклонения (мин. 10 символов).\n\nНеобоснованный отказ = штраф репутации:\n1й: −10 | 2й: −15 | 3й: −20 + бан 7 дней\n\nВведите причину:",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "❌ Отмена", "callback_data": "own:request:{request_id}"}]],
+      "validation": {"min_length": 10, "no_gibberish": true}
+    },
+
+    "own_request_counter": {
+      "screen_id": "own_request_counter",
+      "trigger": "callback_data: own:counter:{request_id}",
+      "handler": "src/bot/handlers/owner/arbitration.py::counter_offer_start",
+      "fsm_state": "ArbitrationStates.counter_offering",
+      "message": "✏️ *Контр-предложение по заявке #{request_id}*\n\n💰 Ваша цена: *{your_price} ₽*\n💰 Предложение: *{proposed_price} ₽*\nРаунд: *{counter_round}/3*\n\nВведите новую цену:",
+      "parse_mode": "Markdown",
+      "sub_steps": [
+        {"step": "price", "fsm": "ArbitrationStates.entering_counter_price"},
+        {"step": "time", "fsm": "ArbitrationStates.entering_counter_time"},
+        {"step": "comment", "fsm": "ArbitrationStates.entering_counter_comment", "optional": true}
+      ]
+    },
+
+    "own_new_request_notify": {
+      "screen_id": "own_new_request_notify",
+      "trigger": "Автоматически при создании PlacementRequest",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_owner_new_request",
+      "message": "🔴 *Новая заявка #{request_id}!*\n\n👤 @{advertiser_username}\n📄 Формат: *{format_name}*\n💰 Предложение: *{proposed_price} ₽* (ваша цена: {your_price} ₽)\n⏰ Время: *{proposed_time}*\n\n⏱ Ответьте в течение 24 часов.",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "📋 Просмотреть заявку", "callback_data": "own:request:{request_id}"}]]
+    },
+
+    "own_post_published_notify": {
+      "screen_id": "own_post_published_notify",
+      "trigger": "Автоматически после публикации поста ботом",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_owner_post_published",
+      "message": "📢 *Реклама опубликована в вашем канале!*\n\n📺 @{channel_name}\n📄 Формат: *{format_name}*\n⏰ Опубликовано: *{published_at}*\n🗑 Бот удалит пост: *{delete_at}*\n\n💰 Оплата поступит после автоматического удаления поста.\n\n⚠️ Не удаляйте пост вручную — это заморозит выплату.",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "📋 Детали заявки", "callback_data": "own:request:{request_id}"}]]
+    },
+
+    "own_post_completed_notify": {
+      "screen_id": "own_post_completed_notify",
+      "trigger": "Автоматически после delete_published_post + release_escrow",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_owner_post_completed",
+      "message": "✅ *Оплата поступила!*\n\n📺 @{channel_name}\n📄 Формат: *{format_name}*\n\n💰 Начислено: *{owner_amount} ₽*\nДоступно к выводу: *{earned_rub} ₽*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💸 Запросить вывод", "callback_data": "payout:request_start"}],
+        [{"text": "📊 Статистика", "callback_data": "main:owner_analytics"}]
+      ]
+    },
+
+    "own_payouts": {
+      "screen_id": "own_payouts",
+      "trigger": "callback_data: main:payouts",
+      "handler": "src/bot/handlers/placement/payout.py::show_payouts",
+      "message": "💸 *Выплаты*\n\n💰 Доступно: *{earned_rub} ₽*\n\n📌 Мин. вывод: 1 000 ₽\n📌 Комиссия: 1,5%\n⏱ Срок: до 24 часов (09:00–22:00 МСК)\n\n─── История ───\n{payout_history}",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "💸 Запросить вывод", "callback_data": "payout:request_start", "conditions": "earned_rub >= 1000"}],
+        [{"text": "🔙 Меню владельца", "callback_data": "main:own_menu"}]
+      ]
+    },
+
+    "own_payout_request": {
+      "screen_id": "own_payout_request",
+      "trigger": "callback_data: payout:request_start",
+      "handler": "src/bot/handlers/placement/payout.py::payout_request_start",
+      "fsm_state": "PayoutStates.entering_amount",
+      "message": "💸 *Запрос вывода*\n\nДоступно: *{earned_rub} ₽*",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "1 000 ₽", "callback_data": "payout:amount:1000"}, {"text": "3 000 ₽", "callback_data": "payout:amount:3000"}],
+        [{"text": "5 000 ₽", "callback_data": "payout:amount:5000"}, {"text": "10 000 ₽", "callback_data": "payout:amount:10000"}],
+        [{"text": "💯 Вся сумма ({earned_rub} ₽)", "callback_data": "payout:amount:all"}],
+        [{"text": "✏️ Ввести сумму", "callback_data": "payout:amount:custom"}],
+        [{"text": "❌ Отмена", "callback_data": "main:payouts"}]
+      ]
+    },
+
+    "own_payout_confirm": {
+      "screen_id": "own_payout_confirm",
+      "trigger": "callback_data: payout:amount:{N}",
+      "handler": "src/bot/handlers/placement/payout.py::payout_confirm",
+      "fsm_state": "PayoutStates.confirming",
+      "message": "💸 *Подтверждение вывода*\n\nЗапрашиваемая сумма: *{gross_amount} ₽*\nКомиссия (1,5%): *−{fee_amount} ₽*\n──────────────────\nБудет переведено: *{net_amount} ₽*\n\nВведите реквизиты (номер карты или телефон СБП):",
+      "parse_mode": "Markdown",
+      "fsm_state_next": "PayoutStates.entering_requisites",
+      "followup": {
+        "on_requisites_received": {
+          "message": "✅ *Заявка на вывод создана!*\n\nК получению: *{net_amount} ₽*\nРеквизиты: `{requisites}`\n\n⏱ Обработка до 24 часов.",
+          "buttons": [[{"text": "🔙 Меню владельца", "callback_data": "main:own_menu"}]]
+        }
+      }
+    },
+
+    "own_payout_completed_notify": {
+      "screen_id": "own_payout_completed_notify",
+      "trigger": "Автоматически после обработки выплаты admin",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_owner_payout_done",
+      "message": "✅ *Выплата обработана!*\n\nПеречислено: *{net_amount} ₽*\nРеквизиты: `{requisites}`\n\nЕсли деньги не пришли в течение 24 часов — напишите в поддержку.",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "✉️ Поддержка", "callback_data": "main:feedback"}]]
+    },
+
+    "dispute_opened_advertiser_notify": {
+      "screen_id": "dispute_opened_advertiser_notify",
+      "trigger": "Автоматически при открытии Dispute (reason: post_removed_early | bot_kicked) ИЛИ после нажатия [Пожаловаться]",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_dispute_opened_advertiser",
+      "message": "⚠️ *Открыт спор по заявке #{request_id}*\n\n📺 Канал: @{channel_name}\n📄 Формат: *{format_name}*\n💰 Сумма в эскроу: *{escrow_amount} ₽*\n\n🔍 Причина: *{reason_human}*\n\nАдминистратор рассмотрит спор в течение 24 часов.\n\n💡 Пока идёт рассмотрение — средства заморожены.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📋 Детали спора", "callback_data": "dispute:detail:{dispute_id}"}],
+        [{"text": "💬 Написать администратору", "callback_data": "main:feedback"}]
+      ]
+    },
+
+    "dispute_opened_owner_notify": {
+      "screen_id": "dispute_opened_owner_notify",
+      "trigger": "Автоматически при открытии Dispute",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_dispute_opened_owner",
+      "message": "⚠️ *Открыт спор по размещению в @{channel_name}*\n\n🔍 Проблема: *{reason_human}*\n\nОплаченное время: *{paid_duration}*\nФактическое время: *{actual_duration}*\n\n📝 Объясните ситуацию в течение 24 часов.\nЕсли объяснение не поступит — средства будут возвращены рекламодателю.",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "📝 Объяснить ситуацию", "callback_data": "dispute:owner_explain:{dispute_id}"}],
+        [{"text": "📋 Детали спора", "callback_data": "dispute:detail:{dispute_id}"}]
+      ]
+    },
+
+    "dispute_owner_explanation": {
+      "screen_id": "dispute_owner_explanation",
+      "trigger": "callback_data: dispute:owner_explain:{dispute_id}",
+      "handler": "src/bot/handlers/dispute/dispute.py::owner_explain_start",
+      "fsm_state": "DisputeStates.owner_explaining",
+      "message": "📝 *Объяснение ситуации*\n\nОпишите почему пост был удалён раньше срока.\n\nПримеры уважительных причин:\n• Технический сбой Telegram\n• Канал был атакован/взломан\n• Пост нарушал правила Telegram (запрос модерации)\n\nВведите объяснение (мин. 30 символов):",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "❌ Отмена", "callback_data": "dispute:detail:{dispute_id}"}]],
+      "validation": {"min_length": 30, "no_gibberish": true}
+    },
+
+    "dispute_admin_notify": {
+      "screen_id": "dispute_admin_notify",
+      "trigger": "Автоматически при открытии Dispute — уведомление admin",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_admin_new_dispute",
+      "message": "🚨 *Новый спор #{dispute_id}*\n\n📺 Канал: @{channel_name}\n👤 Рекламодатель: @{advertiser}\n💰 Эскроу: *{escrow_amount} ₽*\n🔍 Причина: *{reason}*\n\nОпубликовано: {published_at}\nУдалено: {deleted_at} (через {actual_duration})\nОплачено: {paid_duration}",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "🔎 Рассмотреть спор", "callback_data": "admin:dispute:{dispute_id}"}]]
+    },
+
+    "dispute_admin_review": {
+      "screen_id": "dispute_admin_review",
+      "trigger": "callback_data: admin:dispute:{dispute_id}",
+      "handler": "src/bot/handlers/admin/disputes.py::admin_review_dispute",
+      "message": "🚨 *Спор #{dispute_id}*\n\n─── Детали ───\nКанал: @{channel_name}\nФормат: {format_name}\nЭскроу: *{escrow_amount} ₽*\nОпубликовано: {published_at}\nУдалено: {deleted_at}\nПрожило: {actual_duration} / {paid_duration} ({life_pct}%)\n\n─── Позиция владельца ───\n_{owner_explanation}_\n\n─── Позиция рекламодателя ───\n_{advertiser_comment}_\n\nПримите решение:",
+      "parse_mode": "Markdown",
+      "buttons": [
+        [{"text": "✅ Вина владельца → 100% рекламодателю", "callback_data": "admin:dispute:resolve:owner_fault:{dispute_id}"}],
+        [{"text": "⚖️ Частичный возврат", "callback_data": "admin:dispute:resolve:partial:{dispute_id}"}],
+        [{"text": "❌ Жалоба необоснована → выплатить владельцу", "callback_data": "admin:dispute:resolve:advertiser_fault:{dispute_id}"}],
+        [{"text": "🔧 Техническая ошибка → 100% рекламодателю", "callback_data": "admin:dispute:resolve:technical:{dispute_id}"}]
+      ]
+    },
+
+    "dispute_resolved_notify": {
+      "screen_id": "dispute_resolved_notify",
+      "trigger": "Автоматически после admin решения — обе стороны",
+      "handler": "src/bot/handlers/shared/notifications.py::notify_dispute_resolved",
+      "message_advertiser": "✅ *Спор #{dispute_id} разрешён*\n\nРешение: *{resolution_human}*\n\n{advertiser_outcome}\n\n💬 Комментарий администратора: _{admin_comment}_",
+      "message_owner": "ℹ️ *Спор #{dispute_id} разрешён*\n\nРешение: *{resolution_human}*\n\n{owner_outcome}\n\n💬 Комментарий администратора: _{admin_comment}_",
+      "parse_mode": "Markdown",
+      "buttons": [[{"text": "👤 В кабинет", "callback_data": "main:cabinet"}]]
+    }
+  },
+
+  "fsm_states": {
+    "TopupStates": {
+      "file": "src/bot/states/billing.py",
+      "states": ["entering_amount", "confirming", "waiting_payment"]
+    },
+    "PlacementStates": {
+      "file": "src/bot/states/placement.py",
+      "states": ["selecting_category", "selecting_subcategory", "selecting_channels", "selecting_format", "entering_text", "arbitrating", "waiting_response"]
+    },
+    "ArbitrationStates": {
+      "file": "src/bot/states/arbitration.py",
+      "states": ["viewing_request", "waiting_reject_comment", "counter_offering", "entering_counter_price", "entering_counter_time", "entering_counter_comment"]
+    },
+    "ChannelSettingsStates": {
+      "file": "src/bot/states/channel_settings.py",
+      "states": ["editing_price", "editing_schedule", "confirming"]
+    },
+    "PayoutStates": {
+      "file": "src/bot/states/payout.py",
+      "states": ["entering_amount", "confirming", "entering_requisites"]
+    },
+    "AddChannelStates": {
+      "file": "src/bot/states/channel_owner.py",
+      "states": ["entering_username", "confirming"]
+    },
+    "FeedbackStates": {
+      "file": "src/bot/states/feedback.py",
+      "states": ["entering_text"]
+    },
+    "DisputeStates": {
+      "file": "src/bot/states/dispute.py",
+      "states": ["owner_explaining", "advertiser_commenting", "admin_reviewing"]
+    }
+  },
+
+  "callback_data_registry": {
+    "shared": {
+      "main:main_menu": "Главное меню",
+      "main:cabinet": "Кабинет",
+      "main:change_role": "Выбор роли",
+      "main:help": "Помощь",
+      "main:feedback": "Обратная связь",
+      "cabinet:referral": "Реферальная программа",
+      "cabinet:referral:copy": "Скопировать реферальную ссылку",
+      "cabinet:gamification": "Геймификация и бейджи"
+    },
+    "terms": {
+      "terms:accept": "Принять условия использования",
+      "terms:decline": "Отклонить условия"
+    },
+    "role": {
+      "role:advertiser": "Выбрать роль рекламодателя",
+      "role:owner": "Выбрать роль владельца"
+    },
+    "advertiser": {
+      "main:analytics": "ТОЛЬКО для рекламодателя (RT-001)",
+      "main:create_campaign": "Начать создание кампании",
+      "main:my_campaigns": "Мои кампании",
+      "main:adv_menu": "Меню рекламодателя"
+    },
+    "owner": {
+      "main:owner_analytics": "ТОЛЬКО для владельца (RT-001)",
+      "main:my_channels": "Мои каналы",
+      "main:my_requests": "Заявки владельца",
+      "main:payouts": "Выплаты",
+      "main:own_menu": "Меню владельца"
+    },
+    "billing": {
+      "billing:topup_start": "Начать пополнение",
+      "billing:plans": "Тарифные планы",
+      "topup:amount:{N}": "Выбрать сумму N",
+      "topup:amount:custom": "Ввести произвольную сумму",
+      "topup:pay": "Перейти к оплате",
+      "topup:check:{id}": "Проверить оплату",
+      "topup:cancel:{id}": "Отменить платёж",
+      "plan:buy:{plan}": "Купить тариф"
+    },
+    "campaign": {
+      "camp:cat:{cat}": "Выбрать категорию",
+      "camp:subcat:{sub}": "Выбрать подкатегорию",
+      "camp:subcat:skip": "Пропустить подкатегорию",
+      "camp:channel:select:{id}": "Выбрать канал",
+      "camp:channel:skip": "Пропустить канал",
+      "camp:channels:done": "Завершить выбор каналов",
+      "camp:format:{fmt}": "Выбрать формат",
+      "camp:text:ai": "AI-генерация",
+      "camp:text:manual": "Ввести вручную",
+      "camp:text:choose:{N}": "Выбрать вариант",
+      "camp:text:ai:regenerate": "Сгенерировать снова",
+      "camp:submit": "Отправить заявку",
+      "camp:pay:{id}": "Перейти к оплате",
+      "camp:pay:balance:{id}": "Оплатить с баланса",
+      "camp:cancel:{id}": "Отменить (до эскроу)",
+      "camp:cancel_after_escrow:{id}": "Отменить после эскроу (50%)",
+      "camp:counter:accept:{id}": "Принять контр-предложение",
+      "camp:counter:reply:{id}": "Своё контр-предложение",
+      "camp:detail:{id}": "Детали кампании",
+      "camp:status:{id}": "Статус заявки"
+    },
+    "owner_arbitration": {
+      "own:request:{id}": "Открыть заявку",
+      "own:accept:{id}": "Принять",
+      "own:reject:{id}": "Начать отклонение",
+      "own:counter:{id}": "Контр-предложение",
+      "own:counter:send:{id}": "Отправить контр",
+      "own:request:fulltext:{id}": "Полный текст объявления"
+    },
+    "channels": {
+      "own:channel:{id}": "Детали канала",
+      "own:add_channel": "Добавить канал",
+      "own:add_channel:confirm:{id}": "Подтвердить добавление",
+      "own:delete_channel:{id}": "Удалить канал",
+      "own:channel_requests:{id}": "Заявки канала",
+      "own:settings:{id}": "Настройки",
+      "own:settings:price:{id}": "Изменить цену",
+      "own:settings:formats:{id}": "Форматы",
+      "own:settings:formats:save:{id}": "Сохранить форматы",
+      "own:settings:schedule:{id}": "Расписание",
+      "own:settings:autoaccept:{id}": "Автоподтверждение",
+      "own:format:toggle:{fmt}:{id}": "Включить/выключить формат"
+    },
+    "payouts": {
+      "payout:request_start": "Начать вывод",
+      "payout:amount:{N}": "Сумма вывода",
+      "payout:amount:all": "Вывести всё",
+      "payout:amount:custom": "Ввести сумму"
+    },
+    "dispute": {
+      "dispute:open:{placement_id}": "Открыть спор (рекламодатель)",
+      "dispute:detail:{dispute_id}": "Детали спора",
+      "dispute:owner_explain:{dispute_id}": "Объяснить ситуацию (владелец)"
+    },
+    "admin": {
+      "admin:dispute:{dispute_id}": "Рассмотреть спор",
+      "admin:dispute:resolve:owner_fault:{id}": "Решение: вина владельца",
+      "admin:dispute:resolve:advertiser_fault:{id}": "Решение: жалоба необоснована",
+      "admin:dispute:resolve:technical:{id}": "Решение: техническая ошибка",
+      "admin:dispute:resolve:partial:{id}": "Решение: частичный возврат"
+    },
+    "review": {
+      "review:create:{placement_id}": "Оставить отзыв"
+    },
+    "REMOVED_v4_3": {
+      "main:b2b": "УДАЛЕНО — B2B пакеты убраны",
+      "b2b:buy:startup": "УДАЛЕНО",
+      "b2b:buy:business": "УДАЛЕНО",
+      "b2b:buy:premium": "УДАЛЕНО"
+    }
+  },
+
+  "business_rules_reference": {
+    "commission": {
+      "platform": "15%",
+      "owner": "85%",
+      "payout_fee": "1.5%",
+      "escrow_release_trigger": "ПОСЛЕ delete_published_post — не при публикации"
+    },
+    "yookassa": {
+      "fee_rate": "3.5%",
+      "direction": "добавляется к desired_balance — платит пользователь",
+      "formula": "gross = desired + desired * 0.035",
+      "webhook_credit": "зачислять metadata.desired_balance — НЕ gross_amount"
+    },
+    "limits": {
+      "min_topup": 500,
+      "max_topup": 300000,
+      "min_campaign_budget": 2000,
+      "min_price_per_post": 1000,
+      "min_payout": 1000,
+      "max_posts_per_day_system": 5,
+      "max_counter_offer_rounds": 3
+    },
+    "sla_timers": {
+      "owner_response": "24 часа",
+      "payment_deadline": "24 часа после принятия",
+      "counter_offer_response": "24 часа",
+      "dispute_owner_response": "24 часа",
+      "dispute_resolution_target": "24 часа (admin)",
+      "publication_retry_on_error": "1 час",
+      "ban_duration": "7 дней",
+      "advertiser_complaint_window": "48 часов после публикации"
+    },
+    "post_monitoring": {
+      "check_interval_minutes": 5,
+      "min_post_life_ratio": 0.80,
+      "dispute_auto_open_threshold": "actual_duration < paid_duration * 0.80",
+      "check_method": "bot.forward_message(chat_id=bot.id, from_chat_id=channel_id, message_id=message_id)"
+    },
+    "cancellation_policy": {
+      "before_escrow": {"advertiser_refund": "100%", "reputation_delta": 0},
+      "after_escrow_before_confirm": {"advertiser_refund": "100%", "reputation_delta": -5},
+      "after_confirm": {"advertiser_refund": "50%", "owner_compensation": "42.5%", "platform": "7.5%", "reputation_delta": -20},
+      "owner_rejected": {"advertiser_refund": "100%", "reputation_delta": 0},
+      "technical_error": {"advertiser_refund": "100%", "reputation_delta": 0}
+    },
+    "dispute_resolutions": {
+      "owner_fault": {"advertiser_refund": "100%", "owner_payout": "0%", "owner_rep_delta": -30},
+      "advertiser_fault": {"advertiser_refund": "0%", "owner_payout": "85%", "platform": "15%", "advertiser_rep_delta": -10},
+      "technical": {"advertiser_refund": "100%", "owner_payout": "0%", "rep_delta": 0},
+      "partial": {"custom_split": true, "admin_sets_pct": true}
+    },
+    "reputation": {
+      "range": "0.0 – 10.0",
+      "default": 5.0,
+      "events": {
+        "publication": "+1",
+        "review_5star": "+2", "review_4star": "+1", "review_3star": "0", "review_2star": "-1", "review_1star": "-2",
+        "cancel_before_escrow": "-5",
+        "cancel_after_confirm": "-20",
+        "cancel_systematic_3_in_30days": "-20",
+        "reject_invalid_1": "-10", "reject_invalid_2": "-15", "reject_invalid_3": "-20 + бан 7 дней",
+        "reject_frequent_over_50pct": "-5",
+        "dispute_owner_fault": "-30",
+        "recovery_30days_clean": "+5",
+        "after_ban_reset": "до 2.0"
+      },
+      "permanent_ban": "5+ нарушений"
+    },
+    "formats": {
+      "post_24h": {"multiplier": 1.0, "duration_sec": 86400, "requires_pin": false},
+      "post_48h": {"multiplier": 1.4, "duration_sec": 172800, "requires_pin": false},
+      "post_7d":  {"multiplier": 2.0, "duration_sec": 604800, "requires_pin": false},
+      "pin_24h":  {"multiplier": 3.0, "duration_sec": 86400, "requires_pin": true},
+      "pin_48h":  {"multiplier": 4.0, "duration_sec": 172800, "requires_pin": true}
+    },
+    "plan_format_access": {
+      "free":     ["post_24h"],
+      "starter":  ["post_24h", "post_48h"],
+      "pro":      ["post_24h", "post_48h", "post_7d"],
+      "business": ["post_24h", "post_48h", "post_7d", "pin_24h", "pin_48h"]
+    },
+    "plan_prices": {
+      "free": 0, "starter": 490, "pro": 1490, "business": 4990
+    },
+    "plan_enum_note": "UserPlan.business.value == 'business' (display name: Agency). PLAN_LIMITS ключ: 'business' НЕ 'agency'.",
+    "self_dealing": "channel.owner_id == advertiser_id → SelfDealingError (первая проверка)",
+    "velocity_check": "ratio = (payouts_30d + requested) / topups_30d > 0.80 → VelocityCheckError",
+    "broadcast_note": "Broadcast — ТОЛЬКО для admin (внутренние рассылки по пользователям бота). Удалён из advertiser флоу.",
+    "b2b_note": "B2B пакеты — УДАЛЕНЫ в v4.3. Callback main:b2b больше не используется.",
+    "analytics_data_sources": {
+      "reach": "snapshot TelegramChat.member_count при публикации → PlacementRequest.published_reach",
+      "clicks": "campaigns.clicks_count через tracking_short_code redirect (FastAPI /r/{code})",
+      "ctr": "clicks / published_reach * 100",
+      "earned": "SUM(Transaction WHERE type=escrow_release AND owner_id=X)"
+    }
+  },
+
+  "critical_bugs_fixed": {
+    "RT-001": {
+      "description": "main:analytics (рекламодатель) ≠ main:owner_analytics (владелец). Разные handlers, разные данные.",
+      "advertiser_callback": "main:analytics → analytics.py::show_advertiser_analytics",
+      "owner_callback": "main:owner_analytics → analytics.py::show_owner_analytics"
+    },
+    "ESCROW-001": {
+      "description": "release_escrow() вызывался при публикации. Теперь вызывается ТОЛЬКО в delete_published_post после успешного удаления.",
+      "wrong": "publish_placement() → release_escrow()",
+      "correct": "publish_placement() → [пост мониторится] → delete_published_post() → release_escrow()"
+    },
+    "PLAN-001": {
+      "description": "PLAN_LIMITS['agency'] → KeyError. Правильный ключ: PLAN_LIMITS['business']",
+      "fix": "HOTFIX применён в S-09. UserPlan.business.value == 'business'"
+    }
+  }
+}

@@ -186,10 +186,14 @@ class PayoutRepository(BaseRepository[Payout]):
         Returns:
             Payout или None.
         """
-        stmt = select(Payout).where(
-            Payout.owner_id == user_id,
-            Payout.status.in_([PayoutStatus.PENDING, PayoutStatus.PROCESSING]),
-        ).limit(1)
+        stmt = (
+            select(Payout)
+            .where(
+                Payout.owner_id == user_id,
+                Payout.status.in_([PayoutStatus.PENDING, PayoutStatus.PROCESSING]),
+            )
+            .limit(1)
+        )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 

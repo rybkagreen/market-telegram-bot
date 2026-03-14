@@ -78,7 +78,11 @@ async def show_channel_cfg_menu(
     """
     # Получаем username канала
     username = getattr(callback.message, "chat", None)
-    channel_username = f"@{username.username}" if username and hasattr(username, "username") and username.username else f"ID:{channel_id}"
+    channel_username = (
+        f"@{username.username}"
+        if username and hasattr(username, "username") and username.username
+        else f"ID:{channel_id}"
+    )
 
     # Формируем текст
     owner_earnings = float(settings.price_per_post) * (1 - float(PLATFORM_COMMISSION))
@@ -353,8 +357,7 @@ async def process_start_time(message: Message, state: FSMContext) -> None:
     await state.set_state(ChannelSettingsStates.waiting_end_time)
 
     await message.answer(
-        "✅ Время начала принято.\n\n"
-        "Введите время окончания публикаций в формате HH:MM:"
+        "✅ Время начала принято.\n\nВведите время окончания публикаций в формате HH:MM:"
     )
 
 
@@ -429,10 +432,7 @@ async def process_break_start(message: Message, state: FSMContext) -> None:
     await state.update_data(break_start=text)
     await state.set_state(ChannelSettingsStates.waiting_break_end)
 
-    await message.answer(
-        "✅ Начало перерыва принято.\n\n"
-        "Введите конец перерыва в формате HH:MM:"
-    )
+    await message.answer("✅ Начало перерыва принято.\n\nВведите конец перерыва в формате HH:MM:")
 
 
 @router.message(ChannelSettingsStates.waiting_break_end)
@@ -1064,11 +1064,9 @@ async def handle_auto_accept_toggle(callback: CallbackQuery) -> None:
         await session.commit()
 
     answer_text = (
-        "🤖 Авто-принятие включено\n"
-        "Заявки будут приниматься автоматически."
+        "🤖 Авто-принятие включено\nЗаявки будут приниматься автоматически."
         if new_val
-        else "👁 Ручной режим включён\n"
-        "Вы будете вручную проверять каждую заявку."
+        else "👁 Ручной режим включён\nВы будете вручную проверять каждую заявку."
     )
 
     await callback.answer(answer_text, show_alert=True)
@@ -1105,7 +1103,11 @@ async def handle_formats_display(callback: CallbackQuery) -> None:
 
         # Формируем текст
         username = getattr(callback.message, "chat", None)
-        channel_username = f"@{username.username}" if username and hasattr(username, "username") and username.username else f"ID:{channel_id}"
+        channel_username = (
+            f"@{username.username}"
+            if username and hasattr(username, "username") and username.username
+            else f"ID:{channel_id}"
+        )
 
         # Эмодзи для каждого формата
         def fmt_status(field_name: str, label: str, is_base: bool = False) -> str:

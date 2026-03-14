@@ -10,6 +10,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InaccessibleMessage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.bot.keyboards.advertiser.comparison import ComparisonCB
+
 # Импортировать router из mediakit handlers
 from src.bot.keyboards.shared.channels_catalog import (
     ChannelsCB,
@@ -17,7 +19,6 @@ from src.bot.keyboards.shared.channels_catalog import (
     get_channels_menu_kb,
     get_tariff_filter_kb,
 )
-from src.bot.keyboards.advertiser.comparison import ComparisonCB
 from src.bot.keyboards.shared.main_menu import MainMenuCB
 from src.bot.utils.message_utils import safe_edit_message
 from src.bot.utils.safe_callback import safe_callback_edit
