@@ -300,7 +300,7 @@ Username: @{username or "нет"}
             # Type narrowing: проверяем тип первого элемента
             first_output = response.outputs[0]
             # Проверяем что это MessageOutputEntry с атрибутом content
-            if not hasattr(first_output, 'content'):
+            if not hasattr(first_output, "content"):
                 raise ValueError(f"Unexpected output type: {type(first_output)}")
             content = first_output.content
             if not content:

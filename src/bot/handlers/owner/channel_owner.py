@@ -1344,7 +1344,9 @@ async def show_channel_payouts(callback: CallbackQuery) -> None:
                     "failed": "❌",
                     "cancelled": "🚫",
                 }.get(payout.status.value, "📝")
-                text += f"{status_icon} {payout.amount:.0f} ₽ ({payout.created_at.strftime('%d.%m')})\n"
+                text += (
+                    f"{status_icon} {payout.amount:.0f} ₽ ({payout.created_at.strftime('%d.%m')})\n"
+                )
         else:
             text += "История выплат пуста.\n"
 

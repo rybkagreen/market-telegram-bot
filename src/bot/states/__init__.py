@@ -6,6 +6,7 @@ from src.bot.states.campaign_create import CampaignCreateState
 from src.bot.states.channel_settings import ChannelSettingsStates
 from src.bot.states.feedback import FeedbackStates
 from src.bot.states.placement import PlacementStates
+from src.bot.states.placement_entry import PlacementEntryState
 
 __all__ = [
     "CampaignStates",
@@ -13,5 +14,6 @@ __all__ = [
     "FeedbackStates",
     "ChannelSettingsStates",
     "PlacementStates",
+    "PlacementEntryState",
     "ArbitrationStates",
 ]

@@ -614,7 +614,9 @@ def publish_single_placement(placement_id: int) -> dict:
                     return {"error": "Channel not found"}
 
                 if chat.telegram_id is None:
-                    logger.error(f"publish_single_placement: channel {placement.chat_id} has no telegram_id")
+                    logger.error(
+                        f"publish_single_placement: channel {placement.chat_id} has no telegram_id"
+                    )
                     return {"error": "Channel has no telegram_id"}
 
                 # Отправить сообщение

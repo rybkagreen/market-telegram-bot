@@ -13,7 +13,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.keyboards.shared.feedback import FeedbackCB, get_feedback_confirm_kb, get_feedback_type_kb
+from src.bot.keyboards.shared.feedback import (
+    FeedbackCB,
+    get_feedback_confirm_kb,
+    get_feedback_type_kb,
+)
 from src.bot.keyboards.shared.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.feedback import FeedbackStates
 from src.bot.utils.safe_callback import safe_callback_edit

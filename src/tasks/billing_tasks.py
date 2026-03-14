@@ -162,10 +162,10 @@ def check_pending_invoices(self) -> dict:
 async def _check_pending_invoices() -> dict:
     """Асинхронная реализация проверки инвойсов."""
     from sqlalchemy import select, update
-    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from src.core.services.cryptobot_service import cryptobot_service
     from src.config.settings import settings
+    from src.core.services.cryptobot_service import cryptobot_service
 
     # Создаём новый engine для этого event loop
     engine = create_async_engine(

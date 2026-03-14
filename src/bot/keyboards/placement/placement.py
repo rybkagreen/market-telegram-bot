@@ -9,7 +9,9 @@ def get_placement_list_kb(placements: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     for p in placements[:10]:
-        status_emoji = {"published": "✅", "pending": "⏳", "cancelled": "❌"}.get(p.get("status", ""), "📝")
+        status_emoji = {"published": "✅", "pending": "⏳", "cancelled": "❌"}.get(
+            p.get("status", ""), "📝"
+        )
         title = p.get("channel_name", "Канал")[:30]
         builder.button(text=f"{status_emoji} {title}", callback_data=f"placement:view:{p['id']}")
 

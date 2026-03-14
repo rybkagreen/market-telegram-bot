@@ -101,9 +101,11 @@ PLAN_LIMITS: dict[str, dict] = {
     "free":    {"active_campaigns": 1,  "ai_per_month": 0,  "formats": ["post_24h"]},
     "starter": {"active_campaigns": 5,  "ai_per_month": 3,  "formats": ["post_24h","post_48h"]},
     "pro":     {"active_campaigns": 20, "ai_per_month": 20, "formats": ["post_24h","post_48h","post_7d"]},
-    "agency":  {"active_campaigns": -1, "ai_per_month": -1, "formats": ["post_24h","post_48h","post_7d","pin_24h","pin_48h"]},
+    "business":  {"active_campaigns": -1, "ai_per_month": -1, "formats": ["post_24h","post_48h","post_7d","pin_24h","pin_48h"]},  # HOTFIX: НЕ 'agency'!
 }
 ```
+
+**⚠️ HOTFIX:** `UserPlan.BUSINESS.value == 'business'`, поэтому `PLAN_LIMITS` использует ключ `'business'` (НЕ `'agency'`). `'agency'` встречается только в `PLAN_PRICES` для обратной совместимости.
 
 ---
 
@@ -415,6 +417,7 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 | Celery падает на TelegramBadRequest | `except TelegramBadRequest: pass` |
 | `alembic/` в корне | `Config("alembic.ini")` с явным путём в run_migrations.py |
 | Зачисление gross вместо desired | `metadata["desired_balance"]` в webhook |
+| `PLAN_LIMITS['agency']` KeyError | Использовать `PLAN_LIMITS['business']` (НЕ 'agency') |
 
 ---
 

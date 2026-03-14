@@ -205,7 +205,11 @@ async def handle_view_request(callback: CallbackQuery) -> None:
     channel_username = channel.username or f"ID:{channel.id}"
     owner_payout = float(placement.proposed_price) * (OWNER_PAYOUT_PCT / 100)
 
-    post_text_preview = placement.final_text[:800] + "..." if len(placement.final_text) > 800 else placement.final_text
+    post_text_preview = (
+        placement.final_text[:800] + "..."
+        if len(placement.final_text) > 800
+        else placement.final_text
+    )
 
     text = (
         f"📋 <b>Заявка #{placement.id} от рекламодателя</b>\n\n"
@@ -273,7 +277,9 @@ async def handle_accept(callback: CallbackQuery) -> None:
 
         try:
             await service.owner_accept(placement_id, channel.owner_user_id)
-            await callback.answer("✅ Заявка принята! Ожидайте оплаты от рекламодателя (до 24 ч)", show_alert=False)
+            await callback.answer(
+                "✅ Заявка принята! Ожидайте оплаты от рекламодателя (до 24 ч)", show_alert=False
+            )
 
             text = (
                 f"✅ <b>Заявка принята!</b>\n\n"
@@ -363,7 +369,9 @@ async def handle_reject_reason_select(callback: CallbackQuery, state: FSMContext
         await state.update_data(placement_id=placement_id, reason_code=reason_code)
         await state.set_state(ArbitrationStates.waiting_rejection_reason)
 
-        await callback.answer("✍️ Введите причину отклонения (минимум 10 символов):", show_alert=True)
+        await callback.answer(
+            "✍️ Введите причину отклонения (минимум 10 символов):", show_alert=True
+        )
     else:
         # Использовать предустановленную причину
         reason_text = REJECTION_REASONS.get(reason_code, reason_code)
@@ -535,11 +543,15 @@ async def handle_counter_offer_init(callback: CallbackQuery, state: FSMContext) 
 
         # Проверка лимита раундов
         if placement.counter_offer_count >= MAX_COUNTER_OFFER_ROUNDS:
-            await callback.answer(f"❌ Лимит раундов ({MAX_COUNTER_OFFER_ROUNDS}) исчерпан", show_alert=True)
+            await callback.answer(
+                f"❌ Лимит раундов ({MAX_COUNTER_OFFER_ROUNDS}) исчерпан", show_alert=True
+            )
             return
 
         if placement.status != PlacementStatus.PENDING_OWNER:
-            await callback.answer("❌ Нельзя сделать контр-предложение в текущем статусе", show_alert=True)
+            await callback.answer(
+                "❌ Нельзя сделать контр-предложение в текущем статусе", show_alert=True
+            )
             return
 
     await state.update_data(placement_id=placement_id)
@@ -587,8 +599,7 @@ async def process_counter_price(message: Message, state: FSMContext) -> None:
     await state.set_state(ArbitrationStates.waiting_counter_comment)
 
     await message.answer(
-        "✅ Цена принята.\n\n"
-        "Добавьте комментарий или нажмите /skip чтобы пропустить:"
+        "✅ Цена принята.\n\nДобавьте комментарий или нажмите /skip чтобы пропустить:"
     )
 
 

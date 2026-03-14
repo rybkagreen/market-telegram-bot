@@ -95,6 +95,16 @@ CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
 CRYPTO_CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
 PAYMENT_METHODS: list[str] = ["cryptobot", "stars"]
 
+# Legacy пакеты ЮKassa (для обратной совместимости — используется в billing handler)
+YOOKASSA_PACKAGES: list[dict] = [
+    {"rub": 100, "label": "100 ₽"},
+    {"rub": 300, "label": "300 ₽"},
+    {"rub": 500, "label": "500 ₽"},
+    {"rub": 1000, "label": "1 000 ₽"},
+    {"rub": 3000, "label": "3 000 ₽"},
+    {"rub": 5000, "label": "5 000 ₽"},
+]
+
 # Legacy пакеты кредитов (для обратной совместимости)
 CREDIT_PACKAGES: list[tuple[str, int, int, str]] = [
     ("300 кр", 300, 0, "300"),

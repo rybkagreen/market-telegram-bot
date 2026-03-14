@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class InsufficientFundsError(Exception):
     """Недостаточно средств на балансе."""
+
     pass
 
 
@@ -406,7 +407,9 @@ class BillingService:
                 balance_after=referrer.balance_rub,
             )
 
-            logger.info(f"Referral bonus {bonus_amount} ₽ to user {referrer_id}, new balance: {referrer.balance_rub} ₽")
+            logger.info(
+                f"Referral bonus {bonus_amount} ₽ to user {referrer_id}, new balance: {referrer.balance_rub} ₽"
+            )
 
             # Уведомляем
             await notification_service.notify_referral_bonus(
@@ -881,9 +884,7 @@ class BillingService:
                 return True
 
             except Exception as e:
-                logger.error(
-                    f"Failed to release escrow funds for placement {placement_id}: {e}"
-                )
+                logger.error(f"Failed to release escrow funds for placement {placement_id}: {e}")
                 return False
 
     async def refund_failed_placement(self, placement_id: int) -> bool:
@@ -937,9 +938,7 @@ class BillingService:
                 return True  # уже возвращено
 
             # 2. Получить кампанию и рекламодателя
-            stmt = (
-                select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
-            )
+            stmt = select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
             result = await session.execute(stmt)
             campaign: Campaign | None = result.scalar_one_or_none()
             if campaign is None:
@@ -1551,7 +1550,9 @@ class BillingService:
                         "placement_id": placement_id,
                         "share": "advertiser",
                     },
-                    balance_before=advertiser.balance_rub - advertiser_refund if advertiser else Decimal("0"),
+                    balance_before=advertiser.balance_rub - advertiser_refund
+                    if advertiser
+                    else Decimal("0"),
                     balance_after=advertiser.balance_rub if advertiser else Decimal("0"),
                 )
                 session.add(advertiser_txn)

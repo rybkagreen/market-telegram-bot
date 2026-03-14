@@ -24,9 +24,7 @@ class ChannelSettingsRepo(BaseRepository[ChannelSettings]):
         """Инициализация репозитория."""
         super().__init__(session)
 
-    async def get_by_channel(
-        self, channel_id: int
-    ) -> ChannelSettings | None:
+    async def get_by_channel(self, channel_id: int) -> ChannelSettings | None:
         """
         Получить настройки канала. None если не существует.
 
@@ -38,9 +36,7 @@ class ChannelSettingsRepo(BaseRepository[ChannelSettings]):
         """
         return await self.session.get(self.model, channel_id)
 
-    async def get_or_create_default(
-        self, channel_id: int, owner_id: int
-    ) -> ChannelSettings:
+    async def get_or_create_default(self, channel_id: int, owner_id: int) -> ChannelSettings:
         """
         Получить настройки или создать с дефолтными значениями.
         Дефолты из ChannelSettings.* констант.
@@ -121,9 +117,7 @@ class ChannelSettingsRepo(BaseRepository[ChannelSettings]):
 
         return await self.create(attributes)
 
-    async def get_by_owner(
-        self, owner_id: int
-    ) -> list[ChannelSettings]:
+    async def get_by_owner(self, owner_id: int) -> list[ChannelSettings]:
         """
         Все настройки каналов владельца.
 

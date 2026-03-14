@@ -13,8 +13,8 @@ from src.api.routers.analytics import router as analytics_router
 from src.api.routers.auth import router as auth_router
 from src.api.routers.billing import router as billing_router
 from src.api.routers.campaigns import router as campaigns_router
-from src.api.routers.channels import router as channels_router
 from src.api.routers.channel_settings import router as channel_settings_router
+from src.api.routers.channels import router as channels_router
 from src.api.routers.placements import router as placements_router
 from src.api.routers.reputation import router as reputation_router
 from src.config.settings import settings

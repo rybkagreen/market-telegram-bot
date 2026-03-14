@@ -23,7 +23,6 @@ from aiogram.utils.keyboard import (  # type: ignore[attr-defined]
     InlineKeyboardMarkup,
 )
 
-from src.bot.keyboards.shared.cabinet import CabinetCB, get_notifications_prompt_kb
 from src.bot.keyboards.advertiser.campaign import (
     CampaignCB,
     get_campaign_confirm_kb,
@@ -34,6 +33,7 @@ from src.bot.keyboards.advertiser.campaign import (
     get_text_type_kb,
     get_topics_kb,
 )
+from src.bot.keyboards.shared.cabinet import CabinetCB, get_notifications_prompt_kb
 from src.bot.keyboards.shared.main_menu import MainMenuCB, get_main_menu
 from src.bot.states.campaign import CampaignStates
 from src.bot.utils.safe_callback import safe_callback_edit

@@ -14,7 +14,9 @@ def get_channel_cfg_menu_kb(channel_id: int, settings) -> InlineKeyboardMarkup:
     builder.button(text="📅 Подписка", callback_data=f"ch_cfg:subscription:{channel_id}")
 
     auto_text = "👁 Выключить" if settings.auto_accept_enabled else "🤖 Включить"
-    builder.button(text=f"Авто-принятие: {auto_text}", callback_data=f"ch_cfg:auto_accept:{channel_id}")
+    builder.button(
+        text=f"Авто-принятие: {auto_text}", callback_data=f"ch_cfg:auto_accept:{channel_id}"
+    )
     builder.button(text="◀️ Назад", callback_data=f"channel_menu:{channel_id}")
 
     builder.adjust(2, 2, 1)
@@ -34,14 +36,28 @@ def get_packages_kb(channel_id: int, settings) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     daily_toggle = "❌ Выключить" if settings.daily_package_enabled else "✅ Включить"
-    builder.button(text=f"Дневной пакет: {daily_toggle}", callback_data=f"ch_cfg:pkg_daily_toggle:{channel_id}")
-    builder.button(text=f"Скидка дня: {settings.daily_package_discount}%", callback_data=f"ch_cfg:pkg_daily_discount:{channel_id}")
+    builder.button(
+        text=f"Дневной пакет: {daily_toggle}", callback_data=f"ch_cfg:pkg_daily_toggle:{channel_id}"
+    )
+    builder.button(
+        text=f"Скидка дня: {settings.daily_package_discount}%",
+        callback_data=f"ch_cfg:pkg_daily_discount:{channel_id}",
+    )
 
     weekly_toggle = "❌ Выключить" if settings.weekly_package_enabled else "✅ Включить"
-    builder.button(text=f"Недельный пакет: {weekly_toggle}", callback_data=f"ch_cfg:pkg_weekly_toggle:{channel_id}")
-    builder.button(text=f"Скидка недели: {settings.weekly_package_discount}%", callback_data=f"ch_cfg:pkg_weekly_discount:{channel_id}")
+    builder.button(
+        text=f"Недельный пакет: {weekly_toggle}",
+        callback_data=f"ch_cfg:pkg_weekly_toggle:{channel_id}",
+    )
+    builder.button(
+        text=f"Скидка недели: {settings.weekly_package_discount}%",
+        callback_data=f"ch_cfg:pkg_weekly_discount:{channel_id}",
+    )
 
-    builder.button(text=f"Лимит постов/день: {settings.daily_package_max}", callback_data=f"ch_cfg:max_posts:{channel_id}")
+    builder.button(
+        text=f"Лимит постов/день: {settings.daily_package_max}",
+        callback_data=f"ch_cfg:max_posts:{channel_id}",
+    )
     builder.button(text="◀️ Назад", callback_data=f"ch_cfg:view:{channel_id}")
 
     builder.adjust(2, 2, 1)

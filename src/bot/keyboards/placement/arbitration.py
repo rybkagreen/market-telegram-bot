@@ -9,7 +9,9 @@ def get_arbitration_list_kb(requests: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     for r in requests[:10]:
-        status_emoji = {"pending": "⏳", "accepted": "✅", "rejected": "❌"}.get(r.get("status", ""), "📝")
+        status_emoji = {"pending": "⏳", "accepted": "✅", "rejected": "❌"}.get(
+            r.get("status", ""), "📝"
+        )
         title = r.get("advertiser_name", "Рекламодатель")[:30]
         builder.button(text=f"{status_emoji} {title}", callback_data=f"arbitration:view:{r['id']}")
 
@@ -40,7 +42,9 @@ def get_reject_reason_kb(placement_id: int) -> InlineKeyboardMarkup:
         "Другое",
     ]
     for reason in reasons:
-        builder.button(text=reason, callback_data=f"arbitration:reject_confirm:{placement_id}:{reason}")
+        builder.button(
+            text=reason, callback_data=f"arbitration:reject_confirm:{placement_id}:{reason}"
+        )
     builder.button(text="◀️ Назад", callback_data=f"arbitration:view:{placement_id}")
     builder.adjust(1)
     return builder.as_markup()

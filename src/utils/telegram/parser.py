@@ -786,6 +786,7 @@ class TelegramParser:
                     # Метод 2: GetFullChannelRequest
                     try:
                         from telethon.tl.functions.channels import GetFullChannelRequest
+
                         full = await self.client(GetFullChannelRequest(entity))
                         count = getattr(full.full_chat, "participants_count", 0)
                         logger.debug(f"Got member count via GetFullChannelRequest: {count}")
