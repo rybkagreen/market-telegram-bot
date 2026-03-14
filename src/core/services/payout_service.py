@@ -632,6 +632,10 @@ class PayoutService:
             payout.status = PayoutStatus.PAID
             payout.paid_at = datetime.now(UTC)
 
+            # complete_payout: gross_amount and net_amount are required
+            if payout.gross_amount is None or payout.net_amount is None:
+                raise ValueError(f"Payout {payout_id} missing gross_amount or net_amount")
+
             # platform_account_repo.complete_payout(session, gross_amount=payout.gross_amount, net_amount=payout.net_amount)
             platform_repo = PlatformAccountRepo(session)
             await platform_repo.complete_payout(session, payout.gross_amount, payout.net_amount)
@@ -664,7 +668,7 @@ class PayoutService:
             gross_amount = payout.gross_amount or payout.amount
             fee_amount = payout.fee_amount or Decimal("0")
 
-            payout.status = PayoutStatus.REJECTED
+            payout.status = PayoutStatus.CANCELLED
             payout.wallet_address = reason  # Используем для хранения причины
 
             # UPDATE users SET earned_rub = earned_rub + gross_amount WHERE id = user_id

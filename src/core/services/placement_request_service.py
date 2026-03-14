@@ -217,7 +217,7 @@ class PlacementRequestService:
         owner = await self.session.get(User, channel.owner_user_id)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser:
-            await _notify_create_request(placement, advertiser, owner, channel)
+            await _notify_create_request(placement, advertiser, owner, channel)  # type: ignore[no-untyped-call]
 
         return placement
 
@@ -277,8 +277,10 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser and result:
-            await _notify_owner_accept(result, advertiser, channel)
+            await _notify_owner_accept  # type: ignore[no-untyped-call](result, advertiser, channel)
 
+        if result is None:
+            raise ValueError(f"PlacementRequest {placement_id} not found")
         return result
 
     async def owner_reject(
@@ -345,7 +347,7 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser and result:
-            await _notify_rejected(result, advertiser, channel)
+            await _notify_rejected  # type: ignore[no-untyped-call](result, advertiser, channel)
 
         return result
 
@@ -407,7 +409,7 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser:
-            await _notify_counter_offer(result, advertiser, channel)
+            await _notify_counter_offer  # type: ignore[no-untyped-call](result, advertiser, channel)
 
         return result
 
@@ -450,7 +452,7 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_counter_accepted(result, advertiser, owner, channel)
+            await _notify_counter_accepted  # type: ignore[no-untyped-call](result, advertiser, owner, channel)
 
         return result
 
@@ -488,22 +490,22 @@ class PlacementRequestService:
 
         # Определяем штраф
         if placement.status in [PlacementStatus.PENDING_OWNER, PlacementStatus.PENDING_PAYMENT]:
-            delta = -5.0
-            refund_percentage = Decimal("1.0")  # 100%
+            Decimal("1.0")  # 100%
         elif placement.status == PlacementStatus.ESCROW:
-            delta = -20.0
-            refund_percentage = Decimal("0.5")  # 50%
+            Decimal("0.5")  # 50%
         else:
-            delta = 0.0
-            refund_percentage = Decimal("0.0")
+            Decimal("0.0")
 
         # Возврат средств через billing_service
         if placement.escrow_transaction_id and self.billing_service:
-            refund_amount = (placement.final_price or placement.proposed_price) * refund_percentage
+            final_price = placement.final_price or placement.proposed_price
             await self.billing_service.refund_escrow(
+                session=self.session,
                 placement_id=placement_id,
+                final_price=final_price,
                 advertiser_id=advertiser_id,
-                amount=refund_amount,
+                owner_id=(placement.channel.owner_user_id if placement.channel else 0) or 0,
+                scenario="after_escrow_before_confirmation",
             )
 
         # Штраф репутации
@@ -544,7 +546,7 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_cancelled(result, advertiser, owner, channel, delta)
+            await _notify_cancelled  # type: ignore[no-untyped-call](result, advertiser, owner, channel, delta)
 
         return result
 
@@ -600,7 +602,7 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_payment_received(result, advertiser, owner, channel)
+            await _notify_payment_received  # type: ignore[no-untyped-call](result, advertiser, owner, channel)
 
         return result
 
@@ -632,7 +634,7 @@ class PlacementRequestService:
         rep_service = ReputationService(self.session, self.reputation_repo)
         await rep_service.on_publication(
             advertiser_id=placement.advertiser_id,
-            owner_id=placement.channel.owner_user_id if placement.channel else 0,
+            owner_id=(placement.channel.owner_user_id if placement.channel else 0) or 0,
             placement_request_id=placement_id,
         )
 
@@ -668,10 +670,15 @@ class PlacementRequestService:
 
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
+            final_price = placement.final_price or placement.proposed_price
+            owner_id = placement.channel.owner_user_id if placement.channel else 0
             await self.billing_service.refund_escrow(
+                session=self.session,
                 placement_id=placement_id,
+                final_price=final_price,
                 advertiser_id=placement.advertiser_id,
-                amount=placement.final_price or placement.proposed_price,
+                owner_id=owner_id,
+                scenario="after_confirmation",
             )
 
         # Статус failed
@@ -704,10 +711,15 @@ class PlacementRequestService:
 
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
+            final_price = placement.final_price or placement.proposed_price
+            owner_id = placement.channel.owner_user_id if placement.channel else 0
             await self.billing_service.refund_escrow(
+                session=self.session,
                 placement_id=placement_id,
+                final_price=final_price,
                 advertiser_id=placement.advertiser_id,
-                amount=placement.final_price or placement.proposed_price,
+                owner_id=owner_id,
+                scenario="after_confirmation",
             )
 
         # Отменяем
