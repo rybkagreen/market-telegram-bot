@@ -4,6 +4,7 @@ S-07: публикация размещений, управление закре
 """
 
 import logging
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot
@@ -138,15 +139,7 @@ class PublicationService:
                 session, placement_id, message.message_id, scheduled_delete_at
             )
 
-            # 7. Разблокировать эскроу (вызывается billing_service.release_escrow)
-            await self.billing_service.release_escrow(
-                session,
-                placement_id,
-                placement.final_price or placement.proposed_price,
-                placement.advertiser_id,
-                channel.owner_user_id or 0,
-            )
-
+            # 7. Обновить статус на PUBLISHED (эскроу освобождается ТОЛЬКО после удаления)
             placement.status = PlacementStatus.PUBLISHED
             placement.published_at = datetime.now(UTC)
             await session.flush()
@@ -187,19 +180,15 @@ class PublicationService:
 
             # Для pin форматов — сначала открепить
             if placement.publication_format in ("pin_24h", "pin_48h"):
-                try:
+                with suppress(TelegramBadRequest):
                     await bot.unpin_chat_message(
                         chat_id=channel.telegram_id,
                         message_id=placement.message_id,
                     )
-                except TelegramBadRequest:
-                    pass  # уже откреплено — не падаем
 
             # Удалить сообщение
-            try:
+            with suppress(TelegramBadRequest):
                 await bot.delete_message(channel.telegram_id, placement.message_id)
-            except TelegramBadRequest:
-                pass  # уже удалено — не падаем
 
             # Зафиксировать удаление
             placement_repo = PlacementRequestRepo(session)
@@ -207,6 +196,17 @@ class PublicationService:
 
             placement.status = PlacementStatus.COMPLETED
             placement.deleted_at = datetime.now(UTC)
+
+            # КЛЮЧЕВОЙ МОМЕНТ: освободить эскроу ТОЛЬКО после успешного удаления
+            # ESCROW-001: release_escrow вызывается ТОЛЬКО здесь
+            await self.billing_service.release_escrow(
+                session,
+                placement_id,
+                placement.final_price or placement.proposed_price,
+                placement.advertiser_id,
+                channel.owner_user_id or 0,
+            )
+
             await session.flush()
 
-            logger.info(f"Placement {placement_id} deleted successfully")
+            logger.info(f"Placement {placement_id} deleted successfully and escrow released")

@@ -90,11 +90,9 @@ class Settings(BaseSettings):
     ai_max_tokens: int = Field(1500, alias="AI_MAX_TOKENS")
     ai_temperature: float = Field(0.7, alias="AI_TEMPERATURE")
 
-    # ========== PAYMENT SYSTEM (TWO-CURRENCY: RUB + CREDITS) ==========
-    # CryptoBot
-    cryptobot_token: str | None = Field(None, alias="CRYPTOBOT_TOKEN")
-    stars_enabled: bool = Field(True, alias="STARS_ENABLED")
-
+    # ═══════════════════════════════════════════════════════════════
+    # PAYMENT SYSTEM v4.2 — ТОЛЬКО ЮKassa (RUB)
+    # ═══════════════════════════════════════════════════════════════
     # ЮKassa
     yookassa_shop_id: str = Field("", alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str = Field("", alias="YOOKASSA_SECRET_KEY")
@@ -109,7 +107,6 @@ class Settings(BaseSettings):
     rub_per_btc: int = Field(9_000_000, alias="RUB_PER_BTC")
     rub_per_eth: int = Field(300_000, alias="RUB_PER_ETH")
     rub_per_ltc: int = Field(7_000, alias="RUB_PER_LTC")
-    rub_per_star: int = Field(2, alias="RUB_PER_STAR")
 
     # ═══════════════════════════════════════════════════════════════
     # КУРС ПОКУПКИ КРЕДИТОВ ДЛЯ ПОДПИСОК (1 кредит = 1 рубль)
@@ -131,6 +128,18 @@ class Settings(BaseSettings):
     )
     content_filter_l3_timeout: float = Field(
         3.0, alias="CONTENT_FILTER_L3_TIMEOUT", description="Таймаут L3 проверки в секундах"
+    )
+
+    # ══════════════════════════════════════════════════════════════
+    # V4.3 — Диспуты и мониторинг постов
+    # ══════════════════════════════════════════════════════════════
+    dispute_check_interval_minutes: int = Field(
+        5, alias="DISPUTE_CHECK_INTERVAL_MINUTES", description="Интервал проверки диспутов (мин)"
+    )
+    post_monitoring_min_life_ratio: float = Field(
+        0.80,
+        alias="POST_MONITORING_MIN_LIFE_RATIO",
+        description="Мин. доля жизни поста для авто-диспута (0.80 = 80%)",
     )
 
     # Analytics settings
@@ -254,14 +263,13 @@ class Settings(BaseSettings):
 
     @property
     def currency_rates(self) -> dict[str, int]:
-        """Словарь курсов конвертации валют в кредиты."""
+        """Словарь курсов конвертации валют в рубли (для пополнения balance_rub)."""
         return {
-            "USDT": self.credits_per_usdt,
-            "TON": self.credits_per_ton,
-            "BTC": self.credits_per_btc,
-            "ETH": self.credits_per_eth,
-            "LTC": self.credits_per_ltc,
-            "XUSDT": self.credits_per_usdt,  # alias для Stars
+            "USDT": self.rub_per_usdt,
+            "TON": self.rub_per_ton,
+            "BTC": self.rub_per_btc,
+            "ETH": self.rub_per_eth,
+            "LTC": self.rub_per_ltc,
         }
 
     @property
