@@ -162,6 +162,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **All imports**: Successful
 
+#### P12 - API Routers (billing webhook, health-check, admin API)
+- **Verified** API routers:
+  - `billing.py`: YooKassa webhook (POST /webhooks/yookassa, status_code=200)
+  - `health.py`: Health-check with invariants (GET /health, GET /health/balances)
+  - `analytics.py`, `auth.py`, `campaigns.py`, `channel_settings.py`, `channels.py`, `placements.py`, `reputation.py`
+- **Fixed** health.py:
+  - I001: sorted imports
+  - F401: removed unused Depends, AsyncSession imports
+  - Changed session handling from Depends to async context manager
+- **Verified** health invariants:
+  - `platform.escrow_reserved == SUM(final_price WHERE status='escrow')`
+  - `platform.payout_reserved == SUM(gross_amount WHERE status IN ('pending','processing'))`
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13
