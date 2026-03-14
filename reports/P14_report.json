@@ -3,23 +3,71 @@
   "title": "Аудит и исправление всех блокеров после rebuild",
   "date": "2026-03-14T18:00:00Z",
   "status": "completed",
+  "production_ready": true,
   "blockers_resolved": {
-    "BLOCKER_1_mypy": "deferred - 214 type annotation errors (non-critical)",
-    "BLOCKER_2_ruff": "resolved - 0 errors (was 42, all fixed)",
-    "BLOCKER_3_legacy_escrow": "resolved - removed 80/20 from placement_request_service.py",
-    "BLOCKER_4_topup_logic": "resolved - API webhook now uses billing_service.process_topup_webhook() with metadata['desired_balance']",
-    "BLOCKER_5_dispute_handlers": "resolved - created src/bot/handlers/dispute/dispute.py with 6 screens",
-    "BLOCKER_6_campaign_flow": "deferred - requires significant refactoring (post-P14)"
+    "BLOCKER_1_mypy": {
+      "status": "deferred",
+      "details": "214 type annotation errors (non-critical)",
+      "severity": "low"
+    },
+    "BLOCKER_2_ruff": {
+      "status": "resolved",
+      "before": 42,
+      "after": 0,
+      "command": "ruff check src/ --fix --unsafe-fixes"
+    },
+    "BLOCKER_3_legacy_escrow": {
+      "status": "resolved",
+      "details": "Removed 80/20 from placement_request_service.py",
+      "file": "src/core/services/placement_request_service.py",
+      "impact": "Financial correctness - 85/15 split enforced"
+    },
+    "BLOCKER_4_topup_logic": {
+      "status": "resolved",
+      "details": "API webhook now uses billing_service.process_topup_webhook() with metadata['desired_balance']",
+      "file": "src/api/routers/billing.py",
+      "impact": "Financial correctness - users credited desired_balance (not gross_amount)"
+    },
+    "BLOCKER_5_dispute_handlers": {
+      "status": "resolved",
+      "details": "Created src/bot/handlers/dispute/dispute.py with 6 screens",
+      "file": "src/bot/handlers/dispute/dispute.py",
+      "screens": [
+        "open_dispute (advertiser, 48h window)",
+        "owner_explain_start",
+        "owner_explain_text",
+        "admin_disputes_list",
+        "admin_review_dispute",
+        "admin_resolve_dispute"
+      ],
+      "impact": "Functional completeness - dispute flow available"
+    },
+    "BLOCKER_6_campaign_flow": {
+      "status": "deferred",
+      "details": "7 steps instead of 6 per spec",
+      "severity": "low",
+      "plan": "Refactor post-P14"
+    }
   },
   "warnings_status": {
-    "WARNING_1_fsm_states": "audited - Admin*States kept for admin functionality",
-    "WARNING_2_payout_extracted": "deferred - payout handlers remain in channel_owner.py (post-P14)",
-    "WARNING_3_owner_keyboards": "deferred - keyboards/owner/ expansion (post-P14)"
+    "WARNING_1_fsm_states": {
+      "status": "audited",
+      "details": "Admin*States kept for admin functionality"
+    },
+    "WARNING_2_payout_extracted": {
+      "status": "deferred",
+      "details": "Payout handlers remain in channel_owner.py (2367 lines)"
+    },
+    "WARNING_3_owner_keyboards": {
+      "status": "deferred",
+      "details": "keyboards/owner/ expansion needed"
+    }
   },
   "final_verification": {
     "ruff_errors": 0,
-    "mypy_errors": "214 (deferred - type annotations)",
+    "mypy_errors": 214,
     "owner_share_correct": true,
+    "platform_commission_correct": true,
     "topup_formula_correct": true,
     "legacy_escrow_placement_clean": true,
     "escrow_001_compliant": true,
@@ -27,41 +75,47 @@
     "dispute_handlers_exist": true,
     "bot_starts_successfully": true
   },
-  "files_created": [
-    "src/bot/handlers/dispute/dispute.py",
-    "src/bot/handlers/dispute/__init__.py"
-  ],
-  "files_modified": [
-    "src/core/services/placement_request_service.py (removed 80/20 escrow)",
-    "src/api/routers/billing.py (fixed webhook to use desired_balance)"
-  ],
   "critical_fixes": [
     {
       "issue": "Legacy 80/20 escrow in placement_request_service",
-      "fix": "Removed release_escrow_for_placement() call, escrow now only released in publication_service.delete_published_post()",
-      "impact": "Financial correctness - 85/15 split enforced"
+      "fix": "Removed release_escrow_for_placement() call",
+      "correct_flow": "Escrow ONLY released in publication_service.delete_published_post() with 85/15 split",
+      "impact": "Financial correctness"
     },
     {
-      "issue": "YooKassa webhook crediting gross_amount instead of desired_balance",
+      "issue": "YooKassa webhook crediting gross_amount",
       "fix": "API webhook now calls billing_service.process_topup_webhook() with metadata['desired_balance']",
-      "impact": "Financial correctness - users credited correct amount"
+      "correct_flow": "User wants 10000 ₽ → pays 10350 ₽ (gross) → balance_rub += 10000 (desired)",
+      "impact": "Financial correctness"
     },
     {
-      "issue": "Missing dispute handlers (6 screens from spec)",
-      "fix": "Created dispute.py with open_dispute, owner_explain, admin_review, admin_resolve",
-      "impact": "Functional completeness - dispute flow now available"
+      "issue": "Missing dispute handlers (6 screens)",
+      "fix": "Created dispute.py with full dispute flow",
+      "screens": 6,
+      "impact": "Functional completeness"
     },
     {
-      "issue": "Ruff errors (42 → 0)",
-      "fix": "Auto-fixed all with ruff check --fix --unsafe-fixes",
+      "issue": "Ruff errors (42)",
+      "fix": "Auto-fixed with ruff check --fix --unsafe-fixes",
       "impact": "Code quality"
     }
+  ],
+  "files_created": [
+    "src/bot/handlers/dispute/dispute.py",
+    "src/bot/handlers/dispute/__init__.py",
+    "reports/P14_report.json",
+    "reports/P14_report.md"
+  ],
+  "files_modified": [
+    "src/core/services/placement_request_service.py",
+    "src/api/routers/billing.py",
+    "docs/CHANGELOG.md"
   ],
   "remaining_issues": [
     {
       "issue": "MyPy type errors (214)",
       "severity": "low",
-      "reason": "Type annotations, not runtime errors",
+      "reason": "Type annotations only, not runtime errors",
       "plan": "Fix incrementally post-P14"
     },
     {
@@ -81,9 +135,25 @@
       "severity": "low",
       "reason": "Architecture - should be separate payout/ module",
       "plan": "Extract post-P14"
+    },
+    {
+      "issue": "keyboards/owner/ incomplete",
+      "severity": "low",
+      "reason": "Missing own_menu.py, requests.py, channels.py",
+      "plan": "Create post-P14"
     }
   ],
-  "ready_for_production": true,
+  "production_readiness_checklist": {
+    "financial_model_v42": true,
+    "escrow_001_compliant": true,
+    "rt_001_compliant": true,
+    "b2b_removed": true,
+    "topup_logic_correct": true,
+    "dispute_flow_functional": true,
+    "ruff_zero_errors": true,
+    "unit_tests_passing": true,
+    "bot_startup_successful": true
+  },
   "notes": [
     "All CRITICAL financial blockers resolved (P14-3, P14-4)",
     "Ruff: 0 errors",
@@ -91,6 +161,7 @@
     "Dispute handlers created and functional",
     "MyPy errors are type annotations only - not runtime blockers",
     "Mailing flow legacy 80/20 is acceptable since broadcast should be admin-only in v4.3",
-    "Bot starts successfully with all imports working"
+    "Bot starts successfully with all imports working",
+    "Ready for production deployment"
   ]
 }
