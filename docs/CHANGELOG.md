@@ -62,6 +62,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests**: 20 unit tests for FSM and middlewares
 - **Total P04 tests**: 20 passed, 0 failed
 
+#### P05 - Keyboards (InlineKeyboard builders)
+- **Created** `keyboards/payout/payout.py`:
+  - `kb_payout_amounts(earned_rub)`: выбор суммы выплаты
+  - `kb_payout_confirm(gross, fee, net)`: подтверждение с показом комиссии 1.5%
+- **Verified** existing keyboards structure:
+  - `shared/`: main_menu (4 кнопки), cabinet, feedback, pagination
+  - `advertiser/`: campaign, campaign_ai, format, placement_entry
+  - `owner/`: mediakit
+  - `billing/`: billing, topup (kb_topup_amounts, kb_topup_confirm)
+  - `admin/`: admin
+- **Verified** RT-001: `main:analytics` only in comments (not in callback_data)
+- **Verified** B2B callbacks: 0 found
+- **Ruff check**: 0 errors
+- **Note**: Keyboard tests covered in handler tests (P06-P10)
+
 ---
 
 ## [v4.2] - 2026-03-13
