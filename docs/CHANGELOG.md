@@ -118,6 +118,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **All imports**: Successful
 
+#### P09 - Handlers: Owner (analytics, channels, arbitration, payouts)
+- **Verified** owner handlers:
+  - `channel_owner.py`: Channel management + payout flow — 2367 lines
+    - add_channel (with bot admin verification)
+    - my_channels
+    - channel settings
+    - payout request flow (PayoutRequestStates)
+  - `channels_db.py`: Channel database operations
+  - `channels_db_mediakit.py`: Channel mediakit management
+- **Verified** owner analytics:
+  - Location: `advertiser/analytics.py` (separate callback: main:owner_analytics)
+  - Function: `show_owner_analytics_menu`
+- **Verified** payout flow:
+  - Location: `owner/channel_owner.py`
+  - States: PayoutRequestStates (selecting_method, entering_address, confirming)
+  - Callbacks: payout:request_start, payout:amount:{N}, payout:confirm
+- **Verified** RT-001: `main:analytics` NOT in owner handlers (0 occurrences)
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13
