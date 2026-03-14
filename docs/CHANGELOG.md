@@ -45,6 +45,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests**: 22 unit tests for placement services
 - **Total P03 tests**: 22 passed, 0 failed
 
+#### P04 - FSM States + Middlewares
+- **Created** 5 FSM state files:
+  - `payout.py`: TopupStates (entering_amount, confirming, entering_requisites)
+  - `channel_owner.py`: ChannelOwnerStates (entering_username, confirming_add)
+  - `feedback.py`: FeedbackStates (entering_text)
+  - `dispute.py`: DisputeStates (owner_explaining, advertiser_commenting, admin_reviewing)
+  - `admin.py`: AdminStates (entering_broadcast, reviewing_dispute, entering_resolution)
+- **Created** 2 middleware files:
+  - `role_check.py`: Проверка блокировок через reputation_service
+  - `db_session.py`: Инжектирование AsyncSession в handler
+- **Fixed** `main_menu.py`: Removed B2B button (v4.3 spec)
+- **Verified** RT-001: `main:analytics` ≠ `main:owner_analytics`
+- **Verified** B2B callbacks: 0 found (removed)
+- **Constants**: THROTTLE_TIME=0.5s, FSM_TIMEOUT=300s
+- **Tests**: 20 unit tests for FSM and middlewares
+- **Total P04 tests**: 20 passed, 0 failed
+
 ---
 
 ## [v4.2] - 2026-03-13

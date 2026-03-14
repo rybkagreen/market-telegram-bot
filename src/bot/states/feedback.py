@@ -1,5 +1,5 @@
 """
-FSM состояния для обратной связи и bug report.
+FSM States для обратной связи.
 """
 
 from aiogram.fsm.state import State, StatesGroup
@@ -8,6 +8,4 @@ from aiogram.fsm.state import State, StatesGroup
 class FeedbackStates(StatesGroup):
     """Состояния для отправки обратной связи."""
 
-    choosing_type = State()  # выбор типа: отзыв или баг
-    waiting_text = State()  # ввод текста
-    waiting_confirm = State()  # подтверждение перед отправкой
+    entering_text = State()  # ввод текста сообщения

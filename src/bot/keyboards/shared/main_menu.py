@@ -86,7 +86,7 @@ def get_advertiser_menu_kb(
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
     """
-    Меню рекламодателя — ровно 5 кнопок.
+    Меню рекламодателя — ровно 4 кнопки (B2B удалён в v4.3).
 
     Args:
         active_campaigns: если > 0, добавляет счётчик в кнопку "Мои кампании".
@@ -96,7 +96,6 @@ def get_advertiser_menu_kb(
     - 📊 Статистика и аналитика → main:analytics
     - 📣 Создать кампанию → main:create_campaign
     - 📋 Мои кампании → main:my_campaigns
-    - 💼 B2B-пакеты → main:b2b
     - 🔙 В главное меню → main:main_menu
     """
     builder = InlineKeyboardBuilder()
@@ -122,13 +121,7 @@ def get_advertiser_menu_kb(
         callback_data=MainMenuCB(action="my_campaigns"),
     )
 
-    # Кнопка 4: B2B-пакеты
-    builder.button(
-        text="💼 B2B-пакеты",
-        callback_data=MainMenuCB(action="b2b"),
-    )
-
-    # Кнопка 5: В главное меню (всегда последняя)
+    # Кнопка 4: В главное меню (всегда последняя)
     builder.button(
         text="🔙 В главное меню",
         callback_data=MainMenuCB(action="main_menu"),
