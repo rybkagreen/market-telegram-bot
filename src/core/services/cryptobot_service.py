@@ -271,8 +271,12 @@ class CryptoBotService:
                 raise PayoutAPIError(f"CryptoBot API error: {error_msg}") from e
 
 
-# Синглтон
-cryptobot_service = CryptoBotService()
+# Синглтон (v4.3: CryptoBot удалён, оставляем для обратной совместимости)
+try:
+    cryptobot_service = CryptoBotService()
+except AttributeError:
+    # cryptobot_token не настроен (v4.3: YooKassa only)
+    cryptobot_service = None  # type: ignore
 
 
 # ═══════════════════════════════════════════════════════════════
