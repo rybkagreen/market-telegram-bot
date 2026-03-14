@@ -1,252 +1,166 @@
 """
-Review Service — сервис для управления отзывами.
-Спринт 2 — двусторонняя система оценки рекламодатель ↔ владелец.
+ReviewService for managing placement reviews and channel ratings.
 """
 
-import logging
-from dataclasses import dataclass
-from typing import Any
 
-from src.db.models.mailing_log import MailingLog, MailingStatus
-from src.db.models.review import Review, ReviewerRole
-from src.db.session import async_session_factory
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ReviewCreateData:
-    """Данные для создания отзыва."""
-
-    reviewer_id: int
-    placement_id: int
-    reviewer_role: ReviewerRole
-
-    # Оценки рекламодателя → каналу
-    score_compliance: int | None = None
-    score_audience: int | None = None
-    score_speed: int | None = None
-
-    # Оценки владельца → рекламодателю
-    score_material: int | None = None
-    score_requirements: int | None = None
-    score_payment: int | None = None
-
-    comment: str | None = None
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.review import Review
+from src.db.models.telegram_chat import TelegramChat
 
 
 class ReviewService:
     """
-    Сервис для управления отзывами.
-
-    Методы:
-        create_review: Создать отзыв
-        get_channel_rating: Получить средний рейтинг канала
-        get_user_rating: Получить рейтинг пользователя
-        check_duplicate_fraud: Проверка на дубликат/фрод
+    Сервис управления отзывами 1-5★.
+    Интегрирует расчёт рейтинга канала.
     """
 
-    def __init__(self) -> None:
-        """Инициализация сервиса."""
-        pass
-
-    async def create_review(self, data: ReviewCreateData) -> Review:
+    async def create_review(
+        self,
+        placement_request_id: int,
+        reviewer_id: int,
+        reviewed_id: int,
+        rating: int,
+        comment: str | None,
+        session: AsyncSession,
+    ) -> Review:
         """
         Создать отзыв о размещении.
 
-        Args:
-            data: Данные отзыва.
+        Проверки:
+        - placement_request должен быть завершён (status=published)
+        - нет дубликата отзыва для этого placement_request
+        - rating в диапазоне 1-5
 
-        Returns:
-            Созданный отзыв.
+        После создания обновляет рейтинг канала через recalculate_channel_rating.
+        """
+        # Validate rating
+        if not 1 <= rating <= 5:
+            raise ValueError("Rating must be between 1 and 5")
 
-        Raises:
-            ValueError: Если размещение не завершено или отзыв уже есть.
+        # Check placement_request exists and is published
+        placement = await session.get(PlacementRequest, placement_request_id)
+        if not placement:
+            raise ValueError("Placement request not found")
+        if placement.status != PlacementStatus.published:
+            raise ValueError("Can only review published placements")
+
+        # Check for duplicate review
+        existing = await session.execute(
+            select(Review).where(Review.placement_request_id == placement_request_id)
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError("Review already exists for this placement")
+
+        # Create review
+        review = Review(
+            placement_request_id=placement_request_id,
+            reviewer_id=reviewer_id,
+            reviewed_id=reviewed_id,
+            rating=rating,
+            comment=comment,
+        )
+        session.add(review)
+        await session.flush()
+
+        # Update channel rating
+        await self.recalculate_channel_rating(placement.channel_id, session)
+
+        return review
+
+    async def recalculate_channel_rating(
+        self,
+        channel_id: int,
+        session: AsyncSession,
+    ) -> float:
+        """
+        Рассчитать рейтинг канала 0-5 по формуле:
+
+        - reach_score (30%): на основе avg_post_reach
+        - er_score (25%): на основе last_er (engagement rate)
+        - growth_score (15%): на основе роста подписчиков
+        - frequency_score (10%): на основе частоты публикаций
+        - reliability_score (15%): на основе отзывов и завершённых размещений
+        - age_score (5%): на основе возраста канала
+
+        Сохраняет в TelegramChat.rating. Возвращает новый рейтинг.
+        """
+        channel = await session.get(TelegramChat, channel_id)
+        if not channel:
+            return 0.0
+
+        # reach_score (30%) - normalize by 10K reach = 5.0
+        reach_score = min(5.0, (channel.avg_views or 0) / 2000)
+
+        # er_score (25%) - normalize by 10% ER = 5.0
+        er_score = min(5.0, (channel.last_er or 0) * 50)
+
+        # growth_score (15%) - placeholder, would need historical data
+        growth_score = 3.0  # Default average
+
+        # frequency_score (10%) - placeholder
+        frequency_score = 3.0
+
+        # reliability_score (15%) - based on reviews
+        reviews_result = await session.execute(
+            select(func.avg(Review.rating)).where(
+                Review.reviewed_id == channel.owner_id
+            )
+        )
+        avg_review_rating = reviews_result.scalar() or 3.0
+        reliability_score = avg_review_rating
+
+        # age_score (5%) - placeholder
+        age_score = 3.0
+
+        # Calculate weighted average
+        new_rating = (
+            reach_score * 0.30 +
+            er_score * 0.25 +
+            growth_score * 0.15 +
+            frequency_score * 0.10 +
+            reliability_score * 0.15 +
+            age_score * 0.05
+        )
+
+        # Update channel rating
+        channel.rating = new_rating
+        await session.flush()
+
+        return new_rating
+
+    async def get_channel_reviews(
+        self,
+        channel_id: int,
+        session: AsyncSession,
+        limit: int = 20,
+    ) -> list[Review]:
+        """
+        Получить последние отзывы канала.
         """
 
-        async with async_session_factory() as session:
-            # Проверяем что размещение существует и завершено
-            placement = await session.get(MailingLog, data.placement_id)
-            if not placement:
-                raise ValueError(f"Placement {data.placement_id} not found")
+        result = await session.execute(
+            select(Review)
+            .join(PlacementRequest, Review.placement_request_id == PlacementRequest.id)
+            .where(PlacementRequest.channel_id == channel_id)
+            .order_by(Review.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
-            if placement.status not in (MailingStatus.SENT,):
-                raise ValueError(
-                    f"Cannot review placement {data.placement_id}: status={placement.status.value}"
-                )
-
-            # Проверяем что отзыв ещё не создан
-            existing = await session.get(Review, data.placement_id)
-            if existing:
-                raise ValueError(f"Review already exists for placement {data.placement_id}")
-
-            # Определяем reviewee (кого оцениваем)
-            if data.reviewer_role == ReviewerRole.ADVERTISER:
-                # Рекламодатель оценивает владельца канала
-                from src.db.models.analytics import TelegramChat
-
-                channel = await session.get(TelegramChat, placement.chat_id)
-                if not channel or not channel.owner_user_id:
-                    raise ValueError("Channel owner not found")
-                reviewee_id = channel.owner_user_id
-            else:
-                # Владелец оценивает рекламодателя
-                from src.db.models.campaign import Campaign
-
-                campaign = await session.get(Campaign, placement.campaign_id)
-                if not campaign:
-                    raise ValueError("Campaign not found")
-                reviewee_id = campaign.user_id
-
-            # Создаём отзыв
-            review = Review(
-                reviewer_id=data.reviewer_id,
-                reviewee_id=reviewee_id,
-                channel_id=placement.chat_id,
-                placement_id=data.placement_id,
-                reviewer_role=data.reviewer_role,
-                score_compliance=data.score_compliance,
-                score_audience=data.score_audience,
-                score_speed=data.score_speed,
-                score_material=data.score_material,
-                score_requirements=data.score_requirements,
-                score_payment=data.score_payment,
-                comment=data.comment,
-                is_hidden=False,
-            )
-
-            session.add(review)
-            await session.flush()
-            await session.refresh(review)
-
-            logger.info(
-                f"Created review {review.id}: "
-                f"reviewer={data.reviewer_id}, placement={data.placement_id}"
-            )
-
-            return review
-
-    async def get_channel_rating(self, channel_id: int) -> dict[str, Any]:
+    async def get_user_rating(
+        self,
+        user_id: int,
+        role: str,
+        session: AsyncSession,
+    ) -> float:
         """
-        Получить средний рейтинг канала.
-
-        Args:
-            channel_id: ID канала.
-
-        Returns:
-            dict с average_score, total_reviews, score_breakdown.
+        Средний рейтинг пользователя как владельца канала.
         """
-        from sqlalchemy import func, select
-
-        async with async_session_factory() as session:
-            # Средний балл по отзывам от рекламодателей
-            stmt = select(
-                func.avg(Review.score_compliance).label("avg_compliance"),
-                func.avg(Review.score_audience).label("avg_audience"),
-                func.avg(Review.score_speed).label("avg_speed"),
-                func.count(Review.id).label("total_reviews"),
-            ).where(
-                Review.channel_id == channel_id,
-                Review.reviewer_role == ReviewerRole.ADVERTISER,
-                Review.is_hidden == False,  # noqa: E712
-            )
-            result = await session.execute(stmt)
-            row = result.one()
-
-            avg_compliance = float(row.avg_compliance or 0)
-            avg_audience = float(row.avg_audience or 0)
-            avg_speed = float(row.avg_speed or 0)
-            total_reviews = row.total_reviews or 0
-
-            # Общий средний балл
-            overall_avg = (
-                (avg_compliance + avg_audience + avg_speed) / 3
-                if avg_compliance or avg_audience or avg_speed
-                else 0
-            )
-
-            return {
-                "channel_id": channel_id,
-                "average_score": round(overall_avg, 2),
-                "total_reviews": total_reviews,
-                "score_breakdown": {
-                    "compliance": round(avg_compliance, 2),
-                    "audience": round(avg_audience, 2),
-                    "speed": round(avg_speed, 2),
-                },
-            }
-
-    async def get_user_rating(self, user_id: int) -> dict[str, Any]:
-        """
-        Получить рейтинг пользователя (полученные отзывы).
-
-        Args:
-            user_id: ID пользователя.
-
-        Returns:
-            dict с average_score, total_reviews, score_breakdown.
-        """
-        from sqlalchemy import func, select
-
-        async with async_session_factory() as session:
-            # Отзывы где пользователь — reviewee
-            stmt = select(
-                func.avg(Review.score_material).label("avg_material"),
-                func.avg(Review.score_requirements).label("avg_requirements"),
-                func.avg(Review.score_payment).label("avg_payment"),
-                func.count(Review.id).label("total_reviews"),
-            ).where(
-                Review.reviewee_id == user_id,
-                Review.reviewer_role == ReviewerRole.OWNER,
-                Review.is_hidden == False,  # noqa: E712
-            )
-            result = await session.execute(stmt)
-            row = result.one()
-
-            avg_material = float(row.avg_material or 0)
-            avg_requirements = float(row.avg_requirements or 0)
-            avg_payment = float(row.avg_payment or 0)
-            total_reviews = row.total_reviews or 0
-
-            overall_avg = (
-                (avg_material + avg_requirements + avg_payment) / 3
-                if avg_material or avg_requirements or avg_payment
-                else 0
-            )
-
-            return {
-                "user_id": user_id,
-                "average_score": round(overall_avg, 2),
-                "total_reviews": total_reviews,
-                "score_breakdown": {
-                    "material": round(avg_material, 2),
-                    "requirements": round(avg_requirements, 2),
-                    "payment": round(avg_payment, 2),
-                },
-            }
-
-    async def check_duplicate_fraud(self, reviewer_id: int, placement_id: int) -> bool:
-        """
-        Проверить на дубликат отзыва (антифрод).
-
-        Args:
-            reviewer_id: ID рецензента.
-            placement_id: ID размещения.
-
-        Returns:
-            True если дубликат найден.
-        """
-        from sqlalchemy import select
-
-        async with async_session_factory() as session:
-            stmt = select(Review.id).where(
-                Review.reviewer_id == reviewer_id,
-                Review.placement_id == placement_id,
-            )
-            result = await session.execute(stmt)
-            existing = result.scalar_one_or_none()
-            return existing is not None
-
-
-# Глобальный экземпляр
-review_service = ReviewService()
+        result = await session.execute(
+            select(func.avg(Review.rating)).where(Review.reviewed_id == user_id)
+        )
+        avg_rating = result.scalar()
+        return float(avg_rating) if avg_rating else 0.0

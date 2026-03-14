@@ -1,302 +1,90 @@
 """
-Модель заявки на размещение PlacementRequest.
-Спринт 6 — арбитражная система размещения рекламы.
-
-Заявка проходит через арбитраж между рекламодателем и владельцем канала:
-1. PENDING_OWNER — ожидает решения владельца (24ч)
-2. COUNTER_OFFER — владелец сделал контр-предложение (макс 3 раунда)
-3. PENDING_PAYMENT — владелец принял, ждём оплату (24ч)
-4. ESCROW — средства заблокированы
-5. PUBLISHED — успешно опубликовано
-6. FAILED — ошибка публикации
-7. REFUNDED — средства возвращены
-8. CANCELLED — отменено
+PlacementRequest model for advertising placement requests.
 """
 
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
-
-if TYPE_CHECKING:
-    from src.db.models.analytics import TelegramChat
-    from src.db.models.campaign import Campaign
-    from src.db.models.reputation_history import ReputationHistory
-    from src.db.models.transaction import Transaction
-    from src.db.models.user import User
 
 
 class PlacementStatus(str, Enum):
     """Статусы заявки на размещение."""
 
-    PENDING_OWNER = "pending_owner"  # Ожидает решения владельца (24ч)
-    COUNTER_OFFER = "counter_offer"  # Владелец сделал контр-предложение
-    PENDING_PAYMENT = "pending_payment"  # Владелец принял, ждём оплату (24ч)
-    ESCROW = "escrow"  # Средства заблокированы
-    PUBLISHED = "published"  # Успешно опубликовано
-    FAILED = "failed"  # Ошибка публикации
-    REFUNDED = "refunded"  # Средства возвращены
-    CANCELLED = "cancelled"  # Отменено (рекламодателем или авто)
+    pending_owner = "pending_owner"
+    counter_offer = "counter_offer"
+    pending_payment = "pending_payment"
+    escrow = "escrow"
+    published = "published"
+    failed = "failed"
+    failed_permissions = "failed_permissions"
+    refunded = "refunded"
+    cancelled = "cancelled"
 
 
 class PublicationFormat(str, Enum):
-    """Форматы публикаций v4.2."""
+    """Форматы публикации."""
 
-    POST_24H = "post_24h"  # Обычный пост на 24 часа (база)
-    POST_48H = "post_48h"  # Обычный пост на 48 часов (+40%)
-    POST_7D = "post_7d"  # Обычный пост на 7 дней (+100%)
-    PIN_24H = "pin_24h"  # Закреплённый пост на 24 часа (+200%)
-    PIN_48H = "pin_48h"  # Закреплённый пост на 48 часов (+300%)
+    post_24h = "post_24h"
+    post_48h = "post_48h"
+    post_7d = "post_7d"
+    pin_24h = "pin_24h"
+    pin_48h = "pin_48h"
 
 
 class PlacementRequest(Base, TimestampMixin):
     """
-    Заявка на размещение рекламы через арбитраж.
+    Модель заявки на размещение рекламы.
     """
-
-    # System constants (class-level, immutable)
-    MIN_PRICE_PER_POST: int = 100  # Минимум 100 кредитов
-    MAX_PACKAGE_DISCOUNT: int = 50  # Скидка пакета макс 50%
-    MIN_SUBSCRIPTION_DAYS: int = 7  # Минимум 7 дней подписки
-    MAX_SUBSCRIPTION_DAYS: int = 365  # Максимум 1 год
-    MAX_POSTS_PER_DAY: int = 5  # Рекламных постов в день макс 5
-    MAX_POSTS_PER_WEEK: int = 35  # В неделю макс 35
-    MIN_HOURS_BETWEEN_POSTS: int = 4  # Между постами минимум 4 часа
-    # PLATFORM_COMMISSION импортируется из src.constants.payments
 
     __tablename__ = "placement_requests"
 
-    # Primary key
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-
-    # Foreign keys
-    advertiser_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        doc="ID рекламодателя",
-    )
-
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("campaigns.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        doc="ID кампании",
-    )
-
-    channel_id: Mapped[int] = mapped_column(
-        ForeignKey("telegram_chats.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        doc="ID канала",
-    )
-
-    # Предложенные условия
-    proposed_price: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2),
-        nullable=False,
-        doc="Цена предложенная рекламодателем",
-    )
-
-    final_price: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 2),
-        nullable=True,
-        doc="Итоговая согласованная цена",
-    )
-
-    proposed_schedule: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Желаемое время публикации",
-    )
-
-    final_schedule: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Согласованное время публикации",
-    )
-
-    proposed_frequency: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        doc="Частота (для пакетов)",
-    )
-
-    # Финальный текст
-    final_text: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        doc="Финальный текст рекламы",
-    )
-
-    # Медиа
-    media_file_id: Mapped[str | None] = mapped_column(
-        String(512),
-        nullable=True,
-        doc="ID медиафайла (фото/видео)",
-    )
-
-    # Формат публикации (v4.2)
-    publication_format: Mapped[str] = mapped_column(
-        String(20),
-        default="post_24h",
-        nullable=False,
-        doc="Формат публикации (post_24h/post_48h/post_7d/pin_24h/pin_48h)",
-    )
-
-    message_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        nullable=True,
-        doc="ID опубликованного сообщения в Telegram",
-    )
-
-    scheduled_delete_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Запланированное время удаления поста",
-    )
-
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Фактическое время удаления поста",
-    )
-
-    # Статус
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    advertiser_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    channel_id: Mapped[int] = mapped_column(Integer, ForeignKey("telegram_chats.id"), nullable=False, index=True)
     status: Mapped[PlacementStatus] = mapped_column(
-        String(50),
-        default=PlacementStatus.PENDING_OWNER,
-        nullable=False,
+        default=PlacementStatus.pending_owner,
         index=True,
-        doc="Статус заявки",
     )
-
-    # Отклонения
-    rejection_reason: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        doc="Причина отклонения (мин 10 символов)",
+    publication_format: Mapped[PublicationFormat] = mapped_column(
+        default=PublicationFormat.post_24h,
     )
+    ad_text: Mapped[str] = mapped_column(Text, nullable=False)
+    proposed_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    final_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    proposed_schedule: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    final_schedule: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    counter_offer_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    counter_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    counter_schedule: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    counter_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    scheduled_delete_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_reach: Mapped[int | None] = mapped_column(nullable=True)
+    clicks_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    tracking_short_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
 
-    # Арбитраж
-    counter_offer_count: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
-        nullable=False,
-        doc="Счётчик раундов арбитража (макс 3)",
-    )
+    # Relationships
+    advertiser: Mapped["User"] = relationship("User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser")
+    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id], back_populates="placement_requests_owner")
+    channel: Mapped["TelegramChat"] = relationship("TelegramChat", back_populates="placement_requests")
+    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="placement_request")
+    reviews: Mapped[list["Review"]] = relationship("Review", back_populates="placement_request", cascade="all, delete-orphan")
+    disputes: Mapped[list["PlacementDispute"]] = relationship("PlacementDispute", back_populates="placement_request", cascade="all, delete-orphan")
+    reputation_history: Mapped[list["ReputationHistory"]] = relationship("ReputationHistory", back_populates="placement_request")
 
-    last_counter_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Время последнего контр-предложения",
-    )
-
-    # Эскроу
-    escrow_transaction_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("transactions.id", ondelete="SET NULL"),
-        nullable=True,
-        doc="ID транзакции эскроу",
-    )
-
-    # Метаданные
-    meta_json: Mapped[dict | None] = mapped_column(
-        JSONB,
-        nullable=True,
-        doc="Дополнительные данные (retry_count, etc.)",
-    )
-
-    # Временные метки
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        doc="Дедлайн ответа владельца (+24ч от created_at)",
-    )
-
-    published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        doc="Реальное время публикации",
-    )
-
-    # Отношения
-    advertiser: Mapped["User"] = relationship(
-        "User",
-        foreign_keys=[advertiser_id],
-        back_populates="placement_requests",
-        lazy="selectin",
-    )
-
-    campaign: Mapped["Campaign"] = relationship(
-        "Campaign",
-        foreign_keys=[campaign_id],
-        lazy="selectin",
-    )
-
-    channel: Mapped["TelegramChat"] = relationship(
-        "TelegramChat",
-        back_populates="placement_requests",
-        lazy="selectin",
-    )
-
-    # История репутации (Спринт 6)
-    reputation_history: Mapped[list["ReputationHistory"]] = relationship(
-        "ReputationHistory",
-        back_populates="placement_request",
-        lazy="select",
-    )
-
-    escrow_transaction: Mapped[Optional["Transaction"]] = relationship(
-        "Transaction",
-        back_populates="placement_request",
-        lazy="select",
-    )
-
-    # Индексы
     __table_args__ = (
-        Index("ix_placement_requests_advertiser_id", "advertiser_id"),
-        Index("ix_placement_requests_channel_id", "channel_id"),
-        Index("ix_placement_requests_campaign_id", "campaign_id"),
-        Index("ix_placement_requests_status", "status"),
-        Index("ix_placement_requests_expires_at", "expires_at"),
-        Index("ix_placement_requests_created_at", "created_at"),
-        {
-            "comment": "Заявки на размещение через арбитраж",
-        },
+        Index("ix_placement_requests_status_expires", "status", "expires_at"),
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<PlacementRequest(id={self.id}, advertiser_id={self.advertiser_id}, "
-            f"channel_id={self.channel_id}, status={self.status.value})>"
-        )
-
-    @property
-    def is_pending(self) -> bool:
-        """Проверяет, ожидает ли заявка решения."""
-        return self.status in (
-            PlacementStatus.PENDING_OWNER,
-            PlacementStatus.PENDING_PAYMENT,
-        )
-
-    @property
-    def is_active(self) -> bool:
-        """Проверяет, активна ли заявка (не завершена)."""
-        return self.status not in (
-            PlacementStatus.PUBLISHED,
-            PlacementStatus.FAILED,
-            PlacementStatus.REFUNDED,
-            PlacementStatus.CANCELLED,
-        )
-
-    @property
-    def can_counter(self) -> bool:
-        """Проверяет, можно ли сделать контр-предложение (макс 3 раунда)."""
-        return self.counter_offer_count < 3
+        return f"<PlacementRequest(id={self.id}, advertiser_id={self.advertiser_id}, status={self.status.value})>"
