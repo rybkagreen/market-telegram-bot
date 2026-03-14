@@ -8,4 +8,6 @@ from aiogram.fsm.state import State, StatesGroup
 class FeedbackStates(StatesGroup):
     """Состояния для отправки обратной связи."""
 
-    entering_text = State()  # ввод текста сообщения
+    choosing_type = State()
+    waiting_text = State()
+    waiting_confirm = State()

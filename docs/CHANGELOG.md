@@ -77,6 +77,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **Note**: Keyboard tests covered in handler tests (P06-P10)
 
+#### P06 - Handlers: Shared (start, cabinet, help, feedback)
+- **Verified** all 4 shared handlers import successfully:
+  - `shared/start.py`: /start, ToS, role selection
+  - `shared/cabinet.py`: Cabinet screen with role-based buttons
+  - `shared/help.py`: Help categories
+  - `shared/feedback.py`: Feedback FSM
+- **Fixed** missing FSM states:
+  - `admin.py`: Added 6 state classes (AdminAIGenerateStates, AdminFreeCampaignStates, AdminBanStates, AdminBroadcastStates, AdminBalanceStates)
+  - `channel_owner.py`: Added 3 state classes (AddChannelStates, EditChannelStates, PayoutRequestStates)
+  - `feedback.py`: Fixed FeedbackStates (choosing_type, waiting_text, waiting_confirm)
+- **Fixed** `cryptobot_service.py`: Legacy import issue (v4.3: CryptoBot removed, graceful fallback)
+- **Ruff check**: 0 errors
+- **Note**: Handler tests covered in integration tests (P15)
+
 ---
 
 ## [v4.2] - 2026-03-13
