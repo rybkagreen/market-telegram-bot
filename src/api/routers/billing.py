@@ -22,7 +22,6 @@ from sqlalchemy import func, select, update
 from src.api.dependencies import CurrentUser
 from src.config.settings import settings
 from src.core.services.cryptobot_service import cryptobot_service
-from src.core.services.yookassa_service import yookassa_service
 from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
@@ -499,19 +498,56 @@ async def yookassa_webhook(
 
     ЮKassa требует ответ 200 при любом исходе — иначе будет ретрай.
 
-    Допустимые IP ЮKassa:
-    - 185.71.76.0/27
-    - 185.71.77.0/27
-    - 77.75.153.0/25
-    - 77.75.156.11
-    - 77.75.156.35
-    - 77.75.154.128/25
-    - 2a02:5180::/32
+    v4.2: Зачислять metadata['desired_balance'] в balance_rub (НЕ gross_amount).
     """
     try:
+        from decimal import Decimal
+
+        from src.core.services.billing_service import BillingService
+
         body = await request.json()
         logger.info("ЮKassa webhook event: %s", body.get("event", "unknown"))
-        await yookassa_service.handle_webhook(body)
+
+        event_type = body.get("event", "")
+        obj = body.get("object", {})
+        payment_id = obj.get("id", "")
+
+        if event_type == "payment.succeeded" and payment_id:
+            # v4.2: Использовать billing_service.process_topup_webhook
+            # который зачисляет metadata['desired_balance'] в balance_rub
+            billing_service = BillingService()
+            async with async_session_factory() as session:
+                # Получить метаданные из YooKassaPayment
+                from sqlalchemy import select
+
+                from src.db.models.yookassa_payment import YooKassaPayment
+
+                result = await session.execute(
+                    select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)
+                )
+                record = result.scalar_one_or_none()
+
+                if record:
+                    # Извлечь desired_balance из metadata (строка)
+                    metadata = {
+                        "desired_balance": str(record.credits),  # credits = desired_balance в v4.2
+                        "user_id": str(record.user_id),
+                    }
+                    gross_amount = Decimal(str(record.amount_rub))
+
+                    await billing_service.process_topup_webhook(
+                        session=session,
+                        payment_id=payment_id,
+                        gross_amount=gross_amount,
+                        metadata=metadata,
+                    )
+                    logger.info(
+                        f"Topup processed: payment_id={payment_id}, "
+                        f"desired={metadata['desired_balance']}, gross={gross_amount}"
+                    )
+                else:
+                    logger.warning(f"YooKassaPayment record not found for {payment_id}")
+
     except Exception as e:
         logger.error("Ошибка обработки webhook ЮKassa: %s", e)
     return {"status": "ok"}

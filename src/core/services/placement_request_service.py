@@ -610,8 +610,9 @@ class PlacementRequestService:
         published_at: datetime | None = None,
     ) -> PlacementRequest:
         """
-        Публикация успешна.
-        Статус → published.
+        DEPRECATED v4.2: Публикация успешна.
+        Эскроу освобождается ТОЛЬКО в publication_service.delete_published_post() (ESCROW-001).
+        Этот метод больше не освобождает эскроу — только обновляет статус.
 
         Args:
             placement_id: ID заявки.
@@ -624,29 +625,14 @@ class PlacementRequestService:
         if not placement:
             raise ValueError("Placement not found")
 
-        # Разблокируем средства (80% owner, 20% комиссия)
-        owner_id = placement.channel.owner_user_id if placement.channel else None
-        if not owner_id:
-            logger.error(f"Channel not found for placement {placement_id}")
-            return await self.placement_repo.get_by_id(placement_id)
-
-        if not self.billing_service:
-            logger.error("BillingService not initialized for escrow release")
-            return await self.placement_repo.get_by_id(placement_id)
-
-        await self.billing_service.release_escrow_for_placement(
-            placement_id=placement_id,
-            owner_id=owner_id,
-            total_amount=placement.final_price or placement.proposed_price,
-        )
-
+        # v4.2: Эскроу НЕ освобождаем здесь — только в delete_published_post()
         # Репутация +1 за публикацию
         from src.core.services.reputation_service import ReputationService
 
         rep_service = ReputationService(self.session, self.reputation_repo)
         await rep_service.on_publication(
             advertiser_id=placement.advertiser_id,
-            owner_id=owner_id,
+            owner_id=placement.channel.owner_user_id if placement.channel else 0,
             placement_request_id=placement_id,
         )
 
@@ -656,7 +642,6 @@ class PlacementRequestService:
             published_at=published_at,
         )
 
-        # Отправляем уведомления (вызывается из Celery задачи)
         # Уведомления отправляются в placement_tasks.py
 
         return result
