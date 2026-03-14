@@ -106,6 +106,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **All imports**: Successful
 
+#### P08 - Handlers: Advertiser (analytics, campaigns, placement)
+- **Verified** advertiser handlers:
+  - `analytics.py`: Advertiser analytics (CPM, CTR, ROI) — 500 lines, callback: main:analytics
+  - `campaigns.py`: Campaign creation wizard (7 steps) — 1311 lines
+  - `placement_entry.py`: Placement entry (broadcast/placement fork) — 194 lines
+  - `campaign_analytics.py`, `campaign_create_ai.py`, `comparison.py`, `analytics_chats.py`
+- **Verified** RT-001: `main:analytics` → `show_advertiser_analytics` (NOT owner_analytics)
+- **Verified** B2B callbacks: 0 found (v4.3: B2B removed)
+- **Verified** Campaign wizard: 7 steps (topic, title, text, image, audience, schedule, confirm)
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13
