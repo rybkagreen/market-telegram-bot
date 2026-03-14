@@ -138,6 +138,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **All imports**: Successful
 
+#### P10 - Handlers: Admin (users, disputes, payouts, platform_account)
+- **Verified** admin handlers:
+  - `users.py`: User management + platform_account view — 564 lines
+    - users list, user search, ban/unban
+    - platform_account view (escrow_reserved, payout_reserved, profit_accumulated)
+  - `stats.py`, `analytics.py`, `ai.py`, `campaigns.py`, `monitoring.py`
+- **Verified** filters:
+  - `admin.py`: AdminFilter (checks is_admin flag in DB)
+- **Fixed** F401: removed unused `PlatformAccountRepo` import in users.py
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13

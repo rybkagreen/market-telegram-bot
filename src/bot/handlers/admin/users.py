@@ -541,7 +541,6 @@ async def cmd_platform(message: Message) -> None:
     """
     async with async_session_factory() as session:
         from src.db.models.platform_account import PlatformAccount
-        from src.db.repositories.platform_account_repo import PlatformAccountRepo
 
         # Получаем platform_account (singleton id=1)
         platform = await session.get(PlatformAccount, 1)
