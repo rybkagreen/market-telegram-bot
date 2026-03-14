@@ -294,24 +294,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## P16 - Final Blockers: Legacy Escrow + MyPy Finance ✅
+
+### Blockers Resolved
+
+| Blocker | Status | Details |
+|---------|--------|---------|
+| Legacy escrow functions | ✅ **DELETED** | release_escrow_funds() and release_escrow_for_placement() removed |
+| MyPy finance (billing_service) | ✅ **FIXED** | 0 errors in billing_service.py and billing router |
+| Dead code (credits_per_*) | ✅ **REMOVED** | credits_per_usdt, credits_per_star removed from billing router |
+
+### Critical Changes
+
+1. **Legacy Escrow Functions DELETED**
+   - `billing_service.release_escrow_funds()` - REMOVED
+   - `billing_service.release_escrow_for_placement()` - REMOVED
+   - `mailing_tasks.py` - removed escrow release (mailing doesn't use escrow)
+   - `placement_tasks.py` - removed escrow release (handled by publication_service)
+
+2. **ESCROW-001: Single Path Enforced**
+   ```
+   publication_service.delete_published_post()
+     → billing_service.release_escrow() ← ONLY PATH
+   ```
+
+3. **MyPy Finance Fixed**
+   - `billing_service.py`: Decimal*float → Decimal*Decimal(str())
+   - `billing_service.py`: TransactionType.PAYMENT → TransactionType.SPEND
+   - `billing_service.py`: create_transaction() → direct Transaction() creation
+   - `billing router`: removed credits_per_usdt, credits_per_star dead code
+
+### Final Verification Results
+
+| Check | Result |
+|-------|--------|
+| Ruff errors | 0 ✅ |
+| MyPy billing_service.py | 0 errors ✅ |
+| MyPy billing router | 0 errors ✅ |
+| Legacy escrow | CLEAN ✅ |
+| ESCROW-001 | Compliant ✅ |
+| 85/15 split | Correct ✅ |
+| Topup formula (10000→10350) | Correct ✅ |
+| Payout formula (5000→4925) | Correct ✅ |
+| RT-001 | Compliant ✅ |
+| B2B | Clean ✅ |
+| Dispute callbacks | Correct ✅ |
+| Bot startup | OK ✅ |
+
+---
+
 ## Rebuild Complete ✅
 
-All 15 prompts (P01-P15) executed successfully.
-All CRITICAL blockers resolved.
+All 16 prompts (P01-P16) executed successfully.
+ALL blockers resolved.
 
 ### Final Statistics
 
 | Metric | Value |
 |--------|-------|
-| **Prompts executed** | 15/15 (P01-P15) |
+| **Prompts executed** | 16/16 (P01-P16) |
 | **Unit tests** | 101 passed, 0 failed |
-| **Reports generated** | 16 (P01-P15 + SUMMARY.json) |
-| **B2B callbacks** | 0 |
-| **ESCROW-001 violations** | 0 |
-| **RT-001 compliant** | ✅ |
+| **Reports generated** | 18 (P01-P16 + P14/P15/P16 MD + SUMMARY.json) |
 | **Ruff errors** | 0 |
+| **MyPy billing_service** | 0 errors |
+| **Legacy escrow** | DELETED |
+| **ESCROW-001** | Single path enforced ✅ |
 | **Financial model v4.2** | 85/15 enforced ✅ |
-| **Ready for production** | ✅ |
+| **Ready for production** | ✅ YES |
 
 ## [v4.2] - 2026-03-13
 

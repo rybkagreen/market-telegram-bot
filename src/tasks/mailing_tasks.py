@@ -142,16 +142,10 @@ def _execute_campaign(campaign_id: int) -> dict[str, Any]:
                             cost=placement_cost,  # Реальная цена канала
                         )
                         session.add(mailing_log)
-                        await session.flush()  # Получаем mailing_log.id
+                        await session.flush()
 
-                        # Task 1 & 2: Освобождаем средства эскроу после успешной публикации
-                        from src.core.services.billing_service import billing_service
-
-                        released = await billing_service.release_escrow_funds(mailing_log.id)
-                        if not released:
-                            logger.warning(
-                                f"Failed to release escrow for placement {mailing_log.id}"
-                            )
+                        # v4.3: Mailing/broadcast не использует эскроу — это админ рассылка
+                        # Финансовые транзакции только для PlacementRequest через publication_service
 
                         # Спринт 5: Начисляем XP владельцу канала за публикацию
                         if chat.owner_user_id and mailing_log.id:

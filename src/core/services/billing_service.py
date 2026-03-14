@@ -43,8 +43,9 @@ class BillingService:
         check_payment: Проверить статус платежа
         add_balance_rub: Зачислить рубли на баланс
         buy_credits_for_plan: Купить кредиты для тарифа (с balance_rub → credits)
-        freeze_escrow_for_placement: Заморозить рубли для размещения
-        release_escrow_for_placement: Разморозить и распределить рубли
+        freeze_escrow: Заморозить рубли для размещения
+        release_escrow: Освободить эскроу после удаления поста (ESCROW-001)
+        refund_escrow: Возврат средств при отмене
         apply_referral_bonus: Начислить реферальный бонус (в рублях)
     """
 
@@ -140,8 +141,8 @@ class BillingService:
                     f"Insufficient balance_rub: {user.balance_rub} < {amount_rub}"
                 )
 
-            # Конвертация: 1 кредит = 1 рубль
-            credits_to_add = int(amount_rub * settings.credits_per_rub_for_plan)
+            # Конвертация: 1 кредит = 1 рубль (v4.2)
+            credits_to_add = int(amount_rub * Decimal(str(settings.credits_per_rub_for_plan)))
 
             # Списываем рубли
             balance_rub_before = user.balance_rub
@@ -150,7 +151,7 @@ class BillingService:
             spend_transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.PAYMENT,
+                type=TransactionType.SPEND,
                 payment_id=None,
                 description=f"Покупка {credits_to_add} кр для тарифа",
                 meta_json={
@@ -389,12 +390,11 @@ class BillingService:
             balance_before = referrer.balance_rub
             referrer.balance_rub += bonus_amount
 
-            # Создаём транзакцию
-            transaction_repo = TransactionRepository(session)
-            await transaction_repo.create_transaction(
+            # Создаём транзакцию напрямую (не через repository.create_transaction)
+            transaction = Transaction(
                 user_id=referrer_id,
                 amount=bonus_amount,
-                transaction_type=TransactionType.BONUS,
+                type=TransactionType.BONUS,
                 payment_id=None,
                 description=f"Реферальный бонус за пользователя {referred_user_id}",
                 meta_json={
@@ -405,7 +405,9 @@ class BillingService:
                 },
                 balance_before=balance_before,
                 balance_after=referrer.balance_rub,
+                created_at=datetime.now(UTC),
             )
+            session.add(transaction)
 
             logger.info(
                 f"Referral bonus {bonus_amount} ₽ to user {referrer_id}, new balance: {referrer.balance_rub} ₽"
@@ -745,137 +747,6 @@ class BillingService:
 
             except Exception as e:
                 logger.error(f"Failed to freeze funds for campaign {campaign_id}: {e}")
-                # session.begin() автоматически rollback при исключении
-                return False
-
-    async def release_escrow_funds(self, placement_id: int) -> bool:
-        """
-        Освободить средства после подтверждённой публикации (mailing/broadcast).
-        v4.2: 85% владельцу в earned_rub, 15% платформе.
-
-        Логика:
-        1. Получить placement из БД
-        2. Рассчитать: owner_amount = placement.cost * 0.85, platform_fee = cost * 0.15
-        3. Начислить owner_amount в earned_rub владельца
-        4. Начислить platform_fee в profit_accumulated платформы
-        5. Вернуть True
-
-        Args:
-            placement_id: ID размещения (mailing_log.id).
-
-        Returns:
-            True если средства освобождены.
-        """
-        from decimal import Decimal
-
-        from sqlalchemy import select
-
-        from src.db.models.mailing_log import MailingLog, MailingStatus
-        from src.db.models.transaction import Transaction, TransactionType
-        from src.db.models.user import User
-        from src.db.repositories.platform_account_repo import PlatformAccountRepo
-
-        async with async_session_factory() as session, session.begin():
-            # 1. Получить placement с блокировкой
-            stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
-            result = await session.execute(stmt)
-            placement = result.scalar_one_or_none()
-            if not placement:
-                logger.error(f"Placement {placement_id} not found")
-                return False
-
-            # ⚠️ ИДЕМПОТЕНТНОСТЬ: не начислять повторно
-            if placement.status == MailingStatus.PAID:
-                logger.warning(
-                    f"release_escrow_funds: placement {placement_id} already paid, skipping"
-                )
-                return True
-
-            if placement.status != MailingStatus.SENT:
-                logger.error(
-                    f"release_escrow_funds: unexpected status {placement.status} for placement {placement_id}"
-                )
-                return False
-
-            # 2. Получить канал и владельца
-            from src.db.models.analytics import TelegramChat as TelegramChatModel
-
-            stmt = select(TelegramChatModel).where(TelegramChatModel.id == placement.chat_id)
-            result = await session.execute(stmt)
-            chat = result.scalar_one_or_none()
-            if not chat or not chat.owner_user_id:
-                logger.error(f"Channel or owner not found for placement {placement_id}")
-                return False
-
-            stmt = select(User).where(User.id == chat.owner_user_id)
-            result = await session.execute(stmt)
-            owner = result.scalar_one_or_none()
-            if not owner:
-                logger.error(f"Owner not found for placement {placement_id}")
-                return False
-
-            # 3. Расчёт v4.2: 85% владельцу, 15% платформе
-            cost = Decimal(str(placement.cost))
-            owner_amount = (cost * Decimal("0.85")).quantize(Decimal("0.01"))
-            platform_fee = (cost * Decimal("0.15")).quantize(Decimal("0.01"))
-
-            if owner_amount <= 0:
-                logger.warning(f"release_escrow_funds: zero cost for placement {placement_id}")
-                return False
-
-            try:
-                # 4. Начислить владельцу в earned_rub (v4.2)
-                owner.earned_rub += owner_amount
-                placement.status = MailingStatus.PAID
-
-                # Транзакция владельца
-                transaction = Transaction(
-                    user_id=owner.id,
-                    amount=owner_amount,
-                    type=TransactionType.ESCROW_RELEASE,
-                    payment_id=None,
-                    description=f"Выплата за размещение #{placement_id}",
-                    meta_json={
-                        "type": "escrow_release",
-                        "placement_id": placement_id,
-                        "share": "owner",
-                        "currency": "rub",
-                    },
-                    balance_before=owner.earned_rub - owner_amount,
-                    balance_after=owner.earned_rub,
-                )
-                session.add(transaction)
-
-                # 5. Начислить платформе (v4.2)
-                platform_repo = PlatformAccountRepo(session)
-                await platform_repo.add_to_profit(session, platform_fee)
-
-                # Транзакция платформы
-                platform_txn = Transaction(
-                    user_id=owner.id,
-                    amount=platform_fee,
-                    type=TransactionType.COMMISSION,
-                    payment_id=None,
-                    description=f"Комиссия платформы за размещение #{placement_id}",
-                    meta_json={
-                        "type": "commission",
-                        "placement_id": placement_id,
-                        "share": "platform",
-                        "currency": "rub",
-                    },
-                    balance_before=Decimal("0"),
-                    balance_after=platform_fee,
-                )
-                session.add(platform_txn)
-
-                logger.info(
-                    f"Escrow released (v4.2): {owner_amount} ₽ to owner {owner.id} (earned_rub), "
-                    f"{platform_fee} ₽ commission for placement {placement_id}"
-                )
-                return True
-
-            except Exception as e:
-                logger.error(f"Failed to release escrow for placement {placement_id}: {e}")
                 return False
 
     async def refund_failed_placement(self, placement_id: int) -> bool:
@@ -1131,86 +1002,6 @@ class BillingService:
             )
 
             return transaction
-
-    async def release_escrow_for_placement(
-        self,
-        placement_id: int,
-        owner_id: int,
-        total_amount: Decimal,
-    ) -> tuple["Transaction", "Transaction"]:
-        """
-        Разблокировать средства при успешной публикации (v4.2: 85/15).
-        owner_amount = total_amount * 0.85 (зачисляется в earned_rub)
-        commission_amount = total_amount * 0.15 (комиссия платформы)
-
-        Args:
-            placement_id: ID заявки.
-            owner_id: ID владельца канала.
-            total_amount: Общая сумма (в рублях).
-
-        Returns:
-            Кортеж (owner_transaction, commission_transaction).
-        """
-        from src.db.models.transaction import Transaction
-
-        async with async_session_factory() as session:
-            # v4.2: 85% владельцу в earned_rub
-            owner_amount = total_amount * Decimal("0.85")
-            # v4.2: 15% платформе (комиссия)
-            commission_amount = total_amount * Decimal("0.15")
-
-            # Зачисление владельцу в earned_rub
-            user_repo = UserRepository(session)
-            owner = await user_repo.get_by_id(owner_id)
-
-            if not owner:
-                raise ValueError(f"Owner {owner_id} not found")
-
-            earned_before = owner.earned_rub
-            owner.earned_rub += owner_amount
-
-            owner_transaction = Transaction(
-                user_id=owner_id,
-                amount=owner_amount,
-                type=TransactionType.ESCROW_RELEASE,
-                payment_id=None,
-                meta_json={
-                    "type": "escrow_release",
-                    "placement_id": placement_id,
-                    "share": "owner",
-                    "currency": "rub",
-                },
-                balance_before=earned_before,
-                balance_after=owner.earned_rub,
-                created_at=datetime.now(UTC),
-            )
-            session.add(owner_transaction)
-
-            # Зачисление платформе (комиссия)
-            commission_transaction = Transaction(
-                user_id=owner_id,  # Платформа (условно)
-                amount=commission_amount,
-                type=TransactionType.COMMISSION,
-                payment_id=None,
-                meta_json={
-                    "type": "commission",
-                    "placement_id": placement_id,
-                    "share": "platform",
-                    "currency": "rub",
-                },
-                balance_before=Decimal("0"),
-                balance_after=commission_amount,
-                created_at=datetime.now(UTC),
-            )
-            session.add(commission_transaction)
-
-            await session.flush()
-
-            logger.info(
-                f"Escrow released: {owner_amount} ₽ to owner {owner_id} (earned_rub), {commission_amount} ₽ commission for placement {placement_id}"
-            )
-
-            return owner_transaction, commission_transaction
 
     # ══════════════════════════════════════════════════════════════
     # S-05: BillingService v4.2 — новые методы

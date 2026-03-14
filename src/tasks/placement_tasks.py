@@ -12,7 +12,6 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 
 import asyncio
 import logging
-from decimal import Decimal
 from typing import Any
 
 from redis.asyncio import Redis
@@ -410,7 +409,7 @@ def publish_placement(self, placement_id: int) -> dict[str, Any]:
     3. Если успех:
        - status → 'published'
        - ReputationService.on_publication()
-       - BillingService.release_escrow_for_placement() → owner 80%
+       - Эскроу освобождается в publication_service.delete_published_post() (ESCROW-001)
        - notify_advertiser / notify_owner
     4. Если ошибка Telegram:
        - status → 'failed'
@@ -498,16 +497,8 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                 placement_request_id=placement_id,
             )
 
-            # Выплата v4.2: 85% владельцу
-            from src.core.services.billing_service import BillingService
-
-            billing_service = BillingService()
-            owner_payout = (placement.final_price or placement.proposed_price) * Decimal("0.85")
-            await billing_service.release_escrow_for_placement(
-                placement_id=placement_id,
-                owner_id=channel.owner_user_id,
-                total_amount=placement.final_price or placement.proposed_price,
-            )
+            # v4.3: Эскроу освобождается ТОЛЬКО в publication_service.delete_published_post()
+            # после фактического удаления поста (ESCROW-001). Не здесь.
 
             # Уведомления
             await _notify_user(
@@ -517,7 +508,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
 
             await _notify_user(
                 channel.owner_user_id,
-                f"✅ Пост опубликован. Начислено {owner_payout} кр.",
+                "✅ Пост опубликован. Выплата будет начислена после удаления поста.",
             )
 
             result["success"] = True
