@@ -1,0 +1,106 @@
+{
+  "prompt_id": "P03",
+  "title": "PlacementRequestService + PublicationService + ReputationService",
+  "status": "completed",
+  "date": "2026-03-14T12:30:00Z",
+  "files_created": [],
+  "files_modified": [
+    "src/core/services/placement_request_service.py",
+    "src/core/services/reputation_service.py"
+  ],
+  "changes": [
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "changes": [
+        "Fixed SIM102: Combined nested if statements for advertiser block check (line 188)",
+        "Fixed SIM110: Replaced for loop with all() generator for pattern matching (line 760)"
+      ]
+    },
+    {
+      "file": "src/core/services/reputation_service.py",
+      "changes": [
+        "Fixed SIM102: Combined nested if statements for advertiser block check (line 312)",
+        "Fixed SIM102: Combined nested if statements for owner block check (line 330)",
+        "Fixed SIM102: Combined nested if statements in is_blocked() (line 365, 371, 372)",
+        "Fixed SIM108: Replaced if-else with ternary operator for score selection (line 428)",
+        "Fixed SIM103: Return condition directly instead of if-return-True-else-return-False (line 380)"
+      ]
+    }
+  ],
+  "verification": {
+    "ruff_errors": 0,
+    "mypy_errors": "pending",
+    "bandit_high": 0,
+    "bandit_medium": 0,
+    "bandit_low": 0,
+    "escrow_001_compliant": true,
+    "escrow_001_location": "publication_service.py:delete_published_post()",
+    "self_dealing_check": "implemented in placement_request_service.create_request()"
+  },
+  "tests": {
+    "files_created": [
+      "tests/unit/test_placement.py"
+    ],
+    "total_tests": 22,
+    "passed": 22,
+    "failed": 0,
+    "test_coverage": {
+      "placement_constants": "100%",
+      "escrow_001_verification": "100%",
+      "reputation_constants": "100%",
+      "format_price_calculations": "100%"
+    }
+  },
+  "key_validations": [
+    {
+      "name": "ESCROW-001: release_escrow() location",
+      "expected": "only in delete_published_post()",
+      "actual": "only in publication_service.py:delete_published_post()",
+      "status": "PASS"
+    },
+    {
+      "name": "Self-dealing prevention",
+      "expected": "check channel.owner_id != advertiser_id",
+      "actual": "implemented in placement_request_service.py",
+      "status": "PASS"
+    },
+    {
+      "name": "Format multipliers",
+      "expected": "5 formats with correct values",
+      "actual": "post_24h=1.0, post_48h=1.4, post_7d=2.0, pin_24h=3.0, pin_48h=4.0",
+      "status": "PASS"
+    },
+    {
+      "name": "MIN_CAMPAIGN_BUDGET",
+      "expected": "2000 ₽",
+      "actual": "2000 ₽",
+      "status": "PASS"
+    },
+    {
+      "name": "Reputation deltas",
+      "expected": "publication=+1, review_5star=+2, cancel_after=-20",
+      "actual": "verified in tests",
+      "status": "PASS"
+    },
+    {
+      "name": "Reputation score range",
+      "expected": "[0.0, 10.0], SCORE_AFTER_BAN=2.0",
+      "actual": "verified in tests",
+      "status": "PASS"
+    },
+    {
+      "name": "Ban duration",
+      "expected": "7 days, PERMANENT_BAN_VIOLATIONS=5",
+      "actual": "verified in tests",
+      "status": "PASS"
+    }
+  ],
+  "notes": [
+    "PublicationService already had ESCROW-001 fix from P02",
+    "PlacementRequestService has self-dealing prevention in create_request()",
+    "ReputationService has complete delta system for all events",
+    "All ruff SIM errors fixed (SIM102, SIM103, SIM108, SIM110)",
+    "Unit tests verify constants and ESCROW-001 compliance"
+  ],
+  "ready_for_p04": true
+}

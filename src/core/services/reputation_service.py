@@ -309,40 +309,46 @@ class ReputationService:
         unblocked = False
 
         # Проверка advertiser блокировки
-        if score.is_advertiser_blocked and score.advertiser_blocked_until:
-            if score.advertiser_blocked_until < datetime.now(UTC):
-                await self.reputation_repo.set_block(
-                    user_id=user_id,
-                    role="advertiser",
-                    blocked_until=None,
-                )
-                # Сброс score до 2.0
-                await self._apply_delta(
-                    user_id=user_id,
-                    role="advertiser",
-                    delta=self.SCORE_AFTER_BAN - score.advertiser_score,
-                    action=ReputationAction.BAN_RESET,
-                    comment="Score reset after ban expiration",
-                )
-                unblocked = True
+        if (
+            score.is_advertiser_blocked
+            and score.advertiser_blocked_until
+            and score.advertiser_blocked_until < datetime.now(UTC)
+        ):
+            await self.reputation_repo.set_block(
+                user_id=user_id,
+                role="advertiser",
+                blocked_until=None,
+            )
+            # Сброс score до 2.0
+            await self._apply_delta(
+                user_id=user_id,
+                role="advertiser",
+                delta=self.SCORE_AFTER_BAN - score.advertiser_score,
+                action=ReputationAction.BAN_RESET,
+                comment="Score reset after ban expiration",
+            )
+            unblocked = True
 
         # Проверка owner блокировки
-        if score.is_owner_blocked and score.owner_blocked_until:
-            if score.owner_blocked_until < datetime.now(UTC):
-                await self.reputation_repo.set_block(
-                    user_id=user_id,
-                    role="owner",
-                    blocked_until=None,
-                )
-                # Сброс score до 2.0
-                await self._apply_delta(
-                    user_id=user_id,
-                    role="owner",
-                    delta=self.SCORE_AFTER_BAN - score.owner_score,
-                    action=ReputationAction.BAN_RESET,
-                    comment="Score reset after ban expiration",
-                )
-                unblocked = True
+        if (
+            score.is_owner_blocked
+            and score.owner_blocked_until
+            and score.owner_blocked_until < datetime.now(UTC)
+        ):
+            await self.reputation_repo.set_block(
+                user_id=user_id,
+                role="owner",
+                blocked_until=None,
+            )
+            # Сброс score до 2.0
+            await self._apply_delta(
+                user_id=user_id,
+                role="owner",
+                delta=self.SCORE_AFTER_BAN - score.owner_score,
+                action=ReputationAction.BAN_RESET,
+                comment="Score reset after ban expiration",
+            )
+            unblocked = True
 
         return unblocked
 
@@ -361,19 +367,21 @@ class ReputationService:
         if not score:
             return False
 
-        if role == "advertiser":
-            if score.is_advertiser_blocked:
-                if (
-                    not score.advertiser_blocked_until
-                    or score.advertiser_blocked_until > datetime.now(UTC)
-                ):
-                    return True
-        elif role == "owner":
-            if score.is_owner_blocked:
-                if not score.owner_blocked_until or score.owner_blocked_until > datetime.now(UTC):
-                    return True
+        if (
+            role == "advertiser"
+            and score.is_advertiser_blocked
+            and (
+                not score.advertiser_blocked_until
+                or score.advertiser_blocked_until > datetime.now(UTC)
+            )
+        ):
+            return True
 
-        return False
+        return (
+            role == "owner"
+            and score.is_owner_blocked
+            and (not score.owner_blocked_until or score.owner_blocked_until > datetime.now(UTC))
+        )
 
     async def get_score(self, user_id: int, role: str) -> float:
         """
@@ -425,10 +433,9 @@ class ReputationService:
         score = await self.reputation_repo.get_or_create(user_id)
 
         # Получаем текущий score
-        if role == "advertiser":
-            current_score = score.advertiser_score
-        else:
-            current_score = score.owner_score
+        current_score = (
+            score.advertiser_score if role == "advertiser" else score.owner_score
+        )
 
         # Применяем дельту
         new_score = current_score + delta
