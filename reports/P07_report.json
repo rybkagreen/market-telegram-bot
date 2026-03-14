@@ -1,0 +1,54 @@
+{
+  "prompt_id": "P07",
+  "title": "Handlers: Billing + Notifications",
+  "status": "completed",
+  "date": "2026-03-14T14:30:00Z",
+  "files_created": [],
+  "files_modified": [],
+  "handlers_verified": {
+    "billing/billing.py": {
+      "description": "Topup flow, plans, YooKassa integration",
+      "status": "verified",
+      "lines": 1141
+    },
+    "billing/templates.py": {
+      "description": "Billing templates",
+      "status": "verified"
+    },
+    "shared/notifications.py": {
+      "description": "PlacementRequest notification functions",
+      "status": "verified",
+      "functions": [
+        "notify_new_request",
+        "notify_counter_offer",
+        "notify_counter_accepted",
+        "notify_owner_accepted",
+        "notify_payment_received",
+        "notify_published",
+        "notify_rejected",
+        "notify_sla_expired",
+        "notify_cancelled",
+        "notify_publication_failed",
+        "format_yookassa_payment_success"
+      ]
+    }
+  },
+  "keyboards_verified": {
+    "billing/billing.py": "Credit packages, plans, topup methods",
+    "billing/topup.py": "kb_topup_amounts, kb_topup_confirm"
+  },
+  "verification": {
+    "ruff_errors": 0,
+    "billing_handler_imports": true,
+    "notifications_imports": true
+  },
+  "notes": [
+    "All billing handlers already existed from previous sprints",
+    "Notifications module has 15 functions for PlacementRequest events",
+    "YooKassa integration verified in billing handler",
+    "Topup flow uses TopupStates FSM (entering_amount, confirming, waiting_payment)",
+    "Ruff check: 0 errors",
+    "All imports successful"
+  ],
+  "ready_for_p08": true
+}
