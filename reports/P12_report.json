@@ -1,0 +1,112 @@
+{
+  "prompt_id": "P12",
+  "title": "API Routers (billing webhook, health-check, admin API)",
+  "status": "completed",
+  "date": "2026-03-14T17:00:00Z",
+  "files_created": [],
+  "files_modified": [
+    "src/api/routers/health.py"
+  ],
+  "routers_verified": {
+    "billing.py": {
+      "description": "YooKassa webhook + billing API",
+      "status": "verified",
+      "endpoints": [
+        "POST /webhooks/yookassa (status_code=200, idempotent)"
+      ]
+    },
+    "health.py": {
+      "description": "Health-check with balance invariants",
+      "status": "verified",
+      "endpoints": [
+        "GET /health (basic alive check)",
+        "GET /health/balances (invariants check, requires X-Admin-Key)"
+      ],
+      "invariants_checked": [
+        "platform.escrow_reserved == SUM(final_price WHERE status='escrow')",
+        "platform.payout_reserved == SUM(gross_amount WHERE status IN ('pending','processing'))"
+      ]
+    },
+    "analytics.py": {
+      "description": "Analytics API",
+      "status": "verified"
+    },
+    "auth.py": {
+      "description": "Auth API (JWT)",
+      "status": "verified"
+    },
+    "campaigns.py": {
+      "description": "Campaigns API",
+      "status": "verified"
+    },
+    "channel_settings.py": {
+      "description": "Channel settings API",
+      "status": "verified"
+    },
+    "channels.py": {
+      "description": "Channels API",
+      "status": "verified"
+    },
+    "placements.py": {
+      "description": "Placements API",
+      "status": "verified"
+    },
+    "reputation.py": {
+      "description": "Reputation API",
+      "status": "verified"
+    }
+  },
+  "changes": [
+    {
+      "file": "src/api/routers/health.py",
+      "changes": [
+        "Fixed I001: sorted imports",
+        "Fixed F401: removed unused Depends import",
+        "Fixed F401: removed unused AsyncSession import",
+        "Changed from Depends(get_db_session) to async with async_session_factory()"
+      ]
+    }
+  ],
+  "verification": {
+    "ruff_errors": 0,
+    "all_routers_import": true,
+    "webhook_idempotent": true,
+    "health_invariants": true
+  },
+  "key_validations": [
+    {
+      "name": "YooKassa webhook",
+      "expected": "POST /webhooks/yookassa, status_code=200",
+      "actual": "billing.py:493-514",
+      "status": "PASS"
+    },
+    {
+      "name": "Health invariants",
+      "expected": "escrow_reserved, payout_reserved checks",
+      "actual": "health.py /balances endpoint",
+      "status": "PASS"
+    },
+    {
+      "name": "Admin auth",
+      "expected": "X-Admin-Key header check",
+      "actual": "health.py line 50",
+      "status": "PASS"
+    },
+    {
+      "name": "Ruff check",
+      "expected": "0 errors",
+      "actual": "0 errors (3 auto-fixed)",
+      "status": "PASS"
+    }
+  ],
+  "notes": [
+    "All API routers already existed from previous sprints",
+    "Fixed health.py imports (I001, F401 x2)",
+    "Changed session handling from Depends to async context manager",
+    "YooKassa webhook returns 200 (required by YooKassa)",
+    "Health invariants check escrow_reserved and payout_reserved",
+    "Ruff check: 0 errors",
+    "All imports successful"
+  ],
+  "ready_for_p13": true
+}
