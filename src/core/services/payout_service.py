@@ -440,11 +440,13 @@ class PayoutService:
             rep_repo = ReputationRepo(session)
             rep_score = await rep_repo.get_by_user(owner_id)
 
-            if rep_score and rep_score.is_owner_blocked:
-                if rep_score.owner_blocked_until and rep_score.owner_blocked_until > datetime.now(
-                    UTC
-                ):
-                    raise ValueError("Owner is blocked")
+            if (
+                rep_score
+                and rep_score.is_owner_blocked
+                and rep_score.owner_blocked_until
+                and rep_score.owner_blocked_until > datetime.now(UTC)
+            ):
+                raise ValueError("Owner is blocked")
 
         # Создаём payout
         payout = Payout(
