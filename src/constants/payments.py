@@ -116,3 +116,84 @@ CREDIT_PACKAGES: list[tuple[str, int, int, str]] = [
 # Бонусные пакеты для разных тарифов (legacy — не используются в v4.2)
 CREDIT_PACKAGE_STANDARD = 100  # Бонус для STANDARD тарифа
 CREDIT_PACKAGE_BUSINESS = 500  # Бонус для BUSINESS тарифа
+
+
+# ══════════════════════════════════════════════════════════════
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ══════════════════════════════════════════════════════════════
+def calculate_topup_payment(desired: Decimal) -> dict:
+    """
+    Рассчитать сумму пополнения с комиссией ЮKassa.
+
+    Args:
+        desired: Желаемая сумма к зачислению (desired_balance).
+
+    Returns:
+        dict с ключами:
+            - desired_balance: сумма к зачислению на баланс
+            - fee_amount: комиссия ЮKassa (3.5%)
+            - gross_amount: итоговая сумма к оплате
+    """
+    desired = Decimal(str(desired))
+    fee_amount = (desired * YOOKASSA_FEE_RATE).quantize(Decimal("0.01"))
+    gross_amount = desired + fee_amount
+    return {
+        "desired_balance": desired,
+        "fee_amount": fee_amount,
+        "gross_amount": gross_amount,
+    }
+
+
+def calculate_payout(gross: Decimal) -> dict:
+    """
+    Рассчитать выплату с комиссией платформы.
+
+    Args:
+        gross: Сумма запроса на выплату.
+
+    Returns:
+        dict с ключами:
+            - gross: запрошенная сумма
+            - fee: комиссия платформы (1.5%)
+            - net: сумма к перечислению
+    """
+    gross = Decimal(str(gross))
+    fee = (gross * PAYOUT_FEE_RATE).quantize(Decimal("0.01"))
+    net = gross - fee
+    return {
+        "gross": gross,
+        "fee": fee,
+        "net": net,
+    }
+
+
+def get_format_price(base_price: Decimal, fmt: str) -> Decimal:
+    """
+    Рассчитать цену публикации с учётом формата.
+
+    Args:
+        base_price: Базовая цена за пост (price_per_post из канала).
+        fmt: Формат публикации (post_24h, pin_48h, etc).
+
+    Returns:
+        Итоговая цена с учётом мультипликатора формата.
+    """
+    base_price = Decimal(str(base_price))
+    multiplier = FORMAT_MULTIPLIERS.get(fmt, Decimal("1.0"))
+    return (base_price * multiplier).quantize(Decimal("0.01"))
+
+
+def is_format_allowed_for_plan(plan: str, fmt: str) -> bool:
+    """
+    Проверить доступность формата для тарифа.
+
+    Args:
+        plan: Название тарифа (free, starter, pro, business).
+        fmt: Формат публикации.
+
+    Returns:
+        True если формат доступен для тарифа.
+    """
+    plan_limits = PLAN_LIMITS.get(plan, {})
+    allowed_formats = plan_limits.get("formats", [])
+    return fmt in allowed_formats
