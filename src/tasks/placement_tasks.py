@@ -498,11 +498,11 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                 placement_request_id=placement_id,
             )
 
-            # Выплата 80% владельцу
+            # Выплата v4.2: 85% владельцу
             from src.core.services.billing_service import BillingService
 
             billing_service = BillingService()
-            owner_payout = (placement.final_price or placement.proposed_price) * Decimal("0.80")
+            owner_payout = (placement.final_price or placement.proposed_price) * Decimal("0.85")
             await billing_service.release_escrow_for_placement(
                 placement_id=placement_id,
                 owner_id=channel.owner_user_id,
