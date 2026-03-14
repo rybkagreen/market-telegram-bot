@@ -1,590 +1,116 @@
 """
-PlacementRequest Repository для работы с заявками на размещение.
-Расширяет BaseRepository специфичными методами для PlacementRequest.
+PlacementRequestRepository for PlacementRequest model operations.
 """
 
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from datetime import datetime
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy import and_, func, select
 
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.base import BaseRepository
 
 
-class PlacementRequestRepo(BaseRepository[PlacementRequest]):
+class PlacementRequestRepository(BaseRepository[PlacementRequest]):
     """
     Репозиторий для работы с заявками на размещение.
     """
 
     model = PlacementRequest
 
-    def __init__(self, session: AsyncSession) -> None:
-        """Инициализация репозитория."""
-        super().__init__(session)
-
-    async def create_placement(
-        self,
-        advertiser_id: int,
-        campaign_id: int,
-        channel_id: int,
-        proposed_price: Decimal,
-        final_text: str,
-        proposed_schedule: datetime | None = None,
-        proposed_frequency: int | None = None,
-    ) -> PlacementRequest:
-        """
-        Создать заявку. expires_at = now() + 24h. status = pending_owner.
-
-        Args:
-            advertiser_id: ID рекламодателя.
-            campaign_id: ID кампании.
-            channel_id: ID канала.
-            proposed_price: Предлагаемая цена.
-            final_text: Финальный текст рекламы.
-            proposed_schedule: Желаемое время публикации.
-            proposed_frequency: Частота (для пакетов).
-
-        Returns:
-            Созданная заявка.
-        """
-        now = datetime.now(UTC)
-        expires_at = now + timedelta(hours=24)
-
-        attributes = {
-            "advertiser_id": advertiser_id,
-            "campaign_id": campaign_id,
-            "channel_id": channel_id,
-            "proposed_price": proposed_price,
-            "final_text": final_text,
-            "proposed_schedule": proposed_schedule,
-            "proposed_frequency": proposed_frequency,
-            "status": PlacementStatus.PENDING_OWNER,
-            "counter_offer_count": 0,
-            "expires_at": expires_at,
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        return await super().create(attributes)
-
     async def get_by_advertiser(
         self,
         advertiser_id: int,
-        status: PlacementStatus | None = None,
-        limit: int = 20,
-        offset: int = 0,
+        statuses: list[PlacementStatus] | None = None,
     ) -> list[PlacementRequest]:
-        """
-        Список заявок рекламодателя, опционально фильтр по статусу.
+        """Получить заявки рекламодателя."""
+        conditions = [PlacementRequest.advertiser_id == advertiser_id]
 
-        Args:
-            advertiser_id: ID рекламодателя.
-            status: Фильтр по статусу.
-            limit: Максимальное количество записей.
-            offset: Смещение.
+        if statuses:
+            conditions.append(PlacementRequest.status.in_(statuses))
 
-        Returns:
-            Список заявок.
-        """
-        filters = [PlacementRequest.advertiser_id == advertiser_id]
-        if status is not None:
-            filters.append(PlacementRequest.status == status)
-
-        query = (
+        result = await self.session.execute(
             select(PlacementRequest)
-            .where(*filters)
+            .where(and_(*conditions))
             .order_by(PlacementRequest.created_at.desc())
-            .limit(limit)
-            .offset(offset)
-            .options(selectinload(PlacementRequest.campaign))
-            .options(selectinload(PlacementRequest.channel))
         )
-        result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_by_channel(
+    async def get_by_owner(
         self,
-        channel_id: int,
-        status: PlacementStatus | None = None,
-        limit: int = 20,
-        offset: int = 0,
+        owner_id: int,
+        statuses: list[PlacementStatus] | None = None,
     ) -> list[PlacementRequest]:
-        """
-        Список заявок для канала (для владельца).
+        """Получить заявки владельца канала."""
+        from src.db.models.telegram_chat import TelegramChat
 
-        Args:
-            channel_id: ID канала.
-            status: Фильтр по статусу.
-            limit: Максимальное количество записей.
-            offset: Смещение.
+        conditions = [TelegramChat.owner_id == owner_id]
 
-        Returns:
-            Список заявок.
-        """
-        filters = [PlacementRequest.channel_id == channel_id]
-        if status is not None:
-            filters.append(PlacementRequest.status == status)
+        if statuses:
+            conditions.append(PlacementRequest.status.in_(statuses))
 
-        query = (
-            select(PlacementRequest)
-            .where(*filters)
-            .order_by(PlacementRequest.created_at.desc())
-            .limit(limit)
-            .offset(offset)
-            .options(selectinload(PlacementRequest.campaign))
-            .options(selectinload(PlacementRequest.advertiser))
-        )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
-
-    async def get_pending_for_owner(self, owner_id: int) -> list[PlacementRequest]:
-        """
-        Все заявки со статусом pending_owner для всех каналов владельца.
-        JOIN с telegram_chats по owner_id.
-
-        Args:
-            owner_id: ID владельца канала.
-
-        Returns:
-            Список заявок.
-        """
-        from src.db.models.analytics import TelegramChat
-
-        query = (
+        result = await self.session.execute(
             select(PlacementRequest)
             .join(TelegramChat, PlacementRequest.channel_id == TelegramChat.id)
-            .where(
-                TelegramChat.owner_user_id == owner_id,
-                PlacementRequest.status == PlacementStatus.PENDING_OWNER,
-            )
-            .order_by(PlacementRequest.created_at.desc())
-            .options(selectinload(PlacementRequest.campaign))
-            .options(selectinload(PlacementRequest.advertiser))
+            .where(and_(*conditions))
         )
-        result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_expired(self) -> list[PlacementRequest]:
-        """
-        Заявки с expires_at < now() и статусом pending_owner или counter_offer.
-        Используется Celery-задачей для авто-отклонения.
+    async def get_pending_for_owner(
+        self,
+        owner_id: int,
+    ) -> list[PlacementRequest]:
+        """Получить ожидающие заявки для владельца."""
+        return await self.get_by_owner(
+            owner_id,
+            statuses=[PlacementStatus.pending_owner, PlacementStatus.counter_offer],
+        )
 
-        Returns:
-            Список просроченных заявок.
-        """
-        now = datetime.now(UTC)
-        query = (
-            select(PlacementRequest)
-            .where(
-                PlacementRequest.expires_at < now,
+    async def get_active_escrow(self) -> list[PlacementRequest]:
+        """Получить активные заявки в эскроу."""
+        result = await self.session.execute(
+            select(PlacementRequest).where(PlacementRequest.status == PlacementStatus.escrow)
+        )
+        return list(result.scalars().all())
+
+    async def get_published_active(self) -> list[PlacementRequest]:
+        """Получить опубликованные активные заявки."""
+        result = await self.session.execute(
+            select(PlacementRequest).where(
+                PlacementRequest.status == PlacementStatus.published,
+                PlacementRequest.scheduled_delete_at > datetime.utcnow(),
+            )
+        )
+        return list(result.scalars().all())
+
+    async def count_active_for_advertiser(
+        self,
+        advertiser_id: int,
+    ) -> int:
+        """Посчитать активные заявки рекламодателя."""
+        active_statuses = [
+            PlacementStatus.pending_owner,
+            PlacementStatus.counter_offer,
+            PlacementStatus.pending_payment,
+            PlacementStatus.escrow,
+            PlacementStatus.published,
+        ]
+
+        result = await self.session.execute(
+            select(func.count()).select_from(PlacementRequest).where(
+                PlacementRequest.advertiser_id == advertiser_id,
+                PlacementRequest.status.in_(active_statuses),
+            )
+        )
+        return result.scalar() or 0
+
+    async def get_expired(self, before: datetime) -> list[PlacementRequest]:
+        """Получить просроченные заявки."""
+        result = await self.session.execute(
+            select(PlacementRequest).where(
                 PlacementRequest.status.in_(
-                    [PlacementStatus.PENDING_OWNER, PlacementStatus.COUNTER_OFFER]
+                    [PlacementStatus.pending_owner, PlacementStatus.pending_payment]
                 ),
-            )
-            .options(selectinload(PlacementRequest.campaign))
-            .options(selectinload(PlacementRequest.channel))
-        )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
-
-    async def get_expired_pending_owner(self) -> list[PlacementRequest]:
-        """
-        Заявки со статусом pending_owner и expires_at < now().
-
-        Returns:
-            Список просроченных заявок.
-        """
-        now = datetime.now(UTC)
-        query = (
-            select(PlacementRequest)
-            .where(
-                PlacementRequest.status == PlacementStatus.PENDING_OWNER,
-                PlacementRequest.expires_at < now,
-            )
-            .options(selectinload(PlacementRequest.channel))
-        )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
-
-    async def get_expired_pending_payment(self) -> list[PlacementRequest]:
-        """
-        Заявки со статусом pending_payment и expires_at < now().
-
-        Returns:
-            Список просроченных заявок.
-        """
-        now = datetime.now(UTC)
-        query = (
-            select(PlacementRequest)
-            .where(
-                PlacementRequest.status == PlacementStatus.PENDING_PAYMENT,
-                PlacementRequest.expires_at < now,
-            )
-            .options(selectinload(PlacementRequest.channel))
-        )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
-
-    async def get_expired_counter_offer(self) -> list[PlacementRequest]:
-        """
-        Заявки со статусом counter_offer и expires_at < now().
-
-        Returns:
-            Список просроченных заявок.
-        """
-        now = datetime.now(UTC)
-        query = (
-            select(PlacementRequest)
-            .where(
-                PlacementRequest.status == PlacementStatus.COUNTER_OFFER,
-                PlacementRequest.expires_at < now,
-            )
-            .options(selectinload(PlacementRequest.channel))
-        )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
-
-    async def update_status(
-        self,
-        placement_id: int,
-        status: PlacementStatus,
-        rejection_reason: str | None = None,
-    ) -> PlacementRequest | None:
-        """
-        Обновить статус. Обновить updated_at.
-
-        Args:
-            placement_id: ID заявки.
-            status: Новый статус.
-            rejection_reason: Причина отклонения.
-
-        Returns:
-            Обновленная заявка или None.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        instance.status = status
-        instance.updated_at = datetime.now(UTC)
-        if rejection_reason is not None:
-            instance.rejection_reason = rejection_reason
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def accept(
-        self,
-        placement_id: int,
-        final_price: Decimal | None = None,
-        final_schedule: datetime | None = None,
-    ) -> PlacementRequest | None:
-        """
-        Владелец принял заявку. status → pending_payment.
-        Если final_price/final_schedule не переданы — копировать из proposed_*.
-
-        Args:
-            placement_id: ID заявки.
-            final_price: Итоговая цена.
-            final_schedule: Итоговое время публикации.
-
-        Returns:
-            Обновленная заявка или None.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        instance.status = PlacementStatus.PENDING_PAYMENT
-        instance.final_price = final_price or instance.proposed_price
-        instance.final_schedule = final_schedule or instance.proposed_schedule
-        instance.updated_at = datetime.now(UTC)
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def reject(
-        self,
-        placement_id: int,
-        rejection_reason: str,
-    ) -> PlacementRequest | None:
-        """
-        Владелец отклонил заявку. status → cancelled. Сохранить rejection_reason.
-
-        Args:
-            placement_id: ID заявки.
-            rejection_reason: Причина отклонения.
-
-        Returns:
-            Обновленная заявка или None.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        instance.status = PlacementStatus.CANCELLED
-        instance.rejection_reason = rejection_reason
-        instance.updated_at = datetime.now(UTC)
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def counter_offer(
-        self,
-        placement_id: int,
-        proposed_price: Decimal | None = None,
-        proposed_schedule: datetime | None = None,
-    ) -> PlacementRequest | None:
-        """
-        Контр-предложение. status → counter_offer.
-        counter_offer_count += 1. last_counter_at = now().
-        Обновить expires_at = now() + 24h для нового раунда.
-        Если counter_offer_count >= 3 после инкремента — вернуть None (исчерпан лимит).
-
-        Args:
-            placement_id: ID заявки.
-            proposed_price: Новая цена.
-            proposed_schedule: Новое время публикации.
-
-        Returns:
-            Обновленная заявка или None если лимит исчерпан.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        # Инкремент счётчика
-        instance.counter_offer_count += 1
-
-        # Проверка лимита
-        if instance.counter_offer_count >= 3:
-            return None
-
-        instance.status = PlacementStatus.COUNTER_OFFER
-        instance.last_counter_at = datetime.now(UTC)
-        instance.expires_at = datetime.now(UTC) + timedelta(hours=24)
-
-        if proposed_price is not None:
-            instance.proposed_price = proposed_price
-        if proposed_schedule is not None:
-            instance.proposed_schedule = proposed_schedule
-
-        instance.updated_at = datetime.now(UTC)
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def set_escrow(
-        self,
-        placement_id: int,
-        escrow_transaction_id: int,
-    ) -> PlacementRequest | None:
-        """
-        status → escrow. Сохранить escrow_transaction_id.
-
-        Args:
-            placement_id: ID заявки.
-            escrow_transaction_id: ID транзакции эскроу.
-
-        Returns:
-            Обновленная заявка или None.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        instance.status = PlacementStatus.ESCROW
-        instance.escrow_transaction_id = escrow_transaction_id
-        instance.updated_at = datetime.now(UTC)
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def set_published(
-        self,
-        placement_id: int,
-        published_at: datetime | None = None,
-    ) -> PlacementRequest | None:
-        """
-        status → published. published_at = now() если не передан.
-
-        Args:
-            placement_id: ID заявки.
-            published_at: Время публикации.
-
-        Returns:
-            Обновленная заявка или None.
-        """
-        instance = await self.get_by_id(placement_id)
-        if instance is None:
-            return None
-
-        instance.status = PlacementStatus.PUBLISHED
-        instance.published_at = published_at or datetime.now(UTC)
-        instance.updated_at = datetime.now(UTC)
-
-        await self.session.flush()
-        await self.session.refresh(instance)
-        return instance
-
-    async def count_pending_for_owner(self, owner_id: int) -> int:
-        """
-        Количество pending_owner заявок для owner. Для счётчика в меню.
-
-        Args:
-            owner_id: ID владельца канала.
-
-        Returns:
-            Количество заявок.
-        """
-        from src.db.models.analytics import TelegramChat
-
-        query = (
-            select(func.count(PlacementRequest.id))
-            .join(TelegramChat, PlacementRequest.channel_id == TelegramChat.id)
-            .where(
-                TelegramChat.owner_user_id == owner_id,
-                PlacementRequest.status == PlacementStatus.PENDING_OWNER,
+                PlacementRequest.expires_at < before,
             )
         )
-        result = await self.session.execute(query)
-        return result.scalar_one() or 0
-
-    async def count_cancellations_in_30_days(self, advertiser_id: int) -> int:
-        """
-        Количество cancelled заявок advertiser_id за последние 30 дней.
-        Используется ReputationService для правила '3 отмены за 30 дней'.
-
-        Args:
-            advertiser_id: ID рекламодателя.
-
-        Returns:
-            Количество отмен.
-        """
-        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
-
-        query = select(func.count(PlacementRequest.id)).where(
-            PlacementRequest.advertiser_id == advertiser_id,
-            PlacementRequest.status == PlacementStatus.CANCELLED,
-            PlacementRequest.updated_at >= thirty_days_ago,
-        )
-        result = await self.session.execute(query)
-        return result.scalar_one() or 0
-
-    # ══════════════════════════════════════════════════════════════
-    # S-04: Методы для работы с publication_format и deletion
-    # ══════════════════════════════════════════════════════════════
-
-    async def get_by_status_and_format(
-        self,
-        session: AsyncSession,
-        status: str,
-        publication_format: str,
-    ) -> list[PlacementRequest]:
-        """
-        Получить заявки по статусу и формату публикации.
-
-        Args:
-            session: Асинхронная сессия.
-            status: Статус заявки.
-            publication_format: Формат публикации.
-
-        Returns:
-            Список заявок.
-        """
-        stmt = select(PlacementRequest).where(
-            PlacementRequest.status == status,
-            PlacementRequest.publication_format == publication_format,
-        )
-        result = await session.execute(stmt)
         return list(result.scalars().all())
-
-    async def get_scheduled_for_deletion(
-        self,
-        session: AsyncSession,
-    ) -> list[PlacementRequest]:
-        """
-        Получить посты у которых scheduled_delete_at <= NOW().
-
-        Args:
-            session: Асинхронная сессия.
-
-        Returns:
-            Список заявок на удаление.
-        """
-        from sqlalchemy import and_
-
-        now = datetime.now(UTC)
-        stmt = select(PlacementRequest).where(
-            and_(
-                PlacementRequest.status == PlacementStatus.PUBLISHED,
-                PlacementRequest.scheduled_delete_at <= now,
-                PlacementRequest.deleted_at.is_(None),
-            )
-        )
-        result = await session.execute(stmt)
-        return list(result.scalars().all())
-
-    async def mark_deleted(
-        self,
-        session: AsyncSession,
-        placement_id: int,
-    ) -> None:
-        """
-        Отметить заявку как удалённую.
-
-        Args:
-            session: Асинхронная сессия.
-            placement_id: ID заявки.
-        """
-        from sqlalchemy import text
-
-        stmt = text("""
-            UPDATE placement_requests
-            SET deleted_at = NOW(),
-                status = 'completed'
-            WHERE id = :pid
-        """)
-        await session.execute(stmt, {"pid": placement_id})
-
-    async def set_message_id(
-        self,
-        session: AsyncSession,
-        placement_id: int,
-        message_id: int,
-        scheduled_delete_at: datetime,
-    ) -> None:
-        """
-        Сохранить Telegram message_id и scheduled_delete_at после публикации.
-
-        Args:
-            session: Асинхронная сессия.
-            placement_id: ID заявки.
-            message_id: ID сообщения в Telegram.
-            scheduled_delete_at: Запланированное время удаления.
-        """
-        from sqlalchemy import text
-
-        stmt = text("""
-            UPDATE placement_requests
-            SET message_id = :mid,
-                scheduled_delete_at = :sda,
-                status = 'published'
-            WHERE id = :pid
-        """)
-        await session.execute(
-            stmt,
-            {
-                "pid": placement_id,
-                "mid": message_id,
-                "sda": scheduled_delete_at,
-            },
-        )

@@ -1,0 +1,273 @@
+{
+  "_meta": {
+    "title": "Шаблоны отчётов по фазам REBUILD_FINAL",
+    "instruction": "Qwen заполняет этот шаблон после каждой фазы. Каждое поле — РЕАЛЬНЫЙ вывод команды или конкретное значение. НЕ описание. НЕ 'completed'. РЕАЛЬНЫЙ текст из терминала.",
+    "validation_rule": "Если поле содержит слова 'completed', 'done', 'verified', 'stub', 'will fix', 'legacy' — отчёт считается НЕДЕЙСТВИТЕЛЬНЫМ и фаза переделывается."
+  },
+
+  "PHASE-0": {
+    "title": "Снос и структура",
+    "fields": {
+      "git_commit_hash": "РЕАЛЬНЫЙ хэш из git commit, например: a1b2c3d",
+      "alembic_017_files_after_fix": "РЕАЛЬНЫЙ вывод: find src/db/migrations/versions/ -name '*017*'. Ожидается ОДИН файл.",
+      "db_drop_output": "РЕАЛЬНЫЙ вывод psql: DROP DATABASE и CREATE DATABASE строки",
+      "deleted_services": {
+        "b2b_package_service": "EXISTS / NOT_FOUND",
+        "cryptobot_service": "EXISTS / NOT_FOUND",
+        "mailing_service": "EXISTS / NOT_FOUND",
+        "comparison_service": "EXISTS / NOT_FOUND",
+        "mediakit_service": "EXISTS / NOT_FOUND",
+        "category_classifier": "EXISTS / NOT_FOUND",
+        "campaign_analytics_ai": "EXISTS / NOT_FOUND",
+        "analytics_service": "EXISTS / NOT_FOUND",
+        "review_service": "EXISTS / NOT_FOUND",
+        "user_role_service": "EXISTS / NOT_FOUND",
+        "rating_service": "EXISTS / NOT_FOUND",
+        "timing_service": "EXISTS / NOT_FOUND",
+        "token_logger": "EXISTS / NOT_FOUND"
+      },
+      "bot_py_files_count": "РЕАЛЬНЫЙ вывод: find src/bot/ -name '*.py' | wc -l. Ожидается: только __init__.py в директориях",
+      "db_models_py_count": "РЕАЛЬНЫЙ вывод: find src/db/models/ -name '*.py' | wc -l. Ожидается: 1 (__init__.py)",
+      "migrations_count": "РЕАЛЬНЫЙ вывод: ls src/db/migrations/versions/ | wc -l. Ожидается: 0",
+      "preserved_files_exist": {
+        "db_base_py": "EXISTS / MISSING",
+        "db_session_py": "EXISTS / MISSING",
+        "repositories_base_py": "EXISTS / MISSING",
+        "billing_service_py": "EXISTS / MISSING",
+        "publication_service_py": "EXISTS / MISSING"
+      },
+      "checklist_all_pass": "YES / NO — если NO, указать какие пункты провалились"
+    }
+  },
+
+  "PHASE-1": {
+    "title": "Модели — 14 файлов",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/db/models/ --statistics. Ожидается: 0 errors",
+      "ruff_errors_count": 0,
+      "mypy_output": "РЕАЛЬНЫЙ последние 3 строки mypy. Ожидается: Success: no issues found",
+      "mypy_errors_count": 0,
+      "import_test_output": "РЕАЛЬНЫЙ вывод python -c 'from src.db.models import ...' Ожидается: PHASE-1 OK: 14 models",
+      "files_count": "РЕАЛЬНЫЙ вывод ls src/db/models/*.py | wc -l. Ожидается: 15 (14 + __init__)",
+      "stub_check_output": "РЕАЛЬНЫЙ вывод grep pass$/TODO/NotImplementedError. Ожидается: NO_STUB_OK",
+      "legacy_check_output": "РЕАЛЬНЫЙ вывод grep b2b/mailing_log/content_flag. Ожидается: NO_LEGACY_OK",
+      "models_created": {
+        "user.py": "CREATED / MISSING",
+        "telegram_chat.py": "CREATED / MISSING",
+        "channel_settings.py": "CREATED / MISSING",
+        "channel_mediakit.py": "CREATED / MISSING",
+        "placement_request.py": "CREATED / MISSING",
+        "transaction.py": "CREATED / MISSING",
+        "payout.py": "CREATED / MISSING",
+        "platform_account.py": "CREATED / MISSING",
+        "yookassa_payment.py": "CREATED / MISSING",
+        "reputation_score.py": "CREATED / MISSING",
+        "reputation_history.py": "CREATED / MISSING",
+        "dispute.py": "CREATED / MISSING",
+        "review.py": "CREATED / MISSING",
+        "category.py": "CREATED / MISSING",
+        "badge.py": "CREATED / MISSING"
+      },
+      "enums_check": {
+        "PlacementStatus_values": "РЕАЛЬНЫЙ вывод: python -c 'from src.db.models.placement_request import PlacementStatus; print([e.value for e in PlacementStatus])'",
+        "PublicationFormat_values": "РЕАЛЬНЫЙ вывод: python -c 'from src.db.models.placement_request import PublicationFormat; print([e.value for e in PublicationFormat])'",
+        "TransactionType_values": "РЕАЛЬНЫЙ вывод списка значений",
+        "PayoutStatus_values": "РЕАЛЬНЫЙ вывод списка значений",
+        "DisputeStatus_values": "РЕАЛЬНЫЙ вывод списка значений"
+      },
+      "user_model_head": "РЕАЛЬНЫЙ вывод: head -40 src/db/models/user.py — показать реальные поля",
+      "placement_model_head": "РЕАЛЬНЫЙ вывод: head -40 src/db/models/placement_request.py",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-1.5": {
+    "title": "Переписка 5 сервисов",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/core/services/. Ожидается: 0 errors",
+      "ruff_errors_count": 0,
+      "mypy_output": "РЕАЛЬНЫЙ вывод mypy для 4 новых файлов. Ожидается: no issues",
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-1.5 OK",
+      "stub_check_output": "РЕАЛЬНЫЙ вывод grep stub/pass$/TODO в 4 новых файлах. Ожидается: NO_STUB_OK",
+      "services_created": {
+        "analytics_service.py": "CREATED / MISSING",
+        "review_service.py": "CREATED / MISSING",
+        "user_role_service.py": "CREATED / MISSING",
+        "channel_service.py": "CREATED / MISSING"
+      },
+      "analytics_service_methods": "РЕАЛЬНЫЙ вывод: grep -n 'async def' src/core/services/analytics_service.py",
+      "channel_service_methods": "РЕАЛЬНЫЙ вывод: grep -n 'async def' src/core/services/channel_service.py",
+      "user_role_no_legacy_imports": "РЕАЛЬНЫЙ вывод: grep 'CampaignRepository\\|MailingLogRepository' src/core/services/user_role_service.py. Ожидается: пусто",
+      "analytics_uses_placement_request": "РЕАЛЬНЫЙ вывод: grep 'PlacementRequest\\|Transaction' src/core/services/analytics_service.py | head -5",
+      "channel_service_has_classify": "РЕАЛЬНЫЙ вывод: grep 'classify_channel\\|mistral' src/core/services/channel_service.py | head -3",
+      "review_service_has_rating_calc": "РЕАЛЬНЫЙ вывод: grep 'recalculate_channel_rating\\|reach_score\\|er_score' src/core/services/review_service.py | head -5",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-2": {
+    "title": "Alembic — одна миграция + seed",
+    "fields": {
+      "migration_file_name": "РЕАЛЬНЫЙ вывод: ls src/db/migrations/versions/",
+      "migrations_count": "РЕАЛЬНЫЙ число файлов. Ожидается: 1",
+      "migration_tables_created": "РЕАЛЬНЫЙ вывод: grep 'op.create_table' в файле миграции — список таблиц",
+      "tables_count_in_migration": "Число таблиц из grep. Ожидается: 15+",
+      "alembic_upgrade_output": "РЕАЛЬНЫЙ вывод alembic upgrade head",
+      "alembic_current_output": "РЕАЛЬНЫЙ вывод alembic current. НЕ должно быть Warning",
+      "db_tables_list": "РЕАЛЬНЫЙ вывод psql \\dt — список таблиц",
+      "db_tables_count": "Число таблиц. Ожидается: 15+",
+      "categories_seed_output": "РЕАЛЬНЫЙ вывод seed.py: 'Seed OK'",
+      "categories_count": "РЕАЛЬНЫЙ вывод: SELECT count(*) FROM categories. Ожидается: 11",
+      "platform_account_exists": "РЕАЛЬНЫЙ вывод: SELECT * FROM platform_account. Ожидается: строка id=1",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-3": {
+    "title": "Репозитории — 7 файлов",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/db/repositories/. Ожидается: 0 errors",
+      "ruff_errors_count": 0,
+      "mypy_output": "РЕАЛЬНЫЙ вывод mypy. Ожидается: no issues",
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-3 OK: 7 repos",
+      "stub_check_output": "РЕАЛЬНЫЙ вывод grep stub/pass$ кроме base.py. Ожидается: NO_STUB_OK",
+      "legacy_check_output": "РЕАЛЬНЫЙ вывод grep campaign_repo/log_repo/notification_repo. Ожидается: NO_LEGACY_OK",
+      "files_list": "РЕАЛЬНЫЙ вывод: ls src/db/repositories/*.py",
+      "repos_created": {
+        "user_repo.py": "CREATED / MISSING",
+        "telegram_chat_repo.py": "CREATED / MISSING",
+        "placement_request_repo.py": "CREATED / MISSING",
+        "transaction_repo.py": "CREATED / MISSING",
+        "payout_repo.py": "CREATED / MISSING",
+        "platform_account_repo.py": "CREATED / MISSING",
+        "dispute_repo.py": "CREATED / MISSING"
+      },
+      "user_repo_methods": "РЕАЛЬНЫЙ вывод: grep -n 'async def' src/db/repositories/user_repo.py",
+      "user_repo_has_for_update": "РЕАЛЬНЫЙ вывод: grep 'with_for_update' src/db/repositories/user_repo.py. Ожидается: 2 строки",
+      "placement_repo_methods": "РЕАЛЬНЫЙ вывод: grep -n 'async def' src/db/repositories/placement_request_repo.py",
+      "platform_account_has_for_update": "РЕАЛЬНЫЙ вывод: grep 'with_for_update' src/db/repositories/platform_account_repo.py. Ожидается: 1 строка",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-4": {
+    "title": "FSM States — 8 классов",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/bot/states/. Ожидается: 0 errors",
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-4 OK: 8 states",
+      "states_group_list": "РЕАЛЬНЫЙ вывод: grep -rn 'class.*StatesGroup' src/bot/states/ | sort",
+      "states_group_count": "Число строк из grep. Ожидается: 8",
+      "files_count": "РЕАЛЬНЫЙ вывод ls src/bot/states/*.py | wc -l. Ожидается: 9",
+      "legacy_check_output": "РЕАЛЬНЫЙ вывод grep AdminFreeCampaign/AdminBan/CampaignCreate. Ожидается: NO_LEGACY_OK",
+      "placement_states_content": "РЕАЛЬНЫЙ вывод: cat src/bot/states/placement.py — все 7 состояний видны",
+      "arbitration_states_count": "РЕАЛЬНЫЙ число State() в arbitration.py. Ожидается: 6",
+      "channel_settings_states_count": "РЕАЛЬНЫЙ число State() в channel_settings.py. Ожидается: 3",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-5": {
+    "title": "Middlewares + Filters",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/bot/middlewares/ src/bot/filters/. Ожидается: 0 errors",
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-5 OK",
+      "fsm_timeout_stub_check": "РЕАЛЬНЫЙ вывод: grep -n 'pass$\\|stub\\|TODO' src/bot/middlewares/fsm_timeout.py. Ожидается: пусто",
+      "fsm_timeout_has_state_clear": "РЕАЛЬНЫЙ вывод: grep -n 'state.clear' src/bot/middlewares/fsm_timeout.py. Ожидается: 1 строка",
+      "fsm_timeout_has_redis_key": "РЕАЛЬНЫЙ вывод: grep -n 'fsm_activity' src/bot/middlewares/fsm_timeout.py. Ожидается: 2+ строки",
+      "fsm_timeout_has_300": "РЕАЛЬНЫЙ вывод: grep -n '300' src/bot/middlewares/fsm_timeout.py. Ожидается: 1 строка",
+      "fsm_timeout_full_code": "РЕАЛЬНЫЙ вывод: cat src/bot/middlewares/fsm_timeout.py — весь файл",
+      "throttling_has_redis": "РЕАЛЬНЫЙ вывод: grep -n 'redis\\|nx=True\\|TTL' src/bot/middlewares/throttling.py. Ожидается: 2+ строки",
+      "role_check_has_blocked_logic": "РЕАЛЬНЫЙ вывод: grep -n 'is_.*_blocked\\|blocked_until' src/bot/middlewares/role_check.py",
+      "admin_filter_has_is_admin": "РЕАЛЬНЫЙ вывод: grep -n 'is_admin' src/bot/filters/admin.py",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-6": {
+    "title": "Keyboards",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/bot/keyboards/. Ожидается: 0 errors",
+      "ruff_errors_count": 0,
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-6 OK",
+      "b2b_check_output": "РЕАЛЬНЫЙ вывод grep main:b2b/b2b:buy в keyboards. Ожидается: B2B_CLEAN",
+      "rt001_check_output": "РЕАЛЬНЫЙ вывод grep main:analytics в own_menu.py. Ожидается: RT001_OK (пусто)",
+      "dispute_cb_check_output": "РЕАЛЬНЫЙ вывод grep main:open_dispute в keyboards. Ожидается: DISPUTE_CB_OK (пусто)",
+      "keyboard_files_list": "РЕАЛЬНЫЙ вывод: find src/bot/keyboards/ -name '*.py' | sort",
+      "adv_menu_content": "РЕАЛЬНЫЙ вывод: cat src/bot/keyboards/advertiser/adv_menu.py — проверить нет B2B",
+      "own_menu_content": "РЕАЛЬНЫЙ вывод: cat src/bot/keyboards/owner/own_menu.py — проверить main:owner_analytics",
+      "format_kb_has_conditions": "РЕАЛЬНЫЙ вывод: grep -n 'plan\\|allowed_formats' src/bot/keyboards/advertiser/placement.py | head -5",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-7": {
+    "title": "Handlers",
+    "fields": {
+      "ruff_output": "РЕАЛЬНЫЙ вывод ruff check src/bot/handlers/ --statistics. Ожидается: 0 errors",
+      "ruff_errors_count": 0,
+      "import_test_output": "РЕАЛЬНЫЙ вывод: PHASE-7 OK: all handlers imported",
+      "b2b_check": "РЕАЛЬНЫЙ вывод grep main:b2b в handlers. Ожидается: B2B_CLEAN",
+      "rt001_check": "РЕАЛЬНЫЙ вывод grep 'main:analytics[^_]' в owner handlers. Ожидается: RT001_OK",
+      "dispute_cb_check": "РЕАЛЬНЫЙ вывод grep main:open_dispute в bot/. Ожидается: DISPUTE_CB_OK",
+      "broadcast_check": "РЕАЛЬНЫЙ вывод grep broadcast в advertiser/placement handlers. Ожидается: BROADCAST_OK",
+      "placement_steps_count": "РЕАЛЬНЫЙ вывод grep -c PlacementStates в placement.py. Ожидается: 6+",
+      "stub_check": "РЕАЛЬНЫЙ вывод grep pass$/stub/TODO в handlers (исключая комментарии). Ожидается: 0 строк",
+      "handlers_files_list": "РЕАЛЬНЫЙ вывод: find src/bot/handlers/ -name '*.py' | sort",
+      "notifications_no_router": "РЕАЛЬНЫЙ вывод: grep 'router = Router\\|Router()' src/bot/handlers/shared/notifications.py. Ожидается: пусто",
+      "adv_analytics_has_main_analytics": "РЕАЛЬНЫЙ вывод: grep 'main:analytics' src/bot/handlers/advertiser/analytics.py | head -3",
+      "own_analytics_has_owner_analytics": "РЕАЛЬНЫЙ вывод: grep 'main:owner_analytics' src/bot/handlers/owner/analytics.py | head -3",
+      "placement_has_self_dealing_check": "РЕАЛЬНЫЙ вывод: grep 'owner_id.*user' src/bot/handlers/placement/placement.py | head -3",
+      "dispute_handler_callbacks": "РЕАЛЬНЫЙ вывод: grep 'dispute:open\\|dispute:owner_explain\\|admin:dispute' src/bot/handlers/dispute/dispute.py | head -5",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-8": {
+    "title": "main.py + handlers init",
+    "fields": {
+      "main_py_import_test": "РЕАЛЬНЫЙ вывод: python -c 'from src.bot.main import main; print(\"main.py OK\")'",
+      "handlers_init_router_count": "РЕАЛЬНЫЙ вывод: grep 'include_router' src/bot/handlers/__init__.py | wc -l. Ожидается: 16+",
+      "docker_restart_output": "РЕАЛЬНЫЙ вывод docker compose restart bot",
+      "bot_logs_after_restart": "РЕАЛЬНЫЙ вывод docker compose logs bot --tail=20",
+      "bot_container_status": "РЕАЛЬНЫЙ вывод docker compose ps bot. Ожидается: Up",
+      "no_errors_in_logs": "YES (нет Exception/Error в логах) / NO + указать ошибку",
+      "bot_username_in_logs": "РЕАЛЬНЫЙ строка из логов с username бота",
+      "checklist_all_pass": "YES / NO"
+    }
+  },
+
+  "PHASE-FINAL": {
+    "title": "Финальная верификация",
+    "fields": {
+      "ruff_total_errors": "РЕАЛЬНОЕ число. Ожидается: 0",
+      "mypy_finance_errors": "РЕАЛЬНОЕ число. Ожидается: 0",
+      "all_imports_test": "РЕАЛЬНЫЙ вывод. Ожидается: ALL IMPORTS OK",
+      "rt001_final": "РЕАЛЬНЫЙ вывод. Ожидается: OK",
+      "b2b_final": "РЕАЛЬНЫЙ вывод. Ожидается: OK",
+      "states_count_final": "РЕАЛЬНОЕ число. Ожидается: 8",
+      "legacy_states_final": "РЕАЛЬНЫЙ вывод. Ожидается: OK",
+      "financial_formulas": "РЕАЛЬНЫЙ вывод. Ожидается: Financial OK",
+      "escrow_001": "РЕАЛЬНЫЙ вывод. Ожидается: ESCROW_OK",
+      "db_tables_count": "РЕАЛЬНОЕ число. Ожидается: 15+",
+      "bot_container": "Up / Down",
+      "ready_for_users": "YES / NO",
+      "blocking_issues": "Список если NO, иначе: none"
+    }
+  },
+
+  "VALIDATION_RULES": {
+    "auto_fail_triggers": [
+      "Любое поле содержит: 'completed', 'done', 'verified', 'stub', 'will fix', 'placeholder', 'TODO', 'legacy for compatibility'",
+      "ruff_errors_count > 0",
+      "mypy_errors_count > 0 для финансовых файлов",
+      "import_test содержит 'Error' или 'Exception'",
+      "stub_check_output содержит строки (не пусто)",
+      "b2b_check содержит 'main:b2b' или 'b2b:buy'",
+      "rt001_check содержит 'main:analytics' в owner handlers",
+      "states_group_count != 8",
+      "fsm_timeout_stub_check содержит строки",
+      "bot_container_status != Up"
+    ],
+    "if_any_fail": "Вернуться к соответствующей фазе. Исправить. Повторить ВСЕ проверки фазы. Заполнить отчёт заново."
+  }
+}

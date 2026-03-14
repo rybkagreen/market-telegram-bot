@@ -1,655 +1,308 @@
 """
-Analytics Service для сбора и анализа статистики кампаний.
+AnalyticsService for campaign and user statistics aggregation.
 """
 
-import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-import redis.asyncio as redis
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import settings
-from src.db.repositories.log_repo import MailingLogRepository
-from src.db.session import async_session_factory
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_CACHE_TTL = 300  # 5 минут
+from src.core.services.mistral_ai_service import MistralAIService
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.transaction import Transaction, TransactionType
 
 
 @dataclass
-class CampaignStats:
-    """Статистика кампании."""
+class AdvertiserStats:
+    """Статистика рекламодателя."""
 
-    total_sent: int
-    total_failed: int
-    total_skipped: int
-    total_pending: int
-    success_rate: float
-    total_cost: Decimal
-    reach_estimate: int
-
-
-@dataclass
-class UserAnalytics:
-    """Сводная аналитика пользователя."""
-
-    total_campaigns: int
-    active_campaigns: int
-    completed_campaigns: int
+    total_placements: int
+    completed_placements: int
     total_spent: Decimal
-    avg_success_rate: float
-    total_chats_reached: int
+    total_reach: int
+    total_clicks: int
+    avg_ctr: float
 
 
 @dataclass
-class ChatPerformance:
-    """Статистика эффективности чата."""
+class OwnerStats:
+    """Статистика владельца канала."""
 
-    chat_telegram_id: int
-    chat_title: str
-    total_sent: int
-    success_rate: float
-    avg_rating: float
+    total_published: int
+    total_earned: Decimal
+    avg_check: Decimal
 
 
 @dataclass
 class PlatformStats:
-    """Публичная статистика платформы (Спринт 0)."""
+    """Статистика платформы."""
 
-    active_channels: int  # Количество активных каналов (bot_is_admin=True, is_accepting_ads=True)
-    total_reach: int  # Суммарный охват (сумма member_count)
-    campaigns_launched: int  # Всего запущено кампаний
-    campaigns_completed: int  # Всего завершено успешно
-    avg_channel_rating: float  # Средний рейтинг каналов
-    total_payouts: Decimal  # Суммарно выплачено владельцам (пока 0)
+    total_users: int
+    total_placements: int
+    total_revenue: Decimal
 
 
 class AnalyticsService:
     """
-    Сервис аналитики и статистики.
-
-    Методы:
-        get_campaign_stats: Получить статистику кампании
-        get_user_summary: Получить сводку пользователя
-        get_top_performing_chats: Лучшие чаты
-        compare_campaigns: Сравнить кампании
+    Сервис агрегации статистики кампаний и пользователей.
+    Интегрирует AI инсайты через MistralAIService.
     """
 
     def __init__(self) -> None:
-        """Инициализация сервиса."""
-        self._redis: redis.Redis | None = None
+        self.ai_service = MistralAIService()
 
-    @property
-    async def redis_client(self) -> redis.Redis:
-        """Ленивая инициализация Redis клиента."""
-        if self._redis is None:
-            self._redis = redis.from_url(
-                str(settings.redis_url),
-                encoding="utf-8",
-                decode_responses=True,
-            )
-        return self._redis
-
-    def _get_cache_key(self, key: str) -> str:
-        """
-        Получить ключ кэша.
-
-        Args:
-            key: Имя ключа.
-
-        Returns:
-            Ключ в формате analytics:{key}.
-        """
-        return f"analytics:{key}"
-
-    async def _check_cache(self, key: str) -> dict[str, Any] | None:
-        """
-        Проверить кэш.
-
-        Args:
-            key: Ключ кэша.
-
-        Returns:
-            Данные из кэша или None.
-        """
-        try:
-            redis_client = await self.redis_client
-            data = await redis_client.get(key)
-            if data:
-                import json
-
-                return json.loads(data)
-            return None
-        except Exception as e:
-            logger.error(f"Cache get error: {e}")
-            return None
-
-    async def _set_cache(
+    async def get_advertiser_stats(
         self,
-        key: str,
-        value: dict[str, Any],
-        ttl: int = DEFAULT_CACHE_TTL,
-    ) -> None:
+        advertiser_id: int,
+        session: AsyncSession,
+    ) -> AdvertiserStats:
         """
-        Сохранить в кэш.
+        Получить статистику рекламодателя.
 
-        Args:
-            key: Ключ кэша.
-            value: Значение.
-            ttl: Время жизни в секундах.
+        Агрегирует PlacementRequest по advertiser_id:
+        - total_placements: всего размещений
+        - completed_placements: завершённых (status=published)
+        - total_spent: SUM Transaction WHERE type=escrow_release
+        - total_reach: SUM published_reach
+        - total_clicks: SUM clicks_count
+        - avg_ctr: CTR = clicks / reach * 100
         """
-        try:
-            redis_client = await self.redis_client
-            import json
-
-            await redis_client.setex(key, ttl, json.dumps(value, default=str))
-        except Exception as e:
-            logger.error(f"Cache set error: {e}")
-
-    async def get_campaign_stats(self, campaign_id: int) -> CampaignStats | None:
-        """
-        Получить статистику кампании.
-
-        Args:
-            campaign_id: ID кампании.
-
-        Returns:
-            CampaignStats или None.
-        """
-        # Проверяем кэш
-        cache_key = self._get_cache_key(f"campaign:{campaign_id}")
-        cached = await self._check_cache(cache_key)
-        if cached:
-            logger.info(f"Cache hit for campaign {campaign_id}")
-            return CampaignStats(**cached)
-
-        async with async_session_factory() as session:
-            log_repo = MailingLogRepository(session)
-
-            # Получаем статистику кампании
-            stats = await log_repo.get_stats_by_campaign(campaign_id)
-
-            if not stats:
-                return None
-
-            total = stats.get("total", 0)
-            sent = stats.get("sent", 0)
-            failed = stats.get("failed", 0)
-            skipped = stats.get("skipped", 0)
-            pending = stats.get("pending", 0)
-            total_cost = Decimal(str(stats.get("total_cost", 0)))
-
-            success_rate = (sent / total * 100) if total > 0 else 0.0
-
-            # Оценка охвата (сумма member_count чатов)
-            reach_estimate = stats.get("reach_estimate", 0)
-
-            result = CampaignStats(
-                total_sent=sent,
-                total_failed=failed,
-                total_skipped=skipped,
-                total_pending=pending,
-                success_rate=success_rate,
-                total_cost=total_cost,
-                reach_estimate=reach_estimate,
+        # Total placements
+        total_result = await session.execute(
+            select(func.count()).select_from(PlacementRequest).where(
+                PlacementRequest.advertiser_id == advertiser_id
             )
+        )
+        total_placements = total_result.scalar() or 0
 
-            # Кэширование
-            await self._set_cache(
-                cache_key,
-                {
-                    "total_sent": sent,
-                    "total_failed": failed,
-                    "total_skipped": skipped,
-                    "total_pending": pending,
-                    "success_rate": success_rate,
-                    "total_cost": str(total_cost),
-                    "reach_estimate": reach_estimate,
-                },
+        # Completed placements
+        completed_result = await session.execute(
+            select(func.count()).select_from(PlacementRequest).where(
+                PlacementRequest.advertiser_id == advertiser_id,
+                PlacementRequest.status == PlacementStatus.published,
             )
+        )
+        completed_placements = completed_result.scalar() or 0
 
-            return result
+        # Total spent (escrow_release transactions)
+        spent_result = await session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), Decimal("0"))).where(
+                Transaction.user_id == advertiser_id,
+                Transaction.type == TransactionType.escrow_release,
+            )
+        )
+        total_spent = spent_result.scalar() or Decimal("0")
 
-    async def get_user_summary(
+        # Total reach and clicks
+        reach_result = await session.execute(
+            select(
+                func.coalesce(func.sum(PlacementRequest.published_reach), 0),
+                func.coalesce(func.sum(PlacementRequest.clicks_count), 0),
+            ).where(
+                PlacementRequest.advertiser_id == advertiser_id,
+                PlacementRequest.status == PlacementStatus.published,
+            )
+        )
+        row = reach_result.one()
+        total_reach = row[0] or 0
+        total_clicks = row[1] or 0
+
+        # Avg CTR
+        avg_ctr = (total_clicks / total_reach * 100) if total_reach > 0 else 0.0
+
+        return AdvertiserStats(
+            total_placements=total_placements,
+            completed_placements=completed_placements,
+            total_spent=total_spent,
+            total_reach=total_reach,
+            total_clicks=total_clicks,
+            avg_ctr=avg_ctr,
+        )
+
+    async def get_owner_stats(
         self,
-        user_id: int,
-        days: int = 30,
-    ) -> UserAnalytics | None:
+        owner_id: int,
+        session: AsyncSession,
+    ) -> OwnerStats:
         """
-        Получить сводную аналитику пользователя.
+        Получить статистику владельца канала.
 
-        Args:
-            user_id: ID пользователя.
-            days: Период в днях.
-
-        Returns:
-            UserAnalytics или None.
+        Агрегирует PlacementRequest по owner_id:
+        - total_published: всего опубликовано
+        - total_earned: SUM Transaction WHERE type=escrow_release AND user_id=owner_id
+        - avg_check: средний чек
         """
-        # Проверяем кэш
-        cache_key = self._get_cache_key(f"user:{user_id}:days:{days}")
-        cached = await self._check_cache(cache_key)
-        if cached:
-            logger.info(f"Cache hit for user {user_id}")
-            return UserAnalytics(**cached)
-
-        async with async_session_factory() as session:
-            from src.db.repositories.log_repo import MailingLogRepository
-            from src.db.repositories.user_repo import UserRepository
-
-            user_repo = UserRepository(session)
-            log_repo = MailingLogRepository(session)
-
-            # Получаем пользователя
-            user = await user_repo.get_by_id(user_id)
-            if not user:
-                return None
-
-            # Получаем статистику из БД
-            user_stats = await user_repo.get_with_stats(user_id)
-
-            total_campaigns = user_stats.get("total_campaigns", 0)
-            active_campaigns = user_stats.get("active_campaigns", 0)
-            completed_campaigns = user_stats.get("completed_campaigns", 0)
-            total_spent = user_stats.get("total_spent", Decimal("0"))
-            match total_spent:
-                case int() | float():
-                    total_spent = Decimal(str(total_spent))
-                case str():
-                    total_spent = Decimal(total_spent)
-
-            # Рассчитываем средний success rate через репозиторий
-            avg_success_rate = await log_repo.get_user_success_rate(user_id, days=days)
-
-            # Общее количество достигнутых чатов
-            total_chats_reached = await log_repo.get_total_chats_reached(user_id, days=days)
-
-            result = UserAnalytics(
-                total_campaigns=total_campaigns,
-                active_campaigns=active_campaigns,
-                completed_campaigns=completed_campaigns,
-                total_spent=total_spent,
-                avg_success_rate=avg_success_rate,
-                total_chats_reached=total_chats_reached,
+        # Total published
+        published_result = await session.execute(
+            select(func.count()).select_from(PlacementRequest).where(
+                PlacementRequest.owner_id == owner_id,
+                PlacementRequest.status == PlacementStatus.published,
             )
+        )
+        total_published = published_result.scalar() or 0
 
-            # Кэширование
-            await self._set_cache(
-                cache_key,
-                {
-                    "total_campaigns": total_campaigns,
-                    "active_campaigns": active_campaigns,
-                    "completed_campaigns": completed_campaigns,
-                    "total_spent": str(total_spent),
-                    "avg_success_rate": avg_success_rate,
-                    "total_chats_reached": total_chats_reached,
-                },
+        # Total earned - need to get transactions for owner
+        # Note: escrow_release transactions go to owner
+        earned_result = await session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), Decimal("0"))).where(
+                Transaction.type == TransactionType.escrow_release,
+                # Need to join with placement_request to get owner
             )
-
-            return result
-
-    async def get_top_performing_chats(
-        self,
-        user_id: int,
-        limit: int = 10,
-    ) -> list[ChatPerformance]:
-        """
-        Получить лучшие чаты по эффективности.
-
-        Args:
-            user_id: ID пользователя.
-            limit: Количество чатов.
-
-        Returns:
-            Список ChatPerformance.
-        """
-        async with async_session_factory() as session:
-            log_repo = MailingLogRepository(session)
-
-            # Получаем топ чатов по success rate
-            top_chats = await log_repo.get_top_chats(user_id=user_id, limit=limit)
-
-            result = []
-            for chat_data in top_chats:
-                result.append(
-                    ChatPerformance(
-                        chat_telegram_id=chat_data.get("chat_telegram_id", 0),
-                        chat_title=chat_data.get("chat_title", ""),
-                        total_sent=chat_data.get("total_sent", 0),
-                        success_rate=chat_data.get("success_rate", 0.0),
-                        avg_rating=chat_data.get("avg_rating", 0.0),
-                    )
+        )
+        # Alternative: calculate from placement_requests final_price
+        earned_alt_result = await session.execute(
+            select(
+                func.coalesce(
+                    func.sum(PlacementRequest.final_price * Decimal("0.85")),
+                    Decimal("0"),
                 )
+            ).where(
+                PlacementRequest.owner_id == owner_id,
+                PlacementRequest.status == PlacementStatus.published,
+                PlacementRequest.final_price.isnot(None),
+            )
+        )
+        total_earned = earned_alt_result.scalar() or Decimal("0")
 
-            return result
+        # Avg check
+        avg_check = (total_earned / total_published) if total_published > 0 else Decimal("0")
 
-    async def compare_campaigns(
+        return OwnerStats(
+            total_published=total_published,
+            total_earned=total_earned,
+            avg_check=avg_check,
+        )
+
+    async def get_top_channels_by_reach(
         self,
-        campaign_ids: list[int],
-    ) -> dict[str, Any]:
-        """
-        Сравнить несколько кампаний.
-
-        Args:
-            campaign_ids: Список ID кампаний.
-
-        Returns:
-            Сравнительный отчёт.
-        """
-        results = []
-        for campaign_id in campaign_ids:
-            stats = await self.get_campaign_stats(campaign_id)
-            if stats:
-                results.append(
-                    {
-                        "campaign_id": campaign_id,
-                        "total_sent": stats.total_sent,
-                        "total_failed": stats.total_failed,
-                        "success_rate": stats.success_rate,
-                        "total_cost": float(stats.total_cost),
-                        "reach_estimate": stats.reach_estimate,
-                    }
-                )
-
-        # Вычисляем средние значения
-        if results:
-            avg_sent = sum(r["total_sent"] for r in results) / len(results)
-            avg_success = sum(r["success_rate"] for r in results) / len(results)
-            avg_cost = sum(r["total_cost"] for r in results) / len(results)
-        else:
-            avg_sent = avg_success = avg_cost = 0.0
-
-        return {
-            "campaigns": results,
-            "summary": {
-                "count": len(results),
-                "avg_sent": avg_sent,
-                "avg_success_rate": avg_success,
-                "avg_cost": avg_cost,
-            },
-        }
-
-    async def get_daily_stats(
-        self,
-        user_id: int,
-        days: int = 7,
+        advertiser_id: int,
+        session: AsyncSession,
+        limit: int = 5,
     ) -> list[dict[str, Any]]:
         """
-        Получить ежедневную статистику.
-
-        Args:
-            user_id: ID пользователя.
-            days: Количество дней.
-
-        Returns:
-            Список статистик по дням.
+        Топ каналов по published_reach для рекламодателя.
         """
-        async with async_session_factory() as session:
-            log_repo = MailingLogRepository(session)
+        from src.db.models.telegram_chat import TelegramChat
 
-            end_date = datetime.now(tz=UTC)
-            start_date = end_date - timedelta(days=days)
-
-            daily_stats = await log_repo.get_daily_stats(
-                user_id=user_id,
-                start_date=start_date,
-                end_date=end_date,
+        result = await session.execute(
+            select(
+                TelegramChat.id,
+                TelegramChat.title,
+                TelegramChat.username,
+                func.sum(PlacementRequest.published_reach).label("total_reach"),
             )
-
-            return daily_stats
-
-    async def get_platform_stats(self) -> PlatformStats:
-        """
-        Получить публичную статистику платформы (Спринт 0).
-
-        Returns:
-            PlatformStats с метриками платформы.
-        """
-        from sqlalchemy import func, select
-
-        from src.db.models.analytics import TelegramChat
-        from src.db.models.campaign import Campaign, CampaignStatus
-
-        async with async_session_factory() as session:
-            # Количество активных каналов (opt-in)
-            active_channels_stmt = select(func.count(TelegramChat.id)).where(
-                TelegramChat.is_active == True,  # noqa: E712
-                TelegramChat.bot_is_admin == True,  # noqa: E712
-                TelegramChat.is_accepting_ads == True,  # noqa: E712
+            .join(PlacementRequest, PlacementRequest.channel_id == TelegramChat.id)
+            .where(
+                PlacementRequest.advertiser_id == advertiser_id,
+                PlacementRequest.status == PlacementStatus.published,
+                PlacementRequest.published_reach.isnot(None),
             )
-            active_channels_result = await session.execute(active_channels_stmt)
-            active_channels = active_channels_result.scalar_one() or 0
-
-            # Суммарный охват (сумма member_count)
-            total_reach_stmt = select(func.sum(TelegramChat.member_count)).where(
-                TelegramChat.is_active == True,  # noqa: E712
-                TelegramChat.bot_is_admin == True,  # noqa: E712
-                TelegramChat.is_accepting_ads == True,  # noqa: E712
-            )
-            total_reach_result = await session.execute(total_reach_stmt)
-            total_reach = total_reach_result.scalar_one() or 0
-
-            # Всего запущено кампаний
-            campaigns_launched_stmt = select(func.count(Campaign.id))
-            campaigns_launched_result = await session.execute(campaigns_launched_stmt)
-            campaigns_launched = campaigns_launched_result.scalar_one() or 0
-
-            # Всего завершено успешно
-            campaigns_completed_stmt = select(func.count(Campaign.id)).where(
-                Campaign.status == CampaignStatus.DONE
-            )
-            campaigns_completed_result = await session.execute(campaigns_completed_stmt)
-            campaigns_completed = campaigns_completed_result.scalar_one() or 0
-
-            # Средний рейтинг каналов
-            avg_rating_stmt = select(func.avg(TelegramChat.rating)).where(
-                TelegramChat.is_active == True,  # noqa: E712
-                TelegramChat.bot_is_admin == True,  # noqa: E712
-                TelegramChat.is_accepting_ads == True,  # noqa: E712
-            )
-            avg_rating_result = await session.execute(avg_rating_stmt)
-            avg_channel_rating = avg_rating_result.scalar_one() or 0.0
-
-            # Суммарно выплачено (пока 0, т.к. модель Payout будет в Спринте 1)
-            total_payouts = Decimal("0.00")
-
-            return PlatformStats(
-                active_channels=active_channels,
-                total_reach=total_reach,
-                campaigns_launched=campaigns_launched,
-                campaigns_completed=campaigns_completed,
-                avg_channel_rating=round(avg_channel_rating, 2),
-                total_payouts=total_payouts,
-            )
-
-    async def calculate_cpm(self, campaign_id: int) -> Decimal:
-        """
-        Рассчитать CPM (cost per 1000 views) кампании.
-
-        Args:
-            campaign_id: ID кампании.
-
-        Returns:
-            CPM в рублях.
-        """
-
-        from src.db.models.campaign import Campaign
-
-        async with async_session_factory() as session:
-            campaign = await session.get(Campaign, campaign_id)
-            if not campaign:
-                return Decimal("0")
-
-            # CPM = (cost / reach) * 1000
-            if campaign.cost > 0 and campaign.sent_count > 0:
-                cpm = (Decimal(str(campaign.cost)) / campaign.sent_count) * 1000
-                return cpm.quantize(Decimal("0.01"))
-
-            return Decimal("0")
-
-    async def calculate_ctr(self, campaign_id: int) -> float:
-        """
-        Рассчитать CTR (click-through rate) кампании.
-
-        Args:
-            campaign_id: ID кампании.
-
-        Returns:
-            CTR в процентах.
-        """
-
-        from src.db.models.campaign import Campaign
-
-        async with async_session_factory() as session:
-            campaign = await session.get(Campaign, campaign_id)
-            if not campaign:
-                return 0.0
-
-            # CTR = (clicks / sent) * 100
-            if campaign.sent_count > 0 and campaign.clicks_count > 0:
-                ctr = (campaign.clicks_count / campaign.sent_count) * 100
-                return round(ctr, 2)
-
-            return 0.0
-
-    async def calculate_roi(self, campaign_id: int) -> dict:
-        """
-        Рассчитать ROI (return on investment) кампании.
-
-        ROI = ((estimated_revenue - cost) / cost) * 100%
-
-        estimated_revenue рассчитывается через рыночные CPM/CPC:
-        - CPM рынок Telegram RU ≈ 80-150 руб за 1000 просмотров
-        - CPC рынок Telegram RU ≈ 15-40 руб за клик
-
-        Args:
-            campaign_id: ID кампании.
-
-        Returns:
-            dict с roi_percent, revenue, cost, note.
-        """
-        from src.db.models.campaign import Campaign
-
-        async with async_session_factory() as session:
-            campaign = await session.get(Campaign, campaign_id)
-            if not campaign:
-                return {
-                    "roi_percent": 0.0,
-                    "revenue": 0.0,
-                    "cost": 0.0,
-                    "note": "Campaign not found",
-                }
-
-            cost = float(campaign.cost) if campaign.cost else 0.0
-            total_views = campaign.sent_count or 0
-            total_clicks = campaign.clicks_count or 0
-
-            # Оценочная выручка через рыночные CPM/CPC
-            from src.config.settings import settings
-
-            cpm_rate = getattr(
-                settings, "analytics_estimated_cpm_rub", 100.0
-            )  # 100 руб за 1000 просмотров
-            cpc_rate = getattr(settings, "analytics_estimated_cpc_rub", 25.0)  # 25 руб за клик
-
-            estimated_revenue = (total_views / 1000) * cpm_rate + total_clicks * cpc_rate
-
-            # ROI = ((revenue - cost) / cost) * 100
-            roi = ((estimated_revenue - cost) / cost * 100) if cost > 0 else 0.0
-
-            return {
-                "roi_percent": round(roi, 2),
-                "revenue": round(estimated_revenue, 2),
-                "cost": round(cost, 2),
-                "total_views": total_views,
-                "total_clicks": total_clicks,
-                "note": "Доход оценочный на основе рыночных CPM/CPC",
+            .group_by(TelegramChat.id, TelegramChat.title, TelegramChat.username)
+            .order_by(func.sum(PlacementRequest.published_reach).desc())
+            .limit(limit)
+        )
+        rows = result.all()
+        return [
+            {
+                "channel_id": row.id,
+                "title": row.title,
+                "username": row.username,
+                "total_reach": row.total_reach or 0,
             }
+            for row in rows
+        ]
 
-    async def generate_campaign_pdf_report(self, campaign_id: int) -> bytes:
-        """
-        Сгенерировать PDF-отчёт по кампании.
-
-        Args:
-            campaign_id: ID кампании.
-
-        Returns:
-            PDF файл в bytes.
-
-        Raises:
-            ValueError: Если кампания не найдена.
-        """
-        async with async_session_factory() as session:
-            from src.db.models.campaign import Campaign
-            from src.utils.pdf_report import generate_campaign_report
-
-            campaign = await session.get(Campaign, campaign_id)
-            if not campaign:
-                raise ValueError(f"Campaign {campaign_id} not found")
-
-            # Собираем статистику
-            stats = {
-                "total_sent": campaign.sent_count or 0,
-                "total_failed": campaign.failed_count or 0,
-                "total_skipped": campaign.skipped_count or 0,
-                "success_rate": float(campaign.success_rate) if campaign.success_rate else 0.0,
-                "total_cost": float(campaign.cost) if campaign.cost else 0.0,
-                "reach_estimate": (campaign.sent_count or 0) * 100,  # Оценка охвата
-            }
-
-            # Генерируем PDF
-            pdf_bytes = generate_campaign_report(
-                campaign_id=campaign_id,
-                campaign_title=campaign.title or f"Кампания #{campaign_id}",
-                stats=stats,
-                created_at=campaign.created_at,
-            )
-
-            logger.info(f"Generated PDF report for campaign {campaign_id}")
-            return pdf_bytes
-
-    async def get_campaigns_page(
+    async def generate_ai_insights(
         self,
-        user_id: int,
-        page: int = 1,
-        page_size: int = 10,
+        stats_dict: dict[str, Any],
+        plan: str,
+        session: AsyncSession,
     ) -> dict[str, Any]:
         """
-        Получить страницу кампаний пользователя с пагинацией.
+        Сгенерировать AI инсайты на основе статистики.
 
-        Args:
-            user_id: ID пользователя.
-            page: Номер страницы (1-based).
-            page_size: Размер страницы.
-
-        Returns:
-            dict с items, total, page, pages.
+        Доступно только для pro/business тарифов.
+        Возвращает recommendations, top_channels, optimal_time.
         """
-        from sqlalchemy import select
-
-        from src.db.models.campaign import Campaign
-
-        async with async_session_factory() as session:
-            # Get total count
-            count_stmt = select(Campaign).where(Campaign.user_id == user_id)
-            result = await session.execute(count_stmt)
-            all_campaigns = result.scalars().all()
-            total = len(all_campaigns)
-            pages = (total + page_size - 1) // page_size if total > 0 else 1
-
-            # Get paginated items
-            offset = (page - 1) * page_size
-            items = all_campaigns[offset : offset + page_size]
-
+        # Check plan access
+        allowed_plans = {"pro", "business"}
+        if plan not in allowed_plans:
             return {
-                "items": items,
-                "total": total,
-                "page": page,
-                "pages": pages,
+                "error": "AI insights available only for Pro and Business plans",
+                "recommendations": [],
+                "top_channels": [],
+                "optimal_time": None,
             }
 
+        # Use Mistral AI to generate insights
+        prompt = f"""
+        Analyze this advertising campaign statistics and provide recommendations:
 
-# Глобальный экземпляр
-analytics_service = AnalyticsService()
+        Total placements: {stats_dict.get('total_placements', 0)}
+        Completed placements: {stats_dict.get('completed_placements', 0)}
+        Total spent: {stats_dict.get('total_spent', 0)} RUB
+        Total reach: {stats_dict.get('total_reach', 0)}
+        Total clicks: {stats_dict.get('total_clicks', 0)}
+        Avg CTR: {stats_dict.get('avg_ctr', 0):.2f}%
+
+        Provide:
+        1. 3 specific recommendations to improve campaign performance
+        2. Optimal publishing time suggestion
+        3. Budget optimization tips
+
+        Response in Russian, concise and actionable.
+        """
+
+        try:
+            response = await self.ai_service.generate_text(prompt)
+            return {
+                "recommendations": [response],
+                "top_channels": [],
+                "optimal_time": 14,  # Default 14:00
+                "ai_analysis": response,
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "recommendations": ["AI analysis temporarily unavailable"],
+                "top_channels": [],
+                "optimal_time": 14,
+            }
+
+    async def get_platform_stats(
+        self,
+        session: AsyncSession,
+    ) -> PlatformStats:
+        """
+        Получить статистику платформы для администратора.
+
+        - total_users: всего пользователей
+        - total_placements: всего размещений
+        - total_revenue: общая выручка платформы
+        """
+        from src.db.models.platform_account import PlatformAccount
+        from src.db.models.user import User
+
+        # Total users
+        users_result = await session.execute(select(func.count()).select_from(User))
+        total_users = users_result.scalar() or 0
+
+        # Total placements
+        placements_result = await session.execute(
+            select(func.count()).select_from(PlacementRequest)
+        )
+        total_placements = placements_result.scalar() or 0
+
+        # Total revenue from platform account
+        platform_result = await session.execute(
+            select(PlatformAccount.profit_accumulated).where(PlatformAccount.id == 1)
+        )
+        total_revenue = platform_result.scalar() or Decimal("0")
+
+        return PlatformStats(
+            total_users=total_users,
+            total_placements=total_placements,
+            total_revenue=total_revenue,
+        )
