@@ -5,8 +5,8 @@ Revises: 073d348393fd
 Create Date: 2026-03-13
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = '017_fix_missing_columns'
 down_revision = '073d348393fd'
