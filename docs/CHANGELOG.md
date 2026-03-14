@@ -91,6 +91,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **Note**: Handler tests covered in integration tests (P15)
 
+#### P07 - Handlers: Billing + Notifications
+- **Verified** billing handlers:
+  - `billing/billing.py`: Topup flow, plans, YooKassa integration (1141 lines)
+  - `billing/templates.py`: Billing templates
+- **Verified** notifications module (15 functions):
+  - `notify_new_request`, `notify_counter_offer`, `notify_counter_accepted`
+  - `notify_owner_accepted`, `notify_payment_received`, `notify_published`
+  - `notify_rejected`, `notify_sla_expired`, `notify_cancelled`
+  - `notify_publication_failed`, `format_yookassa_payment_success`
+- **Verified** billing keyboards:
+  - `billing/billing.py`: Credit packages, plans, topup methods
+  - `billing/topup.py`: kb_topup_amounts, kb_topup_confirm
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13
