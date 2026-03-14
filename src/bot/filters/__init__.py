@@ -1,5 +1,0 @@
-# Bot filters
-
-from src.bot.filters.admin import AdminFilter
-
-__all__ = ["AdminFilter"]

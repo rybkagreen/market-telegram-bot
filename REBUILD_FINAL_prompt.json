@@ -1,0 +1,1014 @@
+{
+  "_meta": {
+    "prompt_id": "REBUILD-FINAL",
+    "title": "RekHarborBot — Полный rebuild с нуля. Строгий режим.",
+    "date": "2026-03-14",
+    "spec": "bot_spec_v4.3.json + REFERENCE_v4.2.md",
+    "path": "/opt/market-telegram-bot"
+  },
+
+  "ЖЕЛЕЗНЫЕ_ПРАВИЛА": {
+    "rule_1": "ЗАПРЕЩЕНО: 'verified existing code', 'already existed', 'will fix later', 'legacy stub', 'for compatibility', 'can be implemented later', 'placeholder'. Любое из этих слов = ПРОВАЛ фазы.",
+    "rule_2": "ЗАПРЕЩЕНО писать 'completed' или 'done' если check-команды не выполнены и их РЕАЛЬНЫЙ вывод не показан.",
+    "rule_3": "ОБЯЗАТЕЛЬНО после каждой фазы: (1) статический анализ ruff+mypy, (2) import-тест, (3) самопроверка по чеклисту фазы, (4) показать реальный вывод cat для ключевых файлов.",
+    "rule_4": "ЗАПРЕЩЕНО переходить к следующей фазе если текущая не прошла ВСЕ проверки.",
+    "rule_5": "STUB = FAIL. Если в файле есть 'pass', 'TODO', 'raise NotImplementedError', 'stub' как единственная реализация метода — это провал.",
+    "rule_6": "Каждый метод должен быть РЕАЛЬНО реализован. Не описан в комментарии, а написан рабочий код.",
+    "rule_7": "ЗАПРЕЩЕНО создавать файлы которых нет в этом промпте.",
+    "rule_8": "Перед любым созданием файла — показать команду rm -f или rm -rf которая удаляет старую версию."
+  },
+
+  "preserve_forever": [
+    "src/db/base.py",
+    "src/db/session.py",
+    "src/db/repositories/base.py",
+    "src/core/services/billing_service.py",
+    "src/core/services/payout_service.py",
+    "src/core/services/placement_request_service.py",
+    "src/core/services/publication_service.py",
+    "src/core/services/reputation_service.py",
+    "src/core/services/yookassa_service.py",
+    "src/core/services/xp_service.py",
+    "src/core/services/badge_service.py",
+    "src/core/services/mistral_ai_service.py",
+    "src/core/services/notification_service.py",
+    "src/core/services/link_tracking_service.py",
+    "src/core/exceptions.py",
+    "src/constants/payments.py",
+    "src/config/settings.py",
+    "src/api/",
+    "src/tasks/",
+    "src/utils/"
+  ],
+
+  "phases": [
+
+    {
+      "phase": "PHASE-0",
+      "title": "Снос, очистка, структура",
+      "description": "Удалить всё что пересоздаём. Починить Alembic дубликат. Создать чистую структуру.",
+
+      "commands": [
+        "cd /opt/market-telegram-bot",
+
+        "echo '=== GIT SNAPSHOT ==='",
+        "git add -A && git commit -m 'pre-rebuild-final snapshot' || true",
+
+        "echo '=== FIX ALEMBIC DUPLICATE ==='",
+        "find src/db/migrations/versions/ -name '*017*' -exec ls -la {} \\;",
+        "# Удалить файл с МЕНЬШЕЙ датой в имени (оставить новейший):",
+        "find src/db/migrations/versions/ -name '*017*' | sort | head -1 | xargs rm -f",
+        "find src/db/migrations/versions/ -name '*017*'",
+
+        "echo '=== DROP DATABASE ==='",
+        "docker compose exec postgres psql -U market_bot -c 'DROP DATABASE IF EXISTS market_bot_db;'",
+        "docker compose exec postgres psql -U market_bot -c 'CREATE DATABASE market_bot_db WITH ENCODING UTF8;'",
+
+        "echo '=== DELETE LEGACY SERVICES ==='",
+        "rm -f src/core/services/b2b_package_service.py",
+        "rm -f src/core/services/cryptobot_service.py",
+        "rm -f src/core/services/mailing_service.py",
+        "rm -f src/core/services/comparison_service.py",
+        "rm -f src/core/services/mediakit_service.py",
+        "rm -f src/core/services/category_classifier.py",
+        "rm -f src/core/services/campaign_analytics_ai.py",
+        "rm -f src/core/services/analytics_service.py",
+        "rm -f src/core/services/review_service.py",
+        "rm -f src/core/services/user_role_service.py",
+        "rm -f src/core/services/rating_service.py",
+        "rm -f src/core/services/timing_service.py",
+        "rm -f src/core/services/token_logger.py",
+
+        "echo '=== DELETE AND RECREATE src/db ==='",
+        "rm -rf src/db/models/",
+        "rm -rf src/db/migrations/versions/",
+        "rm -rf src/db/repositories/",
+        "mkdir -p src/db/models src/db/migrations/versions src/db/repositories",
+        "touch src/db/models/__init__.py src/db/repositories/__init__.py",
+
+        "echo '=== DELETE AND RECREATE src/bot ==='",
+        "rm -rf src/bot/",
+        "mkdir -p src/bot/handlers/{shared,advertiser,owner,billing,payout,admin,dispute,placement}",
+        "mkdir -p src/bot/keyboards/{shared,advertiser,owner,billing,payout,admin}",
+        "mkdir -p src/bot/states src/bot/middlewares src/bot/filters",
+        "find src/bot/ -type d -exec touch {}/__init__.py \\;",
+
+        "echo '=== VERIFY ==='",
+        "echo 'Services deleted:' && ls src/core/services/",
+        "echo 'bot py count:' && find src/bot/ -name '*.py' | wc -l",
+        "echo 'db models:' && find src/db/models/ -name '*.py' | wc -l",
+        "echo 'migrations:' && ls src/db/migrations/versions/ | wc -l",
+        "echo 'Preserved:' && ls src/db/base.py src/db/session.py src/db/repositories/base.py src/core/services/billing_service.py src/core/services/publication_service.py"
+      ],
+
+      "self_check": {
+        "instruction": "Выполни ВСЕ команды выше и покажи их РЕАЛЬНЫЙ вывод. Затем ответь на каждый пункт:",
+        "checklist": [
+          "[ ] Alembic: find *017* показывает ОДИН файл (не два)",
+          "[ ] БД пересоздана: psql ответил DROP DATABASE и CREATE DATABASE",
+          "[ ] Legacy сервисы удалены: в ls src/core/services/ нет b2b_package, cryptobot, mailing, comparison, mediakit, category_classifier, campaign_analytics_ai, analytics_service, review_service, user_role_service",
+          "[ ] src/bot/ пуст: find src/bot/ -name '*.py' показывает только __init__.py",
+          "[ ] src/db/models/ пуст: только __init__.py",
+          "[ ] src/db/migrations/versions/ пуст: ls показывает 0 файлов",
+          "[ ] Preserve: все 5 файлов существуют"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-1",
+      "title": "src/db/models/ — 14 моделей",
+      "description": "Создать 14 файлов моделей. Все поля полностью реализованы. Ни одного stub.",
+      "import_base": "from src.db.base import Base, TimestampMixin",
+
+      "models": {
+
+        "src/db/models/user.py": {
+          "class": "User(Base, TimestampMixin)",
+          "tablename": "users",
+          "all_fields": {
+            "id": "Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)",
+            "telegram_id": "Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)",
+            "username": "Mapped[str | None] = mapped_column(String(64), nullable=True)",
+            "first_name": "Mapped[str] = mapped_column(String(256), nullable=False)",
+            "last_name": "Mapped[str | None] = mapped_column(String(256), nullable=True)",
+            "is_admin": "Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')",
+            "current_role": "Mapped[str] = mapped_column(String(16), default='new', server_default='new') # new/advertiser/owner/both",
+            "plan": "Mapped[str] = mapped_column(String(16), default='free', server_default='free') # free/starter/pro/business — НЕ agency!",
+            "plan_expires_at": "Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)",
+            "terms_accepted_at": "Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)",
+            "balance_rub": "Mapped[Decimal] = mapped_column(Numeric(12,2), default=Decimal('0'), server_default='0')",
+            "earned_rub": "Mapped[Decimal] = mapped_column(Numeric(12,2), default=Decimal('0'), server_default='0')",
+            "credits": "Mapped[int] = mapped_column(Integer, default=0, server_default='0')",
+            "referral_code": "Mapped[str] = mapped_column(String(32), unique=True, nullable=False)",
+            "referred_by_id": "Mapped[int | None] = mapped_column(Integer, ForeignKey('users.id'), nullable=True)",
+            "advertiser_xp": "Mapped[int] = mapped_column(Integer, default=0, server_default='0')",
+            "advertiser_level": "Mapped[int] = mapped_column(Integer, default=1, server_default='1')",
+            "owner_xp": "Mapped[int] = mapped_column(Integer, default=0, server_default='0')",
+            "owner_level": "Mapped[int] = mapped_column(Integer, default=1, server_default='1')",
+            "ai_uses_count": "Mapped[int] = mapped_column(Integer, default=0, server_default='0')",
+            "ai_uses_reset_at": "Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)",
+            "is_active": "Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')",
+            "notifications_enabled": "Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')"
+          }
+        },
+
+        "src/db/models/telegram_chat.py": {
+          "class": "TelegramChat(Base, TimestampMixin)",
+          "tablename": "telegram_chats",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "telegram_id": "Mapped[int] BigInteger unique not null index",
+            "username": "Mapped[str] String(64) unique not null",
+            "title": "Mapped[str] String(256) not null",
+            "owner_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "member_count": "Mapped[int] default=0 server_default='0'",
+            "last_er": "Mapped[float] default=0.0 server_default='0'",
+            "avg_views": "Mapped[int] default=0 server_default='0'",
+            "rating": "Mapped[float] default=0.0 server_default='0'",
+            "category": "Mapped[str | None] String(32) nullable index",
+            "subcategory": "Mapped[str | None] String(64) nullable",
+            "description": "Mapped[str | None] Text nullable",
+            "is_active": "Mapped[bool] default=True server_default='true'",
+            "last_parsed_at": "Mapped[datetime | None] nullable"
+          }
+        },
+
+        "src/db/models/channel_settings.py": {
+          "class": "ChannelSettings(Base)",
+          "tablename": "channel_settings",
+          "note": "channel_id = PRIMARY KEY. TimestampMixin НЕ нужен — one-to-one.",
+          "all_fields": {
+            "channel_id": "Mapped[int] ForeignKey('telegram_chats.id') primary_key",
+            "price_per_post": "Mapped[Decimal] Numeric(10,2) default=Decimal('1000') server_default='1000'",
+            "allow_format_post_24h": "Mapped[bool] default=True server_default='true'",
+            "allow_format_post_48h": "Mapped[bool] default=True server_default='true'",
+            "allow_format_post_7d": "Mapped[bool] default=False server_default='false'",
+            "allow_format_pin_24h": "Mapped[bool] default=False server_default='false'",
+            "allow_format_pin_48h": "Mapped[bool] default=False server_default='false'",
+            "max_posts_per_day": "Mapped[int] default=2 server_default='2'",
+            "max_posts_per_week": "Mapped[int] default=10 server_default='10'",
+            "publish_start_time": "Mapped[time] default=time(9,0)",
+            "publish_end_time": "Mapped[time] default=time(21,0)",
+            "break_start_time": "Mapped[time | None] nullable",
+            "break_end_time": "Mapped[time | None] nullable",
+            "auto_accept_enabled": "Mapped[bool] default=False server_default='false'",
+            "updated_at": "Mapped[datetime] DateTime(timezone=True) onupdate=func.now() server_default=func.now()"
+          }
+        },
+
+        "src/db/models/placement_request.py": {
+          "class": "PlacementRequest(Base, TimestampMixin)",
+          "tablename": "placement_requests",
+          "enums_define_in_same_file": {
+            "PlacementStatus": "class PlacementStatus(str, Enum): pending_owner='pending_owner', counter_offer='counter_offer', pending_payment='pending_payment', escrow='escrow', published='published', failed='failed', failed_permissions='failed_permissions', refunded='refunded', cancelled='cancelled'",
+            "PublicationFormat": "class PublicationFormat(str, Enum): post_24h='post_24h', post_48h='post_48h', post_7d='post_7d', pin_24h='pin_24h', pin_48h='pin_48h'"
+          },
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "advertiser_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "owner_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "channel_id": "Mapped[int] ForeignKey('telegram_chats.id') not null index",
+            "status": "Mapped[PlacementStatus] default=PlacementStatus.pending_owner index",
+            "publication_format": "Mapped[PublicationFormat] default=PublicationFormat.post_24h",
+            "ad_text": "Mapped[str] Text not null",
+            "proposed_price": "Mapped[Decimal] Numeric(10,2) not null",
+            "final_price": "Mapped[Decimal | None] Numeric(10,2) nullable",
+            "proposed_schedule": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "final_schedule": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "counter_offer_count": "Mapped[int] default=0 server_default='0'",
+            "counter_price": "Mapped[Decimal | None] Numeric(10,2) nullable",
+            "counter_schedule": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "counter_comment": "Mapped[str | None] Text nullable",
+            "rejection_reason": "Mapped[str | None] Text nullable",
+            "expires_at": "Mapped[datetime | None] DateTime(timezone=True) nullable index",
+            "message_id": "Mapped[int | None] BigInteger nullable",
+            "scheduled_delete_at": "Mapped[datetime | None] DateTime(timezone=True) nullable index",
+            "deleted_at": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "published_at": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "published_reach": "Mapped[int | None] nullable",
+            "clicks_count": "Mapped[int] default=0 server_default='0'",
+            "tracking_short_code": "Mapped[str | None] String(16) unique nullable"
+          }
+        },
+
+        "src/db/models/transaction.py": {
+          "class": "Transaction(Base, TimestampMixin)",
+          "tablename": "transactions",
+          "enums_define_in_same_file": {
+            "TransactionType": "class TransactionType(str, Enum): topup='topup', escrow_freeze='escrow_freeze', escrow_release='escrow_release', platform_fee='platform_fee', refund_full='refund_full', refund_partial='refund_partial', cancel_penalty='cancel_penalty', owner_cancel_compensation='owner_cancel_compensation', payout='payout', payout_fee='payout_fee', credits_buy='credits_buy', failed_permissions_refund='failed_permissions_refund'"
+          },
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "user_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "type": "Mapped[TransactionType] not null index",
+            "amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "placement_request_id": "Mapped[int | None] ForeignKey('placement_requests.id') nullable index",
+            "payout_id": "Mapped[int | None] ForeignKey('payout_requests.id') nullable",
+            "yookassa_payment_id": "Mapped[str | None] String(64) nullable",
+            "description": "Mapped[str | None] Text nullable",
+            "meta_json": "Mapped[dict | None] = mapped_column(JSON, nullable=True)"
+          }
+        },
+
+        "src/db/models/payout.py": {
+          "class": "PayoutRequest(Base, TimestampMixin)",
+          "tablename": "payout_requests",
+          "enums_define_in_same_file": {
+            "PayoutStatus": "class PayoutStatus(str, Enum): pending='pending', processing='processing', paid='paid', rejected='rejected', cancelled='cancelled'"
+          },
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "owner_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "gross_amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "fee_amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "net_amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "status": "Mapped[PayoutStatus] default=PayoutStatus.pending index",
+            "requisites": "Mapped[str] String(512) not null",
+            "admin_id": "Mapped[int | None] ForeignKey('users.id') nullable",
+            "processed_at": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "rejection_reason": "Mapped[str | None] Text nullable"
+          }
+        },
+
+        "src/db/models/platform_account.py": {
+          "class": "PlatformAccount(Base)",
+          "tablename": "platform_account",
+          "note": "Singleton id=1. Без TimestampMixin.",
+          "all_fields": {
+            "id": "Mapped[int] = mapped_column(Integer, primary_key=True, default=1)",
+            "escrow_reserved": "Mapped[Decimal] Numeric(14,2) default=Decimal('0') server_default='0'",
+            "payout_reserved": "Mapped[Decimal] Numeric(14,2) default=Decimal('0') server_default='0'",
+            "profit_accumulated": "Mapped[Decimal] Numeric(14,2) default=Decimal('0') server_default='0'",
+            "total_topups": "Mapped[Decimal] Numeric(14,2) default=Decimal('0') server_default='0'",
+            "total_payouts": "Mapped[Decimal] Numeric(14,2) default=Decimal('0') server_default='0'",
+            "updated_at": "Mapped[datetime] DateTime(timezone=True) onupdate=func.now() server_default=func.now()"
+          }
+        },
+
+        "src/db/models/yookassa_payment.py": {
+          "class": "YookassaPayment(Base, TimestampMixin)",
+          "tablename": "yookassa_payments",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "payment_id": "Mapped[str] String(64) unique not null index",
+            "user_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "gross_amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "desired_balance": "Mapped[Decimal] Numeric(12,2) not null",
+            "fee_amount": "Mapped[Decimal] Numeric(12,2) not null",
+            "status": "Mapped[str] String(16) default='pending' server_default='pending'",
+            "payment_url": "Mapped[str | None] Text nullable",
+            "processed_at": "Mapped[datetime | None] DateTime(timezone=True) nullable"
+          }
+        },
+
+        "src/db/models/reputation_score.py": {
+          "class": "ReputationScore(Base)",
+          "tablename": "reputation_scores",
+          "note": "PK = user_id. one-to-one с User.",
+          "all_fields": {
+            "user_id": "Mapped[int] ForeignKey('users.id') primary_key",
+            "advertiser_score": "Mapped[float] default=5.0 server_default='5.0'",
+            "owner_score": "Mapped[float] default=5.0 server_default='5.0'",
+            "is_advertiser_blocked": "Mapped[bool] default=False server_default='false'",
+            "is_owner_blocked": "Mapped[bool] default=False server_default='false'",
+            "advertiser_blocked_until": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "owner_blocked_until": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "advertiser_violations_count": "Mapped[int] default=0 server_default='0'",
+            "owner_violations_count": "Mapped[int] default=0 server_default='0'",
+            "updated_at": "Mapped[datetime] DateTime(timezone=True) onupdate=func.now() server_default=func.now()"
+          }
+        },
+
+        "src/db/models/reputation_history.py": {
+          "class": "ReputationHistory(Base, TimestampMixin)",
+          "tablename": "reputation_history",
+          "enums_define_in_same_file": {
+            "ReputationAction": "class ReputationAction(str, Enum): publication='publication', review_5star='review_5star', review_4star='review_4star', review_3star='review_3star', review_2star='review_2star', review_1star='review_1star', cancel_before_escrow='cancel_before_escrow', cancel_after_confirm='cancel_after_confirm', cancel_systematic='cancel_systematic', reject_invalid_1='reject_invalid_1', reject_invalid_2='reject_invalid_2', reject_invalid_3='reject_invalid_3', reject_frequent='reject_frequent', dispute_owner_fault='dispute_owner_fault', recovery_30days='recovery_30days', ban_reset='ban_reset'"
+          },
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "user_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "role": "Mapped[str] String(16) not null",
+            "action": "Mapped[ReputationAction] not null",
+            "delta": "Mapped[float] not null",
+            "score_before": "Mapped[float] not null",
+            "score_after": "Mapped[float] not null",
+            "placement_request_id": "Mapped[int | None] ForeignKey('placement_requests.id') nullable",
+            "description": "Mapped[str | None] Text nullable"
+          }
+        },
+
+        "src/db/models/dispute.py": {
+          "class": "PlacementDispute(Base, TimestampMixin)",
+          "tablename": "placement_disputes",
+          "enums_define_in_same_file": {
+            "DisputeReason": "class DisputeReason(str, Enum): post_removed_early='post_removed_early', bot_kicked='bot_kicked', advertiser_complaint='advertiser_complaint'",
+            "DisputeStatus": "class DisputeStatus(str, Enum): open='open', owner_explained='owner_explained', resolved='resolved'",
+            "DisputeResolution": "class DisputeResolution(str, Enum): owner_fault='owner_fault', advertiser_fault='advertiser_fault', technical='technical', partial='partial'"
+          },
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "placement_request_id": "Mapped[int] ForeignKey('placement_requests.id') not null index",
+            "advertiser_id": "Mapped[int] ForeignKey('users.id') not null",
+            "owner_id": "Mapped[int] ForeignKey('users.id') not null",
+            "reason": "Mapped[DisputeReason] not null",
+            "status": "Mapped[DisputeStatus] default=DisputeStatus.open index",
+            "owner_explanation": "Mapped[str | None] Text nullable",
+            "advertiser_comment": "Mapped[str | None] Text nullable",
+            "resolution": "Mapped[DisputeResolution | None] nullable",
+            "resolution_comment": "Mapped[str | None] Text nullable",
+            "admin_id": "Mapped[int | None] ForeignKey('users.id') nullable",
+            "resolved_at": "Mapped[datetime | None] DateTime(timezone=True) nullable",
+            "advertiser_refund_pct": "Mapped[float | None] nullable",
+            "owner_payout_pct": "Mapped[float | None] nullable",
+            "expires_at": "Mapped[datetime | None] DateTime(timezone=True) nullable"
+          }
+        },
+
+        "src/db/models/review.py": {
+          "class": "Review(Base, TimestampMixin)",
+          "tablename": "reviews",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "placement_request_id": "Mapped[int] ForeignKey('placement_requests.id') unique not null",
+            "reviewer_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "reviewed_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "rating": "Mapped[int] not null — CHECK(rating >= 1 AND rating <= 5)",
+            "comment": "Mapped[str | None] Text nullable"
+          }
+        },
+
+        "src/db/models/category.py": {
+          "class": "Category(Base)",
+          "tablename": "categories",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "key": "Mapped[str] String(32) unique not null",
+            "name_ru": "Mapped[str] String(128) not null",
+            "emoji": "Mapped[str] String(8) not null",
+            "parent_key": "Mapped[str | None] String(32) nullable"
+          }
+        },
+
+        "src/db/models/channel_mediakit.py": {
+          "class": "ChannelMediakit(Base, TimestampMixin)",
+          "tablename": "channel_mediakits",
+          "note": "one-to-one с TelegramChat",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "channel_id": "Mapped[int] ForeignKey('telegram_chats.id') unique not null",
+            "description": "Mapped[str | None] Text nullable",
+            "audience_description": "Mapped[str | None] Text nullable",
+            "avg_post_reach": "Mapped[int] default=0",
+            "views_count": "Mapped[int] default=0",
+            "downloads_count": "Mapped[int] default=0",
+            "is_published": "Mapped[bool] default=False server_default='false'"
+          }
+        },
+
+        "src/db/models/badge.py": {
+          "class": "UserBadge(Base, TimestampMixin)",
+          "tablename": "user_badges",
+          "all_fields": {
+            "id": "Mapped[int] primary_key autoincrement",
+            "user_id": "Mapped[int] ForeignKey('users.id') not null index",
+            "badge_type": "Mapped[str] String(64) not null",
+            "role": "Mapped[str] String(16) not null",
+            "earned_at": "Mapped[datetime] DateTime(timezone=True) not null"
+          }
+        }
+      },
+
+      "models_init_content": "# src/db/models/__init__.py\nfrom src.db.models.user import User\nfrom src.db.models.telegram_chat import TelegramChat\nfrom src.db.models.channel_settings import ChannelSettings\nfrom src.db.models.channel_mediakit import ChannelMediakit\nfrom src.db.models.placement_request import PlacementRequest, PlacementStatus, PublicationFormat\nfrom src.db.models.transaction import Transaction, TransactionType\nfrom src.db.models.payout import PayoutRequest, PayoutStatus\nfrom src.db.models.platform_account import PlatformAccount\nfrom src.db.models.yookassa_payment import YookassaPayment\nfrom src.db.models.reputation_score import ReputationScore\nfrom src.db.models.reputation_history import ReputationHistory, ReputationAction\nfrom src.db.models.dispute import PlacementDispute, DisputeReason, DisputeStatus, DisputeResolution\nfrom src.db.models.review import Review\nfrom src.db.models.category import Category\nfrom src.db.models.badge import UserBadge\n\n__all__ = ['User','TelegramChat','ChannelSettings','ChannelMediakit','PlacementRequest','PlacementStatus','PublicationFormat','Transaction','TransactionType','PayoutRequest','PayoutStatus','PlatformAccount','YookassaPayment','ReputationScore','ReputationHistory','ReputationAction','PlacementDispute','DisputeReason','DisputeStatus','DisputeResolution','Review','Category','UserBadge']",
+
+      "self_check": {
+        "static_analysis": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/db/models/ --statistics 2>&1'",
+          "docker compose exec bot bash -c 'cd /app && poetry run mypy src/db/models/ --ignore-missing-imports 2>&1 | tail -5'"
+        ],
+        "import_test": "docker compose exec bot python -c 'from src.db.models import User, TelegramChat, ChannelSettings, ChannelMediakit, PlacementRequest, PlacementStatus, PublicationFormat, Transaction, TransactionType, PayoutRequest, PayoutStatus, PlatformAccount, YookassaPayment, ReputationScore, ReputationHistory, ReputationAction, PlacementDispute, Review, Category, UserBadge; print(\"PHASE-1 OK: 14 models\")'",
+        "stub_check": "docker compose exec bot bash -c 'grep -rn \"pass$\\|TODO\\|NotImplementedError\\|stub\" src/db/models/ | grep -v \"#\" | grep -v \".pyc\" && echo FAIL_STUB || echo NO_STUB_OK'",
+        "count_check": "docker compose exec bot bash -c 'ls src/db/models/*.py | wc -l && echo files_total'",
+        "legacy_check": "docker compose exec bot bash -c 'grep -rn \"b2b\\|mailing_log\\|content_flag\\|channel_rating\\|crypto_payment\" src/db/models/ 2>/dev/null && echo FAIL_LEGACY || echo NO_LEGACY_OK'",
+        "show_actual_code": [
+          "docker compose exec bot bash -c 'head -20 src/db/models/user.py'",
+          "docker compose exec bot bash -c 'head -20 src/db/models/placement_request.py'"
+        ],
+        "checklist": [
+          "[ ] ruff errors = 0",
+          "[ ] mypy: no issues",
+          "[ ] import test: PHASE-1 OK: 14 models",
+          "[ ] NO_STUB_OK",
+          "[ ] files_total = 15 (14 + __init__)",
+          "[ ] NO_LEGACY_OK",
+          "[ ] cat показывает реальные поля, не заглушки"
+        ],
+        "fail_action": "Если любой пункт FAIL — исправить НЕМЕДЛЕННО. Показать исправленный код. Повторить ВСЕ проверки."
+      }
+    },
+
+    {
+      "phase": "PHASE-1.5",
+      "title": "Переписать 5 сервисов под новые модели",
+      "description": "Эти сервисы зависели от удалённых моделей. Переписать с нуля под PlacementRequest/TelegramChat. Интегрировать старую функциональность.",
+      "depends_on": ["PHASE-1"],
+
+      "services": {
+
+        "src/core/services/analytics_service.py": {
+          "description": "Агрегирует статистику кампаний через PlacementRequest и Transaction. Интегрирует AI инсайты.",
+          "integrates": ["campaign_analytics_ai (был отдельным)", "token_logger (логирование AI токенов)"],
+          "key_methods": {
+            "get_advertiser_stats(advertiser_id, session) -> AdvertiserStats": "Агрегировать PlacementRequest по advertiser_id: total_placements, completed, total_spent (SUM Transaction WHERE type=escrow_release), total_reach (SUM published_reach), total_clicks (SUM clicks_count), avg_ctr",
+            "get_owner_stats(owner_id, session) -> OwnerStats": "Агрегировать PlacementRequest по owner_id: total_published, total_earned (SUM Transaction WHERE type=escrow_release AND user_id=owner_id), avg_check",
+            "get_top_channels_by_reach(advertiser_id, session, limit=5) -> list": "Топ каналов по published_reach",
+            "generate_ai_insights(stats_dict, plan, session) -> dict": "Вызов mistral_ai_service. Доступно только pro/business. Возвращает recommendations, top_channels, optimal_time.",
+            "get_platform_stats(session) -> PlatformStats": "Для admin: total_users, total_placements, total_revenue из PlatformAccount"
+          },
+          "dataclasses": "AdvertiserStats, OwnerStats, PlatformStats — определить в том же файле"
+        },
+
+        "src/core/services/review_service.py": {
+          "description": "Управление отзывами 1-5★. Интегрирует расчёт рейтинга канала.",
+          "integrates": ["rating_service (был отдельным) — расчёт рейтинга 0-5 по 6 компонентам"],
+          "key_methods": {
+            "create_review(placement_request_id, reviewer_id, reviewed_id, rating, comment, session) -> Review": "Проверить что placement_request завершён (status=published). Проверить нет дубликата. Создать Review. Обновить TelegramChat.rating через recalculate_channel_rating.",
+            "recalculate_channel_rating(channel_id, session) -> float": "Рассчитать рейтинг 0-5 по формуле: reach_score(30%) + er_score(25%) + growth_score(15%) + frequency_score(10%) + reliability_score(15%) + age_score(5%). Сохранить в TelegramChat.rating. Вернуть новый рейтинг.",
+            "get_channel_reviews(channel_id, session, limit=20) -> list[Review]": "Получить последние отзывы канала",
+            "get_user_rating(user_id, role, session) -> float": "Средний рейтинг пользователя как владельца"
+          }
+        },
+
+        "src/core/services/user_role_service.py": {
+          "description": "Определение роли пользователя. Упрощённый — читает User.current_role.",
+          "integrates": "Ничего не интегрирует — упрощаем",
+          "key_methods": {
+            "get_role(user_id, session) -> str": "SELECT User WHERE id=user_id → return user.current_role",
+            "set_role(user_id, role, session) -> None": "Валидировать role in ('new','advertiser','owner','both'). UPDATE User SET current_role=role.",
+            "get_user_context(user_id, session) -> UserContext": "UserContext(role=current_role, balance_rub, earned_rub, plan). UserContext — dataclass в этом же файле."
+          },
+          "note": "Больше нет CampaignRepository/MailingLogRepository зависимостей"
+        },
+
+        "src/core/services/channel_service.py": {
+          "description": "НОВЫЙ сервис. Объединяет comparison, mediakit, category_classifier.",
+          "integrates": ["comparison_service", "mediakit_service", "category_classifier"],
+          "key_methods": {
+            "get_channels_for_campaign(category, subcategory, exclude_owner_id, session) -> list[TelegramChat]": "Каналы подходящие для кампании: фильтр по category, is_active=True, исключить exclude_owner_id (self-dealing). Сортировка по rating DESC.",
+            "get_channel_comparison(channel_ids, session) -> list[dict]": "Данные для сравнения каналов: member_count, last_er, avg_views, rating, price_per_post, allowed_formats",
+            "classify_channel(title, description) -> CategoryResult": "AI классификация через mistral_ai_service. CategoryResult = TypedDict(topic, subcategory, confidence). РЕАЛЬНАЯ реализация через AI, не заглушка.",
+            "get_or_create_mediakit(channel_id, session) -> ChannelMediakit": "Получить или создать медиакит. Использовать ChannelMediakit модель.",
+            "update_mediakit(channel_id, data, session) -> ChannelMediakit": "Обновить поля медиакита.",
+            "suggest_optimal_publish_time(channel_id, session) -> int": "Вернуть оптимальный час публикации (0-23) на основе avg_views и исторических данных PlacementRequest для этого канала. Если данных мало — вернуть 14 (14:00) как дефолт."
+          }
+        },
+
+        "src/core/services/publication_service.py": {
+          "action": "MODIFY — добавить метод suggest_optimal_time через channel_service",
+          "note": "publication_service.py уже хорошо написан. Проверить что имеет метод check_bot_permissions с isinstance(member, ChatMemberOwner/ChatMemberAdministrator) guard из P18-fix. Если нет — добавить.",
+          "verify_command": "grep -n 'ChatMemberOwner\\|isinstance.*member\\|check_bot_permissions' src/core/services/publication_service.py | head -10"
+        }
+      },
+
+      "self_check": {
+        "static_analysis": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/core/services/ --statistics 2>&1'",
+          "docker compose exec bot bash -c 'cd /app && poetry run mypy src/core/services/analytics_service.py src/core/services/review_service.py src/core/services/user_role_service.py src/core/services/channel_service.py --ignore-missing-imports 2>&1 | tail -10'"
+        ],
+        "import_test": "docker compose exec bot python -c 'from src.core.services.analytics_service import AnalyticsService; from src.core.services.review_service import ReviewService; from src.core.services.user_role_service import UserRoleService; from src.core.services.channel_service import ChannelService; print(\"PHASE-1.5 OK\")'",
+        "stub_check": "docker compose exec bot bash -c 'grep -rn \"pass$\\|TODO\\|NotImplementedError\\|stub\" src/core/services/analytics_service.py src/core/services/review_service.py src/core/services/user_role_service.py src/core/services/channel_service.py 2>/dev/null | grep -v \"#\\|\\.pyc\" && echo FAIL_STUB || echo NO_STUB_OK'",
+        "show_methods": [
+          "docker compose exec bot bash -c 'grep -n \"async def\\|def \" src/core/services/analytics_service.py'",
+          "docker compose exec bot bash -c 'grep -n \"async def\\|def \" src/core/services/channel_service.py'"
+        ],
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] mypy: no issues в 4 новых файлах",
+          "[ ] PHASE-1.5 OK import",
+          "[ ] NO_STUB_OK",
+          "[ ] analytics_service имеет методы: get_advertiser_stats, get_owner_stats, generate_ai_insights",
+          "[ ] channel_service имеет методы: get_channels_for_campaign, get_channel_comparison, classify_channel, suggest_optimal_publish_time",
+          "[ ] user_role_service НЕ импортирует CampaignRepository или MailingLogRepository"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-2",
+      "title": "Alembic — одна чистая миграция + seed",
+      "depends_on": ["PHASE-1"],
+
+      "step_1_check_env": {
+        "command": "cat src/db/migrations/env.py",
+        "requirement": "target_metadata должен брать Base.metadata из src.db.base. DATABASE_URL из settings. asyncpg. Если не так — исправить env.py."
+      },
+
+      "step_2_generate": {
+        "commands": [
+          "docker compose exec bot poetry run alembic revision --autogenerate -m 'initial_schema_v4_3'",
+          "ls src/db/migrations/versions/",
+          "cat src/db/migrations/versions/*.py | head -80"
+        ]
+      },
+
+      "step_3_verify_migration": {
+        "instruction": "Посмотреть содержимое миграции. Убедиться что в upgrade() есть CREATE TABLE для ВСЕХ 14 таблиц: users, telegram_chats, channel_settings, channel_mediakits, placement_requests, transactions, payout_requests, platform_account, yookassa_payments, reputation_scores, reputation_history, placement_disputes, reviews, categories, user_badges. Если какой-то таблицы нет — модель не попала в metadata. Исправить env.py.",
+        "check_command": "docker compose exec bot bash -c 'cat src/db/migrations/versions/*.py | grep \"op.create_table\" | sort'"
+      },
+
+      "step_4_apply": {
+        "commands": [
+          "docker compose exec bot poetry run alembic upgrade head",
+          "docker compose exec postgres psql -U market_bot -d market_bot_db -c '\\dt'",
+          "docker compose exec bot poetry run alembic current 2>&1 | grep -v Warning"
+        ]
+      },
+
+      "step_5_seed": {
+        "instruction": "Создать src/db/seed.py и выполнить. Заполнить categories 11 строками.",
+        "seed_script": "import asyncio\nfrom src.db.session import async_session_factory\nfrom src.db.models.category import Category\nfrom src.db.models.platform_account import PlatformAccount\n\nCATEGORIES = [\n    {'key':'it','name_ru':'IT и технологии','emoji':'💻'},\n    {'key':'business','name_ru':'Бизнес и финансы','emoji':'💰'},\n    {'key':'education','name_ru':'Образование','emoji':'🎓'},\n    {'key':'retail','name_ru':'Розница и магазины','emoji':'👗'},\n    {'key':'beauty','name_ru':'Красота и здоровье','emoji':'💄'},\n    {'key':'food','name_ru':'Еда и рестораны','emoji':'🍔'},\n    {'key':'travel','name_ru':'Путешествия','emoji':'✈️'},\n    {'key':'realty','name_ru':'Недвижимость','emoji':'🏠'},\n    {'key':'auto','name_ru':'Автомобили','emoji':'🚗'},\n    {'key':'sport','name_ru':'Спорт','emoji':'⚽'},\n    {'key':'entertainment','name_ru':'Развлечения','emoji':'🎬'},\n]\n\nasync def seed():\n    async with async_session_factory() as session:\n        for data in CATEGORIES:\n            session.add(Category(**data))\n        session.add(PlatformAccount(id=1))\n        await session.commit()\n    print('Seed OK')\n\nasyncio.run(seed())",
+        "run_command": "docker compose exec bot poetry run python src/db/seed.py"
+      },
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot poetry run alembic current 2>&1 | grep -v Warning",
+          "docker compose exec postgres psql -U market_bot -d market_bot_db -c 'SELECT count(*) FROM categories;'",
+          "docker compose exec postgres psql -U market_bot -d market_bot_db -c 'SELECT * FROM platform_account;'",
+          "ls src/db/migrations/versions/ | wc -l"
+        ],
+        "checklist": [
+          "[ ] alembic current = head без warnings",
+          "[ ] 15+ таблиц в БД",
+          "[ ] categories count = 11",
+          "[ ] platform_account id=1 существует",
+          "[ ] migrations count = 1 (один файл)"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-3",
+      "title": "src/db/repositories/ — 7 репозиториев",
+      "depends_on": ["PHASE-1", "PHASE-2"],
+      "note": "base.py сохранён. Создать 7 новых файлов с РЕАЛЬНЫМИ методами.",
+
+      "repositories": {
+
+        "src/db/repositories/user_repo.py": {
+          "class": "UserRepository(BaseRepository[User])",
+          "methods_full_implementation": {
+            "get_by_telegram_id": "async def get_by_telegram_id(self, telegram_id: int) -> User | None:\n    result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))\n    return result.scalar_one_or_none()",
+            "get_by_username": "async def get_by_username(self, username: str) -> User | None:\n    result = await self.session.execute(select(User).where(User.username == username))\n    return result.scalar_one_or_none()",
+            "get_or_create": "async def get_or_create(self, telegram_id: int, defaults: dict) -> tuple[User, bool]:\n    user = await self.get_by_telegram_id(telegram_id)\n    if user:\n        return user, False\n    user = User(telegram_id=telegram_id, **defaults)\n    self.session.add(user)\n    await self.session.flush()\n    return user, True",
+            "update_balance": "async def update_balance(self, user_id: int, delta: Decimal) -> None:\n    result = await self.session.execute(select(User).where(User.id == user_id).with_for_update())\n    user = result.scalar_one()\n    user.balance_rub += delta\n    await self.session.flush()",
+            "update_earned": "async def update_earned(self, user_id: int, delta: Decimal) -> None:\n    result = await self.session.execute(select(User).where(User.id == user_id).with_for_update())\n    user = result.scalar_one()\n    user.earned_rub += delta\n    await self.session.flush()"
+          }
+        },
+
+        "src/db/repositories/telegram_chat_repo.py": {
+          "class": "TelegramChatRepository(BaseRepository[TelegramChat])",
+          "methods_full_implementation": {
+            "get_by_telegram_id": "by TelegramChat.telegram_id",
+            "get_by_owner": "SELECT WHERE owner_id = owner_id AND is_active = True",
+            "get_by_category": "SELECT WHERE category = category AND is_active = True AND (exclude_owner_id IS NULL OR owner_id != exclude_owner_id) ORDER BY rating DESC",
+            "get_active": "SELECT WHERE is_active = True ORDER BY rating DESC"
+          }
+        },
+
+        "src/db/repositories/placement_request_repo.py": {
+          "class": "PlacementRequestRepository(BaseRepository[PlacementRequest])",
+          "methods_full_implementation": {
+            "get_by_advertiser": "SELECT WHERE advertiser_id=X AND (statuses IS NULL OR status IN statuses) ORDER BY created_at DESC",
+            "get_by_owner": "SELECT JOIN telegram_chats WHERE telegram_chats.owner_id=X AND (statuses IS None OR status IN statuses)",
+            "get_pending_for_owner": "статусы [pending_owner, counter_offer]",
+            "get_active_escrow": "WHERE status = escrow",
+            "get_published_active": "WHERE status = published AND scheduled_delete_at > now()",
+            "count_active_for_advertiser": "COUNT WHERE advertiser_id=X AND status IN (pending_owner, counter_offer, pending_payment, escrow, published)",
+            "get_expired": "WHERE status IN (pending_owner, pending_payment) AND expires_at < before"
+          }
+        },
+
+        "src/db/repositories/transaction_repo.py": {
+          "class": "TransactionRepository(BaseRepository[Transaction])",
+          "methods_full_implementation": {
+            "get_by_user": "SELECT WHERE user_id=X ORDER BY created_at DESC LIMIT limit",
+            "get_by_placement": "SELECT WHERE placement_request_id=X",
+            "sum_topups_30d": "SELECT COALESCE(SUM(amount),0) WHERE user_id=X AND type=topup AND created_at > now()-30days",
+            "sum_payouts_30d": "SELECT COALESCE(SUM(amount),0) WHERE user_id=X AND type=payout AND created_at > now()-30days"
+          }
+        },
+
+        "src/db/repositories/payout_repo.py": {
+          "class": "PayoutRepository(BaseRepository[PayoutRequest])",
+          "methods_full_implementation": {
+            "get_by_owner": "SELECT WHERE owner_id=X ORDER BY created_at DESC",
+            "get_pending": "SELECT WHERE status=pending ORDER BY created_at ASC",
+            "get_active_for_owner": "SELECT WHERE owner_id=X AND status IN (pending, processing) LIMIT 1"
+          }
+        },
+
+        "src/db/repositories/platform_account_repo.py": {
+          "class": "PlatformAccountRepository(BaseRepository[PlatformAccount])",
+          "methods_full_implementation": {
+            "get_singleton": "async def get_singleton(self) -> PlatformAccount:\n    result = await self.session.get(PlatformAccount, 1)\n    if result is None:\n        result = PlatformAccount(id=1)\n        self.session.add(result)\n        await self.session.flush()\n    return result",
+            "get_for_update": "async def get_for_update(self) -> PlatformAccount:\n    result = await self.session.execute(select(PlatformAccount).where(PlatformAccount.id == 1).with_for_update())\n    return result.scalar_one()"
+          }
+        },
+
+        "src/db/repositories/dispute_repo.py": {
+          "class": "DisputeRepository(BaseRepository[PlacementDispute])",
+          "methods_full_implementation": {
+            "get_open": "SELECT WHERE status IN (open, owner_explained) ORDER BY created_at ASC",
+            "get_by_placement": "SELECT WHERE placement_request_id=X LIMIT 1",
+            "get_by_user": "SELECT WHERE advertiser_id=X OR owner_id=X ORDER BY created_at DESC"
+          }
+        }
+      },
+
+      "repositories_init": "from src.db.repositories.base import BaseRepository\nfrom src.db.repositories.user_repo import UserRepository\nfrom src.db.repositories.telegram_chat_repo import TelegramChatRepository\nfrom src.db.repositories.placement_request_repo import PlacementRequestRepository\nfrom src.db.repositories.transaction_repo import TransactionRepository\nfrom src.db.repositories.payout_repo import PayoutRepository\nfrom src.db.repositories.platform_account_repo import PlatformAccountRepository\nfrom src.db.repositories.dispute_repo import DisputeRepository\n\n__all__ = ['BaseRepository','UserRepository','TelegramChatRepository','PlacementRequestRepository','TransactionRepository','PayoutRepository','PlatformAccountRepository','DisputeRepository']",
+
+      "self_check": {
+        "static_analysis": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/db/repositories/ --statistics 2>&1'",
+          "docker compose exec bot bash -c 'cd /app && poetry run mypy src/db/repositories/ --ignore-missing-imports 2>&1 | tail -5'"
+        ],
+        "import_test": "docker compose exec bot python -c 'from src.db.repositories import BaseRepository, UserRepository, TelegramChatRepository, PlacementRequestRepository, TransactionRepository, PayoutRepository, PlatformAccountRepository, DisputeRepository; print(\"PHASE-3 OK: 7 repos\")'",
+        "stub_check": "docker compose exec bot bash -c 'grep -rn \"pass$\\|TODO\\|NotImplementedError\" src/db/repositories/ | grep -v base.py | grep -v \"#\\|\\.pyc\" && echo FAIL_STUB || echo NO_STUB_OK'",
+        "show_methods": "docker compose exec bot bash -c 'grep -n \"async def\\|def \" src/db/repositories/user_repo.py src/db/repositories/placement_request_repo.py'",
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] mypy = no issues",
+          "[ ] PHASE-3 OK: 7 repos",
+          "[ ] NO_STUB_OK",
+          "[ ] user_repo имеет update_balance с with_for_update()",
+          "[ ] platform_account_repo имеет get_for_update с with_for_update()"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-4",
+      "title": "src/bot/states/ — РОВНО 8 классов",
+      "depends_on": ["PHASE-1"],
+
+      "exact_files_and_content": {
+        "src/bot/states/billing.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass TopupStates(StatesGroup):\n    entering_amount = State()\n    confirming = State()\n    waiting_payment = State()",
+        "src/bot/states/placement.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass PlacementStates(StatesGroup):\n    selecting_category = State()\n    selecting_subcategory = State()\n    selecting_channels = State()\n    selecting_format = State()\n    entering_text = State()\n    arbitrating = State()\n    waiting_response = State()",
+        "src/bot/states/arbitration.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass ArbitrationStates(StatesGroup):\n    viewing_request = State()\n    waiting_reject_comment = State()\n    counter_offering = State()\n    entering_counter_price = State()\n    entering_counter_time = State()\n    entering_counter_comment = State()",
+        "src/bot/states/channel_settings.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass ChannelSettingsStates(StatesGroup):\n    editing_price = State()\n    editing_schedule = State()\n    confirming = State()",
+        "src/bot/states/payout.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass PayoutStates(StatesGroup):\n    entering_amount = State()\n    confirming = State()\n    entering_requisites = State()",
+        "src/bot/states/channel_owner.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass AddChannelStates(StatesGroup):\n    entering_username = State()\n    confirming = State()",
+        "src/bot/states/feedback.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass FeedbackStates(StatesGroup):\n    entering_text = State()",
+        "src/bot/states/dispute.py": "from aiogram.fsm.state import State, StatesGroup\n\nclass DisputeStates(StatesGroup):\n    owner_explaining = State()\n    advertiser_commenting = State()\n    admin_reviewing = State()"
+      },
+
+      "forbidden": "НЕ создавать: AdminFreeCampaignStates, AdminBanStates, AdminBalanceStates, AdminBroadcastStates, CampaignStates, CampaignCreateState, PlacementEntryState, OnboardingStates, MediakitStates, EditChannelStates — их нет в bot_spec_v4.3.json",
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/bot/states/ 2>&1'",
+          "docker compose exec bot python -c 'from src.bot.states import TopupStates, PlacementStates, ArbitrationStates, ChannelSettingsStates, PayoutStates, AddChannelStates, FeedbackStates, DisputeStates; print(\"PHASE-4 OK: 8 states\")'",
+          "docker compose exec bot bash -c 'grep -rn \"class.*StatesGroup\" src/bot/states/ | sort'",
+          "docker compose exec bot bash -c 'ls src/bot/states/*.py | wc -l'",
+          "docker compose exec bot bash -c 'grep -rn \"AdminFreeCampaign\\|AdminBan\\|AdminBalance\\|CampaignCreate\\|PlacementEntry\\|Onboarding\\|Mediakit\" src/bot/states/ 2>/dev/null && echo FAIL_LEGACY || echo NO_LEGACY_OK'"
+        ],
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] PHASE-4 OK: 8 states",
+          "[ ] grep StatesGroup показывает РОВНО 8 строк",
+          "[ ] files = 9 (8 + __init__)",
+          "[ ] NO_LEGACY_OK"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-5",
+      "title": "src/bot/middlewares/ + src/bot/filters/",
+      "depends_on": ["PHASE-3", "PHASE-4"],
+      "critical_rule": "FSMTimeoutMiddleware должна быть ПОЛНОСТЬЮ реализована. Проверка через grep 'pass$' — если найдено = FAIL.",
+
+      "files": {
+
+        "src/bot/middlewares/db_session.py": {
+          "full_implementation": "from typing import Any, Callable, Awaitable\nfrom aiogram import BaseMiddleware\nfrom aiogram.types import TelegramObject\nfrom src.db.session import async_session_factory\n\nclass DBSessionMiddleware(BaseMiddleware):\n    async def __call__(self, handler: Callable, event: TelegramObject, data: dict[str, Any]) -> Awaitable:\n        async with async_session_factory() as session:\n            data['session'] = session\n            return await handler(event, data)"
+        },
+
+        "src/bot/middlewares/throttling.py": {
+          "full_implementation": "ThrottlingMiddleware. Использует Redis. Ключ: 'throttle:{user_id}'. TTL=0.5 секунды. Если ключ существует — ответить '⏳ Подождите немного.' и НЕ вызывать handler. Если нет — установить ключ и вызвать handler. РЕАЛИЗОВАТЬ через redis.set(key, 1, ex=0.5, nx=True)."
+        },
+
+        "src/bot/middlewares/role_check.py": {
+          "full_implementation": "RoleCheckMiddleware. Получить user_id из event.from_user. Загрузить ReputationScore из БД через session (data['session']). Определить role из User.current_role. Если role=='advertiser' и is_advertiser_blocked и blocked_until > now() — answer '🚫 Аккаунт заблокирован до {date}.' и return. Если role=='owner' аналогично. Иначе вызвать handler."
+        },
+
+        "src/bot/middlewares/fsm_timeout.py": {
+          "full_implementation": "FSMTimeoutMiddleware. ПОЛНАЯ РЕАЛИЗАЦИЯ — НЕ STUB.\n1. При каждом запросе: получить user_id из event.\n2. Проверить есть ли user в FSM: current_state = await state.get_state(). Если None — пропустить.\n3. Если в FSM: получить last_activity из Redis key 'fsm_activity:{user_id}'.\n4. Если last_activity существует и now() - last_activity > 300 секунд:\n   a. await state.clear()\n   b. await event.answer('⏱ Сессия истекла. Начните заново с /start')\n   c. return (не вызывать handler)\n5. Обновить Redis key: redis.set('fsm_activity:{user_id}', now.timestamp(), ex=600)"
+        },
+
+        "src/bot/filters/admin.py": {
+          "full_implementation": "from aiogram.filters import BaseFilter\nfrom aiogram.types import Message, CallbackQuery\nfrom src.db.repositories.user_repo import UserRepository\n\nclass AdminFilter(BaseFilter):\n    async def __call__(self, event, session) -> bool:\n        user_id = event.from_user.id if event.from_user else None\n        if not user_id: return False\n        user = await UserRepository(session).get_by_telegram_id(user_id)\n        return user is not None and user.is_admin"
+        }
+      },
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/bot/middlewares/ src/bot/filters/ 2>&1'",
+          "docker compose exec bot python -c 'from src.bot.middlewares.db_session import DBSessionMiddleware; from src.bot.middlewares.throttling import ThrottlingMiddleware; from src.bot.middlewares.role_check import RoleCheckMiddleware; from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware; from src.bot.filters.admin import AdminFilter; print(\"PHASE-5 OK\")'",
+          "docker compose exec bot bash -c 'grep -n \"pass$\\|stub\\|TODO\\|NotImplementedError\" src/bot/middlewares/fsm_timeout.py | grep -v \"#\" && echo FAIL_STUB || echo FSM_TIMEOUT_REAL'",
+          "docker compose exec bot bash -c 'grep -n \"state.clear\\|fsm_activity\\|300\" src/bot/middlewares/fsm_timeout.py'"
+        ],
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] PHASE-5 OK",
+          "[ ] FSM_TIMEOUT_REAL (нет stub)",
+          "[ ] fsm_timeout содержит state.clear() и 'fsm_activity' и 300"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-6",
+      "title": "src/bot/keyboards/ — все клавиатуры строго по callback_data реестру",
+      "depends_on": ["PHASE-4"],
+      "forbidden_callbacks": ["main:b2b", "b2b:buy:*", "main:analytics в owner keyboards", "main:open_dispute"],
+
+      "keyboard_spec": {
+        "shared/main_menu.py": {
+          "main_menu_kb()": "[[Кабинет main:cabinet], [Выбрать роль main:change_role], [Помощь main:help | Обратная связь main:feedback]]",
+          "role_select_kb()": "[[Рекламодатель role:advertiser], [Владелец канала role:owner], [Назад main:main_menu]]"
+        },
+        "shared/cabinet.py": {
+          "cabinet_kb(role, earned_rub)": "Условные кнопки: [Пополнить billing:topup_start] если role in (advertiser,both); [Запросить вывод payout:request_start] если role in (owner,both) AND earned_rub>=1000; [Изменить тариф billing:plans]; [Реферальная программа cabinet:referral]; [Геймификация cabinet:gamification]; [Главное меню main:main_menu]"
+        },
+        "shared/common.py": {
+          "back_kb(cb)": "[[Назад cb]]",
+          "cancel_kb(cb)": "[[Отмена cb]]",
+          "confirm_cancel_kb(ok_cb, cancel_cb)": "[[Подтвердить ok_cb], [Отмена cancel_cb]]"
+        },
+        "billing/topup.py": {
+          "topup_amounts_kb()": "6 кнопок: 500/1000/2000/5000/10000/20000 → topup:amount:N. [Ввести свою topup:amount:custom]. [Отмена main:cabinet]",
+          "topup_confirm_kb()": "[[Перейти к оплате topup:pay], [Изменить сумму billing:topup_start]]",
+          "topup_payment_kb(url, pid)": "[[Оплатить URL], [Я оплатил topup:check:{pid}], [Отмена topup:cancel:{pid}]]",
+          "topup_success_kb()": "[[Создать кампанию main:create_campaign], [В кабинет main:cabinet]]"
+        },
+        "billing/plans.py": {
+          "plans_kb(current_plan)": "Кнопки только для планов != current_plan: [Starter plan:buy:starter], [Pro plan:buy:pro], [Agency plan:buy:business], [В кабинет main:cabinet]"
+        },
+        "advertiser/adv_menu.py": {
+          "adv_menu_kb()": "[[Статистика main:analytics], [Создать кампанию main:create_campaign], [Мои кампании main:my_campaigns], [Главное меню main:main_menu]] — БЕЗ B2B"
+        },
+        "advertiser/placement.py": {
+          "category_kb()": "11 категорий по 2 в ряд + [Отмена main:adv_menu]. Callbacks: camp:cat:it, camp:cat:business, ...",
+          "subcategory_kb(cat)": "Подкатегории категории + [Пропустить camp:subcat:skip] + [Назад main:create_campaign]",
+          "channel_card_kb(cid, selected, sel_count)": "[Выбрать/Убрать camp:channel:select:{cid}], [Пропустить camp:channel:skip], [Далее ({sel_count}) camp:channels:done если sel_count>0], [Назад camp:back:subcategory]",
+          "format_kb(allowed, plan, base)": "Только форматы из allowed И доступные по тарифу. В кнопке — цена. [Назад camp:back:channels]",
+          "text_method_kb(plan, ai_left)": "[AI camp:text:ai если plan!=free AND ai_left>0], [Вручную camp:text:manual], [Назад camp:back:format]",
+          "ai_variants_kb()": "[[1️⃣ camp:text:choose:1],[2️⃣ camp:text:choose:2],[3️⃣ camp:text:choose:3],[Ещё camp:text:ai:regenerate],[Вручную camp:text:manual]]",
+          "camp_confirm_kb()": "[[Отправить camp:submit], [Изменить текст camp:back:text], [Отменить main:adv_menu]]",
+          "camp_waiting_kb(rid)": "[[Мои кампании main:my_campaigns], [Отменить camp:cancel:{rid}]]",
+          "camp_payment_kb(rid, bal, price)": "[[Оплатить camp:pay:balance:{rid}] если bal>=price ИНАЧЕ [Пополнить billing:topup_start], [Отменить camp:cancel:{rid}]]",
+          "camp_counter_kb(rid, round)": "[[Принять camp:counter:accept:{rid}], [Контр camp:counter:reply:{rid}] если round<3, [Отменить camp:cancel:{rid}]]",
+          "camp_published_kb(pid, within_48h)": "[[Пожаловаться dispute:open:{pid}] если within_48h, [Мои кампании main:my_campaigns]]"
+        },
+        "advertiser/my_campaigns.py": {
+          "my_campaigns_kb(campaigns)": "Кнопка на каждую (до 10): camp:detail:{id}. [Создать main:create_campaign]. [Назад main:adv_menu]"
+        },
+        "owner/own_menu.py": {
+          "own_menu_kb(pending)": "[[Статистика main:owner_analytics], [Мои каналы main:my_channels], [Заявки{badge} main:my_requests], [Выплаты main:payouts], [Главное меню main:main_menu]]. badge = ' 🔴N' если pending>0. НЕ main:analytics!"
+        },
+        "owner/channels.py": {
+          "channels_list_kb(channels)": "Кнопка на каждый: own:channel:{id}. [Добавить own:add_channel]. [Назад main:own_menu]",
+          "channel_detail_kb(cid, pending)": "[[Настройки own:settings:{cid}], [Заявки({pending}) own:channel_requests:{cid}], [Удалить own:delete_channel:{cid}], [Назад main:my_channels]]",
+          "channel_settings_kb(cid)": "[[Цена own:settings:price:{cid}], [Форматы own:settings:formats:{cid}], [Расписание own:settings:schedule:{cid}], [Автоподтверждение own:settings:autoaccept:{cid}], [Назад own:channel:{cid}]]",
+          "format_toggles_kb(cid, settings)": "5 кнопок: для каждого формата '✅/❌ Формат цена': own:format:toggle:{fmt}:{cid}. [Сохранить own:settings:formats:save:{cid}]. [Назад own:settings:{cid}]"
+        },
+        "owner/requests.py": {
+          "requests_list_kb(reqs)": "Кнопка на каждую: own:request:{id}. [Назад main:own_menu]",
+          "request_detail_kb(rid, round)": "[[Принять own:accept:{rid}], [Контр own:counter:{rid}], [Отклонить own:reject:{rid}], [Полный текст own:request:fulltext:{rid}], [Назад main:my_requests]]",
+          "reject_reason_kb(rid)": "[[Отмена own:request:{rid}]]",
+          "counter_offer_kb(rid)": "[[Отправить own:counter:send:{rid}], [Отмена own:request:{rid}]]"
+        },
+        "payout/payout.py": {
+          "payout_amounts_kb(earned)": "Кнопки 1000/3000/5000/10000 + [Всё payout:amount:all] + [Ввести payout:amount:custom] + [Отмена main:payouts]",
+          "payout_confirm_kb()": "[[Подтвердить (ввод реквизитов)], [Изменить сумму payout:request_start]]"
+        },
+        "admin/admin.py": {
+          "admin_menu_kb()": "Основные кнопки admin панели",
+          "dispute_review_kb(did)": "[[Вина владельца admin:dispute:resolve:owner_fault:{did}], [Частичный admin:dispute:resolve:partial:{did}], [Необоснована admin:dispute:resolve:advertiser_fault:{did}], [Техошибка admin:dispute:resolve:technical:{did}]]",
+          "disputes_list_kb(disputes)": "Кнопка на каждый: admin:dispute:{id}"
+        }
+      },
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/bot/keyboards/ --statistics 2>&1'",
+          "docker compose exec bot python -c 'from src.bot.keyboards.shared.main_menu import main_menu_kb, role_select_kb; from src.bot.keyboards.advertiser.adv_menu import adv_menu_kb; from src.bot.keyboards.owner.own_menu import own_menu_kb; from src.bot.keyboards.billing.topup import topup_amounts_kb; from src.bot.keyboards.payout.payout import payout_amounts_kb; print(\"PHASE-6 OK\")'",
+          "docker compose exec bot bash -c 'grep -rn \"main:b2b\\|b2b:buy\" src/bot/keyboards/ && echo FAIL_B2B || echo B2B_CLEAN'",
+          "docker compose exec bot bash -c 'grep -n \"main:analytics\" src/bot/keyboards/owner/own_menu.py && echo FAIL_RT001 || echo RT001_OK'",
+          "docker compose exec bot bash -c 'grep -n \"main:open_dispute\" src/bot/keyboards/ -r && echo FAIL_DISPUTE || echo DISPUTE_CB_OK'"
+        ],
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] PHASE-6 OK",
+          "[ ] B2B_CLEAN",
+          "[ ] RT001_OK (нет main:analytics в own_menu)",
+          "[ ] DISPUTE_CB_OK (нет main:open_dispute)"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-7",
+      "title": "src/bot/handlers/ — все handlers",
+      "depends_on": ["PHASE-5", "PHASE-6"],
+      "note": "Детальные требования к каждому handler — в rebuild_handlers_R1-R8.json. Здесь — обязательные правила и check.",
+
+      "critical_rules": {
+        "RT-001": "show_adv_menu → регистрирует main:analytics. show_own_menu → регистрирует main:owner_analytics. РАЗНЫЕ callback. РАЗНЫЕ функции. Нарушение = FAIL.",
+        "6_steps_only": "Placement wizard = РОВНО 6 шагов: category→subcategory→channels→format→text→confirm. Никакого image upload, audience selection, broadcast для рекламодателей.",
+        "self_dealing": "В camp_step3: скрывать каналы где channel.owner_id == user.id",
+        "dispute_callbacks": "dispute:open:{placement_id} — НЕ main:open_dispute",
+        "broadcast": "Broadcast ТОЛЬКО в admin handlers. Отсутствует в advertiser и placement.",
+        "notifications_no_router": "src/bot/handlers/shared/notifications.py — это НЕ Router. Это просто async функции принимающие bot: Bot."
+      },
+
+      "handler_files_list": [
+        "shared/start.py — cmd_start, show_tos, terms_accept, terms_decline, go_to_main_menu, show_role_select, role_advertiser, role_owner, show_adv_menu, show_own_menu",
+        "shared/cabinet.py — show_cabinet, show_referral, referral_copy, show_gamification",
+        "shared/help.py — show_help, help_advertiser, help_owner, help_billing, help_plans",
+        "shared/feedback.py — feedback_start, feedback_text",
+        "shared/notifications.py — 12 функций уведомлений (не Router)",
+        "billing/billing.py — topup_start, topup_select_amount, topup_enter_custom, topup_custom_input, topup_confirm, topup_pay, topup_check, topup_cancel, show_plans, buy_plan",
+        "payout/payout.py — show_payouts, payout_request_start, payout_select_amount, payout_enter_custom, payout_custom_input, payout_confirm_screen, payout_requisites_input",
+        "advertiser/analytics.py — show_advertiser_analytics (main:analytics), export_csv, ai_report",
+        "advertiser/campaigns.py — show_my_campaigns, camp_detail, camp_status, camp_cancel",
+        "placement/placement.py — 6-шаговый wizard полностью",
+        "owner/analytics.py — show_owner_analytics (main:owner_analytics)",
+        "owner/channel_owner.py — show_my_channels, add_channel_start, add_channel_username, add_channel_confirm, show_channel_detail, delete_channel",
+        "owner/channel_settings.py — show_settings, edit_price, edit_formats, toggle_format, save_formats, edit_schedule, toggle_autoaccept",
+        "owner/arbitration.py — show_owner_requests, show_request_detail, show_fulltext, accept_request, reject_start, reject_comment, counter_start, counter_send",
+        "admin/users.py — /admin, platform_account view, pending_payouts, approve_payout, reject_payout",
+        "admin/disputes.py — admin_disputes_list, admin_review_dispute, 4 resolve handlers",
+        "dispute/dispute.py — open_dispute, dispute_detail, owner_explain_start, owner_explain_text"
+      ],
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/bot/handlers/ --statistics 2>&1'",
+          "docker compose exec bot python -c 'import src.bot.handlers; print(\"PHASE-7 OK: all handlers imported\")'",
+          "docker compose exec bot bash -c 'grep -rn \"main:b2b\\|b2b:buy\" src/bot/handlers/ && echo FAIL_B2B || echo B2B_CLEAN'",
+          "docker compose exec bot bash -c 'grep -rn \"main:analytics[^_]\" src/bot/handlers/owner/ && echo FAIL_RT001 || echo RT001_OK'",
+          "docker compose exec bot bash -c 'grep -rn \"main:open_dispute\" src/bot/ && echo FAIL_DISPUTE || echo DISPUTE_CB_OK'",
+          "docker compose exec bot bash -c 'grep -rn \"broadcast\" src/bot/handlers/advertiser/ src/bot/handlers/placement/ && echo FAIL_BROADCAST || echo BROADCAST_OK'",
+          "docker compose exec bot bash -c 'grep -c \"PlacementStates\" src/bot/handlers/placement/placement.py'",
+          "docker compose exec bot bash -c 'grep -rn \"pass$\\|stub\\|TODO\" src/bot/handlers/ | grep -v \"#\\|\\.pyc\" | head -10 && echo CHECK_STUBS'"
+        ],
+        "checklist": [
+          "[ ] ruff = 0",
+          "[ ] PHASE-7 OK: all handlers imported",
+          "[ ] B2B_CLEAN",
+          "[ ] RT001_OK",
+          "[ ] DISPUTE_CB_OK",
+          "[ ] BROADCAST_OK",
+          "[ ] PlacementStates count > 5 в placement.py",
+          "[ ] Нет stub в handlers (grep pass$ = 0)"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-8",
+      "title": "src/bot/main.py + handlers/__init__.py",
+      "depends_on": ["PHASE-7"],
+
+      "handlers_init": {
+        "file": "src/bot/handlers/__init__.py",
+        "instruction": "Создать main_router = Router(). Подключить все sub-роутеры. Admin router — последним, с AdminFilter.",
+        "router_order": "shared → billing → payout → advertiser analytics → campaigns → placement → owner analytics → channel_owner → channel_settings → arbitration → dispute → admin (последним)"
+      },
+
+      "main_py": {
+        "file": "src/bot/main.py",
+        "full_implementation": "import asyncio\nimport logging\n\nfrom aiogram import Bot, Dispatcher\nfrom aiogram.client.default import DefaultBotProperties\nfrom aiogram.enums import ParseMode\nfrom aiogram.fsm.storage.redis import RedisStorage\n\nfrom src.config.settings import settings\nfrom src.bot.handlers import main_router\nfrom src.bot.middlewares.db_session import DBSessionMiddleware\nfrom src.bot.middlewares.throttling import ThrottlingMiddleware\nfrom src.bot.middlewares.role_check import RoleCheckMiddleware\nfrom src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware\n\nlogger = logging.getLogger(__name__)\n\n\nasync def main() -> None:\n    bot = Bot(\n        token=settings.BOT_TOKEN,\n        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)\n    )\n    storage = RedisStorage.from_url(settings.REDIS_URL)\n    dp = Dispatcher(storage=storage)\n\n    dp.update.middleware(DBSessionMiddleware())\n    dp.update.middleware(ThrottlingMiddleware())\n    dp.update.middleware(RoleCheckMiddleware())\n    dp.update.middleware(FSMTimeoutMiddleware())\n\n    dp.include_router(main_router)\n\n    logger.info('Starting bot @%s', (await bot.get_me()).username)\n    await bot.delete_webhook(drop_pending_updates=True)\n    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())\n\n\nif __name__ == '__main__':\n    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')\n    asyncio.run(main())"
+      },
+
+      "self_check": {
+        "commands": [
+          "docker compose exec bot python -c 'from src.bot.main import main; print(\"main.py OK\")'",
+          "docker compose restart bot",
+          "sleep 10",
+          "docker compose logs bot --tail=20",
+          "docker compose ps bot"
+        ],
+        "checklist": [
+          "[ ] main.py OK без ошибок импорта",
+          "[ ] docker compose ps bot = Up",
+          "[ ] logs показывают 'Starting bot' без Exception/Error",
+          "[ ] Нет 'TelegramConflictError' (не запущен второй экземпляр)"
+        ]
+      }
+    },
+
+    {
+      "phase": "PHASE-FINAL",
+      "title": "Финальная верификация",
+
+      "commands": [
+        "echo '=== RUFF ==='",
+        "docker compose exec bot bash -c 'cd /app && poetry run ruff check src/db/ src/bot/ src/core/services/ --statistics 2>&1 | tail -5'",
+
+        "echo '=== MYPY FINANCE ==='",
+        "docker compose exec bot bash -c 'cd /app && poetry run mypy src/core/services/billing_service.py src/core/services/payout_service.py src/core/services/placement_request_service.py --ignore-missing-imports 2>&1 | tail -3'",
+
+        "echo '=== ALL IMPORTS ==='",
+        "docker compose exec bot python -c 'from src.db.models import User, TelegramChat, PlacementRequest, Transaction, PayoutRequest, PlatformAccount, PlacementDispute, ChannelMediakit; from src.db.repositories import UserRepository, PlacementRequestRepository, DisputeRepository; from src.bot.states import TopupStates, PlacementStates, DisputeStates; import src.bot.handlers; print(\"ALL IMPORTS OK\")'",
+
+        "echo '=== RT-001 ==='",
+        "docker compose exec bot bash -c 'grep -rn \"main:analytics[^_]\" src/bot/handlers/owner/ && echo FAIL || echo OK'",
+
+        "echo '=== B2B ==='",
+        "docker compose exec bot bash -c 'grep -rn \"main:b2b\\|b2b:buy\" src/bot/ && echo FAIL || echo OK'",
+
+        "echo '=== STATES COUNT ==='",
+        "docker compose exec bot bash -c 'grep -rn \"class.*StatesGroup\" src/bot/states/ | wc -l'",
+
+        "echo '=== LEGACY STATES ==='",
+        "docker compose exec bot bash -c 'grep -rn \"AdminFreeCampaign\\|CampaignCreate\\|PlacementEntry\" src/bot/states/ && echo FAIL || echo OK'",
+
+        "echo '=== FINANCIAL ==='",
+        "docker compose exec bot python -c 'from src.constants.payments import calculate_topup_payment, OWNER_SHARE, PLATFORM_COMMISSION; from decimal import Decimal; r=calculate_topup_payment(Decimal(\"10000\")); assert r[\"gross_amount\"]==Decimal(\"10350.00\"); assert OWNER_SHARE==Decimal(\"0.85\"); assert PLATFORM_COMMISSION==Decimal(\"0.15\"); print(\"Financial OK\")'",
+
+        "echo '=== ESCROW-001 ==='",
+        "docker compose exec bot bash -c 'grep -rn \"\\.release_escrow(\" src/ | grep -v \"def release_escrow\\|billing_service.py\\|publication_service.py\\|dispute.py\\|#\" && echo FAIL_ESCROW || echo ESCROW_OK'",
+
+        "echo '=== DB ==='",
+        "docker compose exec postgres psql -U market_bot -d market_bot_db -c '\\dt' | grep -c 'public'",
+
+        "echo '=== BOT STATUS ==='",
+        "docker compose ps"
+      ],
+
+      "final_report_fields": {
+        "ruff_errors": "0",
+        "mypy_finance_errors": "0",
+        "all_imports": "ALL IMPORTS OK",
+        "rt_001": "OK",
+        "b2b": "OK",
+        "states_count": "8",
+        "legacy_states": "OK",
+        "financial_formulas": "Financial OK",
+        "escrow_001": "ESCROW_OK",
+        "db_tables": "15+",
+        "bot_status": "Up"
+      }
+    }
+  ],
+
+  "output_report": {
+    "file": "reports/REBUILD_FINAL_report.json",
+    "instruction": "Заполнить после PHASE-FINAL. ready_for_users = true ТОЛЬКО если ВСЕ поля final_report_fields соответствуют ожидаемым значениям."
+  }
+}
