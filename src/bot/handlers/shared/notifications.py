@@ -667,3 +667,83 @@ def format_yookassa_payment_success(
         f"💎 Зачислено: +{credits} кредитов\n"
         f"📊 Текущий баланс: {new_balance} ₽"
     )
+
+
+# =============================================================================
+# DISPUTE УВЕДОМЛЕНИЯ
+# =============================================================================
+
+
+async def notify_dispute_opened_owner(
+    bot: Bot,
+    owner_id: int,
+    dispute,
+) -> None:
+    """Уведомить владельца об открытии диспута."""
+    text = (
+        f"⚠️ <b>Открыт диспут по размещению</b>\n\n"
+        f"Диспут #{dispute.id}\n"
+        f"Причина: {dispute.reason}\n\n"
+        f"Опишите причину удаления поста в течение 24 часов."
+    )
+    try:
+        await bot.send_message(owner_id, text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to notify owner about dispute: {e}")
+
+
+async def notify_admin_new_dispute(
+    bot: Bot,
+    admin_id: int,
+    dispute,
+) -> None:
+    """Уведомить админа о новом диспуте."""
+    text = (
+        f"🚨 <b>Новый диспут</b>\n\n"
+        f"Диспут #{dispute.id}\n"
+        f"Причина: {dispute.reason}\n"
+        f"Открыл: {dispute.opened_by}\n\n"
+        f"Требуется решение администратора."
+    )
+    try:
+        await bot.send_message(admin_id, text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to notify admin about dispute: {e}")
+
+
+async def notify_dispute_resolved(
+    bot: Bot,
+    advertiser_id: int,
+    owner_id: int,
+    dispute,
+    resolution_text: str,
+) -> None:
+    """Уведомить стороны о решении по диспуту."""
+    text = (
+        f"✅ <b>Диспут #{dispute.id} разрешён</b>\n\n"
+        f"Решение: {resolution_text}\n\n"
+        f"Средства будут распределены согласно решению."
+    )
+    try:
+        await bot.send_message(advertiser_id, text, parse_mode="HTML")
+        await bot.send_message(owner_id, text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to notify dispute resolution: {e}")
+
+
+__all__ = [
+    "notify_new_request",
+    "notify_counter_offer",
+    "notify_counter_accepted",
+    "notify_owner_accepted",
+    "notify_payment_received",
+    "notify_published",
+    "notify_rejected",
+    "notify_sla_expired",
+    "notify_cancelled",
+    "notify_publication_failed",
+    "format_yookassa_payment_success",
+    "notify_dispute_opened_owner",
+    "notify_admin_new_dispute",
+    "notify_dispute_resolved",
+]

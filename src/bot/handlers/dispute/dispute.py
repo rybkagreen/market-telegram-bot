@@ -30,9 +30,9 @@ router = Router(name="dispute")
 # ══════════════════════════════════════════════════════════════
 
 
-@router.callback_query(MainMenuCB.filter(F.action == "open_dispute"))
+@router.callback_query(F.data.startswith("dispute:open:"))
 async def open_dispute_start(callback: CallbackQuery, state: FSMContext) -> None:
-    """Начать открытие диспута рекламодателем."""
+    """Начать открытие диспута рекламодателем (dispute:open:{placement_id})."""
     from sqlalchemy import select
 
     from src.db.models.placement_dispute import DisputeStatus, PlacementDispute
@@ -40,13 +40,13 @@ async def open_dispute_start(callback: CallbackQuery, state: FSMContext) -> None
 
     callback_data = callback.data
     if ":" not in callback_data:
-        await callback.answer("❌ Неверный формат запроса", show_alert=True)
+        await callback.answer("❌ Неверный формат", show_alert=True)
         return
 
     try:
         placement_id = int(callback_data.split(":")[-1])
     except ValueError:
-        await callback.answer("❌ Неверный ID размещения", show_alert=True)
+        await callback.answer("❌ Неверный ID", show_alert=True)
         return
 
     async with async_session_factory() as session:
