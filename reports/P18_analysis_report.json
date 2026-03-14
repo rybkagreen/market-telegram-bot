@@ -1,0 +1,276 @@
+{
+  "prompt_id": "P18-analysis",
+  "title": "Глубокий анализ MyPy ошибок — сбор проблемного кода",
+  "date": "2026-03-14T22:00:00Z",
+  "status": "completed",
+  "summary": {
+    "total_mypy_errors": 163,
+    "errors_by_file": {
+      "publication_service.py": 6,
+      "placement_request_service.py": 15,
+      "payout_service.py": 0,
+      "publication_tasks.py": 0,
+      "other_files": 142
+    },
+    "errors_by_code": {
+      "union-attr": 70,
+      "arg-type": 52,
+      "attr-defined": 23,
+      "return-value": 7,
+      "syntax": 6,
+      "call-arg": 3,
+      "index": 2,
+      "other": 2
+    },
+    "type_ignore_count": 7,
+    "critical_runtime_risks": 9
+  },
+  "problems": [
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 67,
+      "error_code": "[union-attr]",
+      "error_message": "Item \"ChatMemberOwner\" of \"ChatMemberOwner | ChatMemberAdministrator\" has no attribute \"can_post_messages\"",
+      "code_context": "if isinstance(member, ChatMemberAdministrator | ChatMemberOwner):\n    can_post = bool(member.can_post_messages)\n    can_delete = bool(member.can_delete_messages)\n    can_pin = bool(member.can_pin_messages) if require_pin else True",
+      "risk": "CRITICAL",
+      "fix_hint": "ChatMemberOwner doesn't have can_post_messages - need separate handling for owner vs admin"
+    },
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 68,
+      "error_code": "[union-attr]",
+      "error_message": "Item \"ChatMemberOwner\" of \"ChatMemberOwner | ChatMemberAdministrator\" has no attribute \"can_delete_messages\"",
+      "code_context": "Same as line 67",
+      "risk": "CRITICAL",
+      "fix_hint": "Same fix as line 67"
+    },
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 69,
+      "error_code": "[union-attr]",
+      "error_message": "Item \"ChatMemberOwner\" of \"ChatMemberOwner | ChatMemberAdministrator\" has no attribute \"can_pin_messages\"",
+      "code_context": "Same as line 67",
+      "risk": "CRITICAL",
+      "fix_hint": "Same fix as line 67"
+    },
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 199,
+      "error_code": "[arg-type]",
+      "error_message": "Argument \"chat_id\" to \"unpin_chat_message\" of \"Bot\" has incompatible type \"int | None\"; expected \"int | str\"",
+      "code_context": "await bot.unpin_chat_message(\n    chat_id=channel.telegram_id,\n    message_id=placement.message_id,\n)",
+      "risk": "CRITICAL",
+      "fix_hint": "Add guard: if channel.telegram_id is None: raise ValueError()"
+    },
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 205,
+      "error_code": "[arg-type]",
+      "error_message": "Argument 1 to \"delete_message\" of \"Bot\" has incompatible type \"int | None\"; expected \"int | str\"",
+      "code_context": "await bot.delete_message(channel.telegram_id, placement.message_id)",
+      "risk": "CRITICAL",
+      "fix_hint": "Same fix as line 199"
+    },
+    {
+      "file": "src/core/services/publication_service.py",
+      "line": 211,
+      "error_code": "[attr-defined]",
+      "error_message": "\"type[PlacementStatus]\" has no attribute \"COMPLETED\"",
+      "code_context": "placement.status = PlacementStatus.COMPLETED",
+      "risk": "CRITICAL",
+      "fix_hint": "PlacementStatus.COMPLETED doesn't exist - check enum values"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 280,
+      "error_code": "[syntax]",
+      "error_message": "Invalid \"type: ignore\" comment",
+      "code_context": "await _notify_owner_accept  # type: ignore[no-untyped-call](result, advertiser, channel)",
+      "risk": "MEDIUM",
+      "fix_hint": "type: ignore comment placed incorrectly - should be at end of line after function call"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 350,
+      "error_code": "[syntax]",
+      "error_message": "Invalid \"type: ignore\" comment",
+      "code_context": "await _notify_rejected  # type: ignore[no-untyped-call](result, advertiser, channel)",
+      "risk": "MEDIUM",
+      "fix_hint": "Same fix as line 280"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 352,
+      "error_code": "[return-value]",
+      "error_message": "Incompatible return value type (got \"PlacementRequest | None\", expected \"PlacementRequest\")",
+      "code_context": "return result",
+      "risk": "MEDIUM",
+      "fix_hint": "Add guard: if result is None: raise ValueError()"
+    }
+  ],
+  "type_ignores_added_by_p17": [
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 220,
+      "code_context": "await _notify_create_request(placement, advertiser, owner, channel)  # type: ignore[no-untyped-call]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 280,
+      "code_context": "await _notify_owner_accept  # type: ignore[no-untyped-call](result, advertiser, channel)  [INVALID SYNTAX]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 350,
+      "code_context": "await _notify_rejected  # type: ignore[no-untyped-call](result, advertiser, channel)  [INVALID SYNTAX]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 412,
+      "code_context": "await _notify_counter_offer  # type: ignore[no-untyped-call](result, advertiser, channel)  [INVALID SYNTAX]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 455,
+      "code_context": "await _notify_counter_accepted  # type: ignore[no-untyped-call](result, advertiser, owner, channel)  [INVALID SYNTAX]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 549,
+      "code_context": "await _notify_cancelled  # type: ignore[no-untyped-call](result, advertiser, owner, channel, delta)  [INVALID SYNTAX]"
+    },
+    {
+      "file": "src/core/services/placement_request_service.py",
+      "line": 605,
+      "code_context": "await _notify_payment_received  # type: ignore[no-untyped-call](result, advertiser, owner, channel)  [INVALID SYNTAX]"
+    }
+  ],
+  "notify_functions_signatures": [
+    {
+      "name": "_notify_create_request",
+      "signature": "async def _notify_create_request(placement, advertiser, owner, channel):",
+      "args": ["placement", "advertiser", "owner", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_owner_accept",
+      "signature": "async def _notify_owner_accept(placement, advertiser, channel):",
+      "args": ["placement", "advertiser", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_counter_offer",
+      "signature": "async def _notify_counter_offer(placement, advertiser, channel):",
+      "args": ["placement", "advertiser", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_counter_accepted",
+      "signature": "async def _notify_counter_accepted(placement, advertiser, owner, channel):",
+      "args": ["placement", "advertiser", "owner", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_payment_received",
+      "signature": "async def _notify_payment_received(placement, advertiser, owner, channel):",
+      "args": ["placement", "advertiser", "owner", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_rejected",
+      "signature": "async def _notify_rejected(placement, advertiser, channel):",
+      "args": ["placement", "advertiser", "channel"],
+      "return_type": "None (not annotated)"
+    },
+    {
+      "name": "_notify_cancelled",
+      "signature": "async def _notify_cancelled(placement, advertiser, owner, channel, reputation_delta=0.0):",
+      "args": ["placement", "advertiser", "owner", "channel", "reputation_delta=0.0"],
+      "return_type": "None (not annotated)"
+    }
+  ],
+  "chat_member_usage": [
+    {
+      "function": "check_bot_permissions",
+      "code_context": "member = await bot.get_chat_member(chat_id, bot.id)\nif isinstance(member, ChatMemberAdministrator | ChatMemberOwner):\n    can_post = bool(member.can_post_messages)\n    can_delete = bool(member.can_delete_messages)\n    can_pin = bool(member.can_pin_messages) if require_pin else True",
+      "issue": "ChatMemberOwner doesn't have can_post_messages, can_delete_messages, can_pin_messages attributes"
+    }
+  ],
+  "current_imports": {
+    "publication_service": [
+      "logging",
+      "suppress (from contextlib)",
+      "UTC, datetime, timedelta (from datetime)",
+      "Bot (from aiogram)",
+      "TelegramBadRequest (from aiogram.exceptions)",
+      "ChatMemberAdministrator, ChatMemberOwner (from aiogram.types)",
+      "AsyncSession (from sqlalchemy.ext.asyncio)",
+      "FORMAT_DURATIONS_SECONDS (from src.constants.payments)",
+      "BotNotAdminError, InsufficientPermissionsError, PostDeletionError (from src.core.exceptions)",
+      "BillingService (from src.core.services)",
+      "PlacementRequest, PlacementStatus (from src.db.models)",
+      "PlacementRequestRepo (from src.db.repositories)"
+    ],
+    "placement_request_service": [
+      "logging",
+      "re",
+      "UTC, datetime (from datetime)",
+      "Decimal (from decimal)",
+      "TYPE_CHECKING (from typing)",
+      "AsyncSession (from sqlalchemy.ext.asyncio)",
+      "TelegramChat (from src.db.models.analytics)",
+      "PlacementRequest, PlacementStatus (from src.db.models)",
+      "User (from src.db.models)",
+      "ChannelSettingsRepo, PlacementRequestRepo, ReputationRepo (from src.db.repositories)",
+      "BillingService (from src.core.services - TYPE_CHECKING only)"
+    ],
+    "payout_service": [],
+    "publication_tasks": []
+  },
+  "critical_fixes_needed": [
+    {
+      "priority": 1,
+      "file": "src/core/services/publication_service.py",
+      "issue": "ChatMemberOwner type guard incorrect",
+      "fix": "Separate handling for ChatMemberOwner vs ChatMemberAdministrator - owner always has all permissions"
+    },
+    {
+      "priority": 1,
+      "file": "src/core/services/publication_service.py",
+      "issue": "channel.telegram_id Optional not guarded",
+      "fix": "Add None check before using telegram_id in bot methods"
+    },
+    {
+      "priority": 1,
+      "file": "src/core/services/publication_service.py",
+      "issue": "PlacementStatus.COMPLETED doesn't exist",
+      "fix": "Check PlacementStatus enum - use correct status value"
+    },
+    {
+      "priority": 2,
+      "file": "src/core/services/placement_request_service.py",
+      "issue": "type: ignore comments have invalid syntax",
+      "fix": "Move type: ignore to end of line after function call, not before arguments"
+    },
+    {
+      "priority": 2,
+      "file": "src/core/services/placement_request_service.py",
+      "issue": "_notify_* functions lack type annotations",
+      "fix": "Add proper type annotations to all _notify_* functions OR add module-level type: ignore"
+    },
+    {
+      "priority": 2,
+      "file": "src/core/services/placement_request_service.py",
+      "issue": "return-value errors - functions may return None",
+      "fix": "Add None guards before return statements"
+    }
+  ],
+  "notes": [
+    "Most errors are in files outside the 4 target files (channel_settings.py, placement.py, arbitration.py, billing.py)",
+    "payout_service.py and publication_tasks.py have 0 errors - they are clean",
+    "The 6 errors in publication_service.py are all CRITICAL runtime risks",
+    "The 15 errors in placement_request_service.py are mostly syntax errors from P17's type: ignore attempts",
+    "7 type: ignore comments added by P17 have invalid syntax - placed before function arguments instead of at end of line",
+    "_notify_* functions need proper type annotations or module-level type: ignore"
+  ]
+}

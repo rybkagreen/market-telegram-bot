@@ -63,10 +63,19 @@ class PublicationService:
         can_delete = False
         can_pin = False
 
-        if isinstance(member, ChatMemberAdministrator | ChatMemberOwner):
+        if isinstance(member, ChatMemberOwner):
+            # Владелец канала всегда имеет все права
+            can_post = True
+            can_delete = True
+            can_pin = True
+        elif isinstance(member, ChatMemberAdministrator):
             can_post = bool(member.can_post_messages)
             can_delete = bool(member.can_delete_messages)
             can_pin = bool(member.can_pin_messages) if require_pin else True
+        else:
+            raise InsufficientPermissionsError(
+                'Бот не является администратором канала'
+            )
 
         if not can_post:
             raise InsufficientPermissionsError("Нет права публиковать сообщения")
@@ -192,6 +201,10 @@ class PublicationService:
                 logger.warning(f"Channel not found for placement {placement_id}")
                 return
 
+            if channel.telegram_id is None:
+                logger.error('Channel %s has no telegram_id, cannot delete post', channel.id)
+                raise ValueError(f'Channel {channel.id} has no telegram_id')
+
             # Для pin форматов — сначала открепить
             if placement.publication_format in ("pin_24h", "pin_48h"):
                 with suppress(TelegramBadRequest):
@@ -208,7 +221,7 @@ class PublicationService:
             placement_repo = PlacementRequestRepo(session)
             await placement_repo.mark_deleted(session, placement_id)
 
-            placement.status = PlacementStatus.COMPLETED
+            placement.status = PlacementStatus.PUBLISHED
             placement.deleted_at = datetime.now(UTC)
 
             # КЛЮЧЕВОЙ МОМЕНТ: освободить эскроу ТОЛЬКО после успешного удаления
