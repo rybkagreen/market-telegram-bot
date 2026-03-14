@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import ChatMemberAdministrator, ChatMemberOwner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.payments import FORMAT_DURATIONS_SECONDS
@@ -57,13 +58,23 @@ class PublicationService:
         if member.status not in ("administrator", "creator"):
             raise BotNotAdminError(f"Бот не является администратором канала {chat_id}")
 
-        if not member.can_post_messages:
+        # Check permissions with type guards for union types
+        can_post = False
+        can_delete = False
+        can_pin = False
+
+        if isinstance(member, ChatMemberAdministrator | ChatMemberOwner):
+            can_post = bool(member.can_post_messages)
+            can_delete = bool(member.can_delete_messages)
+            can_pin = bool(member.can_pin_messages) if require_pin else True
+
+        if not can_post:
             raise InsufficientPermissionsError("Нет права публиковать сообщения")
 
-        if not member.can_delete_messages:
+        if not can_delete:
             raise InsufficientPermissionsError("Нет права удалять сообщения")
 
-        if require_pin and not member.can_pin_messages:
+        if require_pin and not can_pin:
             raise InsufficientPermissionsError("Нет права закреплять сообщения")
 
     async def publish_placement(
@@ -92,6 +103,9 @@ class PublicationService:
             channel = placement.channel
             if not channel:
                 raise ValueError(f"Channel not found for placement {placement_id}")
+
+            if channel.telegram_id is None:
+                raise ValueError(f"Channel {channel.id} has no telegram_id")
 
             require_pin = placement.publication_format in ("pin_24h", "pin_48h")
 
