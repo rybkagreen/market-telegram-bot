@@ -150,6 +150,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ruff check**: 0 errors
 - **All imports**: Successful
 
+#### P11 - Celery Tasks (publication, SLA, reputation)
+- **Verified** publication_tasks.py (146 lines):
+  - `publish_placement`: Retry 3x, 1h countdown
+  - `delete_published_post`: Retry 3x, 5min countdown
+  - `unpin_and_delete_post`: For pin formats
+  - `check_scheduled_deletions`: Beat task (every 5 min)
+- **Verified** placement_tasks.py, mailing_tasks.py (SLA integrated)
+- **Verified** reputation_service.py (recovery/ban expiration methods)
+- **Verified** ESCROW-001: `release_escrow()` NOT in tasks/ (only in publication_service.delete_published_post)
+- **Ruff check**: 0 errors
+- **All imports**: Successful
+
 ---
 
 ## [v4.2] - 2026-03-13
