@@ -31,6 +31,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests**: 17 unit tests for billing calculations
 - **Total P02 tests**: 39 passed, 0 failed
 
+#### P03 - PlacementRequestService + PublicationService + ReputationService
+- **Fixed** 8 ruff errors (SIM102, SIM103, SIM108, SIM110) in services:
+  - `placement_request_service.py`: 2 fixes (nested if, for loop)
+  - `reputation_service.py`: 6 fixes (nested if, ternary operator)
+- **Verified** ESCROW-001: `release_escrow()` ONLY in `delete_published_post()`
+- **Verified** self-dealing prevention in `create_request()`
+- **Verified** format multipliers: post_24h=1.0, post_48h=1.4, post_7d=2.0, pin_24h=3.0, pin_48h=4.0
+- **Verified** reputation system:
+  - Score range: [0.0, 10.0], SCORE_AFTER_BAN = 2.0
+  - Ban duration: 7 days, PERMANENT_BAN_VIOLATIONS = 5
+  - Deltas: publication=+1, review_5star=+2, cancel_after=-20, reject_invalid_3=-20
+- **Tests**: 22 unit tests for placement services
+- **Total P03 tests**: 22 passed, 0 failed
+
 ---
 
 ## [v4.2] - 2026-03-13

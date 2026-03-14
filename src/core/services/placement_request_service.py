@@ -185,12 +185,13 @@ class PlacementRequestService:
 
         # Проверка 1: advertiser не заблокирован
         rep_score = await self.reputation_repo.get_by_user(advertiser_id)
-        if rep_score and rep_score.is_advertiser_blocked:
-            if (
-                rep_score.advertiser_blocked_until
-                and rep_score.advertiser_blocked_until > datetime.now(UTC)
-            ):
-                raise ValueError("Advertiser is blocked")
+        if (
+            rep_score
+            and rep_score.is_advertiser_blocked
+            and rep_score.advertiser_blocked_until
+            and rep_score.advertiser_blocked_until > datetime.now(UTC)
+        ):
+            raise ValueError("Advertiser is blocked")
 
         # Проверка 2: цена >= минимальной
         if proposed_price < PlacementRequest.MIN_PRICE_PER_POST:
@@ -757,11 +758,9 @@ class PlacementRequestService:
             r"^([0-9])\1{4,}$",  # 5+ одинаковых цифр
         ]
 
-        for pattern in meaningless_patterns:
-            if re.match(pattern, reason, re.IGNORECASE):
-                return False
-
-        return True
+        return all(
+            not re.match(pattern, reason, re.IGNORECASE) for pattern in meaningless_patterns
+        )
 
     # ══════════════════════════════════════════════════════════════
     # S-08: PlacementRequestService v4.2 — новые методы
