@@ -144,16 +144,15 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     if current_user.plan_expires_at:
         expires_str = current_user.plan_expires_at.isoformat()
 
-    # Добавляем примерные суммы в USDT к каждому пакету
+    # v4.2: ЮKassa only — USDT конвертация удалена
+    # Добавляем total_credits к каждому пакету
     packages_with_price: list[dict[str, Any]] = []
     for pkg in CREDIT_PACKAGES:
         total = int(str(pkg["credits"])) + int(str(pkg["bonus"]))
-        usdt = round(total / settings.credits_per_usdt, 2)
         packages_with_price.append(
             {
                 **pkg,
                 "total_credits": total,
-                "usdt_approx": usdt,
             }
         )
 
@@ -305,8 +304,6 @@ async def create_stars_invoice(
     Создать Telegram Stars инвойс.
     Возвращает invoice_link для открытия через Telegram.
     """
-    from aiogram import Bot
-    from aiogram.types import LabeledPrice
 
     package = _get_package(body.package_id)
     if not package:
@@ -317,49 +314,12 @@ async def create_stars_invoice(
 
     credits = package["credits"]
     bonus = package["bonus"]
-    total_credits = credits + bonus
+    credits + bonus
 
-    # Считаем количество Stars
-    stars_amount = max(1, round(total_credits / settings.credits_per_star))
-
-    # Создаём инвойс через Telegram Bot API
-    try:
-        bot = Bot(token=settings.bot_token)
-        invoice_link = await bot.create_invoice_link(
-            title=f"Market Bot — {package['label']}",
-            description=f"{total_credits} кредитов" + (f" (+{bonus} бонус)" if bonus else ""),
-            payload=f"miniapp_stars:{current_user.id}:{body.package_id}",
-            currency="XTR",
-            prices=[LabeledPrice(label="Кредиты", amount=stars_amount)],
-        )
-        await bot.session.close()
-    except Exception as e:
-        logger.error(f"Stars invoice error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to create Stars invoice",
-        ) from e
-
-    # Сохраняем pending платёж
-    async with async_session_factory() as session:
-        payment = CryptoPayment(
-            user_id=current_user.id,
-            method=PaymentMethod.STARS,
-            invoice_id=f"stars_{current_user.id}_{body.package_id}",
-            stars_amount=stars_amount,
-            credits=credits,
-            bonus_credits=bonus,
-            status=PaymentStatus.PENDING,
-            payload={"package_id": body.package_id},
-        )
-        session.add(payment)
-        await session.commit()
-
-    return StarsTopupResponse(
-        invoice_link=invoice_link,
-        credits=credits,
-        bonus_credits=bonus,
-        stars_amount=stars_amount,
+    # v4.2: Stars удалены — возвращаем ошибку
+    raise HTTPException(
+        status_code=400,
+        detail="Telegram Stars не поддерживаются. Используйте ЮKassa."
     )
 
 

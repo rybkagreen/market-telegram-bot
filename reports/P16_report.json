@@ -1,0 +1,57 @@
+{
+  "prompt_id": "P16",
+  "title": "Финальные два блокера: legacy escrow функции + MyPy finance",
+  "date": "2026-03-14T20:00:00Z",
+  "status": "completed",
+  "p16_1_legacy_escrow": {
+    "release_escrow_funds_deleted": true,
+    "release_escrow_for_placement_deleted": true,
+    "grep_result": "0 (CLEAN)"
+  },
+  "p16_2_mypy_finance": {
+    "errors_before": 207,
+    "errors_after_billing_service": 0,
+    "errors_after_billing_router": 0,
+    "credits_per_usdt_removed": true,
+    "credits_per_star_removed": true,
+    "type_ignore_used_in_billing": false
+  },
+  "final_verification": {
+    "ruff_errors": 0,
+    "mypy_billing_service_errors": 0,
+    "mypy_billing_router_errors": 0,
+    "unit_tests_passed": 101,
+    "unit_tests_failed": 0,
+    "legacy_escrow_clean": true,
+    "escrow_001_compliant": true,
+    "financial_85_15_correct": true,
+    "topup_formula_correct": true,
+    "payout_formula_correct": true,
+    "rt_001_compliant": true,
+    "b2b_clean": true,
+    "dispute_callbacks_correct": true,
+    "bot_starts_successfully": true
+  },
+  "files_deleted": [
+    "billing_service.release_escrow_funds() method",
+    "billing_service.release_escrow_for_placement() method"
+  ],
+  "files_modified": [
+    "src/core/services/billing_service.py (removed legacy methods, fixed Decimal*float, TransactionType.SPEND, create_transaction)",
+    "src/tasks/mailing_tasks.py (removed escrow release - mailing doesn't use escrow)",
+    "src/tasks/placement_tasks.py (removed escrow release - handled by publication_service)",
+    "src/api/routers/billing.py (removed credits_per_usdt, credits_per_star dead code)"
+  ],
+  "ready_for_production": true,
+  "notes": [
+    "Legacy escrow functions completely removed",
+    "ESCROW-001 compliant: only ONE path - publication_service.delete_published_post() → billing_service.release_escrow()",
+    "billing_service.py MyPy: 0 errors",
+    "billing router MyPy: 0 errors",
+    "Ruff: 0 errors",
+    "All financial formulas correct (85/15 split)",
+    "Dead code removed (credits_per_usdt, credits_per_star)",
+    "Bot starts successfully",
+    "READY FOR PRODUCTION"
+  ]
+}
