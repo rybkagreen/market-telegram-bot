@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-async def _notify_create_request(placement, advertiser, owner, channel):
+async def _notify_create_request(
+    placement: PlacementRequest,
+    advertiser: User,
+    owner: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление о новой заявке."""
     try:
         from src.bot.handlers.shared.notifications import notify_new_request
@@ -40,7 +45,11 @@ async def _notify_create_request(placement, advertiser, owner, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_owner_accept(placement, advertiser, channel):
+async def _notify_owner_accept(
+    placement: PlacementRequest,
+    advertiser: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление о принятии заявки владельцем."""
     try:
         from src.bot.handlers.shared.notifications import notify_owner_accepted
@@ -50,7 +59,11 @@ async def _notify_owner_accept(placement, advertiser, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_counter_offer(placement, advertiser, channel):
+async def _notify_counter_offer(
+    placement: PlacementRequest,
+    advertiser: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление о контр-предложении."""
     try:
         from src.bot.handlers.shared.notifications import notify_counter_offer
@@ -60,7 +73,12 @@ async def _notify_counter_offer(placement, advertiser, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_counter_accepted(placement, advertiser, owner, channel):
+async def _notify_counter_accepted(
+    placement: PlacementRequest,
+    advertiser: User,
+    owner: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление о принятии контр-предложения."""
     try:
         from src.bot.handlers.shared.notifications import notify_counter_accepted
@@ -72,7 +90,12 @@ async def _notify_counter_accepted(placement, advertiser, owner, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_payment_received(placement, advertiser, owner, channel):
+async def _notify_payment_received(
+    placement: PlacementRequest,
+    advertiser: User,
+    owner: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление о получении оплаты."""
     try:
         from src.bot.handlers.shared.notifications import notify_payment_received
@@ -84,7 +107,11 @@ async def _notify_payment_received(placement, advertiser, owner, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_rejected(placement, advertiser, channel):
+async def _notify_rejected(
+    placement: PlacementRequest,
+    advertiser: User,
+    channel: TelegramChat,
+) -> None:
     """Отправить уведомление об отклонении заявки."""
     try:
         from src.bot.handlers.shared.notifications import notify_rejected
@@ -94,7 +121,13 @@ async def _notify_rejected(placement, advertiser, channel):
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
-async def _notify_cancelled(placement, advertiser, owner, channel, reputation_delta=0.0):
+async def _notify_cancelled(
+    placement: PlacementRequest,
+    advertiser: User,
+    owner: User,
+    channel: TelegramChat,
+    reputation_delta: float = 0.0,
+) -> None:
     """Отправить уведомление об отмене заявки."""
     try:
         from src.bot.handlers.shared.notifications import notify_cancelled
@@ -217,7 +250,7 @@ class PlacementRequestService:
         owner = await self.session.get(User, channel.owner_user_id)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser:
-            await _notify_create_request(placement, advertiser, owner, channel)  # type: ignore[no-untyped-call]
+            await _notify_create_request(placement, advertiser, owner, channel)
 
         return placement
 
@@ -277,10 +310,12 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser and result:
-            await _notify_owner_accept  # type: ignore[no-untyped-call](result, advertiser, channel)
+            await _notify_owner_accept(result, advertiser, channel)
 
         if result is None:
             raise ValueError(f"PlacementRequest {placement_id} not found")
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def owner_reject(
@@ -347,8 +382,10 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser and result:
-            await _notify_rejected  # type: ignore[no-untyped-call](result, advertiser, channel)
+            await _notify_rejected(result, advertiser, channel)
 
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def owner_counter_offer(
@@ -409,7 +446,7 @@ class PlacementRequestService:
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser:
-            await _notify_counter_offer  # type: ignore[no-untyped-call](result, advertiser, channel)
+            await _notify_counter_offer(result, advertiser, channel)
 
         return result
 
@@ -452,8 +489,10 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_counter_accepted  # type: ignore[no-untyped-call](result, advertiser, owner, channel)
+            await _notify_counter_accepted(result, advertiser, owner, channel)
 
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def advertiser_cancel(
@@ -546,8 +585,10 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_cancelled  # type: ignore[no-untyped-call](result, advertiser, owner, channel, delta)
+            await _notify_cancelled(result, advertiser, owner, channel, 0.0)
 
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def process_payment(
@@ -602,8 +643,10 @@ class PlacementRequestService:
         )
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
-            await _notify_payment_received  # type: ignore[no-untyped-call](result, advertiser, owner, channel)
+            await _notify_payment_received(result, advertiser, owner, channel)
 
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def process_publication_success(
@@ -646,6 +689,8 @@ class PlacementRequestService:
 
         # Уведомления отправляются в placement_tasks.py
 
+        if result is None:
+            raise ValueError('PlacementRequest not found')
         return result
 
     async def process_publication_failure(
@@ -671,7 +716,7 @@ class PlacementRequestService:
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
             final_price = placement.final_price or placement.proposed_price
-            owner_id = placement.channel.owner_user_id if placement.channel else 0
+            owner_id = (placement.channel.owner_user_id if placement.channel else 0) or 0
             await self.billing_service.refund_escrow(
                 session=self.session,
                 placement_id=placement_id,
@@ -688,10 +733,13 @@ class PlacementRequestService:
         )
 
         # Статус refunded
-        return await self.placement_repo.update_status(
+        result = await self.placement_repo.update_status(
             placement_id=placement_id,
             status=PlacementStatus.REFUNDED,
         )
+        if result is None:
+            raise ValueError('PlacementRequest not found')
+        return result
 
     async def auto_expire(self, placement_id: int) -> PlacementRequest:
         """
@@ -712,7 +760,7 @@ class PlacementRequestService:
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
             final_price = placement.final_price or placement.proposed_price
-            owner_id = placement.channel.owner_user_id if placement.channel else 0
+            owner_id = (placement.channel.owner_user_id if placement.channel else 0) or 0
             await self.billing_service.refund_escrow(
                 session=self.session,
                 placement_id=placement_id,
@@ -723,10 +771,13 @@ class PlacementRequestService:
             )
 
         # Отменяем
-        return await self.placement_repo.reject(
+        result = await self.placement_repo.reject(
             placement_id=placement_id,
             rejection_reason="Expired",
         )
+        if result is None:
+            raise ValueError('PlacementRequest not found')
+        return result
 
     def validate_rejection_reason(self, reason: str) -> bool:
         """
