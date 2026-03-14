@@ -1,30 +1,12 @@
-"""FSM состояния для хэндлеров владельца канала."""
+"""
+FSM States для добавления канала владельцем.
+"""
 
 from aiogram.fsm.state import State, StatesGroup
 
 
-class AddChannelStates(StatesGroup):
-    """Состояния мастера добавления канала."""
+class ChannelOwnerStates(StatesGroup):
+    """Состояния для добавления/редактирования канала."""
 
-    waiting_username = State()  # ожидаем @username канала
-    waiting_bot_admin_confirmation = State()  # НОВОЕ: подтверждение что бот добавлен админом
-    waiting_price = State()  # ожидаем цену за пост
-    waiting_topics = State()  # ожидаем выбор тематик
-    waiting_settings = State()  # НОВОЕ: настройки размещения
-    waiting_confirm = State()  # НОВОЕ: подтверждение добавления
-
-
-class EditChannelStates(StatesGroup):
-    """Состояния редактирования настроек канала."""
-
-    waiting_new_price = State()  # ввод новой цены
-    choosing_topics = State()  # выбор тематик
-
-
-class PayoutRequestStates(StatesGroup):
-    """Состояния запроса выплаты."""
-
-    selecting_channel = State()  # выбор канала для выплаты
-    selecting_method = State()  # выбор USDT / TON
-    entering_address = State()  # ввод адреса кошелька
-    confirming = State()  # подтверждение выплаты
+    entering_username = State()  # ввод username канала
+    confirming_add = State()  # подтверждение добавления канала
