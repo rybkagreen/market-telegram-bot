@@ -1,0 +1,30 @@
+.sectionTitle {
+  font-size: var(--rh-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-4) 0 var(--rh-space-2);
+}
+
+.channelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rh-space-2) 0;
+  border-bottom: 1px solid var(--rh-border);
+}
+
+.channelRow:last-child {
+  border-bottom: none;
+}
+
+.channelName {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+}
+
+.channelReach {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-text-primary);
+}

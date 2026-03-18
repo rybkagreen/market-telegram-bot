@@ -1,0 +1,27 @@
+.card {
+  margin-bottom: var(--rh-space-3);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  padding: var(--rh-space-2) 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+}
+
+.value {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-text-primary);
+}

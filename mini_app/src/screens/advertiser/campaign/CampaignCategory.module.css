@@ -1,0 +1,5 @@
+.hint {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-3) 0 var(--rh-space-4);
+}

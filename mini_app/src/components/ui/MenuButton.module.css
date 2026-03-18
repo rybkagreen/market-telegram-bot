@@ -1,0 +1,70 @@
+.button {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-3) var(--rh-space-4);
+  background: var(--rh-glass-bg);
+  backdrop-filter: blur(var(--rh-glass-blur));
+  -webkit-backdrop-filter: blur(var(--rh-glass-blur));
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-lg);
+  min-height: 64px;
+  height: auto; /* ДОБАВЛЕНО (UX-P1): разрешает расширение при длинном контенте */
+  transition:
+    background var(--rh-transition-fast),
+    border-color var(--rh-transition-fast),
+    transform var(--rh-transition-fast);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.button:hover  { background: var(--rh-accent-muted); border-color: var(--rh-accent); transform: translateX(2px); }
+.button:active { transform: scale(0.98); }
+
+.back { background: transparent; }
+
+.iconWrap {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rh-radius-md);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* ИЗМЕНЕНО (UX-P1): добавлен flex column layout для вертикального выравнивания */
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.title {
+  font-size: var(--rh-text-base);
+  font-weight: var(--rh-weight-medium);
+  color: var(--rh-text-primary);
+  line-height: var(--rh-leading-tight); /* ДОБАВЛЕНО (UX-P1): 1.2 */
+}
+
+.subtitle {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  line-height: var(--rh-leading-normal); /* ДОБАВЛЕНО (UX-P1): 1.5 */
+}
+
+.right { display: flex; align-items: center; gap: var(--rh-space-2); margin-left: auto; flex-shrink: 0; }
+
+.badge {
+  font-size: var(--rh-text-xs);
+  font-weight: var(--rh-weight-semibold);
+  background: var(--rh-danger);
+  color: var(--rh-accent-text);
+  padding: 2px var(--rh-space-2);
+  border-radius: var(--rh-radius-full);
+}
+
+.chevron { color: var(--rh-text-tertiary); font-size: 18px; }

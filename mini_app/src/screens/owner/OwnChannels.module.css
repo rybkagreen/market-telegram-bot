@@ -1,0 +1,72 @@
+.addButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--rh-space-4);
+  border: 2px dashed var(--rh-border-active);
+  border-radius: var(--rh-radius-lg);
+  background: transparent;
+  color: var(--rh-accent);
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: var(--rh-space-3);
+  transition: background 0.15s;
+}
+
+.addButton:active {
+  background: var(--rh-accent-muted);
+}
+
+/* ДОБАВЛЕНО (UX-P2): Стили для кнопки обновления */
+.refreshButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--rh-space-3);
+  margin-bottom: var(--rh-space-3); /* ОТСТУП от списка каналов */
+  background: var(--rh-glass-bg);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-lg);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  font-weight: var(--rh-weight-semibold);
+  cursor: pointer;
+  transition: background var(--rh-transition-fast);
+}
+
+.refreshButton:active {
+  background: var(--rh-accent-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+}
+
+.channelItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.channelMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--rh-space-1);
+}
+
+.metaMuted {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-muted);
+}
+
+.metaEarned {
+  font-size: var(--rh-text-xs);
+  font-weight: 600;
+  color: var(--rh-success);
+}

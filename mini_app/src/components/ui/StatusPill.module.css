@@ -1,0 +1,25 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--rh-radius-full);
+  font-weight: var(--rh-weight-semibold);
+}
+
+.md {
+  padding: 4px 10px;
+  font-size: var(--rh-text-xs);
+  line-height: var(--rh-leading-normal); /* ДОБАВЛЕНО (UX-P2): 1.5 */
+}
+
+.sm {
+  padding: 4px var(--rh-space-2); /* ИЗМЕНЕНО (UX-P2): было 2px */
+  font-size: 10px;
+  line-height: 1; /* ДОБАВЛЕНО (UX-P2) */
+}
+
+.success { background: var(--rh-success-muted);  color: var(--rh-success);  }
+.warning { background: var(--rh-warning-muted);  color: var(--rh-warning);  }
+.danger  { background: var(--rh-danger-muted);   color: var(--rh-danger);   }
+.info    { background: var(--rh-accent-muted);   color: var(--rh-accent);   }
+.purple  { background: var(--rh-accent-2-muted); color: var(--rh-accent-2); }
+.neutral { background: var(--rh-bg-elevated);    color: var(--rh-text-secondary); }

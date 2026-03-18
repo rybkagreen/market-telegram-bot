@@ -1,87 +1,43 @@
-import { apiClient } from './client'
+import { api } from './client'
+import type { Channel, ChannelSettings } from '@/lib/types'
 
-export interface TopChannelItem {
-  id: number
-  title: string
-  username: string | null
-  subscribers: number
+export interface ChannelWithSettings extends Channel {
+  settings: ChannelSettings
 }
 
-export interface CategoryStats {
-  category: string
-  total: number
-  available_by_tariff: Record<string, number>
-  top_channels: TopChannelItem[]
+export function getMyChannels(): Promise<Channel[]> {
+  return api.get('channels/').json<Channel[]>()
 }
 
-export interface TariffStatsItem {
-  tariff: 'free' | 'starter' | 'pro' | 'business'
-  label: string
-  available: number
-  percent_of_total: number
-  premium_count: number
+export function getAvailableChannels(category?: string): Promise<ChannelWithSettings[]> {
+  return api
+    .get('channels/available', { searchParams: category ? { category } : {} })
+    .json<ChannelWithSettings[]>()
 }
 
-export interface DatabaseStats {
-  total_channels: number
-  total_categories: number
-  added_last_7d: number
-  last_updated: string
-  tariff_stats: TariffStatsItem[]
-  categories: CategoryStats[]
+export function addChannel(data: { username: string }): Promise<Channel> {
+  return api.post('channels/', { json: data }).json<Channel>()
 }
 
-export interface ChannelPreviewItem {
-  id: number
-  title: string
-  username: string | null
-  subscribers: number
-  topic: string | null
-  rating: number | null
-  is_premium: boolean
-  is_accessible: boolean
+export function checkChannel(
+  username: string,
+): Promise<{ valid: boolean; channel_info?: unknown; permissions?: unknown }> {
+  return api
+    .post('channels/check', { json: { username } })
+    .json<{ valid: boolean; channel_info?: unknown; permissions?: unknown }>()
 }
 
-export interface ChannelsPreview {
-  total_accessible: number
-  total_locked: number
-  channels: ChannelPreviewItem[]
+export function deleteChannel(id: number): Promise<void> {
+  return api.delete(`channels/${id}`).json<void>()
 }
 
-export interface ComparisonChannelItem {
-  id: number
-  username: string | null
-  title: string | null
-  member_count: number
-  avg_views: number
-  er: number
-  post_frequency: number
-  price_per_post: number
-  price_per_1k_subscribers: number
-  is_best: Record<string, boolean>
+export function getChannelSettings(id: number): Promise<ChannelSettings> {
+  return api.get(`channels/${id}/settings`).json<ChannelSettings>()
 }
 
-export interface ComparisonRecommendation {
-  channel_id: number
-  channel_name: string
-  reason: string
-}
-
-export interface ComparisonResponse {
-  channels: ComparisonChannelItem[]
-  best_values: Record<string, number>
-  recommendation: ComparisonRecommendation
-}
-
-export const channelsApi = {
-  // Публичный — не требует токена
-  stats: (): Promise<DatabaseStats> =>
-    apiClient.get('/channels/stats').then(r => r.data),
-
-  preview: (params?: { topic?: string; limit?: number }): Promise<ChannelsPreview> =>
-    apiClient.get('/channels/preview', { params }).then(r => r.data),
-
-  // Сравнение каналов
-  compare: (channelIds: number[]): Promise<ComparisonResponse> =>
-    apiClient.post('/channels/compare', { channel_ids: channelIds }),
+export function updateChannelSettings(
+  id: number,
+  data: Partial<ChannelSettings>,
+): Promise<ChannelSettings> {
+  return api.patch(`channels/${id}/settings`, { json: data }).json<ChannelSettings>()
 }

@@ -1,0 +1,37 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.label {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+}
+
+.score {
+  font-family: var(--rh-font-mono);
+  font-size: var(--rh-text-sm);
+  font-weight: var(--rh-weight-bold);
+  color: var(--rh-accent);
+}
+
+.track {
+  height: 6px;
+  border-radius: var(--rh-radius-full);
+  background: var(--rh-bg-elevated);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--rh-radius-full);
+  background: linear-gradient(90deg, var(--rh-accent) 0%, var(--rh-accent-2) 100%);
+  transition: width 0.6s var(--rh-ease-out);
+}

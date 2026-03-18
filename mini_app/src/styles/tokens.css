@@ -1,60 +1,140 @@
+/* ============================================================
+   RekHarbor Design Tokens — Dark Harbor Design System
+   Phase 2 | prefix: --rh-
+   ============================================================ */
+
+/* ---- Dark theme (default) ---- */
 :root {
-  /* ── Фоны ── */
-  --bg-base:       #080B12;
-  --bg-surface:    #0F1521;
-  --bg-elevated:   #162033;
-  --bg-hover:      #1C2840;
+  /* === Telegram theme integration === */
+  --rh-bg-primary:      var(--tg-theme-bg-color, #0b0e14);
+  --rh-bg-secondary:    var(--tg-theme-secondary-bg-color, #111620);
+  --rh-bg-card:         #161b26;
+  --rh-bg-elevated:     #1c2333;
+  --rh-bg-overlay:      rgba(0, 0, 0, 0.6);
 
-  /* ── Акцент — электрический фиолетово-синий ── */
-  --accent-500:    #6366F1;
-  --accent-400:    #818CF8;
-  --accent-600:    #4F46E5;
-  --accent-glow:   rgba(99, 102, 241, 0.25);
+  /* === Borders === */
+  --rh-border:          rgba(255, 255, 255, 0.06);
+  --rh-border-active:   rgba(255, 255, 255, 0.12);
+  --rh-border-focus:    rgba(14, 165, 233, 0.4);
 
-  /* ── Статусы ── */
-  --success:       #10B981;
-  --success-dim:   rgba(16, 185, 129, 0.15);
-  --warning:       #F59E0B;
-  --warning-dim:   rgba(245, 158, 11, 0.15);
-  --danger:        #EF4444;
-  --danger-dim:    rgba(239, 68, 68, 0.15);
-  --info:          #3B82F6;
-  --info-dim:      rgba(59, 130, 246, 0.15);
-  --neutral:       #6B7280;
-  --neutral-dim:   rgba(107, 114, 128, 0.15);
+  /* === Text === */
+  --rh-text-primary:    var(--tg-theme-text-color, #e8ecf4);
+  --rh-text-secondary:  #7a8599;
+  --rh-text-tertiary:   #4a5568;
+  --rh-text-inverse:    #0b0e14;
 
-  /* ── Текст ── */
-  --text-primary:  #F1F5F9;
-  --text-secondary:#94A3B8;
-  --text-muted:    #475569;
-  --text-accent:   #818CF8;
+  /* === Accent (primary) === */
+  --rh-accent:          var(--tg-theme-button-color, #0ea5e9);
+  --rh-accent-hover:    #38bdf8;
+  --rh-accent-muted:    rgba(14, 165, 233, 0.12);
+  --rh-accent-text:     var(--tg-theme-button-text-color, #ffffff);
 
-  /* ── Границы ── */
-  --border:        rgba(148, 163, 184, 0.08);
-  --border-accent: rgba(99, 102, 241, 0.3);
+  /* === Accent 2 (purple/indigo) === */
+  --rh-accent-2:        #6366f1;
+  --rh-accent-2-muted:  rgba(99, 102, 241, 0.12);
 
-  /* ── Шрифты ── */
-  --font-display:  'DM Mono', monospace;
-  --font-body:     'Onest', sans-serif;
+  /* === Semantic colors === */
+  --rh-success:         #10b981;
+  --rh-success-muted:   rgba(16, 185, 129, 0.10);
+  --rh-warning:         #f59e0b;
+  --rh-warning-muted:   rgba(245, 158, 11, 0.10);
+  --rh-danger:          #ef4444;
+  --rh-danger-muted:    rgba(239, 68, 68, 0.10);
+  --rh-info:            #0ea5e9;
+  --rh-info-muted:      rgba(14, 165, 233, 0.08);
 
-  /* ── Скругления ── */
-  --radius-sm:  8px;
-  --radius-md:  12px;
-  --radius-lg:  16px;
-  --radius-xl:  24px;
+  /* === Shadows (dark) === */
+  --rh-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.2);
+  --rh-shadow-md:       0 4px 12px rgba(0, 0, 0, 0.25);
+  --rh-shadow-lg:       0 8px 32px rgba(0, 0, 0, 0.35);
+  --rh-shadow-glow:     0 0 20px rgba(14, 165, 233, 0.15);
 
-  /* ── Тени ── */
-  --shadow-glow: 0 0 32px var(--accent-glow);
+  /* === Glassmorphism === */
+  --rh-glass-bg:        rgba(22, 27, 38, 0.75);
+  --rh-glass-border:    rgba(255, 255, 255, 0.06);
+  --rh-glass-blur:      12px;
+
+  /* === Typography === */
+  --rh-font-display:    'Outfit', system-ui, sans-serif;
+  --rh-font-body:       'DM Sans', system-ui, sans-serif;
+  --rh-font-mono:       'JetBrains Mono', 'Consolas', monospace;
+
+  --rh-text-xs:         11px;
+  --rh-text-sm:         13px;
+  --rh-text-base:       15px;
+  --rh-text-lg:         17px;
+  --rh-text-xl:         20px;
+  --rh-text-2xl:        26px;
+  --rh-text-3xl:        34px;
+
+  --rh-leading-tight:   1.2;
+  --rh-leading-normal:  1.5;
+  --rh-leading-relaxed: 1.7;
+
+  --rh-weight-regular:    400;
+  --rh-weight-medium:     500;
+  --rh-weight-semibold:   600;
+  --rh-weight-bold:       700;
+  --rh-weight-extrabold:  800;
+
+  /* === Spacing (4px grid) === */
+  --rh-space-0:   0;
+  --rh-space-1:   4px;
+  --rh-space-2:   8px;
+  --rh-space-3:   12px;
+  --rh-space-4:   16px;
+  --rh-space-5:   20px;
+  --rh-space-6:   24px;
+  --rh-space-8:   32px;
+  --rh-space-10:  40px;
+  --rh-space-12:  48px;
+  --rh-space-16:  64px;
+
+  /* === Border radius === */
+  --rh-radius-xs:   4px;
+  --rh-radius-sm:   8px;
+  --rh-radius-md:   12px;
+  --rh-radius-lg:   16px;
+  --rh-radius-xl:   20px;
+  --rh-radius-2xl:  24px;
+  --rh-radius-full: 9999px;
+
+  /* === Transitions === */
+  --rh-transition-fast:   150ms ease;
+  --rh-transition-normal: 250ms ease;
+  --rh-transition-slow:   400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* === Z-index scale === */
+  --rh-z-base:      0;
+  --rh-z-card:      10;
+  --rh-z-sticky:    100;
+  --rh-z-dropdown:  500;
+  --rh-z-modal:     1000;
+  --rh-z-toast:     2000;
 }
 
-/* Светлая тема (если Telegram в светлом режиме) */
-[data-theme="light"] {
-  --bg-base:       #F8FAFC;
-  --bg-surface:    #FFFFFF;
-  --bg-elevated:   #F1F5F9;
-  --bg-hover:      #E2E8F0;
-  --text-primary:  #0F172A;
-  --text-secondary:#475569;
-  --text-muted:    #94A3B8;
-  --border:        rgba(15, 23, 42, 0.08);
+/* ---- Light theme overrides ---- */
+[data-theme='light'] {
+  --rh-bg-primary:      var(--tg-theme-bg-color, #f8fafc);
+  --rh-bg-secondary:    var(--tg-theme-secondary-bg-color, #f1f5f9);
+  --rh-bg-card:         #ffffff;
+  --rh-bg-elevated:     #ffffff;
+  --rh-bg-overlay:      rgba(0, 0, 0, 0.3);
+
+  --rh-border:          rgba(0, 0, 0, 0.06);
+  --rh-border-active:   rgba(0, 0, 0, 0.12);
+  --rh-border-focus:    rgba(14, 165, 233, 0.3);
+
+  --rh-text-primary:    var(--tg-theme-text-color, #0f172a);
+  --rh-text-secondary:  #64748b;
+  --rh-text-tertiary:   #94a3b8;
+  --rh-text-inverse:    #f8fafc;
+
+  --rh-glass-bg:        rgba(255, 255, 255, 0.80);
+  --rh-glass-border:    rgba(0, 0, 0, 0.06);
+
+  --rh-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.05);
+  --rh-shadow-md:       0 4px 12px rgba(0, 0, 0, 0.08);
+  --rh-shadow-lg:       0 8px 32px rgba(0, 0, 0, 0.12);
+  --rh-shadow-glow:     0 0 20px rgba(14, 165, 233, 0.08);
 }
