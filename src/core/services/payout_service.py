@@ -1,5 +1,5 @@
 """
-Payout Service — сервис для управления выплатами владельцам каналов.
+PayoutRequest Service — сервис для управления выплатами владельцам каналов.
 Спринт 1 — базовая система учёта выплат (80% от цены поста).
 Реальная интеграция с CryptoBot добавляется в Спринте 1 (Task 1).
 """
@@ -19,20 +19,27 @@ from src.constants.payments import (
     VELOCITY_WINDOW_DAYS,
 )
 from src.core.exceptions import VelocityCheckError
-from src.core.services.cryptobot_service import (
-    InsufficientFundsError,
-    PayoutAPIError,
-    UserNotFoundError,
-    cryptobot_service,
-)
-from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.transaction import TransactionType
 from src.db.models.user import User
 from src.db.repositories.payout_repo import PayoutRepository
-from src.db.repositories.platform_account_repo import PlatformAccountRepo
+from src.db.repositories.platform_account_repo import PlatformAccountRepository
 from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
+
+
+# Локальные exceptions (cryptobot_service удалён в v4.3 — выплаты ручные через admin)
+class InsufficientFundsError(Exception):
+    pass
+
+
+class PayoutAPIError(Exception):
+    pass
+
+
+class UserNotFoundError(Exception):
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +95,9 @@ class PayoutService:
         from sqlalchemy import func, select
 
         async with async_session_factory() as session:
-            stmt = select(func.sum(Payout.amount)).where(
-                Payout.owner_id == owner_user_id,
-                Payout.status == PayoutStatus.PENDING,
+            stmt = select(func.sum(PayoutRequest.gross_amount)).where(
+                PayoutRequest.owner_id == owner_user_id,
+                PayoutRequest.status == PayoutStatus.pending,
             )
             result = await session.execute(stmt)
             balance = result.scalar_one() or Decimal("0")
@@ -101,7 +108,7 @@ class PayoutService:
         owner_user_id: int,
         limit: int = 20,
         offset: int = 0,
-    ) -> list[Payout]:
+    ) -> list[PayoutRequest]:
         """
         Получить список выплат владельца.
 
@@ -117,9 +124,9 @@ class PayoutService:
 
         async with async_session_factory() as session:
             stmt = (
-                select(Payout)
-                .where(Payout.owner_id == owner_user_id)
-                .order_by(Payout.created_at.desc())
+                select(PayoutRequest)
+                .where(PayoutRequest.owner_id == owner_user_id)
+                .order_by(PayoutRequest.created_at.desc())
                 .limit(limit)
                 .offset(offset)
             )
@@ -132,7 +139,7 @@ class PayoutService:
         channel_id: int,
         placement_id: int,
         price_per_post: Decimal,
-    ) -> Payout:
+    ) -> PayoutRequest:
         """
         Создать запись о выплате в статусе pending.
 
@@ -145,25 +152,26 @@ class PayoutService:
             price_per_post: Цена поста в рублях.
 
         Returns:
-            Созданная запись Payout.
+            Созданная запись PayoutRequest.
         """
         payout_amount, platform_fee = self.calculate_payout(price_per_post)
 
         async with async_session_factory() as session:
             # Проверяем что payout ещё не создан для этого placement
-            existing = await session.get(Payout, placement_id)
+            existing = await session.get(PayoutRequest, placement_id)
             if existing:
-                logger.warning(f"Payout already exists for placement {placement_id}")
+                logger.warning(f"PayoutRequest already exists for placement {placement_id}")
                 return existing
 
-            payout = Payout(
+            # Legacy method - uses old model structure
+            # New code should use create_payout instead
+            payout = PayoutRequest(
                 owner_id=owner_user_id,
-                channel_id=channel_id,
-                placement_id=placement_id,
-                amount=payout_amount,
-                platform_fee=platform_fee,
-                currency=PayoutCurrency.RUB,
-                status=PayoutStatus.PENDING,
+                gross_amount=payout_amount,
+                fee_amount=platform_fee,
+                net_amount=payout_amount - platform_fee,
+                status=PayoutStatus.pending,
+                requisites="pending_placement",
             )
 
             session.add(payout)
@@ -181,7 +189,7 @@ class PayoutService:
         Обработать выплату через CryptoBot API.
 
         Шаги:
-        1. Получить Payout из БД по payout_id
+        1. Получить PayoutRequest из БД по payout_id
         2. Проверить статус: только PENDING → обрабатывать
         3. Проверить минимальную сумму
         4. Получить telegram_id владельца из User
@@ -198,15 +206,15 @@ class PayoutService:
         """
         async with async_session_factory() as session:
             # Шаг 1: Получить выплату
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
-                logger.error(f"Payout {payout_id} not found")
-                return {"success": False, "transfer_id": None, "error": "Payout not found"}
+                logger.error(f"PayoutRequest {payout_id} not found")
+                return {"success": False, "transfer_id": None, "error": "PayoutRequest not found"}
 
             # Шаг 2: Проверить статус
-            if payout.status != PayoutStatus.PENDING:
+            if payout.status != PayoutStatus.pending:
                 logger.warning(
-                    f"Payout {payout_id} already processed (status={payout.status.value})"
+                    f"PayoutRequest {payout_id} already processed (status={payout.status.value})"
                 )
                 return {
                     "success": False,
@@ -214,22 +222,14 @@ class PayoutService:
                     "error": f"Already processed: {payout.status.value}",
                 }
 
-            # Шаг 3: Проверить минимальную сумму (конвертируем в USDT для проверки)
+            # Шаг 3: Проверить минимальную сумму
             # Используем MIN_PAYOUT из constants (1000 ₽)
             min_payout_rub = float(MIN_PAYOUT)
-            if payout.currency == PayoutCurrency.USDT:
-                payout_amount = float(payout.amount)
-            elif payout.currency == PayoutCurrency.RUB:
-                # Конвертируем рубли в USDT по курсу ~90
-                usdt_rate = 90
-                payout_amount = float(payout.amount) / usdt_rate
-            else:
-                # Для других валют — прямая конвертация
-                payout_amount = float(payout.amount)
+            payout_amount = float(payout.gross_amount)
 
             if payout_amount < min_payout_rub:
                 logger.warning(
-                    f"Payout {payout_id} amount {payout_amount} < minimum {min_payout_rub}"
+                    f"PayoutRequest {payout_id} amount {payout_amount} < minimum {min_payout_rub}"
                 )
                 return {
                     "success": False,
@@ -255,79 +255,47 @@ class PayoutService:
                     "error": "User has no telegram_id",
                 }
 
-            # Шаг 5: Вызвать CryptoBot API
+            # Шаг 5: v4.3 — выплаты ручные через admin панель
             try:
-                # Определяем валюту для перевода
-                transfer_currency = payout.currency.value
-                if payout.currency == PayoutCurrency.RUB:
-                    # Рубли конвертируем в USDT по курсу ~90
-                    transfer_currency = "USDT"
-                    usdt_rate = 90
-                    transfer_amount = float(payout.amount) / usdt_rate
-                else:
-                    transfer_amount = float(payout.amount)
-
-                # Формируем комментарий
-                channel_username = ""
-                if payout.channel:
-                    channel_username = (
-                        f"@{payout.channel.username}" if payout.channel.username else ""
-                    )
-
-                comment = (
-                    f"Выплата за размещения{' ' + channel_username if channel_username else ''}"
-                )
-
-                # Выполняем перевод
-                transfer_result = await cryptobot_service.send_transfer(
-                    telegram_id=user.telegram_id,
-                    amount=transfer_amount,
-                    currency=transfer_currency,
-                    comment=comment,
-                    disable_notification=False,
-                )
-
-                # Шаг 6: Успех — обновляем статус
-                payout.status = PayoutStatus.PAID
-                payout.tx_hash = transfer_result.get("transfer_id")
-                payout.paid_at = payout.created_at  # Используем created_at как paid_at
-
+                # v4.3: Выплаты ручные — admin одобряет вручную через /admin панель
+                # Статус уже processing, admin переведёт деньги и нажмёт "Одобрить"
+                payout.processed_at = datetime.now(UTC)
                 await session.flush()
 
                 logger.info(
-                    f"Payout {payout_id} completed: {transfer_amount} {transfer_currency} "
-                    f"to user {user.telegram_id} | transfer_id={transfer_result.get('transfer_id')}"
+                    f"PayoutRequest {payout_id} marked processing for manual admin transfer "
+                    f"to user {user.telegram_id}, amount={payout.net_amount}"
                 )
 
                 return {
                     "success": True,
-                    "transfer_id": transfer_result.get("transfer_id"),
+                    "transfer_id": None,
                     "error": None,
                 }
 
             # Шаг 7: Обработка ошибок
             except InsufficientFundsError as e:
-                payout.status = PayoutStatus.FAILED
+                payout.status = PayoutStatus.rejected
                 error_msg = f"Insufficient funds: {str(e)}"
-                logger.error(f"Payout {payout_id} failed: {error_msg}")
+                logger.error(f"PayoutRequest {payout_id} failed: {error_msg}")
 
             except UserNotFoundError as e:
-                payout.status = PayoutStatus.FAILED
+                payout.status = PayoutStatus.rejected
                 error_msg = f"User not found in CryptoBot: {str(e)}"
-                logger.error(f"Payout {payout_id} failed: {error_msg}")
+                logger.error(f"PayoutRequest {payout_id} failed: {error_msg}")
 
             except PayoutAPIError as e:
-                payout.status = PayoutStatus.FAILED
+                payout.status = PayoutStatus.rejected
                 error_msg = f"API error: {str(e)}"
-                logger.error(f"Payout {payout_id} failed: {error_msg}")
+                logger.error(f"PayoutRequest {payout_id} failed: {error_msg}")
 
             except Exception as e:
-                payout.status = PayoutStatus.FAILED
+                payout.status = PayoutStatus.rejected
                 error_msg = f"Unexpected error: {str(e)}"
-                logger.exception(f"Payout {payout_id} failed with unexpected error")
+                logger.exception(f"PayoutRequest {payout_id} failed with unexpected error")
 
             # Записываем ошибку и сохраняем
-            payout.wallet_address = error_msg  # Используем wallet_address для хранения ошибки
+            payout.rejection_reason = error_msg  # Используем wallet_address для хранения ошибки
             await session.flush()
 
             return {
@@ -352,25 +320,24 @@ class PayoutService:
             True если успешно.
         """
         async with async_session_factory() as session:
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
-                logger.error(f"Payout {payout_id} not found")
+                logger.error(f"PayoutRequest {payout_id} not found")
                 return False
 
-            if payout.status not in (PayoutStatus.PENDING, PayoutStatus.PROCESSING):
+            if payout.status not in (PayoutStatus.pending, PayoutStatus.processing):
                 logger.warning(
-                    f"Payout {payout_id} cannot be marked as paid (status={payout.status.value})"
+                    f"PayoutRequest {payout_id} cannot be marked as paid (status={payout.status.value})"
                 )
                 return False
 
-            payout.status = PayoutStatus.PAID
-            payout.paid_at = datetime.now(UTC)
-            if tx_hash:
-                payout.tx_hash = tx_hash
+            payout.status = PayoutStatus.paid
+            payout.processed_at = datetime.now(UTC)
+            # tx_hash field removed in v4.2 - payout uses YooKassa only
 
             await session.flush()
 
-            logger.info(f"Payout {payout_id} marked as paid")
+            logger.info(f"PayoutRequest {payout_id} marked as paid")
             return True
 
     async def cancel_payout(self, payout_id: int) -> bool:
@@ -384,19 +351,19 @@ class PayoutService:
             True если успешно.
         """
         async with async_session_factory() as session:
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
-                logger.error(f"Payout {payout_id} not found")
+                logger.error(f"PayoutRequest {payout_id} not found")
                 return False
 
-            if payout.status == PayoutStatus.PAID:
-                logger.warning(f"Payout {payout_id} already paid, cannot cancel")
+            if payout.status == PayoutStatus.paid:
+                logger.warning(f"PayoutRequest {payout_id} already paid, cannot cancel")
                 return False
 
-            payout.status = PayoutStatus.CANCELLED
+            payout.status = PayoutStatus.cancelled
             await session.flush()
 
-            logger.info(f"Payout {payout_id} cancelled")
+            logger.info(f"PayoutRequest {payout_id} cancelled")
             return True
 
     # ─────────────────────────────────────────────
@@ -408,7 +375,7 @@ class PayoutService:
         owner_id: int,
         amount: Decimal,
         placement_request_id: int,
-    ) -> Payout:
+    ) -> PayoutRequest:
         """
         Создать запрос на выплату для владельца после публикации.
 
@@ -422,12 +389,12 @@ class PayoutService:
             placement_request_id: ID заявки.
 
         Returns:
-            Payout объект.
+            PayoutRequest объект.
 
         Raises:
             ValueError: Если amount < MIN_PAYOUT или owner заблокирован.
         """
-        from src.db.models.payout import Payout, PayoutCurrency, PayoutStatus
+        from src.db.models.payout import PayoutRequest, PayoutStatus
 
         # Проверка 1: amount >= MIN_PAYOUT
         if amount < MIN_PAYOUT:
@@ -449,17 +416,14 @@ class PayoutService:
                 raise ValueError("Owner is blocked")
 
         # Создаём payout
-        payout = Payout(
+        fee_amount = amount * Decimal("0.25")  # 20% комиссия
+        payout = PayoutRequest(
             owner_id=owner_id,
-            channel_id=0,  # Будет установлено из placement_request
-            placement_id=None,  # placement_request_id не FK на mailing_logs
-            amount=amount,
-            platform_fee=amount * Decimal("0.25"),  # 20% комиссия
-            currency=PayoutCurrency.USDT,
-            status=PayoutStatus.PENDING,
-            wallet_address=None,
-            tx_hash=None,
-            paid_at=None,
+            gross_amount=amount,
+            fee_amount=fee_amount,
+            net_amount=amount - fee_amount,
+            status=PayoutStatus.pending,
+            requisites=f"placement_{placement_request_id}",
         )
 
         async with async_session_factory() as session:
@@ -467,7 +431,7 @@ class PayoutService:
             await session.flush()
 
             logger.info(
-                f"Payout request created: {amount} USDT for owner {owner_id}, placement {placement_request_id}"
+                f"PayoutRequest request created: {amount} USDT for owner {owner_id}, placement {placement_request_id}"
             )
 
             return payout
@@ -495,12 +459,12 @@ class PayoutService:
         """
         # topups_30d = await transaction_repo.sum_topups_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         txn_repo = TransactionRepository(session)
-        topups_30d = await txn_repo.sum_topups_window(session, user_id, VELOCITY_WINDOW_DAYS)
+        topups_30d = await txn_repo.sum_topups_30d(user_id)
 
         # payouts_30d = await payout_repo.sum_completed_payouts_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         payout_repo = PayoutRepository(session)
         payouts_30d = await payout_repo.sum_completed_payouts_window(
-            session, user_id, VELOCITY_WINDOW_DAYS
+            user_id, VELOCITY_WINDOW_DAYS
         )
 
         if topups_30d == Decimal("0"):
@@ -521,7 +485,7 @@ class PayoutService:
         session: AsyncSession,
         user_id: int,
         gross_amount: Decimal,
-    ) -> Payout:
+    ) -> PayoutRequest:
         """
         Создать заявку на выплату.
 
@@ -555,7 +519,7 @@ class PayoutService:
 
             # Проверить нет ли активной заявки
             payout_repo = PayoutRepository(session)
-            active = await payout_repo.get_active_payout(session, user_id)
+            active = await payout_repo.get_active_for_owner(user_id)
             if active:
                 raise ValueError("У вас уже есть активная заявка на вывод")
 
@@ -572,41 +536,33 @@ class PayoutService:
             user.earned_rub -= gross_amount
 
             # platform_account: payout_reserved += gross_amount, profit_accumulated += fee_amount
-            platform_repo = PlatformAccountRepo(session)
+            platform_repo = PlatformAccountRepository(session)
             await platform_repo.add_to_payout_reserved(session, gross_amount)
             await platform_repo.add_to_profit(session, fee_amount)
 
             # Transaction(type=REFUND, amount=gross_amount, user_id=user_id)
             txn_repo = TransactionRepository(session)
-            await txn_repo.create_transaction(
-                user_id=user_id,
-                amount=gross_amount,
-                transaction_type=TransactionType.REFUND,
-                meta_json={"type": "payout_request", "gross_amount": str(gross_amount)},
+            await txn_repo.create(
+                {"user_id": user_id, "type": TransactionType.refund_full, "amount": gross_amount, "meta_json": {"type": "payout_request", "gross_amount": str(gross_amount)}},
             )
 
             # Transaction(type=PAYOUT_FEE, amount=fee_amount, user_id=user_id)
-            await txn_repo.create_payout_fee(session, user_id, fee_amount, payout_id=0)
+            await txn_repo.create({"user_id": user_id, "type": TransactionType.payout_fee, "amount": fee_amount, "payout_id": 0})
 
             # Создать PayoutRequest(gross=gross_amount, fee=fee_amount, net=net_amount, status='pending')
-            payout = Payout(
+            payout = PayoutRequest(
                 owner_id=user_id,
-                channel_id=0,
-                placement_id=None,
                 gross_amount=gross_amount,
                 fee_amount=fee_amount,
                 net_amount=net_amount,
-                currency=PayoutCurrency.RUB,
-                status=PayoutStatus.PENDING,
-                wallet_address=None,
-                tx_hash=None,
-                paid_at=None,
+                status=PayoutStatus.pending,
+                requisites="payout_request",
             )
             session.add(payout)
             await session.flush()
 
             logger.info(
-                f"Payout created: gross={gross_amount} ₽, fee={fee_amount} ₽, "
+                f"PayoutRequest created: gross={gross_amount} ₽, fee={fee_amount} ₽, "
                 f"net={net_amount} ₽ for user {user_id}"
             )
 
@@ -625,25 +581,25 @@ class PayoutService:
             payout_id: ID заявки на выплату.
         """
         async with session.begin():
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
-                raise ValueError(f"Payout {payout_id} not found")
+                raise ValueError(f"PayoutRequest {payout_id} not found")
 
-            payout.status = PayoutStatus.PAID
-            payout.paid_at = datetime.now(UTC)
+            payout.status = PayoutStatus.paid
+            payout.processed_at = datetime.now(UTC)
 
             # complete_payout: gross_amount and net_amount are required
             if payout.gross_amount is None or payout.net_amount is None:
-                raise ValueError(f"Payout {payout_id} missing gross_amount or net_amount")
+                raise ValueError(f"PayoutRequest {payout_id} missing gross_amount or net_amount")
 
             # platform_account_repo.complete_payout(session, gross_amount=payout.gross_amount, net_amount=payout.net_amount)
-            platform_repo = PlatformAccountRepo(session)
+            platform_repo = PlatformAccountRepository(session)
             await platform_repo.complete_payout(session, payout.gross_amount, payout.net_amount)
 
             await session.flush()
 
             logger.info(
-                f"Payout {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"
+                f"PayoutRequest {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"
             )
 
     async def reject_payout(
@@ -661,15 +617,15 @@ class PayoutService:
             reason: Причина отклонения.
         """
         async with session.begin():
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
-                raise ValueError(f"Payout {payout_id} not found")
+                raise ValueError(f"PayoutRequest {payout_id} not found")
 
-            gross_amount = payout.gross_amount or payout.amount
+            gross_amount = payout.gross_amount or payout.gross_amount
             fee_amount = payout.fee_amount or Decimal("0")
 
-            payout.status = PayoutStatus.CANCELLED
-            payout.wallet_address = reason  # Используем для хранения причины
+            payout.status = PayoutStatus.cancelled
+            payout.rejection_reason = reason  # Используем для хранения причины
 
             # UPDATE users SET earned_rub = earned_rub + gross_amount WHERE id = user_id
             user_repo = UserRepository(session)
@@ -678,7 +634,7 @@ class PayoutService:
                 user.earned_rub += gross_amount
 
             # platform_account: payout_reserved -= gross_amount, profit_accumulated -= fee_amount
-            platform_repo = PlatformAccountRepo(session)
+            platform_repo = PlatformAccountRepository(session)
             # Для упрощения: вызываем add_to_payout_reserved с отрицательным значением
             # и add_to_profit с отрицательным
             await platform_repo.add_to_payout_reserved(session, -gross_amount)
@@ -687,16 +643,13 @@ class PayoutService:
 
             # Transaction(type=REFUND_FULL, amount=gross_amount)
             txn_repo = TransactionRepository(session)
-            await txn_repo.create_transaction(
-                user_id=payout.owner_id,
-                amount=gross_amount,
-                transaction_type=TransactionType.REFUND,
-                meta_json={"type": "payout_rejected", "reason": reason},
+            await txn_repo.create(
+                {"user_id": payout.owner_id, "type": TransactionType.refund_full, "amount": gross_amount, "meta_json": {"type": "payout_rejected", "reason": reason}},
             )
 
             await session.flush()
 
-            logger.info(f"Payout {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽")
+            logger.info(f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽")
 
 
 # Глобальный экземпляр

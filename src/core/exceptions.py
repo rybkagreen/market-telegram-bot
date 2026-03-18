@@ -81,6 +81,18 @@ class VelocityCheckError(PermissionError):
     pass
 
 
+class InsufficientFundsError(RekHarborError):
+    """Недостаточно средств для выплаты."""
+
+    pass
+
+
+class PayoutAPIError(RekHarborError):
+    """Ошибка API выплаты."""
+
+    pass
+
+
 class InsufficientPermissionsError(PermissionError):
     """Недостаточно прав для выполнения операции."""
 

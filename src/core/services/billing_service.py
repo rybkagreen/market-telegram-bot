@@ -31,8 +31,6 @@ logger = logging.getLogger(__name__)
 class InsufficientFundsError(Exception):
     """Недостаточно средств на балансе."""
 
-    pass
-
 
 class BillingService:
     """
@@ -51,7 +49,6 @@ class BillingService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-        pass
 
     async def add_balance_rub(
         self,

@@ -38,7 +38,6 @@ class NotificationService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-        pass
 
     async def notify_campaign_started(self, user_id: int, campaign_id: int) -> bool:
         """
