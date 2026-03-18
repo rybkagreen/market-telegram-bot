@@ -1,6 +1,4 @@
-"""
-DBSessionMiddleware for database session management.
-"""
+"""DBSessionMiddleware for database session management."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -12,11 +10,7 @@ from src.db.session import async_session_factory
 
 
 class DBSessionMiddleware(BaseMiddleware):
-    """
-    Middleware для управления сессией БД.
-
-    Добавляет session в data handler'а.
-    """
+    """Middleware для управления сессией БД."""
 
     async def __call__(
         self,
@@ -26,4 +20,6 @@ class DBSessionMiddleware(BaseMiddleware):
     ) -> Awaitable:
         async with async_session_factory() as session:
             data["session"] = session
-            return await handler(event, data)
+            result = await handler(event, data)
+            await session.commit()
+            return result
