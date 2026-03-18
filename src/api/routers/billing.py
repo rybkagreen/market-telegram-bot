@@ -16,13 +16,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from pydantic import BaseModel
-from sqlalchemy import func, select, update
+from pydantic import BaseModel, Field
+from sqlalchemy import update
 
 from src.api.dependencies import CurrentUser
-from src.config.settings import settings
-from src.core.services.cryptobot_service import cryptobot_service
-from src.db.models.crypto_payment import CryptoPayment, PaymentMethod, PaymentStatus
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -59,6 +56,33 @@ def _plan_label(plan) -> str:
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
+
+
+class TopupRequest(BaseModel):
+    """Запрос на пополнение баланса."""
+
+    desired_amount: int = Field(..., gt=0, description="Сумма пополнения в рублях")
+    method: str = Field(default="yookassa", description="Метод оплаты (yookassa)")
+
+
+class TopupResponse(BaseModel):
+    """Ответ с данными платежа."""
+
+    payment_id: str
+    payment_url: str
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class PlanDetail(BaseModel):
+    """Детали тарифа."""
+
+    id: str
+    name: str
+    price: int
+    features: list[str]
+    period_days: int = 30
 
 
 class BalanceResponse(BaseModel):
@@ -134,6 +158,200 @@ class InvoiceStatusResponse(BaseModel):
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
+# ═══════════════════════════════════════════════════════════════
+# NEW UNIFIED ENDPOINTS (P5)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/topup", response_model=TopupResponse)
+async def create_unified_topup(
+    body: TopupRequest,
+    current_user: CurrentUser,
+) -> TopupResponse:
+    """
+    Создать единый запрос на пополнение баланса через ЮKassa.
+
+    Принимает desired_amount и method (yookassa), создаёт платёж
+    и возвращает ссылку на оплату.
+
+    Args:
+        body: Данные пополнения (desired_amount, method).
+        current_user: Текущий пользователь.
+
+    Returns:
+        TopupResponse: Данные платежа (payment_id, payment_url, status).
+
+    Raises:
+        HTTPException 400: Некорректная сумма или метод оплаты.
+    """
+    from decimal import Decimal
+
+    from src.constants.payments import MAX_TOPUP, MIN_TOPUP
+    from src.core.services.billing_service import BillingService
+
+    # Валидация метода оплаты
+    if body.method != "yookassa":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported payment method: {body.method}. Use 'yookassa'.",
+        )
+
+    # Валидация суммы
+    desired_amount = Decimal(str(body.desired_amount))
+    if desired_amount < MIN_TOPUP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Minimum topup amount is {MIN_TOPUP} RUB",
+        )
+    if desired_amount > MAX_TOPUP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum topup amount is {MAX_TOPUP} RUB",
+        )
+
+    # Создание платежа через billing_service
+    billing_service = BillingService()
+    payment_data = await billing_service.create_payment(
+        user_id=current_user.id,
+        amount=desired_amount,
+        payment_method="yookassa",
+    )
+
+    logger.info(f"Unified topup created: user={current_user.id}, amount={desired_amount}")
+
+    return TopupResponse(
+        payment_id=payment_data["payment_id"],
+        payment_url=payment_data["payment_url"],
+        status=payment_data["status"],
+    )
+
+
+@router.get("/topup/{payment_id}/status")
+async def get_topup_status(
+    payment_id: str,
+    current_user: CurrentUser,
+) -> dict[str, str]:
+    """
+    Получить статус платежа.
+
+    Alias для GET /invoice/{invoice_id}. Возвращает статус в формате,
+    ожидаемом фронтендом: pending|succeeded|canceled.
+
+    Args:
+        payment_id: ID платежа.
+        current_user: Текущий пользователь.
+
+    Returns:
+        dict: {"status": "pending"|"succeeded"|"canceled"}
+
+    Raises:
+        HTTPException 404: Платёж не найден.
+    """
+    from src.core.services.billing_service import BillingService
+
+    billing_service = BillingService()
+
+    try:
+        payment_data = await billing_service.check_payment(
+            payment_id=payment_id,
+            user_id=current_user.id,
+        )
+        raw_status = payment_data.get("status", "pending")
+
+        # Маппинг статусов YooKassa на фронтенд-формат
+        status_map = {
+            "pending": "pending",
+            "waiting_for_capture": "pending",
+            "succeeded": "succeeded",
+            "succeeded_pending_withdrawal": "succeeded",
+            "canceled": "canceled",
+            "failed": "canceled",
+        }
+        mapped_status = status_map.get(raw_status, "pending")
+
+        return {"status": mapped_status}
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Payment not found: {e}",
+        ) from e
+
+
+@router.get("/plans", response_model=list[PlanDetail])
+async def get_plans() -> list[PlanDetail]:
+    """
+    Получить список тарифных планов.
+
+    Возвращает тарифы из констант с информацией о цене,
+    возможностях и периоде действия.
+
+    Returns:
+        list[PlanDetail]: Список тарифов.
+    """
+    from src.constants.tariffs import PLAN_DISPLAY_NAMES, PLAN_EMOJIS, TARIFF_CREDIT_COST
+
+    # Тарифы из констант
+    plans_data = {
+        "free": {
+            "features": [
+                "1 активная кампания",
+                "0 ИИ-генераций в месяц",
+                "Только формат post_24h",
+            ],
+        },
+        "starter": {
+            "features": [
+                "5 активных кампаний",
+                "3 ИИ-генерации в месяц",
+                "Форматы post_24h, post_48h",
+                "Приоритетная поддержка",
+            ],
+        },
+        "pro": {
+            "features": [
+                "20 активных кампаний",
+                "20 ИИ-генераций в месяц",
+                "Все форматы постов",
+                "Расширенная аналитика",
+                "Приоритетная поддержка",
+            ],
+        },
+        "business": {
+            "features": [
+                "Безлимитные кампании",
+                "Безлимитные ИИ-генерации",
+                "Все форматы включая закрепы",
+                "Полная аналитика",
+                "Персональный менеджер",
+            ],
+        },
+    }
+
+    plans = []
+    for plan_id, plan_info in plans_data.items():
+        display_name = PLAN_DISPLAY_NAMES.get(plan_id, plan_id)
+        emoji = PLAN_EMOJIS.get(plan_id, "")
+        cost = TARIFF_CREDIT_COST.get(plan_id, 0)
+
+        plans.append(
+            PlanDetail(
+                id=plan_id,
+                name=f"{emoji} {display_name}",
+                price=cost,
+                features=plan_info["features"],
+                period_days=30,
+            )
+        )
+
+    return plans
+
+
+# ═══════════════════════════════════════════════════════════════
+# LEGACY ENDPOINTS (сохранены для обратной совместимости)
+# ═══════════════════════════════════════════════════════════════
+
+
 @router.get("/balance", response_model=BalanceResponse)
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
@@ -174,40 +392,8 @@ async def get_history(
     limit: int = Query(default=20, ge=1, le=50),
 ) -> HistoryResponse:
     """История платежей пользователя."""
-    async with async_session_factory() as session:
-        count_result = await session.execute(
-            select(func.count(CryptoPayment.id)).where(CryptoPayment.user_id == current_user.id)
-        )
-        total = count_result.scalar() or 0
-
-        offset = (page - 1) * limit
-        result = await session.execute(
-            select(CryptoPayment)
-            .where(CryptoPayment.user_id == current_user.id)
-            .order_by(CryptoPayment.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-        payments = result.scalars().all()
-
-    items = []
-    for p in payments:
-        method_str = p.method.value if hasattr(p.method, "value") else str(p.method)
-        status_str = p.status.value if hasattr(p.status, "value") else str(p.status)
-        items.append(
-            PaymentHistoryItem(
-                id=p.id,
-                method=method_str,
-                currency=getattr(p, "currency", None),
-                credits=p.credits or 0,
-                bonus_credits=p.bonus_credits or 0,
-                status=status_str,
-                created_at=p.created_at.isoformat() if p.created_at else "",
-            )
-        )
-
-    pages = max(1, (total + limit - 1) // limit)
-    return HistoryResponse(items=items, total=total, page=page, pages=pages)
+    # CryptoPayment model removed — return empty history
+    return HistoryResponse(items=[], total=0, page=page, pages=1)
 
 
 @router.post("/topup/crypto", response_model=CryptoTopupResponse)
@@ -215,83 +401,10 @@ async def create_crypto_invoice(
     body: CryptoTopupRequest,
     current_user: CurrentUser,
 ) -> CryptoTopupResponse:
-    """
-    Создать CryptoBot инвойс для пополнения через криптовалюту.
-    Возвращает pay_url для открытия в браузере/боте.
-    """
-    package = _get_package(body.package_id)
-    if not package:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown package: {body.package_id}",
-        )
-
-    currency = body.currency.upper()
-    if currency not in CURRENCIES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported currency: {currency}",
-        )
-
-    credits = package["credits"]
-    bonus = package["bonus"]
-    total_credits = credits + bonus
-
-    # Считаем сумму в выбранной валюте
-    rate = settings.currency_rates.get(currency)
-    if not rate:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No rate configured for {currency}",
-        )
-    amount = round(total_credits / rate, 8)
-    amount_str = f"{amount:.8f}".rstrip("0").rstrip(".")
-
-    # Описание инвойса
-    description = f"Market Bot: {total_credits} кредитов" + (f" (+{bonus} бонус)" if bonus else "")
-
-    # Payload для идентификации при вебхуке
-    payload = f"miniapp:{current_user.id}:{body.package_id}"
-
-    # Создаём инвойс через CryptoBot API
-    try:
-        invoice = await cryptobot_service.create_invoice(
-            currency=currency,
-            amount=amount,  # Передаём float
-            payload=payload,
-            description=description,
-            expires_in=3600,
-        )
-    except Exception as e:
-        logger.error(f"CryptoBot invoice error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to create CryptoBot invoice",
-        ) from e
-
-    # Сохраняем в БД
-    async with async_session_factory() as session:
-        payment = CryptoPayment(
-            user_id=current_user.id,
-            method=PaymentMethod.CRYPTOBOT,
-            invoice_id=str(invoice.invoice_id),
-            currency=currency,
-            amount=amount,
-            credits=credits,
-            bonus_credits=bonus,
-            status=PaymentStatus.PENDING,
-            payload={"package_id": body.package_id},
-        )
-        session.add(payment)
-        await session.commit()
-
-    return CryptoTopupResponse(
-        pay_url=invoice.pay_url,
-        invoice_id=str(invoice.invoice_id),
-        credits=credits,
-        bonus_credits=bonus,
-        amount=amount_str,
-        currency=currency,
+    """CryptoBot пополнение удалено. Используйте ЮKassa."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="CryptoBot пополнение удалено. Используйте ЮKassa.",
     )
 
 
@@ -396,52 +509,8 @@ async def get_invoice_status(
     invoice_id: str,
     current_user: CurrentUser,
 ) -> InvoiceStatusResponse:
-    """
-    Проверить статус CryptoBot инвойса.
-    Используется фронтендом для polling статуса оплаты.
-    """
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(CryptoPayment).where(
-                CryptoPayment.invoice_id == invoice_id,
-                CryptoPayment.user_id == current_user.id,
-            )
-        )
-        payment = result.scalar_one_or_none()
-
-    if not payment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invoice not found",
-        )
-
-    payment_status = (
-        payment.status.value if hasattr(payment.status, "value") else str(payment.status)
-    )
-
-    # Если уже оплачен — возвращаем сразу
-    if payment_status == "paid":
-        return InvoiceStatusResponse(
-            invoice_id=invoice_id,
-            status="paid",
-            credits=payment.credits + payment.bonus_credits,
-            credited=True,
-        )
-
-    # Проверяем актуальный статус через CryptoBot API
-    try:
-        invoice_data = await cryptobot_service.get_invoice(invoice_id)
-        remote_status = invoice_data.status
-    except Exception as e:
-        logger.warning(f"CryptoBot status check failed: {e}")
-        remote_status = payment_status
-
-    return InvoiceStatusResponse(
-        invoice_id=invoice_id,
-        status=remote_status,
-        credits=payment.credits + payment.bonus_credits,
-        credited=payment_status == "paid",
-    )
+    """CryptoBot инвойсы удалены."""
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
 # =============================================================================

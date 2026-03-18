@@ -64,10 +64,11 @@ async def get_current_user(
     async with async_session_factory() as session:
         user = await UserRepository(session).get_by_id(user_id)
 
-    if not user or user.is_banned:
+    # ИЗМЕНЕНО (2026-03-17): is_banned → is_active (поле is_banned не существует в модели User)
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or banned",
+            detail="User not found or inactive",
         )
 
     return user
@@ -87,3 +88,34 @@ async def get_db_session():
 # Type aliases для зависимостей
 CurrentUser = Annotated[User, Depends(get_current_user)]
 DbSession = Annotated[None, Depends(get_db_session)]
+
+
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Dependency: проверить что текущий пользователь является администратором.
+
+    Использование:
+        @router.get("/admin/stats")
+        async def get_stats(admin: Annotated[User, Depends(get_current_admin_user)]):
+            return {"admin_id": admin.id}
+
+    Args:
+        current_user: Текущий пользователь из get_current_user
+
+    Returns:
+        Пользователь если is_admin = True
+
+    Raises:
+        HTTPException 403: Пользователь не является администратором
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden — admin access required",
+        )
+    return current_user
+
+
+AdminUser = Annotated[User, Depends(get_current_admin_user)]

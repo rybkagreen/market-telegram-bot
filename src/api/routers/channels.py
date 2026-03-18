@@ -11,11 +11,12 @@ import logging
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select, true
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser
+from src.api.dependencies import CurrentUser, get_db_session
 from src.config.settings import settings
 from src.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
@@ -24,14 +25,38 @@ from src.constants.tariffs import (
     TARIFF_SUBSCRIBER_LIMITS,
     TARIFF_TOPICS,
 )
-from src.db.models.analytics import TelegramChat
+from src.db.models.telegram_chat import TelegramChat
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/channels", tags=["channels"])
+router = APIRouter(tags=["channels"])
 
 CACHE_KEY = "channels:stats:v1"
 CACHE_TTL = 3600  # 1 час
+
+
+# ─── Мой канал ──────────────────────────────────────────────────────
+
+
+@router.get("/", response_model=None)
+async def get_my_channels(
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[TelegramChat]:
+    """
+    Получить мои каналы.
+
+    Args:
+        current_user: Текущий пользователь
+        session: DB session
+
+    Returns:
+        list[TelegramChat]: Список каналов пользователя
+    """
+    result = await session.execute(
+        select(TelegramChat).where(TelegramChat.owner_id == current_user.id)
+    )
+    return list(result.scalars().all())
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
