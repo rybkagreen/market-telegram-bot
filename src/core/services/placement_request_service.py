@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.analytics import TelegramChat
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
-from src.db.repositories.placement_request_repo import PlacementRequestRepo
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
 
 if TYPE_CHECKING:
@@ -160,7 +160,7 @@ class PlacementRequestService:
     def __init__(
         self,
         session: AsyncSession,
-        placement_repo: PlacementRequestRepo,
+        placement_repo: PlacementRequestRepository,
         channel_settings_repo: ChannelSettingsRepo,
         reputation_repo: ReputationRepo,
         billing_service: "BillingService | None" = None,
@@ -184,12 +184,12 @@ class PlacementRequestService:
     async def create_request(
         self,
         advertiser_id: int,
-        campaign_id: int,
         channel_id: int,
         proposed_price: Decimal,
         final_text: str,
         proposed_schedule: datetime | None = None,
         proposed_frequency: int | None = None,
+        campaign_id: int | None = None,
     ) -> PlacementRequest:
         """
         Создать заявку на размещение.
@@ -214,7 +214,7 @@ class PlacementRequestService:
         Raises:
             ValueError: Если проверки не пройдены.
         """
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
 
         # Проверка 1: advertiser не заблокирован
         rep_score = await self.reputation_repo.get_by_user(advertiser_id)
@@ -281,7 +281,7 @@ class PlacementRequestService:
         Raises:
             ValueError: Если проверки не пройдены.
         """
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
@@ -346,7 +346,7 @@ class PlacementRequestService:
         Raises:
             ValueError: Если reason невалиден или статус неверный.
         """
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
@@ -414,7 +414,7 @@ class PlacementRequestService:
         Raises:
             ValueError: Если лимит исчерпан или статус неверный.
         """
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
@@ -858,7 +858,7 @@ class PlacementRequestService:
             MIN_PRICE_PER_POST,
             PLAN_LIMITS,
         )
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
         from src.db.models.user import User
 
         # 1. Получить канал
@@ -919,7 +919,7 @@ class PlacementRequestService:
         # 7. Создать PlacementRequest
         return await self.placement_repo.create_placement(
             advertiser_id=advertiser_id,
-            campaign_id=0,  # Will be set later if needed
+            campaign_id=None,
             channel_id=channel_id,
             proposed_price=calculated_price,
             final_text=ad_text,

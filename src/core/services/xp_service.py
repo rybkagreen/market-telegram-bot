@@ -124,7 +124,6 @@ class XPService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-        pass
 
     def get_level_for_xp(self, xp: int) -> int:
         """

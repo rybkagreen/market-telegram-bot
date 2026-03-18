@@ -27,7 +27,6 @@ class BadgeService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-        pass
 
     async def check_and_award_badges(self, user_id: int) -> list[dict[str, Any]]:
         """
