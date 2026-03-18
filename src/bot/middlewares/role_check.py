@@ -1,6 +1,4 @@
-"""
-RoleCheckMiddleware for user role and block checks.
-"""
+"""RoleCheckMiddleware for user role and block checks."""
 
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -15,11 +13,7 @@ from src.db.models.user import User
 
 
 class RoleCheckMiddleware(BaseMiddleware):
-    """
-    Middleware для проверки роли и блокировок пользователя.
-
-    Если пользователь заблокирован — отвечает сообщением и не вызывает handler.
-    """
+    """Middleware для проверки роли и блокировок пользователя."""
 
     async def __call__(
         self,
@@ -27,7 +21,8 @@ class RoleCheckMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Awaitable:
-        user_id = event.from_user.id if event.from_user else None
+        event_from_user = data.get("event_from_user")
+        user_id = event_from_user.id if event_from_user else None
         if not user_id:
             return await handler(event, data)
 
@@ -35,13 +30,15 @@ class RoleCheckMiddleware(BaseMiddleware):
         if not session:
             return await handler(event, data)
 
-        # Get user and reputation score
-        user = await session.get(User, user_id)
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
         if not user:
             return await handler(event, data)
 
         score_result = await session.execute(
-            select(ReputationScore).where(ReputationScore.user_id == user_id)
+            select(ReputationScore).where(ReputationScore.user_id == user.id)
         )
         score = score_result.scalar_one_or_none()
 
@@ -50,23 +47,26 @@ class RoleCheckMiddleware(BaseMiddleware):
 
         role = user.current_role
         now = datetime.utcnow()
+        bot = data.get("bot")
 
-        # Check advertiser block
-        if role in ("advertiser", "both") and score.is_advertiser_blocked:
-            if score.advertiser_blocked_until and score.advertiser_blocked_until > now:
-                if hasattr(event, "answer") and callable(event.answer):
-                    await event.answer(
-                        f"🚫 Аккаунт заблокирован до {score.advertiser_blocked_until.strftime('%Y-%m-%d %H:%M')}."
-                    )
-                return
+        if (
+            role in ("advertiser", "both")
+            and score.is_advertiser_blocked
+            and score.advertiser_blocked_until
+            and score.advertiser_blocked_until > now
+        ):
+            if bot:
+                await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.advertiser_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+            return
 
-        # Check owner block
-        if role in ("owner", "both") and score.is_owner_blocked:
-            if score.owner_blocked_until and score.owner_blocked_until > now:
-                if hasattr(event, "answer") and callable(event.answer):
-                    await event.answer(
-                        f"🚫 Аккаунт заблокирован до {score.owner_blocked_until.strftime('%Y-%m-%d %H:%M')}."
-                    )
-                return
+        if (
+            role in ("owner", "both")
+            and score.is_owner_blocked
+            and score.owner_blocked_until
+            and score.owner_blocked_until > now
+        ):
+            if bot:
+                await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.owner_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+            return
 
         return await handler(event, data)
