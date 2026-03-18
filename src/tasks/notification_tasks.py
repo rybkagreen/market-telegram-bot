@@ -287,23 +287,20 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
         from src.config.settings import settings
-        from src.db.models.analytics import TelegramChat
-        from src.db.models.campaign import Campaign
-        from src.db.models.mailing_log import MailingLog
+        from src.db.models.placement_request import PlacementRequest
+        from src.db.models.telegram_chat import TelegramChat
         from src.db.models.user import User
 
         async with async_session_factory() as session:
-            placement = await session.get(MailingLog, placement_id)
+            placement = await session.get(PlacementRequest, placement_id)
             if not placement:
                 return False
 
-            channel = await session.get(TelegramChat, placement.chat_id)
+            channel = await session.get(TelegramChat, placement.channel_id)
             if not channel or not channel.owner_user_id:
                 return False
 
-            campaign = await session.get(Campaign, placement.campaign_id)
-            if not campaign:
-                return False
+            campaign = placement
 
             owner = await session.get(User, channel.owner_user_id)
             if not owner or not owner.notifications_enabled:
@@ -328,7 +325,7 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
 
             message = (
                 f"📢 <b>Новая заявка на размещение в @{channel.username or channel.title}</b>\n\n"
-                f"💬 Текст объявления:\n{campaign.text[:500]}{'...' if len(campaign.text) > 500 else ''}\n\n"
+                f"💬 Текст объявления:\n{campaign.ad_text[:500]}{'...' if len(campaign.ad_text) > 500 else ''}\n\n"
                 f"📅 Дата публикации: {placement.created_at.strftime('%d.%m.%Y %H:%M')}\n"
                 f"💸 Выплата: {payout_amount:.0f} ₽\n\n"
                 f"⏰ Автоодобрение через 24 часа если не ответите"
@@ -993,41 +990,32 @@ def auto_approve_placements() -> dict:
 
         from sqlalchemy import select
 
-        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         deadline = datetime.now(UTC) - timedelta(hours=24)
         approved_count = 0
         failed_count = 0
 
         async with async_session_factory() as session:
-            # Находим все PENDING_APPROVAL размещения старше 24 часов
             stmt = (
-                select(MailingLog)
+                select(PlacementRequest)
                 .where(
-                    MailingLog.status == MailingStatus.PENDING_APPROVAL,
-                    MailingLog.created_at < deadline,
+                    PlacementRequest.status == PlacementStatus.pending_owner,
+                    PlacementRequest.created_at < deadline,
                 )
-                .with_for_update()  # Блокировка для предотвращения гонок
+                .with_for_update()
             )
             result = await session.execute(stmt)
             placements = result.scalars().all()
 
             for placement in placements:
                 try:
-                    placement.status = MailingStatus.QUEUED
+                    placement.status = PlacementStatus.pending_payment
                     await session.flush()
-
-                    # ⚠️ КРИТИЧНО: запустить задачу публикации
-                    # Импортируем здесь чтобы избежать circular imports
-                    from src.tasks.mailing_tasks import publish_single_placement
-
-                    publish_single_placement.delay(placement.id)
-
                     approved_count += 1
                     logger.info(
-                        f"Auto-approved placement {placement.id} for channel {placement.chat_id}"
+                        f"Auto-approved placement {placement.id} for channel {placement.channel_id}"
                     )
-
                 except Exception as e:
                     logger.error(f"Auto-approve failed for placement {placement.id}: {e}")
                     failed_count += 1
@@ -1071,29 +1059,22 @@ def notify_pending_placement_reminders() -> dict:
         from sqlalchemy import select
 
         from src.config.settings import settings
-        from src.db.models.analytics import TelegramChat
-        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest, PlacementStatus
+        from src.db.models.telegram_chat import TelegramChat
         from src.db.models.user import User
 
         now = datetime.now(UTC)
-        # ⚠️ ИСПРАВЛЕНИЕ: правильное условие для placements 20-24 часа назад
-        # older_than = 24 часа назад (граница "старой" стороны)
-        # newer_than = 20 часов назад (граница "молодой" стороны)
-        # Placement создан 22ч назад:
-        #   created_at > older_than  → создан НЕ раньше чем 24ч назад (т.е. меньше 24ч назад) ✅
-        #   created_at < newer_than  → создан раньше чем 20ч назад (т.е. больше 20ч назад) ✅
-        older_than = now - timedelta(hours=24)  # 24 часа назад
-        newer_than = now - timedelta(hours=20)  # 20 часов назад
+        older_than = now - timedelta(hours=24)
+        newer_than = now - timedelta(hours=20)
 
         sent_count = 0
         error_count = 0
 
         async with async_session_factory() as session:
-            # ⚠️ ИСПРАВЛЕННОЕ условие: created_at между older_than и newer_than
-            stmt = select(MailingLog).where(
-                MailingLog.status == MailingStatus.PENDING_APPROVAL,
-                MailingLog.created_at > older_than,  # НЕ старше 24ч (создан меньше 24ч назад)
-                MailingLog.created_at < newer_than,  # Старше 20ч (создан больше 20ч назад)
+            stmt = select(PlacementRequest).where(
+                PlacementRequest.status == PlacementStatus.pending_owner,
+                PlacementRequest.created_at > older_than,
+                PlacementRequest.created_at < newer_than,
             )
             result = await session.execute(stmt)
             placements = result.scalars().all()
@@ -1109,7 +1090,7 @@ def notify_pending_placement_reminders() -> dict:
                         continue
 
                     # Получаем канал и владельца
-                    channel = await session.get(TelegramChat, placement.chat_id)
+                    channel = await session.get(TelegramChat, placement.channel_id)
                     if not channel or not channel.owner_user_id:
                         continue
 
