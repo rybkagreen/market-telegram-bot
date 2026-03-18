@@ -1,21 +1,20 @@
 """initial_schema_v4_3
 
-Revision ID: 59b152d0439b
-Revises: 
-Create Date: 2026-03-14 20:53:03.647310
+Revision ID: a86e3ba47c30
+Revises:
+Create Date: 2026-03-14 21:14:59.257053
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '59b152d0439b'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = 'a86e3ba47c30'
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -25,7 +24,6 @@ def upgrade() -> None:
     sa.Column('key', sa.String(length=32), nullable=False),
     sa.Column('name_ru', sa.String(length=128), nullable=False),
     sa.Column('emoji', sa.String(length=8), nullable=False),
-    sa.Column('parent_key', sa.String(length=32), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('key')
     )
