@@ -130,13 +130,25 @@ logs/nginx/
 .env.test
 .env.production
 docker-compose.override.yml
-""  
-"# Telethon session files"  
-"parser_session.session"  
-"parser_session.session-journal" 
-""  
-"# Telethon debug logs"  
-"session_debug.log" 
-"mypy_full_errors.txt"  
-"ruff_errors.txt"  
-"qr_login.png" 
+
+# Development reports and diagnostics
+reports/
+CLAUDE.md
+api_fixing.json
+REBUILD_*.json
+*_report.json
+
+# Telethon session files
+parser_session.session
+parser_session.session-journal
+session_debug.log
+
+# Debug/error output files
+mypy_full_errors.txt
+ruff_errors.txt
+qr_login.png
+
+# Mini app build artifacts (root level)
+mini_app/*.tsbuildinfo
+mini_app/*.js
+mini_app/*.d.ts
