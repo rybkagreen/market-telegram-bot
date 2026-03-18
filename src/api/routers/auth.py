@@ -54,8 +54,7 @@ class LoginResponse(BaseModel):
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.post("/login", response_model=LoginResponse)
-async def login(body: LoginRequest) -> LoginResponse:
+async def _login_handler(body: LoginRequest) -> LoginResponse:
     """
     Авторизация через Telegram initData.
 
@@ -94,13 +93,12 @@ async def login(body: LoginRequest) -> LoginResponse:
             username=tg_user.get("username"),
             first_name=tg_user.get("first_name"),
             last_name=tg_user.get("last_name"),
-            language_code=tg_user.get("language_code", "ru"),
         )
 
-    logger.info(f"Mini App login: telegram_id={telegram_id}, plan={user.plan.value}")
+    plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+    logger.info(f"Mini App login: telegram_id={telegram_id}, plan={plan_value}")
 
     # Создаём JWT
-    plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
     token = create_jwt_token(
         user_id=user.id,
         telegram_id=user.telegram_id,
@@ -116,9 +114,21 @@ async def login(body: LoginRequest) -> LoginResponse:
             first_name=user.first_name,
             plan=plan_value,
             credits=user.credits,
-            ai_generations_used=user.ai_generations_used,
+            ai_generations_used=user.ai_uses_count,
         ),
     )
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login_endpoint(body: LoginRequest) -> LoginResponse:
+    """Авторизация через Telegram initData (основной endpoint)."""
+    return await _login_handler(body)
+
+
+@router.post("/telegram", response_model=LoginResponse)
+async def login_telegram_endpoint(body: LoginRequest) -> LoginResponse:
+    """Авторизация через Telegram initData (алиас для mini app)."""
+    return await _login_handler(body)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -138,5 +148,5 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         first_name=current_user.first_name,
         plan=plan_value,
         credits=current_user.credits,
-        ai_generations_used=current_user.ai_generations_used,
+        ai_generations_used=current_user.ai_uses_count,
     )

@@ -10,11 +10,11 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
-from src.db.repositories.reputation_repo import ReputationRepo
+from src.db.repositories.reputation_repo import ReputationRepository
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/reputation", tags=["reputation"])
+router = APIRouter(tags=["reputation"])
 
 # =============================================================================
 # Schemas
@@ -77,7 +77,7 @@ async def get_my_reputation(
     session: AsyncSession = Depends(get_db_session),
 ) -> ReputationResponse:
     """Репутация текущего пользователя."""
-    repo = ReputationRepo(session)
+    repo = ReputationRepository(session)
     rep_score = await repo.get_or_create(current_user.id)
 
     if not rep_score:
@@ -112,7 +112,7 @@ async def get_my_reputation_history(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ReputationHistoryEntry]:
     """История изменений репутации текущего пользователя."""
-    repo = ReputationRepo(session)
+    repo = ReputationRepository(session)
     history = await repo.get_history(current_user.id, role=role, limit=limit, offset=offset)
 
     entries = []
@@ -150,7 +150,7 @@ async def get_user_reputation(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    repo = ReputationRepo(session)
+    repo = ReputationRepository(session)
     rep_score = await repo.get_or_create(user_id)
 
     return PublicReputationResponse(
@@ -176,7 +176,7 @@ async def get_user_reputation_history(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
 
-    repo = ReputationRepo(session)
+    repo = ReputationRepository(session)
     history = await repo.get_history(user_id, role=role, limit=limit, offset=offset)
 
     entries = []

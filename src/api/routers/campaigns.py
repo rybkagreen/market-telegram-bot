@@ -10,9 +10,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser
-from src.db.models.campaign import Campaign, CampaignStatus
-from src.db.models.mailing_log import MailingLog
-from src.db.repositories.campaign_repo import CampaignRepository
+from src.db.models.placement_request import PlacementRequest as Campaign
+from src.db.models.placement_request import PlacementStatus as CampaignStatus
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class CampaignResponse(BaseModel):
 class CampaignListResponse(BaseModel):
     """Список кампаний с пагинацией."""
 
-    campaigns: list[CampaignResponse]
+    placement_requests: list[CampaignResponse]
     total: int
     page: int
     page_size: int
@@ -86,53 +86,53 @@ class CampaignListResponse(BaseModel):
 
 
 @router.post("", response_model=CampaignResponse, status_code=status.HTTP_201_CREATED)
-async def create_campaign(
-    campaign_data: CampaignCreate,
+async def create_placement_request(
+    placement_request_data: CampaignCreate,
     current_user: CurrentUser,
 ):
     """
     Создать новую рекламную кампанию.
 
     Args:
-        campaign_data: Данные кампании.
+        placement_request_data: Данные кампании.
         current_user: Текущий пользователь.
 
     Returns:
         Созданная кампания.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
+        placement_repo = PlacementRequestRepository(session)
 
         # Преобразуем фильтры в формат JSON
         filters_json = None
-        if campaign_data.filters:
+        if placement_request_data.filters:
             filters_json = {
-                "topics": campaign_data.filters.topics or [],
-                "min_members": campaign_data.filters.min_members,
-                "max_members": campaign_data.filters.max_members,
-                "blacklist": campaign_data.filters.blacklist or [],
+                "topics": placement_request_data.filters.topics or [],
+                "min_members": placement_request_data.filters.min_members,
+                "max_members": placement_request_data.filters.max_members,
+                "blacklist": placement_request_data.filters.blacklist or [],
             }
 
         # Создаём кампанию со статусом draft
-        campaign = await campaign_repo.create(
+        placement_request = await placement_repo.create(
             {
                 "user_id": current_user.id,
-                "title": campaign_data.title,
-                "text": campaign_data.text,
-                "topic": campaign_data.topic,
-                "status": CampaignStatus.DRAFT,
+                "title": placement_request_data.title,
+                "text": placement_request_data.text,
+                "topic": placement_request_data.topic,
+                "status": CampaignStatus.pending_owner,
                 "filters_json": filters_json,
-                "scheduled_at": campaign_data.scheduled_at,
+                "scheduled_at": placement_request_data.scheduled_at,
             }
         )
 
-        logger.info(f"Campaign {campaign.id} created by user {current_user.id}")
+        logger.info(f"Campaign {placement_request.id} created by user {current_user.id}")
 
-        return campaign
+        return placement_request
 
 
 @router.get("", response_model=CampaignListResponse)
-async def get_campaigns(  # noqa: B008
+async def get_placement_requests(  # noqa: B008
     current_user: CurrentUser,
     status: CampaignStatus | None = Query(None),
     page: int = Query(1, ge=1),
@@ -151,9 +151,9 @@ async def get_campaigns(  # noqa: B008
         Список кампаний с пагинацией.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
+        placement_repo = PlacementRequestRepository(session)
 
-        campaigns, total = await campaign_repo.get_by_user(
+        placement_requests, total = await placement_repo.get_by_user(
             user_id=current_user.id,
             status=status,
             page=page,
@@ -163,7 +163,7 @@ async def get_campaigns(  # noqa: B008
         has_more = (page * page_size) < total
 
         return CampaignListResponse(
-            campaigns=[CampaignResponse.model_validate(c) for c in campaigns],
+            placement_requests=[CampaignResponse.model_validate(c) for c in placement_requests],
             total=total,
             page=page,
             page_size=page_size,
@@ -171,209 +171,204 @@ async def get_campaigns(  # noqa: B008
         )
 
 
-@router.get("/{campaign_id}", response_model=CampaignResponse)
-async def get_campaign(
-    campaign_id: int,
+@router.get("/{placement_request_id}", response_model=CampaignResponse)
+async def get_placement_request(
+    placement_request_id: int,
     current_user: CurrentUser,
 ):
     """
     Получить кампанию по ID.
 
     Args:
-        campaign_id: ID кампании.
+        placement_request_id: ID кампании.
         current_user: Текущий пользователь.
 
     Returns:
         Данные кампании.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
-        campaign = await campaign_repo.get_by_id(campaign_id)
+        placement_repo = PlacementRequestRepository(session)
+        placement_request = await placement_repo.get_by_id(placement_request_id)
 
-        if not campaign:
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
         # Проверяем принадлежность
-        if campaign.user_id != current_user.id:
+        if placement_request.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
-        return campaign
+        return placement_request
 
 
-@router.patch("/{campaign_id}", response_model=CampaignResponse)
-async def update_campaign(
-    campaign_id: int,
-    campaign_data: CampaignUpdate,
+@router.patch("/{placement_request_id}", response_model=CampaignResponse)
+async def update_placement_request(
+    placement_request_id: int,
+    placement_request_data: CampaignUpdate,
     current_user: CurrentUser,
 ):
     """
     Обновить кампанию.
 
     Args:
-        campaign_id: ID кампании.
-        campaign_data: Данные для обновления.
+        placement_request_id: ID кампании.
+        placement_request_data: Данные для обновления.
         current_user: Текущий пользователь.
 
     Returns:
         Обновлённая кампания.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
-        campaign = await campaign_repo.get_by_id(campaign_id)
+        placement_repo = PlacementRequestRepository(session)
+        placement_request = await placement_repo.get_by_id(placement_request_id)
 
-        if not campaign:
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
-        if campaign.user_id != current_user.id:
+        if placement_request.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
         # Можно обновлять только draft кампании
-        if campaign.status != CampaignStatus.DRAFT:
+        if placement_request.status != CampaignStatus.pending_owner:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Can only update draft campaigns",
+                detail="Can only update draft placement_requests",
             )
 
         # Обновляем
-        update_data = campaign_data.model_dump(exclude_unset=True)
-        updated = await campaign_repo.update(campaign_id, update_data)
+        update_data = placement_request_data.model_dump(exclude_unset=True)
+        updated = await placement_repo.update(placement_request_id, update_data)
 
         return updated
 
 
-@router.delete("/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_campaign(
-    campaign_id: int,
+@router.delete("/{placement_request_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_placement_request(
+    placement_request_id: int,
     current_user: CurrentUser,
 ):
     """
     Удалить кампанию.
 
     Args:
-        campaign_id: ID кампании.
+        placement_request_id: ID кампании.
         current_user: Текущий пользователь.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
-        campaign = await campaign_repo.get_by_id(campaign_id)
+        placement_repo = PlacementRequestRepository(session)
+        placement_request = await placement_repo.get_by_id(placement_request_id)
 
-        if not campaign:
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
-        if campaign.user_id != current_user.id:
+        if placement_request.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
-        await campaign_repo.delete(campaign_id)
+        await placement_repo.delete(placement_request_id)
 
 
-@router.post("/{campaign_id}/start")
-async def start_campaign(
-    campaign_id: int,
+@router.post("/{placement_request_id}/start")
+async def start_placement_request(
+    placement_request_id: int,
     current_user: CurrentUser,
 ):
     """
     Запустить кампанию.
 
     Args:
-        campaign_id: ID кампании.
+        placement_request_id: ID кампании.
         current_user: Текущий пользователь.
 
     Returns:
         Статус операции.
     """
-    from src.tasks.mailing_tasks import send_campaign
-
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
-        campaign = await campaign_repo.get_by_id(campaign_id)
+        placement_repo = PlacementRequestRepository(session)
+        placement_request = await placement_repo.get_by_id(placement_request_id)
 
-        if not campaign:
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
-        if campaign.user_id != current_user.id:
+        if placement_request.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
-        # Обновляем статус на queued
-        await campaign_repo.update_status(campaign_id, CampaignStatus.QUEUED)
+        # Обновляем статус
+        await placement_repo.update_status(placement_request_id, CampaignStatus.pending_payment)
 
-        # Отправляем задачу в Celery
-        send_campaign.delay(campaign_id)
+        logger.info(f"Campaign {placement_request_id} started by user {current_user.id}")
 
-        logger.info(f"Campaign {campaign_id} started by user {current_user.id}")
-
-        return {"status": "queued", "campaign_id": campaign_id}
+        return {"status": "queued", "placement_request_id": placement_request_id}
 
 
-@router.post("/{campaign_id}/cancel")
-async def cancel_campaign(
-    campaign_id: int,
+@router.post("/{placement_request_id}/cancel")
+async def cancel_placement_request(
+    placement_request_id: int,
     current_user: CurrentUser,
 ):
     """
     Отменить кампанию.
 
     Args:
-        campaign_id: ID кампании.
+        placement_request_id: ID кампании.
         current_user: Текущий пользователь.
 
     Returns:
         Статус операции.
     """
     async with async_session_factory() as session:
-        campaign_repo = CampaignRepository(session)
-        campaign = await campaign_repo.get_by_id(campaign_id)
+        placement_repo = PlacementRequestRepository(session)
+        placement_request = await placement_repo.get_by_id(placement_request_id)
 
-        if not campaign:
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
-        if campaign.user_id != current_user.id:
+        if placement_request.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
         # Можно отменить только queued или running
-        if campaign.status not in [CampaignStatus.QUEUED, CampaignStatus.RUNNING]:
+        if placement_request.status not in [CampaignStatus.pending_payment, CampaignStatus.escrow]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot cancel campaign with status {campaign.status.value}",
+                detail=f"Cannot cancel placement_request with status {placement_request.status.value}",
             )
 
-        await campaign_repo.update_status(
-            campaign_id,
-            CampaignStatus.CANCELLED,
+        await placement_repo.update_status(
+            placement_request_id,
+            CampaignStatus.cancelled,
         )
 
-        logger.info(f"Campaign {campaign_id} cancelled by user {current_user.id}")
+        logger.info(f"Campaign {placement_request_id} cancelled by user {current_user.id}")
 
-        return {"status": "cancelled", "campaign_id": campaign_id}
+        return {"status": "cancelled", "placement_request_id": placement_request_id}
 
 
 # ─── Mini App API ───────────────────────────────────────────────
@@ -403,7 +398,7 @@ class CampaignsListResponse(BaseModel):
 class CampaignStats(BaseModel):
     """Детальная статистика кампании."""
 
-    campaign_id: int
+    placement_request_id: int
     title: str
     status: str
     total_logs: int
@@ -416,7 +411,7 @@ class CampaignStats(BaseModel):
 
 
 @router.get("/list", response_model=CampaignsListResponse)
-async def list_campaigns_mini_app(
+async def list_placement_requests_mini_app(
     current_user: CurrentUser,
     status_filter: CampaignStatusLiteral | None = Query(None, alias="status"),
     page: int = Query(1, ge=1),
@@ -443,18 +438,12 @@ async def list_campaigns_mini_app(
         result = await session.execute(
             base_q.order_by(Campaign.created_at.desc()).offset(offset).limit(limit)
         )
-        campaigns = result.scalars().all()
+        placement_requests = result.scalars().all()
 
-        # Для каждой кампании считаем sent_count
+        # MailingLog removed — sent_count always 0
         items = []
-        for camp in campaigns:
-            sent_result = await session.execute(
-                select(func.count(MailingLog.id)).where(
-                    MailingLog.campaign_id == camp.id,
-                    MailingLog.status == "sent",
-                )
-            )
-            sent_count = sent_result.scalar() or 0
+        for camp in placement_requests:
+            sent_count = 0
 
             items.append(
                 CampaignItem(
@@ -472,9 +461,9 @@ async def list_campaigns_mini_app(
     return CampaignsListResponse(items=items, total=total, page=page, pages=pages)
 
 
-@router.get("/{campaign_id}/stats", response_model=CampaignStats)
-async def get_campaign_stats(
-    campaign_id: int,
+@router.get("/{placement_request_id}/stats", response_model=CampaignStats)
+async def get_placement_request_stats(
+    placement_request_id: int,
     current_user: CurrentUser,
 ):
     """Детальная статистика по одной кампании."""
@@ -482,49 +471,33 @@ async def get_campaign_stats(
         # Проверяем что кампания принадлежит пользователю
         result = await session.execute(
             select(Campaign).where(
-                Campaign.id == campaign_id,
+                Campaign.id == placement_request_id,
                 Campaign.user_id == current_user.id,
             )
         )
-        campaign = result.scalar_one_or_none()
-        if not campaign:
+        placement_request = result.scalar_one_or_none()
+        if not placement_request:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Campaign not found",
             )
 
-        # Статистика из логов
-        stats_result = await session.execute(
-            select(
-                func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
-                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
-                func.count(MailingLog.id).filter(MailingLog.status == "skipped").label("skipped"),
-                func.min(MailingLog.sent_at).label("started_at"),
-                func.max(MailingLog.sent_at).label("finished_at"),
-            ).where(MailingLog.campaign_id == campaign_id)
-        )
-        s = stats_result.one()
-
-    total = s.total or 0
-    sent = s.sent or 0
-    success_rate = round(sent / total * 100, 1) if total > 0 else 0.0
-
+    # MailingLog removed — return zero stats
     camp_status = (
-        campaign.status.value if hasattr(campaign.status, "value") else str(campaign.status)
+        placement_request.status.value if hasattr(placement_request.status, "value") else str(placement_request.status)
     )
 
     return CampaignStats(
-        campaign_id=campaign.id,
-        title=campaign.title or "Без названия",
+        placement_request_id=placement_request.id,
+        title=placement_request.title or "Без названия",
         status=camp_status,
-        total_logs=total,
-        sent=sent,
-        failed=s.failed or 0,
-        skipped=s.skipped or 0,
-        success_rate=success_rate,
-        started_at=s.started_at.isoformat() if s.started_at else None,
-        finished_at=s.finished_at.isoformat() if s.finished_at else None,
+        total_logs=0,
+        sent=0,
+        failed=0,
+        skipped=0,
+        success_rate=0.0,
+        started_at=None,
+        finished_at=None,
     )
 
 
@@ -536,9 +509,9 @@ class DuplicateResponse(BaseModel):
     title: str
 
 
-@router.post("/{campaign_id}/duplicate", response_model=DuplicateResponse)
-async def duplicate_campaign(
-    campaign_id: int,
+@router.post("/{placement_request_id}/duplicate", response_model=DuplicateResponse)
+async def duplicate_placement_request(
+    placement_request_id: int,
     current_user: CurrentUser,
 ) -> DuplicateResponse:
     """
@@ -549,7 +522,7 @@ async def duplicate_campaign(
     async with async_session_factory() as session:
         result = await session.execute(
             select(Campaign).where(
-                Campaign.id == campaign_id,
+                Campaign.id == placement_request_id,
                 Campaign.user_id == current_user.id,
             )
         )
@@ -563,15 +536,15 @@ async def duplicate_campaign(
 
         new_title = f"{source.title or 'Кампания'} (копия)"
 
-        new_campaign = Campaign(
+        new_placement_request = Campaign(
             user_id=current_user.id,
             title=new_title,
             text=source.text,
-            status=CampaignStatus.DRAFT,
+            status=CampaignStatus.pending_owner,
             filters_json=source.filters_json,
         )
-        session.add(new_campaign)
+        session.add(new_placement_request)
         await session.commit()
-        await session.refresh(new_campaign)
+        await session.refresh(new_placement_request)
 
-    return DuplicateResponse(id=new_campaign.id, title=new_title)
+    return DuplicateResponse(id=new_placement_request.id, title=new_title)

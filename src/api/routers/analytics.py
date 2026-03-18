@@ -5,21 +5,25 @@ Endpoints:
   GET /api/analytics/summary          — сводка: баланс, тариф, общая статистика
   GET /api/analytics/activity?days=7  — активность по дням для графика
   GET /api/analytics/top-chats        — топ чатов по успешности (PRO/BUSINESS)
+  GET /api/analytics/advertiser       — аналитика рекламодателя (Mini App)
+  GET /api/analytics/owner            — аналитика владельца (Mini App)
 """
 
 import logging
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser
-from src.db.models.analytics import TelegramChat
-from src.db.models.campaign import Campaign
-from src.db.models.mailing_log import MailingLog
+from src.core.services.analytics_service import AnalyticsService
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.user import User
 from src.db.session import async_session_factory
+
+Campaign = PlacementRequest  # alias for legacy references in topics/ai-insights endpoints
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analytics"])
@@ -68,6 +72,34 @@ class TopChatsResponse(BaseModel):
     chats: list[TopChatItem]
 
 
+# ─── Mini App Analytics Schemas ─────────────────────────────────
+
+
+class MiniAppChannel(BaseModel):
+    id: int
+    username: str
+    title: str | None
+    member_count: int
+
+
+class AdvertiserAnalyticsResponse(BaseModel):
+    total_campaigns: int
+    total_reach: int
+    total_spent: str
+    avg_ctr: float
+    top_channels: list[dict]
+    by_category: list[dict]
+
+
+class OwnerAnalyticsResponse(BaseModel):
+    total_earned: str
+    total_publications: int
+    avg_rating: float
+    channel_count: int
+    by_channel: list[dict]
+    earnings_period: dict
+
+
 # ─── Хелперы ────────────────────────────────────────────────────
 
 
@@ -93,33 +125,30 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
     plan_str = _plan_label(current_user.plan)
 
     async with async_session_factory() as session:
-        # Считаем кампании
-        campaigns_result = await session.execute(
-            select(
-                func.count(Campaign.id).label("total"),
-                func.count(Campaign.id)
-                .filter(Campaign.status.in_(["running", "queued"]))
-                .label("active"),
-            ).where(Campaign.user_id == current_user.id)
+        service = AnalyticsService()
+        stats = await service.get_advertiser_stats(
+            advertiser_id=current_user.id, session=session
         )
-        camp_row = campaigns_result.one()
 
-        # Считаем отправки из логов
-        logs_result = await session.execute(
-            select(
-                func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
-                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
+        active_result = await session.execute(
+            select(func.count(PlacementRequest.id)).where(
+                PlacementRequest.advertiser_id == current_user.id,
+                PlacementRequest.status.in_([
+                    PlacementStatus.pending_owner,
+                    PlacementStatus.pending_payment,
+                    PlacementStatus.escrow,
+                ]),
             )
-            .join(Campaign)
-            .where(Campaign.user_id == current_user.id)
         )
-        log_row = logs_result.one()
+        campaigns_active = active_result.scalar() or 0
 
-    total_sent = log_row.sent or 0
-    total_failed = log_row.failed or 0
-    total_logs = log_row.total or 0
-    success_rate = round(total_sent / total_logs * 100, 1) if total_logs > 0 else 0.0
+    total_sent = stats.completed_placements
+    total_failed = max(0, stats.total_placements - stats.completed_placements - campaigns_active)
+    success_rate = (
+        round(stats.completed_placements / stats.total_placements * 100, 1)
+        if stats.total_placements > 0
+        else 0.0
+    )
 
     expires_str = None
     if current_user.plan_expires_at:
@@ -134,8 +163,8 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
         total_sent=total_sent,
         total_failed=total_failed,
         success_rate=success_rate,
-        campaigns_count=camp_row.total or 0,
-        campaigns_active=camp_row.active or 0,
+        campaigns_count=stats.total_placements,
+        campaigns_active=campaigns_active,
     )
 
 
@@ -148,29 +177,9 @@ async def get_activity(
     Активность по дням для графика на Dashboard.
     Возвращает последние N дней.
     """
-    since = datetime.now(UTC) - timedelta(days=days)
-
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(
-                func.date(MailingLog.sent_at).label("day"),
-                func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
-                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
-            )
-            .join(Campaign)
-            .where(
-                Campaign.user_id == current_user.id,
-                MailingLog.sent_at >= since,
-            )
-            .group_by(func.date(MailingLog.sent_at))
-            .order_by(func.date(MailingLog.sent_at))
-        )
-        rows = result.all()
-
-    # Строим полный список дней (даже пустых)
+    # MailingLog removed — return stub data
     day_labels_ru = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    data_by_day = {str(row.day): (row.sent or 0, row.failed or 0) for row in rows}
+    data_by_day: dict = {}
 
     points = []
     total_sent = 0
@@ -208,44 +217,21 @@ async def get_top_chats(
         )
 
     async with async_session_factory() as session:
-        result = await session.execute(
-            select(
-                TelegramChat.username,
-                TelegramChat.title,
-                TelegramChat.member_count,
-                func.count(MailingLog.id).label("sent_count"),
-                (
-                    func.count(MailingLog.id).filter(MailingLog.status == "sent")
-                    * 100.0
-                    / func.nullif(func.count(MailingLog.id), 0)
-                ).label("success_rate"),
-            )
-            .join(MailingLog, MailingLog.chat_id == TelegramChat.id)
-            .join(Campaign, Campaign.id == MailingLog.campaign_id)
-            .where(Campaign.user_id == current_user.id)
-            .group_by(TelegramChat.id)
-            .having(func.count(MailingLog.id) >= 3)
-            .order_by(
-                (
-                    func.count(MailingLog.id).filter(MailingLog.status == "sent")
-                    * 100.0
-                    / func.nullif(func.count(MailingLog.id), 0)
-                ).desc()
-            )
-            .limit(limit)
+        service = AnalyticsService()
+        channels = await service.get_top_channels_by_reach(
+            advertiser_id=current_user.id, session=session, limit=limit
         )
-        rows = result.all()
 
     return TopChatsResponse(
         chats=[
             TopChatItem(
-                username=row.username,
-                title=row.title or "Без названия",
-                member_count=row.member_count or 0,
-                sent_count=row.sent_count or 0,
-                success_rate=round(row.success_rate or 0, 1),
+                username=ch["username"],
+                title=ch["title"] or "Без названия",
+                member_count=0,
+                sent_count=ch["total_reach"],
+                success_rate=0.0,
             )
-            for row in rows
+            for ch in channels
         ]
     )
 
@@ -347,7 +333,6 @@ async def get_campaign_ai_insights(
     from sqlalchemy import update
 
     from src.core.services.campaign_analytics_ai import campaign_analytics_ai
-    from src.db.models.campaign import Campaign
 
     plan_str = _plan_label(current_user.plan)
 
@@ -393,22 +378,10 @@ async def get_campaign_ai_insights(
             detail="AI insights available only for completed campaigns",
         )
 
-    # Получаем статистику кампании
-    async with async_session_factory() as session:
-        logs_result = await session.execute(
-            select(
-                func.count(MailingLog.id).label("total"),
-                func.count(MailingLog.id).filter(MailingLog.status == "sent").label("sent"),
-                func.count(MailingLog.id).filter(MailingLog.status == "failed").label("failed"),
-                func.min(MailingLog.sent_at).label("started_at"),
-            ).where(MailingLog.campaign_id == campaign_id)
-        )
-        log_row = logs_result.one()
-
-    total_sent = log_row.sent or 0
-    total_failed = log_row.failed or 0
-    total_logs = log_row.total or 0
-    success_rate = round(total_sent / total_logs * 100, 1) if total_logs > 0 else 0.0
+    # MailingLog removed — use zero stats
+    total_sent = 0
+    total_failed = 0
+    success_rate = 0.0
 
     campaign_data = {
         "title": campaign.title or "Без названия",
@@ -416,7 +389,7 @@ async def get_campaign_ai_insights(
         "failed": total_failed,
         "success_rate": success_rate,
         "topics": (campaign.filters_json or {}).get("topics", []),
-        "date": log_row.started_at.strftime("%d.%m.%Y") if log_row.started_at else "",
+        "date": "",
     }
 
     # Вызываем AI
@@ -443,6 +416,197 @@ async def get_campaign_ai_insights(
         forecast=result.get("forecast"),
         ab_test_suggestion=result.get("ab_test_suggestion"),
         generated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+# ─── Mini App Analytics Endpoints ──────────────────────────────
+
+
+@router.get("/advertiser", response_model=AdvertiserAnalyticsResponse)
+async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnalyticsResponse:
+    """
+    Аналитика рекламодателя для Mini App.
+    Возвращает данные о кампаниях, охвате, CTR и топ каналах.
+    """
+    async with async_session_factory() as session:
+        # Получаем общую статистику по кампаниям рекламодателя
+        # Используем published статус как завершённый (published = размещено и завершено)
+        placements_result = await session.execute(
+            select(
+                func.count(PlacementRequest.id).label("total_campaigns"),
+                func.sum(PlacementRequest.final_price).label("total_spent"),
+                func.sum(PlacementRequest.clicks_count).label("total_clicks"),
+                func.sum(PlacementRequest.published_reach).label("total_reach"),
+            ).where(
+                PlacementRequest.advertiser_id == current_user.id,
+                PlacementRequest.status == PlacementStatus.published,
+            )
+        )
+        placement_stats = placements_result.first()
+
+        total_campaigns = placement_stats.total_campaigns or 0
+        total_reach = placement_stats.total_reach or 0
+        total_spent = str(placement_stats.total_spent or Decimal("0"))
+        total_clicks = placement_stats.total_clicks or 0
+
+        # Рассчитываем CTR
+        avg_ctr = round((total_clicks / total_reach * 100), 2) if total_reach > 0 else 0.0
+
+        # Топ каналов по охвату
+        top_channels_result = await session.execute(
+            select(
+                PlacementRequest.channel_id,
+                func.sum(PlacementRequest.published_reach).label("reach"),
+            )
+            .where(
+                PlacementRequest.advertiser_id == current_user.id,
+                PlacementRequest.status == PlacementStatus.published,
+            )
+            .group_by(PlacementRequest.channel_id)
+            .order_by(func.sum(PlacementRequest.published_reach).desc())
+            .limit(5)
+        )
+        top_channels_rows = top_channels_result.all()
+
+        # Получаем данные каналов
+        top_channels = []
+        for channel_row in top_channels_rows:
+            from src.db.models.telegram_chat import TelegramChat
+
+            channel = await session.get(TelegramChat, channel_row.channel_id)
+            if channel:
+                # Рассчитываем CTR для канала
+                channel_placements = await session.execute(
+                    select(
+                        func.sum(PlacementRequest.clicks_count).label("clicks"),
+                        func.sum(PlacementRequest.published_reach).label("reach"),
+                    ).where(
+                        PlacementRequest.channel_id == channel_row.channel_id,
+                        PlacementRequest.advertiser_id == current_user.id,
+                    )
+                )
+                channel_stats = channel_placements.first()
+                channel_ctr = (
+                    round((channel_stats.clicks or 0) / (channel_stats.reach or 1) * 100, 2)
+                    if channel_stats.reach
+                    else 0.0
+                )
+
+                top_channels.append({
+                    "channel": {
+                        "id": channel.id,
+                        "username": channel.username,
+                        "title": channel.title,
+                        "member_count": channel.member_count,
+                    },
+                    "reach": channel_row.reach or 0,
+                    "ctr": channel_ctr,
+                })
+
+        # Распределение по категориям (заглушка, пока нет данных)
+        by_category = []
+
+    return AdvertiserAnalyticsResponse(
+        total_campaigns=total_campaigns,
+        total_reach=total_reach,
+        total_spent=total_spent,
+        avg_ctr=avg_ctr,
+        top_channels=top_channels,
+        by_category=by_category,
+    )
+
+
+@router.get("/owner", response_model=OwnerAnalyticsResponse)
+async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsResponse:
+    """
+    Аналитика владельца канала для Mini App.
+    Возвращает данные о заработке, публикациях и рейтинге.
+    """
+    from src.db.models.telegram_chat import TelegramChat
+
+    async with async_session_factory() as session:
+        # Получаем все каналы владельца
+        channels_result = await session.execute(
+            select(TelegramChat).where(TelegramChat.owner_id == current_user.id)
+        )
+        channels = channels_result.scalars().all()
+
+        # Общая статистика по публикациям
+        placements_result = await session.execute(
+            select(
+                func.count(PlacementRequest.id).label("total_publications"),
+                func.sum(PlacementRequest.final_price).label("total_earned"),
+            ).where(
+                PlacementRequest.owner_id == current_user.id,
+                PlacementRequest.status == PlacementStatus.published,
+            )
+        )
+        placement_stats = placements_result.first()
+
+        total_publications = placement_stats.total_publications or 0
+        total_earned = str(placement_stats.total_earned or Decimal("0"))
+
+        # Средний рейтинг (заглушка — используем рейтинг каналов)
+        if channels:
+            avg_rating = round(sum(ch.rating for ch in channels) / len(channels), 1)
+        else:
+            avg_rating = 0.0
+
+        # Заработок по каналам
+        by_channel = []
+        for channel in channels:
+            channel_placements = await session.execute(
+                select(
+                    func.count(PlacementRequest.id).label("publications"),
+                    func.sum(PlacementRequest.final_price).label("earned"),
+                ).where(
+                    PlacementRequest.channel_id == channel.id,
+                    PlacementRequest.owner_id == current_user.id,
+                    PlacementRequest.status == PlacementStatus.published,
+                )
+            )
+            channel_stats = channel_placements.first()
+            by_channel.append({
+                "channel": {
+                    "id": channel.id,
+                    "username": channel.username,
+                    "title": channel.title,
+                    "member_count": channel.member_count,
+                },
+                "earned": str(channel_stats.earned or Decimal("0")),
+                "publications": channel_stats.publications or 0,
+            })
+
+        # Заработок за период (сегодня, неделя, месяц)
+        now = datetime.now(UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = now - timedelta(days=now.weekday())
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        async def get_period_earnings(start_date):
+            result = await session.execute(
+                select(func.sum(PlacementRequest.final_price)).where(
+                    PlacementRequest.owner_id == current_user.id,
+                    PlacementRequest.status == PlacementStatus.published,
+                    PlacementRequest.published_at >= start_date,
+                )
+            )
+            return result.scalar() or Decimal("0")
+
+        earnings_period = {
+            "today": str(await get_period_earnings(today_start)),
+            "week": str(await get_period_earnings(week_start)),
+            "month": str(await get_period_earnings(month_start)),
+            "total": total_earned,
+        }
+
+    return OwnerAnalyticsResponse(
+        total_earned=total_earned,
+        total_publications=total_publications,
+        avg_rating=avg_rating,
+        channel_count=len(channels),
+        by_channel=by_channel,
+        earnings_period=earnings_period,
     )
 
 

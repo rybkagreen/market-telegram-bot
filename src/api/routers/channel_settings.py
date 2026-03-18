@@ -15,7 +15,7 @@ from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/channels/{channel_id}/settings", tags=["channel-settings"])
+router = APIRouter(tags=["channel-settings"])
 
 # =============================================================================
 # Schemas
@@ -99,7 +99,7 @@ async def get_channel_settings(
     session: AsyncSession = Depends(get_db_session),
 ) -> ChannelSettingsResponse:
     """Получить настройки канала."""
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     # Проверка что канал принадлежит пользователю
     channel = await session.get(TelegramChat, channel_id)
@@ -148,7 +148,7 @@ async def update_channel_settings(
     session: AsyncSession = Depends(get_db_session),
 ) -> ChannelSettingsResponse:
     """Частичное обновление настроек канала."""
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     # Проверка что канал принадлежит пользователю
     channel = await session.get(TelegramChat, channel_id)
