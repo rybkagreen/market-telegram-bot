@@ -1,6 +1,4 @@
-"""
-AdminFilter for admin-only handlers.
-"""
+"""AdminFilter for admin-only handlers."""
 
 from typing import Any
 
@@ -11,11 +9,7 @@ from src.db.repositories.user_repo import UserRepository
 
 
 class AdminFilter(BaseFilter):
-    """
-    Фильтр для администраторов.
-
-    Проверяет is_admin=True в БД.
-    """
+    """Фильтр для администраторов. Проверяет is_admin=True в БД."""
 
     async def __call__(
         self,
