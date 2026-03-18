@@ -20,7 +20,7 @@ from src.config.settings import settings
 from src.core.services.reputation_service import ReputationService
 from src.db.models.placement_request import PlacementStatus
 from src.db.models.user import User
-from src.db.repositories.placement_request_repo import PlacementRequestRepo
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
 from src.db.session import async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
@@ -156,7 +156,7 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        repo = PlacementRequestRepo(session)
+        repo = PlacementRequestRepository(session)
         expired_placements = await repo.get_expired_pending_owner()
 
         stats["total_checked"] = len(expired_placements)
@@ -252,7 +252,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        repo = PlacementRequestRepo(session)
+        repo = PlacementRequestRepository(session)
         expired_placements = await repo.get_expired_pending_payment()
 
         stats["total_checked"] = len(expired_placements)
@@ -343,7 +343,7 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        repo = PlacementRequestRepo(session)
+        repo = PlacementRequestRepository(session)
         expired_placements = await repo.get_expired_counter_offer()
 
         stats["total_checked"] = len(expired_placements)
@@ -435,7 +435,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация публикации."""
     from aiogram import Bot
 
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     result = {
         "success": False,
@@ -444,7 +444,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        repo = PlacementRequestRepo(session)
+        repo = PlacementRequestRepository(session)
         placement = await repo.get_by_id(placement_id)
 
         if not placement:
@@ -584,7 +584,7 @@ def retry_failed_publication(self, placement_id: int) -> dict[str, Any]:
 async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация повторной публикации."""
     async with async_session_factory() as session:
-        repo = PlacementRequestRepo(session)
+        repo = PlacementRequestRepository(session)
         placement = await repo.get_by_id(placement_id)
 
         if not placement:

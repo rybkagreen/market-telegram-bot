@@ -85,10 +85,11 @@ def daily_badge_check(self) -> dict:
 
             week_ago = datetime.now(UTC) - timedelta(days=7)
 
+            # ИЗМЕНЕНО (2026-03-17): is_banned → is_active, last_login_at → updated_at
+            # (поля is_banned и last_login_at не существуют в модели User)
             stmt = select(User).where(
                 User.is_active.is_(True),
-                User.is_banned.is_(False),
-                User.last_login_at >= week_ago,
+                User.updated_at >= week_ago,
             )
             result = await session.execute(stmt)
             users = list(result.scalars().all())
@@ -134,7 +135,7 @@ def monthly_top_advertisers(self) -> dict:
         from sqlalchemy import func, select
 
         from src.db.models.badge import Badge
-        from src.db.models.campaign import Campaign
+        from src.db.models.placement_request import PlacementRequest as Campaign
 
         async with async_session_factory() as session:
             # Считаем сумму потраченных средств за последний месяц

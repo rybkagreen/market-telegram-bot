@@ -9,8 +9,8 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from src.constants.parser import POPULAR_TOPICS
-from src.db.models.analytics import ChatType
-from src.db.repositories.chat_analytics import ChatAnalyticsRepository
+from src.db.models.telegram_chat import ChatType
+from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 from src.db.session import async_session_factory, get_session
 from src.tasks.celery_app import BaseTask, celery_app
 from src.utils.telegram.channel_rules_checker import check_channel_rules
@@ -394,7 +394,7 @@ SEARCH_QUERIES = [
 
 async def _parse_and_save_chats(
     parser: TelegramParser,
-    chat_repo: ChatAnalyticsRepository,
+    chat_repo: TelegramChatRepository,
     query: str,
     limit: int = 50,
     require_russian: bool = True,  # Новый параметр
@@ -404,7 +404,7 @@ async def _parse_and_save_chats(
 
     Args:
         parser: TelegramParser экземпляр.
-        chat_repo: ChatAnalyticsRepository экземпляр.
+        chat_repo: TelegramChatRepository экземпляр.
         query: Поисковый запрос.
         limit: Максимальное количество результатов.
         require_russian: Требовать русскоязычность канала.
@@ -567,7 +567,7 @@ async def _parse_and_save_chats(
 
 async def _parse_and_save_chats_by_topic(
     parser: TelegramParser,
-    chat_repo: ChatAnalyticsRepository,
+    chat_repo: TelegramChatRepository,
     topic: str,
     limit_per_query: int = 30,
     require_russian: bool = True,
@@ -578,7 +578,7 @@ async def _parse_and_save_chats_by_topic(
 
     Args:
         parser: TelegramParser экземпляр.
-        chat_repo: ChatAnalyticsRepository экземпляр.
+        chat_repo: TelegramChatRepository экземпляр.
         topic: Тема из TOPIC_SEARCH_QUERIES (например, "бизнес", "it").
         limit_per_query: Каналов на каждый поисковый запрос.
         require_russian: Требовать русскоязычность канала.
@@ -741,7 +741,7 @@ async def _parse_and_save_chats_by_topic(
 
 async def _parse_tgstat_and_save(
     telegram_parser: TelegramParser,
-    chat_repo: ChatAnalyticsRepository,
+    chat_repo: TelegramChatRepository,
     topic: str,
 ) -> int:
     """
@@ -749,7 +749,7 @@ async def _parse_tgstat_and_save(
 
     Args:
         telegram_parser: TelegramParser экземпляр.
-        chat_repo: ChatAnalyticsRepository экземпляр.
+        chat_repo: TelegramChatRepository экземпляр.
         topic: Тематика.
 
     Returns:
@@ -853,7 +853,7 @@ async def _refresh_chats_async(query_category: str | None = None) -> dict[str, A
         logger.info(f"Parsing all categories: {len(queries_to_parse)} queries")
 
     async with async_session_factory() as session:
-        chat_repo = ChatAnalyticsRepository(session)
+        chat_repo = TelegramChatRepository(session)
 
         # 1. Парсим через Telegram search
         async with TelegramParser() as parser:
@@ -1045,7 +1045,7 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
             return None
 
         async with async_session_factory() as session:
-            chat_repo = ChatAnalyticsRepository(session)
+            chat_repo = TelegramChatRepository(session)
 
             topic = classify_topic(chat_details.title, chat_details.description or "")
 
@@ -1150,7 +1150,7 @@ async def _update_chat_rating_async(chat_id: int) -> float | None:
             # Обновляем рейтинг напрямую через модель
             from sqlalchemy import select
 
-            from src.db.models.analytics import TelegramChat
+            from src.db.models.telegram_chat import TelegramChat
 
             result = await session.execute(
                 select(TelegramChat).where(TelegramChat.telegram_id == chat_id)
@@ -1205,7 +1205,7 @@ def collect_all_chats_stats(self) -> dict[str, Any]:
 async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
     """Асинхронная реализация collect_all_chats_stats."""
     async for session in get_session():
-        repo = ChatAnalyticsRepository(session)
+        repo = TelegramChatRepository(session)
         chats = await repo.get_all_active()
         break  # Выходим после первого yield
 
@@ -1255,7 +1255,7 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
         metrics_list = await parser.parse_chats_batch(usernames, on_progress=log_progress)
 
     async for session in get_session():
-        repo = ChatAnalyticsRepository(session)
+        repo = TelegramChatRepository(session)
         break  # Выходим после первого yield
 
     for metrics in metrics_list:
@@ -1270,7 +1270,7 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
 
         # Обновить мета-данные чата
 
-        from src.db.models.analytics import TelegramChat
+        from src.db.models.telegram_chat import TelegramChat
         from src.utils.categories import classify_subcategory
 
         # Получаем текущий topic из БД
@@ -1335,7 +1335,7 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         return {"success": False, "error": metrics.error}
 
     async for session in get_session():
-        repo = ChatAnalyticsRepository(session)
+        repo = TelegramChatRepository(session)
         break  # Выходим после первого yield
 
     chat, is_new = await repo.get_or_create_chat(username)
@@ -1400,7 +1400,7 @@ async def _recheck_channel_rules_async() -> None:
     """Асинхронная реализация recheck_channel_rules_task."""
     from sqlalchemy import and_, select
 
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
     from src.utils.telegram.channel_rules_checker import check_channel_rules
     from src.utils.telegram.parser import TelegramParser
 
@@ -1482,7 +1482,7 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
 
     from sqlalchemy import or_, select
 
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     stats = {"total": 0, "updated": 0, "failed": 0, "skipped": 0}
 

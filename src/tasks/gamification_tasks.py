@@ -138,11 +138,11 @@ def send_weekly_digest(self) -> dict[str, Any]:
             # Находим неактивных пользователей (7+ дней)
             seven_days_ago = datetime.now(UTC) - timedelta(days=7)
 
+            # ИЗМЕНЕНО (2026-03-17): is_banned → is_active (поле is_banned не существует в модели User)
             stmt = (
                 select(User)
                 .where(
                     User.is_active == True,  # noqa: E712
-                    User.is_banned == False,  # noqa: E712
                     User.updated_at < seven_days_ago,
                 )
                 .limit(1000)

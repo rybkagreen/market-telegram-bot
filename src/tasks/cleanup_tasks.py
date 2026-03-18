@@ -38,33 +38,64 @@ def delete_old_logs(self, days: int = 90) -> dict[str, Any]:
 
 async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
     """
-    Асинхронное удаление старых логов.
+    Очистить старые записи из БД по новым моделям.
 
     Args:
-        days: Количество дней.
+        days: Базовый порог в днях (PlacementRequest и Transaction).
 
     Returns:
-        Статистика.
+        Статистика удалённых записей.
     """
     from datetime import datetime, timedelta
 
     from sqlalchemy import delete
 
-    from src.db.models.mailing_log import MailingLog
+    from src.db.models.placement_request import PlacementRequest, PlacementStatus
+    from src.db.models.reputation_history import ReputationHistory
+    from src.db.models.yookassa_payment import YookassaPayment
+
+    now = datetime.now(tz=UTC)
+    cutoff_placements = now - timedelta(days=days)
+    cutoff_reputation = now - timedelta(days=180)
+    cutoff_payments = now - timedelta(days=30)
 
     async with async_session_factory() as session:
-        cutoff_date = datetime.now(tz=UTC) - timedelta(days=days)
+        # Удалить старые завершённые/отменённые заявки
+        r1 = await session.execute(
+            delete(PlacementRequest).where(
+                PlacementRequest.status.in_([
+                    PlacementStatus.cancelled,
+                    PlacementStatus.refunded,
+                    PlacementStatus.failed,
+                    PlacementStatus.failed_permissions,
+                ]),
+                PlacementRequest.created_at < cutoff_placements,
+            )
+        )
 
-        stmt = delete(MailingLog).where(MailingLog.created_at < cutoff_date)
-        result = await session.execute(stmt)
+        # Удалить старую историю репутации
+        r2 = await session.execute(
+            delete(ReputationHistory).where(
+                ReputationHistory.created_at < cutoff_reputation,
+            )
+        )
+
+        # Удалить отменённые платежи ЮKassa
+        r3 = await session.execute(
+            delete(YookassaPayment).where(
+                YookassaPayment.status == "cancelled",
+                YookassaPayment.created_at < cutoff_payments,
+            )
+        )
+
         await session.commit()
 
-        deleted_count = result.rowcount  # type: ignore
-
-        return {
-            "deleted_count": deleted_count,
-            "cutoff_date": cutoff_date.isoformat(),
-        }
+    return {
+        "placements_deleted": r1.rowcount,
+        "reputation_history_deleted": r2.rowcount,
+        "payments_deleted": r3.rowcount,
+        "cutoff_date": cutoff_placements.isoformat(),
+    }
 
 
 @celery_app.task(bind=True, base=BaseTask, name="cleanup:archive_old_campaigns")
@@ -104,21 +135,21 @@ async def _archive_old_campaigns_async(months: int = 12) -> dict[str, Any]:
 
     from sqlalchemy import update
 
-    from src.db.models.campaign import Campaign, CampaignStatus
+    from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
     async with async_session_factory() as session:
         cutoff_date = datetime.now(tz=UTC) - timedelta(days=months * 30)
 
-        # Находим завершенные кампании старше cutoff_date
+        # Archive old cancelled/failed placements
         stmt = (
-            update(Campaign)
+            update(PlacementRequest)
             .where(
-                Campaign.completed_at < cutoff_date,
-                Campaign.status.in_(
-                    [CampaignStatus.DONE, CampaignStatus.ERROR, CampaignStatus.CANCELLED]
+                PlacementRequest.created_at < cutoff_date,
+                PlacementRequest.status.in_(
+                    [PlacementStatus.failed, PlacementStatus.cancelled, PlacementStatus.refunded]
                 ),
             )
-            .values(status=CampaignStatus.DONE)  # Можно добавить статус "archived"
+            .values(status=PlacementStatus.failed)
         )
         result = await session.execute(stmt)
         await session.commit()
@@ -146,7 +177,7 @@ async def _cleanup_useless_channels_async() -> dict[str, Any]:
     """Асинхронная реализация очистки бесполезных каналов."""
     from sqlalchemy import delete, or_
 
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     stats = {"deleted": 0, "skipped": 0}
 

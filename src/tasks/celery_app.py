@@ -28,7 +28,6 @@ def create_celery_app() -> Celery:
         backend=settings.celery_result_backend,
         include=[
             "src.tasks.parser_tasks",
-            "src.tasks.mailing_tasks",
             "src.tasks.cleanup_tasks",
             "src.tasks.notification_tasks",
             "src.tasks.billing_tasks",
@@ -176,23 +175,11 @@ def get_beat_schedule() -> dict[str, Any]:
             "schedule": crontab(hour=3, minute=30),
             "options": {"queue": "parser"},
         },
-        # ========== MAILING (каждые 5 минут) ==========
-        "check-scheduled-campaigns": {
-            "task": "mailing:check_scheduled_campaigns",
-            "schedule": crontab(minute="*/5"),
-            "options": {"queue": "mailing"},
-        },
         # ========== CLEANUP (воскресенье 03:00 UTC) ==========
         "delete-old-logs": {
             "task": "cleanup:delete_old_logs",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),
             "options": {"queue": "cleanup"},
-        },
-        # ========== BILLING (каждый час) ==========
-        "check-low-balance": {
-            "task": "mailing:check_low_balance",
-            "schedule": crontab(minute=0),
-            "options": {"queue": "mailing"},
         },
         # ========== PLAN RENEWALS (ежедневно в 03:00 UTC) ==========
         "check-plan-renewals": {

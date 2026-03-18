@@ -8,10 +8,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.constants.tariffs import TARIFF_CREDIT_COST
-from src.db.models.crypto_payment import CryptoPayment, PaymentStatus
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -160,72 +157,5 @@ def check_pending_invoices(self) -> dict:
 
 
 async def _check_pending_invoices() -> dict:
-    """Асинхронная реализация проверки инвойсов."""
-    from sqlalchemy import select, update
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    from src.config.settings import settings
-    from src.core.services.cryptobot_service import cryptobot_service
-
-    # Создаём новый engine для этого event loop
-    engine = create_async_engine(
-        str(settings.database_url),
-        echo=False,
-        pool_pre_ping=True,
-    )
-    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
-    credited = 0
-    expired_count = 0
-
-    async with async_session() as session:
-        result = await session.execute(
-            select(CryptoPayment).where(
-                CryptoPayment.status == PaymentStatus.PENDING,
-                CryptoPayment.method == "cryptobot",
-            )
-        )
-        payments = result.scalars().all()
-
-        for payment in payments:
-            try:
-                if not payment.invoice_id:
-                    continue
-
-                invoice = await cryptobot_service.get_invoice(payment.invoice_id)
-
-                if invoice.status == "paid":
-                    # Зачисляем кредиты
-                    user_repo = UserRepository(session)
-                    total_credits = payment.credits + payment.bonus_credits
-                    await user_repo.update_credits(payment.user_id, total_credits)
-
-                    await session.execute(
-                        update(CryptoPayment)
-                        .where(CryptoPayment.id == payment.id)
-                        .values(
-                            status=PaymentStatus.PAID,
-                            credited_at=datetime.now(UTC),
-                        )
-                    )
-                    await session.commit()
-                    credited += 1
-                    logger.info(f"Credits awarded: payment={payment.id}, credits={total_credits}")
-
-                elif invoice.status in ("expired", "cancelled"):
-                    from sqlalchemy import update
-
-                    await session.execute(
-                        update(CryptoPayment)
-                        .where(CryptoPayment.id == payment.id)
-                        .values(status=PaymentStatus(invoice.status))
-                    )
-                    await session.commit()
-                    expired_count += 1
-
-            except Exception as e:
-                logger.error(f"Failed to check invoice {payment.invoice_id}: {e}")
-
-    await engine.dispose()
-
-    return {"credited": credited, "expired": expired_count}
+    """CryptoBot удалён — нечего проверять."""
+    return {"credited": 0, "expired": 0}
