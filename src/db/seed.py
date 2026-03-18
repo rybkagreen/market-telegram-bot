@@ -1,13 +1,10 @@
-"""
-Seed script for initial database data.
-"""
+"""Seed script for initial database data."""
 
 import asyncio
 
-from src.db.session import async_session_factory
 from src.db.models.category import Category
 from src.db.models.platform_account import PlatformAccount
-
+from src.db.session import async_session_factory
 
 CATEGORIES = [
     {"key": "it", "name_ru": "IT и технологии", "emoji": "💻"},
@@ -27,15 +24,10 @@ CATEGORIES = [
 async def seed():
     """Seed the database with initial data."""
     async with async_session_factory() as session:
-        # Add categories
         for data in CATEGORIES:
             session.add(Category(**data))
-
-        # Add platform account singleton
         session.add(PlatformAccount(id=1))
-
         await session.commit()
-
     print("Seed OK")
 
 

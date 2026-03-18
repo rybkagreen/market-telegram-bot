@@ -1,20 +1,20 @@
-"""
-YookassaPayment model for YooKassa payment tracking.
-"""
+"""YookassaPayment model for YooKassa payment tracking."""
 
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+if TYPE_CHECKING:
+    from src.db.models.user import User
+
 
 class YookassaPayment(Base, TimestampMixin):
-    """
-    Модель платежа YooKassa.
-    """
+    """Модель платежа YooKassa."""
 
     __tablename__ = "yookassa_payments"
 

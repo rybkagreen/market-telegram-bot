@@ -1,16 +1,18 @@
-"""
-PayoutRequest model for owner payout requests.
-"""
+"""PayoutRequest model for owner payout requests."""
 
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.transaction import Transaction
+    from src.db.models.user import User
 
 
 class PayoutStatus(str, Enum):
@@ -24,9 +26,7 @@ class PayoutStatus(str, Enum):
 
 
 class PayoutRequest(Base, TimestampMixin):
-    """
-    Модель заявки на выплату владельцу канала.
-    """
+    """Модель заявки на выплату владельцу канала."""
 
     __tablename__ = "payout_requests"
 
@@ -35,10 +35,7 @@ class PayoutRequest(Base, TimestampMixin):
     gross_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    status: Mapped[PayoutStatus] = mapped_column(
-        default=PayoutStatus.pending,
-        index=True,
-    )
+    status: Mapped[PayoutStatus] = mapped_column(default=PayoutStatus.pending, index=True)
     requisites: Mapped[str] = mapped_column(String(512), nullable=False)
     admin_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,15 +1,17 @@
-"""
-PlacementDispute model for arbitration disputes.
-"""
+"""PlacementDispute model for arbitration disputes."""
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.user import User
 
 
 class DisputeReason(str, Enum):
@@ -38,26 +40,16 @@ class DisputeResolution(str, Enum):
 
 
 class PlacementDispute(Base, TimestampMixin):
-    """
-    Модель спора по размещению.
-    """
+    """Модель спора по размещению."""
 
     __tablename__ = "placement_disputes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    placement_request_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("placement_requests.id"),
-        nullable=False,
-        index=True,
-    )
+    placement_request_id: Mapped[int] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=False, index=True)
     advertiser_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     reason: Mapped[DisputeReason] = mapped_column(nullable=False)
-    status: Mapped[DisputeStatus] = mapped_column(
-        default=DisputeStatus.open,
-        index=True,
-    )
+    status: Mapped[DisputeStatus] = mapped_column(default=DisputeStatus.open, index=True)
     owner_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     advertiser_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolution: Mapped[DisputeResolution | None] = mapped_column(nullable=True)

@@ -1,15 +1,18 @@
-"""
-Transaction model for financial transactions.
-"""
+"""Transaction model for financial transactions."""
 
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import JSON, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.payout import PayoutRequest
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.user import User
 
 
 class TransactionType(str, Enum):
@@ -30,9 +33,7 @@ class TransactionType(str, Enum):
 
 
 class Transaction(Base, TimestampMixin):
-    """
-    Модель финансовой транзакции.
-    """
+    """Модель финансовой транзакции."""
 
     __tablename__ = "transactions"
 
@@ -40,17 +41,8 @@ class Transaction(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     type: Mapped[TransactionType] = mapped_column(nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    placement_request_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("placement_requests.id"),
-        nullable=True,
-        index=True,
-    )
-    payout_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("payout_requests.id"),
-        nullable=True,
-    )
+    placement_request_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=True, index=True)
+    payout_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("payout_requests.id"), nullable=True)
     yookassa_payment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

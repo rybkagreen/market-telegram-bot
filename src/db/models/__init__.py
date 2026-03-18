@@ -4,6 +4,7 @@ from src.db.models.category import Category
 from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.dispute import DisputeReason, DisputeResolution, DisputeStatus, PlacementDispute
+from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus, PublicationFormat
 from src.db.models.platform_account import PlatformAccount
@@ -39,4 +40,6 @@ __all__ = [
     "Review",
     "Category",
     "UserBadge",
+    "UserFeedback",
+    "FeedbackStatus",
 ]

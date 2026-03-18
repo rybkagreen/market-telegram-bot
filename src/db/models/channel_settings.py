@@ -1,21 +1,20 @@
-"""
-ChannelSettings model for channel configuration.
-"""
+"""ChannelSettings model for channel configuration."""
 
 from datetime import datetime, time
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, Time, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
 
+if TYPE_CHECKING:
+    from src.db.models.telegram_chat import TelegramChat
+
 
 class ChannelSettings(Base):
-    """
-    Модель настроек канала.
-    one-to-one с TelegramChat (channel_id = PRIMARY KEY).
-    """
+    """Модель настроек канала. one-to-one с TelegramChat."""
 
     __tablename__ = "channel_settings"
 
@@ -33,11 +32,7 @@ class ChannelSettings(Base):
     break_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     break_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     auto_accept_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     # Relationships
     channel: Mapped["TelegramChat"] = relationship("TelegramChat", back_populates="channel_settings")
