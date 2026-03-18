@@ -1,0 +1,10 @@
+.breakdown {
+  margin: var(--rh-space-4) 0;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  margin-top: var(--rh-space-4);
+}

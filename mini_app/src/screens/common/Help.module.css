@@ -1,0 +1,33 @@
+.card {
+  margin-top: var(--rh-space-3);
+  margin-bottom: var(--rh-space-3);
+}
+
+.faqRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--rh-space-3) 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rh-border);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.faqRow:last-child {
+  border-bottom: none;
+}
+
+.faqRow:active {
+  opacity: 0.7;
+}
+
+.chevron {
+  color: var(--rh-text-muted);
+  font-size: var(--rh-text-lg);
+  line-height: 1;
+}

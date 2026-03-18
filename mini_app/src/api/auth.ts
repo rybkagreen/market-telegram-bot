@@ -1,25 +1,6 @@
-import { apiClient } from './client'
+import ky from 'ky'
+import type { AuthResponse } from '@/lib/types'
 
-export interface UserData {
-  id: number
-  telegram_id: number
-  username: string | null
-  first_name: string | null
-  plan: 'free' | 'starter' | 'pro' | 'business'
-  credits: number
-  ai_generations_used: number
-}
-
-export interface LoginResponse {
-  access_token: string
-  token_type: string
-  user: UserData
-}
-
-export const authApi = {
-  login: (initData: string): Promise<LoginResponse> =>
-    apiClient.post('/auth/login', { init_data: initData }).then(r => r.data),
-
-  me: (): Promise<UserData> =>
-    apiClient.get('/auth/me').then(r => r.data),
+export function authenticateTelegram(initData: string): Promise<AuthResponse> {
+  return ky.post('/api/auth/telegram', { json: { init_data: initData } }).json<AuthResponse>()
 }

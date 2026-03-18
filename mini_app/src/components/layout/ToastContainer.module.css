@@ -1,0 +1,52 @@
+.container {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  left: var(--rh-space-4);
+  right: var(--rh-space-4);
+  z-index: var(--rh-z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-3) var(--rh-space-4);
+  border-radius: var(--rh-radius-md);
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.toast--success {
+  background: var(--rh-success-muted);
+  border-left: 3px solid var(--rh-success);
+}
+
+.toast--error {
+  background: var(--rh-danger-muted);
+  border-left: 3px solid var(--rh-danger);
+}
+
+.toast--warning {
+  background: var(--rh-warning-muted);
+  border-left: 3px solid var(--rh-warning);
+}
+
+.toast--info {
+  background: var(--rh-info-muted);
+  border-left: 3px solid var(--rh-info);
+}
+
+.icon {
+  font-size: var(--rh-text-base);
+  flex-shrink: 0;
+}
+
+.message {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+  line-height: var(--rh-leading-normal);
+}

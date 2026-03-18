@@ -1,0 +1,66 @@
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  padding: var(--rh-space-2) 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rh-space-2);
+}
+
+.rowLabel {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  flex-shrink: 0;
+}
+
+.rowValue {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-text-primary);
+}
+
+.priceInput {
+  width: 100px;
+  background: var(--rh-bg-card);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-sm);
+  padding: var(--rh-space-1) var(--rh-space-2);
+  font-size: var(--rh-text-sm);
+  font-family: var(--rh-font-mono);
+  color: var(--rh-text-primary);
+  text-align: right;
+  outline: none;
+}
+
+.timeInput {
+  background: var(--rh-bg-card);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-sm);
+  padding: var(--rh-space-1) var(--rh-space-2);
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+  outline: none;
+}
+
+.breakdown {
+  margin-top: var(--rh-space-4);
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  margin-top: var(--rh-space-4);
+}
+
+.empty {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+  text-align: center;
+  padding: var(--rh-space-4);
+}

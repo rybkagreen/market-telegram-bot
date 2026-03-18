@@ -1,0 +1,28 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-12) var(--rh-space-6);
+  text-align: center;
+}
+
+.icon {
+  font-size: 48px;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.title {
+  font-size: var(--rh-text-base);
+  font-weight: var(--rh-weight-semibold);
+  color: var(--rh-text-primary);
+}
+
+.description {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  max-width: 280px;
+  line-height: var(--rh-leading-relaxed);
+}

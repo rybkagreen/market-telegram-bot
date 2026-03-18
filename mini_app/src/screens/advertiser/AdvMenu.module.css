@@ -1,0 +1,13 @@
+.sectionTitle {
+  font-size: var(--rh-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-4) 0 var(--rh-space-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+}

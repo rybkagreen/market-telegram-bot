@@ -1,0 +1,100 @@
+.sectionTitle {
+  font-size: var(--rh-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-4) 0 var(--rh-space-2);
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rh-space-2) 0;
+  border-bottom: 1px solid var(--rh-border);
+}
+
+.infoRow:last-child {
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+}
+
+.infoValue {
+  font-size: var(--rh-text-sm);
+  font-weight: 500;
+  color: var(--rh-text-primary);
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  margin-bottom: var(--rh-space-3);
+}
+
+.reasonBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-3);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-lg);
+  background: var(--rh-surface-2);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.reasonSelected {
+  border-color: var(--rh-danger);
+  background: var(--rh-danger-muted);
+}
+
+.reasonIcon {
+  font-size: var(--rh-text-lg);
+  flex-shrink: 0;
+}
+
+.reasonLabel {
+  font-size: var(--rh-text-sm);
+  font-weight: 500;
+  color: var(--rh-text-primary);
+}
+
+.label {
+  display: block;
+  font-size: var(--rh-text-sm);
+  font-weight: 500;
+  color: var(--rh-text-secondary);
+  margin-bottom: var(--rh-space-1);
+}
+
+.textarea {
+  width: 100%;
+  padding: var(--rh-space-3);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  background: var(--rh-surface-2);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.textarea:focus {
+  border-color: var(--rh-border-active);
+}
+
+.charHint {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-1) 0 var(--rh-space-3);
+  text-align: right;
+}

@@ -1,0 +1,70 @@
+@keyframes rhBtnSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.button {
+  border-radius: var(--rh-radius-md);
+  font-family: var(--rh-font-body);
+  font-weight: var(--rh-weight-semibold);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rh-space-2);
+  border: 1px solid transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  white-space: nowrap;
+  transition:
+    background var(--rh-transition-fast),
+    color var(--rh-transition-fast),
+    border-color var(--rh-transition-fast),
+    transform var(--rh-transition-fast),
+    filter var(--rh-transition-fast);
+}
+
+/* ── Sizes ── */
+.sm { padding: var(--rh-space-2) var(--rh-space-3); font-size: var(--rh-text-sm);  min-height: 36px; }
+.md { padding: var(--rh-space-3) var(--rh-space-4); font-size: var(--rh-text-base); min-height: 44px; }
+.lg { padding: var(--rh-space-4) var(--rh-space-6); font-size: var(--rh-text-base); min-height: 52px; }
+
+.fullWidth { width: 100%; }
+
+/* ── Variants ── */
+.primary { background: var(--rh-accent); color: var(--rh-accent-text); }
+.primary:hover  { filter: brightness(1.1); }
+.primary:active { transform: scale(0.98); filter: brightness(0.95); }
+
+.secondary { background: transparent; border-color: var(--rh-border-active); color: var(--rh-text-primary); }
+.secondary:hover  { border-color: var(--rh-accent); color: var(--rh-accent); }
+.secondary:active { transform: scale(0.98); }
+
+.danger { background: var(--rh-danger-muted); color: var(--rh-danger); border-color: var(--rh-danger-muted); }
+.danger:hover  { filter: brightness(1.15); }
+.danger:active { transform: scale(0.98); }
+
+.success { background: var(--rh-success-muted); color: var(--rh-success); border-color: var(--rh-success-muted); }
+.success:hover  { filter: brightness(1.15); }
+.success:active { transform: scale(0.98); }
+
+.ghost { background: transparent; color: var(--rh-text-secondary); }
+.ghost:hover  { background: var(--rh-bg-elevated); color: var(--rh-text-primary); }
+.ghost:active { transform: scale(0.98); }
+
+/* ── States ── */
+.disabled { opacity: 0.5; pointer-events: none; }
+.loading  { pointer-events: none; }
+.textHidden { opacity: 0; }
+
+.spinner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--rh-border);
+  border-top-color: var(--rh-accent);
+  border-radius: var(--rh-radius-full);
+  animation: rhBtnSpin 1s linear infinite;
+}
+.primary .spinner { border-color: var(--rh-glass-border); border-top-color: var(--rh-accent-text); }

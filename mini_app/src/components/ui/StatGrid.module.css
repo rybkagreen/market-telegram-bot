@@ -1,0 +1,30 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--rh-space-2);
+}
+
+.item {
+  background: var(--rh-bg-card);
+  border-radius: var(--rh-radius-md);
+  padding: var(--rh-space-3);
+}
+
+.value {
+  font-family: var(--rh-font-display);
+  font-size: var(--rh-text-xl);
+  font-weight: var(--rh-weight-bold);
+  color: var(--rh-text-primary);
+  line-height: var(--rh-leading-tight);
+}
+
+.blue   { color: var(--rh-accent); }
+.green  { color: var(--rh-success); }
+.yellow { color: var(--rh-warning); }
+.purple { color: var(--rh-accent-2); }
+
+.label {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+  margin-top: var(--rh-space-1);
+}

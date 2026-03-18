@@ -1,0 +1,105 @@
+.card {
+  margin-bottom: var(--rh-space-4);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--rh-space-3);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  background: var(--rh-bg-elevated);
+  color: var(--rh-text-primary);
+  font-family: var(--rh-font-body);
+  font-size: var(--rh-text-base);
+  line-height: var(--rh-leading-normal);
+  resize: vertical;
+  transition: border-color var(--rh-transition-fast);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--rh-accent);
+}
+
+.textarea::placeholder {
+  color: var(--rh-text-tertiary);
+}
+
+/* Feedback history items */
+.feedbackItem {
+  padding: var(--rh-space-3) 0;
+  border-bottom: 1px solid var(--rh-border);
+}
+
+.feedbackItem:last-child {
+  border-bottom: none;
+}
+
+.feedbackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--rh-space-2);
+}
+
+.statusBadge {
+  padding: var(--rh-space-1) var(--rh-space-2);
+  border-radius: var(--rh-radius-sm);
+  font-size: var(--rh-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusBadge[new] {
+  background: var(--rh-accent-muted);
+  color: var(--rh-accent);
+}
+
+.statusBadge[in_progress] {
+  background: var(--rh-warning-muted);
+  color: var(--rh-warning);
+}
+
+.statusBadge[resolved] {
+  background: var(--rh-success-muted);
+  color: var(--rh-success);
+}
+
+.statusBadge[rejected] {
+  background: var(--rh-danger-muted);
+  color: var(--rh-danger);
+}
+
+.feedbackDate {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-tertiary);
+}
+
+.feedbackText {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+  margin: var(--rh-space-2) 0;
+  line-height: var(--rh-leading-relaxed);
+}
+
+.adminResponse {
+  margin-top: var(--rh-space-3);
+  padding: var(--rh-space-3);
+  background: var(--rh-bg-secondary);
+  border-radius: var(--rh-radius-sm);
+  border-left: 3px solid var(--rh-accent);
+}
+
+.adminResponse strong {
+  display: block;
+  margin-bottom: var(--rh-space-1);
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+}
+
+.adminResponse p {
+  margin: 0;
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+}

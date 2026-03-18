@@ -1,0 +1,137 @@
+.sectionTitle {
+  font-size: var(--rh-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rh-text-muted);
+  margin: var(--rh-space-4) 0 var(--rh-space-2);
+}
+
+.infoRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rh-space-2);
+  padding: var(--rh-space-1) 0;
+  border-bottom: 1px solid var(--rh-border);
+}
+
+.infoRow:last-child {
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+}
+
+.infoValue {
+  font-size: var(--rh-text-sm);
+  font-weight: 500;
+  color: var(--rh-text-primary);
+  text-align: right;
+}
+
+.infoAccent {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-accent);
+}
+
+.infoWarning {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-warning);
+}
+
+.infoEarned {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  color: var(--rh-success);
+}
+
+.adText {
+  font-size: var(--rh-text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--rh-text-primary);
+  margin: 0;
+}
+
+.counterGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--rh-space-2);
+  margin-bottom: var(--rh-space-2);
+}
+
+.counterField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.label {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+  font-weight: 500;
+}
+
+.input {
+  padding: var(--rh-space-3);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  background: var(--rh-surface-2);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--rh-border-active);
+}
+
+.textarea {
+  width: 100%;
+  padding: var(--rh-space-3);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  background: var(--rh-surface-2);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  margin-bottom: var(--rh-space-1);
+}
+
+.textarea:focus {
+  border-color: var(--rh-border-active);
+}
+
+.hintWarning {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-warning);
+  margin: 0 0 var(--rh-space-2);
+}
+
+.rejectionReason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.reasonText {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
