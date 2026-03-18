@@ -1,3 +1,5 @@
+"""Channel owner states."""
+
 from aiogram.fsm.state import State, StatesGroup
 
 

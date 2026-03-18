@@ -1,6 +1,4 @@
-"""
-Common keyboards (back, cancel, confirm).
-"""
+"""Common keyboards (back, cancel, confirm)."""
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
