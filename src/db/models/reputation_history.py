@@ -1,14 +1,16 @@
-"""
-ReputationHistory model for reputation change tracking.
-"""
+"""ReputationHistory model for reputation change tracking."""
 
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.user import User
 
 
 class ReputationAction(str, Enum):
@@ -33,9 +35,7 @@ class ReputationAction(str, Enum):
 
 
 class ReputationHistory(Base, TimestampMixin):
-    """
-    Модель истории изменений репутации.
-    """
+    """Модель истории изменений репутации."""
 
     __tablename__ = "reputation_history"
 
@@ -46,11 +46,7 @@ class ReputationHistory(Base, TimestampMixin):
     delta: Mapped[float] = mapped_column(Float, nullable=False)
     score_before: Mapped[float] = mapped_column(Float, nullable=False)
     score_after: Mapped[float] = mapped_column(Float, nullable=False)
-    placement_request_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("placement_requests.id"),
-        nullable=True,
-    )
+    placement_request_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships

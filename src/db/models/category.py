@@ -1,6 +1,4 @@
-"""
-Category model for channel categories.
-"""
+"""Category model for channel categories."""
 
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -9,9 +7,7 @@ from src.db.base import Base
 
 
 class Category(Base):
-    """
-    Модель категории канала.
-    """
+    """Модель категории канала."""
 
     __tablename__ = "categories"
 

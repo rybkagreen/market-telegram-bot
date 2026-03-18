@@ -1,29 +1,23 @@
-"""
-ChannelMediakit model for channel media kits.
-"""
+"""ChannelMediakit model for channel media kits."""
 
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+if TYPE_CHECKING:
+    from src.db.models.telegram_chat import TelegramChat
+
 
 class ChannelMediakit(Base, TimestampMixin):
-    """
-    Модель медиакита канала.
-    one-to-one с TelegramChat.
-    """
+    """Модель медиакита канала. one-to-one с TelegramChat."""
 
     __tablename__ = "channel_mediakits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    channel_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("telegram_chats.id"),
-        unique=True,
-        nullable=False,
-    )
+    channel_id: Mapped[int] = mapped_column(Integer, ForeignKey("telegram_chats.id"), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     audience_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     avg_post_reach: Mapped[int] = mapped_column(Integer, default=0)

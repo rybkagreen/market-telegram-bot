@@ -1,15 +1,22 @@
-"""
-PlacementRequest model for advertising placement requests.
-"""
+"""PlacementRequest model for advertising placement requests."""
 
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.db.models.dispute import PlacementDispute
+    from src.db.models.reputation_history import ReputationHistory
+    from src.db.models.review import Review
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.models.transaction import Transaction
+    from src.db.models.user import User
 
 
 class PlacementStatus(str, Enum):
@@ -37,9 +44,7 @@ class PublicationFormat(str, Enum):
 
 
 class PlacementRequest(Base, TimestampMixin):
-    """
-    Модель заявки на размещение рекламы.
-    """
+    """Модель заявки на размещение рекламы."""
 
     __tablename__ = "placement_requests"
 
@@ -47,13 +52,8 @@ class PlacementRequest(Base, TimestampMixin):
     advertiser_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     channel_id: Mapped[int] = mapped_column(Integer, ForeignKey("telegram_chats.id"), nullable=False, index=True)
-    status: Mapped[PlacementStatus] = mapped_column(
-        default=PlacementStatus.pending_owner,
-        index=True,
-    )
-    publication_format: Mapped[PublicationFormat] = mapped_column(
-        default=PublicationFormat.post_24h,
-    )
+    status: Mapped[PlacementStatus] = mapped_column(default=PlacementStatus.pending_owner, index=True)
+    publication_format: Mapped[PublicationFormat] = mapped_column(default=PublicationFormat.post_24h)
     ad_text: Mapped[str] = mapped_column(Text, nullable=False)
     proposed_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     final_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -82,9 +82,7 @@ class PlacementRequest(Base, TimestampMixin):
     disputes: Mapped[list["PlacementDispute"]] = relationship("PlacementDispute", back_populates="placement_request", cascade="all, delete-orphan")
     reputation_history: Mapped[list["ReputationHistory"]] = relationship("ReputationHistory", back_populates="placement_request")
 
-    __table_args__ = (
-        Index("ix_placement_requests_status_expires", "status", "expires_at"),
-    )
+    __table_args__ = (Index("ix_placement_requests_status_expires", "status", "expires_at"),)
 
     def __repr__(self) -> str:
         return f"<PlacementRequest(id={self.id}, advertiser_id={self.advertiser_id}, status={self.status.value})>"

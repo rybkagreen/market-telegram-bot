@@ -1,19 +1,19 @@
-"""
-UserBadge model for user achievements/badges.
-"""
+"""UserBadge model for user achievements/badges."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+if TYPE_CHECKING:
+    from src.db.models.user import User
+
 
 class UserBadge(Base, TimestampMixin):
-    """
-    Модель достижений/значков пользователя.
-    """
+    """Модель достижений/значков пользователя."""
 
     __tablename__ = "user_badges"
 

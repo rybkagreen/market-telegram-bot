@@ -1,20 +1,32 @@
-"""
-TelegramChat model for Telegram channels/chats.
-"""
+"""TelegramChat model for Telegram channels/chats."""
 
 from datetime import datetime
-from typing import Optional
+from enum import Enum
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+if TYPE_CHECKING:
+    from src.db.models.channel_mediakit import ChannelMediakit
+    from src.db.models.channel_settings import ChannelSettings
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.user import User
+
+
+class ChatType(str, Enum):
+    """Типы чатов."""
+
+    CHANNEL = "channel"
+    SUPERGROUP = "supergroup"
+    GROUP = "group"
+    PRIVATE = "private"
+
 
 class TelegramChat(Base, TimestampMixin):
-    """
-    Модель Telegram канала или чата.
-    """
+    """Модель Telegram канала или чата."""
 
     __tablename__ = "telegram_chats"
 

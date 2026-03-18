@@ -1,10 +1,9 @@
-"""
-User model for Telegram users.
-"""
+"""User model for Telegram users."""
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from enum import Enum
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,10 +11,31 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.base import Base, TimestampMixin
 
 
+class UserPlan(str, Enum):
+    """Тарифные планы пользователя."""
+
+    FREE = "free"
+    STARTER = "starter"
+    PRO = "pro"
+    BUSINESS = "business"
+    ADMIN = "admin"
+
+
+if TYPE_CHECKING:
+    from src.db.models.badge import UserBadge
+    from src.db.models.dispute import PlacementDispute
+    from src.db.models.feedback import UserFeedback
+    from src.db.models.payout import PayoutRequest
+    from src.db.models.placement_request import PlacementRequest
+    from src.db.models.reputation_history import ReputationHistory
+    from src.db.models.reputation_score import ReputationScore
+    from src.db.models.review import Review
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.models.transaction import Transaction
+
+
 class User(Base, TimestampMixin):
-    """
-    Модель пользователя Telegram.
-    """
+    """Модель пользователя Telegram."""
 
     __tablename__ = "users"
 
@@ -57,6 +77,16 @@ class User(Base, TimestampMixin):
     reviews_given: Mapped[list["Review"]] = relationship("Review", foreign_keys="Review.reviewer_id", back_populates="reviewer")
     reviews_received: Mapped[list["Review"]] = relationship("Review", foreign_keys="Review.reviewed_id", back_populates="reviewed")
     badges: Mapped[list["UserBadge"]] = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
+    feedback_list: Mapped[list["UserFeedback"]] = relationship(
+        "UserFeedback",
+        foreign_keys="UserFeedback.user_id",
+        back_populates="user"
+    )
+    responded_feedback_list: Mapped[list["UserFeedback"]] = relationship(
+        "UserFeedback",
+        foreign_keys="UserFeedback.responded_by_id",
+        back_populates="responder"
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username={self.username!r})>"
