@@ -17,7 +17,6 @@ from src.api.dependencies import CurrentUser, get_db_session
 from src.api.schemas.payout import PayoutCreate, PayoutResponse, PayoutStatus
 from src.constants.payments import MIN_PAYOUT, PAYOUT_FEE_RATE
 from src.db.models.payout import PayoutRequest
-from src.db.models.user import User
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.user_repo import UserRepository
 

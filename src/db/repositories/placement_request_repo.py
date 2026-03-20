@@ -1,6 +1,7 @@
 """PlacementRequestRepository for PlacementRequest model operations."""
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import and_, func, select
 
@@ -12,6 +13,62 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
     """Репозиторий для работы с заявками на размещение."""
 
     model = PlacementRequest
+
+    async def create_placement(
+        self,
+        advertiser_id: int,
+        channel_id: int,
+        proposed_price: Decimal,
+        final_text: str,
+        proposed_schedule: datetime | None = None,
+        proposed_frequency: int | None = None,
+        campaign_id: int | None = None,
+        is_test: bool = False,
+        test_label: str | None = None,
+    ) -> PlacementRequest:
+        """
+        Создать новую заявку на размещение.
+
+        Args:
+            advertiser_id: ID рекламодателя.
+            channel_id: ID канала.
+            proposed_price: Предлагаемая цена.
+            final_text: Текст рекламы.
+            proposed_schedule: Желаемое время публикации.
+            proposed_frequency: Частота (для пакетов).
+            campaign_id: ID кампании.
+            is_test: Флаг тестовой кампании.
+            test_label: Пометка тестовой кампании.
+
+        Returns:
+            Созданная заявка.
+        """
+        from src.db.models.telegram_chat import TelegramChat
+
+        # Get channel to get owner_id
+        channel_result = await self.session.execute(
+            select(TelegramChat).where(TelegramChat.id == channel_id)
+        )
+        channel = channel_result.scalar_one_or_none()
+        if not channel:
+            raise ValueError(f"Channel {channel_id} not found")
+
+        placement = PlacementRequest(
+            advertiser_id=advertiser_id,
+            owner_id=channel.owner_id,
+            channel_id=channel_id,
+            campaign_id=campaign_id,
+            proposed_price=proposed_price,
+            ad_text=final_text,
+            proposed_schedule=proposed_schedule,
+            is_test=is_test,
+            test_label=test_label,
+        )
+
+        self.session.add(placement)
+        await self.session.flush()
+        await self.session.refresh(placement)
+        return placement
 
     async def get_by_advertiser(self, advertiser_id: int, statuses: list[PlacementStatus] | None = None) -> list[PlacementRequest]:
         """Получить заявки рекламодателя."""

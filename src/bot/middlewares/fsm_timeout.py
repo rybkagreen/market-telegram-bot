@@ -27,10 +27,10 @@ class FSMTimeoutMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: dict[str, Any],
-    ) -> Awaitable:
+    ) -> Any:
         event_from_user = data.get("event_from_user")
         user_id = event_from_user.id if event_from_user else None
         if not user_id:
@@ -59,7 +59,7 @@ class FSMTimeoutMiddleware(BaseMiddleware):
                 bot = data.get("bot")
                 if bot:
                     await bot.send_message(user_id, "⏱ Сессия истекла. Начните заново с /start")
-                return
+                return None
 
         await self.redis.set(redis_key, now_timestamp, ex=self.REDIS_TTL_SECONDS)
         return await handler(event, data)

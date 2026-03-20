@@ -37,7 +37,7 @@ export const useAddChannel = () => {
   const addToast = useUiStore((s) => s.addToast)
 
   return useMutation({
-    mutationFn: (data: { username: string }) => addChannel(data),
+    mutationFn: (data: { username: string; is_test?: boolean }) => addChannel(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] })
       addToast('success', 'Канал успешно добавлен')
@@ -53,8 +53,38 @@ export const useCheckChannel = () => {
 
   return useMutation({
     mutationFn: (username: string) => checkChannel(username),
-    onError: () => {
-      addToast('error', 'Ошибка при проверке канала')
+    onSuccess: (data) => {
+      if (!data.valid) {
+        if (data.missing_permissions.length > 0) {
+          addToast(
+            'error',
+            `Боту не хватает прав: ${data.missing_permissions.join(', ')}`,
+          )
+        } else {
+          addToast('error', 'Канал не найден или не является каналом')
+        }
+      } else if (data.is_already_added) {
+        addToast('warning', 'Этот канал уже добавлен')
+      } else {
+        addToast('success', 'Канал успешно проверен')
+      }
+    },
+    onError: (error: unknown) => {
+      console.error('[Channel] Check error:', error)
+      let message = 'Ошибка при проверке канала'
+
+      if (error && typeof error === 'object' && 'response' in error) {
+        const typedError = error as { response?: { status?: number; data?: { detail?: string } } }
+        if (typedError.response?.status === 400) {
+          message = typedError.response?.data?.detail || 'Канал не найден'
+        } else if (typedError.response?.status === 403) {
+          message = 'Бот не является администратором канала'
+        } else if (typedError.response?.status === 401) {
+          message = 'Требуется авторизация'
+        }
+      }
+
+      addToast('error', message)
     },
   })
 }

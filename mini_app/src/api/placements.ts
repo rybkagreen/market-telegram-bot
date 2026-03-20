@@ -7,6 +7,8 @@ export interface CreatePlacementData {
   ad_text: string
   proposed_price: number
   proposed_schedule: string
+  is_test?: boolean  // Test mode (admin only)
+  test_label?: string | null  // Test label (admin only)
 }
 
 export interface UpdatePlacementData {
@@ -19,6 +21,7 @@ export interface UpdatePlacementData {
 export function getMyPlacements(params?: {
   status?: PlacementStatus
   channel_id?: number
+  include_test?: boolean  // Include test campaigns (admin only)
 }): Promise<PlacementRequest[]> {
   return api.get('placements/', { searchParams: params ?? {} }).json<PlacementRequest[]>()
 }

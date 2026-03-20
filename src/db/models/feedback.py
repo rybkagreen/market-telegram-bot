@@ -4,7 +4,8 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, Text, ForeignKey, Enum as SQLEnum, DateTime
+from sqlalchemy import DateTime, ForeignKey, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -41,9 +42,9 @@ class UserFeedback(Base, TimestampMixin):
         nullable=False,
         index=True
     )
-    admin_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    responded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    responded_by_id: Mapped[Optional[int]] = mapped_column(
+    admin_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    responded_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"),
         nullable=True
     )

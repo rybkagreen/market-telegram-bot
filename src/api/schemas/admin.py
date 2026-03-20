@@ -9,10 +9,8 @@ Contains Pydantic models for admin panel endpoints:
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
-
 
 # ═══════════════════════════════════════════════════════════════
 # Feedback Schemas
@@ -24,14 +22,14 @@ class FeedbackAdminResponse(BaseModel):
 
     id: int
     user_id: int
-    username: Optional[str] = None
+    username: str | None = None
     text: str
     status: str  # "new", "in_progress", "resolved", "rejected"
-    admin_response: Optional[str] = None
-    responder_username: Optional[str] = None
-    responder_id: Optional[int] = None
+    admin_response: str | None = None
+    responder_username: str | None = None
+    responder_id: int | None = None
     created_at: datetime
-    responded_at: Optional[datetime] = None
+    responded_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -70,19 +68,19 @@ class DisputeAdminResponse(BaseModel):
     placement_request_id: int
     advertiser_id: int
     owner_id: int
-    advertiser_username: Optional[str] = None
-    owner_username: Optional[str] = None
+    advertiser_username: str | None = None
+    owner_username: str | None = None
     reason: str  # "post_removed_early", "bot_kicked", "advertiser_complaint"
     status: str  # "open", "owner_explained", "resolved"
-    owner_explanation: Optional[str] = None
-    advertiser_comment: Optional[str] = None
-    resolution: Optional[str] = None  # "owner_fault", "advertiser_fault", "technical", "partial"
-    resolution_comment: Optional[str] = None
-    admin_id: Optional[int] = None
-    resolved_at: Optional[datetime] = None
-    advertiser_refund_pct: Optional[float] = None
-    owner_payout_pct: Optional[float] = None
-    expires_at: Optional[datetime] = None
+    owner_explanation: str | None = None
+    advertiser_comment: str | None = None
+    resolution: str | None = None  # "owner_fault", "advertiser_fault", "technical", "partial"
+    resolution_comment: str | None = None
+    admin_id: int | None = None
+    resolved_at: datetime | None = None
+    advertiser_refund_pct: float | None = None
+    owner_payout_pct: float | None = None
+    expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -102,12 +100,12 @@ class DisputeResolveRequest(BaseModel):
     """Schema for resolving a dispute."""
 
     resolution: str = Field(..., pattern="^(owner_fault|advertiser_fault|technical|partial)$")
-    admin_comment: Optional[str] = Field(default=None, max_length=1024)
-    custom_split_percent: Optional[int] = Field(default=None, ge=0, le=100)
+    admin_comment: str | None = Field(default=None, max_length=1024)
+    custom_split_percent: int | None = Field(default=None, ge=0, le=100)
 
     @field_validator("custom_split_percent")
     @classmethod
-    def validate_partial_resolution(cls, v: Optional[int], info) -> Optional[int]:
+    def validate_partial_resolution(cls, v: int | None, info) -> int | None:
         """Validate that custom_split_percent is provided for partial resolution."""
         # Note: We can't access 'resolution' here directly in field_validator
         # Validation will be done in the endpoint
@@ -124,12 +122,12 @@ class UserAdminResponse(BaseModel):
 
     id: int
     telegram_id: int
-    username: Optional[str] = None
+    username: str | None = None
     first_name: str
-    last_name: Optional[str] = None
+    last_name: str | None = None
     role: str  # "advertiser", "owner", "both"
     plan: str  # "free", "starter", "pro", "business"
-    plan_expires_at: Optional[datetime] = None
+    plan_expires_at: datetime | None = None
     balance_rub: str
     earned_rub: str
     credits: int
@@ -142,7 +140,7 @@ class UserAdminResponse(BaseModel):
     total_channels: int = 0
     total_feedback: int = 0
     total_disputes: int = 0
-    reputation_score: Optional[float] = None
+    reputation_score: float | None = None
     created_at: datetime
     updated_at: datetime
 

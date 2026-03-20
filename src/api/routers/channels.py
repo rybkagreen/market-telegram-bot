@@ -11,12 +11,19 @@ import logging
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import Bot
 
-from src.api.dependencies import CurrentUser, get_db_session
+from src.api.dependencies import CurrentUser, get_bot, get_db_session
+from src.api.schemas.channel import (
+    ChannelCheckRequest,
+    ChannelCheckResponse,
+    ChannelCreateRequest,
+    ChannelResponse,
+)
 from src.config.settings import settings
 from src.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
@@ -57,6 +64,340 @@ async def get_my_channels(
         select(TelegramChat).where(TelegramChat.owner_id == current_user.id)
     )
     return list(result.scalars().all())
+
+
+# ─── Проверка и добавление канала ──────────────────────────────────
+
+
+@router.post("/check", response_model=ChannelCheckResponse)
+async def check_channel(
+    body: ChannelCheckRequest,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    bot: Bot = Depends(get_bot),
+) -> ChannelCheckResponse:
+    """
+    Проверить канал перед добавлением.
+
+    Проверяет:
+    1. Существует ли канал
+    2. Является ли чат каналом (не группа/личка)
+    3. Является ли бот администратором канала
+    4. Наличие необходимых прав (post, delete, pin)
+    5. Не добавлен ли канал уже этим пользователем
+    6. Соответствие канала правилам платформы (P3)
+    7. Язык канала (P3)
+    8. AI классификация тематики (P3, опционально)
+
+    Args:
+        body: Запрос с username или chat_id канала
+        current_user: Текущий пользователь
+        session: DB session
+        bot: Telegram Bot экземпляр
+
+    Returns:
+        ChannelCheckResponse с результатами проверки
+
+    Raises:
+        HTTPException 400: Канал не найден или не соответствует правилам
+        HTTPException 403: Бот не является администратором канала
+    """
+    from telegram import ChatMemberAdministrator
+
+    from src.core.services.channel_service import ChannelService
+    from src.utils.telegram.channel_rules_checker import ChannelRulesChecker
+    from src.utils.telegram.russian_lang_detector import RussianLangDetector
+
+    # 1. Проверка существования канала (по username или chat_id)
+    try:
+        if body.chat_id:
+            logger.info(f"Checking channel by ID: {body.chat_id}")
+            chat = await bot.get_chat(body.chat_id)
+        elif body.username:
+            # Очищаем username от @ и пробелов, затем добавляем @ для Telegram API
+            clean_username = body.username.strip().lstrip('@')
+            logger.info(f"Checking channel by username: @{clean_username} (original: {body.username!r})")
+            chat = await bot.get_chat(f"@{clean_username}")  # ✅ Добавляем @ для Telegram API
+            logger.info(f"Bot API get_chat response: type={type(chat).__name__}, id={chat.id}, username={chat.username}")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите username или chat_id канала",
+            )
+        logger.info(f"Successfully found chat: {chat.title} (id={chat.id}, type={chat.type})")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Channel not found: {type(e).__name__}: {e} | Input username: {body.username!r}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Канал не найден. Убедитесь, что username/chat_id указан правильно и бот добавлен в канал как администратор. (Debug: {type(e).__name__})",
+        ) from e
+
+    # 2. Проверка типа чата (должен быть канал)
+    if chat.type != "channel":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"@{body.username} не является каналом (тип: {chat.type})",
+        )
+
+    # 3. Проверка прав бота через get_chat_member
+    try:
+        chat_member = await bot.get_chat_member(chat.id, bot.id)
+        logger.info(f"Bot chat_member type: {type(chat_member).__name__}")
+        logger.info(f"Bot chat_member status: {chat_member.status}")
+        logger.info(f"Is ChatMemberAdministrator: {isinstance(chat_member, ChatMemberAdministrator)}")
+    except Exception as e:
+        logger.error(f"Cannot get chat member for {body.username}: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Не удалось проверить права бота в канале",
+        ) from e
+
+    # 4. Проверка что бот является администратором
+    if not isinstance(chat_member, ChatMemberAdministrator):
+        logger.error(f"Bot is NOT admin! chat_member type: {type(chat_member).__name__}, status: {chat_member.status}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Бот не является администратором канала",
+        )
+
+    # 5. Проверка необходимых прав
+    required_permissions = {
+        "post_messages": chat_member.can_post_messages,
+        "delete_messages": chat_member.can_delete_messages,
+        "pin_messages": chat_member.can_pin_messages,
+    }
+
+    missing_permissions = [
+        perm for perm, has in required_permissions.items() if not has
+    ]
+
+    bot_permissions = {
+        "is_admin": True,
+        **required_permissions,
+    }
+
+    # 6. Проверка на дубликат канала
+    is_already_added = False
+    result = await session.execute(
+        select(TelegramChat).where(
+            TelegramChat.owner_id == current_user.id,
+            TelegramChat.username == body.username.lstrip("@"),
+            TelegramChat.is_active.is_(True),
+        )
+    )
+    existing_channel = result.scalar_one_or_none()
+    if existing_channel:
+        is_already_added = True
+
+    # 7. Проверка правил платформы (P3)
+    rules_valid, rules_violations, rules_warnings = await ChannelRulesChecker.check_channel(
+        chat,
+        is_admin=current_user.is_admin,
+    )
+
+    # Если есть нарушения правил — блокируем добавление (кроме админов)
+    if not rules_valid and rules_violations and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Канал не соответствует правилам платформы",
+                "violations": rules_violations,
+            },
+        )
+
+    # 8. Проверка языка канала (P3) — предупреждение, не блокирует
+    language_valid, language_warnings = RussianLangDetector.check_channel(
+        chat.title or "",
+        getattr(chat, "description", "") or "",
+    )
+
+    # 9. AI классификация тематики (P3) — опционально, не блокирует
+    category: str | None = None
+    try:
+        category = await ChannelService.classify_channel_topic(chat)
+    except Exception as e:
+        logger.warning(f"AI classification failed: {e}")
+        # Не блокируем если AI не сработал
+
+    # Формируем ответ
+    channel_info = {
+        "id": chat.id,
+        "title": chat.title or "Без названия",
+        "username": chat.username or body.username,
+        "member_count": (await chat.get_member_count() if hasattr(chat, "get_member_count") else 0),
+    }
+
+    # valid = права бота в порядке И нет дубликата И правила соблюдены (или админ)
+    # Для админов — пропускаем проверки (тестовый режим)
+    permissions_ok = len(missing_permissions) == 0 or current_user.is_admin
+    rules_ok = rules_valid or current_user.is_admin
+    valid = permissions_ok and not is_already_added and rules_ok
+
+    return ChannelCheckResponse(
+        valid=valid,
+        channel=channel_info,
+        bot_permissions=bot_permissions,
+        missing_permissions=missing_permissions,
+        is_already_added=is_already_added,
+        rules_valid=rules_valid,
+        rules_violations=rules_violations,
+        rules_warnings=rules_warnings,
+        language_valid=language_valid,
+        language_warnings=language_warnings,
+        category=category,
+    )
+
+
+@router.post("/", response_model=ChannelResponse)
+async def create_channel(
+    body: ChannelCreateRequest,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    bot: Bot = Depends(get_bot),
+) -> ChannelResponse:
+    """
+    Добавить канал пользователя.
+
+    Args:
+        body: Запрос с username канала
+        current_user: Текущий пользователь
+        session: DB session
+        bot: Telegram Bot экземпляр
+
+    Returns:
+        ChannelResponse с информацией о канале
+
+    Raises:
+        HTTPException 400: Канал не найден или уже добавлен
+        HTTPException 403: Бот не является администратором канала
+    """
+    from telegram import ChatMemberAdministrator
+
+    # 1. Проверка существования канала
+    try:
+        chat = await bot.get_chat(f"@{body.username}")
+    except Exception as e:
+        logger.warning(f"Channel not found @{body.username}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Канал @{body.username} не найден",
+        ) from e
+
+    # 2. Проверка типа чата
+    if chat.type != "channel":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"@{body.username} не является каналом",
+        )
+
+    # 3. Проверка прав бота
+    try:
+        chat_member = await bot.get_chat_member(chat.id, bot.id)
+    except Exception as e:
+        logger.warning(f"Cannot get chat member for @{body.username}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Не удалось проверить права бота",
+        ) from e
+
+    if not isinstance(chat_member, ChatMemberAdministrator):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Бот не является администратором канала",
+        )
+
+    # 4. Проверка на дубликат
+    username_clean = body.username.lstrip("@")
+    result = await session.execute(
+        select(TelegramChat).where(
+            TelegramChat.owner_id == current_user.id,
+            TelegramChat.username == username_clean,
+            TelegramChat.is_active.is_(True),
+        )
+    )
+    existing_channel = result.scalar_one_or_none()
+    if existing_channel:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот канал уже добавлен",
+        )
+
+    # 5. Создаём канал в БД
+    from src.db.repositories.telegram_chat_repo import TelegramChatRepository
+
+    repo = TelegramChatRepository(session)
+
+    # Получаем member_count
+    member_count = 0
+    try:
+        member_count = await chat.get_member_count() if hasattr(chat, "get_member_count") else 0
+    except Exception:
+        logger.warning(f"Cannot get member count for @{body.username}")
+
+    # is_test может быть установлен только админом
+    is_test = body.is_test and current_user.is_admin
+
+    new_channel = await repo.create({
+        "telegram_id": chat.id,
+        "username": username_clean,
+        "title": chat.title or "Без названия",
+        "owner_id": current_user.id,
+        "member_count": member_count,
+        "is_test": is_test,
+    })
+    await session.commit()
+
+    return ChannelResponse(
+        id=new_channel.id,
+        telegram_id=new_channel.telegram_id,
+        username=new_channel.username,
+        title=new_channel.title,
+        owner_id=new_channel.owner_id,
+        member_count=new_channel.member_count,
+        last_er=new_channel.last_er,
+        avg_views=new_channel.avg_views,
+        rating=new_channel.rating,
+        category=new_channel.category,
+        subcategory=new_channel.subcategory,
+        is_active=new_channel.is_active,
+    )
+
+
+@router.delete("/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+) -> None:
+    """
+    Удалить канал пользователя.
+
+    Args:
+        channel_id: ID канала
+        current_user: Текущий пользователь
+        session: DB session
+
+    Raises:
+        HTTPException 404: Канал не найден
+        HTTPException 403: Канал принадлежит другому пользователю
+    """
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.repositories.telegram_chat_repo import TelegramChatRepository
+
+    # Проверка что канал существует и принадлежит пользователю
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    # Удаляем канал (каскадно удалит settings, mediakit, placement_requests)
+    repo = TelegramChatRepository(session)
+    await repo.delete(channel_id)
+    await session.commit()
 
 
 # ─── Схемы ──────────────────────────────────────────────────────

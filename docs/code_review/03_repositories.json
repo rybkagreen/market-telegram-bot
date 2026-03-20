@@ -1,0 +1,153 @@
+{
+  "stage": 3,
+  "name": "repository_layer_audit",
+  "generated_at": "2026-03-20T00:00:00Z",
+  "summary": {
+    "total_repos": 10,
+    "total_methods": 87,
+    "total_issues": 12
+  },
+  "repos_map": {
+    "BaseRepository": ["count", "create", "delete", "exists", "find_many", "find_one", "get_all", "get_by_id", "paginate", "refresh", "update"],
+    "ChannelSettingsRepo": ["get_by_channel", "get_by_channel_id", "get_or_create", "update"],
+    "DisputeRepository": ["get_by_placement", "get_by_user", "get_open"],
+    "FeedbackRepository": ["create_feedback", "get_by_status", "get_by_user_id", "respond_to_feedback"],
+    "PayoutRepository": ["get_active_for_owner", "get_by_owner", "get_pending", "sum_completed_payouts_window"],
+    "PlacementRequestRepository": ["count_active_for_advertiser", "create_placement", "get_active_escrow", "get_by_advertiser", "get_by_owner", "get_expired", "get_pending_for_owner", "get_published_active"],
+    "PlatformAccountRepo": ["add_to_payout_reserved", "add_to_profit", "complete_payout"],
+    "TelegramChatRepository": ["get_by_telegram_id", "get_channels_by_owner", "get_all_channels", "get_all_premium_channels"],
+    "UserRepository": ["get_by_telegram_id", "get_by_id", "create_or_update"],
+    "ReputationScoreRepository": ["get_by_user", "get_or_create"]
+  },
+  "issues": [
+    {
+      "id": "REPO-001",
+      "severity": "CRITICAL",
+      "type": "missing_method",
+      "file": "src/api/routers/billing.py",
+      "line": 475,
+      "call": "repo.update_credits()",
+      "description": "Method update_credits() does not exist in any repository - will cause AttributeError at runtime",
+      "impact": "500 error when trying to update credits for AI services or tariff purchases"
+    },
+    {
+      "id": "REPO-002",
+      "severity": "CRITICAL",
+      "type": "missing_method",
+      "file": "src/api/routers/campaigns.py",
+      "line": 319,
+      "call": "placement_repo.update_status()",
+      "description": "Method update_status() does not exist in PlacementRequestRepository - will cause AttributeError",
+      "impact": "500 error when updating placement request status to pending_payment"
+    },
+    {
+      "id": "REPO-003",
+      "severity": "CRITICAL",
+      "type": "missing_method",
+      "file": "src/api/routers/campaigns.py",
+      "line": 364,
+      "call": "placement_repo.update_status()",
+      "description": "Method update_status() does not exist in PlacementRequestRepository",
+      "impact": "500 error when updating placement status after counter-offer"
+    },
+    {
+      "id": "REPO-004",
+      "severity": "CRITICAL",
+      "type": "missing_method",
+      "file": "src/api/routers/reputation.py",
+      "line": 116,
+      "call": "repo.get_history()",
+      "description": "Method get_history() does not exist in ReputationScoreRepository - will cause AttributeError",
+      "impact": "500 error when fetching user reputation history"
+    },
+    {
+      "id": "REPO-005",
+      "severity": "CRITICAL",
+      "type": "missing_method",
+      "file": "src/api/routers/reputation.py",
+      "line": 180,
+      "call": "repo.get_history()",
+      "description": "Method get_history() does not exist in ReputationScoreRepository",
+      "impact": "500 error in admin endpoint for reputation history"
+    },
+    {
+      "id": "REPO-006",
+      "severity": "HIGH",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/health.py",
+      "line": 57,
+      "call": "session.execute(platform_stmt)",
+      "description": "Direct SQL query in router instead of using repository - violates architecture",
+      "impact": "Code duplication, harder to test, violates separation of concerns"
+    },
+    {
+      "id": "REPO-007",
+      "severity": "HIGH",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/health.py",
+      "line": 69,
+      "call": "session.execute(balance_sum_stmt)",
+      "description": "Direct SQL query in health router",
+      "impact": "Should use PlatformAccountRepository instead"
+    },
+    {
+      "id": "REPO-008",
+      "severity": "HIGH",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/health.py",
+      "line": 74,
+      "call": "session.execute(earned_sum_stmt)",
+      "description": "Direct SQL query in health router",
+      "impact": "Should use UserRepository or TransactionRepository"
+    },
+    {
+      "id": "REPO-009",
+      "severity": "HIGH",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/health.py",
+      "line": 81,
+      "call": "session.execute(escrow_stmt)",
+      "description": "Direct SQL query in health router",
+      "impact": "Should use PlacementRequestRepository"
+    },
+    {
+      "id": "REPO-010",
+      "severity": "HIGH",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/health.py",
+      "line": 88,
+      "call": "session.execute(payout_stmt)",
+      "description": "Direct SQL query in health router",
+      "impact": "Should use PayoutRepository"
+    },
+    {
+      "id": "REPO-011",
+      "severity": "MEDIUM",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/placements.py",
+      "line": 188,
+      "call": "session.get(TelegramChat, request.channel_id)",
+      "description": "Direct session.get() instead of repo.get_by_id()",
+      "impact": "Minor - but inconsistent with repository pattern"
+    },
+    {
+      "id": "REPO-012",
+      "severity": "MEDIUM",
+      "type": "direct_sql_in_router",
+      "file": "src/api/routers/feedback.py",
+      "line": 151,
+      "call": "session.execute(count_query)",
+      "description": "Direct SQL for pagination count instead of repository method",
+      "impact": "Should use FeedbackRepository.count()"
+    }
+  ],
+  "notes": [
+    "5 CRITICAL issues: missing repository methods that will cause 500 errors at runtime",
+    "health.py router has 5 direct SQL queries that should use repositories",
+    "placements.py uses session.get() directly in 5 places - should use repo.get_by_id()",
+    "feedback.py and disputes.py use session.execute() for pagination - should use repo methods",
+    "update_status() method needs to be added to PlacementRequestRepository",
+    "update_credits() method needs to be added to UserRepository",
+    "get_history() method needs to be added to ReputationScoreRepository"
+  ]
+}

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.api.routers.admin import router as admin_router  # ДОБАВЛЕНО (PHASE-2)
 from src.api.routers.analytics import router as analytics_router
 from src.api.routers.auth import router as auth_router
 from src.api.routers.billing import router as billing_router
@@ -17,7 +18,6 @@ from src.api.routers.channel_settings import router as channel_settings_router
 from src.api.routers.channels import router as channels_router
 from src.api.routers.disputes import router as disputes_router
 from src.api.routers.feedback import router as feedback_router  # ДОБАВЛЕНО (2026-03-18)
-from src.api.routers.admin import router as admin_router  # ДОБАВЛЕНО (PHASE-2)
 from src.api.routers.payouts import router as payouts_router
 from src.api.routers.placements import router as placements_router
 from src.api.routers.reputation import router as reputation_router

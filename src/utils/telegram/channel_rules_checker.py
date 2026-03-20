@@ -2,11 +2,15 @@
 Проверка правил канала на запрет рекламы.
 Используется в parser_tasks.py при парсинге новых каналов
 и при периодическом обновлении через Celery Beat.
+
+Также используется для проверки каналов при добавлении через Mini App.
 """
 
 import logging
 import re
 from dataclasses import dataclass
+
+from telegram import Chat
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +27,32 @@ _NO_ADS_PATTERNS: list[str] = [
 ]
 
 COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _NO_ADS_PATTERNS]
+
+# Запрещённые ключевые слова (казино, ставки, 18+, порно, насилие, наркотики, оружие, мошенничество)
+FORBIDDEN_KEYWORDS: list[str] = [
+    "казино",
+    "ставки",
+    "беттинг",
+    "18+",
+    "порно",
+    "секс",
+    "насилие",
+    "наркотики",
+    "нарк",
+    "оружие",
+    "мошенничество",
+    "скам",
+    "развод",
+    "пирамида",
+    "террор",
+    "экстремизм",
+    "азартные игры",
+    "слоты",
+    "букмекер",
+]
+
+# Минимальное количество подписчиков для канала
+MIN_SUBSCRIBERS = 100
 
 
 @dataclass
@@ -65,3 +95,77 @@ async def check_channel_rules(client, chat_username: str) -> ChannelRulesResult:
         logger.debug(f"Could not check rules for {chat_username}: {e}")
         # Ошибка доступа — не блокируем, просто пропускаем проверку
         return ChannelRulesResult(allows_ads=True, reject_reason=f"check_failed: {e}")
+
+
+class ChannelRulesChecker:
+    """
+    Класс для проверки канала на соответствие правилам платформы.
+
+    Проверки:
+    - Минимальное количество подписчиков (100+)
+    - Запрещённые ключевые слова в описании
+    - Тип чата (должен быть канал)
+    - Публичность канала (есть username)
+    """
+
+    FORBIDDEN_KEYWORDS = FORBIDDEN_KEYWORDS
+    MIN_SUBSCRIBERS = MIN_SUBSCRIBERS
+
+    @classmethod
+    async def check_channel(
+        cls,
+        chat: Chat,
+        is_admin: bool = False,
+    ) -> tuple[bool, list[str], list[str]]:
+        """
+        Проверить канал на соответствие правилам платформы.
+
+        Args:
+            chat: Telegram Chat объект из Bot API.
+            is_admin: Если True — пропускать проверку MIN_SUBSCRIBERS (для админов).
+
+        Returns:
+            Кортеж (valid, violations, warnings):
+            - valid: True если канал соответствует всем правилам
+            - violations: Список нарушений (пустой если valid=True)
+            - warnings: Список предупреждений (для админов при нарушении MIN_SUBSCRIBERS)
+        """
+        violations: list[str] = []
+        warnings: list[str] = []
+
+        # 1. Проверка типа канала (должен быть channel)
+        if chat.type != "channel":
+            violations.append(f"Неверный тип чата: {chat.type} (требуется channel)")
+
+        # 2. Проверка публичности (должен быть username)
+        if not chat.username:
+            violations.append("Канал должен быть публичным (требуется username)")
+
+        # 3. Проверка минимального количества подписчиков
+        member_count = 0
+        try:
+            if hasattr(chat, "get_member_count"):
+                member_count = await chat.get_member_count()
+            elif hasattr(chat, "member_count"):
+                member_count = chat.member_count or 0
+        except Exception:
+            logger.warning(f"Cannot get member count for {chat.username}")
+
+        if member_count < cls.MIN_SUBSCRIBERS:
+            if is_admin:
+                # Для админов — только предупреждение (тестовый канал)
+                warnings.append(f"Тестовый канал ({member_count} подписчиков, мин. {cls.MIN_SUBSCRIBERS})")
+            else:
+                # Для обычных пользователей — блокирующее нарушение
+                violations.append(f"Минимум {cls.MIN_SUBSCRIBERS} подписчиков (сейчас: {member_count})")
+
+        # 4. Проверка описания на запрещённые слова
+        description = getattr(chat, "description", "") or ""
+        description_lower = description.lower()
+
+        for keyword in cls.FORBIDDEN_KEYWORDS:
+            if keyword.lower() in description_lower:
+                violations.append(f"Запрещённый контент в описании: '{keyword}'")
+                break  # Достаточно одного нарушения
+
+        return len(violations) == 0, violations, warnings

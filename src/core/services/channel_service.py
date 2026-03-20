@@ -1,15 +1,19 @@
 """ChannelService for channel management, comparison, and classification."""
 
+import logging
 from typing import Any, TypedDict
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import Chat
 
 from src.core.services.mistral_ai_service import MistralAIService
 from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
+
+logger = logging.getLogger(__name__)
 
 
 class CategoryResult(TypedDict):
@@ -22,6 +26,24 @@ class CategoryResult(TypedDict):
 
 class ChannelService:
     """Сервис управления каналами. Объединяет comparison, mediakit, category_classifier."""
+
+    # Допустимые категории для классификации
+    VALID_CATEGORIES = [
+        "technology",
+        "business",
+        "education",
+        "entertainment",
+        "news",
+        "sports",
+        "lifestyle",
+        "finance",
+        "marketing",
+        "crypto",
+        "health",
+        "travel",
+        "food",
+        "other",
+    ]
 
     def __init__(self) -> None:
         self.ai_service = MistralAIService()
@@ -101,6 +123,71 @@ class ChannelService:
             return CategoryResult(topic="it", subcategory="", confidence=0.5)
         except Exception:
             return CategoryResult(topic="it", subcategory="", confidence=0.0)
+
+    @classmethod
+    async def classify_channel_topic(
+        cls,
+        chat: Chat,
+        mistral_service: MistralAIService | None = None,
+    ) -> str | None:
+        """
+        Классифицировать тематику Telegram канала через AI.
+
+        Args:
+            chat: Telegram Chat объект из Bot API.
+            mistral_service: Mistral AI сервис (если None, используется новый).
+
+        Returns:
+            Категория канала или None если не удалось классифицировать.
+        """
+        if not mistral_service:
+            try:
+                mistral_service = MistralAIService()
+            except Exception as e:
+                logger.warning(f"Cannot create MistralAIService: {e}")
+                return None
+
+        # Собираем информацию о канале
+        channel_info = {
+            "title": chat.title or "Без названия",
+            "description": getattr(chat, "description", "") or "Нет описания",
+            "username": getattr(chat, "username", "") or "Нет username",
+        }
+
+        # Формируем промпт для AI классификации
+        prompt = f"""Классифицируй тематику Telegram канала по следующей информации:
+
+Название: {channel_info['title']}
+Username: @{channel_info['username']}
+Описание: {channel_info['description']}
+
+Доступные категории: {', '.join(cls.VALID_CATEGORIES)}
+
+Верни ТОЛЬКО название категории из списка выше (одним словом, в нижнем регистре).
+Если категория не подходит, верни 'other'."""
+
+        try:
+            # Вызываем AI сервис для генерации текста
+            response = await mistral_service.generate(prompt=prompt)
+            category = response.strip().lower()
+
+            # Проверяем что категория валидна
+            if category in cls.VALID_CATEGORIES:
+                logger.info(f"Channel classified as: {category}")
+                return category
+
+            # Пробуем найти похожую категорию
+            for valid_cat in cls.VALID_CATEGORIES:
+                if valid_cat in category or category in valid_cat:
+                    logger.info(f"Channel classified as: {valid_cat} (fuzzy match)")
+                    return valid_cat
+
+            logger.warning(f"Invalid category returned: {category}")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to classify channel topic: {e}")
+            return None
 
     async def get_or_create_mediakit(self, channel_id: int, session: AsyncSession) -> ChannelMediakit:
         """Получить или создать медиакит канала."""

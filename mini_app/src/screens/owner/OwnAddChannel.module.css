@@ -28,6 +28,20 @@
   border-color: var(--rh-border-active);
 }
 
+.hint {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-tertiary);
+  margin-top: var(--rh-space-1);
+}
+
+.testModeSection {
+  margin: var(--rh-space-3) 0;
+  padding: var(--rh-space-3);
+  background: var(--rh-surface-2);
+  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border-muted);
+}
+
 .resultCard {
   margin: var(--rh-space-3) 0;
 }

@@ -190,6 +190,8 @@ class PlacementRequestService:
         proposed_schedule: datetime | None = None,
         proposed_frequency: int | None = None,
         campaign_id: int | None = None,
+        is_test: bool = False,
+        test_label: str | None = None,
     ) -> PlacementRequest:
         """
         Создать заявку на размещение.
@@ -207,6 +209,8 @@ class PlacementRequestService:
             final_text: Финальный текст рекламы.
             proposed_schedule: Желаемое время публикации.
             proposed_frequency: Частота (для пакетов).
+            is_test: Флаг тестовой кампании (без оплаты).
+            test_label: Пометка тестовой кампании.
 
         Returns:
             Созданная заявка.
@@ -244,6 +248,8 @@ class PlacementRequestService:
             final_text=final_text,
             proposed_schedule=proposed_schedule,
             proposed_frequency=proposed_frequency,
+            is_test=is_test,
+            test_label=test_label,
         )
 
         # Отправляем уведомление владельцу

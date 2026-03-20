@@ -36,19 +36,16 @@ class ChannelSettingsResponse(BaseModel):
     channel_id: int
     price_per_post: Decimal
     owner_payout: Decimal
-    start_time: str
-    end_time: str
+    publish_start_time: str
+    publish_end_time: str
     break_start_time: str | None
     break_end_time: str | None
     max_posts_per_day: int
-    min_hours_between_posts: int
-    daily_package_enabled: bool
-    daily_package_discount: int
-    weekly_package_enabled: bool
-    weekly_package_discount: int
-    subscription_enabled: bool
-    sub_min_days: int
-    sub_max_days: int
+    allow_format_post_24h: bool
+    allow_format_post_48h: bool
+    allow_format_post_7d: bool
+    allow_format_pin_24h: bool
+    allow_format_pin_48h: bool
     auto_accept_enabled: bool
     updated_at: str
 
@@ -59,22 +56,19 @@ class ChannelSettingsUpdateRequest(BaseModel):
     """Запрос на частичное обновление настроек."""
 
     price_per_post: int | None = Field(None, ge=100, description="Цена >= 100")
-    start_time: str | None = Field(None, description="HH:MM формат")
-    end_time: str | None = Field(None, description="HH:MM формат")
+    publish_start_time: str | None = Field(None, description="HH:MM формат")
+    publish_end_time: str | None = Field(None, description="HH:MM формат")
     break_start_time: str | None = Field(None, description="HH:MM или null")
     break_end_time: str | None = Field(None, description="HH:MM или null")
     max_posts_per_day: int | None = Field(None, ge=1, le=5, description="1-5")
-    min_hours_between_posts: int | None = Field(None, ge=2, le=8, description="2-8")
-    daily_package_enabled: bool | None = None
-    daily_package_discount: int | None = Field(None, ge=1, le=50, description="1-50")
-    weekly_package_enabled: bool | None = None
-    weekly_package_discount: int | None = Field(None, ge=1, le=50, description="1-50")
-    subscription_enabled: bool | None = None
-    sub_min_days: int | None = Field(None, ge=7, description=">= 7")
-    sub_max_days: int | None = Field(None, le=365, description="<= 365")
+    allow_format_post_24h: bool | None = None
+    allow_format_post_48h: bool | None = None
+    allow_format_post_7d: bool | None = None
+    allow_format_pin_24h: bool | None = None
+    allow_format_pin_48h: bool | None = None
     auto_accept_enabled: bool | None = None
 
-    @field_validator("start_time", "end_time", "break_start_time", "break_end_time")
+    @field_validator("publish_start_time", "publish_end_time", "break_start_time", "break_end_time")
     @classmethod
     def validate_time_format(cls, v: str | None) -> str | None:
         """Валидация формата времени."""
@@ -106,12 +100,12 @@ async def get_channel_settings(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    if channel.owner_user_id != current_user.id:
+    if channel.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not channel owner")
 
     # Получить или создать настройки
     repo = ChannelSettingsRepo(session)
-    settings = await repo.get_or_create_default(channel_id, current_user.id)
+    settings = await repo.get_or_create(channel_id)
 
     # Вычислить payout владельца
     owner_payout = settings.price_per_post * Decimal("0.80")
@@ -120,21 +114,18 @@ async def get_channel_settings(
         channel_id=settings.channel_id,
         price_per_post=settings.price_per_post,
         owner_payout=owner_payout,
-        start_time=settings.publish_start_time.isoformat(),
-        end_time=settings.publish_end_time.isoformat(),
+        publish_start_time=settings.publish_start_time.isoformat(),
+        publish_end_time=settings.publish_end_time.isoformat(),
         break_start_time=settings.break_start_time.isoformat()
         if settings.break_start_time
         else None,
         break_end_time=settings.break_end_time.isoformat() if settings.break_end_time else None,
-        max_posts_per_day=settings.daily_package_max,
-        min_hours_between_posts=4,  # Константа
-        daily_package_enabled=settings.daily_package_enabled,
-        daily_package_discount=settings.daily_package_discount,
-        weekly_package_enabled=settings.weekly_package_enabled,
-        weekly_package_discount=settings.weekly_package_discount,
-        subscription_enabled=settings.subscription_enabled,
-        sub_min_days=settings.subscription_min_days,
-        sub_max_days=settings.subscription_max_days,
+        max_posts_per_day=settings.max_posts_per_day,
+        allow_format_post_24h=settings.allow_format_post_24h,
+        allow_format_post_48h=settings.allow_format_post_48h,
+        allow_format_post_7d=settings.allow_format_post_7d,
+        allow_format_pin_24h=settings.allow_format_pin_24h,
+        allow_format_pin_48h=settings.allow_format_pin_48h,
         auto_accept_enabled=settings.auto_accept_enabled,
         updated_at=settings.updated_at.isoformat(),
     )
@@ -155,13 +146,13 @@ async def update_channel_settings(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    if channel.owner_user_id != current_user.id:
+    if channel.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not channel owner")
 
-    # Валидация start_time < end_time
-    if request.start_time and request.end_time:
-        start = time.fromisoformat(request.start_time)
-        end = time.fromisoformat(request.end_time)
+    # Валидация publish_start_time < publish_end_time
+    if request.publish_start_time and request.publish_end_time:
+        start = time.fromisoformat(request.publish_start_time)
+        end = time.fromisoformat(request.publish_end_time)
         if end <= start:
             raise HTTPException(status_code=422, detail="end_time must be greater than start_time")
 
@@ -174,26 +165,16 @@ async def update_channel_settings(
                 status_code=422, detail="break_end_time must be greater than break_start_time"
             )
 
-    # Валидация sub_max_days > sub_min_days
-    if (
-        request.sub_min_days
-        and request.sub_max_days
-        and request.sub_max_days <= request.sub_min_days
-    ):
-        raise HTTPException(
-            status_code=422, detail="sub_max_days must be greater than sub_min_days"
-        )
-
     # Обновление настроек
     repo = ChannelSettingsRepo(session)
 
     update_data = {}
     if request.price_per_post is not None:
         update_data["price_per_post"] = Decimal(str(request.price_per_post))
-    if request.start_time is not None:
-        update_data["publish_start_time"] = time.fromisoformat(request.start_time)
-    if request.end_time is not None:
-        update_data["publish_end_time"] = time.fromisoformat(request.end_time)
+    if request.publish_start_time is not None:
+        update_data["publish_start_time"] = time.fromisoformat(request.publish_start_time)
+    if request.publish_end_time is not None:
+        update_data["publish_end_time"] = time.fromisoformat(request.publish_end_time)
     if request.break_start_time is not None:
         update_data["break_start_time"] = (
             time.fromisoformat(request.break_start_time) if request.break_start_time else None
@@ -203,28 +184,21 @@ async def update_channel_settings(
             time.fromisoformat(request.break_end_time) if request.break_end_time else None
         )
     if request.max_posts_per_day is not None:
-        update_data["daily_package_max"] = request.max_posts_per_day
-    if request.min_hours_between_posts is not None:
-        # Это поле не существует в модели, игнорируем
-        pass
-    if request.daily_package_enabled is not None:
-        update_data["daily_package_enabled"] = request.daily_package_enabled
-    if request.daily_package_discount is not None:
-        update_data["daily_package_discount"] = request.daily_package_discount
-    if request.weekly_package_enabled is not None:
-        update_data["weekly_package_enabled"] = request.weekly_package_enabled
-    if request.weekly_package_discount is not None:
-        update_data["weekly_package_discount"] = request.weekly_package_discount
-    if request.subscription_enabled is not None:
-        update_data["subscription_enabled"] = request.subscription_enabled
-    if request.sub_min_days is not None:
-        update_data["subscription_min_days"] = request.sub_min_days
-    if request.sub_max_days is not None:
-        update_data["subscription_max_days"] = request.sub_max_days
+        update_data["max_posts_per_day"] = request.max_posts_per_day
+    if request.allow_format_post_24h is not None:
+        update_data["allow_format_post_24h"] = request.allow_format_post_24h
+    if request.allow_format_post_48h is not None:
+        update_data["allow_format_post_48h"] = request.allow_format_post_48h
+    if request.allow_format_post_7d is not None:
+        update_data["allow_format_post_7d"] = request.allow_format_post_7d
+    if request.allow_format_pin_24h is not None:
+        update_data["allow_format_pin_24h"] = request.allow_format_pin_24h
+    if request.allow_format_pin_48h is not None:
+        update_data["allow_format_pin_48h"] = request.allow_format_pin_48h
     if request.auto_accept_enabled is not None:
         update_data["auto_accept_enabled"] = request.auto_accept_enabled
 
-    settings = await repo.upsert(channel_id, current_user.id, **update_data)
+    settings = await repo.update(channel_id, **update_data)
 
     # Вычислить payout владельца
     owner_payout = settings.price_per_post * Decimal("0.80")
@@ -233,21 +207,18 @@ async def update_channel_settings(
         channel_id=settings.channel_id,
         price_per_post=settings.price_per_post,
         owner_payout=owner_payout,
-        start_time=settings.publish_start_time.isoformat(),
-        end_time=settings.publish_end_time.isoformat(),
+        publish_start_time=settings.publish_start_time.isoformat(),
+        publish_end_time=settings.publish_end_time.isoformat(),
         break_start_time=settings.break_start_time.isoformat()
         if settings.break_start_time
         else None,
         break_end_time=settings.break_end_time.isoformat() if settings.break_end_time else None,
-        max_posts_per_day=settings.daily_package_max,
-        min_hours_between_posts=4,
-        daily_package_enabled=settings.daily_package_enabled,
-        daily_package_discount=settings.daily_package_discount,
-        weekly_package_enabled=settings.weekly_package_enabled,
-        weekly_package_discount=settings.weekly_package_discount,
-        subscription_enabled=settings.subscription_enabled,
-        sub_min_days=settings.subscription_min_days,
-        sub_max_days=settings.subscription_max_days,
+        max_posts_per_day=settings.max_posts_per_day,
+        allow_format_post_24h=settings.allow_format_post_24h,
+        allow_format_post_48h=settings.allow_format_post_48h,
+        allow_format_post_7d=settings.allow_format_post_7d,
+        allow_format_pin_24h=settings.allow_format_pin_24h,
+        allow_format_pin_48h=settings.allow_format_pin_48h,
         auto_accept_enabled=settings.auto_accept_enabled,
         updated_at=settings.updated_at.isoformat(),
     )

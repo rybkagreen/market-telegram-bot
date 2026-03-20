@@ -1,12 +1,11 @@
 """Feedback repository."""
 
-from datetime import datetime, timezone
-from typing import Sequence
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.feedback import UserFeedback, FeedbackStatus
+from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.repositories.base import BaseRepository
 
 
@@ -74,7 +73,7 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         feedback.admin_response = response_text
         feedback.status = status
         feedback.responded_by_id = admin_user_id
-        feedback.responded_at = datetime.now(timezone.utc)
+        feedback.responded_at = datetime.now(UTC)
 
         await self.session.flush()
         return feedback

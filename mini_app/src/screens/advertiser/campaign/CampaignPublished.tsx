@@ -1,3 +1,4 @@
+import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Notification, Card, Button, Skeleton } from '@/components/ui'
@@ -15,6 +16,18 @@ export default function CampaignPublished() {
 
   const numId = id ? parseInt(id, 10) : null
   const { data: placement, isLoading } = usePlacement(numId)
+
+  // Hooks must be called unconditionally at the top level
+  const [now, setNow] = React.useState(() => Date.now())
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [])
+
+  const isWithinDisputeWindow = placement?.published_at
+    ? (now - new Date(placement.published_at).getTime()) / 3_600_000 < 48
+    : false
 
   if (isLoading) {
     return (
@@ -36,12 +49,6 @@ export default function CampaignPublished() {
   const price = parseFloat(placement.final_price ?? placement.proposed_price)
   const ownerShare = price * (1 - PLATFORM_COMMISSION)
   const platformShare = price * PLATFORM_COMMISSION
-
-  const isWithinDisputeWindow = (() => {
-    if (!placement.published_at) return false
-    const diffH = (Date.now() - new Date(placement.published_at).getTime()) / 3_600_000
-    return diffH < 48
-  })()
 
   const canDispute = isWithinDisputeWindow && !placement.has_dispute
 

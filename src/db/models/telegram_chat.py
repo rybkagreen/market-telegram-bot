@@ -43,6 +43,13 @@ class TelegramChat(Base, TimestampMixin):
     subcategory: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    is_test: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        index=True,
+    )
     last_parsed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Relationships

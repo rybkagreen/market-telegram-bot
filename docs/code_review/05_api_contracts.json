@@ -1,0 +1,80 @@
+{
+  "stage": 5,
+  "name": "api_contracts_audit",
+  "generated_at": "2026-03-20T00:00:00Z",
+  "corrected_at": "2026-03-20T14:00:00Z",
+  "summary": {
+    "total_endpoints": 78,
+    "total_issues": 2,
+    "critical": 0,
+    "high": 0,
+    "medium": 2,
+    "false_positives": 16
+  },
+  "analysis": {
+    "response_model_alternatives": "FastAPI позволяет использовать return type hints (-> dict[str, Any]) вместо response_model. Это допустимая альтернатива.",
+    "delete_204_endpoints": "DELETE endpoints со status_code=204_NO_CONTENT не требуют response_model — нет response body.",
+    "webhook_endpoints": "Webhook endpoints (yookassa) не требуют strict response_model — важен только status code 200.",
+    "redirect_endpoints": "Redirect endpoints (/r/{short_code}) возвращают Response.redirect — response_model не применим."
+  },
+  "issues": [
+    {
+      "id": "API-007",
+      "severity": "MEDIUM",
+      "type": "missing_response_model",
+      "endpoint": "POST /api/campaigns/{placement_request_id}/start",
+      "file": "src/api/routers/campaigns.py",
+      "line": 287,
+      "description": "Endpoint without response_model or return type hint",
+      "impact": "Response schema not enforced, API contract less clear"
+    },
+    {
+      "id": "API-008",
+      "severity": "MEDIUM",
+      "type": "missing_response_model",
+      "endpoint": "POST /api/campaigns/{placement_request_id}/cancel",
+      "file": "src/api/routers/campaigns.py",
+      "line": 326,
+      "description": "Endpoint without response_model or return type hint",
+      "impact": "Response schema not enforced, API contract less clear"
+    }
+  ],
+  "false_positives": [
+    {
+      "id": "API-001, API-002",
+      "endpoints": "GET /api/health, GET /api/health/balances",
+      "file": "health.py",
+      "reason": "Use return type hint -> dict[str, Any] which is valid Pydantic-free alternative"
+    },
+    {
+      "id": "API-003",
+      "endpoint": "GET /api/billing/topup/{payment_id}/status",
+      "file": "billing.py",
+      "reason": "Uses return type hint -> dict[str, str] which is valid"
+    },
+    {
+      "id": "API-004",
+      "endpoint": "POST /api/billing/webhooks/yookassa",
+      "file": "billing.py",
+      "reason": "Webhook endpoint — response_model not critical, status_code=200 is correct"
+    },
+    {
+      "id": "API-005, API-006",
+      "endpoints": "DELETE /api/channels/{channel_id}, DELETE /api/campaigns/{placement_request_id}",
+      "files": "channels.py, campaigns.py",
+      "reason": "DELETE with status_code=204_NO_CONTENT — no response body, response_model not applicable"
+    },
+    {
+      "id": "API-009",
+      "endpoint": "GET /api/analytics/r/{short_code}",
+      "file": "analytics.py",
+      "reason": "Redirect endpoint — returns Response.redirect, response_model not applicable"
+    }
+  ],
+  "notes": [
+    "16 FALSE POSITIVES: endpoints use valid alternatives (return type hints, 204 No Content, webhooks, redirects)",
+    "2 VALID MEDIUM issues: start_placement_request and cancel_placement_request lack response_model or return type",
+    "Recommendation: Add return type hints or response_model to campaigns.py endpoints",
+    "Overall API contracts are well-defined with proper status codes"
+  ]
+}

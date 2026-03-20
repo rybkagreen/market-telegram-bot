@@ -18,10 +18,10 @@ class ThrottlingMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: dict[str, Any],
-    ) -> Awaitable:
+    ) -> Any:
         event_from_user = data.get("event_from_user")
         if event_from_user is None:
             return await handler(event, data)
@@ -34,7 +34,7 @@ class ThrottlingMiddleware(BaseMiddleware):
             bot = data.get("bot")
             if bot:
                 await bot.send_message(user_id, "⏳ Подождите немного.")
-            return
+            return None
 
         try:
             return await handler(event, data)
