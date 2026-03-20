@@ -23,9 +23,7 @@ from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
-from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
-from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -56,19 +54,19 @@ async def get_platform_stats(
     """
     logger.info(f"[ADMIN_STATS] Request received from admin user #{admin_user.id} ({admin_user.username})")
     logger.info(f"[ADMIN_STATS] User is_admin={admin_user.is_admin}")
-    
+
     # Users statistics
     total_users = await session.execute(select(func.count()).select_from(User))
     total_users_count = total_users.scalar() or 0
 
     active_users_query = select(func.count()).select_from(User).where(
-        User.is_active == True
+        User.is_active
     )
     active_users_result = await session.execute(active_users_query)
     active_users_count = active_users_result.scalar() or 0
 
     admin_users_query = select(func.count()).select_from(User).where(
-        User.is_admin == True
+        User.is_admin
     )
     admin_users_result = await session.execute(admin_users_query)
     admin_users_count = admin_users_result.scalar() or 0

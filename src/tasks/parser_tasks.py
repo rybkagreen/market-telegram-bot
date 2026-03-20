@@ -1012,9 +1012,11 @@ def refresh_chat_database(self, query_category: str | None = None) -> dict[str, 
 def _make_category_task(category: str):
     """Создать task wrapper для категории."""
 
-    @celery_app.task(bind=True, base=BaseTask, name=f"parser:refresh_chat_database_{category}")
-    def category_task(self):
-        return refresh_chat_database(self, query_category=category)
+    @celery_app.task(base=BaseTask, name=f"parser:refresh_chat_database_{category}")
+    def category_task(query_category: str | None = None):
+        # query_category передаётся из Celery Beat, но игнорируется — используется из closure
+        del query_category  # Используем category из closure
+        return refresh_chat_database(query_category=category)
 
     return category_task
 

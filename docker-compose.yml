@@ -16,8 +16,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-market_bot_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"  # Закомментировано для безопасности - доступ только из Docker сети
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-market_bot} -d ${POSTGRES_DB:-market_bot_db}"]
       interval: 10s

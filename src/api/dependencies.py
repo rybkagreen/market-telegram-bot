@@ -8,8 +8,10 @@ from typing import Annotated
 import jwt as pyjwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from telegram import Bot
 
 from src.api.auth_utils import decode_jwt_token
+from src.config.settings import settings
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -119,3 +121,20 @@ async def get_current_admin_user(
 
 
 AdminUser = Annotated[User, Depends(get_current_admin_user)]
+
+
+async def get_bot() -> Bot:
+    """
+    Получить экземпляр Telegram Bot для проверки прав в каналах.
+
+    Использование:
+        @router.post("/channels/check")
+        async def check_channel(bot: Bot = Depends(get_bot)):
+            chat = await bot.get_chat(f"@{username}")  # Add @ prefix for username
+
+    Returns:
+        Экземпляр Telegram Bot для взаимодействия с Telegram API
+    """
+    bot = Bot(token=settings.bot_token)
+    await bot.initialize()
+    return bot

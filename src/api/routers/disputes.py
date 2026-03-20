@@ -11,8 +11,7 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,7 +19,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_current_admin_user, get_db_session
-from src.db.models.user import User
 from src.api.schemas.admin import (
     DisputeAdminResponse,
     DisputeListAdminResponse,
@@ -28,7 +26,6 @@ from src.api.schemas.admin import (
 )
 from src.api.schemas.dispute import (
     DisputeCreate,
-    DisputeReason,
     DisputeResolution,
     DisputeResponse,
     DisputeStatus,
@@ -38,7 +35,6 @@ from src.db.models.dispute import PlacementDispute
 from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
 from src.db.repositories.dispute_repo import DisputeRepository
-from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
 logger = logging.getLogger(__name__)
 
@@ -295,11 +291,11 @@ async def get_all_disputes_admin(
         try:
             status_enum = DisputeStatus(status_filter.lower())
             query = query.where(PlacementDispute.status == status_enum)
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status: {status_filter}. Must be one of: open, owner_explained, resolved, all",
-            )
+            ) from err
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -405,7 +401,7 @@ async def resolve_dispute_admin(
     dispute.resolution = DisputeResolution(body.resolution)
     dispute.resolution_comment = body.admin_comment
     dispute.admin_id = admin_user.id
-    dispute.resolved_at = datetime.now(timezone.utc)
+    dispute.resolved_at = datetime.now(UTC)
     dispute.advertiser_refund_pct = advertiser_refund_pct
     dispute.owner_payout_pct = owner_payout_pct
 

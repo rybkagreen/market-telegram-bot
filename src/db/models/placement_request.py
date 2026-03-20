@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -72,6 +72,14 @@ class PlacementRequest(Base, TimestampMixin):
     published_reach: Mapped[int | None] = mapped_column(nullable=True)
     clicks_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     tracking_short_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
+    is_test: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        index=True,
+    )
+    test_label: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
 
     # Relationships
     advertiser: Mapped["User"] = relationship("User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser")

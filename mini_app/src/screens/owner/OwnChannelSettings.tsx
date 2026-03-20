@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Toggle, Skeleton, Notification } from '@/components/ui'
@@ -64,8 +64,12 @@ export default function OwnChannelSettings() {
   const [maxPerDay, setMaxPerDay] = useState('3')
   const [autoAccept, setAutoAccept] = useState(false)
 
-  useEffect(() => {
-    if (settings) {
+  // Initialize form from settings
+  const initializedSettings = React.useRef(false)
+  
+  React.useEffect(() => {
+    if (settings && !initializedSettings.current) {
+      initializedSettings.current = true
       setPrice(settings.price_per_post)
       setFormats(getFormatState(settings))
       setPublishStart(settings.publish_start_time ?? '09:00')

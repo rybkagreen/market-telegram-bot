@@ -1,7 +1,7 @@
 """UserRepository for User model operations."""
 
-from typing import Any
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 

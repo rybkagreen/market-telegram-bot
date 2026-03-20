@@ -1,23 +1,24 @@
 """Feedback API router."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, get_current_admin_user, get_current_user, get_db_session
+from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
 from src.api.schemas.admin import (
     FeedbackAdminResponse,
     FeedbackListAdminResponse,
     FeedbackRespondRequest,
     FeedbackStatusUpdateRequest,
 )
-from src.api.schemas.feedback import FeedbackCreate, FeedbackResponse, FeedbackListResponse
+from src.api.schemas.feedback import FeedbackCreate, FeedbackListResponse, FeedbackResponse
 from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.models.user import User
+from src.db.repositories.feedback_repo import FeedbackRepository
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,6 @@ async def create_feedback(
     session: AsyncSession = Depends(get_db_session),
 ) -> FeedbackResponse:
     """Create new feedback from user."""
-    from src.bot.handlers.shared.notifications import notify_admins_new_feedback
     from src.db.session import async_session_factory
 
     repo = FeedbackRepository(session)
@@ -140,11 +140,11 @@ async def get_all_feedback(
         try:
             status_enum = FeedbackStatus(status_filter.upper())
             query = query.where(UserFeedback.status == status_enum)
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status: {status_filter}. Must be one of: new, in_progress, resolved, rejected, all",
-            )
+            ) from err
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -263,7 +263,7 @@ async def respond_to_feedback(
     feedback.admin_response = body.response_text
     feedback.status = FeedbackStatus(body.status.upper())
     feedback.responded_by_id = admin_user.id
-    feedback.responded_at = datetime.now(timezone.utc)
+    feedback.responded_at = datetime.now(UTC)
 
     await session.flush()
     await session.refresh(feedback)

@@ -17,10 +17,10 @@ class RoleCheckMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: dict[str, Any],
-    ) -> Awaitable:
+    ) -> Any:
         event_from_user = data.get("event_from_user")
         user_id = event_from_user.id if event_from_user else None
         if not user_id:
@@ -57,7 +57,7 @@ class RoleCheckMiddleware(BaseMiddleware):
         ):
             if bot:
                 await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.advertiser_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
-            return
+            return None
 
         if (
             role in ("owner", "both")
@@ -67,6 +67,6 @@ class RoleCheckMiddleware(BaseMiddleware):
         ):
             if bot:
                 await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.owner_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
-            return
+            return None
 
         return await handler(event, data)

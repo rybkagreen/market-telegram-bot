@@ -27,6 +27,7 @@ reportlab = "^4.3.1"
 
 # Telegram Parser
 telethon = "^1.36.0"
+python-telegram-bot = "^21.0"
 
 # Content Filter
 pymorphy3 = "^2.0.0"

@@ -57,6 +57,16 @@ class PlacementCreateRequest(BaseModel):
     post_text: str = Field(..., min_length=10, max_length=4096, description="Текст поста")
     media_file_id: str | None = Field(None, description="Telegram file_id медиа")
     scheduled_at: datetime = Field(..., description="Желаемая дата публикации UTC")
+    # Test mode fields (admin only)
+    is_test: bool = Field(
+        default=False,
+        description="Тестовая кампания (без оплаты, только для админов)",
+    )
+    test_label: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Пометка теста",
+    )
 
 
 class PlacementResponse(BaseModel):
@@ -74,6 +84,8 @@ class PlacementResponse(BaseModel):
     published_at: datetime | None
     expires_at: datetime
     counter_offer_count: int
+    is_test: bool = False
+    test_label: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -180,6 +192,10 @@ async def create_placement(
     if not channel.is_active:
         raise HTTPException(status_code=409, detail="Channel not accepting ads")
 
+    # is_test может быть установлен только админом
+    is_test = request.is_test and current_user.is_admin
+    test_label = request.test_label if is_test else None
+
     # Создание заявки
     service = PlacementRequestService(
         session=session,
@@ -196,6 +212,8 @@ async def create_placement(
             proposed_price=Decimal(str(request.proposed_price)),
             final_text=request.post_text,
             proposed_schedule=request.scheduled_at,
+            is_test=is_test,
+            test_label=test_label,
         )
         return placement
     except ValueError as e:

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Notification, Skeleton } from '@/components/ui'
@@ -31,6 +31,22 @@ export default function OpenDispute() {
   const [selectedReason, setSelectedReason] = useState<DisputeReason | null>(null)
   const [comment, setComment] = useState('')
 
+  // Hooks must be called unconditionally at the top level
+  const [now, setNow] = React.useState(() => Date.now())
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const isInWindow = placement && placement.published_at !== null
+    ? now - new Date(placement.published_at).getTime() <= DISPUTE_WINDOW_MS
+    : false
+
+  const isPublished = placement?.status === 'published'
+  const hasDispute = placement?.has_dispute
+  const canOpen = Boolean(isPublished && !hasDispute && isInWindow)
+
   if (isLoading) {
     return (
       <ScreenShell>
@@ -47,14 +63,6 @@ export default function OpenDispute() {
       </ScreenShell>
     )
   }
-
-  const isPublished = placement.status === 'published'
-  const hasDispute = placement.has_dispute
-  const isInWindow =
-    placement.published_at !== null &&
-    Date.now() - new Date(placement.published_at).getTime() <= DISPUTE_WINDOW_MS
-
-  const canOpen = isPublished && !hasDispute && isInWindow
 
   const handleSubmit = () => {
     if (!selectedReason) return

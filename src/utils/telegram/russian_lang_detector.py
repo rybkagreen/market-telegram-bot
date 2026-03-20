@@ -722,3 +722,49 @@ def is_english_blacklisted(text: str) -> bool:
         True если текст в чёрном списке.
     """
     return is_in_english_blacklist(text)
+
+
+class RussianLangDetector:
+    """
+    Класс-обёртка для детекции русского языка в канале.
+
+    Использует существующий russian_detector для проверки.
+    """
+
+    MIN_CYRILLIC_RATIO = 0.5  # 50% кириллических символов
+
+    @classmethod
+    def check_channel(cls, title: str, description: str = "") -> tuple[bool, list[str]]:
+        """
+        Проверить язык канала.
+
+        Args:
+            title: Название канала.
+            description: Описание канала.
+
+        Returns:
+            Кортеж (is_russian, warnings):
+            - is_russian: True если канал преимущественно на русском
+            - warnings: Список предупреждений (пустой если is_russian=True)
+        """
+        warnings: list[str] = []
+
+        # Проверка названия канала
+        if title and not russian_detector.is_russian(title):
+            # Проверяем процент кириллицы
+            cyrillic_chars = len(CYRILLIC_PATTERN.findall(title))
+            total_chars = len(title.replace(" ", ""))
+            cyrillic_ratio = cyrillic_chars / max(total_chars, 1)
+
+            if cyrillic_ratio < cls.MIN_CYRILLIC_RATIO:
+                warnings.append("Название канала преимущественно не на русском языке")
+
+        # Проверка описания
+        if description and not warnings and not russian_detector.is_russian(description):
+            warnings.append("Описание канала преимущественно не на русском языке")
+
+        # Проверка по чёрному списку англоязычных ключей
+        if title and is_in_english_blacklist(title):
+            warnings.append("Канал содержится в чёрном списке англоязычных каналов")
+
+        return len(warnings) == 0, warnings
