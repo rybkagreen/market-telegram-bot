@@ -84,7 +84,7 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.TOPUP,
+                type=TransactionType.topup,
                 payment_id=payment_id,
                 description=f"Пополнение через {payment_method}",
                 meta_json={
@@ -148,8 +148,8 @@ class BillingService:
             spend_transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.SPEND,
-                payment_id=None,
+                type=TransactionType.spend,
+                yookassa_payment_id=None,
                 description=f"Покупка {credits_to_add} кр для тарифа",
                 meta_json={
                     "type": "buy_credits",
@@ -168,8 +168,8 @@ class BillingService:
             topup_transaction = Transaction(
                 user_id=user_id,
                 amount=Decimal(str(credits_to_add)),
-                type=TransactionType.BONUS,
-                payment_id=None,
+                type=TransactionType.bonus,
+                yookassa_payment_id=None,
                 description=f"Начислено {credits_to_add} кр за {amount_rub} ₽",
                 meta_json={
                     "type": "credits_purchase",
@@ -206,6 +206,10 @@ class BillingService:
         Returns:
             Данные платежа (payment_id, payment_url).
         """
+        from decimal import Decimal as Dec
+
+        from src.constants.payments import PLATFORM_TAX_RATE, PAYOUT_FEE_RATE
+
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
             user = await user_repo.get_by_id(user_id)
@@ -219,32 +223,56 @@ class BillingService:
             # Конвертируем рубли в кредиты (1:1)
             credits_amount = int(amount)
 
+            # v4.2: Рассчитываем gross_amount и fee_amount
+            # desired_balance = amount (сколько пользователь хочет зачислить)
+            # fee_amount = amount * 0.035 (комиссия ЮKassa)
+            # gross_amount = amount + fee_amount (сколько платит пользователь)
+            desired_balance = Dec(str(amount))
+            fee_amount = (desired_balance * PLATFORM_TAX_RATE).quantize(Dec("0.01"))
+            gross_amount = desired_balance + fee_amount
+
+            # Создаём запись YookassaPayment
+            from src.db.models.yookassa_payment import YookassaPayment
+
+            yookassa_record = YookassaPayment(
+                payment_id=payment_id,
+                user_id=user_id,
+                gross_amount=gross_amount,
+                desired_balance=desired_balance,
+                fee_amount=fee_amount,
+                status="pending",
+                payment_url=f"https://yookassa.ru/payment/{payment_id}",
+            )
+            session.add(yookassa_record)
+            await session.commit()
+
             # Создаём транзакцию со статусом pending
             transaction_repo = TransactionRepository(session)
             await transaction_repo.create_transaction(
                 user_id=user_id,
-                amount=amount,
-                transaction_type=TransactionType.TOPUP,
+                amount=gross_amount,
+                transaction_type=TransactionType.topup,
                 payment_id=payment_id,
+                yookassa_payment_id=payment_id,
                 meta_json={
                     "status": "pending",
                     "method": payment_method,
                     "credits": credits_amount,
+                    "desired_balance": str(desired_balance),
+                    "fee_amount": str(fee_amount),
+                    "gross_amount": str(gross_amount),
                 },
             )
 
-            # В production здесь создаём платёж в YooKassa
-            # Для now возвращаем заглушку
-            payment_url = f"https://yookassa.ru/payment/{payment_id}"
-
             logger.info(
-                f"Payment {payment_id} created for user {user_id}, amount: {amount} RUB = {credits_amount} credits"
+                f"Payment {payment_id} created for user {user_id}: "
+                f"desired={desired_balance}, fee={fee_amount}, gross={gross_amount} RUB"
             )
 
             return {
                 "payment_id": payment_id,
-                "payment_url": payment_url,
-                "amount": str(amount),
+                "payment_url": yookassa_record.payment_url,
+                "amount": str(gross_amount),
                 "credits": credits_amount,
                 "status": "pending",
             }
@@ -350,7 +378,7 @@ class BillingService:
             await transaction_repo.create_transaction(
                 user_id=user_id,
                 amount=Decimal(credits),  # 1 кредит = 1 рублю
-                transaction_type=TransactionType.SPEND,
+                transaction_type=TransactionType.spend,
                 meta_json={"description": description, "credits_spent": credits},
             )
 
@@ -391,8 +419,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=referrer_id,
                 amount=bonus_amount,
-                type=TransactionType.BONUS,
-                payment_id=None,
+                type=TransactionType.bonus,
+                yookassa_payment_id=None,
                 description=f"Реферальный бонус за пользователя {referred_user_id}",
                 meta_json={
                     "type": "referral_bonus",
@@ -495,7 +523,7 @@ class BillingService:
                     user_id=user.id,
                     amount=Decimal(str(plan_price)),
                     type="spend",
-                    payment_id=None,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "plan_purchase",
                         "plan": plan.lower(),
@@ -724,7 +752,7 @@ class BillingService:
                     user_id=user.id,
                     amount=Decimal(str(campaign.cost)),
                     type="spend",
-                    payment_id=None,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "escrow_freeze",
                         "campaign_id": campaign_id,
@@ -782,9 +810,9 @@ class BillingService:
                 return False
 
             # Проверить статус
-            if placement.status != MailingStatus.FAILED:
+            if placement.status != MailingStatus.failed:
                 logger.warning(
-                    f"Placement {placement_id} status is not FAILED ({placement.status})"
+                    f"Placement {placement_id} status is not failed ({placement.status})"
                 )
                 return False
 
@@ -796,19 +824,20 @@ class BillingService:
                 )
                 return True  # уже возвращено
 
-            # 2. Получить кампанию и рекламодателя
-            stmt = select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
+            # 2. Получить placement_request и рекламодателя
+            from src.db.models.placement_request import PlacementRequest
+            stmt = select(PlacementRequest).where(PlacementRequest.id == placement.placement_request_id).with_for_update()
             result = await session.execute(stmt)
-            campaign: Campaign | None = result.scalar_one_or_none()
-            if campaign is None:
-                logger.error(f"Campaign {placement.campaign_id} not found")
+            placement_request: PlacementRequest | None = result.scalar_one_or_none()
+            if placement_request is None:
+                logger.error(f"PlacementRequest {placement.placement_request_id} not found")
                 return False
 
-            stmt = select(User).where(User.id == campaign.user_id).with_for_update()
+            stmt = select(User).where(User.id == placement_request.advertiser_id).with_for_update()
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
             if user is None:
-                logger.error(f"User {campaign.user_id} not found for refund")
+                logger.error(f"Advertiser {placement_request.advertiser_id} not found for refund")
                 return False
 
             # Type guard: user is guaranteed to be User here
@@ -817,7 +846,7 @@ class BillingService:
             try:
                 # 3. Вернуть средства + установить флаг атомарно
                 refund_amount = Decimal(str(placement.cost))
-                user.credits += int(refund_amount)
+                user.balance_rub += refund_amount
 
                 # Установить флаг что возврат отправлен
                 meta["refund_sent"] = True
@@ -828,16 +857,16 @@ class BillingService:
                 transaction = Transaction(
                     user_id=user.id,
                     amount=refund_amount,
-                    type="refund",
-                    payment_id=None,
+                    type=TransactionType.refund_full,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "refund",
                         "placement_id": placement_id,
-                        "campaign_id": placement.campaign_id,
+                        "placement_request_id": placement.placement_request_id,
                         "reason": "failed_placement",
                     },
-                    balance_before=Decimal(str(user.credits - int(refund_amount))),
-                    balance_after=Decimal(str(user.credits)),
+                    balance_before=user.balance_rub - refund_amount,
+                    balance_after=user.balance_rub,
                     created_at=datetime.now(UTC),
                 )
                 session.add(transaction)
@@ -915,8 +944,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=advertiser_id,
                 amount=amount,
-                type=TransactionType.ESCROW_RELEASE,
-                payment_id=None,
+                type=TransactionType.escrow_release,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_refund",
                     "placement_id": placement_id,
@@ -980,8 +1009,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=advertiser_id,
                 amount=amount,
-                type=TransactionType.ESCROW_FREEZE,
-                payment_id=None,
+                type=TransactionType.escrow_freeze,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_freeze",
                     "placement_id": placement_id,
@@ -1082,7 +1111,7 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=desired_balance,
-                type=TransactionType.TOPUP,
+                type=TransactionType.topup,
                 payment_id=payment_id,
                 payment_status="succeeded",
                 description=f"Пополнение через ЮKassa (payment_id={payment_id})",
@@ -1150,8 +1179,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount,
-                type=TransactionType.ESCROW_FREEZE,
-                payment_id=None,
+                type=TransactionType.escrow_freeze,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_freeze",
                     "placement_id": placement_id,
@@ -1210,8 +1239,8 @@ class BillingService:
             owner_transaction = Transaction(
                 user_id=owner_id,
                 amount=owner_amount,
-                type=TransactionType.ESCROW_RELEASE,
-                payment_id=None,
+                type=TransactionType.escrow_release,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_release",
                     "placement_id": placement_id,
@@ -1231,8 +1260,8 @@ class BillingService:
             commission_transaction = Transaction(
                 user_id=advertiser_id,  # Платформа (условно)
                 amount=platform_fee,
-                type=TransactionType.COMMISSION,
-                payment_id=None,
+                type=TransactionType.commission,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "commission",
                     "placement_id": placement_id,
@@ -1321,8 +1350,8 @@ class BillingService:
                 advertiser_txn = Transaction(
                     user_id=advertiser_id,
                     amount=advertiser_refund,
-                    type=TransactionType.REFUND,
-                    payment_id=None,
+                    type=TransactionType.refund_full,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "refund",
                         "scenario": scenario,
@@ -1340,8 +1369,8 @@ class BillingService:
                 owner_txn = Transaction(
                     user_id=owner_id,
                     amount=owner_compensation,
-                    type=TransactionType.ESCROW_RELEASE,
-                    payment_id=None,
+                    type=TransactionType.escrow_release,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "owner_compensation",
                         "scenario": scenario,
