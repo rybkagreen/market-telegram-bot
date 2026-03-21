@@ -12,6 +12,7 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.channel_mediakit import ChannelMediakit
     from src.db.models.channel_settings import ChannelSettings
+    from src.db.models.mailing_log import MailingLog
     from src.db.models.placement_request import PlacementRequest
     from src.db.models.user import User
 
@@ -57,6 +58,7 @@ class TelegramChat(Base, TimestampMixin):
     channel_settings: Mapped[Optional["ChannelSettings"]] = relationship("ChannelSettings", back_populates="channel", uselist=False, cascade="all, delete-orphan")
     channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship("ChannelMediakit", back_populates="channel", uselist=False, cascade="all, delete-orphan")
     placement_requests: Mapped[list["PlacementRequest"]] = relationship("PlacementRequest", back_populates="channel", cascade="all, delete-orphan")
+    mailing_logs: Mapped[list["MailingLog"]] = relationship("MailingLog", back_populates="chat")
 
     def __repr__(self) -> str:
         return f"<TelegramChat(id={self.id}, telegram_id={self.telegram_id}, username={self.username!r})>"
