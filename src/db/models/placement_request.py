@@ -12,6 +12,7 @@ from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.dispute import PlacementDispute
+    from src.db.models.mailing_log import MailingLog
     from src.db.models.reputation_history import ReputationHistory
     from src.db.models.review import Review
     from src.db.models.telegram_chat import TelegramChat
@@ -81,6 +82,12 @@ class PlacementRequest(Base, TimestampMixin):
     )
     test_label: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
 
+    # Aggregated counters (Variant B — MailingLog replacement)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    failed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    click_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     advertiser: Mapped["User"] = relationship("User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser")
     owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id], back_populates="placement_requests_owner")
@@ -89,6 +96,7 @@ class PlacementRequest(Base, TimestampMixin):
     reviews: Mapped[list["Review"]] = relationship("Review", back_populates="placement_request", cascade="all, delete-orphan")
     disputes: Mapped[list["PlacementDispute"]] = relationship("PlacementDispute", back_populates="placement_request", cascade="all, delete-orphan")
     reputation_history: Mapped[list["ReputationHistory"]] = relationship("ReputationHistory", back_populates="placement_request")
+    mailing_logs: Mapped[list["MailingLog"]] = relationship("MailingLog", back_populates="placement_request")
 
     __table_args__ = (Index("ix_placement_requests_status_expires", "status", "expires_at"),)
 
