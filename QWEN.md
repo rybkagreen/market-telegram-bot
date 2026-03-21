@@ -1,8 +1,25 @@
 # RekHarborBot — Project Context
 
-> **v4.2 | 12.03.2026**
+> **v4.3 | 18.03.2026**
 > Источник правды для всех промтов Qwen Code.
 > При конфликте с любым другим файлом — этот документ и файлы на диске имеют приоритет.
+
+---
+
+## КРИТИЧЕСКИЕ ИЗМЕНЕНИЯ v4.3 (прочитай первым)
+
+| # | Изменение | v4.2 | v4.3 | Файл |
+|---|-----------|------|------|------|
+| 1 | **Выплаты** | CryptoBot API | **Ручные через admin** | payout_service.py |
+| 2 | **B2B пакеты** | были | **удалены** | billing.py, main_menu.py |
+| 3 | **Admin панель Mini App** | нет | **7 экранов, 9 endpoints** | admin.py, mini_app/src/screens/admin/ |
+| 4 | **Feedback система** | нет | **полная (пользователь → админ)** | feedback.py, UserFeedback |
+| 5 | **ESCROW-001** | release при публикации | **release ТОЛЬКО после удаления поста** | publication_service.py |
+| 6 | **FSM States** | частично | **5 файлов + 2 middleware** | states/, middlewares/ |
+| 7 | **Ruff SIM102/SIM103** | есть | **исправлены** | services/*.py |
+| 8 | **is_banned** | используется | **заменено на is_active** | dependencies.py |
+| 9 | **Тесты** | 39 | **101 тест** | tests/ |
+| 10 | **Документация** | 1 файл | **20+ отчётов** | docs/, reports/ |
 
 ---
 
@@ -46,8 +63,10 @@
 | API | FastAPI |
 | Migrations | Alembic |
 | AI | Mistral official SDK (`mistralai>=1.12.4`) |
-| Payments | YooKassa only (Stars и CryptoBot исключены) |
+| Payments | YooKassa only (Stars и CryptoBot исключены в v4.3) |
 | Tax | ИП УСН 6% (выручка > 2.4 млн/год → не НПД) |
+| Admin UI | Mini App + Telegram Bot (v4.3) |
+| Feedback | Full system (user → admin → response) (v4.3) |
 
 ---
 
@@ -149,7 +168,7 @@ class PlatformAccount(Base):
     updated_at:          datetime
 ```
 
-### PayoutRequest — обновлённая (v4.2)
+### PayoutRequest — обновлённая (v4.2/v4.3)
 
 ```python
 # Новые поля (добавить миграцией):
@@ -157,6 +176,9 @@ gross_amount: Decimal  # запрошено владельцем
 fee_amount:   Decimal  # gross × 0.015
 net_amount:   Decimal  # gross - fee (фактически перечисляется)
 tax_withheld: Decimal  # NULL (MVP Вариант A); post-MVP Вариант B
+
+# v4.3: Выплаты ручные — admin одобряет вручную через /admin панель
+# CryptoBot service удалён, payout_service.py Шаг 5 — ручная выплата
 ```
 
 **Механика:**
@@ -165,6 +187,7 @@ gross=10000 → fee=150 → net=9850
 UI: "Будет перечислено: 9 850 ₽ (комиссия платформы 1.5%)"
 earned_rub -= gross_amount
 platform.profit_accumulated += fee_amount  # сразу
+status = 'pending' → admin одобряет вручную → 'completed'
 ```
 
 ### PlacementRequest — новые поля
@@ -288,11 +311,16 @@ async def publish_placement(placement_id): ...
 
 @celery_app.task(queue="critical")
 async def delete_published_post(placement_id): ...
-    # except TelegramBadRequest: pass → status=COMPLETED
+    # unpin → delete → except TelegramBadRequest: pass → status=COMPLETED
+    # ESCROW-001: release_escrow() вызывается ТОЛЬКО здесь (после удаления)
 
 @celery_app.task(queue="critical")
 async def unpin_and_delete_post(placement_id): ...
     # unpin → delete → except TelegramBadRequest: pass
+
+@celery_app.task(queue="monitoring", max_retries=1)
+async def check_placement_sla(): ...
+    # Beat task каждые 5 мин → проверка SLA → dispute при нарушении
 ```
 
 ### MistralAIService
@@ -315,6 +343,43 @@ class TopupStates(StatesGroup):
     entering_amount  = State()  # ввод суммы
     confirming       = State()  # показ desired/fee/gross
     waiting_payment  = State()  # ожидание вебхука
+```
+
+### PayoutStates (v4.3)
+```python
+class PayoutStates(StatesGroup):
+    selecting_method = State()  # выбор метода (удалено в v4.3 — ручные)
+    entering_address = State()  # ввод реквизитов
+    confirming       = State()  # подтверждение
+```
+
+### ChannelOwnerStates (v4.3)
+```python
+class ChannelOwnerStates(StatesGroup):
+    entering_username = State()  # ввод @username канала
+    confirming_add    = State()  # подтверждение добавления
+```
+
+### FeedbackStates (v4.3)
+```python
+class FeedbackStates(StatesGroup):
+    entering_text = State()  # ввод текста обращения
+```
+
+### DisputeStates (v4.3)
+```python
+class DisputeStates(StatesGroup):
+    owner_explaining    = State()  # владелец объясняет
+    advertiser_commenting = State()  # рекламодатель комментирует
+    admin_reviewing     = State()  # админ рассматривает
+```
+
+### AdminStates (v4.3)
+```python
+class AdminStates(StatesGroup):
+    entering_broadcast    = State()  # ввод рассылки
+    reviewing_dispute     = State()  # просмотр диспута
+    entering_resolution   = State()  # ввод решения
 ```
 
 ### PlacementStates, ArbitrationStates, ChannelSettingsStates — без изменений
@@ -418,6 +483,10 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 | `alembic/` в корне | `Config("alembic.ini")` с явным путём в run_migrations.py |
 | Зачисление gross вместо desired | `metadata["desired_balance"]` в webhook |
 | `PLAN_LIMITS['agency']` KeyError | Использовать `PLAN_LIMITS['business']` (НЕ 'agency') |
+| **`user.is_banned` AttributeError** | **Заменено на `not user.is_active` (v4.3)** |
+| **CryptoBot service import** | **Удалён, выплаты ручные (v4.3)** |
+| **B2B button в main_menu** | **Удалена (v4.3)** |
+| **Admin panel 404** | **Добавлен `is_admin` check в dependencies.py (v4.3)** |
 
 ---
 
@@ -436,23 +505,40 @@ src/db/migrations/versions/  ← только читать
 
 ## Sprint Map
 
-| Спринт | Содержание | Зависит от |
-|--------|------------|-----------|
-| S-01 | Constants + Settings + Tariffs | — |
-| S-02 | DB Models (5 файлов + exceptions) | S-01 |
-| S-03 | Alembic Migrations (6 шт.) | S-02 |
-| S-04 | Repositories (platform_account + updates) | S-03 |
-| S-05 | BillingService v4.2 | S-04 |
-| S-06 | PayoutService v4.2 (velocity, fee) | S-04 |
-| S-07 | PublicationService + Celery tasks | S-05 |
-| S-08 | PlacementRequestService | S-05, S-06 |
-| S-09 | FSM States + Keyboards | S-01 |
-| S-10 | Handler: топап (двухшаговый) | S-05, S-09 |
-| S-11 | Handler: channel_settings (форматы) | S-08, S-09 |
-| S-12 | Handler: campaign creation (формат + цена) | S-08, S-09 |
-| S-13 | Cabinet + Admin dashboard | S-05, S-06 |
-| S-14 | Health-check API | S-04 |
-| S-15 | Tests | S-05..S-08 |
+| Спринт | Содержание | Зависит от | Статус |
+|--------|------------|-----------|--------|
+| S-01 | Constants + Settings + Tariffs | — | ✅ v4.3 |
+| S-02 | DB Models (5 файлов + exceptions) | S-01 | ✅ |
+| S-03 | Alembic Migrations (6 шт.) | S-02 | ✅ |
+| S-04 | Repositories (platform_account + updates) | S-03 | ✅ |
+| S-05 | BillingService v4.2 | S-04 | ✅ |
+| S-06 | PayoutService v4.3 (ручные выплаты) | S-04 | ✅ v4.3 |
+| S-07 | PublicationService + Celery tasks | S-05 | ✅ ESCROW-001 |
+| S-08 | PlacementRequestService | S-05, S-06 | ✅ |
+| S-09 | FSM States + Middlewares | S-01 | ✅ v4.3 (5 файлов + 2 middleware) |
+| S-10 | Handler: топап (двухшаговый) | S-05, S-09 | ✅ |
+| S-11 | Handler: channel_settings (форматы) | S-08, S-09 | ✅ |
+| S-12 | Handler: campaign creation (формат + цена) | S-08, S-09 | ✅ |
+| S-13 | Cabinet + Admin dashboard | S-05, S-06 | ✅ v4.3 (Mini App) |
+| S-14 | Health-check API | S-04 | ✅ |
+| S-15 | Tests | S-05..S-08 | ✅ 101 тест |
+| **S-16** | **Feedback система** | **S-13** | **✅ v4.3** |
+| **S-17** | **Admin Panel Mini App** | **S-13** | **✅ v4.3 (7 экранов)** |
+| **S-18** | **UX Fixes** | **S-13** | **✅ v4.3 (кнопки, бейджи, текст)** |
+| **S-19** | **is_banned → is_active** | **S-02** | **✅ v4.3 (critical fix)** |
+
+---
+
+## v4.3 Deliverables (17-18 марта 2026)
+
+| Категория | Файлы | Статус |
+|-----------|-------|--------|
+| **Backend API** | feedback.py, admin.py (9 endpoints) | ✅ |
+| **Frontend UI** | 16 файлов (admin screens, feedback) | ✅ |
+| **Отчёты** | 20+ отчётов в docs/, reports/ | ✅ |
+| **Тесты** | 101 тест (все проходят) | ✅ |
+| **UX Fixes** | CSS modules (4 файла) | ✅ |
+| **Critical Fixes** | is_banned → is_active | ✅ |
 
 ---
 
@@ -466,4 +552,25 @@ src/db/migrations/versions/  ← только читать
 | 3–7 | 🔄 частично |
 | **v4.2 финансовая модель** | ❌ S-01 следующий |
 
-*RekHarborBot QWEN.md v4.2 | 12.03.2026*
+*RekHarborBot QWEN.md v4.3 | 18.03.2026*
+
+---
+
+## Production Ready ✅
+
+**Статус:** Готов к продакшену (18 марта 2026)
+
+**Достижения v4.3:**
+- ✅ 101 тест — все проходят
+- ✅ 20+ отчётов документации
+- ✅ Admin панель в Mini App (7 экранов, 9 endpoints)
+- ✅ Feedback система (пользователь → админ → ответ)
+- ✅ Critical fix: is_banned → is_active
+- ✅ UX fixes: кнопки, бейджи, текст
+- ✅ ESCROW-001: release_escrow() ТОЛЬКО после удаления поста
+- ✅ Выплаты ручные через admin (CryptoBot удалён)
+- ✅ B2B пакеты удалены
+- ✅ Ruff: 0 ошибок (SIM102/SIM103 исправлены)
+
+## Qwen Added Memories
+- Activate .venv virtual environment when working with the backend

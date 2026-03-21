@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from src.core.services.comparison_service import comparison_service
 from src.core.services.mediakit_service import mediakit_service
-from src.db.models.analytics import TelegramChat
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.user import User
 

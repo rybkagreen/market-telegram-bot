@@ -18,6 +18,15 @@ export interface UpdatePlacementData {
   comment?: string
 }
 
+export interface CampaignStartResponse {
+  status: string
+  placement_request_id: number
+}
+
+export interface CampaignResponse {
+  status: string
+}
+
 export function getMyPlacements(params?: {
   status?: PlacementStatus
   channel_id?: number
@@ -36,4 +45,16 @@ export function createPlacement(data: CreatePlacementData): Promise<PlacementReq
 
 export function updatePlacement(id: number, data: UpdatePlacementData): Promise<PlacementRequest> {
   return api.patch(`placements/${id}`, { json: data }).json<PlacementRequest>()
+}
+
+export function startCampaign(id: number): Promise<CampaignStartResponse> {
+  return api.post(`campaigns/${id}/start`).json<CampaignStartResponse>()
+}
+
+export function cancelCampaign(id: number): Promise<CampaignResponse> {
+  return api.post(`campaigns/${id}/cancel`).json<CampaignResponse>()
+}
+
+export function duplicateCampaign(id: number): Promise<CampaignResponse> {
+  return api.post(`campaigns/${id}/duplicate`).json<CampaignResponse>()
 }
