@@ -1,5 +1,6 @@
 """RoleCheckMiddleware for user role and block checks."""
 
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
@@ -10,6 +11,8 @@ from sqlalchemy import select
 
 from src.db.models.reputation_score import ReputationScore
 from src.db.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 class RoleCheckMiddleware(BaseMiddleware):
@@ -56,7 +59,10 @@ class RoleCheckMiddleware(BaseMiddleware):
             and score.advertiser_blocked_until > now
         ):
             if bot:
-                await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.advertiser_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+                try:
+                    await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.advertiser_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+                except Exception as e:
+                    logger.warning(f"Cannot send blocked account message to {user_id}: {e}")
             return None
 
         if (
@@ -66,7 +72,10 @@ class RoleCheckMiddleware(BaseMiddleware):
             and score.owner_blocked_until > now
         ):
             if bot:
-                await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.owner_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+                try:
+                    await bot.send_message(user_id, f"🚫 Аккаунт заблокирован до {score.owner_blocked_until.strftime('%Y-%m-%d %H:%M')}.")
+                except Exception as e:
+                    logger.warning(f"Cannot send blocked account message to {user_id}: {e}")
             return None
 
         return await handler(event, data)

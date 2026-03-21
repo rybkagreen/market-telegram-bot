@@ -1,5 +1,6 @@
 """ThrottlingMiddleware for rate limiting."""
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -8,6 +9,8 @@ from aiogram.types import TelegramObject
 from redis.asyncio import Redis
 
 from src.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ThrottlingMiddleware(BaseMiddleware):
@@ -33,7 +36,10 @@ class ThrottlingMiddleware(BaseMiddleware):
         if not acquired:
             bot = data.get("bot")
             if bot:
-                await bot.send_message(user_id, "⏳ Подождите немного.")
+                try:
+                    await bot.send_message(user_id, "⏳ Подождите немного.")
+                except Exception as e:
+                    logger.warning(f"Cannot send throttle message to {user_id}: {e}")
             return None
 
         try:

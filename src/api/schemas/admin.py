@@ -10,7 +10,7 @@ Contains Pydantic models for admin panel endpoints:
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ═══════════════════════════════════════════════════════════════
 # Feedback Schemas
@@ -46,6 +46,7 @@ class FeedbackListAdminResponse(BaseModel):
 class FeedbackRespondRequest(BaseModel):
     """Schema for responding to feedback."""
 
+    model_config = ConfigDict(extra='forbid')
     response_text: str = Field(..., min_length=10, max_length=2048, description="Admin response text")
     status: str = Field(default="resolved", pattern="^(in_progress|resolved|rejected)$")
 
@@ -53,6 +54,7 @@ class FeedbackRespondRequest(BaseModel):
 class FeedbackStatusUpdateRequest(BaseModel):
     """Schema for updating feedback status."""
 
+    model_config = ConfigDict(extra='forbid')
     status: str = Field(..., pattern="^(new|in_progress|resolved|rejected)$")
 
 
@@ -99,6 +101,7 @@ class DisputeListAdminResponse(BaseModel):
 class DisputeResolveRequest(BaseModel):
     """Schema for resolving a dispute."""
 
+    model_config = ConfigDict(extra='forbid')
     resolution: str = Field(..., pattern="^(owner_fault|advertiser_fault|technical|partial)$")
     admin_comment: str | None = Field(default=None, max_length=1024)
     custom_split_percent: int | None = Field(default=None, ge=0, le=100)

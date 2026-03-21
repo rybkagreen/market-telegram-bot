@@ -1,5 +1,6 @@
 """FSMTimeoutMiddleware for FSM session timeout."""
 
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,8 @@ from aiogram.types import TelegramObject
 from redis.asyncio import Redis
 
 from src.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class FSMTimeoutMiddleware(BaseMiddleware):
@@ -58,7 +61,10 @@ class FSMTimeoutMiddleware(BaseMiddleware):
                 await state.clear()
                 bot = data.get("bot")
                 if bot:
-                    await bot.send_message(user_id, "⏱ Сессия истекла. Начните заново с /start")
+                    try:
+                        await bot.send_message(user_id, "⏱ Сессия истекла. Начните заново с /start")
+                    except Exception as e:
+                        logger.warning(f"Cannot send FSM timeout message to {user_id}: {e}")
                 return None
 
         await self.redis.set(redis_key, now_timestamp, ex=self.REDIS_TTL_SECONDS)

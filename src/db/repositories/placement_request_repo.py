@@ -128,3 +128,21 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
             )
         )
         return list(result.scalars().all())
+
+    async def update_status(self, placement_id: int, new_status: PlacementStatus) -> PlacementRequest | None:
+        """Обновляет поле status записи PlacementRequest."""
+        placement = await self.get_by_id(placement_id)
+        if not placement:
+            return None
+        placement.status = new_status
+        await self.session.flush()
+        return placement
+
+    async def get_total_escrow_sum(self) -> Decimal:
+        """Получить сумму final_price по активным PlacementRequest в статусе escrow."""
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(PlacementRequest.final_price), Decimal("0"))).where(
+                PlacementRequest.status == PlacementStatus.escrow
+            )
+        )
+        return result.scalar_one() or Decimal("0")

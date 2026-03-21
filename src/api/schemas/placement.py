@@ -9,7 +9,7 @@ Contains Pydantic models for placement request operations:
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.db.models.placement_request import PublicationFormat, PlacementStatus
 
@@ -28,6 +28,7 @@ class PlacementRequestCreate(BaseModel):
         test_label: Custom test label (optional, max 64 chars)
     """
 
+    model_config = ConfigDict(extra='forbid')
     channel_id: int = Field(..., description="ID канала")
     publication_format: PublicationFormat = Field(
         default=PublicationFormat.post_24h,

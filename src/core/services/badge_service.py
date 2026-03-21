@@ -103,7 +103,7 @@ class BadgeService:
 
         from src.db.models.badge import BadgeConditionType
         from src.db.models.campaign import Campaign
-        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         condition = badge.condition_type
         value = badge.condition_value
@@ -126,28 +126,15 @@ class BadgeService:
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
 
-        # Placements count (для владельцев)
+        # Placements count (для владельцев) — используем агрегированные данные
         if condition == BadgeConditionType.PLACEMENTS_COUNT:
-            stmt = select(func.count(MailingLog.id)).where(
-                MailingLog.chat_id.in_(
-                    select(MailingLog.chat_id).where(
-                        MailingLog.chat_id.in_(
-                            select(func.max(MailingLog.chat_id)).where(
-                                MailingLog.status == MailingStatus.SENT
-                            )
-                        )
-                    )
-                )
-            )
-            # Упрощённо: считаем размещения по каналам пользователя
-            from src.db.models.analytics import TelegramChat
+            # Считаем размещения по каналам пользователя через SUM(sent_count)
+            from src.db.models.placement_request import PlacementRequest
 
             stmt = (
-                select(func.count(MailingLog.id))
-                .join(TelegramChat, MailingLog.chat_id == TelegramChat.id)
+                select(func.sum(PlacementRequest.sent_count))
                 .where(
-                    TelegramChat.owner_user_id == user.id,
-                    MailingLog.status == MailingStatus.SENT,
+                    PlacementRequest.owner_id == user.id,
                 )
             )
             count = (await session.execute(stmt)).scalar() or 0
@@ -427,9 +414,8 @@ class BadgeService:
         """
         from sqlalchemy import func, select
 
-        from src.db.models.analytics import TelegramChat
         from src.db.models.campaign import Campaign
-        from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest
         from src.db.models.review import Review
 
         achievement_type = achievement.achievement_type
@@ -441,14 +427,12 @@ class BadgeService:
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
 
-        # Placement count (для владельцев каналов)
+        # Placement count (для владельцев каналов) — используем агрегированные данные
         if achievement_type == "placement_count":
             stmt = (
-                select(func.count(MailingLog.id))
-                .join(TelegramChat, MailingLog.chat_id == TelegramChat.id)
+                select(func.sum(PlacementRequest.sent_count))
                 .where(
-                    TelegramChat.owner_user_id == user.id,
-                    MailingLog.status == MailingStatus.SENT,
+                    PlacementRequest.owner_id == user.id,
                 )
             )
             count = (await session.execute(stmt)).scalar() or 0

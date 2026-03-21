@@ -14,6 +14,7 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Bot
 
@@ -347,7 +348,14 @@ async def create_channel(
         "member_count": member_count,
         "is_test": is_test,
     })
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
 
     return ChannelResponse(
         id=new_channel.id,
@@ -397,7 +405,14 @@ async def delete_channel(
     # Удаляем канал (каскадно удалит settings, mediakit, placement_requests)
     repo = TelegramChatRepository(session)
     await repo.delete(channel_id)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
 
 
 # ─── Схемы ──────────────────────────────────────────────────────

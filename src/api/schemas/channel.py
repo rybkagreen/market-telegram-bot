@@ -9,7 +9,7 @@ Pydantic схемы для API операций с каналами.
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChannelCheckRequest(BaseModel):
@@ -21,6 +21,7 @@ class ChannelCheckRequest(BaseModel):
         chat_id: ID канала (начинается с -100). Либо username.
     """
 
+    model_config = ConfigDict(extra='forbid')
     username: str | None = Field(
         default=None,
         min_length=3,
@@ -110,6 +111,7 @@ class ChannelCreateRequest(BaseModel):
         is_test: Флаг тестового канала (только для админов, по умолчанию False)
     """
 
+    model_config = ConfigDict(extra='forbid')
     username: str = Field(
         ...,
         min_length=3,

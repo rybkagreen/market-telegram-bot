@@ -9,12 +9,11 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
-from sqlalchemy import func, select
 
-from src.db.models.payout import Payout, PayoutStatus
-from src.db.models.placement_request import PlacementRequest, PlacementStatus
-from src.db.models.platform_account import PlatformAccount
-from src.db.models.user import User
+from src.db.repositories.platform_account_repo import PlatformAccountRepository
+from src.db.repositories.payout_repo import PayoutRepository
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
+from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -53,9 +52,8 @@ async def health_balances(
 
     async with async_session_factory() as session:
         # Получаем platform_account (singleton id=1)
-        platform_stmt = select(PlatformAccount).where(PlatformAccount.id == 1)
-        platform_result = await session.execute(platform_stmt)
-        platform = platform_result.scalar_one_or_none()
+        platform_repo = PlatformAccountRepository(session)
+        platform = await platform_repo.get_platform_account()
 
         if not platform:
             return {
@@ -65,28 +63,19 @@ async def health_balances(
             }
 
         # Считаем SUM(balance_rub) FROM users
-        balance_sum_stmt = select(func.coalesce(func.sum(User.balance_rub), 0))
-        balance_sum_result = await session.execute(balance_sum_stmt)
-        users_balance_sum = balance_sum_result.scalar_one() or Decimal("0")
+        user_repo = UserRepository(session)
+        users_balance_sum = await user_repo.get_total_balance_sum()
 
         # Считаем SUM(earned_rub) FROM users
-        earned_sum_stmt = select(func.coalesce(func.sum(User.earned_rub), 0))
-        earned_sum_result = await session.execute(earned_sum_stmt)
-        users_earned_sum = earned_sum_result.scalar_one() or Decimal("0")
+        users_earned_sum = await user_repo.get_total_earned_sum()
 
         # Считаем SUM(final_price) FROM placement_requests WHERE status='escrow'
-        escrow_stmt = select(func.coalesce(func.sum(PlacementRequest.final_price), 0)).where(
-            PlacementRequest.status == PlacementStatus.ESCROW
-        )
-        escrow_result = await session.execute(escrow_stmt)
-        db_escrow_actual = escrow_result.scalar_one() or Decimal("0")
+        placement_repo = PlacementRequestRepository(session)
+        db_escrow_actual = await placement_repo.get_total_escrow_sum()
 
         # Считаем SUM(gross_amount) FROM payouts WHERE status IN ('pending','processing')
-        payout_stmt = select(func.coalesce(func.sum(Payout.gross_amount), 0)).where(
-            Payout.status.in_([PayoutStatus.PENDING, PayoutStatus.PROCESSING])
-        )
-        payout_result = await session.execute(payout_stmt)
-        db_payout_actual = payout_result.scalar_one() or Decimal("0")
+        payout_repo = PayoutRepository(session)
+        db_payout_actual = await payout_repo.get_pending_sum()
 
     # Проверяем инварианты
     escrow_match = platform.escrow_reserved == db_escrow_actual

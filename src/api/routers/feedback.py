@@ -146,10 +146,12 @@ async def get_all_feedback(
                 detail=f"Invalid status: {status_filter}. Must be one of: new, in_progress, resolved, rejected, all",
             ) from err
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await session.execute(count_query)
-    total = total_result.scalar() or 0
+    # Get total count using repository
+    feedback_repo = FeedbackRepository(session)
+    if status_filter != "all":
+        total = await feedback_repo.count_by_status(status_enum)
+    else:
+        total = await feedback_repo.count_by_status(None)
 
     # Apply pagination
     query = query.order_by(UserFeedback.created_at.desc()).limit(limit).offset(offset)

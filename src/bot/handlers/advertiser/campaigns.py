@@ -1,5 +1,6 @@
 """Advertiser campaigns handler."""
 
+import logging
 from decimal import Decimal
 
 from aiogram import F, Router
@@ -12,6 +13,7 @@ from src.bot.keyboards.advertiser.my_campaigns import my_campaigns_kb
 from src.bot.states.placement import PlacementStates
 from src.bot.utils.safe_callback import safe_callback_edit
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 
@@ -158,8 +160,8 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
             notify_kb = InlineKeyboardBuilder()
             notify_kb.button(text="👀 Посмотреть", callback_data=f"req:view:{request_id}")
             await notify_placement_new(message.bot, owner.telegram_id, request_id, notify_kb.as_markup())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to send notification to owner: {e}")
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Мои кампании", callback_data="main:my_campaigns")

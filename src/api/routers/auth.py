@@ -1,8 +1,8 @@
 """
 Auth router для JWT авторизации через Telegram initData.
 
-POST /api/auth/login  — получить JWT по initData
-GET  /api/auth/me     — данные текущего пользователя
+POST /api/auth/telegram  — получить JWT по initData
+GET  /api/auth/me        — данные текущего пользователя
 """
 
 import logging
@@ -117,12 +117,6 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             ai_generations_used=user.ai_uses_count,
         ),
     )
-
-
-@router.post("/login", response_model=LoginResponse)
-async def login_endpoint(body: LoginRequest) -> LoginResponse:
-    """Авторизация через Telegram initData (основной endpoint)."""
-    return await _login_handler(body)
 
 
 @router.post("/telegram", response_model=LoginResponse)

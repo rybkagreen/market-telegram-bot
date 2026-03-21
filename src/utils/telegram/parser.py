@@ -780,8 +780,8 @@ class TelegramParser:
                         count = participants.total
                         logger.debug(f"Got member count via get_participants: {count}")
                         return count
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Fallback member count method 1 failed: {e}")
 
                     # Метод 2: GetFullChannelRequest
                     try:
@@ -791,8 +791,8 @@ class TelegramParser:
                         count = getattr(full.full_chat, "participants_count", 0)
                         logger.debug(f"Got member count via GetFullChannelRequest: {count}")
                         return count
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Fallback member count method 2 failed: {e}")
 
                     # Метод 3: Direct attribute (fallback)
                     count = getattr(entity, "participants_count", 0)

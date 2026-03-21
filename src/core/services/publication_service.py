@@ -53,7 +53,11 @@ class PublicationService:
             BotNotAdminError: Если бот не администратор.
             InsufficientPermissionsError: Если нет нужных прав.
         """
-        member = await bot.get_chat_member(chat_id, bot.id)
+        try:
+            member = await bot.get_chat_member(chat_id, bot.id)
+        except Exception as e:
+            logger.warning(f"Cannot get chat member for chat {chat_id}: {e}")
+            raise
 
         if member.status not in ("administrator", "creator"):
             raise BotNotAdminError(f"Бот не является администратором канала {chat_id}")
@@ -136,6 +140,13 @@ class PublicationService:
                 )
             except TelegramBadRequest as e:
                 placement.status = PlacementStatus.FAILED
+                # Увеличить failed_count
+                from sqlalchemy import update
+                await session.execute(
+                    update(PlacementRequest)
+                    .where(PlacementRequest.id == placement_id)
+                    .values(failed_count=PlacementRequest.failed_count + 1)
+                )
                 await session.flush()
                 logger.error(f"Failed to send message for placement {placement_id}: {e}")
                 raise PostDeletionError(f"Failed to send message: {e}") from e
@@ -165,6 +176,18 @@ class PublicationService:
             # 7. Обновить статус на PUBLISHED (эскроу освобождается ТОЛЬКО после удаления)
             placement.status = PlacementStatus.PUBLISHED
             placement.published_at = datetime.now(UTC)
+
+            # Увеличить sent_count
+            from sqlalchemy import update
+            await session.execute(
+                update(PlacementRequest)
+                .where(PlacementRequest.id == placement_id)
+                .values(
+                    sent_count=PlacementRequest.sent_count + 1,
+                    last_published_at=datetime.now(UTC)
+                )
+            )
+
             await session.flush()
 
             logger.info(

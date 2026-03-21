@@ -92,10 +92,13 @@ class LinkTrackingService:
         Returns:
             Исходная ссылка для редиректа или None если не найдена.
         """
+        from datetime import UTC, datetime
+
         from sqlalchemy import select
         from sqlalchemy import update as sa_update
 
         from src.db.models.campaign import Campaign
+        from src.db.models.click_tracking import ClickTracking
 
         async with async_session_factory() as session:
             # Находим кампанию по коду
@@ -113,6 +116,15 @@ class LinkTrackingService:
                 .where(Campaign.id == campaign.id)
                 .values(clicks_count=Campaign.clicks_count + 1)
             )
+
+            # Записать в ClickTracking для детальной аналитики
+            click = ClickTracking(
+                placement_request_id=campaign.id,
+                short_code=short_code,
+                clicked_at=datetime.now(UTC),
+                user_agent=None,  # Can be passed from request if needed
+            )
+            session.add(click)
 
             await session.flush()
 

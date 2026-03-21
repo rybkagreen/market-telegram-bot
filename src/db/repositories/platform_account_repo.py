@@ -32,6 +32,10 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
             await self.session.flush()
         return account
 
+    async def get_platform_account(self) -> PlatformAccount | None:
+        """Получить аккаунт платформы (singleton id=1)."""
+        return await self.session.get(PlatformAccount, 1)
+
     async def add_to_payout_reserved(self, session, amount: Decimal) -> None:
         """Добавить к зарезервированным выплатам."""
         account = await self.get_for_update()
