@@ -16,6 +16,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
 from src.core.services.analytics_service import AnalyticsService
@@ -177,9 +178,33 @@ async def get_activity(
     Активность по дням для графика на Dashboard.
     Возвращает последние N дней.
     """
-    # MailingLog removed — return stub data
+    from sqlalchemy import func, select
+
+    # Используем данные из PlacementRequest.last_published_at
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(
+                func.date_trunc("day", PlacementRequest.last_published_at).label("day"),
+                func.sum(PlacementRequest.sent_count).label("sent"),
+                func.sum(PlacementRequest.failed_count).label("failed"),
+            )
+            .where(
+                PlacementRequest.advertiser_id == current_user.id,
+                PlacementRequest.last_published_at.isnot(None),
+                PlacementRequest.last_published_at >= datetime.now(UTC) - timedelta(days=days),
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        rows = result.all()
+
+    # Маппинг результатов по дням
     day_labels_ru = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     data_by_day: dict = {}
+    for row in rows:
+        if row.day:
+            day_str = str(row.day.date())
+            data_by_day[day_str] = (int(row.sent or 0), int(row.failed or 0))
 
     points = []
     total_sent = 0
@@ -405,7 +430,14 @@ async def get_campaign_ai_insights(
             .where(User.id == current_user.id)
             .values(ai_generations_used=current_user.ai_generations_used + 1)
         )
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Конфликт данных: запись уже существует или нарушено ограничение",
+            ) from e
 
     return AIInsightsResponse(
         campaign_id=campaign_id,

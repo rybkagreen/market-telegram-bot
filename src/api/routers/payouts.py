@@ -11,6 +11,7 @@ import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
@@ -176,7 +177,14 @@ async def create_payout(
     )
 
     session.add(payout)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(payout)
 
     logger.info(f"Payout request {payout.id} created by user {current_user.id}")

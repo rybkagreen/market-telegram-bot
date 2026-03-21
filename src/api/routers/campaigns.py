@@ -8,6 +8,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
 from src.db.models.placement_request import PlacementRequest as Campaign
@@ -288,7 +289,7 @@ async def delete_placement_request(
 async def start_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
-):
+) -> dict[str, Any]:
     """
     Запустить кампанию.
 
@@ -327,7 +328,7 @@ async def start_placement_request(
 async def cancel_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
-):
+) -> dict[str, Any]:
     """
     Отменить кампанию.
 
@@ -440,10 +441,10 @@ async def list_placement_requests_mini_app(
         )
         placement_requests = result.scalars().all()
 
-        # MailingLog removed — sent_count always 0
+        # Используем агрегированные данные из PlacementRequest
         items = []
         for camp in placement_requests:
-            sent_count = 0
+            sent_count = camp.sent_count or 0
 
             items.append(
                 CampaignItem(
@@ -482,21 +483,25 @@ async def get_placement_request_stats(
                 detail="Campaign not found",
             )
 
-    # MailingLog removed — return zero stats
+    # Возвращаем реальные данные из агрегированных полей PlacementRequest
     camp_status = (
         placement_request.status.value if hasattr(placement_request.status, "value") else str(placement_request.status)
     )
+
+    total_sent = placement_request.sent_count or 0
+    total_failed = placement_request.failed_count or 0
+    total = total_sent + total_failed
 
     return CampaignStats(
         placement_request_id=placement_request.id,
         title=placement_request.title or "Без названия",
         status=camp_status,
-        total_logs=0,
-        sent=0,
-        failed=0,
+        total_logs=total,
+        sent=total_sent,
+        failed=total_failed,
         skipped=0,
-        success_rate=0.0,
-        started_at=None,
+        success_rate=round(total_sent / total * 100, 1) if total > 0 else 0.0,
+        started_at=placement_request.last_published_at.isoformat() if placement_request.last_published_at else None,
         finished_at=None,
     )
 
@@ -544,7 +549,14 @@ async def duplicate_placement_request(
             filters_json=source.filters_json,
         )
         session.add(new_placement_request)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Конфликт данных: запись уже существует или нарушено ограничение",
+            ) from e
         await session.refresh(new_placement_request)
 
     return DuplicateResponse(id=new_placement_request.id, title=new_title)

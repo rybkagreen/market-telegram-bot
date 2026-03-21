@@ -17,6 +17,7 @@ from src.db.models.placement_request import PlacementStatus
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepository
+from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 from src.db.session import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -183,9 +184,8 @@ async def create_placement(
         raise HTTPException(status_code=403, detail="Advertiser is blocked")
 
     # Проверка канала
-    from src.db.models.telegram_chat import TelegramChat
-
-    channel = await session.get(TelegramChat, request.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(request.channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
@@ -246,15 +246,14 @@ async def accept_placement(
     session: AsyncSession = Depends(get_db_session),
 ) -> PlacementResponse:
     """Владелец принимает заявку."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
 
-    channel = await session.get(TelegramChat, placement.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
     if not channel or channel.owner_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not channel owner")
 
@@ -281,15 +280,14 @@ async def reject_placement(
     session: AsyncSession = Depends(get_db_session),
 ) -> PlacementResponse:
     """Владелец отклоняет заявку."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
 
-    channel = await session.get(TelegramChat, placement.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
     if not channel or channel.owner_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not channel owner")
 
@@ -323,15 +321,14 @@ async def counter_offer(
     session: AsyncSession = Depends(get_db_session),
 ) -> PlacementResponse:
     """Владелец делает контр-предложение."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
 
-    channel = await session.get(TelegramChat, placement.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
     if not channel or channel.owner_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not channel owner")
 
@@ -489,8 +486,6 @@ async def update_placement(
         HTTPException 404: Заявка не найдена.
         HTTPException 409: Конфликт статуса.
     """
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
@@ -498,7 +493,8 @@ async def update_placement(
         raise HTTPException(status_code=404, detail="Placement not found")
 
     # Проверка канала и владельца
-    channel = await session.get(TelegramChat, placement.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 

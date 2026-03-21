@@ -16,6 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_current_admin_user, get_db_session
@@ -195,7 +196,14 @@ async def create_dispute(
     )
 
     session.add(dispute)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(dispute)
 
     logger.info(f"Dispute {dispute.id} created for placement {dispute_data.placement_id}")
@@ -242,7 +250,14 @@ async def update_dispute(
     dispute.owner_explanation = update_data.owner_comment
     dispute.status = DisputeStatus.owner_explained
 
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(dispute)
 
     logger.info(f"Dispute {dispute.id} updated by owner {current_user.id}")

@@ -275,8 +275,8 @@ async def owner_explain_text(message: Message, state: FSMContext, session: Async
                 reply_markup=builder_adm.as_markup(),
                 parse_mode="Markdown",
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to send dispute notification to admin: {e}")
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Детали спора", callback_data=f"dispute:detail:{dispute_id}")

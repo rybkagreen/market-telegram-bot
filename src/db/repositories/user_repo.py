@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.config.settings import settings
 from src.db.models.user import User
@@ -59,6 +59,16 @@ class UserRepository(BaseRepository[User]):
         user.earned_rub += delta
         await self.session.flush()
 
+    async def get_total_balance_sum(self) -> Decimal:
+        """Получить сумму balance_rub всех пользователей."""
+        result = await self.session.execute(select(func.coalesce(func.sum(User.balance_rub), Decimal("0"))))
+        return result.scalar_one() or Decimal("0")
+
+    async def get_total_earned_sum(self) -> Decimal:
+        """Получить сумму earned_rub всех пользователей."""
+        result = await self.session.execute(select(func.coalesce(func.sum(User.earned_rub), Decimal("0"))))
+        return result.scalar_one() or Decimal("0")
+
     async def create_or_update(
         self,
         telegram_id: int,
@@ -107,3 +117,12 @@ class UserRepository(BaseRepository[User]):
             self.session.add(user)
             await self.session.flush()
             return user
+
+    async def update_credits(self, user_id: int, delta: int) -> User | None:
+        """Атомарно обновляет поле credits пользователя на delta (может быть отрицательным)."""
+        user = await self.get_by_id(user_id)
+        if not user:
+            return None
+        user.credits += delta
+        await self.session.flush()
+        return user

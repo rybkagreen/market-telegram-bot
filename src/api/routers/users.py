@@ -71,6 +71,31 @@ class UserStatsResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ReferralItem(BaseModel):
+    """Элемент списка рефералов."""
+
+    id: int
+    username: str | None
+    first_name: str
+    joined_at: str
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ReferralStatsResponse(BaseModel):
+    """Реферальная статистика пользователя."""
+
+    referral_code: str
+    referral_link: str
+    total_referrals: int
+    active_referrals: int
+    total_earned_credits: int
+    referrals: list[ReferralItem]
+
+    model_config = {"from_attributes": True}
+
+
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
@@ -143,4 +168,103 @@ async def get_current_user_stats(
             advertiser_violations_count=rep_score.advertiser_violations_count,
             owner_violations_count=rep_score.owner_violations_count,
         )
+    )
+
+
+@router.get("/me/referrals", response_model=ReferralStatsResponse)
+async def get_my_referrals(
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+) -> ReferralStatsResponse:
+    """
+    Реферальная статистика и код текущего пользователя.
+
+    Возвращает реферальный код, ссылку, общую статистику и список рефералов.
+
+    Args:
+        current_user: Текущий авторизованный пользователь.
+        session: Асинхронная сессия БД.
+
+    Returns:
+        ReferralStatsResponse: Реферальная статистика пользователя.
+    """
+    from sqlalchemy import func, select
+
+    from src.db.models.user import User
+    from src.db.models.yookassa_payment import YookassaPayment
+
+    # Получаем рефералов (пользователи у которых referred_by_id == current_user.id)
+    referrals_query = (
+        select(User)
+        .where(User.referred_by_id == current_user.id)
+        .order_by(User.created_at.desc())
+        .limit(20)
+    )
+    result = await session.execute(referrals_query)
+    referral_users = list(result.scalars().all())
+
+    # Подсчёт общего количества
+    count_query = select(func.count()).select_from(User).where(User.referred_by_id == current_user.id)
+    total_result = await session.execute(count_query)
+    total_referrals = total_result.scalar() or 0
+
+    # Active referrals — те кто совершил хотя бы одну оплату (есть запись в YookassaPayment со status=succeeded)
+    active_query = (
+        select(func.count(User.id))
+        .join(YookassaPayment, User.id == YookassaPayment.user_id)
+        .where(
+            User.referred_by_id == current_user.id,
+            YookassaPayment.status == "succeeded",
+        )
+    )
+    active_result = await session.execute(active_query)
+    active_referrals = active_result.scalar() or 0
+
+    # Total earned credits — сумма desired_balance из успешных платежей рефералов
+    earned_query = (
+        select(func.sum(YookassaPayment.desired_balance))
+        .join(User, User.id == YookassaPayment.user_id)
+        .where(
+            User.referred_by_id == current_user.id,
+            YookassaPayment.status == "succeeded",
+        )
+    )
+    earned_result = await session.execute(earned_query)
+    total_earned_credits = int(earned_result.scalar() or 0)
+
+    # Формируем ссылку (используем заглушку для bot_username, если не настроено)
+    bot_username = "RekHarborBot"  # Default, can be overridden via settings
+    referral_link = f"https://t.me/{bot_username}?start={current_user.referral_code}"
+
+    # Формируем список рефералов
+    referrals = []
+    for ref in referral_users:
+        # Проверяем активность (была ли оплата)
+        payment_check = await session.execute(
+            select(YookassaPayment.id)
+            .where(
+                YookassaPayment.user_id == ref.id,
+                YookassaPayment.status == "succeeded",
+            )
+            .limit(1)
+        )
+        is_active = payment_check.scalar_one_or_none() is not None
+
+        referrals.append(
+            ReferralItem(
+                id=ref.id,
+                username=ref.username,
+                first_name=ref.first_name,
+                joined_at=ref.created_at.isoformat() if ref.created_at else "",
+                is_active=is_active,
+            )
+        )
+
+    return ReferralStatsResponse(
+        referral_code=current_user.referral_code or "",
+        referral_link=referral_link,
+        total_referrals=total_referrals,
+        active_referrals=active_referrals,
+        total_earned_credits=total_earned_credits,
+        referrals=referrals,
     )

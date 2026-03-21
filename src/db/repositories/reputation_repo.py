@@ -2,6 +2,9 @@
 
 from datetime import datetime
 
+from sqlalchemy import select
+
+from src.db.models.reputation_history import ReputationHistory
 from src.db.models.reputation_score import ReputationScore
 from src.db.repositories.base import BaseRepository
 
@@ -57,6 +60,26 @@ class ReputationRepo(BaseRepository[ReputationScore]):
             score.owner_blocked_until = blocked_until
             score.owner_violations_count = violations_count
         await self.session.flush()
+
+    async def get_history(
+        self,
+        user_id: int,
+        role: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[ReputationHistory]:
+        """Возвращает записи истории репутации для user_id с пагинацией."""
+        conditions = [ReputationHistory.user_id == user_id]
+        if role is not None:
+            conditions.append(ReputationHistory.role == role)
+        result = await self.session.execute(
+            select(ReputationHistory)
+            .where(*conditions)
+            .order_by(ReputationHistory.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
 
 
 ReputationRepository = ReputationRepo
