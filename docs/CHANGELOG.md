@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v4.3.1 - 2026-04-02 (Documentation Update)
+
+#### Documentation
+- **Updated** README.md with v4.3 features (legal profiles, ORD, audit, referrals)
+- **Updated** QWEN.md with new database models and environment variables
+- **Added** "Что нового в v4.3" section to README.md
+- **Updated** Tech Stack section (GlitchTip, SonarQube, Gitleaks)
+- **Updated** Project Structure (20+ new models, services, routers)
+
 ### v4.3 - 2026-03-14
 
 #### P01 - Constants, Settings, Repositories
