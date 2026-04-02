@@ -217,6 +217,10 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./src:/app/src
+      - ./alembic.docker.ini:/app/alembic.ini:ro
+      - ./alembic_sync.ini:/app/alembic_sync.ini:ro
+      - contracts_data:/data/contracts
+      - /opt/market-telegram-bot/reports/monitoring/payloads:/tmp/glitchtip_queue
     ports:
       - "${API_PORT:-8001}:8001"
     depends_on:
@@ -273,6 +277,48 @@ services:
   #     - market_bot_network
   #   restart: unless-stopped
 
+  # ══════════════════════════════════════════════════════════════
+  # GlitchTip — self-hosted error tracking
+  # ══════════════════════════════════════════════════════════════
+  glitchtip:
+    image: glitchtip/glitchtip:latest
+    container_name: rekharbor_glitchtip
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}_errors
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-changeme}
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:8090
+      DEFAULT_FROM_EMAIL: errors@rekharbor.ru
+      CELERY_WORKER_CONCURRENCY: 2
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - market_bot_network
+
+  glitchtip_worker:
+    image: glitchtip/glitchtip:latest
+    container_name: rekharbor_glitchtip_worker
+    restart: unless-stopped
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-market_bot}:${POSTGRES_PASSWORD:-market_bot_pass}@postgres:5432/${POSTGRES_DB:-market_bot_db}_errors
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-changeme}
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:8090
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - market_bot_network
+
 networks:
   market_bot_network:
     driver: bridge
@@ -280,3 +326,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  contracts_data:

@@ -355,6 +355,94 @@ async def notify_payment_received(
 # ---------------------------------------------------------------------------
 
 
+async def notify_new_request(placement, advertiser, owner, channel_name: str) -> None:
+    """Wrapper: уведомить владельца о новой заявке."""
+    from src.bot.main import bot
+
+    await notify_owner_new_request(bot, owner.telegram_id, placement.id)
+
+
+async def notify_owner_accepted(placement, advertiser, channel_name: str) -> None:
+    """Wrapper: уведомить рекламодателя о принятии заявки."""
+    from src.bot.main import bot
+
+    await notify_advertiser_accepted(
+        bot,
+        advertiser.telegram_id,
+        placement.id,
+        channel_name,
+        str(placement.publication_format.value if hasattr(placement.publication_format, 'value') else placement.publication_format),
+        placement.final_price or placement.proposed_price,
+        str(placement.final_schedule or placement.proposed_schedule or ""),
+    )
+
+
+async def notify_counter_offer(placement, advertiser, channel_name: str) -> None:
+    """Wrapper: уведомить рекламодателя о контр-предложении."""
+    from src.bot.main import bot
+
+    await notify_advertiser_counter(
+        bot,
+        advertiser.telegram_id,
+        placement.id,
+        channel_name,
+        placement.counter_price,
+        str(placement.counter_schedule or ""),
+        placement.counter_offer_count,
+    )
+
+
+async def notify_counter_accepted(placement, advertiser, owner, channel_name: str) -> None:
+    """Wrapper: уведомить рекламодателя о принятии контр-предложения."""
+    from src.bot.main import bot
+
+    await notify_advertiser_accepted(
+        bot,
+        advertiser.telegram_id,
+        placement.id,
+        channel_name,
+        str(placement.publication_format.value if hasattr(placement.publication_format, 'value') else placement.publication_format),
+        placement.final_price or placement.proposed_price,
+        str(placement.final_schedule or ""),
+    )
+
+
+async def notify_rejected(placement, advertiser, channel_name: str) -> None:
+    """Wrapper: уведомить рекламодателя об отклонении заявки."""
+    from src.bot.main import bot
+
+    await notify_advertiser_rejected(bot, advertiser.telegram_id, placement.id, channel_name)
+
+
+async def notify_cancelled(placement, advertiser, owner, channel_name: str, reputation_delta=None) -> None:
+    """Wrapper: уведомить рекламодателя об отмене заявки."""
+    from src.bot.main import bot
+
+    await notify_advertiser_rejected(bot, advertiser.telegram_id, placement.id, channel_name)
+
+
+async def notify_sla_expired(placement, advertiser, owner, channel_name: str) -> None:
+    """Wrapper: уведомить при истечении SLA."""
+    from src.bot.main import bot
+
+    await notify_owner_new_request(bot, owner.telegram_id, placement.id)
+
+
+def format_yookassa_payment_success(
+    amount_rub: float | Decimal,
+    credits: int,
+    new_balance: int,
+) -> str:
+    """Форматировать сообщение об успешном платеже ЮKassa."""
+    return (
+        f"✅ <b>Оплата получена!</b>\n\n"
+        f"💳 Сумма: <b>{amount_rub:.0f} ₽</b>\n"
+        f"🪙 Зачислено кредитов: <b>{credits}</b>\n"
+        f"💰 Баланс: <b>{new_balance}</b> кр.\n\n"
+        f"Спасибо за пополнение!"
+    )
+
+
 async def notify_admins_new_feedback(
     bot: Bot,
     feedback_id: int,

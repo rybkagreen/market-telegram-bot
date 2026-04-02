@@ -4,6 +4,7 @@
 // ============================================================
 
 import ky from 'ky'
+import * as Sentry from '@sentry/react'
 import type { AuthResponse } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -16,9 +17,6 @@ export const api = ky.create({
         const token = useAuthStore.getState().token
         if (token) {
           request.headers.set('Authorization', `Bearer ${token}`)
-          console.log('[API Client] Token added to request:', request.url)
-        } else {
-          console.warn('[API Client] No token found for request:', request.url)
         }
       },
     ],
@@ -26,9 +24,9 @@ export const api = ky.create({
       async (_request, _options, response) => {
         // ДОБАВЛЕНО (UX-P0): Логирование всех ошибок API
         if (!response.ok) {
-          console.error('[API] Error:', response.status, response.url)
+          Sentry.captureException(new Error(`[API] Error: ${response.status} ${response.url}`))
           if (response.status === 401) {
-            console.log('[API Client] 401 Unauthorized - attempting re-auth...')
+            Sentry.addBreadcrumb({ message: '[API Client] 401 Unauthorized - attempting re-auth...', level: 'info' })
           }
         }
         if (response.status === 401) {

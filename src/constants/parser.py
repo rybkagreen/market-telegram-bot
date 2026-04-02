@@ -2,6 +2,32 @@
 Константы парсера Telegram каналов.
 """
 
+# Строковые константы для часто повторяющихся тематических меток
+TOPIC_BIZNES = "бизнес"
+TOPIC_MARKETING = "маркетинг"
+TOPIC_PRODAZHI = "продажи"
+TOPIC_TRADING = "трейдинг"
+TOPIC_INVESTITSII = "инвестиции"
+TOPIC_KRIPTOVALYUTA = "криптовалюта"
+TOPIC_PSIKHOLOGIYA = "психология"
+TOPIC_OTNOSHENIYA = "отношения"
+TOPIC_ZDOROVYE = "здоровье"
+TOPIC_PUTESHESTVIYA = "путешествия"
+TOPIC_KRASOTA = "красота"
+TOPIC_PROGRAMMIROVANIE = "программирование"
+TOPIC_FINANSY = "финансы"
+TOPIC_BIZNES_NOVOSTI = "бизнес новости"
+TOPIC_BITCOIN = "биткоин"
+TOPIC_SMM = "smm"
+TOPIC_MODA = "мода"
+TOPIC_KINO = "кино"
+TOPIC_IT = "it"
+TOPIC_ETHEREUM = "ethereum"
+TOPIC_EDA = "еда"
+TOPIC_YUMOR = "юмор"
+TOPIC_DEFI = "defi"
+TOPIC_NFT = "nft"
+
 # Количество постов для анализа каждого канала
 PARSER_POSTS_SAMPLE: int = 50
 
@@ -10,27 +36,27 @@ PARSER_RATE_LIMIT_DELAY: float = 0.5
 
 # Популярные тематики для поиска каналов
 POPULAR_TOPICS: list[str] = [
-    "бизнес",
-    "маркетинг",
-    "продажи",
-    "трейдинг",
-    "инвестиции",
-    "криптовалюта",
+    TOPIC_BIZNES,
+    TOPIC_MARKETING,
+    TOPIC_PRODAZHI,
+    TOPIC_TRADING,
+    TOPIC_INVESTITSII,
+    TOPIC_KRIPTOVALYUTA,
     "недвижимость",
-    "психология",
-    "отношения",
-    "здоровье",
+    TOPIC_PSIKHOLOGIYA,
+    TOPIC_OTNOSHENIYA,
+    TOPIC_ZDOROVYE,
     "спорт",
-    "путешествия",
-    "еда",
-    "мода",
-    "красота",
-    "юмор",
+    TOPIC_PUTESHESTVIYA,
+    TOPIC_EDA,
+    TOPIC_MODA,
+    TOPIC_KRASOTA,
+    TOPIC_YUMOR,
     "новости",
     "политика",
     "технологии",
-    "it",
-    "программирование",
+    TOPIC_IT,
+    TOPIC_PROGRAMMIROVANIE,
     "стартапы",
     "карьера",
     "образование",
@@ -38,38 +64,38 @@ POPULAR_TOPICS: list[str] = [
     "искусство",
     "дизайн",
     "фотография",
-    "кино",
+    TOPIC_KINO,
     "музыка",
     "книги",
     "игры",
     "авто",
-    "финансы",
+    TOPIC_FINANSY,
     "блогеры",
     "медиа",
     "реклама",
-    "smm",
+    TOPIC_SMM,
 ]
 
 # Поисковые запросы для парсинга Telegram (расширенный список ~250 запросов)
 # Разбит по тематикам для равномерного распределения нагрузки
 SEARCH_QUERIES: list[str] = [
     # Бизнес и финансы (35)
-    "бизнес",
-    "бизнес новости",
+    TOPIC_BIZNES,
+    TOPIC_BIZNES_NOVOSTI,
     "бизнес идеи",
     "стартап",
     "стартапы россия",
-    "инвестиции",
+    TOPIC_INVESTITSII,
     "инвестиции для начинающих",
     "фондовый рынок",
-    "трейдинг",
+    TOPIC_TRADING,
     "крипта",
-    "криптовалюта",
-    "биткоин",
-    "ethereum",
-    "defi",
-    "nft",
-    "финансы",
+    TOPIC_KRIPTOVALYUTA,
+    TOPIC_BITCOIN,
+    TOPIC_ETHEREUM,
+    TOPIC_DEFI,
+    TOPIC_NFT,
+    TOPIC_FINANSY,
     "финансовая грамотность",
     "деньги",
     "заработок",
@@ -90,12 +116,12 @@ SEARCH_QUERIES: list[str] = [
     "масштабирование бизнеса",
     "франшиза бизнес",
     # Маркетинг и продажи (30)
-    "маркетинг",
+    TOPIC_MARKETING,
     "digital маркетинг",
-    "smm",
+    TOPIC_SMM,
     "таргетинг",
     "контекстная реклама",
-    "продажи",
+    TOPIC_PRODAZHI,
     "продажи b2b",
     "продажи b2c",
     "переговоры",
@@ -121,9 +147,9 @@ SEARCH_QUERIES: list[str] = [
     "чат боты",
     "автоворонки",
     # IT и технологии (30)
-    "it",
+    TOPIC_IT,
     "айти",
-    "программирование",
+    TOPIC_PROGRAMMIROVANIE,
     "разработка",
     "веб разработка",
     "frontend",
@@ -154,16 +180,16 @@ SEARCH_QUERIES: list[str] = [
     "swift",
     "kotlin",
     # Криптовалюты и блокчейн (25)
-    "криптовалюта",
+    TOPIC_KRIPTOVALYUTA,
     "крипта",
-    "биткоин",
+    TOPIC_BITCOIN,
     "bitcoin",
-    "ethereum",
+    TOPIC_ETHEREUM,
     "eth",
     "altcoins",
     "altcoins gems",
-    "defi",
-    "nft",
+    TOPIC_DEFI,
+    TOPIC_NFT,
     "nft коллекция",
     "блокчейн",
     "blockchain",
@@ -180,7 +206,7 @@ SEARCH_QUERIES: list[str] = [
     "dao",
     "staking",
     # Психология и отношения (25)
-    "психология",
+    TOPIC_PSIKHOLOGIYA,
     "психолог",
     "психология отношений",
     "семейная психология",
@@ -201,12 +227,12 @@ SEARCH_QUERIES: list[str] = [
     "коучинг",
     "лайф коуч",
     "бизнес коуч",
-    "отношения",
+    TOPIC_OTNOSHENIYA,
     "мужчина женщина",
     "свидания",
     "знакомства",
     # Здоровье и спорт (25)
-    "здоровье",
+    TOPIC_ZDOROVYE,
     "зож",
     "правильное питание",
     "пп рецепты",
@@ -232,7 +258,7 @@ SEARCH_QUERIES: list[str] = [
     "гольф",
     "велоспорт",
     # Путешествия и туризм (20)
-    "путешествия",
+    TOPIC_PUTESHESTVIYA,
     "туризм",
     "отпуск",
     "каникулы",
@@ -253,7 +279,7 @@ SEARCH_QUERIES: list[str] = [
     "япония",
     "корей",
     # Еда и рестораны (15)
-    "еда",
+    TOPIC_EDA,
     "рестораны",
     "кафе",
     "бары",
@@ -269,14 +295,14 @@ SEARCH_QUERIES: list[str] = [
     "вино",
     "коктейли",
     # Мода и красота (20)
-    "мода",
+    TOPIC_MODA,
     "стиль",
     "имидж",
     "шоппинг",
     "бренды одежды",
     "дизайнеры",
     "показы мод",
-    "красота",
+    TOPIC_KRASOTA,
     "косметика",
     "макияж",
     "уход за кожей",
@@ -290,7 +316,7 @@ SEARCH_QUERIES: list[str] = [
     "визажист",
     "стилист",
     # Юмор и развлечения (15)
-    "юмор",
+    TOPIC_YUMOR,
     "приколы",
     "мемы",
     "комедии",
@@ -300,7 +326,7 @@ SEARCH_QUERIES: list[str] = [
     "шоу",
     "сериалы",
     "фильмы",
-    "кино",
+    TOPIC_KINO,
     "актеры",
     "режиссеры",
     "премьеры",
@@ -318,7 +344,7 @@ SEARCH_QUERIES: list[str] = [
     "общество",
     "происшествия",
     "спорт новости",
-    "бизнес новости",
+    TOPIC_BIZNES_NOVOSTI,
     "технологии новости",
     "наука новости",
 ]
@@ -326,23 +352,23 @@ SEARCH_QUERIES: list[str] = [
 # Поисковые запросы по категориям (для структурированного парсинга)
 SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
     "business": [
-        "бизнес",
-        "бизнес новости",
+        TOPIC_BIZNES,
+        TOPIC_BIZNES_NOVOSTI,
         "бизнес идеи",
         "стартап",
-        "инвестиции",
-        "финансы",
+        TOPIC_INVESTITSII,
+        TOPIC_FINANSY,
         "деньги",
         "заработок",
         "предпринимательство",
         "малый бизнес",
     ],
     "marketing": [
-        "маркетинг",
+        TOPIC_MARKETING,
         "digital маркетинг",
-        "smm",
+        TOPIC_SMM,
         "таргетинг",
-        "продажи",
+        TOPIC_PRODAZHI,
         "реклама",
         "бренд",
         "pr",
@@ -350,8 +376,8 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "лидогенерация",
     ],
     "it": [
-        "it",
-        "программирование",
+        TOPIC_IT,
+        TOPIC_PROGRAMMIROVANIE,
         "разработка",
         "python",
         "javascript",
@@ -362,20 +388,20 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "golang",
     ],
     "crypto": [
-        "криптовалюта",
-        "биткоин",
-        "ethereum",
-        "defi",
-        "nft",
+        TOPIC_KRIPTOVALYUTA,
+        TOPIC_BITCOIN,
+        TOPIC_ETHEREUM,
+        TOPIC_DEFI,
+        TOPIC_NFT,
         "блокчейн",
-        "трейдинг",
+        TOPIC_TRADING,
         "криптобиржа",
         "web3",
         "staking",
     ],
     "psychology": [
-        "психология",
-        "отношения",
+        TOPIC_PSIKHOLOGIYA,
+        TOPIC_OTNOSHENIYA,
         "самооценка",
         "мотивация",
         "саморазвитие",
@@ -386,7 +412,7 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "стресс",
     ],
     "health": [
-        "здоровье",
+        TOPIC_ZDOROVYE,
         "зож",
         "фитнес",
         "тренировки",
@@ -398,7 +424,7 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "спорт",
     ],
     "travel": [
-        "путешествия",
+        TOPIC_PUTESHESTVIYA,
         "туризм",
         "отпуск",
         "туры",
@@ -410,7 +436,7 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "бали",
     ],
     "food": [
-        "еда",
+        TOPIC_EDA,
         "рестораны",
         "кулинария",
         "рецепты",
@@ -422,22 +448,22 @@ SEARCH_QUERIES_BY_CATEGORY: dict[str, list[str]] = {
         "пп рецепты",
     ],
     "fashion": [
-        "мода",
+        TOPIC_MODA,
         "стиль",
         "шоппинг",
         "бренды",
         "дизайнеры",
-        "красота",
+        TOPIC_KRASOTA,
         "косметика",
         "макияж",
         "skincare",
         "прически",
     ],
     "entertainment": [
-        "юмор",
+        TOPIC_YUMOR,
         "приколы",
         "мемы",
-        "кино",
+        TOPIC_KINO,
         "сериалы",
         "фильмы",
         "музыка",

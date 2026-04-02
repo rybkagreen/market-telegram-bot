@@ -13,10 +13,12 @@ from redis.asyncio import Redis
 
 from src.config.settings import settings
 from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
+
+CHAT_NOT_FOUND = "chat not found"
 
 # Redis клиент для дедупликации уведомлений
 redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
@@ -51,13 +53,18 @@ async def _check_low_balance_async() -> dict[str, Any]:
     """
 
     async with async_session_factory() as session:
-        user_repo = UserRepository(session)
+        from sqlalchemy import select as _select
+
+        from src.db.models.user import User as _User
 
         # Получаем пользователей с балансом < 50 RUB
-        users = await user_repo.get_users_for_notification(
-            min_balance=Decimal("0.00"),
-            max_balance=Decimal("50.00"),
+        _stmt = _select(_User).where(
+            _User.is_active.is_(True),
+            _User.balance_rub >= Decimal("0.00"),
+            _User.balance_rub <= Decimal("50.00"),
         )
+        _result = await session.execute(_stmt)
+        users = list(_result.scalars().all())
 
         stats = {
             "total_checked": len(users),
@@ -113,7 +120,7 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
         raise
     except Exception as e:
         error_str = str(e).lower()
-        if "chat not found" in error_str or "blocked" in error_str:
+        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
             logger.warning(f"User {telegram_id} blocked the bot: {e}")
         else:
             logger.error(f"Error sending low balance notification to {telegram_id}: {e}")
@@ -158,7 +165,7 @@ def notify_campaign_status(
         except Exception as exc:
             error_str = str(exc).lower()
             # Не повторяем попыток если пользователь заблокировал бота
-            if "chat not found" in error_str or "blocked" in error_str:
+            if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
                 logger.warning(f"User {user_id} blocked the bot, skipping campaign notification")
                 return
             logger.warning(f"Failed to notify user {user_id} about campaign {campaign_id}: {exc}")
@@ -220,7 +227,7 @@ def notify_user(
     except Exception as e:
         # Игнорируем ожидаемые ошибки (пользователь заблокировал бота)
         error_str = str(e).lower()
-        if "chat not found" in error_str or "blocked" in error_str:
+        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
             logger.warning(
                 f"User {telegram_id} blocked the bot or chat is inaccessible, "
                 f"skipping notification: {e}"
@@ -259,7 +266,7 @@ async def _notify_user_async(
     except Exception as e:
         # Другие ошибки (chat not found, network issues)
         error_str = str(e).lower()
-        if "chat not found" in error_str or "blocked" in error_str:
+        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
             logger.warning(f"User {telegram_id} blocked the bot or chat is inaccessible: {e}")
         else:
             logger.error(f"Error sending notification to {telegram_id}: {e}")
@@ -273,6 +280,74 @@ async def _notify_user_async(
 # ─────────────────────────────────────────────
 
 
+def _build_placement_keyboard(placement_id: int) -> Any:
+    """Собрать клавиатуру одобрения/отклонения заявки."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Одобрить",
+                    callback_data=f"approve_placement:{placement_id}",
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отклонить",
+                    callback_data=f"reject_placement:{placement_id}",
+                ),
+            ],
+        ],
+    )
+
+
+def _build_placement_message(placement: Any, channel: Any, payout_amount: float) -> str:
+    """Собрать текст уведомления о новой заявке."""
+    ad_preview = placement.ad_text[:500] + ("..." if len(placement.ad_text) > 500 else "")
+    channel_ref = channel.username or channel.title
+    return (
+        f"📢 <b>Новая заявка на размещение в @{channel_ref}</b>\n\n"
+        f"💬 Текст объявления:\n{ad_preview}\n\n"
+        f"📅 Дата публикации: {placement.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"💸 Выплата: {payout_amount:.0f} ₽\n\n"
+        f"⏰ Автоодобрение через 24 часа если не ответите"
+    )
+
+
+async def _send_owner_placement_notification(
+    placement_id: int,
+    owner_telegram_id: int,
+    message: str,
+    keyboard: Any,
+) -> bool:
+    """Отправить уведомление владельцу о новой заявке."""
+    from aiogram import Bot
+    from aiogram.exceptions import TelegramForbiddenError
+
+    from src.config.settings import settings
+
+    bot = Bot(token=settings.bot_token)
+    try:
+        await bot.send_message(
+            owner_telegram_id,
+            message,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        return True
+    except TelegramForbiddenError:
+        logger.warning(f"Owner {owner_telegram_id} blocked the bot, skipping placement notification")
+        return False
+    except Exception as e:
+        error_str = str(e).lower()
+        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
+            logger.warning(f"Owner {owner_telegram_id} blocked the bot: {e}")
+            return False
+        logger.error(f"Error notifying owner about placement {placement_id}: {e}")
+        return False
+    finally:
+        await bot.session.close()
+
+
 @celery_app.task(name="notifications:notify_owner_new_placement", queue="notifications")
 def notify_owner_new_placement_task(placement_id: int) -> bool:
     """
@@ -282,11 +357,6 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
-        from aiogram import Bot
-        from aiogram.exceptions import TelegramForbiddenError
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        from src.config.settings import settings
         from src.db.models.placement_request import PlacementRequest
         from src.db.models.telegram_chat import TelegramChat
         from src.db.models.user import User
@@ -297,63 +367,20 @@ def notify_owner_new_placement_task(placement_id: int) -> bool:
                 return False
 
             channel = await session.get(TelegramChat, placement.channel_id)
-            if not channel or not channel.owner_user_id:
+            if not channel or not channel.owner_id:
                 return False
 
-            campaign = placement
-
-            owner = await session.get(User, channel.owner_user_id)
+            owner = await session.get(User, channel.owner_id)
             if not owner or not owner.notifications_enabled:
                 return False
 
-            payout_amount = float(channel.price_per_post or 0) * 0.8
+            payout_amount = 0.0
+            keyboard = _build_placement_keyboard(placement_id)
+            message = _build_placement_message(placement, channel, payout_amount)
 
-            keyboard_markup = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="✅ Одобрить",
-                            callback_data=f"approve_placement:{placement_id}",
-                        ),
-                        InlineKeyboardButton(
-                            text="❌ Отклонить",
-                            callback_data=f"reject_placement:{placement_id}",
-                        ),
-                    ],
-                ],
+            return await _send_owner_placement_notification(
+                placement_id, owner.telegram_id, message, keyboard
             )
-
-            message = (
-                f"📢 <b>Новая заявка на размещение в @{channel.username or channel.title}</b>\n\n"
-                f"💬 Текст объявления:\n{campaign.ad_text[:500]}{'...' if len(campaign.ad_text) > 500 else ''}\n\n"
-                f"📅 Дата публикации: {placement.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-                f"💸 Выплата: {payout_amount:.0f} ₽\n\n"
-                f"⏰ Автоодобрение через 24 часа если не ответите"
-            )
-
-            bot = Bot(token=settings.bot_token)
-            try:
-                await bot.send_message(
-                    owner.telegram_id,
-                    message,
-                    parse_mode="HTML",
-                    reply_markup=keyboard_markup,
-                )
-                return True
-            except TelegramForbiddenError:
-                logger.warning(
-                    f"Owner {owner.telegram_id} blocked the bot, skipping placement notification"
-                )
-                return False
-            except Exception as e:
-                error_str = str(e).lower()
-                if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
-                    return False
-                logger.error(f"Error notifying owner about placement {placement_id}: {e}")
-                return False
-            finally:
-                await bot.session.close()
 
     try:
         return asyncio.run(_notify_async())
@@ -408,6 +435,33 @@ def notify_owner_xp_for_publication(
         return False
 
 
+async def _send_payout_message(
+    payout_id: int, owner_telegram_id: int, message: str, log_label: str
+) -> bool:
+    """Отправить уведомление о выплате владельцу."""
+    from aiogram import Bot
+    from aiogram.exceptions import TelegramForbiddenError
+
+    from src.config.settings import settings
+
+    bot = Bot(token=settings.bot_token)
+    try:
+        await bot.send_message(owner_telegram_id, message, parse_mode="HTML")
+        return True
+    except TelegramForbiddenError:
+        logger.warning(f"Owner {owner_telegram_id} blocked the bot, skipping payout notification")
+        return False
+    except Exception as e:
+        error_str = str(e).lower()
+        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
+            logger.warning(f"Owner {owner_telegram_id} blocked the bot: {e}")
+            return False
+        logger.error(f"Error notifying {log_label} {payout_id}: {e}")
+        return False
+    finally:
+        await bot.session.close()
+
+
 @celery_app.task(name="notifications:notify_payout_created", queue="notifications")
 def notify_payout_created_task(payout_id: int) -> bool:
     """
@@ -416,15 +470,11 @@ def notify_payout_created_task(payout_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
-        from aiogram import Bot
-        from aiogram.exceptions import TelegramForbiddenError
-
-        from src.config.settings import settings
-        from src.db.models.payout import Payout
+        from src.db.models.payout import PayoutRequest
         from src.db.models.user import User
 
         async with async_session_factory() as session:
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
                 return False
 
@@ -434,33 +484,11 @@ def notify_payout_created_task(payout_id: int) -> bool:
 
             message = (
                 f"💰 <b>Начислена выплата</b>\n\n"
-                f"Сумма: {payout.amount:.0f} ₽\n"
+                f"Сумма: {payout.net_amount:.0f} ₽\n"
                 f"Статус: ожидает выплаты\n\n"
                 f"Выплата будет обработана в ближайшее время."
             )
-
-            bot = Bot(token=settings.bot_token)
-            try:
-                await bot.send_message(
-                    owner.telegram_id,
-                    message,
-                    parse_mode="HTML",
-                )
-                return True
-            except TelegramForbiddenError:
-                logger.warning(
-                    f"Owner {owner.telegram_id} blocked the bot, skipping payout notification"
-                )
-                return False
-            except Exception as e:
-                error_str = str(e).lower()
-                if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
-                    return False
-                logger.error(f"Error notifying payout created {payout_id}: {e}")
-                return False
-            finally:
-                await bot.session.close()
+            return await _send_payout_message(payout_id, owner.telegram_id, message, "payout created")
 
     try:
         return asyncio.run(_notify_async())
@@ -477,15 +505,11 @@ def notify_payout_paid_task(payout_id: int) -> bool:
     import asyncio
 
     async def _notify_async() -> bool:
-        from aiogram import Bot
-        from aiogram.exceptions import TelegramForbiddenError
-
-        from src.config.settings import settings
-        from src.db.models.payout import Payout
+        from src.db.models.payout import PayoutRequest
         from src.db.models.user import User
 
         async with async_session_factory() as session:
-            payout = await session.get(Payout, payout_id)
+            payout = await session.get(PayoutRequest, payout_id)
             if not payout:
                 return False
 
@@ -493,37 +517,13 @@ def notify_payout_paid_task(payout_id: int) -> bool:
             if not owner or not owner.notifications_enabled:
                 return False
 
-            tx_info = f"\nTX: {payout.tx_hash[:10]}..." if payout.tx_hash else ""
-
             message = (
                 f"✅ <b>Выплата произведена!</b>\n\n"
-                f"Сумма: {payout.amount:.0f} ₽\n"
-                f"Статус: выплачено{tx_info}\n\n"
+                f"Сумма: {payout.net_amount:.0f} ₽\n"
+                f"Статус: выплачено\n\n"
                 f"Средства зачислены на ваш счёт."
             )
-
-            bot = Bot(token=settings.bot_token)
-            try:
-                await bot.send_message(
-                    owner.telegram_id,
-                    message,
-                    parse_mode="HTML",
-                )
-                return True
-            except TelegramForbiddenError:
-                logger.warning(
-                    f"Owner {owner.telegram_id} blocked the bot, skipping payout notification"
-                )
-                return False
-            except Exception as e:
-                error_str = str(e).lower()
-                if "chat not found" in error_str or "blocked" in error_str:
-                    logger.warning(f"Owner {owner.telegram_id} blocked the bot: {e}")
-                    return False
-                logger.error(f"Error notifying payout paid {payout_id}: {e}")
-                return False
-            finally:
-                await bot.session.close()
+            return await _send_payout_message(payout_id, owner.telegram_id, message, "payout paid")
 
     try:
         return asyncio.run(_notify_async())
@@ -1035,6 +1035,52 @@ def auto_approve_placements() -> dict:
         return {"status": "error", "error": str(e), "approved": 0}
 
 
+async def _send_placement_reminder(placement: Any, session: Any, bot: Any, now: Any) -> bool:
+    """
+    Отправить одно напоминание владельцу о заявке.
+
+    Returns True если напоминание отправлено, False если пропущено.
+    Raises TelegramForbiddenError / Exception при ошибке отправки.
+    """
+    from datetime import timedelta
+
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.models.user import User
+
+    meta = placement.meta_json or {}
+    if meta.get("reminder_sent"):
+        logger.debug(f"Reminder already sent for placement {placement.id}")
+        return False
+
+    channel = await session.get(TelegramChat, placement.channel_id)
+    if not channel or not channel.owner_id:
+        return False
+
+    owner = await session.get(User, channel.owner_id)
+    if not owner or not owner.notifications_enabled:
+        return False
+
+    time_left = placement.created_at + timedelta(hours=24) - now
+    hours_left = max(0, int(time_left.total_seconds() // 3600))
+
+    message = (
+        f"⏰ <b>Напоминание о заявке</b>\n\n"
+        f"Заявка #{placement.id} ожидает решения.\n"
+        f"Канал: @{channel.username or channel.title}\n"
+        f"До автоодобрения: ~{hours_left} ч\n\n"
+        f"Откройте «Мои каналы» → «Заявки»"
+    )
+
+    await bot.send_message(owner.telegram_id, message, parse_mode="HTML")
+
+    meta["reminder_sent"] = True
+    placement.meta_json = meta
+    await session.flush()
+
+    logger.info(f"Sent placement reminder to owner {owner.id} for placement {placement.id}")
+    return True
+
+
 @celery_app.task(name="notifications:notify_pending_placement_reminders", queue="mailing")
 def notify_pending_placement_reminders() -> dict:
     """
@@ -1060,8 +1106,6 @@ def notify_pending_placement_reminders() -> dict:
 
         from src.config.settings import settings
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
-        from src.db.models.telegram_chat import TelegramChat
-        from src.db.models.user import User
 
         now = datetime.now(UTC)
         older_than = now - timedelta(hours=24)
@@ -1083,50 +1127,9 @@ def notify_pending_placement_reminders() -> dict:
 
             for placement in placements:
                 try:
-                    # Проверяем, отправлялось ли уже напоминание (по meta_json)
-                    meta = placement.meta_json or {}
-                    if meta.get("reminder_sent"):
-                        logger.debug(f"Reminder already sent for placement {placement.id}")
-                        continue
-
-                    # Получаем канал и владельца
-                    channel = await session.get(TelegramChat, placement.channel_id)
-                    if not channel or not channel.owner_user_id:
-                        continue
-
-                    owner = await session.get(User, channel.owner_user_id)
-                    if not owner or not owner.notifications_enabled:
-                        continue
-
-                    # Считаем время до автоодобрения
-                    time_left = placement.created_at + timedelta(hours=24) - now
-                    hours_left = max(0, int(time_left.total_seconds() // 3600))
-
-                    # Отправляем уведомление
-                    message = (
-                        f"⏰ <b>Напоминание о заявке</b>\n\n"
-                        f"Заявка #{placement.id} ожидает решения.\n"
-                        f"Канал: @{channel.username or channel.title}\n"
-                        f"До автоодобрения: ~{hours_left} ч\n\n"
-                        f"Откройте «Мои каналы» → «Заявки»"
-                    )
-
-                    await bot.send_message(
-                        owner.telegram_id,
-                        message,
-                        parse_mode="HTML",
-                    )
-
-                    # Помечаем что напоминание отправлено
-                    meta["reminder_sent"] = True
-                    placement.meta_json = meta
-                    await session.flush()
-
-                    sent_count += 1
-                    logger.info(
-                        f"Sent placement reminder to owner {owner.id} for placement {placement.id}"
-                    )
-
+                    sent = await _send_placement_reminder(placement, session, bot, now)
+                    if sent:
+                        sent_count += 1
                 except TelegramForbiddenError:
                     logger.warning(
                         f"Owner blocked bot, skipping reminder for placement {placement.id}"
@@ -1154,6 +1157,86 @@ def notify_pending_placement_reminders() -> dict:
 # ─────────────────────────────────────────────
 # TASK 8: Уведомления об истечении тарифа
 # ─────────────────────────────────────────────
+
+_RENEWAL_COSTS: dict[str, int] = {
+    "starter": 299,
+    "pro": 999,
+    "business": 2999,
+}
+
+
+async def _notify_expiring_user(user: Any, bot: Any, session: Any, now: Any) -> bool:
+    """
+    Отправить уведомление об истекающем тарифе одному пользователю.
+
+    Returns True если уведомление отправлено.
+    """
+    if not user.notifications_enabled:
+        return False
+
+    # ⚠️ ЗАЩИТА: пропускаем если уже отправляли сегодня
+    if user.plan_expiry_notified_at and user.plan_expiry_notified_at.date() == now.date():
+        logger.debug(f"User {user.id} already notified today, skipping")
+        return False
+
+    if user.plan_expires_at is None:
+        logger.debug(f"User {user.id} has no plan expiry date, skipping")
+        return False
+
+    days_left = (user.plan_expires_at - now).days
+    plan_name = user.plan.value if hasattr(user.plan, "value") else user.plan
+    renewal_cost = _RENEWAL_COSTS.get(plan_name, 0)
+    expires_str = user.plan_expires_at.strftime("%d.%m.%Y")
+
+    message = (
+        f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
+        f"Дата окончания: {expires_str}\n"
+        f"Стоимость продления: {renewal_cost} кр\n"
+        f"Текущий баланс: {user.credits} кр\n\n"
+        f"Продлите тариф чтобы не потерять доступ к функциям.\n"
+        f"Кабинет → Сменить тариф"
+    )
+
+    await bot.send_message(user.telegram_id, message, parse_mode="HTML")
+
+    # ⚠️ Устанавливаем флаг что отправили уведомление
+    user.plan_expiry_notified_at = now
+    await session.flush()
+
+    logger.info(f"Sent plan expiring notification to user {user.id}")
+    return True
+
+
+async def _downgrade_expired_user(user: Any, bot: Any, session: Any, now: Any) -> bool:
+    """
+    Сбросить тариф истёкшего пользователя и отправить уведомление.
+
+    Returns True если пользователь был понижен в тарифе.
+    """
+    from src.db.models.user import UserPlan
+
+    # ⚠️ ЗАЩИТА: если expires_at обновился (пользователь продлил) — не трогаем
+    if user.plan_expires_at is None or user.plan_expires_at >= now:
+        logger.info(f"User {user.id} renewed plan or has no expiry, skipping")
+        return False
+
+    old_plan = user.plan.value if hasattr(user.plan, "value") else user.plan
+    user.plan = UserPlan.FREE
+    user.plan_expires_at = None
+    user.ai_uses_count = 0
+    await session.flush()
+
+    if user.notifications_enabled:
+        message = (
+            f"📦 <b>Ваш тариф {old_plan} истёк</b>\n\n"
+            f"Тариф автоматически изменён на <b>FREE</b>.\n\n"
+            f"Для доступа к расширенным функциям:\n"
+            f"Кабинет → Сменить тариф"
+        )
+        await bot.send_message(user.telegram_id, message, parse_mode="HTML")
+
+    logger.info(f"Downgraded user {user.id} from {old_plan} to FREE")
+    return True
 
 
 @celery_app.task(name="notifications:notify_expiring_plans", queue="mailing")
@@ -1190,7 +1273,6 @@ def notify_expiring_plans() -> dict:
         error_count = 0
 
         async with async_session_factory() as session:
-            # Находим пользователей с истекающим тарифом
             stmt = select(User).where(
                 User.plan != UserPlan.FREE,
                 User.plan_expires_at != None,  # noqa: E711
@@ -1204,54 +1286,9 @@ def notify_expiring_plans() -> dict:
 
             for user in users:
                 try:
-                    if not user.notifications_enabled:
-                        continue
-
-                    # ⚠️ ЗАЩИТА: пропускаем если уже отправляли сегодня
-                    if (
-                        user.plan_expiry_notified_at
-                        and user.plan_expiry_notified_at.date() == now.date()
-                    ):
-                        logger.debug(f"User {user.id} already notified today, skipping")
-                        continue
-
-                    if user.plan_expires_at is None:
-                        logger.debug(f"User {user.id} has no plan expiry date, skipping")
-                        continue
-
-                    days_left = (user.plan_expires_at - now).days
-                    plan_name = user.plan.value if hasattr(user.plan, "value") else user.plan
-
-                    # Стоимость продления (заглушка — в реальности нужно считать по тарифу)
-                    renewal_cost = {
-                        "starter": 299,
-                        "pro": 999,
-                        "business": 2999,
-                    }.get(plan_name, 0)
-
-                    expires_str = user.plan_expires_at.strftime("%d.%m.%Y")
-                    message = (
-                        f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
-                        f"Дата окончания: {expires_str}\n"
-                        f"Стоимость продления: {renewal_cost} кр\n"
-                        f"Текущий баланс: {user.credits} кр\n\n"
-                        f"Продлите тариф чтобы не потерять доступ к функциям.\n"
-                        f"Кабинет → Сменить тариф"
-                    )
-
-                    await bot.send_message(
-                        user.telegram_id,
-                        message,
-                        parse_mode="HTML",
-                    )
-
-                    # ⚠️ Устанавливаем флаг что отправили уведомление
-                    user.plan_expiry_notified_at = now
-                    await session.flush()
-
-                    notified_count += 1
-                    logger.info(f"Sent plan expiring notification to user {user.id}")
-
+                    sent = await _notify_expiring_user(user, bot, session, now)
+                    if sent:
+                        notified_count += 1
                 except TelegramForbiddenError:
                     logger.warning(
                         f"User blocked bot, skipping plan expiring notification for user {user.id}"
@@ -1308,7 +1345,6 @@ def notify_expired_plans() -> dict:
         error_count = 0
 
         async with async_session_factory() as session:
-            # Находим пользователей с истёкшим тарифом
             stmt = select(User).where(
                 User.plan != UserPlan.FREE,
                 User.plan_expires_at != None,  # noqa: E711
@@ -1321,36 +1357,9 @@ def notify_expired_plans() -> dict:
 
             for user in users:
                 try:
-                    # ⚠️ ЗАЩИТА: если expires_at обновился (пользователь продлил) — не трогаем
-                    # Проверяем ещё раз внутри цикла на случай гонки
-                    if user.plan_expires_at is None or user.plan_expires_at >= now:
-                        logger.info(f"User {user.id} renewed plan or has no expiry, skipping")
-                        continue
-
-                    old_plan = user.plan.value if hasattr(user.plan, "value") else user.plan
-                    user.plan = UserPlan.FREE
-                    user.plan_expires_at = None
-                    user.ai_generations_used = 0
-
-                    await session.flush()
-
-                    if user.notifications_enabled:
-                        message = (
-                            f"📦 <b>Ваш тариф {old_plan} истёк</b>\n\n"
-                            f"Тариф автоматически изменён на <b>FREE</b>.\n\n"
-                            f"Для доступа к расширенным функциям:\n"
-                            f"Кабинет → Сменить тариф"
-                        )
-
-                        await bot.send_message(
-                            user.telegram_id,
-                            message,
-                            parse_mode="HTML",
-                        )
-
-                    downgraded_count += 1
-                    logger.info(f"Downgraded user {user.id} from {old_plan} to FREE")
-
+                    downgraded = await _downgrade_expired_user(user, bot, session, now)
+                    if downgraded:
+                        downgraded_count += 1
                 except TelegramForbiddenError:
                     logger.warning(
                         f"User blocked bot, skipping plan expired notification for user {user.id}"

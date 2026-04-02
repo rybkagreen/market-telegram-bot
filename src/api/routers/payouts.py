@@ -9,8 +9,10 @@ Endpoints:
 
 import logging
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
@@ -57,10 +59,10 @@ async def _get_payout_or_404(
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/", response_model=list[PayoutResponse])
+@router.get("/")
 async def get_my_payouts(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[PayoutResponse]:
     """
     Получить список всех заявок на выплату текущего пользователя.
@@ -80,11 +82,11 @@ async def get_my_payouts(
     return [PayoutResponse.model_validate(p) for p in payouts]
 
 
-@router.get("/{payout_id}", response_model=PayoutResponse)
+@router.get("/{payout_id}", responses={404: {"description": "Payout not found"}, 403: {"description": "Access denied"}})
 async def get_payout(
     payout_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PayoutResponse:
     """
     Получить детали конкретной заявки на выплату.
@@ -105,11 +107,19 @@ async def get_payout(
     return PayoutResponse.model_validate(payout)
 
 
-@router.post("/", response_model=PayoutResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {"description": "Amount below minimum or insufficient funds"},
+        404: {"description": "User not found"},
+        409: {"description": "Active payout request exists or data conflict"},
+    },
+)
 async def create_payout(
     payout_data: PayoutCreate,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PayoutResponse:
     """
     Создать новую заявку на выплату.
@@ -176,7 +186,14 @@ async def create_payout(
     )
 
     session.add(payout)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(payout)
 
     logger.info(f"Payout request {payout.id} created by user {current_user.id}")

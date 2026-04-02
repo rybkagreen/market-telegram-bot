@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as Sentry from '@sentry/react'
 import { createFeedback, getMyFeedback } from '@/api/feedback'
 import { useUiStore } from '@/stores/uiStore'
 
@@ -28,7 +29,7 @@ export const useCreateFeedback = () => {
       addToast('success', '✅ Обратная связь отправлена!')
     },
     onError: (error) => {
-      console.error('[Feedback] Error:', error)
+      Sentry.captureException(error)
       addToast('error', '❌ Ошибка при отправке. Попробуйте позже.')
     },
     onSettled: () => {

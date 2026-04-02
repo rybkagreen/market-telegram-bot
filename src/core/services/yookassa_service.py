@@ -16,7 +16,7 @@ from yookassa.domain.exceptions import ApiError
 
 from src.config.settings import settings
 from src.db.models.user import User
-from src.db.models.yookassa_payment import YooKassaPayment
+from src.db.models.yookassa_payment import YookassaPayment as YooKassaPayment
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -158,10 +158,10 @@ class YooKassaService:
 
             if event_type == "payment.succeeded":
                 record.status = "succeeded"
-                record.paid_at = datetime.now(UTC)
+                record.processed_at = datetime.now(UTC)
                 await session.commit()
                 await self._credit_user(
-                    record.user_id, record.credits, record.amount_rub, payment_id
+                    record.user_id, int(record.desired_balance), record.gross_amount, payment_id
                 )
 
             elif event_type == "payment.canceled":
@@ -208,7 +208,7 @@ class YooKassaService:
                 transaction = Transaction(
                     user_id=user_id,
                     amount=Decimal(str(credits)),
-                    type=TransactionType.TOPUP,
+                    type=TransactionType.topup,
                     description=f"Пополнение ЮKassa #{payment_id[:8]}",
                     reference_id=None,
                     reference_type="yookassa_payment",

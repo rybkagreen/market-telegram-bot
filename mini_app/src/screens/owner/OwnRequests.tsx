@@ -36,28 +36,27 @@ export default function OwnRequests() {
   return (
     <ScreenShell>
       <div className={styles.toolbar}>
-        <Button variant="secondary" size="sm" onClick={() => refetch()}>🔄 Обновить</Button>
-      </div>
-
-      <div className={styles.filters}>
-        <button
-          className={`${styles.filterBtn} ${filter === 'new' ? styles.filterDanger : ''}`}
-          onClick={() => setFilter('new')}
-        >
-          🔴 Новые ({newCount})
-        </button>
-        <button
-          className={`${styles.filterBtn} ${filter === 'published' ? styles.filterSuccess : ''}`}
-          onClick={() => setFilter('published')}
-        >
-          🟢 Опубликованные ({publishedCount})
-        </button>
-        <button
-          className={`${styles.filterBtn} ${filter === 'cancelled' ? styles.filterNeutral : ''}`}
-          onClick={() => setFilter('cancelled')}
-        >
-          ⬜ Отклонённые ({cancelledCount})
-        </button>
+        <div className={styles.filters}>
+          <button
+            className={`${styles.filterBtn} ${filter === 'new' ? styles.filterDanger : ''}`}
+            onClick={() => setFilter('new')}
+          >
+            🔴 Новые ({newCount})
+          </button>
+          <button
+            className={`${styles.filterBtn} ${filter === 'published' ? styles.filterSuccess : ''}`}
+            onClick={() => setFilter('published')}
+          >
+            🟢 ({publishedCount})
+          </button>
+          <button
+            className={`${styles.filterBtn} ${filter === 'cancelled' ? styles.filterNeutral : ''}`}
+            onClick={() => setFilter('cancelled')}
+          >
+            ⬜ ({cancelledCount})
+          </button>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => refetch()}>🔄</Button>
       </div>
 
       {isLoading ? (
@@ -104,7 +103,7 @@ export default function OwnRequests() {
                     <Button size="sm" variant="secondary" onClick={() => navigate(`/own/requests/${req.id}`)}>
                       📊 Детали
                     </Button>
-                    <Button size="sm" variant="success" onClick={() => navigate(`/own/requests/${req.id}`)}>
+                    <Button size="sm" variant="success" onClick={() => navigate(`/own/requests/${req.id}`, { state: { openReview: true } })}>
                       ⭐ Отзыв
                     </Button>
                   </>

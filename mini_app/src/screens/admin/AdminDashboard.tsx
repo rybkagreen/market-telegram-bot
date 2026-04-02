@@ -8,6 +8,7 @@
  */
 
 import { useNavigate } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
 import { usePlatformStats } from '@/hooks/queries/admin/useAdminQueries'
 import { useMe } from '@/hooks/queries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
@@ -20,12 +21,8 @@ export default function AdminDashboard() {
   const { data: user, isLoading: userLoading } = useMe()
   const { data: stats, isLoading, error } = usePlatformStats()
 
-  // Debug logging
-  console.log('[AdminDashboard] Render:', { user, stats, isLoading, error })
-
   // Check admin access
   if (userLoading) {
-    console.log('[AdminDashboard] Loading user...')
     return (
       <ScreenShell>
         <Skeleton height={200} />
@@ -34,7 +31,6 @@ export default function AdminDashboard() {
   }
 
   if (!user?.is_admin) {
-    console.log('[AdminDashboard] User is not admin:', user)
     return (
       <ScreenShell>
         <Notification type="danger">
@@ -51,7 +47,6 @@ export default function AdminDashboard() {
   }
 
   if (isLoading) {
-    console.log('[AdminDashboard] Loading stats...')
     return (
       <ScreenShell>
         <div className={styles.loading}>
@@ -62,7 +57,7 @@ export default function AdminDashboard() {
   }
 
   if (error || !stats) {
-    console.error('[AdminDashboard] Error loading stats:', error)
+    if (error) Sentry.captureException(error)
     return (
       <ScreenShell>
         <Notification type="danger">

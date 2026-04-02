@@ -23,9 +23,8 @@ export const useUiStore = create<UiState>()((set) => ({
   addToast: (type, message) => {
     const id = Date.now().toString()
     set((state) => ({ toasts: [...state.toasts, { id, type, message }] }))
-    setTimeout(() => {
-      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }))
-    }, 3000)
+    const removeById = (state: UiState) => ({ toasts: state.toasts.filter((t) => t.id !== id) })
+    setTimeout(() => set(removeById), 3000)
   },
 
   removeToast: (id) =>

@@ -1,13 +1,25 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { ChannelCard, Skeleton, Notification } from '@/components/ui'
+import { Button, CategoryGrid, ChannelCard, Notification, Skeleton } from '@/components/ui'
 import { formatCompact } from '@/lib/formatters'
-import { useMyChannels } from '@/hooks/queries/useChannelQueries'
+import { useMyChannels, useUpdateChannelCategory } from '@/hooks/queries/useChannelQueries'
+import { useCategories } from '@/hooks/queries/useCategoryQueries'
 import styles from './OwnChannels.module.css'
 
 export default function OwnChannels() {
   const navigate = useNavigate()
   const { data: channels, isLoading, isError, refetch } = useMyChannels()
+  const { data: categories = [] } = useCategories()
+  const updateCategory = useUpdateChannelCategory()
+  const [editingCategoryFor, setEditingCategoryFor] = useState<number | null>(null)
+
+  const handleCategorySelect = (channelId: number, categoryKey: string) => {
+    updateCategory.mutate(
+      { id: channelId, category: categoryKey },
+      { onSuccess: () => setEditingCategoryFor(null) },
+    )
+  }
 
   return (
     <ScreenShell>
@@ -49,6 +61,36 @@ export default function OwnChannels() {
                   status={channel.is_active ? 'active' : 'inactive'}
                   onClick={() => navigate(`/own/channels/${channel.id}`)}
                 />
+
+                {!channel.category && (
+                  <div className={styles.categoryWarning}>
+                    <Notification type="warning">
+                      <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+                        ⚠️ Канал не виден рекламодателям — выберите категорию
+                      </span>
+                      <div className={styles.categoryActions}>
+                        {editingCategoryFor === channel.id ? (
+                          <CategoryGrid
+                            categories={categories.map((c) => ({
+                              id: c.key,
+                              label: c.name,
+                              icon: c.emoji,
+                            }))}
+                            selected={[]}
+                            onToggle={(key) => handleCategorySelect(channel.id, key)}
+                          />
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => setEditingCategoryFor(channel.id)}
+                          >
+                            📂 Выбрать категорию
+                          </Button>
+                        )}
+                      </div>
+                    </Notification>
+                  </div>
+                )}
               </div>
             ))}
           </div>

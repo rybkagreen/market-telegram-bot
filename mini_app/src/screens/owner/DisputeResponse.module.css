@@ -3,7 +3,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--rh-text-muted);
-  margin: var(--rh-space-4) 0 var(--rh-space-2);
+  margin: 0 0 var(--rh-space-2);
 }
 
 .infoRow {
@@ -69,7 +69,7 @@
   resize: vertical;
   outline: none;
   box-sizing: border-box;
-  margin-bottom: var(--rh-space-2);
+  margin: 0;
   transition: border-color 0.15s;
 }
 

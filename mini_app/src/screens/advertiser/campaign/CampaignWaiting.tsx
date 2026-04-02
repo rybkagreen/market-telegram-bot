@@ -8,23 +8,50 @@ import { useHaptic } from '@/hooks/useHaptic'
 import { usePlacement, useUpdatePlacement } from '@/hooks/queries'
 import styles from './CampaignWaiting.module.css'
 
+type Variant = 'success' | 'warning' | 'default'
+type TimelineEvent = { id: string; icon: string; title: string; subtitle: string; variant: Variant }
+
+function getRedirectPath(id: number, status: string): string | null {
+  if (status === 'pending_payment' || status === 'counter_offer') return `/adv/campaigns/${id}/payment`
+  if (status === 'published') return `/adv/campaigns/${id}/published`
+  if (status === 'cancelled' || status === 'failed' || status === 'refunded') return '/adv/campaigns'
+  return null
+}
+
+function publishedSubtitle(publishedAt: string | null | undefined, proposedSchedule: string | null | undefined, isPublished: boolean): string {
+  if (isPublished) return formatDateTime(publishedAt ?? '')
+  if (proposedSchedule) return `Запланировано: ${formatDateTime(proposedSchedule)}`
+  return ''
+}
+
+function buildTimelineEvents(placement: { status: string; created_at: string; expires_at: string; published_at?: string | null; proposed_schedule?: string | null }): TimelineEvent[] {
+  const st = placement.status
+  const isPastOwner = ['pending_payment', 'counter_offer', 'escrow', 'published'].includes(st)
+  const isPastPayment = ['escrow', 'published'].includes(st)
+  const isPublished = st === 'published'
+  return [
+    { id: 'created', icon: '✅', title: 'Заявка создана', subtitle: formatDateTime(placement.created_at), variant: 'success' },
+    { id: 'waiting', icon: isPastOwner ? '✅' : '⏳', title: isPastOwner ? 'Владелец принял' : 'Ожидает ответа владельца', subtitle: isPastOwner ? '' : `До ${formatDateTime(placement.expires_at)} (24 ч)`, variant: isPastOwner ? 'success' : 'warning' },
+    { id: 'payment', icon: isPastPayment ? '✅' : '💳', title: isPastPayment ? 'Оплачено' : 'Оплата', subtitle: isPastPayment ? '' : 'После подтверждения', variant: isPastPayment ? 'success' : 'default' },
+    { id: 'escrow', icon: isPastPayment ? '✅' : '🔒', title: 'Эскроу', subtitle: isPastPayment ? 'Средства заблокированы' : '', variant: isPastPayment ? 'success' : 'default' },
+    { id: 'published', icon: isPublished ? '✅' : '📢', title: 'Публикация', subtitle: publishedSubtitle(placement.published_at, placement.proposed_schedule, isPublished), variant: isPublished ? 'success' : 'default' },
+  ]
+}
+
 export default function CampaignWaiting() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const haptic = useHaptic()
 
   const numId = id ? parseInt(id, 10) : null
-  const { data: placement, isLoading } = usePlacement(numId)
+  const { data: placement, isLoading } = usePlacement(numId, { refetchInterval: 10_000 })
   const { mutate: updatePlacement, isPending: cancelling } = useUpdatePlacement()
 
   // Poll for status changes and redirect
   useEffect(() => {
     if (!placement) return
-    if (placement.status === 'pending_payment' || placement.status === 'counter_offer') {
-      navigate(`/adv/campaigns/${placement.id}/payment`)
-    } else if (placement.status === 'published') {
-      navigate(`/adv/campaigns/${placement.id}/published`)
-    }
+    const path = getRedirectPath(placement.id, placement.status)
+    if (path) navigate(path)
   }, [placement?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
@@ -46,44 +73,15 @@ export default function CampaignWaiting() {
   }
 
   const formatInfo = PUBLICATION_FORMATS[placement.publication_format]
+  const timelineEvents = buildTimelineEvents(placement)
 
-  const timelineEvents = [
-    {
-      id: 'created',
-      icon: '✅',
-      title: 'Заявка создана',
-      subtitle: formatDateTime(placement.created_at),
-      variant: 'success' as const,
-    },
-    {
-      id: 'waiting',
-      icon: '⏳',
-      title: 'Ожидает ответа владельца',
-      subtitle: `До ${formatDateTime(placement.expires_at)} (24 ч)`,
-      variant: 'warning' as const,
-    },
-    {
-      id: 'payment',
-      icon: '💳',
-      title: 'Оплата',
-      subtitle: 'После подтверждения',
-      variant: 'default' as const,
-    },
-    {
-      id: 'escrow',
-      icon: '🔒',
-      title: 'Эскроу',
-      subtitle: '',
-      variant: 'default' as const,
-    },
-    {
-      id: 'published',
-      icon: '📢',
-      title: 'Публикация',
-      subtitle: '',
-      variant: 'default' as const,
-    },
-  ]
+  const handleCancel = () => {
+    haptic.warning()
+    updatePlacement(
+      { id: placement.id, data: { action: 'cancel' } },
+      { onSuccess: () => { navigate('/adv/campaigns') } },
+    )
+  }
 
   return (
     <ScreenShell>
@@ -116,17 +114,15 @@ export default function CampaignWaiting() {
         </div>
       </ArbitrationPanel>
 
+      <Button variant="secondary" fullWidth onClick={() => navigate('/adv')}>
+        ← В меню рекламодателя
+      </Button>
+
       <Button
         variant="danger"
         fullWidth
         disabled={cancelling}
-        onClick={() => {
-          haptic.warning()
-          updatePlacement(
-            { id: placement.id, data: { action: 'cancel' } },
-            { onSuccess: () => navigate('/adv/campaigns') },
-          )
-        }}
+        onClick={handleCancel}
       >
         {cancelling ? '⏳ Отмена...' : '❌ Отменить заявку'}
       </Button>

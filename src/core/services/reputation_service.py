@@ -99,7 +99,7 @@ class ReputationService:
             user_id=advertiser_id,
             role="advertiser",
             delta=self.DELTA_PUBLICATION,
-            action=ReputationAction.PUBLICATION,
+            action=ReputationAction.publication,
             placement_request_id=placement_request_id,
         )
 
@@ -108,7 +108,7 @@ class ReputationService:
             user_id=owner_id,
             role="owner",
             delta=self.DELTA_PUBLICATION,
-            action=ReputationAction.PUBLICATION,
+            action=ReputationAction.publication,
             placement_request_id=placement_request_id,
         )
 
@@ -144,14 +144,14 @@ class ReputationService:
 
         # Определяем действие
         action_map = {
-            5: ReputationAction.REVIEW_5STAR,
-            4: ReputationAction.REVIEW_4STAR,
-            3: ReputationAction.REVIEW_3STAR,
-            2: ReputationAction.REVIEW_2STAR,
-            1: ReputationAction.REVIEW_1STAR,
+            5: ReputationAction.review_5star,
+            4: ReputationAction.review_4star,
+            3: ReputationAction.review_3star,
+            2: ReputationAction.review_2star,
+            1: ReputationAction.review_1star,
         }
 
-        action = action_map.get(stars, ReputationAction.REVIEW_3STAR)
+        action = action_map.get(stars, ReputationAction.review_3star)
 
         # reviewed_id получает дельту, роль обратная reviewer_role
         reviewed_role = "owner" if reviewer_role == "advertiser" else "advertiser"
@@ -186,7 +186,7 @@ class ReputationService:
         """
         delta = self.DELTA_CANCEL_AFTER if after_confirmation else self.DELTA_CANCEL_BEFORE
         action = (
-            ReputationAction.CANCEL_AFTER if after_confirmation else ReputationAction.CANCEL_BEFORE
+            ReputationAction.cancel_after_confirm if after_confirmation else ReputationAction.cancel_before_escrow
         )
 
         await self._apply_delta(
@@ -198,9 +198,9 @@ class ReputationService:
         )
 
         # Проверка на систематические отмены
-        from src.db.repositories.placement_request_repo import PlacementRequestRepo
+        from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
-        placement_repo = PlacementRequestRepo(self.session)
+        placement_repo = PlacementRequestRepository(self.session)
         cancellations = await placement_repo.count_cancellations_in_30_days(advertiser_id)
 
         if cancellations >= 3:
@@ -208,7 +208,7 @@ class ReputationService:
                 user_id=advertiser_id,
                 role="advertiser",
                 delta=self.DELTA_CANCEL_SYSTEMATIC,
-                action=ReputationAction.CANCEL_SYSTEMATIC,
+                action=ReputationAction.cancel_systematic,
                 placement_request_id=placement_request_id,
                 comment="Systematic cancellations (3+ in 30 days)",
             )
@@ -232,13 +232,13 @@ class ReputationService:
 
         if streak == 0:
             delta = self.DELTA_REJECT_INVALID_1
-            action = ReputationAction.REJECT_INVALID_1
+            action = ReputationAction.reject_invalid_1
         elif streak == 1:
             delta = self.DELTA_REJECT_INVALID_2
-            action = ReputationAction.REJECT_INVALID_2
+            action = ReputationAction.reject_invalid_2
         else:  # streak >= 2
             delta = self.DELTA_REJECT_INVALID_3
-            action = ReputationAction.REJECT_INVALID_3
+            action = ReputationAction.reject_invalid_3
 
         await self._apply_delta(
             user_id=owner_id,
@@ -269,7 +269,7 @@ class ReputationService:
             user_id=owner_id,
             role="owner",
             delta=self.DELTA_REJECT_FREQUENT,
-            action=ReputationAction.REJECT_FREQUENT,
+            action=ReputationAction.reject_frequent,
             comment="Frequent rejections (>50%)",
         )
 
@@ -286,7 +286,7 @@ class ReputationService:
             user_id=user_id,
             role=role,
             delta=self.DELTA_RECOVERY_30DAYS,
-            action=ReputationAction.RECOVERY_30DAYS,
+            action=ReputationAction.recovery_30days,
             comment="30 days without violations",
         )
 
@@ -324,7 +324,7 @@ class ReputationService:
                 user_id=user_id,
                 role="advertiser",
                 delta=self.SCORE_AFTER_BAN - score.advertiser_score,
-                action=ReputationAction.BAN_RESET,
+                action=ReputationAction.ban_reset,
                 comment="Score reset after ban expiration",
             )
             unblocked = True
@@ -345,7 +345,7 @@ class ReputationService:
                 user_id=user_id,
                 role="owner",
                 delta=self.SCORE_AFTER_BAN - score.owner_score,
-                action=ReputationAction.BAN_RESET,
+                action=ReputationAction.ban_reset,
                 comment="Score reset after ban expiration",
             )
             unblocked = True
@@ -447,7 +447,6 @@ class ReputationService:
         await self.reputation_repo.update_score(
             user_id=user_id,
             role=role,
-            delta=delta,
             new_score=new_score,
         )
 
@@ -457,6 +456,7 @@ class ReputationService:
             action=action,
             delta=delta,
             new_score=new_score,
+            score_before=current_score,
             role=role,
             placement_request_id=placement_request_id,
             comment=comment,
@@ -470,14 +470,14 @@ class ReputationService:
             score = await self.reputation_repo.get_by_user(user_id)
             if score:
                 violations = (
-                    score.advertiser_violations if role == "advertiser" else score.owner_violations
+                    score.advertiser_violations_count if role == "advertiser" else score.owner_violations_count
                 )
                 if violations >= self.PERMANENT_BAN_VIOLATIONS:
                     # Перманентная блокировка
                     await self.reputation_repo.set_block(
                         user_id=user_id,
                         role=role,
-                        blocked_until=None,  # None = перманентно
+                        blocked_until=None,
                         reason=f"Permanent ban: {violations} violations",
                     )
 

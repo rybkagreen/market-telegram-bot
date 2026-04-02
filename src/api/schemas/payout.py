@@ -39,9 +39,9 @@ class PayoutResponse(BaseModel):
     net_amount: Decimal
     status: PayoutStatus
     requisites: str
-    admin_id: int | None
-    processed_at: datetime | None
-    rejection_reason: str | None
+    admin_id: int | None = None
+    processed_at: datetime | None = None
+    rejection_reason: str | None = None
     created_at: datetime
     updated_at: datetime
 

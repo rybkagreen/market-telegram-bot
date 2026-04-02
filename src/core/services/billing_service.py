@@ -84,7 +84,7 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.TOPUP,
+                type=TransactionType.topup,
                 payment_id=payment_id,
                 description=f"Пополнение через {payment_method}",
                 meta_json={
@@ -97,6 +97,7 @@ class BillingService:
             )
             session.add(transaction)
             await session.flush()
+            await session.refresh(transaction)
 
             logger.info(
                 f"Balance topped up: +{amount_rub} ₽ for user {user_id}, new balance: {user.balance_rub} ₽"
@@ -148,8 +149,8 @@ class BillingService:
             spend_transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.SPEND,
-                payment_id=None,
+                type=TransactionType.credits_buy,
+                yookassa_payment_id=None,
                 description=f"Покупка {credits_to_add} кр для тарифа",
                 meta_json={
                     "type": "buy_credits",
@@ -168,8 +169,8 @@ class BillingService:
             topup_transaction = Transaction(
                 user_id=user_id,
                 amount=Decimal(str(credits_to_add)),
-                type=TransactionType.BONUS,
-                payment_id=None,
+                type=TransactionType.credits_buy,
+                yookassa_payment_id=None,
                 description=f"Начислено {credits_to_add} кр за {amount_rub} ₽",
                 meta_json={
                     "type": "credits_purchase",
@@ -181,7 +182,9 @@ class BillingService:
             )
             session.add(topup_transaction)
 
-            await session.flush()
+            await session.commit()
+            await session.refresh(spend_transaction)
+            await session.refresh(topup_transaction)
 
             logger.info(
                 f"Credits purchased: {credits_to_add} кр for {amount_rub} ₽ by user {user_id}"
@@ -206,6 +209,10 @@ class BillingService:
         Returns:
             Данные платежа (payment_id, payment_url).
         """
+        from decimal import Decimal as Dec
+
+        from src.constants.payments import PLATFORM_TAX_RATE
+
         async with async_session_factory() as session:
             user_repo = UserRepository(session)
             user = await user_repo.get_by_id(user_id)
@@ -219,32 +226,55 @@ class BillingService:
             # Конвертируем рубли в кредиты (1:1)
             credits_amount = int(amount)
 
+            # v4.2: Рассчитываем gross_amount и fee_amount
+            # desired_balance = amount (сколько пользователь хочет зачислить)
+            # fee_amount = amount * 0.035 (комиссия ЮKassa)
+            # gross_amount = amount + fee_amount (сколько платит пользователь)
+            desired_balance = Dec(str(amount))
+            fee_amount = (desired_balance * PLATFORM_TAX_RATE).quantize(Dec("0.01"))
+            gross_amount = desired_balance + fee_amount
+
+            # Создаём запись YookassaPayment
+            from src.db.models.yookassa_payment import YookassaPayment
+
+            yookassa_record = YookassaPayment(
+                payment_id=payment_id,
+                user_id=user_id,
+                gross_amount=gross_amount,
+                desired_balance=desired_balance,
+                fee_amount=fee_amount,
+                status="pending",
+                payment_url=f"https://yookassa.ru/payment/{payment_id}",
+            )
+            session.add(yookassa_record)
+            await session.commit()
+
             # Создаём транзакцию со статусом pending
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create_transaction(
-                user_id=user_id,
-                amount=amount,
-                transaction_type=TransactionType.TOPUP,
-                payment_id=payment_id,
-                meta_json={
+            await transaction_repo.create({
+                "user_id": user_id,
+                "amount": gross_amount,
+                "type": TransactionType.topup,
+                "yookassa_payment_id": payment_id,
+                "meta_json": {
                     "status": "pending",
                     "method": payment_method,
                     "credits": credits_amount,
+                    "desired_balance": str(desired_balance),
+                    "fee_amount": str(fee_amount),
+                    "gross_amount": str(gross_amount),
                 },
-            )
-
-            # В production здесь создаём платёж в YooKassa
-            # Для now возвращаем заглушку
-            payment_url = f"https://yookassa.ru/payment/{payment_id}"
+            })
 
             logger.info(
-                f"Payment {payment_id} created for user {user_id}, amount: {amount} RUB = {credits_amount} credits"
+                f"Payment {payment_id} created for user {user_id}: "
+                f"desired={desired_balance}, fee={fee_amount}, gross={gross_amount} RUB"
             )
 
             return {
                 "payment_id": payment_id,
-                "payment_url": payment_url,
-                "amount": str(amount),
+                "payment_url": yookassa_record.payment_url,
+                "amount": str(gross_amount),
                 "credits": credits_amount,
                 "status": "pending",
             }
@@ -269,7 +299,7 @@ class BillingService:
 
             # Ищем транзакцию по payment_id
             transaction = await transaction_repo.find_one(
-                Transaction.payment_id == payment_id,
+                Transaction.yookassa_payment_id == payment_id,
                 Transaction.user_id == user_id,
             )
 
@@ -347,12 +377,12 @@ class BillingService:
 
             # Создаём транзакцию (для истории, в рублях)
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create_transaction(
-                user_id=user_id,
-                amount=Decimal(credits),  # 1 кредит = 1 рублю
-                transaction_type=TransactionType.SPEND,
-                meta_json={"description": description, "credits_spent": credits},
-            )
+            await transaction_repo.create({
+                "user_id": user_id,
+                "amount": Decimal(credits),  # 1 кредит = 1 рублю
+                "type": TransactionType.spend,
+                "meta_json": {"description": description, "credits_spent": credits},
+            })
 
             logger.info(f"Spend {credits} credits from user {user_id}: {description}")
 
@@ -391,8 +421,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=referrer_id,
                 amount=bonus_amount,
-                type=TransactionType.BONUS,
-                payment_id=None,
+                type=TransactionType.bonus,
+                yookassa_payment_id=None,
                 description=f"Реферальный бонус за пользователя {referred_user_id}",
                 meta_json={
                     "type": "referral_bonus",
@@ -472,7 +502,7 @@ class BillingService:
             if plan.lower() == "free":
                 user.plan = UserPlan.FREE
                 user.plan_expires_at = None
-                user.ai_generations_used = 0
+                user.ai_uses_count = 0
                 logger.info(f"User {user_id} activated FREE plan")
                 return True
 
@@ -488,14 +518,14 @@ class BillingService:
                 user.credits -= plan_price
                 user.plan = UserPlan(plan.lower())
                 user.plan_expires_at = datetime.now(UTC) + timedelta(days=30)
-                user.ai_generations_used = 0
+                user.ai_uses_count = 0
 
                 # Создать транзакцию
                 transaction = Transaction(
                     user_id=user.id,
                     amount=Decimal(str(plan_price)),
                     type="spend",
-                    payment_id=None,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "plan_purchase",
                         "plan": plan.lower(),
@@ -560,7 +590,7 @@ class BillingService:
                 "success": True,
                 "xp_awarded": 50,
                 "level_up": level_up is not None,
-                "new_level": referrer.level + (1 if level_up else 0),
+                "new_level": referrer.advertiser_level + (1 if level_up else 0),
             }
 
     async def apply_referral_first_campaign_bonus(
@@ -609,7 +639,7 @@ class BillingService:
                 "xp_awarded": 100,
                 "credits_awarded": 100,
                 "level_up": level_up is not None,
-                "new_level": referrer.level + (1 if level_up else 0),
+                "new_level": referrer.advertiser_level + (1 if level_up else 0),
             }
 
     async def get_referral_stats(self, user_id: int) -> dict[str, Any]:
@@ -697,40 +727,42 @@ class BillingService:
                 return False
 
             # 2. Получить пользователя с блокировкой
-            stmt = select(User).where(User.id == campaign.user_id).with_for_update()
+            stmt = select(User).where(User.id == campaign.advertiser_id).with_for_update()
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
             if user is None:
-                logger.error(f"User {campaign.user_id} not found for campaign {campaign_id}")
+                logger.error(f"User {campaign.advertiser_id} not found for campaign {campaign_id}")
                 return False
 
             # Type guard: user is guaranteed to be User here
             assert isinstance(user, User), "user must be User instance"
 
+            campaign_cost = campaign.final_price or campaign.proposed_price
+
             # 3. Проверить баланс
-            if user.credits < campaign.cost:
+            if user.credits < campaign_cost:
                 logger.warning(
-                    f"User {user.id} has insufficient credits: {user.credits} < {campaign.cost}"
+                    f"User {user.id} has insufficient credits: {user.credits} < {campaign_cost}"
                 )
                 return False
 
             try:
                 # 4. Все три операции атомарно (внутри session.begin())
-                user.credits -= int(campaign.cost)
-                campaign.status = CampaignStatus.QUEUED
+                user.credits -= int(campaign_cost)
+                campaign.status = CampaignStatus.escrow
 
                 # Создать транзакцию напрямую через session.add
                 transaction = Transaction(
                     user_id=user.id,
-                    amount=Decimal(str(campaign.cost)),
+                    amount=Decimal(str(campaign_cost)),
                     type="spend",
-                    payment_id=None,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "escrow_freeze",
                         "campaign_id": campaign_id,
-                        "credits_frozen": int(campaign.cost),
+                        "credits_frozen": int(campaign_cost),
                     },
-                    balance_before=Decimal(str(user.credits + int(campaign.cost))),
+                    balance_before=Decimal(str(user.credits + int(campaign_cost))),
                     balance_after=Decimal(str(user.credits)),
                     created_at=datetime.now(UTC),
                 )
@@ -738,7 +770,7 @@ class BillingService:
 
                 # session.begin() автоматически commit при выходе без исключений
                 logger.info(
-                    f"Frozen {campaign.cost} credits for campaign {campaign_id} (user {user.id})"
+                    f"Frozen {campaign_cost} credits for campaign {campaign_id} (user {user.id})"
                 )
                 return True
 
@@ -746,18 +778,19 @@ class BillingService:
                 logger.error(f"Failed to freeze funds for campaign {campaign_id}: {e}")
                 return False
 
-    async def refund_failed_placement(self, placement_id: int) -> bool:
+    async def refund_failed_placement(self, session: AsyncSession, placement_id: int) -> bool:
         """
         Возврат средств за несостоявшееся размещение.
 
         Логика:
         1. Получить placement, убедиться что status == "failed"
-        2. Получить campaign.user (рекламодатель)
-        3. Начислить placement.cost на user.credits
-        4. Создать Transaction(type="refund", amount=placement.cost)
+        2. Получить placement_request и рекламодателя
+        3. Начислить placement.cost на user.balance_rub
+        4. Создать Transaction(type="refund_full", amount=placement.cost)
         5. Отправить уведомление пользователю
 
         Args:
+            session: Асинхронная сессия.
             placement_id: ID размещения (mailing_log.id).
 
         Returns:
@@ -767,93 +800,91 @@ class BillingService:
 
         from sqlalchemy import select
 
-        from src.db.models.campaign import Campaign
         from src.db.models.mailing_log import MailingLog, MailingStatus
+        from src.db.models.placement_request import PlacementRequest
         from src.db.models.transaction import Transaction
         from src.db.models.user import User
 
-        async with async_session_factory() as session, session.begin():
-            # 1. Получить placement с блокировкой
-            stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
-            result = await session.execute(stmt)
-            placement = result.scalar_one_or_none()
-            if not placement:
-                logger.error(f"Placement {placement_id} not found")
-                return False
+        # 1. Получить placement с блокировкой
+        stmt = select(MailingLog).where(MailingLog.id == placement_id).with_for_update()
+        result = await session.execute(stmt)
+        placement = result.scalar_one_or_none()
+        if not placement:
+            logger.error(f"Placement {placement_id} not found")
+            return False
 
-            # Проверить статус
-            if placement.status != MailingStatus.FAILED:
-                logger.warning(
-                    f"Placement {placement_id} status is not FAILED ({placement.status})"
-                )
-                return False
+        # Проверить статус
+        if placement.status != MailingStatus.failed:
+            logger.warning(
+                f"Placement {placement_id} status is not failed ({placement.status})"
+            )
+            return False
 
-            # ⚠️ ИДЕМПОТЕНТНОСТЬ: проверить флаг возврата
-            meta = placement.meta_json or {}
-            if meta.get("refund_sent"):
-                logger.warning(
-                    f"refund_failed_placement: already refunded for placement {placement_id}"
-                )
-                return True  # уже возвращено
+        # ⚠️ ИДЕМПОТЕНТНОСТЬ: проверить флаг возврата
+        meta = placement.meta_json or {}
+        if meta.get("refund_sent"):
+            logger.warning(
+                f"refund_failed_placement: already refunded for placement {placement_id}"
+            )
+            return True  # уже возвращено
 
-            # 2. Получить кампанию и рекламодателя
-            stmt = select(Campaign).where(Campaign.id == placement.campaign_id).with_for_update()
-            result = await session.execute(stmt)
-            campaign: Campaign | None = result.scalar_one_or_none()
-            if campaign is None:
-                logger.error(f"Campaign {placement.campaign_id} not found")
-                return False
+        # 2. Получить placement_request и рекламодателя
+        stmt = select(PlacementRequest).where(PlacementRequest.id == placement.placement_request_id).with_for_update()
+        result = await session.execute(stmt)
+        placement_request: PlacementRequest | None = result.scalar_one_or_none()
+        if placement_request is None:
+            logger.error(f"PlacementRequest {placement.placement_request_id} not found")
+            return False
 
-            stmt = select(User).where(User.id == campaign.user_id).with_for_update()
-            result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
-            if user is None:
-                logger.error(f"User {campaign.user_id} not found for refund")
-                return False
+        stmt = select(User).where(User.id == placement_request.advertiser_id).with_for_update()
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user is None:
+            logger.error(f"Advertiser {placement_request.advertiser_id} not found for refund")
+            return False
 
-            # Type guard: user is guaranteed to be User here
-            assert isinstance(user, User), "user must be User instance"
+        # Type guard: user is guaranteed to be User here
+        assert isinstance(user, User), "user must be User instance"
 
-            try:
-                # 3. Вернуть средства + установить флаг атомарно
-                refund_amount = Decimal(str(placement.cost))
-                user.credits += int(refund_amount)
+        try:
+            # 3. Вернуть средства + установить флаг атомарно
+            refund_amount = Decimal(str(placement.cost))
+            user.balance_rub += refund_amount
 
-                # Установить флаг что возврат отправлен
-                meta["refund_sent"] = True
-                meta["refund_at"] = datetime.now(UTC).isoformat()
-                placement.meta_json = meta
+            # Установить флаг что возврат отправлен
+            meta["refund_sent"] = True
+            meta["refund_at"] = datetime.now(UTC).isoformat()
+            placement.meta_json = meta
 
-                # 4. Создать транзакцию возврата
-                transaction = Transaction(
-                    user_id=user.id,
-                    amount=refund_amount,
-                    type="refund",
-                    payment_id=None,
-                    meta_json={
-                        "type": "refund",
-                        "placement_id": placement_id,
-                        "campaign_id": placement.campaign_id,
-                        "reason": "failed_placement",
-                    },
-                    balance_before=Decimal(str(user.credits - int(refund_amount))),
-                    balance_after=Decimal(str(user.credits)),
-                    created_at=datetime.now(UTC),
-                )
-                session.add(transaction)
+            # 4. Создать транзакцию возврата
+            transaction = Transaction(
+                user_id=user.id,
+                amount=refund_amount,
+                type=TransactionType.refund_full,
+                yookassa_payment_id=None,
+                meta_json={
+                    "type": "refund",
+                    "placement_id": placement_id,
+                    "placement_request_id": placement.placement_request_id,
+                    "reason": "failed_placement",
+                },
+                balance_before=user.balance_rub - refund_amount,
+                balance_after=user.balance_rub,
+                created_at=datetime.now(UTC),
+            )
+            session.add(transaction)
 
-                # session.begin() автоматически commit
-                logger.info(
-                    f"Refunded {refund_amount} credits to advertiser {user.id} for placement {placement_id}"
-                )
+            logger.info(
+                f"Refunded {refund_amount} to advertiser {user.id} for placement {placement_id}"
+            )
 
-                # Сохраняем данные для уведомления (после коммита)
-                user_telegram_id = user.telegram_id
-                campaign_title = campaign.title or f"Кампания #{campaign.id}"
+            # Сохраняем данные для уведомления (после коммита)
+            user_telegram_id = user.telegram_id
+            placement_desc = f"Placement #{placement_id}"
 
-            except Exception as e:
-                logger.error(f"Failed to refund placement {placement_id}: {e}")
-                return False
+        except Exception as e:
+            logger.error(f"Failed to refund placement {placement_id}: {e}")
+            return False
 
         # 5. Уведомление ПОСЛЕ коммита транзакции (не внутри begin())
         try:
@@ -863,17 +894,13 @@ class BillingService:
                 telegram_id=user_telegram_id,
                 message=(
                     f"💰 Возврат средств\n\n"
-                    f"Кампания: {campaign_title}\n"
-                    f"Сумма: {int(refund_amount)} кр\n"
-                    f"Средства зачислены на баланс."
+                    f"Размещение: {placement_desc}\n"
+                    f"Сумма: {refund_amount} RUB\n\n"
+                    f"Средства возвращены на баланс."
                 ),
-                parse_mode="HTML",
             )
         except Exception as e:
-            logger.error(
-                f"refund_failed_placement: notification failed for placement {placement_id}: {e}"
-            )
-            # Не падаем — деньги уже вернули
+            logger.warning(f"Failed to send refund notification: {e}")
 
         return True
 
@@ -915,8 +942,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=advertiser_id,
                 amount=amount,
-                type=TransactionType.ESCROW_RELEASE,
-                payment_id=None,
+                type=TransactionType.escrow_release,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_refund",
                     "placement_id": placement_id,
@@ -936,6 +963,7 @@ class BillingService:
 
     async def freeze_escrow_for_placement(
         self,
+        session: AsyncSession,
         placement_id: int,
         advertiser_id: int,
         amount: Decimal,
@@ -947,6 +975,7 @@ class BillingService:
         3. Создать Transaction(type=escrow_freeze, amount=amount)
 
         Args:
+            session: Асинхронная сессия.
             placement_id: ID заявки.
             advertiser_id: ID рекламодателя.
             amount: Сумма для блокировки (в рублях).
@@ -959,46 +988,46 @@ class BillingService:
         """
         from src.db.models.transaction import Transaction
 
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_id(advertiser_id)
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_id(advertiser_id)
 
-            if not user:
-                raise ValueError(f"User {advertiser_id} not found")
+        if not user:
+            raise ValueError(f"User {advertiser_id} not found")
 
-            # Проверка баланса (balance_rub для размещений)
-            if user.balance_rub < amount:
-                raise InsufficientFundsError(
-                    f"Insufficient balance_rub: {user.balance_rub} < {amount}"
-                )
-
-            # Списание средств с balance_rub
-            balance_before = user.balance_rub
-            user.balance_rub -= amount
-
-            # Создание транзакции
-            transaction = Transaction(
-                user_id=advertiser_id,
-                amount=amount,
-                type=TransactionType.ESCROW_FREEZE,
-                payment_id=None,
-                meta_json={
-                    "type": "escrow_freeze",
-                    "placement_id": placement_id,
-                    "currency": "rub",
-                },
-                balance_before=balance_before,
-                balance_after=user.balance_rub,
-                created_at=datetime.now(UTC),
-            )
-            session.add(transaction)
-            await session.flush()
-
-            logger.info(
-                f"Escrow frozen: {amount} ₽ from advertiser {advertiser_id} for placement {placement_id}"
+        # Проверка баланса (balance_rub для размещений)
+        if user.balance_rub < amount:
+            raise InsufficientFundsError(
+                f"Insufficient balance_rub: {user.balance_rub} < {amount}"
             )
 
-            return transaction
+        # Списание средств с balance_rub
+        balance_before = user.balance_rub
+        user.balance_rub -= amount
+
+        # Создание транзакции
+        transaction = Transaction(
+            user_id=advertiser_id,
+            amount=amount,
+            type=TransactionType.escrow_freeze,
+            yookassa_payment_id=None,
+            meta_json={
+                "type": "escrow_freeze",
+                "placement_id": placement_id,
+                "currency": "rub",
+            },
+            balance_before=balance_before,
+            balance_after=user.balance_rub,
+            created_at=datetime.now(UTC),
+        )
+        session.add(transaction)
+        await session.flush()
+        await session.refresh(transaction)
+
+        logger.info(
+            f"Escrow frozen: {amount} ₽ from advertiser {advertiser_id} for placement {placement_id}"
+        )
+
+        return transaction
 
     # ══════════════════════════════════════════════════════════════
     # S-05: BillingService v4.2 — новые методы
@@ -1058,7 +1087,7 @@ class BillingService:
 
         # Идемпотентность: проверить что payment_id не обработан ранее
         txn_repo = TransactionRepository(session)
-        existing = await txn_repo.find_one(Transaction.payment_id == payment_id)
+        existing = await txn_repo.find_one(Transaction.yookassa_payment_id == payment_id)
         if existing and existing.meta_json and existing.meta_json.get("processed"):
             logger.warning(f"Payment {payment_id} already processed")
             return
@@ -1082,7 +1111,7 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=desired_balance,
-                type=TransactionType.TOPUP,
+                type=TransactionType.topup,
                 payment_id=payment_id,
                 payment_status="succeeded",
                 description=f"Пополнение через ЮKassa (payment_id={payment_id})",
@@ -1150,8 +1179,8 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount,
-                type=TransactionType.ESCROW_FREEZE,
-                payment_id=None,
+                type=TransactionType.escrow_freeze,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_freeze",
                     "placement_id": placement_id,
@@ -1190,6 +1219,17 @@ class BillingService:
             platform_fee = final_price - owner_amount (остаток, НЕ final_price * 0.15)
         """
         async with session.begin():
+            # Check idempotency - if mailing already paid, skip
+            from sqlalchemy import select
+
+            from src.db.models.mailing_log import MailingLog, MailingStatus
+            stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
+            result = await session.execute(stmt)
+            mailing = result.scalar_one_or_none()
+            if mailing and mailing.status == MailingStatus.paid:
+                logger.info(f"Escrow release skipped - already paid for placement {placement_id}")
+                return
+
             # owner_amount = final_price * OWNER_SHARE (округление)
             owner_amount = (final_price * OWNER_SHARE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -1210,8 +1250,8 @@ class BillingService:
             owner_transaction = Transaction(
                 user_id=owner_id,
                 amount=owner_amount,
-                type=TransactionType.ESCROW_RELEASE,
-                payment_id=None,
+                type=TransactionType.escrow_release,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "escrow_release",
                     "placement_id": placement_id,
@@ -1231,8 +1271,8 @@ class BillingService:
             commission_transaction = Transaction(
                 user_id=advertiser_id,  # Платформа (условно)
                 amount=platform_fee,
-                type=TransactionType.COMMISSION,
-                payment_id=None,
+                type=TransactionType.commission,
+                yookassa_payment_id=None,
                 meta_json={
                     "type": "commission",
                     "placement_id": placement_id,
@@ -1244,6 +1284,16 @@ class BillingService:
             )
             session.add(commission_transaction)
             await session.flush()
+
+            # Update mailing status to paid
+            from sqlalchemy import select
+
+            from src.db.models.mailing_log import MailingLog, MailingStatus
+            stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
+            result = await session.execute(stmt)
+            mailing = result.scalar_one_or_none()
+            if mailing:
+                mailing.status = MailingStatus.paid
 
             logger.info(
                 f"Escrow released: {owner_amount} ₽ to owner {owner_id} (earned_rub), "
@@ -1321,8 +1371,8 @@ class BillingService:
                 advertiser_txn = Transaction(
                     user_id=advertiser_id,
                     amount=advertiser_refund,
-                    type=TransactionType.REFUND,
-                    payment_id=None,
+                    type=TransactionType.refund_full,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "refund",
                         "scenario": scenario,
@@ -1340,8 +1390,8 @@ class BillingService:
                 owner_txn = Transaction(
                     user_id=owner_id,
                     amount=owner_compensation,
-                    type=TransactionType.ESCROW_RELEASE,
-                    payment_id=None,
+                    type=TransactionType.escrow_release,
+                    yookassa_payment_id=None,
                     meta_json={
                         "type": "owner_compensation",
                         "scenario": scenario,

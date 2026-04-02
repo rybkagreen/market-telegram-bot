@@ -69,7 +69,7 @@ export default function OpenDispute() {
     haptic.warning()
     createDispute(
       { placement_id: placement.id, reason: selectedReason, comment },
-      { onSuccess: (data) => navigate(`/adv/disputes/${data.id}`) },
+      { onSuccess: (data) => { navigate(`/adv/disputes/${data.id}`) } },
     )
   }
 

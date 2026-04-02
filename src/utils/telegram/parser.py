@@ -42,6 +42,7 @@ from src.utils.telegram.russian_lang_detector import (
 
 logger = logging.getLogger(__name__)
 
+HTML_PARSER = "html.parser"
 
 # ══════════════════════════════════════════════════════════════
 # Расширенные поисковые запросы по каждой тематике
@@ -407,6 +408,79 @@ class TelegramParser:
             raise RuntimeError("Parser not started. Call start() first.")
         return self._client
 
+    async def _collect_channel_ids_from_search(
+        self,
+        query: str,
+        limit: int,
+    ) -> set[int]:
+        """Paginate through SearchGlobalRequest and return unique channel IDs."""
+        from telethon.tl.types import InputMessagesFilterEmpty
+
+        seen_ids: set[int] = set()
+        offset_rate = 0
+        max_pages = 5
+        page = 0
+
+        while len(seen_ids) < limit and page < max_pages:
+            result = await self.client(
+                SearchGlobalRequest(
+                    q=query,
+                    filter=InputMessagesFilterEmpty(),
+                    min_date=None,
+                    max_date=None,
+                    offset_rate=offset_rate,
+                    offset_id=0,
+                    offset_peer=await self.client.get_input_entity("me"),
+                    limit=100,
+                    broadcasts_only=True,
+                )
+            )
+
+            if not result or not result.messages:
+                break
+
+            for msg in result.messages:
+                if hasattr(msg, "peer_id") and hasattr(msg.peer_id, "channel_id"):
+                    seen_ids.add(msg.peer_id.channel_id)
+
+            if hasattr(result, "next_rate") and result.next_rate:
+                offset_rate = result.next_rate
+                page += 1
+                await asyncio.sleep(1)
+            else:
+                break
+
+        return seen_ids
+
+    async def _filter_russian_channels(
+        self,
+        channel_ids: set[int],
+        limit: int,
+    ) -> list[ChatInfo]:
+        """Fetch ChatInfo for each ID, keep only Russian-language channels."""
+        russian_channels: list[ChatInfo] = []
+        for channel_id in list(channel_ids)[:limit]:
+            try:
+                entity = await self.client.get_entity(channel_id)
+                chat_info = await self._process_entity(entity)
+                if not chat_info:
+                    continue
+                is_russian, russian_score = await self._check_channel_language(
+                    entity, description=chat_info.description
+                )
+                if is_russian:
+                    chat_info.meta_json = chat_info.meta_json or {}
+                    chat_info.meta_json["russian_score"] = russian_score
+                    russian_channels.append(chat_info)
+                    logger.debug(
+                        f"✓ Russian channel: {chat_info.title} (@{chat_info.username})"
+                    )
+                else:
+                    logger.debug(f"✗ Skipping non-Russian channel: {chat_info.title}")
+            except Exception as e:
+                logger.debug(f"Error getting channel {channel_id}: {e}")
+        return russian_channels
+
     async def search_public_chats(
         self,
         query: str,
@@ -425,83 +499,13 @@ class TelegramParser:
         results: list[ChatInfo] = []
 
         try:
-            # Глобальный поиск через Telegram с использованием SearchGlobalRequest
-            # Фильтр InputMessagesFilterEmpty ищет все типы сообщений
-            from telethon.tl.types import InputMessagesFilterEmpty
-
-            # Пагинация: делаем несколько запросов пока не наберём limit уникальных каналов
-            seen_ids: set[int] = set()
-            offset_rate = 0
-            max_pages = 5  # Ограничение на количество страниц для одного запроса
-            page = 0
-
-            while len(seen_ids) < limit and page < max_pages:
-                result = await self.client(
-                    SearchGlobalRequest(
-                        q=query,
-                        filter=InputMessagesFilterEmpty(),
-                        min_date=None,
-                        max_date=None,
-                        offset_rate=offset_rate,
-                        offset_id=0,
-                        offset_peer=await self.client.get_input_entity("me"),
-                        limit=100,  # Максимум за запрос
-                        broadcasts_only=True,  # Ищем только по каналам
-                    )
-                )
-
-                if not result or not result.messages:
-                    break
-
-                # Извлекаем уникальные каналы из текущей страницы
-                for msg in result.messages:
-                    if hasattr(msg, "peer_id") and hasattr(msg.peer_id, "channel_id"):
-                        channel_id = msg.peer_id.channel_id
-                        if channel_id not in seen_ids:
-                            seen_ids.add(channel_id)
-
-                # Переходим к следующей странице
-                if hasattr(result, "next_rate") and result.next_rate:
-                    offset_rate = result.next_rate
-                    page += 1
-                    await asyncio.sleep(1)  # Пауза между запросами
-                else:
-                    break  # Больше результатов нет
+            seen_ids = await self._collect_channel_ids_from_search(query, limit)
 
             if not seen_ids:
                 logger.info(f"No channels found for query: {query}")
                 return []
 
-            # Получаем информацию о каждом канале с проверкой языка по постам
-            russian_channels = []
-            for channel_id in list(seen_ids)[:limit]:
-                try:
-                    entity = await self.client.get_entity(channel_id)
-                    chat_info = await self._process_entity(entity)
-
-                    if chat_info:
-                        # Проверяем язык по постам (даже если описание на английском)
-                        # Передаём description из chat_info чтобы не делать повторный GetFullChannelRequest
-                        is_russian, russian_score = await self._check_channel_language(
-                            entity,
-                            description=chat_info.description,
-                        )
-
-                        if is_russian:
-                            chat_info.meta_json = chat_info.meta_json or {}
-                            chat_info.meta_json["russian_score"] = russian_score
-                            russian_channels.append(chat_info)
-                            logger.debug(
-                                f"✓ Russian channel: {chat_info.title} (@{chat_info.username})"
-                            )
-                        else:
-                            logger.debug(f"✗ Skipping non-Russian channel: {chat_info.title}")
-
-                except Exception as e:
-                    logger.debug(f"Error getting channel {channel_id}: {e}")
-                    continue
-
-            # Сортируем по оценке русского языка (выше = лучше)
+            russian_channels = await self._filter_russian_channels(seen_ids, limit)
             russian_channels.sort(
                 key=lambda x: x.meta_json.get("russian_score", 0) if x.meta_json else 0,
                 reverse=True,
@@ -780,8 +784,8 @@ class TelegramParser:
                         count = participants.total
                         logger.debug(f"Got member count via get_participants: {count}")
                         return count
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Fallback member count method 1 failed: {e}")
 
                     # Метод 2: GetFullChannelRequest
                     try:
@@ -791,8 +795,8 @@ class TelegramParser:
                         count = getattr(full.full_chat, "participants_count", 0)
                         logger.debug(f"Got member count via GetFullChannelRequest: {count}")
                         return count
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Fallback member count method 2 failed: {e}")
 
                     # Метод 3: Direct attribute (fallback)
                     count = getattr(entity, "participants_count", 0)
@@ -1011,53 +1015,56 @@ class TelegramParser:
             - is_russian: True если канал русскоязычный
             - russian_score: оценка от 0.0 до 1.0
         """
-        from src.utils.telegram.russian_lang_detector import (
-            detect_language_from_posts,
-            is_english_blacklisted,
-            is_russian_text,
-        )
+        from src.utils.telegram.russian_lang_detector import detect_language_from_posts
 
         try:
             # description уже передано из _process_entity — не делаем повторный GetFullChannelRequest
-
             if description:
-                # Быстрая проверка по чёрному списку
-                if is_english_blacklisted(description):
-                    return False, 0.0
+                early = self._check_description_language(description)
+                if early is not None:
+                    return early
 
-                # Если описание на русском — сразу принимаем
-                if is_russian_text(description):
-                    score = get_russian_score(description)
-                    if score > 0.5:
-                        return True, score
-
-            # Получаем последние посты
             posts = []
             async for message in self.client.iter_messages(entity, limit=sample_size):
                 if message.text and len(message.text.strip()) > 20:
                     posts.append(message.text)
 
             if not posts:
-                # Если постов нет, используем описание
-                if description and is_russian_text(description):
-                    return True, 0.5
-                return True, 0.5  # Если нет данных, считаем русским
+                return True, 0.5  # Нет данных — считаем русским
 
-            # Определяем язык по постам
             language, score = detect_language_from_posts(posts)
-
             if language == "ru":
                 return True, score
-            elif language == "mixed":
-                # Смешанный язык — считаем русским если score > 0.4
+            if language == "mixed":
                 return score > 0.4, score
-            else:
-                return False, score
+            return False, score
 
         except Exception as e:
             logger.debug(f"Language check error for {entity.title}: {e}")
-            # При ошибке считаем русским (чтобы не пропустить)
             return True, 0.5
+
+    def _check_description_language(
+        self,
+        description: str,
+    ) -> tuple[bool, float] | None:
+        """
+        Quick language check based on description only.
+
+        Returns a (is_russian, score) tuple if the description alone is conclusive,
+        or None if posts need to be sampled as well.
+        """
+        from src.utils.telegram.russian_lang_detector import (
+            is_english_blacklisted,
+            is_russian_text,
+        )
+
+        if is_english_blacklisted(description):
+            return False, 0.0
+        if is_russian_text(description):
+            score = get_russian_score(description)
+            if score > 0.5:
+                return True, score
+        return None
 
     async def _analyze_channel_language(
         self,
@@ -1076,40 +1083,58 @@ class TelegramParser:
             - language_code: "ru", "en", "mixed", "unknown"
             - russian_score: оценка от 0.0 до 1.0
         """
-        # Сначала проверяем описание
         if description:
-            # Быстрая проверка по чёрному списку
-            if is_english_blacklisted(description):
-                logger.debug(f"Channel {entity.title} blacklisted by description")
-                return "en", 0.0
+            early = self._check_description_language_with_log(entity.title, description)
+            if early is not None:
+                return early
 
-            # Проверяем язык описания
-            if is_russian_text(description):
-                score = get_russian_score(description)
-                if score > 0.7:
-                    return "ru", score
-
-        # Если описание не определило язык или смешанное — анализируем посты
-        post_texts = []
-        try:
-            async for message in self.client.iter_messages(entity, limit=15):
-                if message.text and len(message.text.strip()) > 20:
-                    post_texts.append(message.text)
-        except Exception as e:
-            logger.debug(f"Could not get posts for language analysis: {e}")
+        post_texts = await self._collect_text_posts(entity, limit=15)
 
         if len(post_texts) >= 5:
             language, score = detect_language_from_posts(post_texts)
             logger.debug(f"Channel {entity.title} language: {language} (score: {score})")
             return language, score
 
-        # Если постов мало — возвращаем по описанию или unknown
         if description and is_russian_text(description):
             return "ru", get_russian_score(description)
-        elif description:
+        if description:
             return "en", 1.0 - get_russian_score(description)
 
         return "unknown", 0.5
+
+    def _check_description_language_with_log(
+        self,
+        title: str,
+        description: str,
+    ) -> tuple[str, float] | None:
+        """
+        Quick description-based language check with logging.
+
+        Returns a (language_code, score) tuple if conclusive, or None to fall through to posts.
+        """
+        if is_english_blacklisted(description):
+            logger.debug(f"Channel {title} blacklisted by description")
+            return "en", 0.0
+        if is_russian_text(description):
+            score = get_russian_score(description)
+            if score > 0.7:
+                return "ru", score
+        return None
+
+    async def _collect_text_posts(
+        self,
+        entity: Channel | Chat,
+        limit: int,
+    ) -> list[str]:
+        """Collect non-empty text posts from a channel/chat."""
+        post_texts: list[str] = []
+        try:
+            async for message in self.client.iter_messages(entity, limit=limit):
+                if message.text and len(message.text.strip()) > 20:
+                    post_texts.append(message.text)
+        except Exception as e:
+            logger.debug(f"Could not get posts for language analysis: {e}")
+        return post_texts
 
     async def _collect_post_frequency(self, entity: Channel | Chat) -> tuple[float, int]:
         """
@@ -1275,7 +1300,7 @@ class TelegramParser:
         usernames = []
 
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html, HTML_PARSER)
 
             channel_cards = soup.find_all("a", href=re.compile(r"^/channel/"))
 
@@ -1343,7 +1368,7 @@ class TelegramParser:
         }
 
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html, HTML_PARSER)
             stat_blocks = soup.find_all(
                 "div", class_=re.compile(r"stat|metric|value", re.IGNORECASE)
             )
@@ -1402,7 +1427,7 @@ class TelegramParser:
         topics = []
 
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html, HTML_PARSER)
             topic_links = soup.find_all("a", href=re.compile(r"^/catalog/[a-z]+"))
 
             for link in topic_links:

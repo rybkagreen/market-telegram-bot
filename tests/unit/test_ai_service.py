@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.core.services.ai_service import AIService
+from src.core.services.mistral_ai_service import MistralAIService as AIService
 
 
 class TestAIServiceCache:

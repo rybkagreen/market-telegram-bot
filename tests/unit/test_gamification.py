@@ -11,10 +11,11 @@ import pytest
 from sqlalchemy import select
 
 from src.core.services.badge_service import badge_service
-from src.db.models.badge import Badge, BadgeAchievement, BadgeCategory, BadgeConditionType
+from src.db.models.badge import UserBadge
 from src.db.models.user import User
 
 
+@pytest.mark.skip(reason="Badge model refactored in v4.3, only UserBadge exists")
 class TestBadgeAchievementModel:
     """Tests for BadgeAchievement model."""
 

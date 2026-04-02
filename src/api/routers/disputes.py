@@ -12,10 +12,12 @@ Endpoints:
 
 import logging
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_current_admin_user, get_db_session
@@ -33,8 +35,10 @@ from src.api.schemas.dispute import (
 )
 from src.db.models.dispute import PlacementDispute
 from src.db.models.placement_request import PlacementRequest
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 from src.db.repositories.dispute_repo import DisputeRepository
+from src.db.repositories.publication_log_repo import PublicationLogRepo
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +103,10 @@ async def _get_placement_or_404(
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/", response_model=list[DisputeResponse])
+@router.get("/")
 async def get_my_disputes(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[DisputeResponse]:
     """
     Получить список всех диспутов текущего пользователя.
@@ -123,11 +127,11 @@ async def get_my_disputes(
     return [DisputeResponse.model_validate(d) for d in disputes]
 
 
-@router.get("/{dispute_id}", response_model=DisputeResponse)
+@router.get("/{dispute_id}", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
 async def get_dispute(
     dispute_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeResponse:
     """
     Получить детали конкретного диспута.
@@ -148,11 +152,11 @@ async def get_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
-@router.post("/", response_model=DisputeResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}, 409: {"description": "Conflict"}})
 async def create_dispute(
     dispute_data: DisputeCreate,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeResponse:
     """
     Создать новый диспут по заявке на размещение.
@@ -195,7 +199,14 @@ async def create_dispute(
     )
 
     session.add(dispute)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(dispute)
 
     logger.info(f"Dispute {dispute.id} created for placement {dispute_data.placement_id}")
@@ -203,12 +214,12 @@ async def create_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
-@router.patch("/{dispute_id}", response_model=DisputeResponse)
+@router.patch("/{dispute_id}", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
 async def update_dispute(
     dispute_id: int,
     update_data: DisputeUpdate,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeResponse:
     """
     Ответить на диспут (добавить объяснение владельца).
@@ -242,7 +253,14 @@ async def update_dispute(
     dispute.owner_explanation = update_data.owner_comment
     dispute.status = DisputeStatus.owner_explained
 
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
     await session.refresh(dispute)
 
     logger.info(f"Dispute {dispute.id} updated by owner {current_user.id}")
@@ -250,19 +268,147 @@ async def update_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
+# ─── Evidence endpoint ──────────────────────────────────────────
+
+
+class PublicationEventResponse(BaseModel):
+    id: int
+    event_type: str
+    message_id: int | None
+    post_url: str | None
+    erid: str | None
+    detected_at: datetime
+    extra: dict[str, Any] | None
+
+    model_config = {"from_attributes": True}
+
+
+class EvidenceSummary(BaseModel):
+    published_at: datetime | None
+    deleted_at: datetime | None
+    deletion_type: str | None  # "by_bot" | "early_by_owner" | None
+    erid_present: bool
+    total_duration_minutes: int
+
+
+class EvidenceResponse(BaseModel):
+    placement_id: int
+    channel_id: int | None
+    events: list[PublicationEventResponse]
+    summary: EvidenceSummary
+
+
+@router.get(
+    "/evidence/{placement_request_id}",
+    responses={
+        404: {"description": "Not found"},
+        403: {"description": "Forbidden"},
+    },
+)
+async def get_placement_evidence(
+    placement_request_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> EvidenceResponse:
+    """
+    Получить доказательную базу публикации для заявки.
+
+    Доступно рекламодателю (владельцу кампании), владельцу канала или администратору.
+
+    Args:
+        placement_request_id: ID заявки.
+        current_user: Текущий авторизованный пользователь.
+        session: Асинхронная сессия БД.
+
+    Returns:
+        EvidenceResponse: хронологический лог событий + сводка.
+
+    Raises:
+        HTTPException 404: Заявка не найдена.
+        HTTPException 403: Нет доступа.
+    """
+    placement = await session.get(PlacementRequest, placement_request_id)
+    if not placement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Placement request not found",
+        )
+
+    # Access check: advertiser, channel owner, or admin
+    is_admin = current_user.role == "admin" if hasattr(current_user, "role") else False
+    is_advertiser = placement.advertiser_id == current_user.id
+    is_channel_owner = False
+    if placement.channel_id:
+        channel = await session.get(TelegramChat, placement.channel_id)
+        is_channel_owner = channel is not None and channel.owner_id == current_user.id
+
+    if not (is_admin or is_advertiser or is_channel_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied — not your placement",
+        )
+
+    pub_log_repo = PublicationLogRepo(session)
+    logs = await pub_log_repo.get_evidence(placement_request_id)
+
+    # Build summary
+    published_at: datetime | None = None
+    deleted_at: datetime | None = None
+    deletion_type: str | None = None
+    erid_present = False
+
+    for entry in logs:
+        if entry.event_type == "published" and published_at is None:
+            published_at = entry.detected_at
+        if entry.event_type in ("erid_ok",):
+            erid_present = True
+        if entry.event_type == "deleted_by_bot" and deleted_at is None:
+            deleted_at = entry.detected_at
+            deletion_type = "by_bot"
+        if entry.event_type == "deleted_early" and deleted_at is None:
+            deleted_at = entry.detected_at
+            deletion_type = "early_by_owner"
+
+    total_duration_minutes = 0
+    if published_at and deleted_at:
+        delta = deleted_at - published_at
+        total_duration_minutes = max(0, int(delta.total_seconds() / 60))
+
+    channel_id: int | None = None
+    if logs:
+        channel_id = logs[0].channel_id
+
+    summary = EvidenceSummary(
+        published_at=published_at,
+        deleted_at=deleted_at,
+        deletion_type=deletion_type,
+        erid_present=erid_present,
+        total_duration_minutes=total_duration_minutes,
+    )
+
+    events = [PublicationEventResponse.model_validate(e) for e in logs]
+
+    return EvidenceResponse(
+        placement_id=placement_request_id,
+        channel_id=channel_id,
+        events=events,
+        summary=summary,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════
 # Admin Endpoints (PHASE-2)
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.get("/admin/disputes", response_model=DisputeListAdminResponse)
+@router.get("/admin/disputes", responses={400: {"description": "Bad request"}})
 async def get_all_disputes_admin(
     status_filter: str = "open",
     limit: int = 20,
     offset: int = 0,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeListAdminResponse:
     """
     Get all disputes with pagination and filtering (admin only).
@@ -340,13 +486,13 @@ async def get_all_disputes_admin(
     return DisputeListAdminResponse(items=items, total=total, limit=limit, offset=offset)
 
 
-@router.post("/admin/disputes/{dispute_id}/resolve", response_model=DisputeAdminResponse)
+@router.post("/admin/disputes/{dispute_id}/resolve", responses={404: {"description": "Not found"}, 400: {"description": "Bad request"}})
 async def resolve_dispute_admin(
     dispute_id: int,
     body: DisputeResolveRequest,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeAdminResponse:
     """
     Resolve a dispute (admin only).

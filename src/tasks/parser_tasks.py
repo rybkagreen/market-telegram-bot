@@ -11,7 +11,8 @@ from typing import Any
 from src.constants.parser import POPULAR_TOPICS
 from src.db.models.telegram_chat import ChatType
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
-from src.db.session import async_session_factory, get_session
+from src.db.session import celery_async_session_factory as async_session_factory
+from src.db.session import get_session
 from src.tasks.celery_app import BaseTask, celery_app
 from src.utils.telegram.channel_rules_checker import check_channel_rules
 from src.utils.telegram.llm_classifier import classify_channel_with_llm
@@ -392,6 +393,169 @@ SEARCH_QUERIES = [
 ]
 
 
+def _is_non_russian(chat_info: Any) -> bool:
+    """Return True if the channel should be skipped due to non-Russian content."""
+    description = chat_info.description or ""
+    title = chat_info.title or ""
+    if description and not is_russian_text(description):
+        logger.debug(f"Skipping non-Russian channel: {title}")
+        return True
+    if not description and not is_russian_text(title):
+        logger.debug(f"Skipping non-Russian channel (title only): {title}")
+        return True
+    return False
+
+
+async def _check_ad_rules(parser: TelegramParser, chat_info: Any) -> None:
+    """Check channel ad rules (logs a warning if ads are disallowed, never raises)."""
+    if not chat_info.username:
+        return
+    try:
+        rules_result = await check_channel_rules(parser._client, chat_info.username)
+        if not rules_result.allows_ads:
+            logger.info(
+                f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}"
+            )
+    except Exception as e:
+        logger.debug(f"Rules check failed for @{chat_info.username}: {e}")
+
+
+async def _is_content_blocked(chat_info: Any) -> bool:
+    """Return True if the channel content is blocked by the content filter."""
+    from src.utils.content_filter.filter import check as content_filter_check
+
+    channel_content = f"{chat_info.title} {chat_info.description or ''}"
+    filter_result = await content_filter_check(channel_content)
+    if not filter_result.passed:
+        logger.debug(
+            f"Channel '{chat_info.title}' blocked by content filter: "
+            f"{filter_result.categories}"
+        )
+        return True
+    return False
+
+
+def _apply_chat_fields(chat: Any, chat_info: Any, topic: str) -> None:
+    """Update ORM chat fields from parsed chat_info."""
+    chat.telegram_id = chat_info.telegram_id
+    chat.title = chat_info.title
+    chat.description = chat_info.description
+    chat.member_count = chat_info.member_count or 0
+    chat.topic = topic
+    chat.is_scam = chat_info.is_scam or False
+    chat.is_fake = chat_info.is_fake or False
+    chat.rating = getattr(chat_info, "rating", None) or 5.0
+    chat.last_subscribers = chat_info.member_count or 0
+    chat.last_parsed_at = date.today()
+
+    if chat_info.meta_json:
+        chat.language = chat_info.meta_json.get("language", "ru")
+        chat.russian_score = chat_info.meta_json.get("russian_score", 1.0)
+    else:
+        chat.language = "ru"
+        chat.russian_score = 1.0
+
+
+async def _run_llm_classification(parser: TelegramParser, chat: Any) -> None:
+    """Run LLM classification for a newly-created chat (errors are swallowed)."""
+    try:
+        entity = await parser.client.get_entity(chat.telegram_id)
+        recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
+
+        classification = await classify_channel_with_llm(
+            ai_service=None,
+            title=chat.title or "",
+            username=chat.username or "",
+            member_count=chat.member_count or 0,
+            language=chat.language,
+            description=chat.description or "",
+            posts=[p["text"] for p in recent_posts] if recent_posts else [],
+        )
+
+        chat.topic = classification.topic
+        chat.rating = classification.rating
+        chat.last_classified_at = datetime.now(UTC)
+        chat.llm_confidence = classification.confidence
+        chat.recent_posts = recent_posts
+
+        if classification.used_fallback:
+            logger.warning(f"LLM classification fallback for @{chat.username}")
+        else:
+            logger.info(
+                f"LLM classified @{chat.username}: {classification.topic} "
+                f"(confidence={classification.confidence:.2f})"
+            )
+    except Exception as e:
+        logger.warning(f"LLM classification failed for @{chat.username}: {e}")
+
+
+async def _save_chat_info(
+    parser: TelegramParser,
+    chat_repo: TelegramChatRepository,
+    chat_info: Any,
+    topic: str,
+) -> bool:
+    """Persist a single chat_info to the DB. Returns True on success."""
+    try:
+        username = chat_info.username or f"_{chat_info.telegram_id}"
+        chat, is_new = await chat_repo.get_or_create_chat(username)
+        _apply_chat_fields(chat, chat_info, topic)
+        if is_new:
+            await _run_llm_classification(parser, chat)
+        await chat_repo.session.flush()
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to save chat {chat_info.title}: {e}")
+        return False
+
+
+def _build_save_log_msg(prefix: str, saved: int, blocked: int, non_russian: int) -> str:
+    """Build the summary log message for a parse-and-save run."""
+    msg = f"Saved {saved} chats for {prefix}"
+    if blocked > 0:
+        msg += f" (blocked {blocked} by content filter)"
+    if non_russian > 0:
+        msg += f" (skipped {non_russian} non-Russian)"
+    return msg
+
+
+async def _process_chat_list(
+    parser: TelegramParser,
+    chat_repo: TelegramChatRepository,
+    chat_infos: list[Any],
+    require_russian: bool,
+    topic_label: str,
+) -> tuple[int, int, int]:
+    """
+    Process and persist a list of ChatInfo objects.
+
+    Returns:
+        Tuple (saved_count, blocked_count, non_russian_count).
+    """
+    saved_count = 0
+    blocked_count = 0
+    non_russian_count = 0
+
+    for chat_info in chat_infos:
+        if require_russian and _is_non_russian(chat_info):
+            non_russian_count += 1
+            continue
+
+        await _check_ad_rules(parser, chat_info)
+
+        if await _is_content_blocked(chat_info):
+            blocked_count += 1
+            continue
+
+        topic = classify_topic(chat_info.title, chat_info.description or "")
+        if await _save_chat_info(parser, chat_repo, chat_info, topic):
+            saved_count += 1
+
+    await chat_repo.session.commit()
+    logger.info(_build_save_log_msg(topic_label, saved_count, blocked_count, non_russian_count))
+    return saved_count, blocked_count, non_russian_count
+
+
 async def _parse_and_save_chats(
     parser: TelegramParser,
     chat_repo: TelegramChatRepository,
@@ -413,151 +577,15 @@ async def _parse_and_save_chats(
         Количество сохраненных чатов.
     """
     try:
-        # Ищем чаты
         chat_infos = await parser.search_public_chats(query, limit=limit)
 
         if not chat_infos:
             logger.info(f"No chats found for query: {query}")
             return 0
 
-        # Сохраняем каждый чат отдельно
-        saved_count = 0
-        blocked_count = 0
-        non_russian_count = 0
-
-        for chat_info in chat_infos:
-            # Проверяем русскоязычность (если требуется)
-            if require_russian:
-                description = chat_info.description or ""
-                title = chat_info.title or ""
-
-                # Проверяем описание или название на русский язык
-                if description and not is_russian_text(description):
-                    non_russian_count += 1
-                    logger.debug(f"Skipping non-Russian channel: {title}")
-                    continue
-                elif not description and not is_russian_text(title):
-                    non_russian_count += 1
-                    logger.debug(f"Skipping non-Russian channel (title only): {title}")
-                    continue
-
-            # Проверяем правила канала на запрет рекламы
-            if chat_info.username:
-                try:
-                    rules_result = await check_channel_rules(parser._client, chat_info.username)
-                    if not rules_result.allows_ads:
-                        logger.info(
-                            f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}"
-                        )
-                except Exception as e:
-                    logger.debug(f"Rules check failed for @{chat_info.username}: {e}")
-
-            # Проверяем контент канала (название + описание)
-            from src.utils.content_filter.filter import check as content_filter_check
-
-            channel_content = f"{chat_info.title} {chat_info.description or ''}"
-            filter_result = await content_filter_check(channel_content)
-
-            if not filter_result.passed:
-                blocked_count += 1
-                logger.debug(
-                    f"Channel '{chat_info.title}' blocked by content filter: "
-                    f"{filter_result.categories}"
-                )
-                continue
-
-            # Классифицируем тематику
-            topic = classify_topic(chat_info.title, chat_info.description or "")
-
-            # Автоклассификация подкатегории
-            from src.utils.categories import classify_subcategory
-
-            subcategory = classify_subcategory(
-                title=chat_info.title or "",
-                description=chat_info.description or "",
-                topic=topic,
-            )
-
-            try:
-                # Получаем или создаём чат
-                username = chat_info.username or f"_{chat_info.telegram_id}"
-                chat, is_new = await chat_repo.get_or_create_chat(username)
-
-                # Обновляем данные
-                chat.telegram_id = chat_info.telegram_id
-                chat.title = chat_info.title
-                chat.description = chat_info.description
-                chat.member_count = chat_info.member_count or 0
-                chat.topic = topic
-                chat.subcategory = subcategory
-                chat.is_scam = chat_info.is_scam or False
-                chat.is_fake = chat_info.is_fake or False
-                chat.rating = getattr(chat_info, "rating", None) or 5.0
-                chat.last_subscribers = chat_info.member_count or 0
-                chat.last_parsed_at = date.today()
-
-                # Сохраняем информацию о языке
-                if chat_info.meta_json:
-                    chat.language = chat_info.meta_json.get("language", "ru")
-                    chat.russian_score = chat_info.meta_json.get("russian_score", 1.0)
-                else:
-                    chat.language = "ru"
-                    chat.russian_score = 1.0
-
-                # LLM-классификация для новых каналов
-                if is_new:
-                    try:
-                        # Собираем recent posts
-                        entity = await parser.client.get_entity(chat.telegram_id)
-                        recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
-
-                        # Классифицируем через LLM
-                        classification = await classify_channel_with_llm(
-                            ai_service=None,  # Не используется
-                            title=chat.title or "",
-                            username=chat.username or "",
-                            member_count=chat.member_count or 0,
-                            language=chat.language,
-                            description=chat.description or "",
-                            posts=[p["text"] for p in recent_posts] if recent_posts else [],
-                        )
-
-                        # Обновляем канал
-                        chat.topic = classification.topic
-                        chat.subcategory = classification.subcategory or subcategory
-                        chat.rating = classification.rating
-                        chat.last_classified_at = datetime.now(UTC)
-                        chat.llm_confidence = classification.confidence
-                        chat.recent_posts = recent_posts
-
-                        if classification.used_fallback:
-                            logger.warning(f"LLM classification fallback for @{chat.username}")
-                        else:
-                            logger.info(
-                                f"LLM classified @{chat.username}: {classification.topic} (confidence={classification.confidence:.2f})"
-                            )
-
-                    except Exception as e:
-                        logger.warning(f"LLM classification failed for @{chat.username}: {e}")
-                        # Не бросаем исключение — парсинг не должен падать
-
-                await chat_repo._session.flush()
-                saved_count += 1
-
-            except Exception as e:
-                logger.warning(f"Failed to save chat {chat_info.title}: {e}")
-                continue
-
-        await chat_repo._session.commit()
-
-        log_msg = f"Saved {saved_count} chats for query '{query}'"
-        if blocked_count > 0:
-            log_msg += f" (blocked {blocked_count} by content filter)"
-        if non_russian_count > 0:
-            log_msg += f" (skipped {non_russian_count} non-Russian)"
-
-        logger.info(log_msg)
-
+        saved_count, _, _ = await _process_chat_list(
+            parser, chat_repo, chat_infos, require_russian, f"query '{query}'"
+        )
         return saved_count
 
     except Exception as e:
@@ -587,156 +615,71 @@ async def _parse_and_save_chats_by_topic(
         Количество сохраненных чатов.
     """
     try:
-        # Ищем чаты по теме с использованием всех запросов из словаря
         chat_infos = await parser.search_by_topic(topic, limit_per_query=limit_per_query)
 
         if not chat_infos:
             logger.info(f"No chats found for topic: {topic}")
             return 0
 
-        # Сохраняем каждый чат отдельно
-        saved_count = 0
-        blocked_count = 0
-        non_russian_count = 0
-
-        for chat_info in chat_infos:
-            # Проверяем русскоязычность (если требуется)
-            if require_russian:
-                description = chat_info.description or ""
-                title = chat_info.title or ""
-
-                # Проверяем описание или название на русский язык
-                if description and not is_russian_text(description):
-                    non_russian_count += 1
-                    logger.debug(f"Skipping non-Russian channel: {title}")
-                    continue
-                elif not description and not is_russian_text(title):
-                    non_russian_count += 1
-                    logger.debug(f"Skipping non-Russian channel (title only): {title}")
-                    continue
-
-            # Проверяем правила канала на запрет рекламы
-            if chat_info.username:
-                try:
-                    rules_result = await check_channel_rules(parser._client, chat_info.username)
-                    if not rules_result.allows_ads:
-                        logger.info(
-                            f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}"
-                        )
-                except Exception as e:
-                    logger.debug(f"Rules check failed for @{chat_info.username}: {e}")
-
-            # Проверяем контент канала (название + описание)
-            from src.utils.content_filter.filter import check as content_filter_check
-
-            channel_content = f"{chat_info.title} {chat_info.description or ''}"
-            filter_result = await content_filter_check(channel_content)
-
-            if not filter_result.passed:
-                blocked_count += 1
-                logger.debug(
-                    f"Channel '{chat_info.title}' blocked by content filter: "
-                    f"{filter_result.categories}"
-                )
-                continue
-
-            # Классифицируем тематику
-            topic_classified = classify_topic(chat_info.title, chat_info.description or "")
-
-            # Автоклассификация подкатегории
-            from src.utils.categories import classify_subcategory
-
-            subcategory = classify_subcategory(
-                title=chat_info.title or "",
-                description=chat_info.description or "",
-                topic=topic_classified,
-            )
-
-            try:
-                # Получаем или создаём чат
-                username = chat_info.username or f"_{chat_info.telegram_id}"
-                chat, is_new = await chat_repo.get_or_create_chat(username)
-
-                # Обновляем данные
-                chat.telegram_id = chat_info.telegram_id
-                chat.title = chat_info.title
-                chat.description = chat_info.description
-                chat.member_count = chat_info.member_count or 0
-                chat.topic = topic_classified
-                chat.subcategory = subcategory
-                chat.is_scam = chat_info.is_scam or False
-                chat.is_fake = chat_info.is_fake or False
-                chat.rating = getattr(chat_info, "rating", None) or 5.0
-                chat.last_subscribers = chat_info.member_count or 0
-                chat.last_parsed_at = date.today()
-
-                # Сохраняем информацию о языке
-                if chat_info.meta_json:
-                    chat.language = chat_info.meta_json.get("language", "ru")
-                    chat.russian_score = chat_info.meta_json.get("russian_score", 1.0)
-                else:
-                    chat.language = "ru"
-                    chat.russian_score = 1.0
-
-                # LLM-классификация для новых каналов
-                if is_new:
-                    try:
-                        # Собираем recent posts
-                        entity = await parser.client.get_entity(chat.telegram_id)
-                        recent_posts = await parser._collect_recent_posts_texts(entity, limit=5)
-
-                        # Классифицируем через LLM
-                        classification = await classify_channel_with_llm(
-                            ai_service=None,  # Не используется
-                            title=chat.title or "",
-                            username=chat.username or "",
-                            member_count=chat.member_count or 0,
-                            language=chat.language,
-                            description=chat.description or "",
-                            posts=[p["text"] for p in recent_posts] if recent_posts else [],
-                        )
-
-                        # Обновляем канал
-                        chat.topic = classification.topic
-                        chat.subcategory = classification.subcategory or subcategory
-                        chat.rating = classification.rating
-                        chat.last_classified_at = datetime.now(UTC)
-                        chat.llm_confidence = classification.confidence
-                        chat.recent_posts = recent_posts
-
-                        if classification.used_fallback:
-                            logger.warning(f"LLM classification fallback for @{chat.username}")
-                        else:
-                            logger.info(
-                                f"LLM classified @{chat.username}: {classification.topic} (confidence={classification.confidence:.2f})"
-                            )
-
-                    except Exception as e:
-                        logger.warning(f"LLM classification failed for @{chat.username}: {e}")
-                        # Не бросаем исключение — парсинг не должен падать
-
-                await chat_repo._session.flush()
-                saved_count += 1
-
-            except Exception as e:
-                logger.warning(f"Failed to save chat {chat_info.title}: {e}")
-                continue
-
-        await chat_repo._session.commit()
-
-        log_msg = f"Saved {saved_count} chats for topic '{topic}'"
-        if blocked_count > 0:
-            log_msg += f" (blocked {blocked_count} by content filter)"
-        if non_russian_count > 0:
-            log_msg += f" (skipped {non_russian_count} non-Russian)"
-
-        logger.info(log_msg)
-
+        saved_count, _, _ = await _process_chat_list(
+            parser, chat_repo, chat_infos, require_russian, f"topic '{topic}'"
+        )
         return saved_count
 
     except Exception as e:
         logger.error(f"Error parsing topic '{topic}': {e}")
         return 0
+
+
+async def _save_tgstat_chat_list(
+    chat_repo: TelegramChatRepository,
+    chat_details_list: list[Any],
+    topic: str,
+) -> tuple[int, int]:
+    """
+    Persist TGStat chat details to DB, running the content filter on each.
+
+    Returns:
+        Tuple (saved_count, blocked_count).
+    """
+    from src.utils.content_filter.filter import check as content_filter_check
+
+    saved_count = 0
+    blocked_count = 0
+
+    for chat_details in chat_details_list:
+        channel_content = f"{chat_details.title} {chat_details.description or ''}"
+        filter_result = await content_filter_check(channel_content)
+
+        if not filter_result.passed:
+            blocked_count += 1
+            logger.debug(
+                f"Channel '{chat_details.title}' blocked by content filter: "
+                f"{filter_result.categories}"
+            )
+            continue
+
+        try:
+            username = chat_details.username or f"_{chat_details.telegram_id}"
+            chat, _ = await chat_repo.get_or_create_chat(username)
+            chat.telegram_id = chat_details.telegram_id
+            chat.title = chat_details.title
+            chat.description = chat_details.description
+            chat.member_count = chat_details.member_count or 0
+            chat.topic = topic  # type: ignore[attr-defined]
+            chat.is_scam = chat_details.is_scam or False  # type: ignore[attr-defined]
+            chat.is_fake = chat_details.is_fake or False  # type: ignore[attr-defined]
+            chat.rating = chat_details.rating or 5.0
+            chat.last_subscribers = chat_details.member_count or 0  # type: ignore[attr-defined]
+            chat.last_avg_views = chat_details.avg_post_reach or 0  # type: ignore[attr-defined]
+            chat.last_parsed_at = date.today()
+            await chat_repo.session.flush()
+            saved_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to save chat {chat_details.title}: {e}")
+
+    await chat_repo.session.commit()
+    return saved_count, blocked_count
 
 
 async def _parse_tgstat_and_save(
@@ -770,56 +713,13 @@ async def _parse_tgstat_and_save(
             logger.info(f"No valid chats found for topic '{topic}'")
             return 0
 
-        # Сохраняем каждый чат отдельно
-        saved_count = 0
-        blocked_count = 0
-
-        for chat_details in chat_details_list:
-            # Проверяем контент канала (название + описание)
-            from src.utils.content_filter.filter import check as content_filter_check
-
-            channel_content = f"{chat_details.title} {chat_details.description or ''}"
-            filter_result = await content_filter_check(channel_content)
-
-            if not filter_result.passed:
-                blocked_count += 1
-                logger.debug(
-                    f"Channel '{chat_details.title}' blocked by content filter: "
-                    f"{filter_result.categories}"
-                )
-                continue
-
-            try:
-                # Получаем или создаём чат
-                username = chat_details.username or f"_{chat_details.telegram_id}"
-                chat, is_new = await chat_repo.get_or_create_chat(username)
-
-                # Обновляем данные
-                chat.telegram_id = chat_details.telegram_id
-                chat.title = chat_details.title
-                chat.description = chat_details.description
-                chat.member_count = chat_details.member_count or 0
-                chat.topic = topic
-                chat.is_scam = chat_details.is_scam or False
-                chat.is_fake = chat_details.is_fake or False
-                chat.rating = chat_details.rating or 5.0
-                chat.last_subscribers = chat_details.member_count or 0
-                chat.last_avg_views = chat_details.avg_post_reach or 0
-                chat.last_parsed_at = date.today()
-
-                await chat_repo._session.flush()
-                saved_count += 1
-
-            except Exception as e:
-                logger.warning(f"Failed to save chat {chat_details.title}: {e}")
-                continue
-
-        await chat_repo._session.commit()
+        saved_count, blocked_count = await _save_tgstat_chat_list(
+            chat_repo, chat_details_list, topic
+        )
         logger.info(
             f"Saved {saved_count} chats from TGStat for topic '{topic}' "
             f"(blocked {blocked_count} by content filter)"
         )
-
         return saved_count
 
     except Exception as e:
@@ -854,64 +754,68 @@ async def _refresh_chats_async(query_category: str | None = None) -> dict[str, A
 
     async with async_session_factory() as session:
         chat_repo = TelegramChatRepository(session)
-
-        # 1. Парсим через Telegram search
-        async with TelegramParser() as parser:
-            for query in queries_to_parse:
-                try:
-                    count = await _parse_and_save_chats(parser, chat_repo, query, limit=30)
-                    stats["telegram_search"] += count
-                    stats["total"] += count
-
-                    # Задержка между запросами для соблюдения лимитов Telegram
-                    # Telegram лимит: ~10-20 запросов в минуту на поиск
-                    await asyncio.sleep(2)
-
-                except Exception as e:
-                    logger.error(f"Error in Telegram search for '{query}': {e}")
-                    stats["errors"] += 1
-
-        # 1.5. Парсим через Telegram search по русскоязычным темам (TOPIC_SEARCH_QUERIES)
-        # Используем новые методы с пагинацией и расширенными запросами
-        if not query_category:  # Только для полного обновления
-            async with TelegramParser() as parser:
-                # Парсим ключевые русскоязычные темы
-                russian_topics = ["бизнес", "it", "маркетинг", "финансы", "крипто", "новости"]
-                for topic in russian_topics:
-                    try:
-                        count = await _parse_and_save_chats_by_topic(
-                            parser, chat_repo, topic, limit_per_query=30
-                        )
-                        stats["telegram_search"] += count
-                        stats["total"] += count
-
-                        # Задержка между темами
-                        await asyncio.sleep(3)
-
-                    except Exception as e:
-                        logger.error(f"Error in Telegram topic search for '{topic}': {e}")
-                        stats["errors"] += 1
-
-        # 2. Парсим через TGStat (только если категория не указана или это первая категория)
+        await _run_telegram_search(chat_repo, queries_to_parse, stats)
         if not query_category:
-            async with TelegramParser() as telegram_parser:
-                for topic in POPULAR_TOPICS[:10]:  # Ограничиваем количество
-                    try:
-                        count = await _parse_tgstat_and_save(telegram_parser, chat_repo, topic)
-                        stats["tgstat"] += count
-                        stats["total"] += count
-
-                        # Задержка между запросами
-                        await asyncio.sleep(2)
-
-                    except Exception as e:
-                        logger.error(f"Error in TGStat parsing for '{topic}': {e}")
-                        stats["errors"] += 1
-
-        # Коммитим все изменения
+            await _run_russian_topic_search(chat_repo, stats)
+            await _run_tgstat_search(chat_repo, stats)
         await session.commit()
 
     return stats
+
+
+async def _run_telegram_search(
+    chat_repo: TelegramChatRepository,
+    queries: list[str],
+    stats: dict[str, Any],
+) -> None:
+    """Run Telegram keyword search for a list of queries, updating stats in place."""
+    async with TelegramParser() as parser:
+        for query in queries:
+            try:
+                count = await _parse_and_save_chats(parser, chat_repo, query, limit=30)
+                stats["telegram_search"] += count
+                stats["total"] += count
+                await asyncio.sleep(2)
+            except Exception as e:
+                logger.error(f"Error in Telegram search for '{query}': {e}")
+                stats["errors"] += 1
+
+
+async def _run_russian_topic_search(
+    chat_repo: TelegramChatRepository,
+    stats: dict[str, Any],
+) -> None:
+    """Run extended Russian-topic search (TOPIC_SEARCH_QUERIES), updating stats in place."""
+    russian_topics = ["бизнес", "it", "маркетинг", "финансы", "крипто", "новости"]
+    async with TelegramParser() as parser:
+        for topic in russian_topics:
+            try:
+                count = await _parse_and_save_chats_by_topic(
+                    parser, chat_repo, topic, limit_per_query=30
+                )
+                stats["telegram_search"] += count
+                stats["total"] += count
+                await asyncio.sleep(3)
+            except Exception as e:
+                logger.error(f"Error in Telegram topic search for '{topic}': {e}")
+                stats["errors"] += 1
+
+
+async def _run_tgstat_search(
+    chat_repo: TelegramChatRepository,
+    stats: dict[str, Any],
+) -> None:
+    """Run TGStat catalog scrape for popular topics, updating stats in place."""
+    async with TelegramParser() as telegram_parser:
+        for topic in POPULAR_TOPICS[:10]:
+            try:
+                count = await _parse_tgstat_and_save(telegram_parser, chat_repo, topic)
+                stats["tgstat"] += count
+                stats["total"] += count
+                await asyncio.sleep(2)
+            except Exception as e:
+                logger.error(f"Error in TGStat parsing for '{topic}': {e}")
+                stats["errors"] += 1
 
 
 # Категории поисковых запросов для распределения по слотам
@@ -1051,15 +955,6 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
 
             topic = classify_topic(chat_details.title, chat_details.description or "")
 
-            # Автоклассификация подкатегории
-            from src.utils.categories import classify_subcategory
-
-            subcategory = classify_subcategory(
-                title=chat_details.title or "",
-                description=chat_details.description or "",
-                topic=topic,
-            )
-
             try:
                 # Получаем или создаём чат
                 username_clean = chat_details.username or f"_{chat_details.telegram_id}"
@@ -1070,23 +965,22 @@ async def _validate_username_async(username: str) -> dict[str, Any] | None:
                 chat.title = chat_details.title
                 chat.description = chat_details.description
                 chat.member_count = chat_details.member_count or 0
-                chat.topic = topic
-                chat.subcategory = subcategory
-                chat.is_scam = chat_details.is_scam or False
-                chat.is_fake = chat_details.is_fake or False
+                chat.topic = topic  # type: ignore[attr-defined]
+                chat.is_scam = chat_details.is_scam or False  # type: ignore[attr-defined]
+                chat.is_fake = chat_details.is_fake or False  # type: ignore[attr-defined]
                 chat.rating = chat_details.rating or 5.0
-                chat.last_subscribers = chat_details.member_count or 0
-                chat.last_avg_views = chat_details.avg_post_reach or 0
+                chat.last_subscribers = chat_details.member_count or 0  # type: ignore[attr-defined]
+                chat.last_avg_views = chat_details.avg_post_reach or 0  # type: ignore[attr-defined]
                 chat.last_parsed_at = date.today()
 
-                await chat_repo._session.commit()
+                await chat_repo.session.commit()
 
                 return {
                     "telegram_id": chat.telegram_id,
                     "title": chat.title,
                     "username": chat.username,
                     "member_count": chat.member_count,
-                    "topic": chat.topic,
+                    "topic": chat.topic,  # type: ignore[attr-defined]
                 }
 
             except Exception as e:
@@ -1208,7 +1102,7 @@ async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
     """Асинхронная реализация collect_all_chats_stats."""
     async for session in get_session():
         repo = TelegramChatRepository(session)
-        chats = await repo.get_all_active()
+        chats = await repo.get_all_active()  # type: ignore[attr-defined]
         break  # Выходим после первого yield
 
     if not chats:
@@ -1266,26 +1160,13 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             continue
 
         if metrics.error:
-            await repo.mark_parse_error(chat_id, metrics.error)
+            await repo.mark_parse_error(chat_id, metrics.error)  # type: ignore[attr-defined]
             errors += 1
             continue
 
         # Обновить мета-данные чата
 
-        from src.db.models.telegram_chat import TelegramChat
-        from src.utils.categories import classify_subcategory
-
-        # Получаем текущий topic из БД
-        chat = await session.get(TelegramChat, chat_id)
-        topic = chat.topic if chat else None
-
-        subcategory = classify_subcategory(
-            title=metrics.title or "",
-            description=metrics.description or "",
-            topic=topic or "",
-        )
-
-        await repo.update_chat_meta(
+        await repo.update_chat_meta(  # type: ignore[attr-defined]
             chat_id,
             telegram_id=metrics.telegram_id,
             title=metrics.title,
@@ -1297,11 +1178,10 @@ async def _process_batch(usernames: list[str], chat_ids: dict[str, int]) -> dict
             last_avg_views=metrics.avg_views,
             last_er=metrics.er,
             last_post_frequency=metrics.post_frequency,
-            subcategory=subcategory,
         )
 
         # Сохранить снимок за сегодня
-        await repo.upsert_snapshot(
+        await repo.upsert_snapshot(  # type: ignore[attr-defined]
             chat_id=chat_id,
             snapshot_date=today,
             subscribers=metrics.subscribers,
@@ -1342,16 +1222,7 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
 
     chat, is_new = await repo.get_or_create_chat(username)
 
-    # Автоклассификация подкатегории
-    from src.utils.categories import classify_subcategory
-
-    subcategory = classify_subcategory(
-        title=metrics.title or "",
-        description=metrics.description or "",
-        topic=(chat.topic if chat else None) or "",
-    )
-
-    await repo.update_chat_meta(
+    await repo.update_chat_meta(  # type: ignore[attr-defined]
         chat.id,
         telegram_id=metrics.telegram_id,
         title=metrics.title,
@@ -1363,9 +1234,8 @@ async def _parse_single_chat_async(username: str) -> dict[str, Any]:
         last_avg_views=metrics.avg_views,
         last_er=metrics.er,
         last_post_frequency=metrics.post_frequency,
-        subcategory=subcategory,
     )
-    await repo.upsert_snapshot(
+    await repo.upsert_snapshot(  # type: ignore[attr-defined]
         chat_id=chat.id,
         snapshot_date=date.today(),
         subscribers=metrics.subscribers,
@@ -1417,7 +1287,7 @@ async def _recheck_channel_rules_async() -> None:
                 and_(
                     TelegramChat.is_active == True,  # noqa: E712
                     TelegramChat.username.isnot(None),
-                    TelegramChat.is_blacklisted == False,  # noqa: E712
+                    TelegramChat.is_blacklisted == False,  # type: ignore[attr-defined]  # noqa: E712
                 )
             )
             .limit(batch_size)
@@ -1498,13 +1368,13 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
             select(TelegramChat)
             .where(
                 TelegramChat.is_active == True,  # noqa: E712
-                TelegramChat.is_blacklisted == False,  # noqa: E712
+                TelegramChat.is_blacklisted == False,  # type: ignore[attr-defined]  # noqa: E712
                 or_(
-                    TelegramChat.last_classified_at.is_(None),
-                    TelegramChat.last_classified_at < cutoff,
+                    TelegramChat.last_classified_at.is_(None),  # type: ignore[attr-defined]
+                    TelegramChat.last_classified_at < cutoff,  # type: ignore[attr-defined]
                 ),
             )
-            .order_by(TelegramChat.last_classified_at.asc().nullsfirst())
+            .order_by(TelegramChat.last_classified_at.asc().nullsfirst())  # type: ignore[attr-defined]
             .limit(batch_size)
         )
         result = await session.execute(stmt)
@@ -1514,7 +1384,7 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
         for chat in chats:
             try:
                 # Собираем recent posts если есть
-                posts = chat.recent_posts or []
+                posts = chat.recent_posts or []  # type: ignore[attr-defined]
                 posts_texts = [p["text"] for p in posts] if posts else []
 
                 classification = await classify_channel_with_llm(
@@ -1522,17 +1392,16 @@ async def _llm_reclassify_all_async(batch_size: int) -> dict:
                     title=chat.title or "",
                     username=chat.username or "",
                     member_count=chat.member_count or 0,
-                    language=chat.language or "unknown",
+                    language=chat.language or "unknown",  # type: ignore[attr-defined]
                     description=chat.description or "",
                     posts=posts_texts,
                 )
 
                 # Обновляем канал
-                chat.topic = classification.topic
-                chat.subcategory = classification.subcategory or ""
+                chat.topic = classification.topic  # type: ignore[attr-defined]
                 chat.rating = classification.rating
-                chat.last_classified_at = datetime.now(UTC)
-                chat.llm_confidence = classification.confidence
+                chat.last_classified_at = datetime.now(UTC)  # type: ignore[attr-defined]
+                chat.llm_confidence = classification.confidence  # type: ignore[attr-defined]
 
                 if classification.used_fallback:
                     stats["failed"] += 1
@@ -1581,12 +1450,12 @@ def autoclassify_channels(limit: int = 50) -> dict:
         stats = {"classified": 0, "errors": 0, "low_confidence": 0}
 
         async with async_session_factory() as session:
-            # Выбираем каналы без подкатегории
+            # Выбираем каналы без категории
             query = (
                 select(TelegramChat)
                 .where(
                     TelegramChat.is_active,
-                    (TelegramChat.subcategory.is_(None)) | (TelegramChat.subcategory == ""),
+                    TelegramChat.category.is_(None),
                 )
                 .limit(limit)
             )
@@ -1604,12 +1473,11 @@ def autoclassify_channels(limit: int = 50) -> dict:
                     )
 
                     if ai_result.confidence >= 0.7:
-                        channel.topic = ai_result.topic
-                        channel.subcategory = ai_result.subcategory or ""
+                        channel.topic = ai_result.topic  # type: ignore[attr-defined]
                         stats["classified"] += 1
                         logger.info(
                             f"Classified channel '{channel.title}': "
-                            f"{ai_result.topic}/{ai_result.subcategory} "
+                            f"{ai_result.topic} "
                             f"(confidence={ai_result.confidence:.2f})"
                         )
                     else:

@@ -32,4 +32,4 @@ async def seed():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    asyncio.run(seed())  # type: ignore[no-untyped-call]

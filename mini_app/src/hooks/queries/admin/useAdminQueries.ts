@@ -132,3 +132,15 @@ export function useUserById(id: number) {
     enabled: id > 0,
   })
 }
+
+export function useAddBalance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, data }: { userId: number; data: adminApi.BalanceTopUpRequest }) =>
+      adminApi.addUserBalance(userId, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['admin', 'users', updated.id], updated)
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
+  })
+}

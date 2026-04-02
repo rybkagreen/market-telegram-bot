@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
 from src.core.services.placement_request_service import PlacementRequestService
@@ -17,11 +18,90 @@ from src.db.models.placement_request import PlacementStatus
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepository
-from src.db.session import AsyncSession
+from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 
 logger = logging.getLogger(__name__)
 
+PLACEMENT_NOT_FOUND = "Placement not found"
+NOT_CHANNEL_OWNER = "Not channel owner"
+NOT_PLACEMENT_ADVERTISER = "Not placement advertiser"
+
 router = APIRouter(tags=["placements"])
+
+
+# ---------------------------------------------------------------------------
+# Action helpers for update_placement (reduce cognitive complexity)
+# ---------------------------------------------------------------------------
+
+
+async def _action_accept(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_owner: bool,
+) -> "PlacementResponse":
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can accept placement")
+    result = await service.owner_accept(placement_id, user_id)
+    return PlacementResponse.model_validate(result)
+
+
+async def _action_reject(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_owner: bool,
+    update_data: "PlacementUpdateRequest",
+) -> "PlacementResponse":
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can reject placement")
+    reason_text = update_data.reason_text or update_data.reason_code or "rejected"
+    result = await service.owner_reject(placement_id, user_id, reason_text)
+    return PlacementResponse.model_validate(result)
+
+
+async def _action_counter(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_owner: bool,
+    update_data: "PlacementUpdateRequest",
+) -> "PlacementResponse":
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can make counter offer")
+    if update_data.price is None:
+        raise HTTPException(status_code=400, detail="price required for counter action")
+    result = await service.owner_counter_offer(
+        placement_id, user_id, Decimal(str(update_data.price))
+    )
+    return PlacementResponse.model_validate(result)
+
+
+async def _action_pay(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_advertiser: bool,
+    placement_status: PlacementStatus,
+) -> "PlacementResponse":
+    if not is_advertiser:
+        raise HTTPException(status_code=403, detail="Only advertiser can pay placement")
+    if placement_status != PlacementStatus.pending_payment:
+        raise HTTPException(status_code=409, detail="Placement not in pending_payment status")
+    result = await service.process_payment(placement_id, user_id)
+    return PlacementResponse.model_validate(result)
+
+
+async def _action_cancel(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_advertiser: bool,
+) -> "PlacementResponse":
+    if not is_advertiser:
+        raise HTTPException(status_code=403, detail="Only advertiser can cancel placement")
+    result = await service.advertiser_cancel(placement_id, user_id)
+    return PlacementResponse.model_validate(result)
 
 # =============================================================================
 # Schemas
@@ -52,11 +132,20 @@ class PlacementUpdateRequest(BaseModel):
 class PlacementCreateRequest(BaseModel):
     """Запрос на создание заявки."""
 
+    model_config = {"populate_by_name": True}
+
     channel_id: int = Field(..., description="ID канала")
     proposed_price: int = Field(..., ge=100, description="Предложенная цена >= 100")
-    post_text: str = Field(..., min_length=10, max_length=4096, description="Текст поста")
+    post_text: str = Field(
+        ..., min_length=10, max_length=4096, description="Текст поста",
+        validation_alias="ad_text",
+    )
+    publication_format: str | None = Field(None, description="Формат публикации")
     media_file_id: str | None = Field(None, description="Telegram file_id медиа")
-    scheduled_at: datetime = Field(..., description="Желаемая дата публикации UTC")
+    scheduled_at: datetime = Field(
+        ..., description="Желаемая дата публикации UTC",
+        validation_alias="proposed_schedule",
+    )
     # Test mode fields (admin only)
     is_test: bool = Field(
         default=False,
@@ -76,20 +165,20 @@ class PlacementResponse(BaseModel):
     advertiser_id: int
     channel_id: int
     status: str
+    publication_format: str
     proposed_price: Decimal
-    final_price: Decimal | None
-    post_text: str
-    media_file_id: str | None
-    scheduled_at: datetime | None
-    published_at: datetime | None
-    expires_at: datetime
+    final_price: Decimal | None = None
+    ad_text: str
+    proposed_schedule: datetime | None = None
+    published_at: datetime | None = None
+    expires_at: datetime | None = None
     counter_offer_count: int
     is_test: bool = False
     test_label: str | None = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class CounterOfferRequest(BaseModel):
@@ -118,10 +207,10 @@ class RejectRequest(BaseModel):
 # =============================================================================
 
 
-@router.get("/", response_model=list[PlacementResponse])
+@router.get("/")
 async def list_placements(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     role: Annotated[str, Query(description="Роль: advertiser или owner")] = "advertiser",
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     channel_id: Annotated[int | None, Query(description="Фильтр по ID канала")] = None,
@@ -166,14 +255,18 @@ async def list_placements(
     if channel_id is not None:
         placements = [p for p in placements if p.channel_id == channel_id]
 
-    return placements
+    return [PlacementResponse.model_validate(p) for p in placements]
 
 
-@router.post("/", response_model=PlacementResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def create_placement(
     request: PlacementCreateRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Создать заявку на размещение."""
     # Проверка на блокировку
@@ -183,9 +276,8 @@ async def create_placement(
         raise HTTPException(status_code=403, detail="Advertiser is blocked")
 
     # Проверка канала
-    from src.db.models.telegram_chat import TelegramChat
-
-    channel = await session.get(TelegramChat, request.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(request.channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
@@ -214,49 +306,55 @@ async def create_placement(
             proposed_schedule=request.scheduled_at,
             is_test=is_test,
             test_label=test_label,
+            publication_format=request.publication_format,
         )
-        return placement
+        return PlacementResponse.model_validate(placement)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/{placement_id}", response_model=PlacementResponse)
+@router.get(
+    "/{placement_id}",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def get_placement(
     placement_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Получить заявку по ID."""
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
     if placement.advertiser_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied — not your placement")
 
-    return placement
+    return PlacementResponse.model_validate(placement)
 
 
-@router.post("/{placement_id}/accept", response_model=PlacementResponse)
+@router.post(
+    "/{placement_id}/accept",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def accept_placement(
     placement_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Владелец принимает заявку."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
-    channel = await session.get(TelegramChat, placement.channel_id)
-    if not channel or channel.owner_user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not channel owner")
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
+    if not channel or channel.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail=NOT_CHANNEL_OWNER)
 
     service = PlacementRequestService(
         session=session,
@@ -268,30 +366,32 @@ async def accept_placement(
 
     try:
         result = await service.owner_accept(placement_id, current_user.id)
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
-@router.post("/{placement_id}/reject", response_model=PlacementResponse)
+@router.post(
+    "/{placement_id}/reject",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def reject_placement(
     placement_id: int,
     request: RejectRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Владелец отклоняет заявку."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
-    channel = await session.get(TelegramChat, placement.channel_id)
-    if not channel or channel.owner_user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not channel owner")
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
+    if not channel or channel.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail=NOT_CHANNEL_OWNER)
 
     # Формируем финальную причину
     reason_text = request.reason_text
@@ -310,30 +410,32 @@ async def reject_placement(
 
     try:
         result = await service.owner_reject(placement_id, current_user.id, final_reason)
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
-@router.post("/{placement_id}/counter", response_model=PlacementResponse)
+@router.post(
+    "/{placement_id}/counter",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def counter_offer(
     placement_id: int,
     request: CounterOfferRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Владелец делает контр-предложение."""
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
-    channel = await session.get(TelegramChat, placement.channel_id)
-    if not channel or channel.owner_user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not channel owner")
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
+    if not channel or channel.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail=NOT_CHANNEL_OWNER)
 
     service = PlacementRequestService(
         session=session,
@@ -347,26 +449,29 @@ async def counter_offer(
         result = await service.owner_counter_offer(
             placement_id, current_user.id, Decimal(str(request.counter_price))
         )
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
-@router.post("/{placement_id}/accept-counter", response_model=PlacementResponse)
+@router.post(
+    "/{placement_id}/accept-counter",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def accept_counter_offer(
     placement_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Рекламодатель принимает контр-предложение."""
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
     if placement.advertiser_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not placement advertiser")
+        raise HTTPException(status_code=403, detail=NOT_PLACEMENT_ADVERTISER)
 
     service = PlacementRequestService(
         session=session,
@@ -378,32 +483,35 @@ async def accept_counter_offer(
 
     try:
         result = await service.advertiser_accept_counter(placement_id, current_user.id)
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
-@router.post("/{placement_id}/pay", response_model=PlacementResponse)
+@router.post(
+    "/{placement_id}/pay",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def pay_placement(
     placement_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Рекламодатель оплачивает → эскроу."""
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
     if placement.advertiser_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not placement advertiser")
+        raise HTTPException(status_code=403, detail=NOT_PLACEMENT_ADVERTISER)
 
-    if placement.status != PlacementStatus.PENDING_PAYMENT:
+    if placement.status != PlacementStatus.pending_payment:
         raise HTTPException(status_code=409, detail="Placement not in pending_payment status")
 
-    # Проверка баланса
-    if current_user.credits < (placement.final_price or placement.proposed_price):
+    # Проверка баланса (для не-тестовых кампаний)
+    if not placement.is_test and current_user.credits < (placement.final_price or placement.proposed_price):
         raise HTTPException(status_code=400, detail="Insufficient credits")
 
     service = PlacementRequestService(
@@ -416,26 +524,29 @@ async def pay_placement(
 
     try:
         result = await service.process_payment(placement_id, current_user.id)
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
-@router.delete("/{placement_id}", response_model=PlacementResponse)
+@router.delete(
+    "/{placement_id}",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def cancel_placement(
     placement_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Рекламодатель отменяет заявку."""
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
     if placement.advertiser_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not placement advertiser")
+        raise HTTPException(status_code=403, detail=NOT_PLACEMENT_ADVERTISER)
 
     service = PlacementRequestService(
         session=session,
@@ -447,7 +558,7 @@ async def cancel_placement(
 
     try:
         result = await service.advertiser_cancel(placement_id, current_user.id)
-        return result
+        return PlacementResponse.model_validate(result)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
@@ -457,12 +568,15 @@ async def cancel_placement(
 # =============================================================================
 
 
-@router.patch("/{placement_id}", response_model=PlacementResponse)
+@router.patch(
+    "/{placement_id}",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def update_placement(
     placement_id: int,
     update_data: PlacementUpdateRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """
     Обновить заявку через action-based интерфейс.
@@ -489,16 +603,15 @@ async def update_placement(
         HTTPException 404: Заявка не найдена.
         HTTPException 409: Конфликт статуса.
     """
-    from src.db.models.telegram_chat import TelegramChat
-
     repo = PlacementRequestRepository(session)
     placement = await repo.get_by_id(placement_id)
 
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
     # Проверка канала и владельца
-    channel = await session.get(TelegramChat, placement.channel_id)
+    channel_repo = TelegramChatRepository(session)
+    channel = await channel_repo.get_by_id(placement.channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
@@ -514,46 +627,17 @@ async def update_placement(
     )
 
     # Выполнение действия
+    _action_dispatch = {
+        PlacementAction.accept: lambda: _action_accept(service, placement_id, current_user.id, is_owner),
+        PlacementAction.reject: lambda: _action_reject(service, placement_id, current_user.id, is_owner, update_data),
+        PlacementAction.counter: lambda: _action_counter(service, placement_id, current_user.id, is_owner, update_data),
+        PlacementAction.pay: lambda: _action_pay(service, placement_id, current_user.id, is_advertiser, placement.status),
+        PlacementAction.cancel: lambda: _action_cancel(service, placement_id, current_user.id, is_advertiser),
+    }
+    handler = _action_dispatch.get(update_data.action)
+    if handler is None:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {update_data.action}")
     try:
-        if update_data.action == PlacementAction.accept:
-            # Владелец принимает заявку
-            if not is_owner:
-                raise HTTPException(status_code=403, detail="Only owner can accept placement")
-            return await service.owner_accept(placement_id, current_user.id)
-
-        elif update_data.action == PlacementAction.reject:
-            # Владелец отклоняет заявку
-            if not is_owner:
-                raise HTTPException(status_code=403, detail="Only owner can reject placement")
-            reason_text = update_data.reason_text or update_data.reason_code or "rejected"
-            return await service.owner_reject(placement_id, current_user.id, reason_text)
-
-        elif update_data.action == PlacementAction.counter:
-            # Владелец делает контр-предложение
-            if not is_owner:
-                raise HTTPException(status_code=403, detail="Only owner can make counter offer")
-            if update_data.price is None:
-                raise HTTPException(status_code=400, detail="price required for counter action")
-            return await service.owner_counter_offer(
-                placement_id, current_user.id, Decimal(str(update_data.price))
-            )
-
-        elif update_data.action == PlacementAction.pay:
-            # Рекламодатель оплачивает заявку
-            if not is_advertiser:
-                raise HTTPException(status_code=403, detail="Only advertiser can pay placement")
-            if placement.status != PlacementStatus.pending_payment:
-                raise HTTPException(status_code=409, detail="Placement not in pending_payment status")
-            return await service.process_payment(placement_id, current_user.id)
-
-        elif update_data.action == PlacementAction.cancel:
-            # Рекламодатель отменяет заявку
-            if not is_advertiser:
-                raise HTTPException(status_code=403, detail="Only advertiser can cancel placement")
-            return await service.advertiser_cancel(placement_id, current_user.id)
-
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown action: {update_data.action}")
-
+        return await handler()
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e

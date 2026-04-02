@@ -1,8 +1,35 @@
 # RekHarborBot — Project Context
 
-> **v4.2 | 12.03.2026**
+> **v4.3 | 18.03.2026**
 > Источник правды для всех промтов Qwen Code.
 > При конфликте с любым другим файлом — этот документ и файлы на диске имеют приоритет.
+
+---
+
+## КРИТИЧЕСКИЕ ИЗМЕНЕНИЯ v4.3 (прочитай первым)
+
+| # | Изменение | v4.2 | v4.3 | Файл |
+|---|-----------|------|------|------|
+| 1 | **Выплаты** | CryptoBot API | **Ручные через admin** | payout_service.py |
+| 2 | **B2B пакеты** | были | **удалены** | billing.py, main_menu.py |
+| 3 | **Admin панель Mini App** | нет | **7 экранов, 9 endpoints** | admin.py, mini_app/src/screens/admin/ |
+| 4 | **Feedback система** | нет | **полная (пользователь → админ)** | feedback.py, UserFeedback |
+| 5 | **ESCROW-001** | release при публикации | **release ТОЛЬКО после удаления поста** | publication_service.py |
+| 6 | **FSM States** | частично | **5 файлов + 2 middleware** | states/, middlewares/ |
+| 7 | **Ruff SIM102/SIM103** | есть | **исправлены** | services/*.py |
+| 8 | **is_banned** | используется | **заменено на is_active** | dependencies.py |
+| 9 | **Тесты** | 39 | **101 тест** | tests/ |
+| 10 | **Документация** | 1 файл | **20+ отчётов** | docs/, reports/ |
+| 11 | **Юридические профили** | нет | **LegalProfile + Contract** | legal_profile.py, contract.py |
+| 12 | **ОРД-регистрация** | нет | **OrdRegistration** | ord_registration.py, ord_service.py |
+| 13 | **Аудит-лог** | нет | **AuditLog** | audit_log.py, audit_middleware.py |
+| 14 | **Шифрование полей** | нет | **Field Encryption** | field_encryption.py |
+| 15 | **GlitchTip** | Sentry | **GlitchTip + Sentry** | settings.py, celery_config.py |
+| 16 | **SonarQube** | нет | **SonarQube** | sonar-project.properties |
+| 17 | **Gitleaks** | нет | **Gitleaks** | .gitleaks.toml |
+| 18 | **Реферальная программа** | нет | **ReferralStats** | useReferralStats.ts |
+| 19 | **Видео в кампаниях** | нет | **VideoUploader** | CampaignVideo.tsx |
+| 20 | **Трекинг ссылок** | нет | **ClickTracking** | click_tracking.py |
 
 ---
 
@@ -46,8 +73,10 @@
 | API | FastAPI |
 | Migrations | Alembic |
 | AI | Mistral official SDK (`mistralai>=1.12.4`) |
-| Payments | YooKassa only (Stars и CryptoBot исключены) |
+| Payments | YooKassa only (Stars и CryptoBot исключены в v4.3) |
 | Tax | ИП УСН 6% (выручка > 2.4 млн/год → не НПД) |
+| Admin UI | Mini App + Telegram Bot (v4.3) |
+| Feedback | Full system (user → admin → response) (v4.3) |
 
 ---
 
@@ -149,7 +178,7 @@ class PlatformAccount(Base):
     updated_at:          datetime
 ```
 
-### PayoutRequest — обновлённая (v4.2)
+### PayoutRequest — обновлённая (v4.2/v4.3)
 
 ```python
 # Новые поля (добавить миграцией):
@@ -157,6 +186,9 @@ gross_amount: Decimal  # запрошено владельцем
 fee_amount:   Decimal  # gross × 0.015
 net_amount:   Decimal  # gross - fee (фактически перечисляется)
 tax_withheld: Decimal  # NULL (MVP Вариант A); post-MVP Вариант B
+
+# v4.3: Выплаты ручные — admin одобряет вручную через /admin панель
+# CryptoBot service удалён, payout_service.py Шаг 5 — ручная выплата
 ```
 
 **Механика:**
@@ -165,6 +197,7 @@ gross=10000 → fee=150 → net=9850
 UI: "Будет перечислено: 9 850 ₽ (комиссия платформы 1.5%)"
 earned_rub -= gross_amount
 platform.profit_accumulated += fee_amount  # сразу
+status = 'pending' → admin одобряет вручную → 'completed'
 ```
 
 ### PlacementRequest — новые поля
@@ -202,6 +235,146 @@ PAYOUT_FEE = "payout_fee"  # новый тип v4.2: 1.5% комиссия за 
 ```
 
 Удалены (не использовать): `SPEND`, `ADJUSTMENT`, `BONUS`, `WITHDRAWAL`.
+
+---
+
+## v4.3 New Database Models
+
+### LegalProfile (v4.3)
+
+```python
+class LegalProfile(Base):
+    __tablename__ = "legal_profiles"
+    id:                  int     # PK
+    user_id:             int     # FK → users.id (unique)
+    legal_status:        LegalStatus  # legal_entity, individual_entrepreneur, self_employed, individual
+    tax_regime:          TaxRegime | NULL  # usn, osno, npd, ndfl, patent
+    inn:                 str     # encrypted
+    kpp:                 str | NULL  # encrypted (для legal_entity)
+    company_name:        str | NULL  # encrypted
+    full_name:           str | NULL  # encrypted (для individual/self_employed)
+    passport_data:       str | NULL  # encrypted (для individual)
+    address:             str | NULL  # encrypted
+    phone:               str | NULL  # encrypted
+    email:               str | NULL  # encrypted
+    is_completed:        bool    # все обязательные поля заполнены
+    created_at:          datetime
+    updated_at:          datetime
+```
+
+**Shared Enums (Python ↔ TypeScript):**
+- `LegalStatus`: "legal_entity", "individual_entrepreneur", "self_employed", "individual"
+- `TaxRegime`: "osno", "usn", "usn_d", "usn_dr", "patent", "npd", "ndfl"
+
+### Contract (v4.3)
+
+```python
+class Contract(Base):
+    __tablename__ = "contracts"
+    id:                  int     # PK
+    user_id:             int     # FK → users.id
+    contract_type:       ContractType  # owner_service, advertiser_campaign, platform_rules, privacy_policy, tax_agreement
+    status:              ContractStatus  # draft, pending, signed, expired, cancelled
+    legal_profile_id:    int | NULL  # FK → legal_profiles.id
+    pdf_url:             str | NULL  # сгенерированный PDF
+    signed_at:           datetime | NULL
+    signature_method:    SignatureMethod | NULL  # button_accept, sms_code
+    ip_address:          str | NULL  # IP при подписании
+    created_at:          datetime
+    updated_at:          datetime
+```
+
+**Shared Enums:**
+- `ContractType`: "owner_service", "advertiser_campaign", "platform_rules", "privacy_policy", "tax_agreement"
+- `ContractStatus`: "draft", "pending", "signed", "expired", "cancelled"
+- `SignatureMethod`: "button_accept", "sms_code"
+
+### ContractSignature (v4.3)
+
+```python
+class ContractSignature(Base):
+    __tablename__ = "contract_signatures"
+    id:                  int     # PK
+    contract_id:         int     # FK → contracts.id
+    user_id:             int     # FK → users.id
+    signature_method:    SignatureMethod
+    sms_code:            str | NULL  # если sms_code
+    sms_code_sent_at:    datetime | NULL
+    signed_at:           datetime
+    ip_address:          str | NULL
+```
+
+### OrdRegistration (v4.3 — ОРД)
+
+```python
+class OrdStatus(str, Enum):
+    PENDING = "pending"
+    REGISTERED = "registered"
+    TOKEN_RECEIVED = "token_received"
+    REPORTED = "reported"
+    FAILED = "failed"
+
+class OrdRegistration(Base):
+    __tablename__ = "ord_registrations"
+    id:                  int     # PK
+    campaign_id:         int     # FK → campaigns.id (unique)
+    ord_status:          OrdStatus
+    ord_token:           str | NULL  # токен от ОРД
+    registered_at:       datetime | NULL
+    reported_at:         datetime | NULL
+    error_message:       str | NULL
+    created_at:          datetime
+    updated_at:          datetime
+```
+
+### AuditLog (v4.3)
+
+```python
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id:                  int     # PK
+    user_id:             int | NULL  # FK → users.id (кто сделал)
+    action:              str     # CREATE, UPDATE, DELETE, SIGN, etc.
+    entity_type:         str     # legal_profile, contract, placement, etc.
+    entity_id:           int | NULL
+    old_values:          JSON | NULL  # старые значения
+    new_values:          JSON | NULL  # новые значения
+    ip_address:          str | NULL
+    user_agent:          str | NULL
+    inn_hash:            str | NULL  # хэш ИНН для аудита
+    created_at:          datetime
+```
+
+### PublicationLog (v4.3)
+
+```python
+class PublicationLog(Base):
+    __tablename__ = "publication_logs"
+    id:                  int     # PK
+    placement_request_id: int    # FK → placement_requests.id
+    status:              str     # published, failed, deleted
+    message_id:          int | NULL
+    error_message:       str | NULL
+    published_at:        datetime | NULL
+    deleted_at:          datetime | NULL
+    created_at:          datetime
+```
+
+### ClickTracking (v4.3)
+
+```python
+class ClickTracking(Base):
+    __tablename__ = "click_tracking"
+    id:                  int     # PK
+    campaign_id:         int     # FK → campaigns.id
+    placement_request_id: int    # FK → placement_requests.id
+    original_url:        str
+    tracking_url:        str     # короткая ссылка для трекинга
+    click_count:         int     # количество кликов
+    unique_clicks:       int     # уникальные клики
+    last_clicked_at:     datetime | NULL
+    created_at:          datetime
+```
 
 ---
 
@@ -288,11 +461,16 @@ async def publish_placement(placement_id): ...
 
 @celery_app.task(queue="critical")
 async def delete_published_post(placement_id): ...
-    # except TelegramBadRequest: pass → status=COMPLETED
+    # unpin → delete → except TelegramBadRequest: pass → status=COMPLETED
+    # ESCROW-001: release_escrow() вызывается ТОЛЬКО здесь (после удаления)
 
 @celery_app.task(queue="critical")
 async def unpin_and_delete_post(placement_id): ...
     # unpin → delete → except TelegramBadRequest: pass
+
+@celery_app.task(queue="monitoring", max_retries=1)
+async def check_placement_sla(): ...
+    # Beat task каждые 5 мин → проверка SLA → dispute при нарушении
 ```
 
 ### MistralAIService
@@ -315,6 +493,43 @@ class TopupStates(StatesGroup):
     entering_amount  = State()  # ввод суммы
     confirming       = State()  # показ desired/fee/gross
     waiting_payment  = State()  # ожидание вебхука
+```
+
+### PayoutStates (v4.3)
+```python
+class PayoutStates(StatesGroup):
+    selecting_method = State()  # выбор метода (удалено в v4.3 — ручные)
+    entering_address = State()  # ввод реквизитов
+    confirming       = State()  # подтверждение
+```
+
+### ChannelOwnerStates (v4.3)
+```python
+class ChannelOwnerStates(StatesGroup):
+    entering_username = State()  # ввод @username канала
+    confirming_add    = State()  # подтверждение добавления
+```
+
+### FeedbackStates (v4.3)
+```python
+class FeedbackStates(StatesGroup):
+    entering_text = State()  # ввод текста обращения
+```
+
+### DisputeStates (v4.3)
+```python
+class DisputeStates(StatesGroup):
+    owner_explaining    = State()  # владелец объясняет
+    advertiser_commenting = State()  # рекламодатель комментирует
+    admin_reviewing     = State()  # админ рассматривает
+```
+
+### AdminStates (v4.3)
+```python
+class AdminStates(StatesGroup):
+    entering_broadcast    = State()  # ввод рассылки
+    reviewing_dispute     = State()  # просмотр диспута
+    entering_resolution   = State()  # ввод решения
 ```
 
 ### PlacementStates, ArbitrationStates, ChannelSettingsStates — без изменений
@@ -359,14 +574,39 @@ earned_rub: {earned_rub} ₽ (доступно к выводу)
 | Variable | Value / Source |
 |---|---|
 | `BOT_TOKEN` | Telegram BotFather |
+| `BOT_USERNAME` | @RekHarborBot |
 | `ADMIN_IDS` | `123456789,987654321` |
 | `DATABASE_URL` | `postgresql+asyncpg://...` |
+| `DATABASE_SYNC_URL` | `postgresql://...` (для sync операций) |
 | `REDIS_URL` | `redis://localhost:6379/0` |
+| `CELERY_BROKER_URL` | `redis://localhost:6379/0` |
 | `MISTRAL_API_KEY` | console.mistral.ai |
 | `AI_MODEL` | `mistral-medium-latest` |
+| `AI_TIMEOUT` | `60` (секунды) |
 | `YOOKASSA_SHOP_ID` | ЮKassa |
 | `YOOKASSA_SECRET_KEY` | ЮKassa |
 | `YOOKASSA_RETURN_URL` | `https://t.me/YOUR_BOT_USERNAME` |
+| `TELEGRAM_API_ID` | my.telegram.org |
+| `TELEGRAM_API_HASH` | my.telegram.org |
+| `TELEGRAM_SESSION_NAME` | `parser` |
+| `FIELD_ENCRYPTION_KEY` | Fernet key (для шифрования PII) |
+| `SEARCH_HASH_KEY` | Hash key (32 bytes, для поиска ИНН) |
+| `JWT_SECRET` | Secret key (для Mini App JWT) |
+| `JWT_ALGORITHM` | `HS256` |
+| `JWT_EXPIRE_HOURS` | `24` |
+| `SENTRY_DSN` | Sentry/GlitchTip DSN |
+| `SONAR_TOKEN` | SonarQube token |
+| `ENVIRONMENT` | `development` / `production` |
+| `DEBUG` | `true` / `false` |
+
+**Генерация ключей:**
+```bash
+# FIELD_ENCRYPTION_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# SEARCH_HASH_KEY, JWT_SECRET
+python -c "import secrets; print(secrets.token_hex(32))"
+```
 
 Не существует: `OPENROUTER_API_KEY`, `CRYPTOBOT_TOKEN`, `STARS_ENABLED`
 
@@ -418,6 +658,15 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 | `alembic/` в корне | `Config("alembic.ini")` с явным путём в run_migrations.py |
 | Зачисление gross вместо desired | `metadata["desired_balance"]` в webhook |
 | `PLAN_LIMITS['agency']` KeyError | Использовать `PLAN_LIMITS['business']` (НЕ 'agency') |
+| **`user.is_banned` AttributeError** | **Заменено на `not user.is_active` (v4.3)** |
+| **CryptoBot service import** | **Удалён, выплаты ручные (v4.3)** |
+| **B2B button в main_menu** | **Удалена (v4.3)** |
+| **Admin panel 404** | **Добавлен `is_admin` check в dependencies.py (v4.3)** |
+| **LegalProfile PII unencrypted** | **Использовать `field_encryption.py` для всех PII полей** |
+| **ORD token stored plain** | **ORD token — чувствительные данные, не логировать** |
+| **AuditLog missing inn_hash** | **inn_hash required для операций с legal_profile** |
+| **Contract PDF not generated** | **Генерировать PDF при создании contract** |
+| **ClickTracking URLs not unique** | **tracking_url должен быть уникальным (UUID)** |
 
 ---
 
@@ -430,40 +679,101 @@ src/bot/keyboards/advertiser/campaign_ai.py
 src/bot/keyboards/shared/main_menu.py
 src/bot/states/campaign_create.py
 src/db/migrations/versions/  ← только читать
+src/utils/telegram/llm_classifier.py  ← legacy, не используется
+src/utils/telegram/llm_classifier_prompt.py
+```
+
+**v4.3 Protected Files (DO NOT MODIFY):**
+```
+src/core/security/field_encryption.py  ← критично для PII
+src/api/middleware/audit_middleware.py  ← аудит безопасности
+src/api/middleware/log_sanitizer.py  ← санитизация логов
+src/db/models/audit_log.py  ← модель аудита
+src/db/models/legal_profile.py  ← юридические профили
+src/db/models/contract.py  ← договоры
+src/db/models/ord_registration.py  ← ОРД-регистрация
 ```
 
 ---
 
 ## Sprint Map
 
-| Спринт | Содержание | Зависит от |
-|--------|------------|-----------|
-| S-01 | Constants + Settings + Tariffs | — |
-| S-02 | DB Models (5 файлов + exceptions) | S-01 |
-| S-03 | Alembic Migrations (6 шт.) | S-02 |
-| S-04 | Repositories (platform_account + updates) | S-03 |
-| S-05 | BillingService v4.2 | S-04 |
-| S-06 | PayoutService v4.2 (velocity, fee) | S-04 |
-| S-07 | PublicationService + Celery tasks | S-05 |
-| S-08 | PlacementRequestService | S-05, S-06 |
-| S-09 | FSM States + Keyboards | S-01 |
-| S-10 | Handler: топап (двухшаговый) | S-05, S-09 |
-| S-11 | Handler: channel_settings (форматы) | S-08, S-09 |
-| S-12 | Handler: campaign creation (формат + цена) | S-08, S-09 |
-| S-13 | Cabinet + Admin dashboard | S-05, S-06 |
-| S-14 | Health-check API | S-04 |
-| S-15 | Tests | S-05..S-08 |
+| Спринт | Содержание | Зависит от | Статус |
+|--------|------------|-----------|--------|
+| S-01 | Constants + Settings + Tariffs | — | ✅ v4.3 |
+| S-02 | DB Models (5 файлов + exceptions) | S-01 | ✅ |
+| S-03 | Alembic Migrations (6 шт.) | S-02 | ✅ |
+| S-04 | Repositories (platform_account + updates) | S-03 | ✅ |
+| S-05 | BillingService v4.2 | S-04 | ✅ |
+| S-06 | PayoutService v4.3 (ручные выплаты) | S-04 | ✅ v4.3 |
+| S-07 | PublicationService + Celery tasks | S-05 | ✅ ESCROW-001 |
+| S-08 | PlacementRequestService | S-05, S-06 | ✅ |
+| S-09 | FSM States + Middlewares | S-01 | ✅ v4.3 (5 файлов + 2 middleware) |
+| S-10 | Handler: топап (двухшаговый) | S-05, S-09 | ✅ |
+| S-11 | Handler: channel_settings (форматы) | S-08, S-09 | ✅ |
+| S-12 | Handler: campaign creation (формат + цена) | S-08, S-09 | ✅ |
+| S-13 | Cabinet + Admin dashboard | S-05, S-06 | ✅ v4.3 (Mini App) |
+| S-14 | Health-check API | S-04 | ✅ |
+| S-15 | Tests | S-05..S-08 | ✅ 101 тест |
+| **S-16** | **Feedback система** | **S-13** | **✅ v4.3** |
+| **S-17** | **Admin Panel Mini App** | **S-13** | **✅ v4.3 (7 экранов)** |
+| **S-18** | **UX Fixes** | **S-13** | **✅ v4.3 (кнопки, бейджи, текст)** |
+| **S-19** | **is_banned → is_active** | **S-02** | **✅ v4.3 (critical fix)** |
+| **S-20** | **Legal Profiles + Contracts** | **S-02** | **✅ v4.3 (юр профили, договоры)** |
+| **S-21** | **ORD Registration** | **S-20** | **✅ v4.3 (ОРД-регистрация)** |
+| **S-22** | **Audit Log + Security** | **S-20** | **✅ v4.3 (аудит, шифрование)** |
+| **S-23** | **Referral Program** | **S-13** | **✅ v4.3 (рефералы)** |
+| **S-24** | **Video Support** | **S-13** | **✅ v4.3 (видео в кампаниях)** |
+| **S-25** | **Link Tracking** | **S-12** | **✅ v4.3 (трекинг кликов)** |
 
 ---
 
-## Refactoring Status
+## v4.3 Deliverables (17-18 марта 2026)
 
-| Этап | Статус |
-|------|--------|
-| 0 — Меню v3.0 | ✅ |
-| 1 — Модели + миграции | ✅ |
-| 2 — Репозитории + сервисы | ✅ |
-| 3–7 | 🔄 частично |
-| **v4.2 финансовая модель** | ❌ S-01 следующий |
+| Категория | Файлы | Статус |
+|-----------|-------|--------|
+| **Backend API** | feedback.py, admin.py (9 endpoints) | ✅ |
+| **Frontend UI** | 16 файлов (admin screens, feedback) | ✅ |
+| **Отчёты** | 20+ отчётов в docs/, reports/ | ✅ |
+| **Тесты** | 101 тест (все проходят) | ✅ |
+| **UX Fixes** | CSS modules (4 файла) | ✅ |
+| **Critical Fixes** | is_banned → is_active | ✅ |
+| **Legal Profiles** | legal_profile.py, contract.py, ord_registration.py | ✅ |
+| **Security** | audit_log.py, field_encryption.py, audit_middleware.py | ✅ |
+| **Mini App** | LegalProfileSetup.tsx, ContractList.tsx, OrdStatus.tsx | ✅ |
+| **Referral** | useReferralStats.ts, Referral.tsx | ✅ |
+| **Video** | VideoUploader.tsx, CampaignVideo.tsx | ✅ |
+| **Tracking** | click_tracking.py, link_tracking_service.py | ✅ |
+| **Documentation** | DOCUMENT_AUTOMATION_SPEC_v1.md (2084 строки) | ✅ |
 
-*RekHarborBot QWEN.md v4.2 | 12.03.2026*
+---
+
+## v4.3 Production Ready ✅
+
+**Статус:** Готов к продакшену (2 апреля 2026)
+
+**Достижения v4.3:**
+- ✅ 101 тест — все проходят
+- ✅ 20+ отчётов документации
+- ✅ Admin панель в Mini App (7 экранов, 9 endpoints)
+- ✅ Feedback система (пользователь → админ → ответ)
+- ✅ Critical fix: is_banned → is_active
+- ✅ UX fixes: кнопки, бейджи, текст
+- ✅ ESCROW-001: release_escrow() ТОЛЬКО после удаления поста
+- ✅ Выплаты ручные через admin (CryptoBot удалён)
+- ✅ B2B пакеты удалены
+- ✅ Ruff: 0 ошибок (SIM102/SIM103 исправлены)
+- ✅ Юридические профили (LegalProfile, Contract, ContractSignature)
+- ✅ ОРД-регистрация (OrdRegistration)
+- ✅ Аудит-лог (AuditLog) + Audit Middleware
+- ✅ Шифрование PII (Field Encryption)
+- ✅ GlitchTip + SonarQube + Gitleaks
+- ✅ Реферальная программа
+- ✅ Видео в кампаниях
+- ✅ Трекинг ссылок (ClickTracking)
+- ✅ Document Automation Spec v1.0
+
+*RekHarborBot QWEN.md v4.3 | 02.04.2026 (updated)*
+
+## Qwen Added Memories
+- Activate .venv virtual environment when working with the backend

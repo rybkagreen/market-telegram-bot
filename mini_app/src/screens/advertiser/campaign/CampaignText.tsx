@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StepIndicator, Button, Card, Notification, Skeleton } from '@/components/ui'
+import { StepIndicator, Button, Card, Notification, Skeleton, Toggle } from '@/components/ui'
 import { PLAN_INFO } from '@/lib/constants'
 import { useMe, useGenerateAdText } from '@/hooks/queries'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
@@ -15,6 +15,7 @@ export default function CampaignText() {
 
   const [activeTab, setActiveTab] = useState<Tab>('ai')
   const [aiPrompt, setAiPrompt] = useState('')
+  const [addVideo, setAddVideo] = useState(false)
 
   const { data: me } = useMe()
   const { mutate: generateAd, isPending: aiLoading, data: aiData } = useGenerateAdText()
@@ -123,13 +124,29 @@ export default function CampaignText() {
         </div>
       )}
 
+      <Toggle
+        label="Добавить видео"
+        checked={addVideo}
+        onChange={(v) => {
+          setAddVideo(v)
+          if (!v) {
+            store.setVideo(null)
+            store.setMediaType('none')
+          }
+        }}
+      />
+
       <Button
         variant="primary"
         fullWidth
         disabled={store.adText.length < 10}
         onClick={() => {
           store.nextStep()
-          navigate('/adv/campaigns/new/terms')
+          if (addVideo) {
+            navigate('/campaign/video')
+          } else {
+            navigate('/adv/campaigns/new/terms')
+          }
         }}
       >
         Далее →

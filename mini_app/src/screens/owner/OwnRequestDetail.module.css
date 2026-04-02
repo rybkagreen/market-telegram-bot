@@ -3,7 +3,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--rh-text-muted);
-  margin: var(--rh-space-4) 0 var(--rh-space-2);
+  margin: 0 0 var(--rh-space-2);
 }
 
 .infoRows {
@@ -120,7 +120,7 @@
 .hintWarning {
   font-size: var(--rh-text-xs);
   color: var(--rh-warning);
-  margin: 0 0 var(--rh-space-2);
+  margin: 0;
 }
 
 .rejectionReason {

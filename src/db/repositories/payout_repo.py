@@ -48,3 +48,12 @@ class PayoutRepository(BaseRepository[PayoutRequest]):
             .where(PayoutRequest.created_at > cutoff)
         )
         return result.scalar() or Decimal("0")
+
+    async def get_pending_sum(self) -> Decimal:
+        """Получить сумму gross_amount по ожидающим выплатам."""
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(PayoutRequest.gross_amount), Decimal("0"))).where(
+                PayoutRequest.status.in_([PayoutStatus.pending, PayoutStatus.processing])
+            )
+        )
+        return result.scalar_one() or Decimal("0")

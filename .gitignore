@@ -152,3 +152,22 @@ qr_login.png
 mini_app/*.tsbuildinfo
 mini_app/*.js
 mini_app/*.d.ts
+
+# ══════════════════════════════════════════════════════════════
+# SECURITY: Sensitive credentials & development files
+# ══════════════════════════════════════════════════════════════
+
+# SonarQube credentials (contains SONAR_TOKEN — DO NOT COMMIT)
+.env.sonar
+
+# Development scripts (utility scripts, not production code)
+scripts/
+
+# Working documentation (drafts, checklists, not final docs)
+docs/project_context_update/
+
+# Python cache in new directories
+src/tasks/__pycache__/
+src/api/middleware/__pycache__/
+src/core/security/__pycache__/
+src/db/seeds/__pycache__/

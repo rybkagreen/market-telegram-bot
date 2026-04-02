@@ -17,6 +17,9 @@ from src.db.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 router = Router()
 
+BACK_BTN = "🔙 Назад"
+FEEDBACK_NOT_FOUND = "❌ Feedback не найден"
+
 _STATUS_LABELS = {
     "new": "🆕 Новый",
     "in_progress": "🟡 В работе",
@@ -45,13 +48,13 @@ async def admin_feedback_list(callback: CallbackQuery, session: AsyncSession) ->
             text=f"{icon} Feedback #{fb.id}",
             callback_data=f"admin:feedback:{fb.id}",
         )
-    builder.button(text="🔙 Назад", callback_data="admin:panel")
+    builder.button(text=BACK_BTN, callback_data="admin:panel")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
-        f"📬 *Feedback пользователей*\n\n"
-        f"Новых: *{len(feedbacks)}*\n\n"
-        f"Последние 15:",
+        f"📬 *Feedback пользователей*\n\nНовых: *{len(feedbacks)}*\n\nПоследние 15:",
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )
@@ -66,15 +69,18 @@ async def admin_feedback_list(callback: CallbackQuery, session: AsyncSession) ->
 @router.callback_query(F.data.regexp(r"^admin:feedback:(\d+)$"), AdminFilter())
 async def admin_view_feedback(callback: CallbackQuery, session: AsyncSession) -> None:
     """Детали feedback для ответа."""
-    feedback_id = int(callback.data.split(":")[-1])
+    feedback_id = int((callback.data or "").split(":")[-1])
 
     feedback = await FeedbackRepository(session).get_by_id(feedback_id)
     if not feedback:
-        await callback.answer("❌ Feedback не найден", show_alert=True)
+        await callback.answer(FEEDBACK_NOT_FOUND, show_alert=True)
         return
 
     # Получаем данные пользователя
     user = await UserRepository(session).get_by_id(feedback.user_id)
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
     username = f"@{user.username}" if user.username else f"ID: {user.telegram_id}"
 
     status_label = _STATUS_LABELS.get(feedback.status, feedback.status)
@@ -116,9 +122,11 @@ async def admin_view_feedback(callback: CallbackQuery, session: AsyncSession) ->
             callback_data=f"admin:feedback:status:new:{feedback.id}",
         )
 
-    builder.button(text="🔙 Назад", callback_data="admin:feedback")
+    builder.button(text=BACK_BTN, callback_data="admin:feedback")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
         text,
         reply_markup=builder.as_markup(),
@@ -139,19 +147,20 @@ async def admin_start_respond(
     session: AsyncSession,
 ) -> None:
     """Начать ответ на feedback."""
-    feedback_id = int(callback.data.split(":")[-1])
+    feedback_id = int((callback.data or "").split(":")[-1])
 
     feedback = await FeedbackRepository(session).get_by_id(feedback_id)
     if not feedback:
-        await callback.answer("❌ Feedback не найден", show_alert=True)
+        await callback.answer(FEEDBACK_NOT_FOUND, show_alert=True)
         return
 
     await state.set_data({"feedback_id": feedback_id})
     await state.set_state(AdminFeedbackStates.waiting_for_response)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
-        f"✏️ *Ответ на feedback #{feedback_id}*\n\n"
-        f"Отправьте текст ответа:",
+        f"✏️ *Ответ на feedback #{feedback_id}*\n\nОтправьте текст ответа:",
         reply_markup=None,
         parse_mode="Markdown",
     )
@@ -173,8 +182,15 @@ async def admin_save_response(
         await state.clear()
         return
 
-    response_text = message.text
-    admin_user_id = message.from_user.id
+    response_text = message.text or ""
+    if message.from_user is None:
+        return
+    admin_db_user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
+    if admin_db_user is None:
+        await message.answer("❌ Ошибка: администратор не найден")
+        await state.clear()
+        return
+    admin_user_id = admin_db_user.id
 
     repo = FeedbackRepository(session)
     feedback = await repo.respond_to_feedback(
@@ -190,8 +206,7 @@ async def admin_save_response(
         return
 
     await message.answer(
-        f"✅ *Ответ сохранён!*\n\n"
-        f"Feedback #{feedback_id} помечен как решённый.",
+        f"✅ *Ответ сохранён!*\n\nFeedback #{feedback_id} помечен как решённый.",
         parse_mode="Markdown",
     )
 
@@ -199,7 +214,7 @@ async def admin_save_response(
 
     # Возвращаемся к списку
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 Назад", callback_data="admin:feedback")
+    builder.button(text=BACK_BTN, callback_data="admin:feedback")
     builder.adjust(1)
 
     await message.answer(
@@ -222,7 +237,7 @@ async def admin_change_status(
     session: AsyncSession,
 ) -> None:
     """Изменить статус feedback."""
-    parts = callback.data.split(":")
+    parts = (callback.data or "").split(":")
     new_status_str = parts[3]
     feedback_id = int(parts[4])
 
@@ -239,7 +254,7 @@ async def admin_change_status(
 
     feedback = await FeedbackRepository(session).get_by_id(feedback_id)
     if not feedback:
-        await callback.answer("❌ Feedback не найден", show_alert=True)
+        await callback.answer(FEEDBACK_NOT_FOUND, show_alert=True)
         return
 
     feedback.status = new_status

@@ -8,12 +8,13 @@ from typing import Annotated
 import jwt as pyjwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select as sa_select
+from sqlalchemy.orm import selectinload
 from telegram import Bot
 
 from src.api.auth_utils import decode_jwt_token
 from src.config.settings import settings
 from src.db.models.user import User
-from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,10 @@ async def get_current_user(
         ) from e
 
     async with async_session_factory() as session:
-        user = await UserRepository(session).get_by_id(user_id)
+        result = await session.execute(
+            sa_select(User).where(User.id == user_id).options(selectinload(User.legal_profile))
+        )
+        user = result.scalar_one_or_none()
 
     # ИЗМЕНЕНО (2026-03-17): is_banned → is_active (поле is_banned не существует в модели User)
     if not user or not user.is_active:
@@ -84,7 +88,12 @@ async def get_db_session():
         AsyncSession SQLAlchemy.
     """
     async with async_session_factory() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 # Type aliases для зависимостей
