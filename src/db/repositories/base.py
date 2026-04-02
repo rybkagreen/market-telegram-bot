@@ -45,6 +45,10 @@ class BaseRepository(Generic[T]):
 
         Returns:
             Запись или None, если не найдена.
+
+        WARNING: session.get() does NOT guarantee selectin loading of relationships
+        when the object is already in the identity map. If you need relationships
+        loaded, use session.execute(select(Model).options(selectinload(...))) instead.
         """
         return await self.session.get(self.model, id)
 

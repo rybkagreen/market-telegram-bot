@@ -4,22 +4,25 @@ from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.advertiser.placement import (
-    camp_confirm_kb,
     category_kb,
     channel_card_kb,
-    subcategory_kb,
     text_method_kb,
+    video_upload_keyboard,
 )
 from src.bot.states.placement import PlacementStates
 from src.bot.utils.safe_callback import safe_callback_edit
+from src.constants.payments import OWNER_SHARE, PLATFORM_COMMISSION
+from src.db.repositories.category_repo import CategoryRepo
 from src.db.repositories.user_repo import UserRepository
 
 router = Router()
+
+REQUEST_NOT_FOUND = "❌ Заявка не найдена"
 
 FORMATS = {
     "post_24h": {
@@ -75,46 +78,58 @@ STATUS_LABELS = {
 
 
 @router.callback_query(lambda c: c.data == "main:create_campaign")
-async def camp_start(callback: CallbackQuery, state: FSMContext) -> None:
+async def camp_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Начать создание кампании."""
+    if not isinstance(callback.message, Message):
+        return
     await state.set_state(PlacementStates.selecting_category)
+    categories = await CategoryRepo(session).get_all_active()
     await callback.answer("Создание кампании")
-    await callback.message.answer("📋 Выберите категорию:", reply_markup=category_kb())
+    await callback.message.answer("📋 Выберите категорию:", reply_markup=category_kb(categories))
 
 
 @router.callback_query(lambda c: c.data.startswith("camp:cat:"))
 async def camp_step1_category(callback: CallbackQuery, state: FSMContext) -> None:
-    """Шаг 1: Выбор категории."""
-    category = callback.data.split(":")[-1]
+    """Шаг 1: Выбор категории → сразу к выбору каналов."""
+    category = (callback.data or "").split(":")[-1]
     await state.update_data(category=category)
-    await state.set_state(PlacementStates.selecting_subcategory)
-    await safe_callback_edit(callback, "Выберите подкатегорию:", reply_markup=subcategory_kb(category))
-
-
-@router.callback_query(lambda c: c.data in ["camp:subcat:skip", "camp:subcat:"])
-async def camp_step2_subcategory(callback: CallbackQuery, state: FSMContext) -> None:
-    """Шаг 2: Выбор подкатегории (или пропуск)."""
     await state.set_state(PlacementStates.selecting_channels)
-    await callback.message.answer("📢 Выберите каналы:", reply_markup=channel_card_kb(1, False, 0))
+    await safe_callback_edit(
+        callback, "📢 Выберите каналы:", reply_markup=channel_card_kb(1, False, 0)
+    )
+
+
+@router.callback_query(F.data == "camp:back:category", PlacementStates.selecting_channels)
+async def camp_back_to_category(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
+    """Вернуться к выбору категории."""
+    await state.set_state(PlacementStates.selecting_category)
+    categories = await CategoryRepo(session).get_all_active()
+    await safe_callback_edit(
+        callback, "📋 Выберите категорию:", reply_markup=category_kb(categories)
+    )
 
 
 @router.callback_query(lambda c: c.data.startswith("camp:channel:"))
-async def camp_step3_channels(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_step3_channels(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Шаг 3: Выбор каналов. Self-dealing check: exclude channel.owner_id == user.id"""
-    user_id = callback.from_user.id
-    value = callback.data.split(":")[-1]
+    value = (callback.data or "").split(":")[-1]
     if value == "skip":
         await state.set_state(PlacementStates.selecting_channels)
         await callback.answer()
         return
     channel_id = int(value)
 
-    # Self-dealing prevention: check channel owner
+    # Self-dealing prevention: check channel owner (owner_id is FK to users.id, not telegram_id)
     from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 
     channel = await TelegramChatRepository(session).get_by_id(channel_id)
+    db_user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
-    if channel and channel.owner_id == user_id:
+    if channel is not None and db_user is not None and channel.owner_id == db_user.id:
         await callback.answer("❌ Нельзя размещать рекламу на собственном канале", show_alert=True)
         return
 
@@ -124,8 +139,13 @@ async def camp_step3_channels(callback: CallbackQuery, state: FSMContext, sessio
 
 # ISSUE #8: Handler camp:channels:done
 @router.callback_query(F.data == "camp:channels:done", PlacementStates.selecting_channels)
-async def camp_select_format(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_select_format(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Шаг 4: Выбор формата публикации после подтверждения каналов."""
+    if not isinstance(callback.message, Message):
+        return
+
     from src.db.models.channel_settings import ChannelSettings
     from src.db.models.telegram_chat import TelegramChat
 
@@ -137,6 +157,9 @@ async def camp_select_format(callback: CallbackQuery, state: FSMContext, session
         return
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
 
     channels = []
     settings_map = {}
@@ -154,22 +177,28 @@ async def camp_select_format(callback: CallbackQuery, state: FSMContext, session
     breakdown_lines = []
 
     for fmt_key, fmt_info in FORMATS.items():
-        if user.plan not in fmt_info["plans"]:
+        plans: list[str] = fmt_info["plans"]  # type: ignore[assignment]
+        allow_key: str = fmt_info["allow_key"]  # type: ignore[assignment]
+        if user.plan not in plans:
             continue
         all_allow = all(
-            getattr(settings_map.get(ch.id), fmt_info["allow_key"], False)
+            getattr(s, allow_key, False)
             for ch in channels
-            if settings_map.get(ch.id)
+            for s in (settings_map.get(ch.id),)
+            if s is not None
         )
         if not all_allow:
             continue
         total = sum(
-            Decimal(str(settings_map[ch.id].price_per_post)) * Decimal(str(fmt_info["multiplier"]))
+            Decimal(str(s.price_per_post)) * Decimal(str(fmt_info["multiplier"]))
             for ch in channels
-            if settings_map.get(ch.id)
+            for s in (settings_map.get(ch.id),)
+            if s is not None
         )
         format_prices[fmt_key] = total
-        builder.button(text=f"{fmt_info['name']} — {total:.0f} ₽", callback_data=f"camp:format:{fmt_key}")
+        builder.button(
+            text=f"{fmt_info['name']} — {total:.0f} ₽", callback_data=f"camp:format:{fmt_key}"
+        )
         breakdown_lines.append(f"• {fmt_info['name']}: {total:.0f} ₽")
 
     builder.button(text="🔙 Назад", callback_data="camp:back:channels")
@@ -193,7 +222,9 @@ async def camp_select_format(callback: CallbackQuery, state: FSMContext, session
 @router.callback_query(lambda c: c.data.startswith("camp:format:"))
 async def camp_step4_format(callback: CallbackQuery, state: FSMContext) -> None:
     """Шаг 4: Выбор формата."""
-    fmt = callback.data.split(":")[-1]
+    if not isinstance(callback.message, Message):
+        return
+    fmt = (callback.data or "").split(":")[-1]
     await state.update_data(format=fmt)
     await state.set_state(PlacementStates.entering_text)
     await callback.message.answer("📝 Введите текст:", reply_markup=text_method_kb("free", 0))
@@ -201,47 +232,100 @@ async def camp_step4_format(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(lambda c: c.data.startswith("camp:text:"))
 async def camp_step5_text(callback: CallbackQuery, state: FSMContext) -> None:
-    """Шаг 5: Ввод текста."""
+    """Шаг 5: Ввод текста → предложение добавить видео."""
+    if not isinstance(callback.message, Message):
+        return
     await state.update_data(text="sample")
-    await state.set_state(PlacementStates.waiting_response)
-    await callback.message.answer("✅ Подтвердите кампанию:", reply_markup=camp_confirm_kb())
+    # Offer video upload (S3 addition)
+    await callback.message.answer(
+        "Хотите добавить видео к рекламному посту? (опционально)",
+        reply_markup=video_upload_keyboard(),
+    )
 
 
 @router.callback_query(lambda c: c.data == "camp:submit")
-async def camp_step6_submit(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_step6_submit(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Шаг 6: Отправка кампании."""
-    await state.get_data()
-    await state.set_state(PlacementStates.arbitrating)
-    # TODO: Create PlacementRequest
+    from src.bot.handlers.shared.notifications import notify_owner_new_request
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.models.user import User
+    from src.db.repositories.placement_request_repo import PlacementRequestRepository
+
+    data = await state.get_data()
+
+    selected_channels = data.get("selected_channels", [])
+    if not selected_channels:
+        await callback.answer("❌ Не выбран канал", show_alert=True)
+        return
+
+    channel_id = selected_channels[0]
+    fmt = data.get("format", "post_24h")
+    format_prices = data.get("format_prices", {})
+    proposed_price = Decimal(format_prices.get(fmt, "0"))
+    ad_text = data.get("text", "")
+
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    placement = await PlacementRequestRepository(session).create_placement(
+        advertiser_id=user.id,
+        channel_id=channel_id,
+        proposed_price=proposed_price,
+        final_text=ad_text,
+        publication_format=fmt,
+    )
+    await session.commit()
+
+    channel = await session.get(TelegramChat, channel_id)
+    if channel:
+        owner = await session.get(User, channel.owner_id)
+        if owner:
+            if callback.bot is None:
+                return
+            await notify_owner_new_request(callback.bot, owner.telegram_id, placement.id)
+
     await state.clear()
-    await callback.answer("Кампания создана! Ожидайте подтверждения.", show_alert=True)
+    await callback.answer(
+        f"✅ Заявка #{placement.id} создана! Ожидайте подтверждения.", show_alert=True
+    )
 
 
 # ISSUE #9: Handler camp:pay:{request_id} — экран оплаты
 @router.callback_query(F.data.startswith("camp:pay:") & ~F.data.startswith("camp:pay:balance:"))
 async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать экран оплаты для заявки."""
+    if not isinstance(callback.message, Message):
+        return
+
     from src.db.models.placement_request import PlacementRequest
     from src.db.models.telegram_chat import TelegramChat
 
-    request_id = int(callback.data.split(":")[-1])
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
-        await callback.answer("❌ Заявка не найдена", show_alert=True)
+        await callback.answer(REQUEST_NOT_FOUND, show_alert=True)
         return
 
     channel = await session.get(TelegramChat, req.channel_id)
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
     price = req.final_price or req.proposed_price
-    owner_amount = price * Decimal("0.85")
-    platform_amount = price * Decimal("0.15")
+    owner_amount = price * OWNER_SHARE
+    platform_amount = price * PLATFORM_COMMISSION
 
     fmt_name = FORMAT_NAMES.get(
-        req.publication_format.value if hasattr(req.publication_format, "value") else str(req.publication_format),
+        req.publication_format.value
+        if hasattr(req.publication_format, "value")
+        else str(req.publication_format),
         str(req.publication_format),
     )
-    schedule = req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
+    schedule = (
+        req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
+    )
 
     builder = InlineKeyboardBuilder()
     if user and user.balance_rub >= price:
@@ -277,16 +361,19 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("camp:pay:balance:"))
 async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> None:
     """Оплатить заявку с баланса и заморозить эскроу."""
+    if not isinstance(callback.message, Message):
+        return
+
     import logging
 
     from src.core.services.billing_service import BillingService
     from src.db.models.placement_request import PlacementRequest, PlacementStatus
     from src.db.models.telegram_chat import TelegramChat
 
-    request_id = int(callback.data.split(":")[-1])
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
-        await callback.answer("❌ Заявка не найдена", show_alert=True)
+        await callback.answer(REQUEST_NOT_FOUND, show_alert=True)
         return
     if req.status != PlacementStatus.pending_payment:
         await callback.answer("❌ Заявка уже обработана", show_alert=True)
@@ -317,14 +404,36 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
         return
 
     req.status = PlacementStatus.escrow
+
+    # --- ORD auto-trigger (S7 addition) ---
+    try:
+        from src.core.services.ord_service import OrdService
+
+        ord_svc = OrdService(session)
+        await ord_svc.register_creative(
+            placement_request_id=req.id,
+            ad_text=req.ad_text or "",
+            media_type=req.media_type or "none",
+        )
+    except Exception as _ord_exc:
+        logging.getLogger(__name__).warning(
+            f"ORD auto-trigger failed for placement {req.id}: {_ord_exc}"
+        )
+        # Never block escrow transition
+    # --- end ORD auto-trigger ---
+
     await session.commit()
 
     channel = await session.get(TelegramChat, req.channel_id)
-    schedule = req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
+    schedule = (
+        req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
+    )
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Отслеживать статус", callback_data=f"camp:status:{request_id}")
-    builder.button(text="❌ Отменить (возврат 50%)", callback_data=f"camp:cancel_after_escrow:{request_id}")
+    builder.button(
+        text="❌ Отменить (возврат 50%)", callback_data=f"camp:cancel_after_escrow:{request_id}"
+    )
     builder.adjust(1)
 
     channel_name = f"@{channel.username}" if channel and channel.username else "канал"
@@ -345,13 +454,16 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
 @router.callback_query(F.data.startswith("camp:status:"))
 async def camp_status(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать статус заявки."""
+    if not isinstance(callback.message, Message):
+        return
+
     from src.db.models.placement_request import PlacementRequest
     from src.db.models.telegram_chat import TelegramChat
 
-    request_id = int(callback.data.split(":")[-1])
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
-        await callback.answer("❌ Заявка не найдена", show_alert=True)
+        await callback.answer(REQUEST_NOT_FOUND, show_alert=True)
         return
 
     channel = await session.get(TelegramChat, req.channel_id)
@@ -362,7 +474,9 @@ async def camp_status(callback: CallbackQuery, session: AsyncSession) -> None:
 
     builder = InlineKeyboardBuilder()
     if status_val == "escrow":
-        builder.button(text="❌ Отменить (возврат 50%)", callback_data=f"camp:cancel_after_escrow:{request_id}")
+        builder.button(
+            text="❌ Отменить (возврат 50%)", callback_data=f"camp:cancel_after_escrow:{request_id}"
+        )
     builder.button(text="🔙 Мои кампании", callback_data="main:my_campaigns")
     builder.adjust(1)
 
@@ -383,12 +497,15 @@ async def camp_status(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("camp:cancel_after_escrow:"))
 async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSession) -> None:
     """Отменить заявку в статусе escrow (возврат 50%)."""
+    if not isinstance(callback.message, Message):
+        return
+
     import logging
 
     from src.core.services.billing_service import BillingService
     from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
-    request_id = int(callback.data.split(":")[-1])
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req or req.status != PlacementStatus.escrow:
         await callback.answer("❌ Невозможно отменить", show_alert=True)

@@ -5,7 +5,18 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -88,11 +99,29 @@ class PlacementRequest(Base, TimestampMixin):
     click_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Media
+    media_type: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="none", server_default="none", comment="MediaType: none/photo/video"
+    )
+    video_file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    video_thumbnail_file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    video_duration: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="seconds")
+
+    # Escrow
+    escrow_transaction_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=True, index=True)
+
+    # ORD
+    erid: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="ad marking token from ORD")
+
+    # Meta
+    meta_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+
     # Relationships
     advertiser: Mapped["User"] = relationship("User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser")
     owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id], back_populates="placement_requests_owner")
     channel: Mapped["TelegramChat"] = relationship("TelegramChat", back_populates="placement_requests")
-    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="placement_request")
+    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="placement_request", foreign_keys="[Transaction.placement_request_id]")
     reviews: Mapped[list["Review"]] = relationship("Review", back_populates="placement_request", cascade="all, delete-orphan")
     disputes: Mapped[list["PlacementDispute"]] = relationship("PlacementDispute", back_populates="placement_request", cascade="all, delete-orphan")
     reputation_history: Mapped[list["ReputationHistory"]] = relationship("ReputationHistory", back_populates="placement_request")

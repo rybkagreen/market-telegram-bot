@@ -20,8 +20,21 @@ export const useCreatePayout = () => {
       queryClient.invalidateQueries({ queryKey: ['user'] })
       addToast('success', 'Заявка на выплату создана')
     },
-    onError: () => {
-      addToast('error', 'Ошибка при создании заявки на выплату')
+    onError: (error: unknown) => {
+      // GAP-01: Velocity check error handling
+      const message = error instanceof Error ? error.message : String(error)
+      const responseDetail =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      const detail = responseDetail || message || ''
+      if (detail.toLowerCase().includes('velocity') || detail.includes('80%') || detail.includes('превышен лимит')) {
+        addToast('error', '⚠️ Превышен лимит вывода\n\nЗа последние 30 дней вы можете вывести не более 80% от суммы пополнений.')
+      } else if (detail.toLowerCase().includes('cooldown') || detail.includes('24 часа')) {
+        addToast('error', '⏱ Слишком частый вывод\n\nПовторите попытку через 24 часа после последней выплаты.')
+      } else {
+        addToast('error', 'Ошибка при создании заявки на выплату')
+      }
     },
   })
 }

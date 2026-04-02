@@ -81,3 +81,12 @@ export function getTopUpStatus(
 export function getPlans(): Promise<PlanDetail[]> {
   return api.get('billing/plans').json<PlanDetail[]>()
 }
+
+export interface BuyCreditsResponse {
+  credits_added: number
+  amount_rub: number
+}
+
+export function buyCredits(amountRub: number): Promise<BuyCreditsResponse> {
+  return api.post('billing/credits', { json: { desired_amount: amountRub } }).json<BuyCreditsResponse>()
+}

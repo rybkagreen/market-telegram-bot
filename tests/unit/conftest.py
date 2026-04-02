@@ -50,5 +50,5 @@ def mock_async_session_factory():
 @pytest.fixture(autouse=True)
 def mock_send_banner():
     """Mock send_banner_with_menu for all unit tests."""
-    with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
+    with patch("src.bot.handlers.shared.start.send_banner_with_menu", create=True):
         yield

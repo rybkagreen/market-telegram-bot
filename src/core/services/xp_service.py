@@ -23,6 +23,9 @@ from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 
+USER_NOT_FOUND = "User not found"
+UNKNOWN_STR = "Неизвестно"
+
 
 # Импортируем словари из cabinet.py для консистентности
 ADVERTISER_LEVEL_NAMES = {
@@ -150,7 +153,7 @@ class XPService:
         Returns:
             Название уровня.
         """
-        return LEVEL_NAMES.get(level, "Неизвестно")
+        return LEVEL_NAMES.get(level, UNKNOWN_STR)
 
     def get_level_discount(self, level: int) -> int:
         """
@@ -276,19 +279,19 @@ class XPService:
                 logger.error(f"User {user_id} not found")
                 return None
 
-            old_level = user.level
-            old_xp = user.xp_points
+            old_level = user.advertiser_level
+            old_xp = user.advertiser_xp
 
             # Добавляем XP
-            user.xp_points += amount
-            new_xp = user.xp_points
+            user.advertiser_xp += amount
+            new_xp = user.advertiser_xp
 
             # Проверяем повышение уровня
             new_level = self.get_level_for_xp(new_xp)
 
             level_up_event = None
             if new_level > old_level:
-                user.level = new_level
+                user.advertiser_level = new_level
                 level_up_event = LevelUpEvent(
                     user_id=user_id,
                     old_level=old_level,
@@ -347,10 +350,6 @@ class XPService:
                     f"({amount} XP for {reason})"
                 )
 
-            # Обновляем общий XP для обратной совместимости
-            user.xp_points = user.advertiser_xp + user.owner_xp
-            user.level = max(user.advertiser_level, user.owner_level)
-
             await session.flush()
             return (new_level, leveled_up)
 
@@ -395,10 +394,6 @@ class XPService:
                     f"({amount} XP for {reason})"
                 )
 
-            # Обновляем общий XP для обратной совместимости
-            user.xp_points = user.advertiser_xp + user.owner_xp
-            user.level = max(user.advertiser_level, user.owner_level)
-
             await session.flush()
             return (new_level, leveled_up)
 
@@ -418,21 +413,23 @@ class XPService:
         async with async_session_factory() as session:
             user = await session.get(User, user_id)
             if not user:
-                return {"error": "User not found"}
+                return {"error": USER_NOT_FOUND}
 
-            progress = self.get_progress_to_next_level(user.level, user.xp_points)
-            privileges = self.get_level_privileges(user.level)
+            combined_level = max(user.advertiser_level, user.owner_level)
+            combined_xp = user.advertiser_xp + user.owner_xp
+            progress = self.get_progress_to_next_level(combined_level, combined_xp)
+            privileges = self.get_level_privileges(combined_level)
 
             return {
                 "user_id": user_id,
-                "level": user.level,
-                "level_name": self.get_level_name(user.level),
-                "xp_points": user.xp_points,
+                "level": combined_level,
+                "level_name": self.get_level_name(combined_level),
+                "xp_points": combined_xp,
                 "progress": progress,
                 "privileges": privileges,
-                "total_spent": float(user.total_spent) if user.total_spent else 0,
-                "total_earned": float(user.total_earned) if user.total_earned else 0,
-                "streak_days": user.streak_days or 0,
+                "total_spent": float(getattr(user, 'total_spent', None) or 0),
+                "total_earned": float(getattr(user, 'total_earned', None) or 0),
+                "streak_days": getattr(user, 'streak_days', None) or 0,
             }
 
     # === Спринт 5: Раздельная статистика ===
@@ -452,7 +449,7 @@ class XPService:
         async with async_session_factory() as session:
             user = await session.get(User, user_id)
             if not user:
-                return {"error": "User not found"}
+                return {"error": USER_NOT_FOUND}
 
             progress = self.get_progress_to_next_level(
                 user.advertiser_level,
@@ -462,7 +459,7 @@ class XPService:
             return {
                 "user_id": user_id,
                 "level": user.advertiser_level,
-                "level_name": ADVERTISER_LEVEL_NAMES.get(user.advertiser_level, "Неизвестно"),
+                "level_name": ADVERTISER_LEVEL_NAMES.get(user.advertiser_level, UNKNOWN_STR),
                 "xp_points": user.advertiser_xp,
                 "progress": progress,
                 "privileges": self.get_level_privileges(user.advertiser_level),
@@ -483,7 +480,7 @@ class XPService:
         async with async_session_factory() as session:
             user = await session.get(User, user_id)
             if not user:
-                return {"error": "User not found"}
+                return {"error": USER_NOT_FOUND}
 
             progress = self.get_progress_to_next_level(
                 user.owner_level,
@@ -493,7 +490,7 @@ class XPService:
             return {
                 "user_id": user_id,
                 "level": user.owner_level,
-                "level_name": OWNER_LEVEL_NAMES.get(user.owner_level, "Неизвестно"),
+                "level_name": OWNER_LEVEL_NAMES.get(user.owner_level, UNKNOWN_STR),
                 "xp_points": user.owner_xp,
                 "progress": progress,
                 "privileges": self.get_level_privileges(user.owner_level),
@@ -546,10 +543,10 @@ class XPService:
             user = result.scalar_one_or_none()
 
             if not user:
-                return {"error": "User not found"}
+                return {"error": USER_NOT_FOUND}
 
             # Начисляем XP
-            user.xp_points += earned_bonus["xp"]  # type: ignore
+            user.advertiser_xp += earned_bonus["xp"]  # type: ignore
 
             # Начисляем кредиты
             user.credits += earned_bonus["credits"]  # type: ignore

@@ -25,7 +25,7 @@ export default function OwnChannelDetail() {
     haptic.warning()
     if (!numericId) return
     deleteMutation.mutate(numericId, {
-      onSuccess: () => navigate('/own/channels'),
+      onSuccess: () => { navigate('/own/channels') },
     })
   }
 
@@ -93,16 +93,14 @@ export default function OwnChannelDetail() {
         />
       )}
 
-      <div style={{ marginTop: 'var(--rh-space-4)' }}>
-        <Button
-          variant="danger"
-          fullWidth
-          onClick={handleDelete}
-          disabled={deleteMutation.isPending}
-        >
-          {deleteMutation.isPending ? '⏳ Удаление...' : '🗑 Удалить канал'}
-        </Button>
-      </div>
+      <Button
+        variant="danger"
+        fullWidth
+        onClick={handleDelete}
+        disabled={deleteMutation.isPending}
+      >
+        {deleteMutation.isPending ? '⏳ Удаление...' : '🗑 Удалить канал'}
+      </Button>
     </ScreenShell>
   )
 }

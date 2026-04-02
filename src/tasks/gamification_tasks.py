@@ -8,10 +8,59 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _is_streak_active(last_login_date: date, today: date, yesterday: date) -> bool:
+    """Возвращает True если стрик продолжается (вход сегодня)."""
+    return last_login_date in (today, yesterday) and (today - last_login_date).days == 0
+
+
+async def _process_streak_continue(user: Any, today: date, stats: dict[str, Any]) -> None:
+    """Обновить стрик если пользователь активен сегодня."""
+    if user.updated_at and user.updated_at.date() == today:
+        return  # Уже обновили сегодня
+
+    user.login_streak_days = (user.login_streak_days or 0) + 1
+
+    if user.login_streak_days > user.max_streak_days:
+        user.max_streak_days = user.login_streak_days
+
+    stats["streaks_updated"] += 1
+
+    user.xp_points += 10
+    stats["xp_awarded"] += 10
+
+    # TASK 8.8: Проверяем бонусы за стрик (7, 14, 30, 100 дней)
+    if user.login_streak_days % 7 == 0:
+        from src.core.services.xp_service import xp_service
+
+        await xp_service.award_streak_bonus(user.id, user.login_streak_days)
+
+
+def _process_streak_reset(user: Any, stats: dict[str, Any]) -> None:
+    """Сбросить стрик если пользователь пропустил день."""
+    if user.login_streak_days > 0:
+        user.login_streak_days = 0
+        stats["streaks_reset"] += 1
+
+
+async def _update_user_streak(
+    user: Any, today: date, yesterday: date, stats: dict[str, Any]
+) -> None:
+    """Обработать стрик одного пользователя."""
+    if user.last_login_at is None:
+        return
+
+    last_login_date = user.last_login_at.date()
+
+    if _is_streak_active(last_login_date, today, yesterday):
+        await _process_streak_continue(user, today, stats)
+    else:
+        _process_streak_reset(user, stats)
 
 
 @celery_app.task(bind=True, base=BaseTask, name="gamification:update_streaks_daily")
@@ -43,7 +92,6 @@ def update_streaks_daily(self) -> dict[str, Any]:
         }
 
         async with async_session_factory() as session:
-            # Получаем всех активных пользователей
             stmt = select(User).where(User.is_active == True)  # noqa: E712
             result = await session.execute(stmt)
             users = list(result.scalars().all())
@@ -53,40 +101,7 @@ def update_streaks_daily(self) -> dict[str, Any]:
             yesterday = today - timedelta(days=1)
 
             for user in users:
-                # Проверяем последнюю активность через last_login_at
-                if user.last_login_at is None:
-                    # Пользователь никогда не заходил — пропускаем
-                    continue
-
-                last_login_date = user.last_login_at.date()
-
-                if last_login_date in (today, yesterday) and (today - last_login_date).days == 0:
-                    # Заходил сегодня — проверяем не обновили ли уже сегодня
-                    if user.updated_at and user.updated_at.date() == today:
-                        continue  # Уже обновили сегодня
-
-                    user.login_streak_days = (user.login_streak_days or 0) + 1
-
-                    # Обновляем max_streak_days
-                    if user.login_streak_days > user.max_streak_days:
-                        user.max_streak_days = user.login_streak_days
-
-                    stats["streaks_updated"] += 1
-
-                    # Начисляем XP за стрик (+10 XP за каждый день)
-                    user.xp_points += 10
-                    stats["xp_awarded"] += 10
-
-                    # TASK 8.8: Проверяем бонусы за стрик (7, 14, 30, 100 дней)
-                    if user.login_streak_days % 7 == 0:
-                        from src.core.services.xp_service import xp_service
-
-                        await xp_service.award_streak_bonus(user.id, user.login_streak_days)
-                else:
-                    # Пропустил день — сбрасываем стрик
-                    if user.login_streak_days > 0:
-                        user.login_streak_days = 0
-                        stats["streaks_reset"] += 1
+                await _update_user_streak(user, today, yesterday, stats)
 
             await session.commit()
 
@@ -99,12 +114,6 @@ def update_streaks_daily(self) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error updating streaks: {e}")
         return {"error": str(e)}
-
-    try:
-        return asyncio.run(_update_async())
-    except Exception as e:
-        logger.error(f"update_streaks_daily failed: {e}")
-        return {"status": "error", "error": str(e)}
 
 
 @celery_app.task(bind=True, base=BaseTask, name="gamification:send_weekly_digest")
@@ -239,15 +248,14 @@ async def _award_return_bonus(user_id: int) -> None:
         from src.db.repositories.transaction_repo import TransactionRepository
 
         transaction_repo = TransactionRepository(session)
-        await transaction_repo.create_transaction(
-            user_id=user_id,
-            amount=Decimal(50),
-            transaction_type=TransactionType.BONUS,
-            payment_id=None,
-            meta_json={
-                "type": "return_bonus",
+        await transaction_repo.create(
+            {
+                "user_id": user_id,
+                "amount": Decimal(50),
+                "type": TransactionType.bonus,
+                "reference_type": "return_bonus",
                 "description": "Бонус за возвращение после недели неактивности",
-            },
+            }
         )
 
 
@@ -360,7 +368,7 @@ def award_daily_login_bonus(self, user_id: int) -> dict[str, Any]:
                 "success": True,
                 "xp_awarded": 10,
                 "level_up": level_up is not None,
-                "streak_days": user.streak_days or 0,
+                "streak_days": user.login_streak_days or 0,
             }
 
     try:

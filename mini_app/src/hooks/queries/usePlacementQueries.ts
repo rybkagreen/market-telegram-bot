@@ -21,12 +21,13 @@ export const useMyPlacements = (params?: GetPlacementsParams) =>
     staleTime: 30_000,
   })
 
-export const usePlacement = (id: number | null) =>
+export const usePlacement = (id: number | null, options?: { refetchInterval?: number }) =>
   useQuery({
     queryKey: ['placements', id],
     queryFn: () => getPlacement(id!),
     enabled: !!id,
     staleTime: 30_000,
+    refetchInterval: options?.refetchInterval,
   })
 
 export const useCreatePlacement = () => {

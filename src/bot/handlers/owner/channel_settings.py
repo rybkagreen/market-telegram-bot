@@ -42,7 +42,9 @@ async def _get_or_create_settings(session: AsyncSession, channel_id: int) -> Cha
 @router.callback_query(F.data.regexp(r"^own:settings:\d+$"))
 async def show_settings(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать настройки канала."""
-    channel_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    channel_id = int((callback.data or "").split(":")[-1])
     ch = await session.get(TelegramChat, channel_id)
     settings = await _get_or_create_settings(session, channel_id)
 
@@ -55,7 +57,7 @@ async def show_settings(callback: CallbackQuery, session: AsyncSession) -> None:
     end = settings.publish_end_time.strftime("%H:%M") if settings.publish_end_time else "21:00"
     brk_str = (
         f"{settings.break_start_time.strftime('%H:%M')}–{settings.break_end_time.strftime('%H:%M')}"
-        if settings.break_start_time
+        if settings.break_start_time and settings.break_end_time
         else "нет"
     )
 
@@ -93,7 +95,9 @@ async def show_settings(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("own:settings:price:"))
 async def edit_price_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать редактирование цены."""
-    channel_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    channel_id = int((callback.data or "").split(":")[-1])
     await state.update_data(editing_channel_id=channel_id)
     await state.set_state(ChannelSettingsStates.editing_price)
 
@@ -110,7 +114,7 @@ async def edit_price_start(callback: CallbackQuery, state: FSMContext) -> None:
 async def edit_price_input(message: Message, state: FSMContext, session: AsyncSession) -> None:
     """Сохранить новую цену."""
     try:
-        price = Decimal(message.text.strip().replace(" ", ""))
+        price = Decimal((message.text or "").strip().replace(" ", ""))
         if price < 100:
             await message.answer("❌ Минимальная цена — 100 ₽")
             return
@@ -143,7 +147,9 @@ async def edit_price_input(message: Message, state: FSMContext, session: AsyncSe
 @router.callback_query(F.data.regexp(r"^own:settings:formats:\d+$"))
 async def edit_formats(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать экран редактирования форматов."""
-    channel_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    channel_id = int((callback.data or "").split(":")[-1])
     settings = await _get_or_create_settings(session, channel_id)
 
     builder = InlineKeyboardBuilder()
@@ -169,7 +175,7 @@ async def edit_formats(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("own:format:toggle:"))
 async def toggle_format(callback: CallbackQuery, session: AsyncSession) -> None:
     """Переключить формат и перерисовать экран."""
-    parts = callback.data.split(":")
+    parts = (callback.data or "").split(":")
     fmt_key = parts[3]
     channel_id = int(parts[4])
 
@@ -203,7 +209,7 @@ async def toggle_format(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("own:settings:autoaccept:"))
 async def toggle_autoaccept(callback: CallbackQuery, session: AsyncSession) -> None:
     """Переключить автоподтверждение."""
-    channel_id = int(callback.data.split(":")[-1])
+    channel_id = int((callback.data or "").split(":")[-1])
     settings = await session.get(ChannelSettings, channel_id)
     if not settings:
         await callback.answer("❌ Настройки не найдены", show_alert=True)
@@ -227,14 +233,16 @@ async def toggle_autoaccept(callback: CallbackQuery, session: AsyncSession) -> N
 @router.callback_query(F.data.regexp(r"^own:settings:schedule:\d+$"))
 async def edit_schedule(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Открыть форму редактирования расписания."""
-    channel_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    channel_id = int((callback.data or "").split(":")[-1])
     settings = await _get_or_create_settings(session, channel_id)
 
     start = settings.publish_start_time.strftime("%H:%M") if settings.publish_start_time else "09:00"
     end = settings.publish_end_time.strftime("%H:%M") if settings.publish_end_time else "21:00"
     brk = (
         f"{settings.break_start_time.strftime('%H:%M')}–{settings.break_end_time.strftime('%H:%M')}"
-        if settings.break_start_time
+        if settings.break_start_time and settings.break_end_time
         else "нет"
     )
 

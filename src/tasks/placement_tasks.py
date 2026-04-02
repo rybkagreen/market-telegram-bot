@@ -14,7 +14,7 @@ import asyncio
 import logging
 from typing import Any
 
-from redis.asyncio import Redis
+import redis as redis_sync
 
 from src.config.settings import settings
 from src.core.services.reputation_service import ReputationService
@@ -22,13 +22,13 @@ from src.db.models.placement_request import PlacementStatus
 from src.db.models.user import User
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
 
-# Redis клиент для дедупликации задач
-redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
+# Sync Redis для дедупликации задач
+redis_sync_client = redis_sync.from_url(settings.celery_broker_url, decode_responses=True)
 
 # =============================================================================
 # SLA КОНСТАНТЫ
@@ -103,10 +103,10 @@ def _check_dedup(task_name: str, placement_id: int) -> bool:
     task_key = f"placement_task:{task_name}:{placement_id}"
     ttl = DEDUP_TTL.get(task_name, 3600)
 
-    if redis_client.exists(task_key):
+    if redis_sync_client.exists(task_key):
         return True
 
-    redis_client.setex(task_key, ttl, task_key)
+    redis_sync_client.setex(task_key, ttl, task_key)
     return False
 
 
@@ -157,7 +157,9 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
 
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
-        expired_placements = await repo.get_expired_pending_owner()
+        from datetime import UTC, datetime
+        all_expired = await repo.get_expired(before=datetime.now(UTC))
+        expired_placements = [p for p in all_expired if p.status == PlacementStatus.pending_owner]
 
         stats["total_checked"] = len(expired_placements)
 
@@ -169,13 +171,14 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
                     continue
 
                 # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.FAILED)
+                await repo.update_status(placement.id, PlacementStatus.failed)
 
                 # Возврат средств (100%, ещё не в эскроу)
                 from src.core.services.billing_service import BillingService
 
                 billing_service = BillingService()
                 await billing_service.refund_failed_placement(
+                    session=session,
                     placement_id=placement.id,
                 )
 
@@ -185,7 +188,7 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
 
                     advertiser = await session.get(User, placement.advertiser_id)
                     owner = await session.get(
-                        User, placement.channel.owner_user_id if placement.channel else 0
+                        User, placement.channel.owner_id if placement.channel else 0
                     )
                     channel_username = (
                         placement.channel.username
@@ -253,7 +256,9 @@ async def _check_payment_sla_async() -> dict[str, Any]:
 
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
-        expired_placements = await repo.get_expired_pending_payment()
+        from datetime import UTC, datetime
+        all_expired = await repo.get_expired(before=datetime.now(UTC))
+        expired_placements = [p for p in all_expired if p.status == PlacementStatus.pending_payment]
 
         stats["total_checked"] = len(expired_placements)
 
@@ -265,7 +270,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
                     continue
 
                 # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.CANCELLED)
+                await repo.update_status(placement.id, PlacementStatus.cancelled)
 
                 # Штраф репутации
                 rep_service = ReputationService(session, ReputationRepo(session))
@@ -282,7 +287,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
                 )
 
                 await _notify_user(
-                    placement.channel.owner_user_id,
+                    placement.channel.owner_id,
                     f"ℹ️ Рекламодатель не оплатил заявку #{placement.id} вовремя.",
                 )
 
@@ -344,7 +349,18 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
 
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
-        expired_placements = await repo.get_expired_counter_offer()
+        from datetime import UTC, datetime
+
+        from sqlalchemy import select as _select
+
+        from src.db.models.placement_request import PlacementRequest
+        _expired_result = await session.execute(
+            _select(PlacementRequest).where(
+                PlacementRequest.status == PlacementStatus.counter_offer,
+                PlacementRequest.expires_at < datetime.now(UTC),
+            )
+        )
+        expired_placements = list(_expired_result.scalars().all())
 
         stats["total_checked"] = len(expired_placements)
 
@@ -356,13 +372,14 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
                     continue
 
                 # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.FAILED)
+                await repo.update_status(placement.id, PlacementStatus.failed)
 
                 # Возврат средств
                 from src.core.services.billing_service import BillingService
 
                 billing_service = BillingService()
                 await billing_service.refund_failed_placement(
+                    session=session,
                     placement_id=placement.id,
                 )
 
@@ -375,7 +392,7 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
                 )
 
                 await _notify_user(
-                    placement.channel.owner_user_id,
+                    placement.channel.owner_id,
                     f"⏱ Контр-предложение по заявке #{placement.id} не было принято вовремя.",
                 )
 
@@ -432,16 +449,12 @@ def publish_placement(self, placement_id: int) -> dict[str, Any]:
 
 
 async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация публикации."""
+    """Асинхронная реализация публикации через PublicationService."""
     from aiogram import Bot
 
-    from src.db.models.telegram_chat import TelegramChat
+    from src.core.services.publication_service import PublicationService
 
-    result = {
-        "success": False,
-        "status": "failed",
-        "message": "",
-    }
+    result: dict[str, Any] = {"success": False, "status": "failed", "message": ""}
 
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
@@ -451,95 +464,71 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = "Placement not found"
             return result
 
-        # Проверка статуса
-        if placement.status != PlacementStatus.ESCROW:
+        if placement.status != PlacementStatus.escrow:
             result["message"] = f"Invalid status: {placement.status}"
             return result
 
-        # Дедупликация
+        # Проверка по БД — защита от повторной публикации после перезапуска воркера.
+        # Redis-дедуп эфемерен; message_id в БД — единственный надёжный источник истины.
+        if placement.message_id:
+            logger.info(
+                f"Placement {placement_id} already published "
+                f"(message_id={placement.message_id}), skipping"
+            )
+            result["success"] = True
+            result["status"] = "already_published"
+            result["message"] = f"Already published, message_id={placement.message_id}"
+            return result
+
         if _check_dedup("publish_placement", placement_id):
             result["message"] = "Already being processed"
             return result
 
-        # Получаем канал
-        channel = await session.get(TelegramChat, placement.channel_id)
-        if not channel:
-            result["message"] = "Channel not found"
-            await repo.update_status(placement_id, PlacementStatus.FAILED)
-            return result
-
         bot = Bot(token=settings.bot_token)
+        pub_service = PublicationService()
 
         try:
-            # Отправляем пост
-            if placement.media_file_id:
-                await bot.send_photo(
-                    chat_id=channel.telegram_id,
-                    photo=placement.media_file_id,
-                    caption=placement.final_text,
-                    parse_mode="HTML",
-                )
-            else:
-                await bot.send_message(
-                    chat_id=channel.telegram_id,
-                    text=placement.final_text,
-                    parse_mode="HTML",
-                )
-
-            # Успех
-            await repo.update_status(placement_id, PlacementStatus.PUBLISHED)
+            # publish_placement сохраняет message_id отдельным коммитом (идемпотентность),
+            # затем flush для статуса — итоговый commit здесь
+            await pub_service.publish_placement(session=session, bot=bot, placement_id=placement_id)
+            await session.commit()
 
             # Репутация +1
-            rep_service = ReputationService(session, ReputationRepo(session))
-            await rep_service.on_publication(
-                advertiser_id=placement.advertiser_id,
-                owner_id=channel.owner_user_id,
-                placement_request_id=placement_id,
-            )
+            updated = await repo.get_by_id(placement_id)
+            if updated:
+                channel_id = updated.channel_id
+                from src.db.models.telegram_chat import TelegramChat
+                channel = await session.get(TelegramChat, channel_id)
+                rep_service = ReputationService(session, ReputationRepo(session))
+                await rep_service.on_publication(
+                    advertiser_id=placement.advertiser_id,
+                    owner_id=channel.owner_id if channel else placement.owner_id,
+                    placement_request_id=placement_id,
+                )
+                await session.commit()
 
-            # v4.3: Эскроу освобождается ТОЛЬКО в publication_service.delete_published_post()
-            # после фактического удаления поста (ESCROW-001). Не здесь.
-
-            # Уведомления
-            await _notify_user(
-                placement.advertiser_id,
-                f"✅ Пост опубликован в @{channel.username}!",
-            )
-
-            await _notify_user(
-                channel.owner_user_id,
-                "✅ Пост опубликован. Выплата будет начислена после удаления поста.",
-            )
+                await _notify_user(
+                    placement.advertiser_id,
+                    f"✅ Пост опубликован в @{channel.username if channel else '?'}!",
+                )
+                await _notify_user(
+                    placement.owner_id,
+                    "✅ Пост опубликован. Выплата будет начислена после удаления поста.",
+                )
 
             result["success"] = True
             result["status"] = "published"
             result["message"] = "Success"
 
         except Exception as e:
-            logger.error(f"Telegram error publishing placement {placement_id}: {e}")
-
-            # Ошибка публикации
-            await repo.update_status(placement_id, PlacementStatus.FAILED)
-
-            # Возврат 50%
-            from src.core.services.billing_service import BillingService
-
-            billing_service = BillingService()
-            await billing_service.refund_failed_placement(
-                placement_id=placement_id,
-            )
-
-            # Уведомления
+            logger.error(f"Error publishing placement {placement_id}: {e}")
+            await session.rollback()
+            await repo.update_status(placement_id, PlacementStatus.failed)
+            await session.commit()
             await _notify_user(
                 placement.advertiser_id,
                 f"❌ Ошибка публикации. Возврат {REFUND_AFTER_ESCROW_PCT}%.",
             )
-
-            await _notify_user(
-                channel.owner_user_id,
-                f"❌ Не удалось опубликовать пост #{placement_id}.",
-            )
-
             result["message"] = str(e)
 
         finally:
@@ -591,7 +580,7 @@ async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
             return {"error": "Placement not found"}
 
         # Проверка статуса
-        if placement.status != PlacementStatus.FAILED:
+        if placement.status != PlacementStatus.failed:
             return {"skipped": "Status is not failed"}
 
         # Проверка retry_count
@@ -605,12 +594,163 @@ async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
         placement.meta_json["retry_count"] = retry_count + 1
 
         # Восстанавливаем статус для повторной попытки
-        placement.status = PlacementStatus.ESCROW
+        placement.status = PlacementStatus.escrow
 
         await session.flush()
 
     # Вызываем публикацию
     return await _publish_placement_async(placement_id)
+
+
+# =============================================================================
+# T5b: CHECK PUBLISHED POSTS HEALTH (monitoring)
+# =============================================================================
+
+
+@celery_app.task(bind=True, base=BaseTask, name="placement:check_published_posts_health")
+def check_published_posts_health(self) -> dict[str, Any]:
+    """
+    Периодическая задача — проверить здоровье опубликованных постов.
+
+    Для каждого активного размещения (status='published'):
+    - Проверить что бот ещё является администратором канала
+    - Логировать bot_removed если права утеряны
+    - Логировать monitoring_ok если всё в порядке
+    - Логировать deleted_early если сообщение удалено раньше срока
+
+    Запускается Beat каждые 6 часов.
+
+    Returns:
+        Статистика проверок.
+    """
+    logger.info("Checking published posts health")
+
+    try:
+        stats = asyncio.run(_check_published_posts_health_async())
+        logger.info(f"Published posts health check completed: {stats}")
+        return stats
+    except Exception as e:
+        logger.error(f"Error checking published posts health: {e}")
+        return {"error": str(e)}
+
+
+async def _check_published_posts_health_async() -> dict[str, Any]:
+    """Асинхронная реализация проверки здоровья опубликованных постов."""
+    from datetime import UTC, datetime
+
+    from aiogram import Bot
+    from sqlalchemy import select
+
+    from src.db.models.placement_request import PlacementStatus
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.repositories.publication_log_repo import PublicationLogRepo
+
+    stats: dict[str, Any] = {
+        "checked": 0,
+        "monitoring_ok": 0,
+        "deleted_early": 0,
+        "bot_removed": 0,
+        "errors": 0,
+    }
+
+    bot = Bot(token=settings.bot_token)
+    try:
+        async with async_session_factory() as session:
+            from src.db.models.placement_request import PlacementRequest
+
+            now = datetime.now(UTC)
+            result = await session.execute(
+                select(PlacementRequest).where(
+                    PlacementRequest.status == PlacementStatus.published,
+                    PlacementRequest.scheduled_delete_at > now,
+                    PlacementRequest.message_id.isnot(None),
+                )
+            )
+            placements = list(result.scalars().all())
+            stats["checked"] = len(placements)
+
+            for placement in placements:
+                try:
+                    pub_log_repo = PublicationLogRepo(session)
+                    channel = await session.get(TelegramChat, placement.channel_id)
+                    if not channel or not channel.telegram_id:
+                        continue
+
+                    # Check bot is still admin
+                    try:
+                        member = await bot.get_chat_member(channel.telegram_id, bot.id)
+                        if member.status not in ("administrator", "creator"):
+                            await pub_log_repo.log_event(
+                                placement_id=placement.id,
+                                channel_id=channel.telegram_id,
+                                event_type="bot_removed",
+                                message_id=placement.message_id,
+                                extra={"member_status": member.status},
+                            )
+                            await session.commit()
+                            stats["bot_removed"] += 1
+                            continue
+                    except Exception as e:
+                        await pub_log_repo.log_event(
+                            placement_id=placement.id,
+                            channel_id=channel.telegram_id,
+                            event_type="bot_removed",
+                            message_id=placement.message_id,
+                            extra={"error": str(e)},
+                        )
+                        await session.commit()
+                        stats["bot_removed"] += 1
+                        continue
+
+                    # Check message still exists by trying to forward it
+                    message_exists = True
+                    if placement.message_id is None:
+                        continue
+                    try:
+                        await bot.forward_message(
+                            chat_id=bot.id,
+                            from_chat_id=channel.telegram_id,
+                            message_id=placement.message_id,
+                        )
+                    except Exception:
+                        message_exists = False
+
+                    if not message_exists:
+                        await pub_log_repo.log_event(
+                            placement_id=placement.id,
+                            channel_id=channel.telegram_id,
+                            event_type="deleted_early",
+                            message_id=placement.message_id,
+                            extra={
+                                "scheduled_end": (
+                                    placement.scheduled_delete_at.isoformat()
+                                    if placement.scheduled_delete_at
+                                    else None
+                                )
+                            },
+                        )
+                        stats["deleted_early"] += 1
+                    else:
+                        await pub_log_repo.log_event(
+                            placement_id=placement.id,
+                            channel_id=channel.telegram_id,
+                            event_type="monitoring_ok",
+                            message_id=placement.message_id,
+                        )
+                        stats["monitoring_ok"] += 1
+
+                    await session.commit()
+
+                except Exception as e:
+                    logger.error(
+                        f"Error checking health for placement {placement.id}: {e}"
+                    )
+                    stats["errors"] += 1
+
+    finally:
+        await bot.session.close()
+
+    return stats
 
 
 # =============================================================================

@@ -1,6 +1,6 @@
 """TransactionRepository for Transaction model operations."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -29,7 +29,7 @@ class TransactionRepository(BaseRepository[Transaction]):
 
     async def sum_topups_30d(self, user_id: int) -> Decimal:
         """Посчитать сумму топапов за 30 дней."""
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
         result = await self.session.execute(
             select(func.coalesce(func.sum(Transaction.amount), Decimal("0"))).where(
                 Transaction.user_id == user_id,
@@ -41,7 +41,7 @@ class TransactionRepository(BaseRepository[Transaction]):
 
     async def sum_payouts_30d(self, user_id: int) -> Decimal:
         """Посчитать сумму выплат за 30 дней."""
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
         result = await self.session.execute(
             select(func.coalesce(func.sum(Transaction.amount), Decimal("0"))).where(
                 Transaction.user_id == user_id,
@@ -56,4 +56,5 @@ class TransactionRepository(BaseRepository[Transaction]):
         txn = Transaction(**data)
         self.session.add(txn)
         await self.session.flush()
+        await self.session.refresh(txn)
         return txn

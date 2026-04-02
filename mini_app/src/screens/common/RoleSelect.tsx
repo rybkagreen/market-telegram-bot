@@ -10,6 +10,14 @@ export default function RoleSelect() {
   const { data: user } = useMe()
   const role = user?.current_role
 
+  const handleRoleNavigate = (path: string) => {
+    if (user && user.legal_profile_prompted_at === null) {
+      navigate('/legal-profile-prompt')
+    } else {
+      navigate(path)
+    }
+  }
+
   return (
     <ScreenShell>
       <p className={styles.sectionTitle}>Кем вы хотите работать?</p>
@@ -20,14 +28,14 @@ export default function RoleSelect() {
           iconBg="var(--rh-accent-muted)"
           title="Рекламодатель"
           subtitle="Размещаю рекламу в каналах"
-          onClick={() => navigate('/adv')}
+          onClick={() => handleRoleNavigate('/adv')}
         />
         <MenuButton
           icon="📺"
           iconBg="var(--rh-accent-2-muted)"
           title="Владелец канала"
           subtitle="Принимаю рекламу в своём канале"
-          onClick={() => navigate('/own')}
+          onClick={() => handleRoleNavigate('/own')}
         />
       </div>
 

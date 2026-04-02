@@ -73,7 +73,6 @@ class LinkTrackingService:
                     # Находим кампанию и обновляем
                     campaign = await session.get(Campaign, campaign_id)
                     if campaign:
-                        campaign.tracking_url = original_url
                         campaign.tracking_short_code = short_code
                         campaign.clicks_count = 0
                         await session.flush()
@@ -97,29 +96,29 @@ class LinkTrackingService:
         from sqlalchemy import select
         from sqlalchemy import update as sa_update
 
-        from src.db.models.campaign import Campaign
         from src.db.models.click_tracking import ClickTracking
+        from src.db.models.placement_request import PlacementRequest
 
         async with async_session_factory() as session:
-            # Находим кампанию по коду
-            stmt = select(Campaign).where(Campaign.tracking_short_code == short_code)
+            # Находим placement request по коду
+            stmt = select(PlacementRequest).where(PlacementRequest.tracking_short_code == short_code)
             result = await session.execute(stmt)
-            campaign = result.scalar_one_or_none()
+            placement = result.scalar_one_or_none()
 
-            if not campaign:
+            if not placement:
                 logger.warning(f"Short link not found: {short_code}")
                 return None
 
             # Инкрементим счётчик кликов
             await session.execute(
-                sa_update(Campaign)
-                .where(Campaign.id == campaign.id)
-                .values(clicks_count=Campaign.clicks_count + 1)
+                sa_update(PlacementRequest)
+                .where(PlacementRequest.id == placement.id)
+                .values(clicks_count=PlacementRequest.clicks_count + 1)
             )
 
             # Записать в ClickTracking для детальной аналитики
             click = ClickTracking(
-                placement_request_id=campaign.id,
+                placement_request_id=placement.id,
                 short_code=short_code,
                 clicked_at=datetime.now(UTC),
                 user_agent=None,  # Can be passed from request if needed
@@ -129,10 +128,10 @@ class LinkTrackingService:
             await session.flush()
 
             logger.info(
-                f"Tracked click for campaign {campaign.id}: {campaign.clicks_count + 1} total"
+                f"Tracked click for placement {placement.id}: {placement.clicks_count + 1} total"
             )
 
-            return campaign.tracking_url
+            return f"https://rekharbor.ru/t/{placement.tracking_short_code}" if placement.tracking_short_code else None
 
     async def get_link_stats(self, campaign_id: int) -> dict[str, Any]:
         """
@@ -162,7 +161,7 @@ class LinkTrackingService:
             return {
                 "clicks_count": campaign.clicks_count or 0,
                 "short_link": short_link,
-                "original_url": campaign.tracking_url,
+                "original_url": f"https://rekharbor.ru/t/{campaign.tracking_short_code}" if campaign.tracking_short_code else None,
             }
 
 

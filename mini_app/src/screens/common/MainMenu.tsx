@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { MenuButton, Notification } from '@/components/ui'
 import { useMe } from '@/hooks/queries'
@@ -18,9 +19,68 @@ const itemVariants = {
 export default function MainMenu() {
   const navigate = useNavigate()
   const { data: user } = useMe()
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+
+  const showLegalBanner =
+    !bannerDismissed &&
+    user?.has_legal_profile === false &&
+    user?.legal_profile_skipped_at !== null
 
   return (
     <ScreenShell>
+      <AnimatePresence>
+        {showLegalBanner && (
+          <motion.div
+            key="legal-banner"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              borderRadius: 'var(--rh-radius-md, 12px)',
+              background: 'var(--rh-warning-muted, rgba(251,191,36,0.12))',
+              border: '1px solid var(--rh-warning, rgba(251,191,36,0.3))',
+              marginBottom: 8,
+              fontSize: 'var(--rh-text-sm, 14px)',
+            }}
+          >
+            <span style={{ flex: 1 }}>
+              Заполните юридический профиль для работы с договорами
+            </span>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--rh-accent)',
+                fontWeight: 600,
+                padding: '4px 8px',
+                fontSize: 'var(--rh-text-xs, 12px)',
+              }}
+              onClick={() => navigate('/legal-profile')}
+            >
+              Заполнить
+            </button>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--rh-text-muted)',
+                padding: '4px',
+                fontSize: 16,
+              }}
+              onClick={() => setBannerDismissed(true)}
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Notification type="info">
         Привет, {user?.first_name ?? 'Гость'}! Выберите действие
       </Notification>

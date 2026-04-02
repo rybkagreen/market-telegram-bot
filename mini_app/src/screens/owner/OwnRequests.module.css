@@ -1,15 +1,25 @@
-.filters {
+.toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--rh-space-2);
-  overflow-x: auto;
-  padding-bottom: var(--rh-space-2);
   margin-bottom: var(--rh-space-3);
+  overflow-x: auto;
   scrollbar-width: none;
 }
 
-.filters::-webkit-scrollbar {
+.toolbar::-webkit-scrollbar {
   display: none;
 }
+
+.filters {
+  display: flex;
+  gap: var(--rh-space-2);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* Keep .filters for backwards compat if referenced standalone */
 
 .filterBtn {
   flex-shrink: 0;
@@ -57,6 +67,7 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--rh-space-2);
   padding: 0 var(--rh-space-1);
 }

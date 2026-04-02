@@ -48,6 +48,14 @@ _FORMAT_HOURS = {
 }
 
 
+def _compute_actual_hours(req: PlacementRequest) -> int:
+    """Return how many hours the post actually stayed live (0 if not determinable)."""
+    if req.published_at and req.deleted_at:
+        delta = req.deleted_at - req.published_at
+        return int(delta.total_seconds() / 3600)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # dispute:open:{placement_id}
 # ---------------------------------------------------------------------------
@@ -56,7 +64,7 @@ _FORMAT_HOURS = {
 @router.callback_query(F.data.regexp(r"^dispute:open:(\d+)$"))
 async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
     """Открыть спор по размещению."""
-    placement_id = int(callback.data.split(":")[-1])
+    placement_id = int((callback.data or "").split(":")[-1])
 
     req = await session.get(PlacementRequest, placement_id)
     if not req:
@@ -100,11 +108,7 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
     # Вычислить продолжительность
     fmt_val = req.publication_format.value if hasattr(req.publication_format, "value") else str(req.publication_format)
     paid_h = _FORMAT_HOURS.get(fmt_val, 24)
-    if req.published_at and req.deleted_at:
-        delta = req.deleted_at - req.published_at
-        actual_h = int(delta.total_seconds() / 3600)
-    else:
-        actual_h = 0
+    actual_h = _compute_actual_hours(req)
 
     # Уведомить владельца
     owner = await session.get(User, req.owner_id)
@@ -120,20 +124,23 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
 
     # Уведомить всех админов
     admins_result = await session.execute(select(User).where(User.is_admin == True))  # noqa: E712
-    for admin in admins_result.scalars().all():
-        with contextlib.suppress(Exception):
-            await notify_admin_new_dispute(
-                bot=callback.bot,
-                admin_telegram_id=admin.telegram_id,
-                dispute_id=dispute.id,
-                placement_id=placement_id,
-            )
+    if callback.bot:
+        for admin in admins_result.scalars().all():
+            with contextlib.suppress(Exception):
+                await notify_admin_new_dispute(
+                    bot=callback.bot,
+                    admin_telegram_id=admin.telegram_id,
+                    dispute_id=dispute.id,
+                    placement_id=placement_id,
+                )
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Детали спора", callback_data=f"dispute:detail:{dispute.id}")
     builder.button(text="💬 Написать администратору", callback_data="main:feedback")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
         f"⚠️ *Открыт спор по заявке #{placement_id}*\n\n"
         f"📺 Канал: @{channel.username if channel else '—'}\n"
@@ -156,7 +163,7 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.regexp(r"^dispute:detail:(\d+)$"))
 async def show_dispute_detail(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать детали спора."""
-    dispute_id = int(callback.data.split(":")[-1])
+    dispute_id = int((callback.data or "").split(":")[-1])
 
     dispute = await session.get(PlacementDispute, dispute_id)
     if not dispute:
@@ -193,6 +200,8 @@ async def show_dispute_detail(callback: CallbackQuery, session: AsyncSession) ->
     builder.button(text="🔙 Назад", callback_data="main:cabinet")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
     await callback.answer()
 
@@ -205,13 +214,15 @@ async def show_dispute_detail(callback: CallbackQuery, session: AsyncSession) ->
 @router.callback_query(F.data.regexp(r"^dispute:owner_explain:(\d+)$"))
 async def owner_explain_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать ввод объяснения владельца."""
-    dispute_id = int(callback.data.split(":")[-1])
+    dispute_id = int((callback.data or "").split(":")[-1])
     await state.update_data(explaining_dispute_id=dispute_id)
     await state.set_state(DisputeStates.owner_explaining)
 
     builder = InlineKeyboardBuilder()
     builder.button(text="❌ Отмена", callback_data=f"dispute:detail:{dispute_id}")
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
         "📝 *Объяснение ситуации*\n\n"
         "Опишите почему пост был удалён раньше срока.\n\n"
@@ -265,6 +276,8 @@ async def owner_explain_text(message: Message, state: FSMContext, session: Async
                 text="🔎 Рассмотреть спор",
                 callback_data=f"admin:dispute:{dispute_id}",
             )
+            if message.bot is None:
+                continue
             await message.bot.send_message(
                 chat_id=admin.telegram_id,
                 text=(

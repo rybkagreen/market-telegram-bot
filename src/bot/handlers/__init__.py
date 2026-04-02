@@ -16,8 +16,10 @@ from src.bot.handlers.owner.channel_settings import router as channel_settings_r
 from src.bot.handlers.payout.payout import router as payout_router
 from src.bot.handlers.placement.placement import router as placement_router
 from src.bot.handlers.shared.cabinet import router as cabinet_router
+from src.bot.handlers.shared.contract_signing import contract_signing_router
 from src.bot.handlers.shared.feedback import router as feedback_router
 from src.bot.handlers.shared.help import router as help_router
+from src.bot.handlers.shared.legal_profile import legal_profile_router
 from src.bot.handlers.shared.start import router as start_router
 
 main_router = Router()
@@ -27,6 +29,8 @@ main_router.include_router(start_router)
 main_router.include_router(cabinet_router)
 main_router.include_router(help_router)
 main_router.include_router(feedback_router)
+main_router.include_router(legal_profile_router)
+main_router.include_router(contract_signing_router)
 main_router.include_router(billing_router)
 main_router.include_router(payout_router)
 main_router.include_router(advertiser_analytics_router)

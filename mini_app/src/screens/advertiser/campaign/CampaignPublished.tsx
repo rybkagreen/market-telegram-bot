@@ -1,9 +1,8 @@
 import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Notification, Card, Button, Skeleton } from '@/components/ui'
+import { Notification, Card, Button, Skeleton, StatusPill } from '@/components/ui'
 import { formatCurrency, formatTime, formatDateTime } from '@/lib/formatters'
-import { useHaptic } from '@/hooks/useHaptic'
 import { usePlacement } from '@/hooks/queries'
 import styles from './CampaignPublished.module.css'
 
@@ -12,8 +11,6 @@ const PLATFORM_COMMISSION = 0.15
 export default function CampaignPublished() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const haptic = useHaptic()
-
   const numId = id ? parseInt(id, 10) : null
   const { data: placement, isLoading } = usePlacement(numId)
 
@@ -89,16 +86,32 @@ export default function CampaignPublished() {
         </div>
       </Card>
 
+      {placement.erid !== undefined && (
+        <div style={{ marginBottom: 8 }}>
+          <StatusPill status={placement.erid ? 'success' : 'warning'} size="sm">
+            {placement.erid ? `erid: ${placement.erid}` : 'erid: ожидается'}
+          </StatusPill>
+          {placement.erid && (
+            <p style={{ fontFamily: 'monospace', fontSize: 'var(--rh-text-xs, 12px)', margin: '4px 0 0', color: 'var(--rh-text-muted)' }}>
+              Токен маркировки: {placement.erid}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginBottom: 8 }}>
+        <Button variant="secondary" fullWidth onClick={() => navigate(`/adv/campaigns/${placement.id}/ord`)}>
+          Статус ORD →
+        </Button>
+      </div>
+
       <div className={styles.buttons}>
-        <Button
-          variant="primary"
-          fullWidth
-          onClick={() => {
-            haptic.success()
-            alert('Отзыв — Phase 12')
-          }}
-        >
-          ⭐ Оставить отзыв
+        <Button variant="primary" fullWidth onClick={() => navigate('/adv')}>
+          ← В меню рекламодателя
+        </Button>
+
+        <Button variant="secondary" fullWidth onClick={() => navigate('/adv/campaigns')}>
+          📋 Мои кампании
         </Button>
 
         <Button variant="secondary" fullWidth onClick={() => navigate('/adv/analytics')}>

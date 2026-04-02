@@ -12,6 +12,8 @@ router = Router()
 @router.callback_query(lambda c: c.data == "main:feedback")
 async def feedback_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать обратную связь."""
+    if not isinstance(callback.message, Message):
+        return
     await state.set_state(FeedbackStates.entering_text)
     await callback.answer("Отправьте ваше сообщение", show_alert=True)
     await callback.message.answer("📝 Напишите ваше сообщение и отправьте:")

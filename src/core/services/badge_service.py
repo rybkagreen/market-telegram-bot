@@ -103,7 +103,7 @@ class BadgeService:
 
         from src.db.models.badge import BadgeConditionType
         from src.db.models.campaign import Campaign
-        from src.db.models.placement_request import PlacementRequest, PlacementStatus
+        from src.db.models.placement_request import PlacementRequest
 
         condition = badge.condition_type
         value = badge.condition_value
@@ -112,17 +112,17 @@ class BadgeService:
             return False  # Только вручную
 
         if condition == BadgeConditionType.STREAK_DAYS:
-            return (user.streak_days or 0) >= value
+            return (getattr(user, 'streak_days', None) or 0) >= value
 
         if condition == BadgeConditionType.SPEND_AMOUNT:
-            return float(user.total_spent or 0) >= value
+            return float(getattr(user, 'total_spent', None) or 0) >= value
 
         if condition == BadgeConditionType.EARNED_AMOUNT:
-            return float(user.total_earned or 0) >= value
+            return float(getattr(user, 'total_earned', None) or 0) >= value
 
         # Campaigns count
         if condition == BadgeConditionType.CAMPAIGNS_COUNT:
-            stmt = select(func.count(Campaign.id)).where(Campaign.user_id == user.id)
+            stmt = select(func.count(Campaign.id)).where(Campaign.advertiser_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
 
@@ -191,7 +191,7 @@ class BadgeService:
 
             if user:
                 if badge.xp_reward > 0:
-                    user.xp_points += badge.xp_reward
+                    user.advertiser_xp += badge.xp_reward
                     rewards["xp"] = badge.xp_reward
 
                 if badge.credits_reward > 0:
@@ -423,7 +423,7 @@ class BadgeService:
 
         # Campaign count
         if achievement_type == "campaign_count":
-            stmt = select(func.count(Campaign.id)).where(Campaign.user_id == user.id)
+            stmt = select(func.count(Campaign.id)).where(Campaign.advertiser_id == user.id)
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
 
@@ -440,19 +440,19 @@ class BadgeService:
 
         # Streak days
         if achievement_type == "streak_days":
-            return (user.login_streak_days or 0) >= threshold
+            return (getattr(user, 'login_streak_days', None) or 0) >= threshold
 
         # XP level
         if achievement_type == "xp_level":
-            return user.level >= threshold
+            return max(user.advertiser_level, user.owner_level) >= threshold
 
         # Total spent
         if achievement_type == "total_spent":
-            return float(user.total_spent or 0) >= threshold
+            return float(getattr(user, 'total_spent', None) or 0) >= threshold
 
         # Total earned
         if achievement_type == "total_earned":
-            return float(user.total_earned or 0) >= threshold
+            return float(getattr(user, 'total_earned', None) or 0) >= threshold
 
         # Review count
         if achievement_type == "review_count":

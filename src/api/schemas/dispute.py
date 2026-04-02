@@ -59,15 +59,15 @@ class DisputeResponse(BaseModel):
     owner_id: int
     reason: DisputeReason
     status: DisputeStatus
-    owner_explanation: str | None
-    advertiser_comment: str | None
-    resolution: DisputeResolution | None
-    resolution_comment: str | None
-    admin_id: int | None
-    resolved_at: datetime | None
-    advertiser_refund_pct: float | None
-    owner_payout_pct: float | None
-    expires_at: datetime | None
+    owner_explanation: str | None = None
+    advertiser_comment: str | None = None
+    resolution: DisputeResolution | None = None
+    resolution_comment: str | None = None
+    admin_id: int | None = None
+    resolved_at: datetime | None = None
+    advertiser_refund_pct: float | None = None
+    owner_payout_pct: float | None = None
+    expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

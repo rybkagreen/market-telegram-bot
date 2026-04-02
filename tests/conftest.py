@@ -33,22 +33,14 @@ from src.db.repositories.reputation_repo import ReputationRepo
 # ────────────────────────────────────────────
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
-    """Использовать asyncio для всей сессии."""
-    return asyncio.DefaultEventLoopPolicy()
-
-
-@pytest_asyncio.fixture(scope="session")
-def event_loop(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoop:
-    """
-    Create an instance of the event loop for the test session.
-
-    This fixture has session scope to match test_engine scope.
-    """
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+@pytest.fixture
+def event_loop() -> asyncio.AbstractEventLoop:
+    """Function-scoped event loop — matches asyncio_default_fixture_loop_scope=function."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
+    asyncio.set_event_loop(None)
 
 
 # ────────────────────────────────────────────
@@ -72,16 +64,37 @@ def postgres_container() -> Any:
 
 @pytest_asyncio.fixture(scope="function")
 async def test_engine() -> Any:
-    """Движок для тестовой БД."""
-    engine = create_async_engine(
-        str(settings.database_url),
-        echo=False,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Движок для тестовой БД.
+
+    Если TEST_DATABASE_URL задан — создаёт/удаляет схему изолированно.
+    Если TEST_DATABASE_URL не задан — использует DATABASE_URL без drop_all
+    (схема уже существует от миграций, тесты работают с ней через rollback).
+    """
+    import warnings
+
+    use_test_db = settings.test_database_url is not None
+    db_url = str(settings.test_database_url if use_test_db else settings.database_url)
+
+    if not use_test_db:
+        warnings.warn(
+            "TEST_DATABASE_URL not set — using DATABASE_URL. "
+            "create_all/drop_all skipped; tests rely on existing schema + rollback.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    engine = create_async_engine(db_url, echo=False)
+
+    if use_test_db:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
     yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+
+    if use_test_db:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
     await engine.dispose()
 
 
@@ -170,6 +183,18 @@ async def mock_redis() -> Any:
 @pytest_asyncio.fixture
 async def api_client() -> AsyncGenerator[AsyncClient]:
     """HTTP клиент для тестирования FastAPI."""
+    from src.api.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def api_client_no_auth() -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент для тестирования FastAPI без авторизации (public endpoints)."""
     from src.api.main import app
 
     async with AsyncClient(

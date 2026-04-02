@@ -54,7 +54,7 @@ export default function DisputeResponse() {
     haptic.success()
     replyToDispute(
       { id: dispute.id, comment: ownerReply },
-      { onSuccess: () => navigate('/own/requests') },
+      { onSuccess: () => { navigate('/own/requests') } },
     )
   }
 

@@ -251,6 +251,41 @@ class ContentFilter:
             flagged_fragments=list(set(flagged))[:10],
         )
 
+    def _normalize_words(self, words: list[str]) -> list[str]:
+        """Return the normal (lemma) form of each word using pymorphy3."""
+        normalized: list[str] = []
+        for word in words:
+            try:
+                parsed = self._morph.parse(word)[0]  # type: ignore[union-attr]
+                normalized.append(parsed.normal_form)
+            except Exception:
+                normalized.append(word)
+        return normalized
+
+    def _morph_category_matches(
+        self,
+        words: list[str],
+        normalized_words: list[str],
+    ) -> tuple[list[str], list[str]]:
+        """
+        Match normalized words against stopword categories.
+
+        Returns (categories, flagged_words).
+        """
+        categories: list[str] = []
+        flagged: list[str] = []
+        for category, stopwords in self._stopwords.items():
+            category_matches: list[str] = []
+            for i, norm_word in enumerate(normalized_words):
+                for stopword in stopwords:
+                    if norm_word == stopword or (len(stopword) > 3 and stopword in norm_word):
+                        category_matches.append(words[i])
+                        break
+            if category_matches:
+                categories.append(category)
+                flagged.extend(category_matches[:3])
+        return categories, flagged
+
     def _morph_check(self, text: str) -> FilterResult:
         """
         Уровень 2: Проверка с нормализацией словоформ.
@@ -264,38 +299,10 @@ class ContentFilter:
         if not MORPH_AVAILABLE or self._morph is None:
             return FilterResult(passed=True, score=0.0)
 
-        categories: list[str] = []
-        flagged: list[str] = []
-
-        # Токенизируем текст
         words = re.findall(r"\w+", text.lower())
+        normalized_words = self._normalize_words(words)
+        categories, flagged = self._morph_category_matches(words, normalized_words)
 
-        # Нормализуем каждое слово
-        normalized_words = []
-        for word in words:
-            try:
-                parsed = self._morph.parse(word)[0]
-                normalized = parsed.normal_form
-                normalized_words.append(normalized)
-            except Exception:
-                normalized_words.append(word)
-
-        # Проверяем нормализованные слова против стоп-слов
-        for category, stopwords in self._stopwords.items():
-            category_matches = []
-
-            for i, norm_word in enumerate(normalized_words):
-                for stopword in stopwords:
-                    # Проверяем точное совпадение или частичное
-                    if norm_word == stopword or (len(stopword) > 3 and stopword in norm_word):
-                        category_matches.append(words[i])
-                        break
-
-            if category_matches:
-                categories.append(category)
-                flagged.extend(category_matches[:3])
-
-        # Вычисляем score
         score = min(1.0, len(categories) * 0.2 + len(flagged) * 0.05)
 
         return FilterResult(

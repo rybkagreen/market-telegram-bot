@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
 
 from sqlalchemy import func, select
 
@@ -28,6 +27,7 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         )
         self.session.add(feedback)
         await self.session.flush()
+        await self.session.refresh(feedback)
         return feedback
 
     async def get_by_user_id(
@@ -77,6 +77,7 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         feedback.responded_at = datetime.now(UTC)
 
         await self.session.flush()
+        await self.session.refresh(feedback)
         return feedback
 
     async def count_by_user(self, user_id: int) -> int:

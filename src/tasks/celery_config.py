@@ -8,127 +8,152 @@ from typing import Any
 from celery.schedules import crontab
 
 # =============================================================================
+# QUEUE NAME CONSTANTS
+# =============================================================================
+
+QUEUE_MAILING = "mailing"
+QUEUE_PARSER = "parser"
+QUEUE_CLEANUP = "cleanup"
+QUEUE_RATING = "rating"
+QUEUE_GAMIFICATION = "gamification"
+QUEUE_WORKER_CRITICAL = "worker_critical"
+
+TASK_REFRESH_CHAT_DB = "src.tasks.parser_tasks.refresh_chat_database"
+
+# =============================================================================
 # CELERY BEAT SCHEDULE
 # =============================================================================
 
 BEAT_SCHEDULE = {
     # Обновление базы данных чатов — каждые 24 часа в 03:00 UTC
     "refresh-chat-database": {
-        "task": "src.tasks.parser_tasks.refresh_chat_database",
+        "task": TASK_REFRESH_CHAT_DB,
         "schedule": crontab(hour=3, minute=0),
-        "options": {"queue": "parser"},
+        "options": {"queue": QUEUE_PARSER},
     },
     # Проверка запланированных кампаний — каждые 5 минут
     "check-scheduled-campaigns": {
         "task": "src.tasks.mailing_tasks.check_scheduled_campaigns",
         "schedule": crontab(minute="*/5"),
-        "options": {"queue": "mailing"},
+        "options": {"queue": QUEUE_MAILING},
     },
     # Удаление старых логов — каждое воскресенье в 03:00 UTC
     "delete-old-logs": {
         "task": "src.tasks.cleanup_tasks.delete_old_logs",
         "schedule": crontab(hour=3, minute=0, day_of_week=0),
-        "options": {"queue": "cleanup"},
+        "options": {"queue": QUEUE_CLEANUP},
     },
     # Проверка низкого баланса пользователей — каждый час
     "check-low-balance": {
         "task": "src.tasks.notification_tasks.check_low_balance",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing", "priority": 8, "expires": 60},
+        "options": {"queue": QUEUE_MAILING, "priority": 8, "expires": 60},
     },
     # Обновление статистики чатов — каждые 6 часов
     "update-chat-statistics": {
         "task": "src.tasks.parser_tasks.update_chat_statistics",
         "schedule": crontab(hour="*/6"),
-        "options": {"queue": "parser"},
+        "options": {"queue": QUEUE_PARSER},
     },
     # Архивация старых кампаний — 1-го числа каждого месяца в 04:00 UTC
     "archive-old-campaigns": {
         "task": "src.tasks.cleanup_tasks.archive_old_campaigns",
         "schedule": crontab(hour=4, minute=0, day_of_month=1),
-        "options": {"queue": "cleanup"},
+        "options": {"queue": QUEUE_CLEANUP},
     },
     # Пересчёт рейтингов каналов — ежедневно в 04:00 UTC
     "recalculate-ratings-daily": {
         "task": "src.tasks.rating_tasks.recalculate_ratings_daily",
         "schedule": crontab(hour=4, minute=0),
-        "options": {"queue": "rating"},
+        "options": {"queue": QUEUE_RATING},
     },
     # Обновление еженедельных топов — каждый понедельник в 05:00 UTC
     "update-weekly-toplists": {
         "task": "src.tasks.rating_tasks.update_weekly_toplists",
         "schedule": crontab(hour=5, minute=0, day_of_week=1),
-        "options": {"queue": "rating"},
+        "options": {"queue": QUEUE_RATING},
     },
     # Обновление стриков активности — ежедневно в 00:00 UTC
     "update-streaks-daily": {
         "task": "src.tasks.gamification_tasks.update_streaks_daily",
         "schedule": crontab(hour=0, minute=0),
-        "options": {"queue": "gamification"},
+        "options": {"queue": QUEUE_GAMIFICATION},
     },
     # Еженедельный дайджест — каждый понедельник в 10:00 UTC
     "send-weekly-digest": {
         "task": "src.tasks.gamification_tasks.send_weekly_digest",
         "schedule": crontab(hour=10, minute=0, day_of_week=1),
-        "options": {"queue": "gamification"},
+        "options": {"queue": QUEUE_GAMIFICATION},
     },
     # Проверка сезонных событий — ежедневно в 08:00 UTC
     "check-seasonal-events": {
         "task": "src.tasks.gamification_tasks.check_seasonal_events",
         "schedule": crontab(hour=8, minute=0),
-        "options": {"queue": "gamification"},
+        "options": {"queue": QUEUE_GAMIFICATION},
     },
     # TASK 6: Автоодобрение заявок — каждый час в 00 минут
     "auto-approve-placements": {
         "task": "src.tasks.notification_tasks.auto_approve_placements",
         "schedule": crontab(minute=0),
-        "options": {"queue": "mailing", "priority": 7, "expires": 60},
+        "options": {"queue": QUEUE_MAILING, "priority": 7, "expires": 60},
     },
     # TASK 6: Напоминания о заявках — каждые 2 часа
     "placement-reminders": {
         "task": "src.tasks.notification_tasks.notify_pending_placement_reminders",
         "schedule": crontab(minute=0, hour="*/2"),
-        "options": {"queue": "mailing", "priority": 6, "expires": 120},
+        "options": {"queue": QUEUE_MAILING, "priority": 6, "expires": 120},
     },
     # TASK 8: Уведомления об истечении тарифа — ежедневно в 10:00 UTC
     "notify-expiring-plans": {
         "task": "src.tasks.notification_tasks.notify_expiring_plans",
         "schedule": crontab(hour=10, minute=0),
-        "options": {"queue": "mailing", "priority": 8, "expires": 300},
+        "options": {"queue": QUEUE_MAILING, "priority": 8, "expires": 300},
     },
     # TASK 8: Уведомления об истёкшем тарифе — ежедневно в 10:05 UTC
     "notify-expired-plans": {
         "task": "src.tasks.notification_tasks.notify_expired_plans",
         "schedule": crontab(hour=10, minute=5),
-        "options": {"queue": "mailing", "priority": 8, "expires": 300},
+        "options": {"queue": QUEUE_MAILING, "priority": 8, "expires": 300},
     },
     # TASK 8.3: Ежедневная проверка достижений — ежедневно в 00:00 UTC
     "daily-badge-check": {
         "task": "src.tasks.badge_tasks.daily_badge_check",
         "schedule": crontab(hour=0, minute=0),
-        "options": {"queue": "gamification"},
+        "options": {"queue": QUEUE_GAMIFICATION},
     },
     # TASK 8.6: Топ рекламодателей месяца — 1-го числа каждого месяца в 00:00 UTC
     "monthly-top-advertisers": {
         "task": "src.tasks.badge_tasks.monthly_top_advertisers",
         "schedule": crontab(hour=0, minute=0, day_of_month=1),
-        "options": {"queue": "gamification"},
+        "options": {"queue": QUEUE_GAMIFICATION},
+    },
+    # S9: Проверка целостности данных — каждые 6 часов
+    "data-integrity-check": {
+        "task": "integrity:check_data_integrity",
+        "schedule": crontab(hour="*/6", minute=0),
+        "options": {"queue": QUEUE_CLEANUP},
+    },
+    # S9: Мониторинг здоровья опубликованных постов — каждые 6 часов
+    "check-published-posts-health": {
+        "task": "placement:check_published_posts_health",
+        "schedule": crontab(hour="*/6", minute=30),
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 300},
     },
     # PLACEMENT SLA CHECKS (каждые 5 минут)
     "placement-check-owner-sla": {
         "task": "placement:check_owner_response_sla",
         "schedule": crontab(minute="*/5"),
-        "options": {"queue": "worker_critical", "expires": 60},
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
     },
     "placement-check-payment-sla": {
         "task": "placement:check_payment_sla",
         "schedule": crontab(minute="*/5"),
-        "options": {"queue": "worker_critical", "expires": 60},
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
     },
     "placement-check-counter-sla": {
         "task": "placement:check_counter_offer_sla",
         "schedule": crontab(minute="*/5"),
-        "options": {"queue": "worker_critical", "expires": 60},
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
     },
 }
 
@@ -138,35 +163,35 @@ BEAT_SCHEDULE = {
 
 TASK_ROUTES = {
     # Очередь mailing — задачи рассылки
-    "mailing.*": {"queue": "mailing"},
-    "src.tasks.mailing_tasks.*": {"queue": "mailing"},
-    "src.tasks.notification_tasks.*": {"queue": "mailing"},
+    "mailing.*": {"queue": QUEUE_MAILING},
+    "src.tasks.mailing_tasks.*": {"queue": QUEUE_MAILING},
+    "src.tasks.notification_tasks.*": {"queue": QUEUE_MAILING},
     # Очередь notifications — уведомления пользователей
     "notifications.*": {"queue": "notifications"},
     # Очередь parser — задачи парсера
-    "parser.*": {"queue": "parser"},
-    "src.tasks.parser_tasks.*": {"queue": "parser"},
+    "parser.*": {"queue": QUEUE_PARSER},
+    "src.tasks.parser_tasks.*": {"queue": QUEUE_PARSER},
     # Очередь cleanup — задачи очистки
-    "cleanup.*": {"queue": "cleanup"},
-    "src.tasks.cleanup_tasks.*": {"queue": "cleanup"},
+    "cleanup.*": {"queue": QUEUE_CLEANUP},
+    "src.tasks.cleanup_tasks.*": {"queue": QUEUE_CLEANUP},
     # Очередь ai — задачи ИИ
     "ai.*": {"queue": "ai"},
     "src.tasks.ai_tasks.*": {"queue": "ai"},
     # Очередь rating — задачи рейтингов
-    "rating.*": {"queue": "rating"},
-    "src.tasks.rating_tasks.*": {"queue": "rating"},
+    "rating.*": {"queue": QUEUE_RATING},
+    "src.tasks.rating_tasks.*": {"queue": QUEUE_RATING},
     # Очередь gamification — задачи геймификации
-    "gamification.*": {"queue": "gamification"},
-    "src.tasks.gamification_tasks.*": {"queue": "gamification"},
+    "gamification.*": {"queue": QUEUE_GAMIFICATION},
+    "src.tasks.gamification_tasks.*": {"queue": QUEUE_GAMIFICATION},
     # Очередь badges — задачи достижений
-    "badges.*": {"queue": "gamification"},
-    "src.tasks.badge_tasks.*": {"queue": "gamification"},
+    "badges.*": {"queue": QUEUE_GAMIFICATION},
+    "src.tasks.badge_tasks.*": {"queue": QUEUE_GAMIFICATION},
     # Очередь billing — задачи биллинга
     "billing.*": {"queue": "billing"},
     "src.tasks.billing_tasks.*": {"queue": "billing"},
     # Очередь placement — задачи размещения (критические)
-    "placement.*": {"queue": "worker_critical"},
-    "src.tasks.placement_tasks.*": {"queue": "worker_critical"},
+    "placement.*": {"queue": QUEUE_WORKER_CRITICAL},
+    "src.tasks.placement_tasks.*": {"queue": QUEUE_WORKER_CRITICAL},
 }
 
 # =============================================================================
@@ -178,7 +203,7 @@ TASK_TIME_LIMITS = {
     "src.tasks.mailing_tasks.send_campaign": 600,  # 10 минут
     "src.tasks.mailing_tasks.check_scheduled_campaigns": 300,  # 5 минут
     # Парсер — средний лимит
-    "src.tasks.parser_tasks.refresh_chat_database": 1800,  # 30 минут
+    TASK_REFRESH_CHAT_DB: 1800,  # 30 минут
     "src.tasks.parser_tasks.validate_username": 60,  # 1 минута
     # Очистка — длительный лимит
     "src.tasks.cleanup_tasks.delete_old_logs": 600,  # 10 минут
@@ -204,7 +229,7 @@ TASK_SPECIFIC_RETRY = {
         "interval_step": 60,
         "interval_max": 300,
     },
-    "src.tasks.parser_tasks.refresh_chat_database": {
+    TASK_REFRESH_CHAT_DB: {
         "max_retries": 2,
         "interval_start": 300,
         "interval_step": 300,
@@ -217,17 +242,17 @@ TASK_SPECIFIC_RETRY = {
 # =============================================================================
 
 QUEUE_CONFIG = {
-    "mailing": {
+    QUEUE_MAILING: {
         "max_tasks_per_child": 100,
         "prefetch_multiplier": 1,
         "concurrency": 4,
     },
-    "parser": {
+    QUEUE_PARSER: {
         "max_tasks_per_child": 50,
         "prefetch_multiplier": 1,
         "concurrency": 2,
     },
-    "cleanup": {
+    QUEUE_CLEANUP: {
         "max_tasks_per_child": 100,
         "prefetch_multiplier": 1,
         "concurrency": 1,

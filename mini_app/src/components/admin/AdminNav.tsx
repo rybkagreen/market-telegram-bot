@@ -15,6 +15,7 @@ const navItems = [
   { path: '/admin/feedback', label: 'Feedback', icon: '💬' },
   { path: '/admin/disputes', label: 'Disputes', icon: '⚖️' },
   { path: '/admin/users', label: 'Users', icon: '👥' },
+  { path: '/admin/settings', label: 'Реквизиты', icon: '🏢' },
 ]
 
 export default function AdminNav() {

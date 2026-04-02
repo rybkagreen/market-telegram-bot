@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from aiogram import Router
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,8 @@ router = Router()
 @router.callback_query(lambda c: c.data == "main:owner_analytics")
 async def show_owner_analytics(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать расширенную статистику владельца."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
         await callback.answer("❌ Пользователь не найден", show_alert=True)

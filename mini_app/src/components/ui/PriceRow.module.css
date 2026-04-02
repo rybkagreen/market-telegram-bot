@@ -30,9 +30,9 @@
 }
 
 .tag {
-  font-size: 10px;
+  font-size: var(--rh-text-2xs);
   font-weight: var(--rh-weight-semibold);
-  padding: 2px 6px;
+  padding: var(--rh-space-1) var(--rh-space-2);
   border-radius: var(--rh-radius-full);
 }
 

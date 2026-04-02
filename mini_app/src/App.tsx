@@ -1,22 +1,35 @@
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { Outlet, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { RulesGuard } from '@/components/RulesGuard'
 
 // ═══ Common ═══
-const MainMenu       = lazy(() => import('@/screens/common/MainMenu'))
-const RoleSelect     = lazy(() => import('@/screens/common/RoleSelect'))
-const Cabinet        = lazy(() => import('@/screens/common/Cabinet'))
-const TopUp          = lazy(() => import('@/screens/common/TopUp'))
-const TopUpConfirm   = lazy(() => import('@/screens/common/TopUpConfirm'))
-const Help           = lazy(() => import('@/screens/common/Help'))
-const Feedback       = lazy(() => import('@/screens/common/Feedback'))  // ДОБАВЛЕНО (2026-03-18)
-const Plans          = lazy(() => import('@/screens/common/Plans'))
+const MainMenu           = lazy(() => import('@/screens/common/MainMenu'))
+const RoleSelect         = lazy(() => import('@/screens/common/RoleSelect'))
+const Cabinet            = lazy(() => import('@/screens/common/Cabinet'))
+const Referral           = lazy(() => import('@/screens/common/Referral'))
+const TopUp              = lazy(() => import('@/screens/common/TopUp'))
+const TopUpConfirm       = lazy(() => import('@/screens/common/TopUpConfirm'))
+const Help               = lazy(() => import('@/screens/common/Help'))
+const Feedback           = lazy(() => import('@/screens/common/Feedback'))  // ДОБАВЛЕНО (2026-03-18)
+const Plans              = lazy(() => import('@/screens/common/Plans'))
+const LegalProfilePrompt = lazy(() => import('@/screens/common/LegalProfilePrompt'))
+const LegalProfileSetup  = lazy(() => import('@/screens/common/LegalProfileSetup'))
+const LegalProfileView   = lazy(() => import('@/screens/common/LegalProfileView'))
+const ContractList       = lazy(() => import('@/screens/common/ContractList'))
+const ContractDetail     = lazy(() => import('@/screens/common/ContractDetail'))
+const AcceptRules        = lazy(() => import('@/screens/common/AcceptRules'))
 
 // ═══ Advertiser ═══
 const AdvMenu        = lazy(() => import('@/screens/advertiser/AdvMenu'))
 const AdvAnalytics   = lazy(() => import('@/screens/advertiser/AdvAnalytics'))
 const MyCampaigns    = lazy(() => import('@/screens/advertiser/MyCampaigns'))
+
+// ═══ Advertiser / S5 additions ═══
+const CampaignVideo              = lazy(() => import('@/screens/advertiser/CampaignVideo'))
+const OrdStatus                  = lazy(() => import('@/screens/advertiser/OrdStatus'))
+const AdvertiserFrameworkContract = lazy(() => import('@/screens/advertiser/AdvertiserFrameworkContract'))
 
 // ═══ Advertiser / Campaign wizard ═══
 const CampaignCategory   = lazy(() => import('@/screens/advertiser/campaign/CampaignCategory'))
@@ -46,12 +59,22 @@ const OwnPayoutRequest   = lazy(() => import('@/screens/owner/OwnPayoutRequest')
 const DisputeResponse    = lazy(() => import('@/screens/owner/DisputeResponse'))
 
 // ═══ Admin ═══ (PHASE-5)
-const AdminDashboard      = lazy(() => import('@/screens/admin/AdminDashboard'))
-const AdminFeedbackList   = lazy(() => import('@/screens/admin/AdminFeedbackList'))
-const AdminFeedbackDetail = lazy(() => import('@/screens/admin/AdminFeedbackDetail'))
-const AdminDisputesList   = lazy(() => import('@/screens/admin/AdminDisputesList'))
-const AdminDisputeDetail  = lazy(() => import('@/screens/admin/AdminDisputeDetail'))
-const AdminUsersList      = lazy(() => import('@/screens/admin/AdminUsersList'))
+const AdminDashboard          = lazy(() => import('@/screens/admin/AdminDashboard'))
+const AdminFeedbackList       = lazy(() => import('@/screens/admin/AdminFeedbackList'))
+const AdminFeedbackDetail     = lazy(() => import('@/screens/admin/AdminFeedbackDetail'))
+const AdminDisputesList       = lazy(() => import('@/screens/admin/AdminDisputesList'))
+const AdminDisputeDetail      = lazy(() => import('@/screens/admin/AdminDisputeDetail'))
+const AdminUsersList          = lazy(() => import('@/screens/admin/AdminUsersList'))
+const AdminUserDetail         = lazy(() => import('@/screens/admin/AdminUserDetail'))
+const AdminPlatformSettings   = lazy(() => import('@/screens/admin/AdminPlatformSettings'))
+
+function RulesGuardLayout() {
+  return (
+    <RulesGuard>
+      <Outlet />
+    </RulesGuard>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,15 +91,28 @@ const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
+      {
+        element: <RulesGuardLayout />,
+        children: [
       // ── Common ──
       { index: true,                      element: <MainMenu /> },
       { path: 'role',                     element: <RoleSelect /> },
       { path: 'cabinet',                  element: <Cabinet /> },
+      { path: 'referral',                 element: <Referral /> },
       { path: 'topup',                    element: <TopUp /> },
       { path: 'topup/confirm',            element: <TopUpConfirm /> },
       { path: 'help',                     element: <Help /> },
       { path: 'feedback',                 element: <Feedback /> },  // ДОБАВЛЕНО (2026-03-18)
       { path: 'plans',                    element: <Plans /> },
+      { path: 'legal-profile-prompt',     element: <LegalProfilePrompt /> },
+      { path: 'legal-profile',            element: <LegalProfileSetup /> },
+      { path: 'legal-profile/view',       element: <LegalProfileView /> },
+      { path: 'contracts',                element: <ContractList /> },
+      { path: 'contracts/:id',            element: <ContractDetail /> },
+      { path: 'accept-rules',             element: <AcceptRules /> },
+      { path: 'campaign/video',           element: <CampaignVideo /> },
+      { path: 'campaign/:id/ord',         element: <OrdStatus /> },
+      { path: 'contracts/framework',      element: <AdvertiserFrameworkContract /> },
 
       // ── Advertiser ──
       { path: 'adv',                                    element: <AdvMenu /> },
@@ -113,6 +149,10 @@ const router = createBrowserRouter([
       { path: 'admin/disputes',                         element: <AdminDisputesList /> },
       { path: 'admin/disputes/:id',                     element: <AdminDisputeDetail /> },
       { path: 'admin/users',                            element: <AdminUsersList /> },
+      { path: 'admin/users/:id',                        element: <AdminUserDetail /> },
+      { path: 'admin/settings',                         element: <AdminPlatformSettings /> },
+        ],
+      },
     ],
   },
 ])
@@ -120,9 +160,7 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Suspense fallback={null}>
-        <RouterProvider router={router} />
-      </Suspense>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   )
 }

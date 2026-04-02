@@ -16,18 +16,12 @@ export default function AdvAnalytics() {
           <Skeleton height={200} />
         </>
       ) : isError ? (
-        (() => {
-          // ДОБАВЛЕНО (UX-P0): Логирование ошибки для диагностики
-          console.error('[AdvAnalytics] Failed to load analytics:', isError)
-          return (
-            <Notification type="danger">
-              <span>Не удалось загрузить аналитику.</span>{' '}
-              <Button variant="secondary" size="sm" onClick={() => refetch()}>
-                Повторить
-              </Button>
-            </Notification>
-          )
-        })()
+        <Notification type="danger">
+          <span>Не удалось загрузить аналитику.</span>{' '}
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            Повторить
+          </Button>
+        </Notification>
       ) : analytics ? (
         <>
           <StatGrid

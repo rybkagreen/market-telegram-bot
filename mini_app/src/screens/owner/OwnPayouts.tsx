@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, StatusPill, EmptyState, Skeleton } from '@/components/ui'
@@ -12,22 +13,75 @@ const PAYOUT_STATUS_PILL: Record<string, { variant: 'success' | 'warning' | 'dan
   rejected:   { variant: 'danger',  label: 'Отклонено' },
 }
 
+// GAP-02: Cooldown timer helper
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
 export default function OwnPayouts() {
   const navigate = useNavigate()
   const { data: me } = useMe()
   const { data: payouts = [], isLoading, refetch } = usePayouts()
+  
+  // GAP-02: Cooldown state
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0)
+
+  useEffect(() => {
+    // Find last payout and check cooldown
+    if (payouts.length > 0) {
+      const lastPayout = payouts.reduce((latest, p) =>
+        new Date(p.created_at) > new Date(latest.created_at) ? p : latest,
+        payouts[0]
+      )
+      const lastPayoutTime = new Date(lastPayout.created_at).getTime()
+      const cooldownEnd = lastPayoutTime + 24 * 3600 * 1000
+      const now = Date.now()
+      const remaining = cooldownEnd - now
+      
+      if (remaining > 0) {
+        const raf = window.requestAnimationFrame(() => setCooldownRemaining(remaining))
+        const timer = setInterval(() => {
+          setCooldownRemaining(prev => {
+            const next = prev - 1000
+            return next > 0 ? next : 0
+          })
+        }, 1000)
+        return () => {
+          window.cancelAnimationFrame(raf)
+          clearInterval(timer)
+        }
+      } else {
+        const raf = window.requestAnimationFrame(() => setCooldownRemaining(0))
+        return () => window.cancelAnimationFrame(raf)
+      }
+    }
+  }, [payouts])
 
   const earnedRub = me?.earned_rub ?? '0.00'
+  const isCooldownActive = cooldownRemaining > 0
 
   return (
     <ScreenShell>
       <Card title="Доступно к выводу">
         <p className={styles.balance}>{formatCurrency(earnedRub)}</p>
         <p className={styles.hint}>Мин. 1 000 ₽ · Комиссия 1,5%</p>
+        {isCooldownActive && (
+          <p className={styles.cooldown}>
+            ⏱ Следующая выплата через <strong>{formatCountdown(cooldownRemaining)}</strong>
+          </p>
+        )}
       </Card>
 
-      <Button fullWidth onClick={() => navigate('/own/payouts/request')}>
-        💸 Запросить вывод
+      <Button 
+        fullWidth 
+        disabled={isCooldownActive}
+        onClick={() => navigate('/own/payouts/request')}
+      >
+        {isCooldownActive ? '🔒 Вывод временно недоступен' : '💸 Запросить вывод'}
       </Button>
 
       <p className={styles.sectionTitle}>История выплат</p>

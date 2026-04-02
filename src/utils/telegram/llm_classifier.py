@@ -17,7 +17,6 @@ MAX_DESCRIPTION_CHARS = 500
 @dataclass
 class ClassificationResult:
     topic: str
-    subcategory: str
     confidence: float  # 0.0–1.0
     rating: float  # 1.0–10.0
     reasoning: str
@@ -55,7 +54,6 @@ async def classify_channel_with_llm(
 
         return ClassificationResult(
             topic=result.topic,
-            subcategory=result.subcategory or "",
             confidence=result.confidence,
             rating=result.rating,
             reasoning=f"Mistral: {result.topic}",
@@ -66,7 +64,6 @@ async def classify_channel_with_llm(
         logger.warning(f"Mistral LLM classification failed for @{username}: {e}. Using fallback.")
         return ClassificationResult(
             topic="Другое",
-            subcategory="",
             confidence=0.0,
             rating=5.0,
             reasoning="LLM недоступен",

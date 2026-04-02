@@ -5,7 +5,7 @@ This file provides backward compatibility for legacy code.
 
 Usage:
     from src.db.models.campaign import Campaign, CampaignStatus
-    
+
 Maps to:
     Campaign → PlacementRequest
     CampaignStatus → PlacementStatus

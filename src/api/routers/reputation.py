@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
+from src.db.models.reputation_history import ReputationHistory
 from src.db.repositories.reputation_repo import ReputationRepository
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,8 @@ class ReputationResponse(BaseModel):
     owner_score: float
     is_advertiser_blocked: bool
     is_owner_blocked: bool
-    advertiser_ban_until: str | None
-    owner_ban_until: str | None
+    advertiser_ban_until: str | None = None
+    owner_ban_until: str | None = None
     advertiser_violations: int
     owner_violations: int
     updated_at: str
@@ -60,7 +61,7 @@ class ReputationHistoryEntry(BaseModel):
     score_before: float
     score_after: float
     role: str
-    comment: str | None
+    comment: str | None = None
     created_at: str
 
     model_config = {"from_attributes": True}
@@ -71,7 +72,7 @@ class ReputationAdminHistoryItem(BaseModel):
 
     id: int
     user_id: int
-    username: str | None
+    username: str | None = None
     role: str
     action: str
     delta: float
@@ -96,10 +97,10 @@ class ReputationAdminHistoryResponse(BaseModel):
 # =============================================================================
 
 
-@router.get("/me", response_model=ReputationResponse)
+@router.get("/me", responses={404: {"description": "Not found"}})
 async def get_my_reputation(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ReputationResponse:
     """Репутация текущего пользователя."""
     repo = ReputationRepository(session)
@@ -122,16 +123,16 @@ async def get_my_reputation(
         owner_ban_until=(
             rep_score.owner_blocked_until.isoformat() if rep_score.owner_blocked_until else None
         ),
-        advertiser_violations=rep_score.advertiser_violations,
-        owner_violations=rep_score.owner_violations,
+        advertiser_violations=rep_score.advertiser_violations_count,
+        owner_violations=rep_score.owner_violations_count,
         updated_at=rep_score.updated_at.isoformat(),
     )
 
 
-@router.get("/me/history", response_model=list[ReputationHistoryEntry])
+@router.get("/me/history")
 async def get_my_reputation_history(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     role: Annotated[str | None, Query(description="Фильтр по роли")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -142,18 +143,16 @@ async def get_my_reputation_history(
 
     entries = []
     for h in history:
-        # Получаем предыдущий score
-        score_before = h.new_score - h.delta
         entries.append(
             ReputationHistoryEntry(
                 id=h.id,
                 user_id=h.user_id,
                 action=h.action.value,
                 delta=h.delta,
-                score_before=score_before,
-                score_after=h.new_score,
+                score_before=h.score_before,
+                score_after=h.score_after,
                 role=h.role,
-                comment=h.comment,
+                comment=h.description,
                 created_at=h.created_at.isoformat(),
             )
         )
@@ -161,11 +160,11 @@ async def get_my_reputation_history(
     return entries
 
 
-@router.get("/{user_id}", response_model=PublicReputationResponse)
+@router.get("/{user_id}", responses={404: {"description": "Not found"}})
 async def get_user_reputation(
     user_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PublicReputationResponse:
     """Публичная репутация пользователя."""
     from src.db.models.user import User
@@ -182,16 +181,16 @@ async def get_user_reputation(
         user_id=rep_score.user_id,
         advertiser_score=rep_score.advertiser_score,
         owner_score=rep_score.owner_score,
-        advertiser_violations=rep_score.advertiser_violations,
-        owner_violations=rep_score.owner_violations,
+        advertiser_violations=rep_score.advertiser_violations_count,
+        owner_violations=rep_score.owner_violations_count,
     )
 
 
-@router.get("/{user_id}/history", response_model=list[ReputationHistoryEntry])
+@router.get("/{user_id}/history", responses={403: {"description": "Forbidden"}})
 async def get_user_reputation_history(
     user_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     role: Annotated[str | None, Query(description="Фильтр по роли")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -206,17 +205,16 @@ async def get_user_reputation_history(
 
     entries = []
     for h in history:
-        score_before = h.new_score - h.delta
         entries.append(
             ReputationHistoryEntry(
                 id=h.id,
                 user_id=h.user_id,
                 action=h.action.value,
                 delta=h.delta,
-                score_before=score_before,
-                score_after=h.new_score,
+                score_before=h.score_before,
+                score_after=h.score_after,
                 role=h.role,
-                comment=h.comment,
+                comment=h.description,
                 created_at=h.created_at.isoformat(),
             )
         )
@@ -224,10 +222,10 @@ async def get_user_reputation_history(
     return entries
 
 
-@router.get("/admin/history", response_model=ReputationAdminHistoryResponse)
+@router.get("/admin/history", responses={403: {"description": "Forbidden"}})
 async def get_admin_reputation_history(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     user_id: Annotated[int | None, Query(description="Фильтр по пользователю")] = None,
     role: Annotated[str | None, Query(description="Фильтр по роли (advertiser|owner)")] = None,
     page: Annotated[int, Query(ge=1, le=100)] = 1,

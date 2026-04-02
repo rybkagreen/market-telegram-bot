@@ -47,11 +47,10 @@
 
 .header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--rh-space-2);
   min-height: 28px;
-  align-items: center;
 }
 
 .title {

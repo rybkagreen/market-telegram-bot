@@ -49,17 +49,6 @@ export interface ChannelsStats {
   total_members: number
 }
 
-export interface Subcategory {
-  key: string
-  name: string
-  channel_count: number
-}
-
-export interface SubcategoriesResponse {
-  parent_topic: string
-  subcategories: Subcategory[]
-}
-
 /**
  * Сравнить каналы между собой
  */
@@ -72,13 +61,6 @@ export function compareChannels(channelIds: number[]): Promise<ChannelCompareRes
  */
 export function getChannelsStats(): Promise<ChannelsStats> {
   return api.get('channels/stats').json<ChannelsStats>()
-}
-
-/**
- * Получить подкатегории внутри темы
- */
-export function getSubcategories(parentTopic: string): Promise<SubcategoriesResponse> {
-  return api.get(`channels/subcategories/${parentTopic}`).json<SubcategoriesResponse>()
 }
 
 /**
@@ -123,9 +105,17 @@ export function checkChannel(username: string): Promise<ChannelCheckResponse> {
  */
 export function addChannel(data: {
   username: string
-  is_test?: boolean  // Test mode (admin only)
+  is_test?: boolean
+  category?: string
 }): Promise<Channel> {
   return api.post('channels/', { json: data }).json<Channel>()
+}
+
+/**
+ * Обновить категорию канала
+ */
+export function updateChannelCategory(channelId: number, category: string): Promise<Channel> {
+  return api.patch(`channels/${channelId}/category`, { json: { category } }).json<Channel>()
 }
 
 /**

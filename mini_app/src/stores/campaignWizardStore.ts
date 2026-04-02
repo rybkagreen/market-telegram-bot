@@ -4,7 +4,7 @@
 // ============================================================
 
 import { create } from 'zustand'
-import type { Channel, ChannelSettings, PublicationFormat } from '@/lib/types'
+import type { Channel, ChannelSettings, PublicationFormat, MediaType } from '@/lib/types'
 
 export type ChannelWithSettings = Channel & { settings: ChannelSettings }
 
@@ -16,13 +16,23 @@ interface CampaignWizardState {
   adText: string
   proposedPrices: Record<number, number>
   proposedSchedules: Record<number, string>
+  isTest: boolean
 
-  setCategory: (cat: string) => void
+  mediaType: MediaType
+  videoFileId: string | null
+  videoUrl: string | null
+  videoDuration: number | null
+  videoThumbnailFileId: string | null
+
+  setCategory: (cat: string | null) => void
   toggleChannel: (ch: ChannelWithSettings) => void
   setFormat: (f: PublicationFormat) => void
   setAdText: (text: string) => void
   setProposedPrice: (channelId: number, price: number) => void
   setProposedSchedule: (channelId: number, time: string) => void
+  setIsTest: (v: boolean) => void
+  setVideo: (video: { fileId: string; url: string; duration: number; thumbnailFileId?: string } | null) => void
+  setMediaType: (type: MediaType) => void
   nextStep: () => void
   prevStep: () => void
   reset: () => void
@@ -37,12 +47,18 @@ const initialState = {
   adText: '',
   proposedPrices: {} as Record<number, number>,
   proposedSchedules: {} as Record<number, string>,
+  isTest: false,
+  mediaType: 'none' as MediaType,
+  videoFileId: null as string | null,
+  videoUrl: null as string | null,
+  videoDuration: null as number | null,
+  videoThumbnailFileId: null as string | null,
 }
 
 export const useCampaignWizardStore = create<CampaignWizardState>()((set, get) => ({
   ...initialState,
 
-  setCategory: (cat) => set({ category: cat }),
+  setCategory: (cat) => set({ category: cat, selectedChannels: [] }),
 
   toggleChannel: (ch) =>
     set((state) => {
@@ -57,6 +73,17 @@ export const useCampaignWizardStore = create<CampaignWizardState>()((set, get) =
   setFormat: (f) => set({ format: f }),
 
   setAdText: (text) => set({ adText: text }),
+
+  setIsTest: (v) => set({ isTest: v }),
+
+  setVideo: (video) =>
+    set(
+      video === null
+        ? { mediaType: 'none', videoFileId: null, videoUrl: null, videoDuration: null, videoThumbnailFileId: null }
+        : { mediaType: 'video', videoFileId: video.fileId, videoUrl: video.url, videoDuration: video.duration, videoThumbnailFileId: video.thumbnailFileId ?? null },
+    ),
+
+  setMediaType: (type) => set({ mediaType: type }),
 
   setProposedPrice: (channelId, price) =>
     set((state) => ({

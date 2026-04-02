@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,8 @@ from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 
 router = Router()
+
+USER_NOT_FOUND = "Пользователь не найден."
 
 _PLAN_NAMES = {
     "free": "Free",
@@ -26,9 +28,11 @@ _PLAN_NAMES = {
 @router.callback_query(F.data == "main:cabinet")
 async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать кабинет."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     rep = await session.get(ReputationScore, user.id)
@@ -69,9 +73,11 @@ async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data == "cabinet:referral")
 async def show_referral(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать реферальную программу."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
     result = await session.execute(select(func.count()).where(User.referred_by_id == user.id))
     ref_count = result.scalar_one()
@@ -96,7 +102,7 @@ async def referral_copy(callback: CallbackQuery, session: AsyncSession) -> None:
     """Скопировать реферальную ссылку (показать в alert)."""
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
     link = f"t.me/RekHarborBot?start=REF_{user.referral_code}"
     await callback.answer(f"Ссылка: {link}", show_alert=True)
@@ -105,9 +111,11 @@ async def referral_copy(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data == "cabinet:gamification")
 async def show_gamification(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать геймификацию."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
     adv_xp_next = user.advertiser_level * 100
     own_xp_next = user.owner_level * 100

@@ -15,7 +15,7 @@ export default function Feedback() {
 
   const handleSubmit = () => {
     haptic.tap()
-    if (!text.trim()) return
+    if (text.trim().length < 10) return
     createMutation.mutate(text)
     setText('')
   }
@@ -34,13 +34,16 @@ export default function Feedback() {
           placeholder="Опишите вашу проблему или предложение..."
           rows={6}
         />
+        <p style={{ fontSize: 'var(--rh-text-xs)', color: 'var(--rh-text-secondary)', marginTop: '4px' }}>
+          {text.trim().length < 10 ? `Минимум 10 символов (введено ${text.trim().length})` : ''}
+        </p>
       </Card>
 
       <Button
         variant="primary"
         fullWidth
         onClick={handleSubmit}
-        disabled={!text.trim() || createMutation.isPending}
+        disabled={text.trim().length < 10 || createMutation.isPending}
       >
         {createMutation.isPending ? '⏳ Отправка...' : '✉️ Отправить в поддержку'}
       </Button>
@@ -53,7 +56,7 @@ export default function Feedback() {
           {feedbackList.items.map((feedback) => (
             <div key={feedback.id} className={styles.feedbackItem}>
               <div className={styles.feedbackHeader}>
-                <span className={styles.statusBadge}>{feedback.status}</span>
+                <span className={styles.statusBadge} data-status={feedback.status}>{feedback.status}</span>
                 <span className={styles.feedbackDate}>
                   {new Date(feedback.created_at).toLocaleDateString()}
                 </span>

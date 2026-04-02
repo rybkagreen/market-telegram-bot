@@ -7,7 +7,7 @@ import asyncio
 import logging
 from datetime import UTC
 
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
@@ -145,15 +145,15 @@ def monthly_top_advertisers(self) -> dict:
 
             stmt = (
                 select(
-                    Campaign.user_id,
-                    func.sum(Campaign.cost).label("total_spent"),
+                    Campaign.advertiser_id,
+                    func.sum(Campaign.final_price).label("total_spent"),
                 )
                 .where(
                     Campaign.created_at >= month_ago,
                     Campaign.status.in_(["done", "running", "queued"]),
                 )
-                .group_by(Campaign.user_id)
-                .order_by(func.sum(Campaign.cost).desc())
+                .group_by(Campaign.advertiser_id)
+                .order_by(func.sum(Campaign.final_price).desc())
                 .limit(10)
             )
 
@@ -174,7 +174,7 @@ def monthly_top_advertisers(self) -> dict:
 
             awarded = []
             for row in top_advertisers:
-                user_id = row.user_id
+                user_id = row.advertiser_id
                 total_spent = row.total_spent
 
                 try:
