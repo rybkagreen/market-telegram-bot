@@ -18,14 +18,20 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Create enum type
-    sa.Enum('new', 'in_progress', 'resolved', 'rejected', name='feedbackstatus').create(op.get_bind())
+    # Create enum type using raw SQL with exception handling
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE feedbackstatus AS ENUM ('new', 'in_progress', 'resolved', 'rejected');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     op.create_table('user_feedback',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('text', sa.Text(), nullable=False),
-        sa.Column('status', sa.Enum('new', 'in_progress', 'resolved', 'rejected', name='feedbackstatus'), nullable=False),
+        sa.Column('status', sa.String(32), nullable=False),
         sa.Column('admin_response', sa.Text(), nullable=True),
         sa.Column('responded_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('responded_by_id', sa.Integer(), nullable=True),
@@ -46,5 +52,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_user_feedback_user_id'), table_name='user_feedback')
     op.drop_table('user_feedback')
 
-    # Drop enum type
-    sa.Enum('new', 'in_progress', 'resolved', 'rejected', name='feedbackstatus').drop(op.get_bind())
+    op.execute("DROP TYPE IF EXISTS feedbackstatus;")
