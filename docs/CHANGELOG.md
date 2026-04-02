@@ -87,7 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `admin.py`: Added 6 state classes (AdminAIGenerateStates, AdminFreeCampaignStates, AdminBanStates, AdminBroadcastStates, AdminBalanceStates)
   - `channel_owner.py`: Added 3 state classes (AddChannelStates, EditChannelStates, PayoutRequestStates)
   - `feedback.py`: Fixed FeedbackStates (choosing_type, waiting_text, waiting_confirm)
-- **Fixed** `cryptobot_service.py`: Legacy import issue (v4.3: CryptoBot removed, graceful fallback)
 - **Ruff check**: 0 errors
 - **Note**: Handler tests covered in integration tests (P15)
 
