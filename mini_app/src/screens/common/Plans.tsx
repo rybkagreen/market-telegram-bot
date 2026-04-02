@@ -5,6 +5,7 @@ import { Notification, StatusPill, Button } from '@/components/ui'
 import { PLAN_INFO } from '@/lib/constants'
 import type { Plan } from '@/lib/types'
 import { useMe } from '@/hooks/queries'
+import { usePurchasePlan, usePlans } from '@/hooks/queries/useBillingQueries'
 import styles from './Plans.module.css'
 
 interface PlanConfig {
@@ -63,14 +64,26 @@ const itemVariants = {
 export default function Plans() {
   const navigate = useNavigate()
   const { data: user } = useMe()
+  const purchasePlan = usePurchasePlan()
+  const { data: planDetails = [] } = usePlans()
   const currentPlan = user?.plan ?? 'free'
   const currentInfo = PLAN_INFO[currentPlan]
+  const credits = user?.credits ?? 0
+  const planCostMap = Object.fromEntries(planDetails.map((p) => [p.key, p.price]))
 
   return (
     <ScreenShell>
       <Notification type="info">
-        Текущий тариф: {currentInfo.displayName} · {currentInfo.price > 0 ? `${currentInfo.price} ₽/мес` : 'Бесплатно'}
+        Текущий тариф: {currentInfo.displayName} · Кредиты: {credits} 🎟
       </Notification>
+      {credits < 299 && (
+        <Notification type="warning">
+          Для смены тарифа нужны кредиты.{' '}
+          <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => navigate('/cabinet')}>
+            Конвертируйте ₽ → кредиты в кабинете
+          </span>
+        </Notification>
+      )}
 
       <motion.div
         className={styles.list}
@@ -92,9 +105,9 @@ export default function Plans() {
                 <span className={styles.planName}>{info.displayName}</span>
                 <span className={styles.price}>
                   <span className={styles.priceValue}>
-                    {info.price > 0 ? info.price.toLocaleString('ru-RU') : '0'}
+                    {planCostMap[key] ?? (info.price > 0 ? info.price : 0)}
                   </span>
-                  <span className={styles.priceSuffix}>/мес</span>
+                  <span className={styles.priceSuffix}> кр/мес</span>
                 </span>
               </div>
 
@@ -109,8 +122,22 @@ export default function Plans() {
 
               {isCurrent ? (
                 <StatusPill status="info">Ваш тариф</StatusPill>
+              ) : key === 'free' ? (
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  disabled={purchasePlan.isPending}
+                  onClick={() => purchasePlan.mutate('free')}
+                >
+                  Перейти на Free
+                </Button>
               ) : (
-                <Button variant="secondary" fullWidth onClick={() => navigate('/topup')}>
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  disabled={purchasePlan.isPending}
+                  onClick={() => purchasePlan.mutate(key)}
+                >
                   Выбрать {info.displayName}
                 </Button>
               )}

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as Sentry from '@sentry/react'
 import {
   getMyChannels,
   getAvailableChannels,
@@ -6,6 +7,7 @@ import {
   addChannel,
   checkChannel,
   updateChannelSettings,
+  updateChannelCategory,
   deleteChannel,
 } from '@/api/channels'
 import type { ChannelSettings } from '@/lib/types'
@@ -37,9 +39,9 @@ export const useAddChannel = () => {
   const addToast = useUiStore((s) => s.addToast)
 
   return useMutation({
-    mutationFn: (data: { username: string; is_test?: boolean }) => addChannel(data),
+    mutationFn: (data: { username: string; is_test?: boolean; category?: string }) => addChannel(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['channels'] })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'my'] })
       addToast('success', 'Канал успешно добавлен')
     },
     onError: () => {
@@ -70,7 +72,7 @@ export const useCheckChannel = () => {
       }
     },
     onError: (error: unknown) => {
-      console.error('[Channel] Check error:', error)
+      Sentry.captureException(error)
       let message = 'Ошибка при проверке канала'
 
       if (error && typeof error === 'object' && 'response' in error) {
@@ -106,6 +108,24 @@ export const useUpdateChannelSettings = () => {
   })
 }
 
+export const useUpdateChannelCategory = () => {
+  const queryClient = useQueryClient()
+  const addToast = useUiStore((s) => s.addToast)
+
+  return useMutation({
+    mutationFn: ({ id, category }: { id: number; category: string }) =>
+      updateChannelCategory(id, category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels', 'my'] })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'available'] })
+      addToast('success', 'Категория обновлена')
+    },
+    onError: () => {
+      addToast('error', 'Ошибка при обновлении категории')
+    },
+  })
+}
+
 export const useDeleteChannel = () => {
   const queryClient = useQueryClient()
   const addToast = useUiStore((s) => s.addToast)
@@ -113,7 +133,7 @@ export const useDeleteChannel = () => {
   return useMutation({
     mutationFn: (id: number) => deleteChannel(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['channels'] })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'my'] })
       addToast('success', 'Канал удалён')
     },
     onError: () => {

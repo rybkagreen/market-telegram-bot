@@ -1,8 +1,8 @@
 """
 Auth router для JWT авторизации через Telegram initData.
 
-POST /api/auth/login  — получить JWT по initData
-GET  /api/auth/me     — данные текущего пользователя
+POST /api/auth/telegram  — получить JWT по initData
+GET  /api/auth/me        — данные текущего пользователя
 """
 
 import logging
@@ -34,8 +34,8 @@ class UserResponse(BaseModel):
 
     id: int
     telegram_id: int
-    username: str | None
-    first_name: str | None
+    username: str | None = None
+    first_name: str | None = None
     plan: str
     credits: int
     ai_generations_used: int
@@ -94,6 +94,7 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             first_name=tg_user.get("first_name"),
             last_name=tg_user.get("last_name"),
         )
+        await session.commit()
 
     plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
     logger.info(f"Mini App login: telegram_id={telegram_id}, plan={plan_value}")
@@ -119,19 +120,13 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
     )
 
 
-@router.post("/login", response_model=LoginResponse)
-async def login_endpoint(body: LoginRequest) -> LoginResponse:
-    """Авторизация через Telegram initData (основной endpoint)."""
-    return await _login_handler(body)
-
-
-@router.post("/telegram", response_model=LoginResponse)
+@router.post("/telegram")
 async def login_telegram_endpoint(body: LoginRequest) -> LoginResponse:
     """Авторизация через Telegram initData (алиас для mini app)."""
     return await _login_handler(body)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_me(current_user: CurrentUser) -> UserResponse:
     """
     Получить данные текущего авторизованного пользователя.

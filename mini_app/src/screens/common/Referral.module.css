@@ -1,0 +1,169 @@
+/* Referral Screen — Dark Harbor Design System */
+
+.heroCard {
+  border-color: var(--rh-border-active);
+}
+
+.description {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  margin-bottom: var(--rh-space-4);
+  line-height: var(--rh-line-height-normal);
+}
+
+.codeBlock {
+  background: var(--rh-bg-elevated);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  padding: var(--rh-space-3);
+  margin-bottom: var(--rh-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+}
+
+.codeLabel {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.code {
+  font-family: var(--rh-font-mono);
+  font-size: var(--rh-text-lg);
+  font-weight: var(--rh-weight-bold);
+  color: var(--rh-accent);
+  text-align: center;
+  padding: var(--rh-space-2);
+  background: var(--rh-bg-secondary);
+  border-radius: var(--rh-radius-sm);
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+}
+
+/* Referral List */
+.referralList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+}
+
+.referralItem {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-3);
+  background: var(--rh-bg-secondary);
+  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border);
+  transition: border-color var(--rh-transition-fast);
+}
+
+.referralItem:hover {
+  border-color: var(--rh-border-active);
+}
+
+.referralAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rh-radius-full);
+  background: var(--rh-accent-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--rh-text-lg);
+  font-weight: var(--rh-weight-bold);
+  color: var(--rh-accent);
+  flex-shrink: 0;
+}
+
+.referralInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.referralName {
+  font-size: var(--rh-text-sm);
+  font-weight: var(--rh-weight-medium);
+  color: var(--rh-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.referralDate {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+}
+
+/* Steps */
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-3);
+  background: var(--rh-bg-secondary);
+  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border);
+}
+
+.stepNumber {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--rh-radius-full);
+  background: var(--rh-accent);
+  color: var(--rh-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--rh-text-xs);
+  font-weight: var(--rh-weight-bold);
+}
+
+.step span:last-child {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+  line-height: var(--rh-line-height-normal);
+  padding-top: 2px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: var(--rh-space-6);
+  left: var(--rh-space-4);
+  right: var(--rh-space-4);
+  z-index: var(--rh-z-toast);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

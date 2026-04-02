@@ -4,20 +4,20 @@ FastAPI роутер биллинга для Telegram Mini App.
 Endpoints:
   GET  /api/billing/balance          — баланс, тариф, история кратко
   GET  /api/billing/history          — история платежей с пагинацией
-  POST /api/billing/topup/crypto     — создать CryptoBot инвойс
-  POST /api/billing/topup/stars      — создать Telegram Stars инвойс
-  POST /api/billing/topup/yookassa   — создать ЮKassa платёж
+  POST /api/billing/topup            — создать ЮKassa платёж
   POST /webhooks/yookassa            — webhook от ЮKassa
   GET  /api/billing/invoice/{id}     — проверить статус инвойса
 """
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from decimal import Decimal
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
 from src.db.models.user import User
@@ -29,6 +29,18 @@ router = APIRouter(tags=["billing"])
 
 
 # ─── Константы ──────────────────────────────────────────────────
+
+# YooKassa IP ranges for webhook verification
+# https://yookassa.ru/developers/api/notifications#ip-address
+YOOKASSA_IPS: list[str] = [
+    "185.71.76.0/27",
+    "185.71.77.0/27",
+    "77.75.153.0/25",
+    "77.75.156.11/32",
+    "77.75.156.35/32",
+    "77.75.154.128/25",
+    "2a02:5180::/32",
+]
 
 CREDIT_PACKAGES = [
     {"id": "nano", "credits": 300, "bonus": 0, "label": "Nano"},
@@ -88,53 +100,32 @@ class PlanDetail(BaseModel):
 class BalanceResponse(BaseModel):
     credits: int
     plan: str
-    plan_expires_at: str | None
+    plan_expires_at: str | None = None
     ai_generations_used: int
     ai_included: int
     packages: list[dict]
     plan_costs: dict[str, int]
 
 
-class PaymentHistoryItem(BaseModel):
-    id: int
-    method: str
-    currency: str | None
-    credits: int
-    bonus_credits: int
-    status: str
-    created_at: str
+class BillingHistoryItem(BaseModel):
+    """Элемент истории платежей YooKassa."""
+
+    id: str = Field(..., description="payment_id из YooKassa")
+    type: str = Field(..., description="'topup' | 'plan_purchase'")
+    amount: int = Field(..., description="сумма в рублях")
+    credits: int | None = Field(None, description="полученные кредиты (для topup)")
+    plan: str | None = Field(None, description="купленный тариф (для plan_purchase)")
+    status: str = Field(..., description="'succeeded' | 'pending' | 'canceled'")
+    created_at: str = Field(..., description="ISO datetime")
 
 
-class HistoryResponse(BaseModel):
-    items: list[PaymentHistoryItem]
+class BillingHistoryResponse(BaseModel):
+    """Ответ истории платежей с пагинацией."""
+
+    items: list[BillingHistoryItem]
     total: int
     page: int
     pages: int
-
-
-class CryptoTopupRequest(BaseModel):
-    package_id: str
-    currency: str
-
-
-class CryptoTopupResponse(BaseModel):
-    pay_url: str
-    invoice_id: str
-    credits: int
-    bonus_credits: int
-    amount: str
-    currency: str
-
-
-class StarsTopupRequest(BaseModel):
-    package_id: str
-
-
-class StarsTopupResponse(BaseModel):
-    invoice_link: str
-    credits: int
-    bonus_credits: int
-    stars_amount: int
 
 
 class PlanRequest(BaseModel):
@@ -163,7 +154,7 @@ class InvoiceStatusResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.post("/topup", response_model=TopupResponse)
+@router.post("/topup", responses={400: {"description": "Bad request"}})
 async def create_unified_topup(
     body: TopupRequest,
     current_user: CurrentUser,
@@ -226,7 +217,7 @@ async def create_unified_topup(
     )
 
 
-@router.get("/topup/{payment_id}/status")
+@router.get("/topup/{payment_id}/status", responses={404: {"description": "Not found"}})
 async def get_topup_status(
     payment_id: str,
     current_user: CurrentUser,
@@ -278,7 +269,7 @@ async def get_topup_status(
         ) from e
 
 
-@router.get("/plans", response_model=list[PlanDetail])
+@router.get("/plans")
 async def get_plans() -> list[PlanDetail]:
     """
     Получить список тарифных планов.
@@ -352,7 +343,7 @@ async def get_plans() -> list[PlanDetail]:
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.get("/balance", response_model=BalanceResponse)
+@router.get("/balance")
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
     plan_str = _plan_label(current_user.plan)
@@ -378,65 +369,125 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
         credits=current_user.credits,
         plan=plan_str,
         plan_expires_at=expires_str,
-        ai_generations_used=current_user.ai_generations_used,
+        ai_generations_used=current_user.ai_uses_count,
         ai_included=ai_included,
         packages=packages_with_price,
         plan_costs=PLAN_COSTS,
     )
 
 
-@router.get("/history", response_model=HistoryResponse)
+@router.get("/history")
 async def get_history(
     current_user: CurrentUser,
-    page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=50),
-) -> HistoryResponse:
-    """История платежей пользователя."""
-    # CryptoPayment model removed — return empty history
-    return HistoryResponse(items=[], total=0, page=page, pages=1)
-
-
-@router.post("/topup/crypto", response_model=CryptoTopupResponse)
-async def create_crypto_invoice(
-    body: CryptoTopupRequest,
-    current_user: CurrentUser,
-) -> CryptoTopupResponse:
-    """CryptoBot пополнение удалено. Используйте ЮKassa."""
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="CryptoBot пополнение удалено. Используйте ЮKassa.",
-    )
-
-
-@router.post("/topup/stars", response_model=StarsTopupResponse)
-async def create_stars_invoice(
-    body: StarsTopupRequest,
-    current_user: CurrentUser,
-) -> StarsTopupResponse:
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> BillingHistoryResponse:
     """
-    Создать Telegram Stars инвойс.
-    Возвращает invoice_link для открытия через Telegram.
-    """
+    История платежей пользователя YooKassa.
 
-    package = _get_package(body.package_id)
-    if not package:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown package: {body.package_id}",
+    Возвращает список платежей с пагинацией. Каждый платёж содержит:
+    - id: payment_id из YooKassa
+    - type: 'topup' (пополнение баланса)
+    - amount: сумма в рублях
+    - credits: полученные кредиты (desired_balance)
+    - status: 'succeeded' | 'pending' | 'canceled'
+    - created_at: ISO datetime
+
+    Args:
+        current_user: Текущий пользователь.
+        page: Номер страницы (default: 1).
+        limit: Количество записей (default: 20, max: 100).
+
+    Returns:
+        BillingHistoryResponse: Список платежей с пагинацией.
+    """
+    from sqlalchemy import func, select
+
+    from src.db.models.yookassa_payment import YookassaPayment
+
+    async with async_session_factory() as session:
+        # Подсчёт общего количества
+        count_query = select(func.count()).select_from(YookassaPayment).where(
+            YookassaPayment.user_id == current_user.id
+        )
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Запрос данных с пагинацией
+        query = (
+            select(YookassaPayment)
+            .where(YookassaPayment.user_id == current_user.id)
+            .order_by(YookassaPayment.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        payments = result.scalars().all()
+
+        # Маппинг на BillingHistoryItem
+        items = []
+        for p in payments:
+            # Маппинг статусов YooKassa
+            status_map = {
+                "pending": "pending",
+                "waiting_for_capture": "pending",
+                "succeeded": "succeeded",
+                "canceled": "canceled",
+                "failed": "canceled",
+            }
+            mapped_status = status_map.get(p.status, "pending")
+
+            items.append(
+                BillingHistoryItem(
+                    id=p.payment_id,
+                    type="topup",
+                    amount=int(p.gross_amount),
+                    credits=int(p.desired_balance) if p.desired_balance else None,
+                    plan=None,
+                    status=mapped_status,
+                    created_at=p.created_at.isoformat() if p.created_at else datetime.now(UTC).isoformat(),
+                )
+            )
+
+        pages = (total + limit - 1) // limit if total > 0 else 1
+
+        return BillingHistoryResponse(
+            items=items,
+            total=total,
+            page=page,
+            pages=pages,
         )
 
-    credits = package["credits"]
-    bonus = package["bonus"]
-    credits + bonus
 
-    # v4.2: Stars удалены — возвращаем ошибку
-    raise HTTPException(
-        status_code=400,
-        detail="Telegram Stars не поддерживаются. Используйте ЮKassa."
-    )
+@router.post("/credits", responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}})
+async def buy_credits(
+    body: TopupRequest,
+    current_user: CurrentUser,
+) -> dict:
+    """Конвертировать рубли баланса в кредиты (1 ₽ = 1 кредит)."""
+    from src.core.services.billing_service import BillingService, InsufficientFundsError
+
+    amount = Decimal(str(body.desired_amount))
+    if current_user.balance_rub < amount:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Недостаточно рублей на балансе: {current_user.balance_rub} < {amount}",
+        )
+
+    try:
+        billing_service = BillingService()
+        credits_added, _, _ = await billing_service.buy_credits_for_plan(current_user.id, amount)
+    except InsufficientFundsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Недостаточно рублей на балансе",
+        ) from e
+
+    logger.info(f"User #{current_user.id} converted {amount} RUB → {credits_added} credits")
+    return {"credits_added": credits_added, "amount_rub": body.desired_amount}
 
 
-@router.post("/plan", response_model=PlanResponse)
+@router.post("/plan", responses={400: {"description": "Bad request"}})
 async def change_plan(
     body: PlanRequest,
     current_user: CurrentUser,
@@ -482,10 +533,17 @@ async def change_plan(
             .values(
                 plan=plan_str,
                 plan_expires_at=expires_at,
-                ai_generations_used=0,
+                ai_uses_count=0,
             )
         )
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Конфликт данных: запись уже существует или нарушено ограничение",
+            ) from e
 
     remaining = current_user.credits - cost
 
@@ -504,12 +562,12 @@ async def change_plan(
     )
 
 
-@router.get("/invoice/{invoice_id}", response_model=InvoiceStatusResponse)
+@router.get("/invoice/{invoice_id}", responses={404: {"description": "Not found"}})
 async def get_invoice_status(
     invoice_id: str,
     current_user: CurrentUser,
 ) -> InvoiceStatusResponse:
-    """CryptoBot инвойсы удалены."""
+    """Метод не используется."""
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
@@ -518,7 +576,7 @@ async def get_invoice_status(
 # =============================================================================
 
 
-@router.post("/webhooks/yookassa", status_code=200)
+@router.post("/webhooks/yookassa", status_code=200, responses={403: {"description": "Forbidden"}})
 async def yookassa_webhook(
     request: Request,
 ) -> dict[str, str]:
@@ -529,8 +587,18 @@ async def yookassa_webhook(
 
     v4.2: Зачислять metadata['desired_balance'] в balance_rub (НЕ gross_amount).
     """
+    # Верификация IP-адреса YooKassa
+    from ipaddress import ip_address, ip_network
+
+    client_ip = request.client.host if request.client else "0.0.0.0"
+    if not any(ip_address(client_ip) in ip_network(net) for net in YOOKASSA_IPS):
+        logger.warning(f"YooKassa webhook from unknown IP: {client_ip}")
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: request not from YooKassa IP",
+        )
+
     try:
-        from decimal import Decimal
 
         from src.core.services.billing_service import BillingService
 
@@ -549,7 +617,7 @@ async def yookassa_webhook(
                 # Получить метаданные из YooKassaPayment
                 from sqlalchemy import select
 
-                from src.db.models.yookassa_payment import YooKassaPayment
+                from src.db.models.yookassa_payment import YookassaPayment as YooKassaPayment
 
                 result = await session.execute(
                     select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)
@@ -559,10 +627,10 @@ async def yookassa_webhook(
                 if record:
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
-                        "desired_balance": str(record.credits),  # credits = desired_balance в v4.2
+                        "desired_balance": str(record.desired_balance),  # credits = desired_balance в v4.2
                         "user_id": str(record.user_id),
                     }
-                    gross_amount = Decimal(str(record.amount_rub))
+                    gross_amount = record.gross_amount
 
                     await billing_service.process_topup_webhook(
                         session=session,
@@ -570,6 +638,12 @@ async def yookassa_webhook(
                         gross_amount=gross_amount,
                         metadata=metadata,
                     )
+
+                    # Обновить статус платежа на succeeded
+                    record.status = "succeeded"
+                    record.processed_at = datetime.now(UTC)
+                    await session.commit()
+
                     logger.info(
                         f"Topup processed: payment_id={payment_id}, "
                         f"desired={metadata['desired_balance']}, gross={gross_amount}"

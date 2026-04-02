@@ -121,3 +121,15 @@ export function getUsersList(params: UsersListParams): Promise<UserListAdminResp
 export function getUserById(id: number): Promise<UserAdminResponse> {
   return api.get(`admin/users/${id}`).json<UserAdminResponse>()
 }
+
+export interface BalanceTopUpRequest {
+  amount: number
+  note?: string
+}
+
+export function addUserBalance(
+  userId: number,
+  data: BalanceTopUpRequest
+): Promise<UserAdminResponse> {
+  return api.post(`admin/users/${userId}/balance`, { json: data }).json<UserAdminResponse>()
+}

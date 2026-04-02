@@ -8,17 +8,21 @@ Endpoints:
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import and_, func, select, true
+from sqlalchemy import and_, false, func, select, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from telegram import Bot
 
 from src.api.dependencies import CurrentUser, get_bot, get_db_session
 from src.api.schemas.channel import (
+    ChannelCategoryUpdateRequest,
     ChannelCheckRequest,
     ChannelCheckResponse,
     ChannelCreateRequest,
@@ -32,11 +36,87 @@ from src.constants.tariffs import (
     TARIFF_SUBSCRIBER_LIMITS,
     TARIFF_TOPICS,
 )
+from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
+from src.db.repositories.category_repo import CategoryRepo
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["channels"])
+
+NO_NAME = "Без названия"
+
+
+async def _resolve_chat(bot: "Bot", body: "ChannelCheckRequest"):  # type: ignore[return]
+    """Resolve a Telegram chat object from username or chat_id.
+
+    Raises HTTPException 400 if neither is provided or the chat cannot be found.
+    """
+    from telegram import Bot as _Bot  # noqa: F401 – imported for type context only
+
+    try:
+        if body.chat_id:
+            logger.info(f"Checking channel by ID: {body.chat_id}")
+            return await bot.get_chat(body.chat_id)
+        if body.username:
+            clean_username = body.username.strip().lstrip("@")
+            logger.info(
+                f"Checking channel by username: @{clean_username} (original: {body.username!r})"
+            )
+            chat = await bot.get_chat(f"@{clean_username}")
+            logger.info(
+                f"Bot API get_chat response: type={type(chat).__name__},"
+                f" id={chat.id}, username={chat.username}"
+            )
+            return chat
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите username или chat_id канала",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Channel not found: {type(e).__name__}: {e} | Input username: {body.username!r}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Канал не найден. Убедитесь, что username/chat_id указан правильно"
+                f" и бот добавлен в канал как администратор. (Debug: {type(e).__name__})"
+            ),
+        ) from e
+
+
+async def _get_bot_admin_member(bot: "Bot", chat_id: int, username: str):  # type: ignore[return]
+    """Fetch and validate that the bot is an admin in the given channel.
+
+    Raises HTTPException 403 if the bot is not an admin or member info cannot be retrieved.
+    """
+    from telegram import ChatMemberAdministrator
+
+    try:
+        chat_member = await bot.get_chat_member(chat_id, bot.id)
+        logger.info(f"Bot chat_member type: {type(chat_member).__name__}")
+        logger.info(f"Bot chat_member status: {chat_member.status}")
+        logger.info(f"Is ChatMemberAdministrator: {isinstance(chat_member, ChatMemberAdministrator)}")
+    except Exception as e:
+        logger.error(f"Cannot get chat member for {username}: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Не удалось проверить права бота в канале",
+        ) from e
+
+    if not isinstance(chat_member, ChatMemberAdministrator):
+        logger.error(
+            f"Bot is NOT admin! chat_member type: {type(chat_member).__name__},"
+            f" status: {chat_member.status}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Бот не является администратором канала",
+        )
+    return chat_member
 
 CACHE_KEY = "channels:stats:v1"
 CACHE_TTL = 3600  # 1 час
@@ -48,7 +128,7 @@ CACHE_TTL = 3600  # 1 час
 @router.get("/", response_model=None)
 async def get_my_channels(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[TelegramChat]:
     """
     Получить мои каналы.
@@ -69,12 +149,15 @@ async def get_my_channels(
 # ─── Проверка и добавление канала ──────────────────────────────────
 
 
-@router.post("/check", response_model=ChannelCheckResponse)
+@router.post(
+    "/check",
+    responses={400: {"description": "Bad request"}, 403: {"description": "Forbidden"}},
+)
 async def check_channel(
     body: ChannelCheckRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
-    bot: Bot = Depends(get_bot),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    bot: Annotated[Bot, Depends(get_bot)],
 ) -> ChannelCheckResponse:
     """
     Проверить канал перед добавлением.
@@ -102,37 +185,12 @@ async def check_channel(
         HTTPException 400: Канал не найден или не соответствует правилам
         HTTPException 403: Бот не является администратором канала
     """
-    from telegram import ChatMemberAdministrator
-
-    from src.core.services.channel_service import ChannelService
     from src.utils.telegram.channel_rules_checker import ChannelRulesChecker
     from src.utils.telegram.russian_lang_detector import RussianLangDetector
 
     # 1. Проверка существования канала (по username или chat_id)
-    try:
-        if body.chat_id:
-            logger.info(f"Checking channel by ID: {body.chat_id}")
-            chat = await bot.get_chat(body.chat_id)
-        elif body.username:
-            # Очищаем username от @ и пробелов, затем добавляем @ для Telegram API
-            clean_username = body.username.strip().lstrip('@')
-            logger.info(f"Checking channel by username: @{clean_username} (original: {body.username!r})")
-            chat = await bot.get_chat(f"@{clean_username}")  # ✅ Добавляем @ для Telegram API
-            logger.info(f"Bot API get_chat response: type={type(chat).__name__}, id={chat.id}, username={chat.username}")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Укажите username или chat_id канала",
-            )
-        logger.info(f"Successfully found chat: {chat.title} (id={chat.id}, type={chat.type})")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Channel not found: {type(e).__name__}: {e} | Input username: {body.username!r}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Канал не найден. Убедитесь, что username/chat_id указан правильно и бот добавлен в канал как администратор. (Debug: {type(e).__name__})",
-        ) from e
+    chat = await _resolve_chat(bot, body)
+    logger.info(f"Successfully found chat: {chat.title} (id={chat.id}, type={chat.type})")
 
     # 2. Проверка типа чата (должен быть канал)
     if chat.type != "channel":
@@ -141,26 +199,8 @@ async def check_channel(
             detail=f"@{body.username} не является каналом (тип: {chat.type})",
         )
 
-    # 3. Проверка прав бота через get_chat_member
-    try:
-        chat_member = await bot.get_chat_member(chat.id, bot.id)
-        logger.info(f"Bot chat_member type: {type(chat_member).__name__}")
-        logger.info(f"Bot chat_member status: {chat_member.status}")
-        logger.info(f"Is ChatMemberAdministrator: {isinstance(chat_member, ChatMemberAdministrator)}")
-    except Exception as e:
-        logger.error(f"Cannot get chat member for {body.username}: {type(e).__name__}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Не удалось проверить права бота в канале",
-        ) from e
-
-    # 4. Проверка что бот является администратором
-    if not isinstance(chat_member, ChatMemberAdministrator):
-        logger.error(f"Bot is NOT admin! chat_member type: {type(chat_member).__name__}, status: {chat_member.status}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Бот не является администратором канала",
-        )
+    # 3–4. Проверка прав бота и статуса администратора
+    chat_member = await _get_bot_admin_member(bot, chat.id, body.username or str(body.chat_id))
 
     # 5. Проверка необходимых прав
     required_permissions = {
@@ -183,7 +223,7 @@ async def check_channel(
     result = await session.execute(
         select(TelegramChat).where(
             TelegramChat.owner_id == current_user.id,
-            TelegramChat.username == body.username.lstrip("@"),
+            TelegramChat.username == (body.username or "").lstrip("@"),
             TelegramChat.is_active.is_(True),
         )
     )
@@ -213,18 +253,10 @@ async def check_channel(
         getattr(chat, "description", "") or "",
     )
 
-    # 9. AI классификация тематики (P3) — опционально, не блокирует
-    category: str | None = None
-    try:
-        category = await ChannelService.classify_channel_topic(chat)
-    except Exception as e:
-        logger.warning(f"AI classification failed: {e}")
-        # Не блокируем если AI не сработал
-
     # Формируем ответ
     channel_info = {
         "id": chat.id,
-        "title": chat.title or "Без названия",
+        "title": chat.title or NO_NAME,
         "username": chat.username or body.username,
         "member_count": (await chat.get_member_count() if hasattr(chat, "get_member_count") else 0),
     }
@@ -246,16 +278,19 @@ async def check_channel(
         rules_warnings=rules_warnings,
         language_valid=language_valid,
         language_warnings=language_warnings,
-        category=category,
+        category=None,
     )
 
 
-@router.post("/", response_model=ChannelResponse)
+@router.post(
+    "/",
+    responses={400: {"description": "Bad request"}, 403: {"description": "Forbidden"}, 409: {"description": "Conflict"}},
+)
 async def create_channel(
     body: ChannelCreateRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
-    bot: Bot = Depends(get_bot),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    bot: Annotated[Bot, Depends(get_bot)],
 ) -> ChannelResponse:
     """
     Добавить канал пользователя.
@@ -336,18 +371,40 @@ async def create_channel(
     except Exception:
         logger.warning(f"Cannot get member count for @{body.username}")
 
+    # Валидация category если передана
+    channel_category: str | None = None
+    if body.category:
+        cat = await CategoryRepo(session).get_by_slug(body.category)
+        if not cat:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Неверная категория",
+            )
+        channel_category = cat.slug
+
     # is_test может быть установлен только админом
     is_test = body.is_test and current_user.is_admin
 
     new_channel = await repo.create({
         "telegram_id": chat.id,
         "username": username_clean,
-        "title": chat.title or "Без названия",
+        "title": chat.title or NO_NAME,
         "owner_id": current_user.id,
         "member_count": member_count,
         "is_test": is_test,
+        "category": channel_category,
     })
-    await session.commit()
+    await session.flush()
+    session.add(ChannelSettings(channel_id=new_channel.id))
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
+    await session.refresh(new_channel)
 
     return ChannelResponse(
         id=new_channel.id,
@@ -360,16 +417,19 @@ async def create_channel(
         avg_views=new_channel.avg_views,
         rating=new_channel.rating,
         category=new_channel.category,
-        subcategory=new_channel.subcategory,
         is_active=new_channel.is_active,
     )
 
 
-@router.delete("/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{channel_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}, 409: {"description": "Conflict"}},
+)
 async def delete_channel(
     channel_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """
     Удалить канал пользователя.
@@ -397,7 +457,160 @@ async def delete_channel(
     # Удаляем канал (каскадно удалит settings, mediakit, placement_requests)
     repo = TelegramChatRepository(session)
     await repo.delete(channel_id)
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+        ) from e
+
+
+@router.patch(
+    "/{channel_id}/category",
+    responses={400: {"description": "Bad request"}, 403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
+async def update_channel_category(
+    channel_id: int,
+    body: ChannelCategoryUpdateRequest,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """Обновить категорию канала."""
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    cat = await CategoryRepo(session).get_by_slug(body.category)
+    if not cat:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная категория")
+
+    channel.category = cat.slug
     await session.commit()
+    await session.refresh(channel)
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        username=channel.username,
+        title=channel.title,
+        owner_id=channel.owner_id,
+        member_count=channel.member_count,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        rating=channel.rating,
+        category=channel.category,
+        is_active=channel.is_active,
+    )
+
+
+# ─── Доступные каналы для wizard рекламодателя ──────────────────
+
+
+class ChannelSettingsOut(BaseModel):
+    channel_id: int
+    price_per_post: str
+    allow_format_post_24h: bool
+    allow_format_post_48h: bool
+    allow_format_post_7d: bool
+    allow_format_pin_24h: bool
+    allow_format_pin_48h: bool
+    max_posts_per_day: int
+    max_posts_per_week: int
+    publish_start_time: str
+    publish_end_time: str
+    break_start_time: str | None = None
+    break_end_time: str | None = None
+    auto_accept_enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ChannelWithSettingsOut(BaseModel):
+    id: int
+    telegram_id: int
+    username: str
+    title: str
+    owner_id: int
+    member_count: int
+    is_test: bool
+    last_er: float
+    avg_views: int
+    rating: float
+    category: str | None = None
+    is_active: bool
+    settings: ChannelSettingsOut
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/available")
+async def get_available_channels(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    category: Annotated[str | None, Query()] = None,
+) -> list[ChannelWithSettingsOut]:
+    """
+    Получить каналы доступные для размещения рекламы (wizard рекламодателя).
+
+    Обычные пользователи не видят тестовые каналы.
+    Администраторы видят все каналы включая тестовые.
+    """
+    conds = [TelegramChat.is_active == true()]
+    if not current_user.is_admin:
+        conds.append(TelegramChat.is_test == false())
+    if category:
+        conds.append(TelegramChat.category == category)
+
+    result = await session.execute(
+        select(TelegramChat)
+        .options(selectinload(TelegramChat.channel_settings))
+        .where(and_(*conds))
+        .order_by(TelegramChat.member_count.desc())
+    )
+    channels = result.scalars().all()
+
+    items = []
+    for ch in channels:
+        if not ch.channel_settings:
+            continue
+        s = ch.channel_settings
+        items.append(
+            ChannelWithSettingsOut(
+                id=ch.id,
+                telegram_id=ch.telegram_id,
+                username=ch.username,
+                title=ch.title,
+                owner_id=ch.owner_id,
+                member_count=ch.member_count,
+                is_test=ch.is_test,
+                last_er=ch.last_er,
+                avg_views=ch.avg_views,
+                rating=ch.rating,
+                category=ch.category,
+                is_active=ch.is_active,
+                settings=ChannelSettingsOut(
+                    channel_id=s.channel_id,
+                    price_per_post=str(s.price_per_post),
+                    allow_format_post_24h=s.allow_format_post_24h,
+                    allow_format_post_48h=s.allow_format_post_48h,
+                    allow_format_post_7d=s.allow_format_post_7d,
+                    allow_format_pin_24h=s.allow_format_pin_24h,
+                    allow_format_pin_48h=s.allow_format_pin_48h,
+                    max_posts_per_day=s.max_posts_per_day,
+                    max_posts_per_week=s.max_posts_per_week,
+                    publish_start_time=str(s.publish_start_time),
+                    publish_end_time=str(s.publish_end_time),
+                    break_start_time=str(s.break_start_time) if s.break_start_time else None,
+                    break_end_time=str(s.break_end_time) if s.break_end_time else None,
+                    auto_accept_enabled=s.auto_accept_enabled,
+                ),
+            )
+        )
+    return items
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
@@ -414,7 +627,7 @@ class TariffStatsItem(BaseModel):
 class TopChannelItem(BaseModel):
     id: int
     title: str
-    username: str | None
+    username: str | None = None
     subscribers: int
 
 
@@ -437,10 +650,10 @@ class DatabaseStatsResponse(BaseModel):
 class ChannelPreviewItem(BaseModel):
     id: int
     title: str
-    username: str | None
+    username: str | None = None
     subscribers: int
-    topic: str | None
-    rating: float | None
+    topic: str | None = None
+    rating: float | None = None
     is_premium: bool
     is_accessible: bool
 
@@ -471,7 +684,7 @@ def _tariff_conditions(tariff: str) -> list:
 
     topics = TARIFF_TOPICS.get(tariff)
     if topics is not None:
-        conds.append(TelegramChat.topic.in_(topics))
+        conds.append(TelegramChat.category.in_(topics))
 
     # PRO не видит premium каналы
     if tariff == "pro":
@@ -480,10 +693,86 @@ def _tariff_conditions(tariff: str) -> list:
     return conds
 
 
+async def _build_category_stats_item(
+    session: AsyncSession,
+    row: Any,
+    total: int,
+) -> CategoryStatsItem:
+    """Build a CategoryStatsItem for one topic row, including top channels and tariff counts."""
+    top_r = await session.execute(
+        select(
+            TelegramChat.id,
+            TelegramChat.title,
+            TelegramChat.username,
+            TelegramChat.member_count,
+        )
+        .where(
+            TelegramChat.is_active == true(),
+            TelegramChat.category == row.topic,
+        )
+        .order_by(TelegramChat.member_count.desc())
+        .limit(3)
+    )
+    top_channels = [
+        TopChannelItem(
+            id=r.id,
+            title=r.title or NO_NAME,
+            username=r.username,
+            subscribers=r.member_count or 0,
+        )
+        for r in top_r.all()
+    ]
+
+    available_by_tariff: dict[str, int] = {}
+    for tariff in ("free", "starter", "pro", "business"):
+        conds = _tariff_conditions(tariff)
+        conds.append(TelegramChat.category == row.topic)
+        cnt_r = await session.execute(
+            select(func.count(TelegramChat.id)).where(and_(*conds))
+        )
+        available_by_tariff[tariff] = cnt_r.scalar() or 0
+
+    return CategoryStatsItem(
+        category=row.topic,
+        total=row.total or 0,
+        available_by_tariff=available_by_tariff,
+        top_channels=top_channels,
+    )
+
+
+async def _build_tariff_stats_item(
+    session: AsyncSession,
+    tariff: str,
+    total: int,
+) -> TariffStatsItem:
+    """Build a TariffStatsItem for one tariff, including optional premium count."""
+    conds = _tariff_conditions(tariff)
+    cnt_r = await session.execute(select(func.count(TelegramChat.id)).where(and_(*conds)))
+    available = cnt_r.scalar() or 0
+
+    premium_count = 0
+    if tariff == "business":
+        prem_r = await session.execute(
+            select(func.count(TelegramChat.id)).where(
+                TelegramChat.is_active == true(),
+                TelegramChat.member_count >= PREMIUM_SUBSCRIBER_THRESHOLD,
+            )
+        )
+        premium_count = prem_r.scalar() or 0
+
+    return TariffStatsItem(
+        tariff=tariff,
+        label=TARIFF_LABELS[tariff],
+        available=available,
+        percent_of_total=round(available / total * 100, 1) if total > 0 else 0.0,
+        premium_count=premium_count,
+    )
+
+
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/stats", response_model=DatabaseStatsResponse)
+@router.get("/stats")
 async def get_channel_stats() -> DatabaseStatsResponse:
     """
     Публичная статистика базы каналов.
@@ -509,7 +798,7 @@ async def get_channel_stats() -> DatabaseStatsResponse:
         total = total_r.scalar() or 0
 
         # Добавлено за 7 дней
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = datetime.now(UTC) - timedelta(days=7)
         new_r = await session.execute(
             select(func.count(TelegramChat.id)).where(
                 TelegramChat.is_active == true(),
@@ -521,11 +810,11 @@ async def get_channel_stats() -> DatabaseStatsResponse:
         # Группировка по топику — один запрос вместо N+1
         cat_r = await session.execute(
             select(
-                TelegramChat.topic.label("topic"),
+                TelegramChat.category.label("topic"),
                 func.count(TelegramChat.id).label("total"),
             )
             .where(TelegramChat.is_active == true())
-            .group_by(TelegramChat.topic)
+            .group_by(TelegramChat.category)
             .order_by(func.count(TelegramChat.id).desc())
         )
         cat_rows = cat_r.all()
@@ -535,84 +824,20 @@ async def get_channel_stats() -> DatabaseStatsResponse:
         for row in cat_rows:
             if not row.topic:
                 continue
-
-            # Топ-3 канала по подписчикам
-            top_r = await session.execute(
-                select(
-                    TelegramChat.id,
-                    TelegramChat.title,
-                    TelegramChat.username,
-                    TelegramChat.member_count,
-                )
-                .where(
-                    TelegramChat.is_active == true(),
-                    TelegramChat.topic == row.topic,
-                )
-                .order_by(TelegramChat.member_count.desc())
-                .limit(3)
-            )
-            top_channels = [
-                TopChannelItem(
-                    id=r.id,
-                    title=r.title or "Без названия",
-                    username=r.username,
-                    subscribers=r.member_count or 0,
-                )
-                for r in top_r.all()
-            ]
-
-            # Доступность по каждому тарифу
-            available_by_tariff: dict[str, int] = {}
-            for tariff in ("free", "starter", "pro", "business"):
-                conds = _tariff_conditions(tariff)
-                conds.append(TelegramChat.topic == row.topic)
-                cnt_r = await session.execute(
-                    select(func.count(TelegramChat.id)).where(and_(*conds))
-                )
-                available_by_tariff[tariff] = cnt_r.scalar() or 0
-
             categories.append(
-                CategoryStatsItem(
-                    category=row.topic,
-                    total=row.total or 0,
-                    available_by_tariff=available_by_tariff,
-                    top_channels=top_channels,
-                )
+                await _build_category_stats_item(session, row, total)
             )
 
         # Статистика по тарифам
         tariff_stats: list[TariffStatsItem] = []
         for tariff in ("free", "starter", "pro", "business"):
-            conds = _tariff_conditions(tariff)
-            cnt_r = await session.execute(select(func.count(TelegramChat.id)).where(and_(*conds)))
-            available = cnt_r.scalar() or 0
-
-            # Premium каналы (>1M) — только для business
-            premium_count = 0
-            if tariff == "business":
-                prem_r = await session.execute(
-                    select(func.count(TelegramChat.id)).where(
-                        TelegramChat.is_active == true(),
-                        TelegramChat.member_count >= PREMIUM_SUBSCRIBER_THRESHOLD,
-                    )
-                )
-                premium_count = prem_r.scalar() or 0
-
-            tariff_stats.append(
-                TariffStatsItem(
-                    tariff=tariff,
-                    label=TARIFF_LABELS[tariff],
-                    available=available,
-                    percent_of_total=round(available / total * 100, 1) if total > 0 else 0.0,
-                    premium_count=premium_count,
-                )
-            )
+            tariff_stats.append(await _build_tariff_stats_item(session, tariff, total))
 
     result = DatabaseStatsResponse(
         total_channels=total,
         total_categories=len(categories),
         added_last_7d=added_7d,
-        last_updated=datetime.utcnow().isoformat(),
+        last_updated=datetime.now(UTC).isoformat(),
         tariff_stats=tariff_stats,
         categories=categories,
     )
@@ -630,11 +855,11 @@ async def get_channel_stats() -> DatabaseStatsResponse:
     return result
 
 
-@router.get("/preview", response_model=ChannelsPreviewResponse)
+@router.get("/preview")
 async def get_channels_preview(
     current_user: CurrentUser,
-    topic: str | None = Query(default=None),
-    limit: int = Query(default=20, ge=1, le=100),
+    topic: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ChannelsPreviewResponse:
     """
     Предпросмотр каналов с учётом тарифа пользователя.
@@ -647,8 +872,10 @@ async def get_channels_preview(
     async with async_session_factory() as session:
         # Все каналы по фильтру
         base_conds = [TelegramChat.is_active == true()]
+        if not current_user.is_admin:
+            base_conds.append(TelegramChat.is_test == false())
         if topic:
-            base_conds.append(TelegramChat.topic == topic)
+            base_conds.append(TelegramChat.category == topic)
 
         all_r = await session.execute(
             select(
@@ -656,7 +883,7 @@ async def get_channels_preview(
                 TelegramChat.title,
                 TelegramChat.username,
                 TelegramChat.member_count,
-                TelegramChat.topic,
+                TelegramChat.category.label("topic"),
                 TelegramChat.rating,
             )
             .where(and_(*base_conds))
@@ -668,7 +895,7 @@ async def get_channels_preview(
         # ID каналов доступных пользователю
         user_conds = _tariff_conditions(plan_str)
         if topic:
-            user_conds.append(TelegramChat.topic == topic)
+            user_conds.append(TelegramChat.category == topic)
 
         acc_r = await session.execute(select(TelegramChat.id).where(and_(*user_conds)))
         accessible_ids = {r.id for r in acc_r.all()}
@@ -676,7 +903,7 @@ async def get_channels_preview(
     channels = [
         ChannelPreviewItem(
             id=row.id,
-            title=row.title or "Без названия",
+            title=row.title or NO_NAME,
             username=row.username,
             subscribers=row.member_count or 0,
             topic=row.topic,
@@ -695,57 +922,6 @@ async def get_channels_preview(
     )
 
 
-# ─── Endpoint для подкатегорий ──────────────────────────────────
-
-
-@router.get("/subcategories/{parent_topic}")
-async def get_subcategory_stats(parent_topic: str) -> dict:
-    """
-    Детальная статистика по подкатегориям внутри топика.
-    Например: GET /api/channels/subcategories/it
-    """
-    from fastapi import HTTPException
-
-    from src.utils.categories import SUBCATEGORIES
-
-    subcats = SUBCATEGORIES.get(parent_topic)
-    if not subcats:
-        raise HTTPException(status_code=404, detail=f"Topic '{parent_topic}' not found")
-
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(
-                TelegramChat.subcategory.label("subcat"),
-                func.count(TelegramChat.id).label("total"),
-                func.max(TelegramChat.member_count).label("max_subs"),
-                func.avg(TelegramChat.member_count).label("avg_subs"),
-            )
-            .where(
-                TelegramChat.is_active == true(),  # noqa: E712
-                TelegramChat.topic == parent_topic,
-                TelegramChat.subcategory.in_(list(subcats.keys())),
-            )
-            .group_by(TelegramChat.subcategory)
-            .order_by(func.count(TelegramChat.id).desc())
-        )
-        rows = result.all()
-
-    return {
-        "topic": parent_topic,
-        "subcategories": [
-            {
-                "code": row.subcat,
-                "name": subcats.get(row.subcat, row.subcat),
-                "total": row.total,
-                "max_subscribers": row.max_subs or 0,
-                "avg_subscribers": round(row.avg_subs or 0),
-            }
-            for row in rows
-            if row.subcat
-        ],
-    }
-
-
 # ─── Сравнение каналов ──────────────────────────────────────────
 
 
@@ -755,8 +931,8 @@ class ChannelIdsRequest(BaseModel):
 
 class ComparisonChannelItem(BaseModel):
     id: int
-    username: str | None
-    title: str | None
+    username: str | None = None
+    title: str | None = None
     member_count: int
     avg_views: int
     er: float
@@ -778,7 +954,7 @@ class ComparisonResponse(BaseModel):
     recommendation: ComparisonRecommendation
 
 
-@router.post("/compare", response_model=ComparisonResponse)
+@router.post("/compare", responses={400: {"description": "Bad request"}, 404: {"description": "Not found"}})
 async def compare_channels(
     request: ChannelIdsRequest,
     current_user: CurrentUser,
@@ -805,7 +981,7 @@ async def compare_channels(
     return ComparisonResponse(**result)  # type: ignore[arg-type]  # dict unpacking to Response model
 
 
-@router.get("/compare/preview")
+@router.get("/compare/preview", responses={400: {"description": "Bad request"}})
 async def compare_channels_preview(
     ids: str,  # "1,2,3"
     current_user: CurrentUser,

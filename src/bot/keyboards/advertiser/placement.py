@@ -1,42 +1,33 @@
 """Placement keyboards for campaign creation."""
 
 from decimal import Decimal
+from typing import Any
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+BACK_BTN = "Назад"
+CANCEL_BTN = "Отменить"
 
-def category_kb() -> InlineKeyboardMarkup:
-    """Выбор категории (11 категорий по 2 в ряд)."""
+
+def category_kb(categories: list[Any]) -> InlineKeyboardMarkup:
+    """Выбор категории из БД (по 2 в ряд)."""
     builder = InlineKeyboardBuilder()
-    categories = [
-        ("it", "💻 IT и технологии"),
-        ("business", "💰 Бизнес и финансы"),
-        ("education", "🎓 Образование"),
-        ("retail", "👗 Розница"),
-        ("beauty", "💄 Красота"),
-        ("food", "🍔 Еда"),
-        ("travel", "✈️ Путешествия"),
-        ("realty", "🏠 Недвижимость"),
-        ("auto", "🚗 Авто"),
-        ("sport", "⚽ Спорт"),
-        ("entertainment", "🎬 Развлечения"),
-    ]
     for i in range(0, len(categories), 2):
         row = []
-        row.append(InlineKeyboardButton(text=categories[i][1], callback_data=f"camp:cat:{categories[i][0]}"))
+        cat = categories[i]
+        row.append(InlineKeyboardButton(
+            text=f"{cat.emoji} {cat.name_ru}",
+            callback_data=f"camp:cat:{cat.slug}",
+        ))
         if i + 1 < len(categories):
-            row.append(InlineKeyboardButton(text=categories[i+1][1], callback_data=f"camp:cat:{categories[i+1][0]}"))
+            cat2 = categories[i + 1]
+            row.append(InlineKeyboardButton(
+                text=f"{cat2.emoji} {cat2.name_ru}",
+                callback_data=f"camp:cat:{cat2.slug}",
+            ))
         builder.row(*row)
     builder.row(InlineKeyboardButton(text="Отмена", callback_data="main:adv_menu"))
-    return builder.as_markup()
-
-
-def subcategory_kb(cat: str) -> InlineKeyboardMarkup:
-    """Выбор подкатегории."""
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Пропустить", callback_data="camp:subcat:skip"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="main:create_campaign"))
     return builder.as_markup()
 
 
@@ -48,7 +39,7 @@ def channel_card_kb(cid: int, selected: bool, sel_count: int) -> InlineKeyboardM
     builder.row(InlineKeyboardButton(text="Пропустить", callback_data="camp:channel:skip"))
     if sel_count > 0:
         builder.row(InlineKeyboardButton(text=f"Далее ({sel_count})", callback_data="camp:channels:done"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="camp:back:subcategory"))
+    builder.row(InlineKeyboardButton(text=BACK_BTN, callback_data="camp:back:category"))
     return builder.as_markup()
 
 
@@ -74,7 +65,7 @@ def format_kb(allowed: list[str], plan: str, base: Decimal) -> InlineKeyboardMar
             name, mult = formats.get(fmt_code, (fmt_code, Decimal("1.0")))
             price = base * mult
             builder.row(InlineKeyboardButton(text=f"{name} — {price:.0f} ₽", callback_data=f"camp:format:{fmt_code}"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="camp:back:channels"))
+    builder.row(InlineKeyboardButton(text=BACK_BTN, callback_data="camp:back:channels"))
     return builder.as_markup()
 
 
@@ -84,7 +75,7 @@ def text_method_kb(plan: str, ai_left: int) -> InlineKeyboardMarkup:
     if plan != "free" and ai_left > 0:
         builder.row(InlineKeyboardButton(text="🤖 AI", callback_data="camp:text:ai"))
     builder.row(InlineKeyboardButton(text="✍️ Вручную", callback_data="camp:text:manual"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="camp:back:format"))
+    builder.row(InlineKeyboardButton(text=BACK_BTN, callback_data="camp:back:format"))
     return builder.as_markup()
 
 
@@ -107,7 +98,7 @@ def camp_confirm_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="Отправить", callback_data="camp:submit"))
     builder.row(
         InlineKeyboardButton(text="Изменить текст", callback_data="camp:back:text"),
-        InlineKeyboardButton(text="Отменить", callback_data="main:adv_menu"),
+        InlineKeyboardButton(text=CANCEL_BTN, callback_data="main:adv_menu"),
     )
     return builder.as_markup()
 
@@ -116,7 +107,7 @@ def camp_waiting_kb(rid: int) -> InlineKeyboardMarkup:
     """Ожидание ответа владельца."""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Мои кампании", callback_data="main:my_campaigns"))
-    builder.row(InlineKeyboardButton(text="Отменить", callback_data=f"camp:cancel:{rid}"))
+    builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data=f"camp:cancel:{rid}"))
     return builder.as_markup()
 
 
@@ -127,7 +118,7 @@ def camp_payment_kb(rid: int, bal: Decimal, price: Decimal) -> InlineKeyboardMar
         builder.row(InlineKeyboardButton(text="Оплатить с баланса", callback_data=f"camp:pay:balance:{rid}"))
     else:
         builder.row(InlineKeyboardButton(text="Пополнить", callback_data="billing:topup_start"))
-    builder.row(InlineKeyboardButton(text="Отменить", callback_data=f"camp:cancel:{rid}"))
+    builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data=f"camp:cancel:{rid}"))
     return builder.as_markup()
 
 
@@ -137,7 +128,7 @@ def camp_counter_kb(rid: int, round: int) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="Принять", callback_data=f"camp:counter:accept:{rid}"))
     if round < 3:
         builder.row(InlineKeyboardButton(text="Контр", callback_data=f"camp:counter:reply:{rid}"))
-    builder.row(InlineKeyboardButton(text="Отменить", callback_data=f"camp:cancel:{rid}"))
+    builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data=f"camp:cancel:{rid}"))
     return builder.as_markup()
 
 
@@ -147,4 +138,21 @@ def camp_published_kb(pid: int, within_48h: bool) -> InlineKeyboardMarkup:
     if within_48h:
         builder.row(InlineKeyboardButton(text="Пожаловаться", callback_data=f"dispute:open:{pid}"))
     builder.row(InlineKeyboardButton(text="Мои кампании", callback_data="main:my_campaigns"))
+    return builder.as_markup()
+
+
+def video_upload_keyboard() -> InlineKeyboardMarkup:
+    """Предложение загрузить видео к рекламному посту."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🎬 Загрузить видео", callback_data="campaign:add_video"))
+    builder.row(InlineKeyboardButton(text="⏭ Пропустить", callback_data="campaign:skip_video"))
+    return builder.as_markup()
+
+
+def video_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Подтверждение загруженного видео."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="✅ Продолжить", callback_data="campaign:video_confirm"))
+    builder.row(InlineKeyboardButton(text="🔄 Заменить видео", callback_data="campaign:add_video"))
+    builder.row(InlineKeyboardButton(text="❌ Удалить видео", callback_data="campaign:remove_video"))
     return builder.as_markup()

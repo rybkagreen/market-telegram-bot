@@ -182,52 +182,46 @@ export default function OwnChannelSettings() {
       </Card>
 
       <Card title="Расписание публикаций">
-        <div className={styles.timeGrid}>
-          <div className={styles.timeField}>
-            <label className={styles.label}>Начало</label>
-            <input
-              className={styles.input}
-              type="time"
-              value={publishStart}
-              onChange={(e) => setPublishStart(e.target.value)}
-            />
-          </div>
-          <div className={styles.timeField}>
-            <label className={styles.label}>Конец</label>
-            <input
-              className={styles.input}
-              type="time"
-              value={publishEnd}
-              onChange={(e) => setPublishEnd(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className={styles.timeGrid}>
-          <div className={styles.timeField}>
-            <label className={styles.label}>Перерыв (начало)</label>
-            <input
-              className={styles.input}
-              type="time"
-              value={breakStart}
-              onChange={(e) => setBreakStart(e.target.value)}
-            />
-          </div>
-          <div className={styles.timeField}>
-            <label className={styles.label}>Перерыв (конец)</label>
-            <input
-              className={styles.input}
-              type="time"
-              value={breakEnd}
-              onChange={(e) => setBreakEnd(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className={styles.field}>
-          <label className={styles.label}>Макс. постов в день</label>
+        <div className={styles.timeRow}>
+          <span className={styles.timeLabel}>Начало</span>
           <input
-            className={`${styles.input} ${!isMaxDayValid && maxPerDay !== '' ? styles.inputError : ''}`}
+            className={styles.timeInput}
+            type="time"
+            value={publishStart}
+            onChange={(e) => setPublishStart(e.target.value)}
+          />
+        </div>
+        <div className={styles.timeRow}>
+          <span className={styles.timeLabel}>Конец</span>
+          <input
+            className={styles.timeInput}
+            type="time"
+            value={publishEnd}
+            onChange={(e) => setPublishEnd(e.target.value)}
+          />
+        </div>
+        <div className={styles.timeRow}>
+          <span className={styles.timeLabel}>Перерыв — начало</span>
+          <input
+            className={styles.timeInput}
+            type="time"
+            value={breakStart}
+            onChange={(e) => setBreakStart(e.target.value)}
+          />
+        </div>
+        <div className={styles.timeRow}>
+          <span className={styles.timeLabel}>Перерыв — конец</span>
+          <input
+            className={styles.timeInput}
+            type="time"
+            value={breakEnd}
+            onChange={(e) => setBreakEnd(e.target.value)}
+          />
+        </div>
+        <div className={styles.timeRow}>
+          <span className={styles.timeLabel}>Макс. постов в день</span>
+          <input
+            className={`${styles.timeInput} ${!isMaxDayValid && maxPerDay !== '' ? styles.inputError : ''}`}
             type="number"
             min={1}
             max={5}
@@ -237,17 +231,17 @@ export default function OwnChannelSettings() {
         </div>
       </Card>
 
-      <Toggle
-        checked={autoAccept}
-        onChange={setAutoAccept}
-        label="Автоподтверждение заявок"
-      />
+      <Card>
+        <Toggle
+          checked={autoAccept}
+          onChange={setAutoAccept}
+          label="Автоподтверждение заявок"
+        />
+      </Card>
 
-      <div style={{ marginTop: 'var(--rh-space-4)' }}>
-        <Button fullWidth onClick={handleSave} disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? '⏳ Сохранение...' : '💾 Сохранить настройки'}
-        </Button>
-      </div>
+      <Button fullWidth onClick={handleSave} disabled={updateMutation.isPending}>
+        {updateMutation.isPending ? '⏳ Сохранение...' : '💾 Сохранить настройки'}
+      </Button>
     </ScreenShell>
   )
 }

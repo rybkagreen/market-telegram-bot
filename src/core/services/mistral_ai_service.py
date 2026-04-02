@@ -31,13 +31,15 @@ from src.constants.ai import (
 
 logger = logging.getLogger(__name__)
 
+JSON_FENCE = "```json"
+OTHER_TOPIC = "другое"
+
 
 @dataclass
 class MistralClassificationResult:
     """Результат классификации канала."""
 
     topic: str  # Тематика канала
-    subcategory: str | None  # Подкатегория
     rating: float  # Рейтинг (1-10)
     confidence: float  # Уверенность (0.0 - 1.0)
 
@@ -79,7 +81,6 @@ class MistralAIService:
 Верни ответ ТОЛЬКО в формате JSON:
 {
     "topic": "название тематики",
-    "subcategory": "подкатегория или null",
     "rating": 1-10,
     "confidence": 0.0-1.0
 }"""
@@ -165,8 +166,8 @@ Username: @{username or "нет"}
 
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
-            if content.startswith("```json"):
-                content = content[7:]
+            if content.startswith(JSON_FENCE):
+                content = content[len(JSON_FENCE):]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
@@ -176,8 +177,7 @@ Username: @{username or "нет"}
             result = json.loads(content)
 
             return MistralClassificationResult(
-                topic=result.get("topic", "другое"),
-                subcategory=result.get("subcategory"),
+                topic=result.get("topic", OTHER_TOPIC),
                 rating=float(result.get("rating", 5.0)),
                 confidence=float(result.get("confidence", 0.5)),
             )
@@ -186,8 +186,7 @@ Username: @{username or "нет"}
             logger.error(f"Mistral classification error: {e}")
             # Fallback результат
             return MistralClassificationResult(
-                topic="другое",
-                subcategory=None,
+                topic=OTHER_TOPIC,
                 rating=5.0,
                 confidence=0.0,
             )
@@ -225,8 +224,8 @@ Username: @{username or "нет"}
 
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
-            if content.startswith("```json"):
-                content = content[7:]
+            if content.startswith(JSON_FENCE):
+                content = content[len(JSON_FENCE):]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
@@ -280,7 +279,7 @@ Username: @{username or "нет"}
 Подписчиков: {member_count or "нет данных"}
 Описание: {description or "нет описания"}
 
-Верни JSON: {{"topic": "тематика", "subcategory": "подкатегория", "rating": 1-10, "confidence": 0.0-1.0}}""",
+Верни JSON: {{"topic": "тематика", "rating": 1-10, "confidence": 0.0-1.0}}""",
             }
         ]
 
@@ -308,8 +307,8 @@ Username: @{username or "нет"}
 
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
-            if content.startswith("```json"):
-                content = content[7:]
+            if content.startswith(JSON_FENCE):
+                content = content[len(JSON_FENCE):]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
@@ -319,8 +318,7 @@ Username: @{username or "нет"}
             result = json.loads(content)
 
             return MistralClassificationResult(
-                topic=result.get("topic", "другое"),
-                subcategory=result.get("subcategory"),
+                topic=result.get("topic", OTHER_TOPIC),
                 rating=float(result.get("rating", 5.0)),
                 confidence=float(result.get("confidence", 0.5)),
             )
@@ -328,8 +326,7 @@ Username: @{username or "нет"}
         except Exception as e:
             logger.error(f"Mistral Agent classification error: {e}")
             return MistralClassificationResult(
-                topic="другое",
-                subcategory=None,
+                topic=OTHER_TOPIC,
                 rating=5.0,
                 confidence=0.0,
             )

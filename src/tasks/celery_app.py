@@ -32,6 +32,7 @@ def create_celery_app() -> Celery:
             "src.tasks.notification_tasks",
             "src.tasks.billing_tasks",
             "src.tasks.placement_tasks",
+            "src.tasks.ord_tasks",
         ],
     )
 

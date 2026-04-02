@@ -9,7 +9,7 @@ Pydantic схемы для API операций с каналами.
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChannelCheckRequest(BaseModel):
@@ -21,6 +21,7 @@ class ChannelCheckRequest(BaseModel):
         chat_id: ID канала (начинается с -100). Либо username.
     """
 
+    model_config = ConfigDict(extra='forbid')
     username: str | None = Field(
         default=None,
         min_length=3,
@@ -110,6 +111,7 @@ class ChannelCreateRequest(BaseModel):
         is_test: Флаг тестового канала (только для админов, по умолчанию False)
     """
 
+    model_config = ConfigDict(extra='forbid')
     username: str = Field(
         ...,
         min_length=3,
@@ -121,6 +123,13 @@ class ChannelCreateRequest(BaseModel):
         default=False,
         description="Флаг тестового канала (только для админов)",
     )
+    category: str | None = Field(None, description="Slug категории из таблицы categories")
+
+
+class ChannelCategoryUpdateRequest(BaseModel):
+    """Запрос на обновление категории канала."""
+
+    category: str = Field(..., description="Slug категории")
 
 
 class ChannelResponse(BaseModel):
@@ -138,7 +147,6 @@ class ChannelResponse(BaseModel):
         avg_views: Среднее количество просмотров
         rating: Рейтинг канала
         category: Категория канала
-        subcategory: Подкатегория канала
         is_active: Активен ли канал
     """
 
@@ -152,7 +160,6 @@ class ChannelResponse(BaseModel):
     avg_views: int = Field(default=0, description="Среднее количество просмотров")
     rating: float = Field(default=0.0, description="Рейтинг канала")
     category: str | None = Field(None, description="Категория канала")
-    subcategory: str | None = Field(None, description="Подкатегория канала")
     is_active: bool = Field(default=True, description="Активен ли канал")
 
     model_config = {"from_attributes": True}

@@ -1,5 +1,5 @@
 .card {
-  margin-bottom: var(--rh-space-4);
+  margin: 0;
 }
 
 .textarea {
@@ -51,22 +51,22 @@
   text-transform: uppercase;
 }
 
-.statusBadge[new] {
+.statusBadge[data-status="new"] {
   background: var(--rh-accent-muted);
   color: var(--rh-accent);
 }
 
-.statusBadge[in_progress] {
+.statusBadge[data-status="in_progress"] {
   background: var(--rh-warning-muted);
   color: var(--rh-warning);
 }
 
-.statusBadge[resolved] {
+.statusBadge[data-status="resolved"] {
   background: var(--rh-success-muted);
   color: var(--rh-success);
 }
 
-.statusBadge[rejected] {
+.statusBadge[data-status="rejected"] {
   background: var(--rh-danger-muted);
   color: var(--rh-danger);
 }

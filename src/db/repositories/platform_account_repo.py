@@ -32,6 +32,22 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
             await self.session.flush()
         return account
 
+    async def get_platform_account(self) -> PlatformAccount | None:
+        """Получить аккаунт платформы (singleton id=1)."""
+        return await self.session.get(PlatformAccount, 1)
+
+    async def add_to_topups(self, session, amount: Decimal) -> None:
+        """Добавить к общей сумме пополнений."""
+        account = await self.get_for_update()
+        account.total_topups += amount
+        await session.flush()
+
+    async def add_to_escrow(self, session, amount: Decimal) -> None:
+        """Добавить к зарезервированным в эскроу средствам."""
+        account = await self.get_for_update()
+        account.escrow_reserved += amount
+        await session.flush()
+
     async def add_to_payout_reserved(self, session, amount: Decimal) -> None:
         """Добавить к зарезервированным выплатам."""
         account = await self.get_for_update()
@@ -48,6 +64,13 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
         """Завершить выплату — списать с payout_reserved."""
         account = await self.get_for_update()
         account.payout_reserved -= gross_amount
+        await session.flush()
+
+    async def release_from_escrow(self, session, final_price: Decimal, platform_fee: Decimal) -> None:
+        """Освободить эскроу — списать с payout_reserved и добавить к profit."""
+        account = await self.get_for_update()
+        account.payout_reserved -= final_price
+        account.profit_accumulated += platform_fee
         await session.flush()
 
 PlatformAccountRepo = PlatformAccountRepository

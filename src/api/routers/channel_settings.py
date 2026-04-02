@@ -5,12 +5,14 @@ FastAPI router для настроек каналов (ChannelSettings).
 import logging
 from datetime import time
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
+from src.constants.payments import OWNER_SHARE
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 
 logger = logging.getLogger(__name__)
@@ -38,8 +40,8 @@ class ChannelSettingsResponse(BaseModel):
     owner_payout: Decimal
     publish_start_time: str
     publish_end_time: str
-    break_start_time: str | None
-    break_end_time: str | None
+    break_start_time: str | None = None
+    break_end_time: str | None = None
     max_posts_per_day: int
     allow_format_post_24h: bool
     allow_format_post_48h: bool
@@ -86,11 +88,11 @@ class ChannelSettingsUpdateRequest(BaseModel):
 # =============================================================================
 
 
-@router.get("/", response_model=ChannelSettingsResponse)
+@router.get("/", responses={404: {"description": "Channel not found"}, 403: {"description": "Not channel owner"}})
 async def get_channel_settings(
     channel_id: int,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ChannelSettingsResponse:
     """Получить настройки канала."""
     from src.db.models.telegram_chat import TelegramChat
@@ -108,7 +110,7 @@ async def get_channel_settings(
     settings = await repo.get_or_create(channel_id)
 
     # Вычислить payout владельца
-    owner_payout = settings.price_per_post * Decimal("0.80")
+    owner_payout = settings.price_per_post * OWNER_SHARE
 
     return ChannelSettingsResponse(
         channel_id=settings.channel_id,
@@ -131,32 +133,14 @@ async def get_channel_settings(
     )
 
 
-@router.patch("/", response_model=ChannelSettingsResponse)
-async def update_channel_settings(
-    channel_id: int,
-    request: ChannelSettingsUpdateRequest,
-    current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
-) -> ChannelSettingsResponse:
-    """Частичное обновление настроек канала."""
-    from src.db.models.telegram_chat import TelegramChat
-
-    # Проверка что канал принадлежит пользователю
-    channel = await session.get(TelegramChat, channel_id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
-
-    if channel.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not channel owner")
-
-    # Валидация publish_start_time < publish_end_time
+def _validate_time_ranges(request: ChannelSettingsUpdateRequest) -> None:
+    """Validate publish and break time range ordering."""
     if request.publish_start_time and request.publish_end_time:
         start = time.fromisoformat(request.publish_start_time)
         end = time.fromisoformat(request.publish_end_time)
         if end <= start:
             raise HTTPException(status_code=422, detail="end_time must be greater than start_time")
 
-    # Валидация break times
     if request.break_start_time and request.break_end_time:
         break_start = time.fromisoformat(request.break_start_time)
         break_end = time.fromisoformat(request.break_end_time)
@@ -165,10 +149,10 @@ async def update_channel_settings(
                 status_code=422, detail="break_end_time must be greater than break_start_time"
             )
 
-    # Обновление настроек
-    repo = ChannelSettingsRepo(session)
 
-    update_data = {}
+def _build_update_data(request: ChannelSettingsUpdateRequest) -> dict:
+    """Build a dict of only the fields present in the partial-update request."""
+    update_data: dict = {}
     if request.price_per_post is not None:
         update_data["price_per_post"] = Decimal(str(request.price_per_post))
     if request.publish_start_time is not None:
@@ -176,13 +160,9 @@ async def update_channel_settings(
     if request.publish_end_time is not None:
         update_data["publish_end_time"] = time.fromisoformat(request.publish_end_time)
     if request.break_start_time is not None:
-        update_data["break_start_time"] = (
-            time.fromisoformat(request.break_start_time) if request.break_start_time else None
-        )
+        update_data["break_start_time"] = time.fromisoformat(request.break_start_time)
     if request.break_end_time is not None:
-        update_data["break_end_time"] = (
-            time.fromisoformat(request.break_end_time) if request.break_end_time else None
-        )
+        update_data["break_end_time"] = time.fromisoformat(request.break_end_time)
     if request.max_posts_per_day is not None:
         update_data["max_posts_per_day"] = request.max_posts_per_day
     if request.allow_format_post_24h is not None:
@@ -197,11 +177,42 @@ async def update_channel_settings(
         update_data["allow_format_pin_48h"] = request.allow_format_pin_48h
     if request.auto_accept_enabled is not None:
         update_data["auto_accept_enabled"] = request.auto_accept_enabled
+    return update_data
 
-    settings = await repo.update(channel_id, **update_data)
+
+@router.patch(
+    "/",
+    responses={
+        404: {"description": "Channel not found"},
+        403: {"description": "Not channel owner"},
+        422: {"description": "Invalid time range"},
+    },
+)
+async def update_channel_settings(
+    channel_id: int,
+    request: ChannelSettingsUpdateRequest,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelSettingsResponse:
+    """Частичное обновление настроек канала."""
+    from src.db.models.telegram_chat import TelegramChat
+
+    # Проверка что канал принадлежит пользователю
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not channel owner")
+
+    _validate_time_ranges(request)
+
+    repo = ChannelSettingsRepo(session)
+    update_data = _build_update_data(request)
+    settings = await repo.update_settings(channel_id, **update_data)
 
     # Вычислить payout владельца
-    owner_payout = settings.price_per_post * Decimal("0.80")
+    owner_payout = settings.price_per_post * OWNER_SHARE
 
     return ChannelSettingsResponse(
         channel_id=settings.channel_id,

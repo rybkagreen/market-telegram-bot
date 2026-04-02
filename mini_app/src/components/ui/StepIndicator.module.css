@@ -19,7 +19,7 @@
   width: 10px;
   height: 10px;
   border-radius: var(--rh-radius-full);
-  transition: background var(--rh-transition-base), transform var(--rh-transition-base);
+  transition: background var(--rh-transition-fast), transform var(--rh-transition-fast);
   flex-shrink: 0;
 }
 
@@ -45,7 +45,7 @@
   height: 2px;
   background: var(--rh-bg-elevated);
   margin: 0 var(--rh-space-1);
-  transition: background var(--rh-transition-base);
+  transition: background var(--rh-transition-fast);
 }
 
 .line.lineDone {

@@ -3,7 +3,18 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--rh-text-muted);
-  margin: var(--rh-space-4) 0 var(--rh-space-2);
+  margin: 0 0 var(--rh-space-2);
+}
+
+/* GAP-03: Commission note */
+.commissionNote {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+  padding: var(--rh-space-2);
+  background: var(--rh-bg-elevated);
+  border-radius: var(--rh-radius-sm);
+  margin: 0;
+  text-align: center;
 }
 
 .row {

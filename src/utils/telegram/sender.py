@@ -83,6 +83,52 @@ class TelegramSender:
         self._max_retries = 3
         self._base_delay = 1  # секунда
 
+    def _handle_flood_wait(
+        self,
+        e: TelegramRetryAfter,
+        chat_id: int,
+        attempt: int,
+    ) -> SendResult | None:
+        """Handle FloodWait. Returns a terminal SendResult or None to retry."""
+        retry_after = e.retry_after + 5
+        logger.warning(
+            f"FloodWait for {e.retry_after}s on chat {chat_id}, "
+            f"retrying after {retry_after}s"
+        )
+        if attempt < self._max_retries - 1:
+            return None  # Signal: sleep externally then retry
+        return SendResult(
+            status=SendStatus.RETRY,
+            retry_after=retry_after,
+            error_message=f"FloodWait: {e.retry_after}s",
+        )
+
+    def _handle_forbidden(
+        self,
+        e: TelegramForbiddenError,
+        chat_id: int,
+    ) -> SendResult:
+        """Handle TelegramForbiddenError and return the appropriate SendResult."""
+        error_text = str(e).lower()
+        if "banned" in error_text or "kicked" in error_text or "user is banned" in error_text:
+            logger.warning(f"User banned in chat {chat_id}: {e}")
+            return SendResult(status=SendStatus.USER_BANNED, error_message=f"UserBannedInChannel: {e}")
+        logger.warning(f"Bot forbidden for chat {chat_id}: {e}")
+        return SendResult(status=SendStatus.CHAT_BLOCKED, error_message=f"ChatWriteForbidden: {e}")
+
+    def _handle_bad_request(
+        self,
+        e: TelegramBadRequest,
+        chat_id: int,
+    ) -> SendResult:
+        """Handle TelegramBadRequest and return the appropriate SendResult."""
+        error_text = str(e).lower()
+        if "chat not found" in error_text or "peer_id_invalid" in error_text:
+            logger.warning(f"Chat invalid or not found: {chat_id}: {e}")
+            return SendResult(status=SendStatus.CHAT_INVALID, error_message=f"ChatNotFound: {e}")
+        logger.warning(f"BadRequest for chat {chat_id}: {e}")
+        return SendResult(status=SendStatus.FAILED, error_message=f"BadRequest: {e}")
+
     async def send_message(
         self,
         chat_id: int,
@@ -112,34 +158,16 @@ class TelegramSender:
                     parse_mode=parse_mode,
                     disable_notification=disable_notification,
                 )
-
-                return SendResult(
-                    status=SendStatus.SENT,
-                    message_id=message.message_id,
-                )
+                return SendResult(status=SendStatus.SENT, message_id=message.message_id)
 
             except TelegramRetryAfter as e:
-                # FloodWait — ждём указанное время + небольшой буфер
-                retry_after = e.retry_after + 5
-                logger.warning(
-                    f"FloodWait for {e.retry_after}s on chat {chat_id}, "
-                    f"retrying after {retry_after}s"
-                )
-
-                if attempt < self._max_retries - 1:
-                    await asyncio.sleep(retry_after)
-                    continue
-                else:
-                    return SendResult(
-                        status=SendStatus.RETRY,
-                        retry_after=retry_after,
-                        error_message=f"FloodWait: {e.retry_after}s",
-                    )
+                result = self._handle_flood_wait(e, chat_id, attempt)
+                if result is not None:
+                    return result
+                await asyncio.sleep(e.retry_after + 5)
 
             except TelegramMigrateToChat as e:
-                # Чат мигрировал (группа → супергруппа)
                 logger.info(f"Chat {chat_id} migrated to {e.migrate_to_chat_id}")
-                # Возвращаем новый ID для обновления в БД
                 return SendResult(
                     status=SendStatus.RETRY,
                     error_message=f"Migrated to chat: {e.migrate_to_chat_id}",
@@ -147,52 +175,20 @@ class TelegramSender:
                 )
 
             except TelegramForbiddenError as e:
-                # Различаем бан аккаунта от блокировки конкретного чата
-                error_text = str(e).lower()
-                if (
-                    "banned" in error_text
-                    or "kicked" in error_text
-                    or "user is banned" in error_text
-                ):
-                    logger.warning(f"User banned in chat {chat_id}: {e}")
-                    return SendResult(
-                        status=SendStatus.USER_BANNED,
-                        error_message=f"UserBannedInChannel: {e}",
-                    )
-                # ChatWriteForbidden — бот/аккаунт заблокирован в этом чате
-                logger.warning(f"Bot forbidden for chat {chat_id}: {e}")
-                return SendResult(
-                    status=SendStatus.CHAT_BLOCKED,
-                    error_message=f"ChatWriteForbidden: {e}",
-                )
+                return self._handle_forbidden(e, chat_id)
 
             except TelegramBadRequest as e:
-                # Обработка несуществующего чата
-                error_text = str(e).lower()
-                if "chat not found" in error_text or "peer_id_invalid" in error_text:
-                    logger.warning(f"Chat invalid or not found: {chat_id}: {e}")
-                    return SendResult(
-                        status=SendStatus.CHAT_INVALID,
-                        error_message=f"ChatNotFound: {e}",
-                    )
-                logger.warning(f"BadRequest for chat {chat_id}: {e}")
-                return SendResult(
-                    status=SendStatus.FAILED,
-                    error_message=f"BadRequest: {e}",
-                )
+                return self._handle_bad_request(e, chat_id)
 
             except Exception as e:
                 last_error = e
                 logger.error(f"Error sending message to {chat_id}: {e}")
-
                 if attempt < self._max_retries - 1:
-                    # Экспоненциальная задержка: 1s, 4s, 9s
                     delay = self._base_delay * (2**attempt)
                     await asyncio.sleep(delay)
                 else:
                     break
 
-        # Все попытки исчерпаны
         return SendResult(
             status=SendStatus.FAILED,
             error_message=str(last_error) if last_error else "Unknown error",

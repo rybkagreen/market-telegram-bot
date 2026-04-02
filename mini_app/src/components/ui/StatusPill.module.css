@@ -6,15 +6,15 @@
 }
 
 .md {
-  padding: 4px 10px;
+  padding: var(--rh-space-1) 10px;
   font-size: var(--rh-text-xs);
-  line-height: var(--rh-leading-normal); /* ДОБАВЛЕНО (UX-P2): 1.5 */
+  line-height: var(--rh-leading-normal);
 }
 
 .sm {
-  padding: 4px var(--rh-space-2); /* ИЗМЕНЕНО (UX-P2): было 2px */
-  font-size: 10px;
-  line-height: 1; /* ДОБАВЛЕНО (UX-P2) */
+  padding: var(--rh-space-1) var(--rh-space-2);
+  font-size: var(--rh-text-2xs);
+  line-height: var(--rh-leading-tight);
 }
 
 .success { background: var(--rh-success-muted);  color: var(--rh-success);  }

@@ -31,15 +31,12 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
     async def get_by_category(
         self,
         category: str | None,
-        subcategory: str | None,
         exclude_owner_id: int | None,
     ) -> list[TelegramChat]:
         """Получить каналы по категории."""
         conditions: list[Any] = [TelegramChat.is_active.is_(True)]
         if category:
             conditions.append(TelegramChat.category == category)
-        if subcategory:
-            conditions.append(TelegramChat.subcategory == subcategory)
         if exclude_owner_id:
             conditions.append(TelegramChat.owner_id != exclude_owner_id)
 
@@ -54,3 +51,16 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
             select(TelegramChat).where(TelegramChat.is_active.is_(True)).order_by(TelegramChat.rating.desc())
         )
         return list(result.scalars().all())
+
+    async def get_or_create_chat(self, username: str) -> tuple["TelegramChat", bool]:
+        """Получить или создать чат по username. Возвращает (chat, is_new)."""
+        result = await self.session.execute(
+            select(TelegramChat).where(TelegramChat.username == username)
+        )
+        chat = result.scalar_one_or_none()
+        if chat is not None:
+            return (chat, False)
+        chat = TelegramChat(username=username)
+        self.session.add(chat)
+        await self.session.flush()
+        return (chat, True)

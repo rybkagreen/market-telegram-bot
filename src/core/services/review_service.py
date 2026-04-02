@@ -31,9 +31,14 @@ class ReviewService:
         if placement.status != PlacementStatus.published:
             raise ValueError("Can only review published placements")
 
-        existing = await session.execute(select(Review).where(Review.placement_request_id == placement_request_id))
+        existing = await session.execute(
+            select(Review).where(
+                Review.placement_request_id == placement_request_id,
+                Review.reviewer_id == reviewer_id,
+            )
+        )
         if existing.scalar_one_or_none():
-            raise ValueError("Review already exists for this placement")
+            raise ValueError("Review already exists for this placement from this reviewer")
 
         review = Review(
             placement_request_id=placement_request_id,
@@ -44,6 +49,7 @@ class ReviewService:
         )
         session.add(review)
         await session.flush()
+        await session.refresh(review)
         await self.recalculate_channel_rating(placement.channel_id, session)
         return review
 
@@ -53,13 +59,13 @@ class ReviewService:
         if not channel:
             return 0.0
 
-        reach_score = min(5.0, (channel.avg_views or 0) / 2000)
-        er_score = min(5.0, (channel.last_er or 0) * 50)
+        reach_score = min(5.0, float(channel.avg_views or 0) / 2000)
+        er_score = min(5.0, float(channel.last_er or 0) * 50)
         growth_score = 3.0
         frequency_score = 3.0
 
         reviews_result = await session.execute(select(func.avg(Review.rating)).where(Review.reviewed_id == channel.owner_id))
-        avg_review_rating = reviews_result.scalar() or 3.0
+        avg_review_rating = float(reviews_result.scalar() or 3.0)
         reliability_score = avg_review_rating
         age_score = 3.0
 

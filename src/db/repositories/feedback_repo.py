@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.repositories.base import BaseRepository
@@ -27,6 +27,7 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         )
         self.session.add(feedback)
         await self.session.flush()
+        await self.session.refresh(feedback)
         return feedback
 
     async def get_by_user_id(
@@ -76,4 +77,18 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         feedback.responded_at = datetime.now(UTC)
 
         await self.session.flush()
+        await self.session.refresh(feedback)
         return feedback
+
+    async def count_by_user(self, user_id: int) -> int:
+        """Посчитать количество отзывов пользователя."""
+        result = await self.session.execute(select(func.count()).where(UserFeedback.user_id == user_id))
+        return result.scalar_one() or 0
+
+    async def count_by_status(self, status: FeedbackStatus | None = None) -> int:
+        """Посчитать количество отзывов по статусу (для админской пагинации)."""
+        if status is None:
+            result = await self.session.execute(select(func.count()).select_from(UserFeedback))
+        else:
+            result = await self.session.execute(select(func.count()).where(UserFeedback.status == status))
+        return result.scalar_one() or 0

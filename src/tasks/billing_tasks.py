@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from src.constants.tariffs import TARIFF_CREDIT_COST
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,10 @@ async def _check_plan_renewals() -> dict:
                 # Списываем кредиты и продляем
                 try:
                     await user_repo.update_credits(user.id, -plan_cost)
-                    await user_repo.reset_ai_usage(user.id)
+                    from sqlalchemy import update as _update
+                    await session.execute(
+                        _update(User).where(User.id == user.id).values(ai_uses_count=0)
+                    )
                     from sqlalchemy import update
 
                     await session.execute(
@@ -74,7 +77,7 @@ async def _check_plan_renewals() -> dict:
                     renewed += 1
                     logger.info(
                         f"Plan renewed: user={user.telegram_id}, "
-                        f"plan={user.plan.value}, cost={plan_cost}"
+                        f"plan={user.plan}, cost={plan_cost}"
                     )
 
                     # Отправляем уведомление об успешном продлении
@@ -105,7 +108,13 @@ async def _check_plan_renewals() -> dict:
                     logger.error(f"Failed to renew plan for user {user.telegram_id}: {e}")
             else:
                 # Недостаточно кредитов — понижаем до FREE
-                await user_repo.expire_plan(user.id)
+                from sqlalchemy import update as _update
+                await session.execute(
+                    _update(User).where(User.id == user.id).values(
+                        plan="free", plan_expires_at=None, ai_uses_count=0
+                    )
+                )
+                await session.commit()
                 logger.warning(
                     f"Plan expired: user={user.telegram_id}, "
                     f"had {user.credits} credits, needed {plan_cost}"
@@ -141,7 +150,7 @@ async def _check_plan_renewals() -> dict:
 @celery_app.task(name="billing:check_pending_invoices", queue="billing", bind=True)
 def check_pending_invoices(self) -> dict:
     """
-    Проверить неоплаченные счета CryptoBot и зачислить кредиты.
+    Устаревший метод — не используется.
     Запускается каждые 5 минут.
     """
     import asyncio
@@ -157,5 +166,5 @@ def check_pending_invoices(self) -> dict:
 
 
 async def _check_pending_invoices() -> dict:
-    """CryptoBot удалён — нечего проверять."""
+    """Устаревший метод — нечего проверять."""
     return {"credited": 0, "expired": 0}

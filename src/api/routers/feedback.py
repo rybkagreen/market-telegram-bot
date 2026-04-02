@@ -5,8 +5,9 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
 from src.api.schemas.admin import (
@@ -22,14 +23,16 @@ from src.db.repositories.feedback_repo import FeedbackRepository
 
 logger = logging.getLogger(__name__)
 
+FEEDBACK_NOT_FOUND = "Feedback not found"
+
 router = APIRouter(tags=["Feedback"])
 
 
-@router.post("/", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_feedback(
     body: FeedbackCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackResponse:
     """Create new feedback from user."""
     from src.db.session import async_session_factory
@@ -58,10 +61,10 @@ async def create_feedback(
     return FeedbackResponse.model_validate(feedback)
 
 
-@router.get("/", response_model=FeedbackListResponse)
+@router.get("/")
 async def get_my_feedback(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackListResponse:
     """Get current user's feedback history."""
     repo = FeedbackRepository(session)
@@ -73,11 +76,11 @@ async def get_my_feedback(
     )
 
 
-@router.get("/{feedback_id}", response_model=FeedbackResponse)
+@router.get("/{feedback_id}", responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}})
 async def get_feedback(
     feedback_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackResponse:
     """Get specific feedback by ID."""
     repo = FeedbackRepository(session)
@@ -86,7 +89,7 @@ async def get_feedback(
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found",
+            detail=FEEDBACK_NOT_FOUND,
         )
 
     # Проверка что feedback принадлежит пользователю
@@ -104,14 +107,14 @@ async def get_feedback(
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.get("/admin/", response_model=FeedbackListAdminResponse)
+@router.get("/admin/", responses={400: {"description": "Bad request"}})
 async def get_all_feedback(
     status_filter: str = "all",
     limit: int = 20,
     offset: int = 0,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackListAdminResponse:
     """
     Get all feedback with pagination and filtering (admin only).
@@ -146,13 +149,20 @@ async def get_all_feedback(
                 detail=f"Invalid status: {status_filter}. Must be one of: new, in_progress, resolved, rejected, all",
             ) from err
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await session.execute(count_query)
-    total = total_result.scalar() or 0
+    # Get total count using repository
+    feedback_repo = FeedbackRepository(session)
+    if status_filter != "all":
+        total = await feedback_repo.count_by_status(status_enum)
+    else:
+        total = await feedback_repo.count_by_status(None)
 
     # Apply pagination
-    query = query.order_by(UserFeedback.created_at.desc()).limit(limit).offset(offset)
+    query = (
+        query.options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+        .order_by(UserFeedback.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await session.execute(query)
     feedbacks = result.scalars().all()
 
@@ -181,12 +191,12 @@ async def get_all_feedback(
     return FeedbackListAdminResponse(items=items, total=total, limit=limit, offset=offset)
 
 
-@router.get("/admin/{feedback_id}", response_model=FeedbackAdminResponse)
+@router.get("/admin/{feedback_id}", responses={404: {"description": "Not found"}})
 async def get_feedback_admin(
     feedback_id: int,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackAdminResponse:
     """
     Get specific feedback details (admin only).
@@ -202,13 +212,17 @@ async def get_feedback_admin(
     Raises:
         HTTPException 404: Feedback not found
     """
-    repo = FeedbackRepository(session)
-    feedback = await repo.get_by_id(feedback_id)
+    result = await session.execute(
+        select(UserFeedback)
+        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+        .where(UserFeedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
 
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found",
+            detail=FEEDBACK_NOT_FOUND,
         )
 
     responder_username = feedback.responder.username if feedback.responder else None
@@ -227,13 +241,13 @@ async def get_feedback_admin(
     )
 
 
-@router.post("/admin/{feedback_id}/respond", response_model=FeedbackAdminResponse)
+@router.post("/admin/{feedback_id}/respond", responses={404: {"description": "Not found"}})
 async def respond_to_feedback(
     feedback_id: int,
     body: FeedbackRespondRequest,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackAdminResponse:
     """
     Send response to feedback (admin only).
@@ -250,13 +264,17 @@ async def respond_to_feedback(
     Raises:
         HTTPException 404: Feedback not found
     """
-    repo = FeedbackRepository(session)
-    feedback = await repo.get_by_id(feedback_id)
+    result = await session.execute(
+        select(UserFeedback)
+        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+        .where(UserFeedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
 
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found",
+            detail=FEEDBACK_NOT_FOUND,
         )
 
     # Update feedback
@@ -286,13 +304,13 @@ async def respond_to_feedback(
     )
 
 
-@router.patch("/admin/{feedback_id}/status", response_model=FeedbackAdminResponse)
+@router.patch("/admin/{feedback_id}/status", responses={404: {"description": "Not found"}})
 async def update_feedback_status(
     feedback_id: int,
     body: FeedbackStatusUpdateRequest,
     *,
     admin_user: Annotated[User, Depends(get_current_admin_user)],
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FeedbackAdminResponse:
     """
     Update feedback status without response (admin only).
@@ -309,13 +327,17 @@ async def update_feedback_status(
     Raises:
         HTTPException 404: Feedback not found
     """
-    repo = FeedbackRepository(session)
-    feedback = await repo.get_by_id(feedback_id)
+    result = await session.execute(
+        select(UserFeedback)
+        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+        .where(UserFeedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
 
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found",
+            detail=FEEDBACK_NOT_FOUND,
         )
 
     # Update status only

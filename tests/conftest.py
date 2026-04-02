@@ -21,11 +21,11 @@ from src.config.settings import settings
 from src.core.services.placement_request_service import PlacementRequestService
 from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
-from src.db.models.analytics import TelegramChat
-from src.db.models.campaign import Campaign
+from src.db.models.telegram_chat import TelegramChat
+# from src.db.models.campaign import Campaign  # REMOVED in v4.2 — using PlacementRequest instead
 from src.db.models.user import User
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
-from src.db.repositories.placement_request_repo import PlacementRequestRepo
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
 
 # ────────────────────────────────────────────
@@ -33,22 +33,14 @@ from src.db.repositories.reputation_repo import ReputationRepo
 # ────────────────────────────────────────────
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy() -> asyncio.DefaultEventLoopPolicy:
-    """Использовать asyncio для всей сессии."""
-    return asyncio.DefaultEventLoopPolicy()
-
-
-@pytest_asyncio.fixture(scope="session")
-def event_loop(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoop:
-    """
-    Create an instance of the event loop for the test session.
-
-    This fixture has session scope to match test_engine scope.
-    """
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+@pytest.fixture
+def event_loop() -> asyncio.AbstractEventLoop:
+    """Function-scoped event loop — matches asyncio_default_fixture_loop_scope=function."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
+    asyncio.set_event_loop(None)
 
 
 # ────────────────────────────────────────────
@@ -70,18 +62,39 @@ def postgres_container() -> Any:
         yield postgres
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def test_engine() -> Any:
-    """Движок для тестовой БД."""
-    engine = create_async_engine(
-        settings.database_url,
-        echo=False,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Движок для тестовой БД.
+
+    Если TEST_DATABASE_URL задан — создаёт/удаляет схему изолированно.
+    Если TEST_DATABASE_URL не задан — использует DATABASE_URL без drop_all
+    (схема уже существует от миграций, тесты работают с ней через rollback).
+    """
+    import warnings
+
+    use_test_db = settings.test_database_url is not None
+    db_url = str(settings.test_database_url if use_test_db else settings.database_url)
+
+    if not use_test_db:
+        warnings.warn(
+            "TEST_DATABASE_URL not set — using DATABASE_URL. "
+            "create_all/drop_all skipped; tests rely on existing schema + rollback.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    engine = create_async_engine(db_url, echo=False)
+
+    if use_test_db:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
     yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+
+    if use_test_db:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
     await engine.dispose()
 
 
@@ -170,6 +183,18 @@ async def mock_redis() -> Any:
 @pytest_asyncio.fixture
 async def api_client() -> AsyncGenerator[AsyncClient]:
     """HTTP клиент для тестирования FastAPI."""
+    from src.api.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def api_client_no_auth() -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент для тестирования FastAPI без авторизации (public endpoints)."""
     from src.api.main import app
 
     async with AsyncClient(
@@ -309,8 +334,9 @@ def advertiser_test_data() -> dict[str, Any]:
         "telegram_id": 111111111,
         "username": "advertiser",
         "first_name": "Advertiser",
-        "role": "advertiser",
-        "credits": Decimal("5000.00"),
+        "current_role": "advertiser",
+        "credits": 5000,
+        "referral_code": "adv_ref_001",
     }
 
 
@@ -321,8 +347,9 @@ def owner_test_data() -> dict[str, Any]:
         "telegram_id": 222222222,
         "username": "owner",
         "first_name": "Owner",
-        "role": "owner",
-        "credits": Decimal("1000.00"),
+        "current_role": "owner",
+        "credits": 1000,
+        "referral_code": "own_ref_001",
     }
 
 
@@ -369,7 +396,7 @@ async def test_channel(
     owner_user: User,
 ) -> TelegramChat:
     """Создать тестовый канал."""
-    from src.db.models.analytics import TelegramChat
+    from src.db.models.telegram_chat import TelegramChat
 
     channel = TelegramChat(**channel_test_data, owner_user_id=owner_user.id)
     db_session.add(channel)
@@ -379,20 +406,13 @@ async def test_channel(
 
 
 @pytest_asyncio.fixture
-async def test_campaign(db_session: AsyncSession, advertiser_user: User) -> Campaign:
-    """Создать тестовую кампанию."""
-    from src.db.models.campaign import Campaign, CampaignStatus
-
-    campaign = Campaign(
-        advertiser_id=advertiser_user.id,
-        title="Test Campaign",
-        text="Test ad text",
-        status=CampaignStatus.DRAFT,
-    )
-    db_session.add(campaign)
-    await db_session.commit()
-    await db_session.refresh(campaign)
-    return campaign
+async def test_campaign(db_session: AsyncSession, advertiser_user: User):
+    """Создать тестовую кампанию — REMOVED in v4.2."""
+    # from src.db.models.campaign import Campaign, CampaignStatus
+    # campaign = Campaign(...)
+    # This fixture is deprecated — use placement_request fixture instead
+    pytest.skip("Campaign model removed in v4.2 — use PlacementRequest")
+    return None
 
 
 @pytest_asyncio.fixture
@@ -401,7 +421,7 @@ async def placement_request_service(db_session: AsyncSession) -> PlacementReques
 
     return PlacementRequestService(
         session=db_session,
-        placement_repo=PlacementRequestRepo(db_session),
+        placement_repo=PlacementRequestRepository(db_session),
         channel_settings_repo=ChannelSettingsRepo(db_session),
         reputation_repo=ReputationRepo(db_session),
         billing_service=None,
@@ -426,10 +446,10 @@ async def channel_settings_repo(db_session: AsyncSession) -> ChannelSettingsRepo
 
 
 @pytest_asyncio.fixture
-async def placement_request_repo(db_session: AsyncSession) -> PlacementRequestRepo:
-    """Создать PlacementRequestRepo для тестов."""
+async def placement_request_repo(db_session: AsyncSession) -> PlacementRequestRepository:
+    """Создать PlacementRequestRepository для тестов."""
 
-    return PlacementRequestRepo(db_session)
+    return PlacementRequestRepository(db_session)
 
 
 @pytest_asyncio.fixture

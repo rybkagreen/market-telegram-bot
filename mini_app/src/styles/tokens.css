@@ -22,6 +22,9 @@
   --rh-text-secondary:  #7a8599;
   --rh-text-tertiary:   #4a5568;
   --rh-text-inverse:    #0b0e14;
+  /* Aliases for backward-compat with inline styles and component CSS */
+  --rh-text-muted:      var(--rh-text-secondary);
+  --rh-text-disabled:   var(--rh-text-tertiary);
 
   /* === Accent (primary) === */
   --rh-accent:          var(--tg-theme-button-color, #0ea5e9);
@@ -49,6 +52,11 @@
   --rh-shadow-lg:       0 8px 32px rgba(0, 0, 0, 0.35);
   --rh-shadow-glow:     0 0 20px rgba(14, 165, 233, 0.15);
 
+  /* === Surface levels (for inputs, cards, overlays) === */
+  --rh-surface:         rgba(255, 255, 255, 0.04);
+  --rh-surface-2:       var(--rh-bg-elevated);
+  --rh-surface-3:       var(--rh-bg-card);
+
   /* === Glassmorphism === */
   --rh-glass-bg:        rgba(22, 27, 38, 0.75);
   --rh-glass-border:    rgba(255, 255, 255, 0.06);
@@ -59,6 +67,7 @@
   --rh-font-body:       'DM Sans', system-ui, sans-serif;
   --rh-font-mono:       'JetBrains Mono', 'Consolas', monospace;
 
+  --rh-text-2xs:        10px;
   --rh-text-xs:         11px;
   --rh-text-sm:         13px;
   --rh-text-base:       15px;
@@ -103,6 +112,11 @@
   --rh-transition-fast:   150ms ease;
   --rh-transition-normal: 250ms ease;
   --rh-transition-slow:   400ms cubic-bezier(0.16, 1, 0.3, 1);
+  --rh-transition-base:   var(--rh-transition-fast);   /* alias */
+
+  /* === Easing functions === */
+  --rh-ease-out:          cubic-bezier(0, 0, 0.2, 1);
+  --rh-ease-in-out:       cubic-bezier(0.4, 0, 0.2, 1);
 
   /* === Z-index scale === */
   --rh-z-base:      0;
@@ -129,6 +143,10 @@
   --rh-text-secondary:  #64748b;
   --rh-text-tertiary:   #94a3b8;
   --rh-text-inverse:    #f8fafc;
+
+  --rh-surface:         rgba(0, 0, 0, 0.03);
+  --rh-surface-2:       var(--rh-bg-elevated);
+  --rh-surface-3:       var(--rh-bg-card);
 
   --rh-glass-bg:        rgba(255, 255, 255, 0.80);
   --rh-glass-border:    rgba(0, 0, 0, 0.06);
