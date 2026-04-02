@@ -32,6 +32,41 @@
 
 ---
 
+## 🆕 Что нового в v4.3
+
+### Юридические профили и договоры
+
+- **LegalProfile** — юридические профили для пользователей (юрлица, ИП, самозанятые, физлица)
+- **Contract** — договоры с платформой (оказание услуг, на размещение рекламы, правила платформы)
+- **ContractSignature** — подписание договоров (нажатием кнопки, СМС-кодом)
+- **Автоматическое подписание** — при смене юридического статуса
+- **Хранение документов** — PDF-генерация, шаблоны договоров
+
+### ОРД-регистрация (OrdRegistration)
+
+- **Автоматическая регистрация** — реклама в ОРД (Ordinary Advertising)
+- **Статусы регистрации** — pending, registered, token_received, reported, failed
+- **Интеграция с оператором** — через API или стаб-провайдер
+- **Отчётность** — автоматическая отправка отчётов
+
+### Аудит и безопасность
+
+- **AuditLog** — журнал аудита всех критических операций
+- **Field Encryption** — шифрование персональных данных (ИНН, паспортные данные)
+- **Gitleaks** — автоматическая проверка на секреты в git
+- **SonarQube** — статический анализ кода
+
+### Прочие улучшения
+
+- **Referral Program** — реферальная программа для тарифов Pro/Agency
+- **Reviews & Reputation** — расширенная система отзывов и репутации
+- **Video Support** — загрузка видео в кампании
+- **Link Tracking** — трекинг кликов по ссылкам в кампаниях
+- **Admin Panel Mini App** — 7 экранов, 9 API endpoints
+- **Feedback System** — полная система обратной связи (пользователь → админ → ответ)
+
+---
+
 ## ✨ Ценностное предложение
 
 ### Для рекламодателя
@@ -43,7 +78,7 @@
 - ✅ **Таргетинг** — по 11 категориям, размеру чатов, рейтингу
 - ✅ **Эскроу-защита** — средства блокируются до публикации
 - ✅ **Аналитика** — CPM, CTR, ROI, топ каналов
-- ✅ **B2B-пакеты** — Стартап (1500 кр), Бизнес (5000 кр), Премиум (25000 кр)
+- ✅ **Юридическая защита** — договоры, ORD-регистрация, видео в кампаниях (v4.3)
 
 ### Для владельца канала
 
@@ -53,8 +88,9 @@
 - ✅ **Автоматические заявки** — уведомления о новых размещениях
 - ✅ **Арбитраж** — принятие/отклонение/контр-предложение (макс 3 раунда)
 - ✅ **Настройки монетизации** — цена, пакеты, расписание, авто-принятие
-- ✅ **Выплаты 80%** — после публикации 80% владельцу, 20% комиссия платформы
+- ✅ **Выплаты 85%** — после публикации 85% владельцу, 15% комиссия платформы (v4.2)
 - ✅ **Репутация** — система доверия 0-10, отзывы после размещения
+- ✅ **Реферальная программа** — бонусы за приглашённых пользователей (v4.3)
 
 ---
 
@@ -85,8 +121,8 @@
 
 ## 📦 Тарифы v4.2
 
-| Тариф | Цена | Кампаний/мес | AI запросов/мес | Форматы публикаций | Каналов в кампании | B2B доступ |
-|-------|------|--------------|-----------------|-------------------|-------------------|------------|
+| Тариф | Цена | Кампаний/мес | AI запросов/мес | Форматы публикаций | Каналов в кампании | Реферальная программа |
+|-------|------|--------------|-----------------|-------------------|-------------------|----------------------|
 | **Free** | 0 ₽/мес | 1 | 0 | post_24h | 3 | ❌ |
 | **Starter** | 490 ₽/мес | 5 | 3 | post_24h, post_48h | 10 | ❌ |
 | **Pro** | 1 490 ₽/мес | 20 | 20 | post_24h, post_48h, post_7d | 50 | ✅ |
@@ -99,6 +135,12 @@
 - `pin_24h` — закреплённый пост на 24 часа (×3.0)
 - `pin_48h` — закреплённый пост на 48 часов (×4.0)
 
+**v4.3 изменения:**
+- ~~B2B-пакеты~~ — удалены (заменены на тарифы Pro/Agency)
+- ✅ Реферальная программа — для тарифов Pro/Agency
+- ✅ Юридические профили — для владельцев и рекламодателей
+- ✅ ORD-регистрация — автоматическая регистрация рекламы в ОРД
+
 ---
 
 ## 👥 Роли пользователей
@@ -106,10 +148,10 @@
 | Роль | Код | Как получить | Функционал |
 |------|-----|--------------|------------|
 | **Новый** | `new` | По умолчанию при /start | Онбординг, выбор роли |
-| **Рекламодатель** | `advertiser` | После выбора роли | Создание кампаний, аналитика, B2B |
-| **Владелец канала** | `owner` | После регистрации канала | Управление каналами, заявки, выплаты |
+| **Рекламодатель** | `advertiser` | После выбора роли | Создание кампаний, аналитика, юридические профили, ORD |
+| **Владелец канала** | `owner` | После регистрации канала | Управление каналами, заявки, выплаты, репутация |
 | **Обе роли** | `both` | Если зарегистрирован в обеих | Комбинированное меню |
-| **Администратор** | `admin` | Назначается вручную | Полный доступ, модерация |
+| **Администратор** | `admin` | Назначается вручную | Полный доступ, модерация, админ-панель (Mini App) |
 
 ---
 
@@ -216,7 +258,9 @@
 | **Web Server** | nginx | HTTPS, reverse proxy |
 | **Tunnel** | Cloudflare Tunnel | HTTPS для Mini App (бесплатно) |
 | **CI/CD** | GitHub Actions | Lint+test на PR, deploy на main |
-| **Monitoring** | Sentry, Grafana, Flower | Ошибки, метрики, Celery dashboard |
+| **Monitoring** | GlitchTip, Sentry, Grafana, Flower | Ошибки, метрики, Celery dashboard |
+| **Code Quality** | SonarQube, Ruff, MyPy | Статический анализ, type checking |
+| **Security** | Gitleaks, Field Encryption | Secrets detection, PII protection |
 | **Testing** | pytest, testcontainers | Unit + integration тесты |
 | **Linting** | ruff, mypy | Code style + type checking |
 | **Pre-commit** | pre-commit, detect-secrets | Автоматические проверки |
@@ -257,37 +301,69 @@ cp .env.example .env
 **Минимальный `.env` для разработки:**
 
 ```env
-# Bot
-BOT_TOKEN=1234567890:AABBccDDeeFFggHHiiJJkkLLmmNNooP
+# ══════════════════════════════════════════════════════════════
+# TELEGRAM
+# ══════════════════════════════════════════════════════════════
+BOT_TOKEN=your_bot_token_here
 BOT_USERNAME=RekHarborBot
+ADMIN_IDS=123456789,987654321
 
-# Database
+# Telethon (парсер чатов)
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=your_api_hash_here
+TELEGRAM_SESSION_NAME=parser
+
+# ══════════════════════════════════════════════════════════════
+# БАЗА ДАННЫХ
+# ══════════════════════════════════════════════════════════════
 DATABASE_URL=postgresql+asyncpg://rekharbor:password@localhost:5432/rekharbor
 DATABASE_SYNC_URL=postgresql://rekharbor:password@localhost:5432/rekharbor
 
-# Redis
+# ══════════════════════════════════════════════════════════════
+# REDIS
+# ══════════════════════════════════════════════════════════════
 REDIS_URL=redis://localhost:6379/0
-REDIS_FSM_DB=1
+CELERY_BROKER_URL=redis://localhost:6379/0
 
-# AI — Mistral official SDK
-MISTRAL_API_KEY=sk-...  # console.mistral.ai
+# ══════════════════════════════════════════════════════════════
+# AI — Mistral (официальный API)
+# Ключ: https://console.mistral.ai → API Keys → Create new key
+# ══════════════════════════════════════════════════════════════
+MISTRAL_API_KEY=your_mistral_api_key_here
 AI_MODEL=mistral-medium-latest
+AI_TIMEOUT=60
 
-# Payments — YooKassa only (v4.2)
-YOOKASSA_SHOP_ID=...
-YOOKASSA_SECRET_KEY=...
-YOOKASSA_RETURN_URL=https://t.me/RekHarborBot
+# ══════════════════════════════════════════════════════════════
+# FIELD-LEVEL ENCRYPTION (S6A — required for legal_profiles PII)
+# FIELD_ENCRYPTION_KEY: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# SEARCH_HASH_KEY:      python -c "import secrets; print(secrets.token_hex(32))"
+# ══════════════════════════════════════════════════════════════
+FIELD_ENCRYPTION_KEY=generate_with_fernet_see_above
+SEARCH_HASH_KEY=generate_with_secrets_see_above
 
-# Telethon
-TELEGRAM_API_ID=12345678
-TELEGRAM_API_HASH=abcdef1234567890
-TELEGRAM_SESSION_NAME=parser
+# ══════════════════════════════════════════════════════════════
+# JWT для Mini App аутентификации
+# Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
+# ══════════════════════════════════════════════════════════════
+JWT_SECRET=your_jwt_secret_here
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_HOURS=24
 
-# Admin
-ADMIN_IDS=123456789,987654321
+# ══════════════════════════════════════════════════════════════
+# ПЛАТЕЖИ — ЮKassa (v4.2: только ЮKassa, Stars и CryptoBot отключены)
+# ══════════════════════════════════════════════════════════════
+YOOKASSA_SHOP_ID=your_shop_id_here
+YOOKASSA_SECRET_KEY=your_secret_key_here
+YOOKASSA_RETURN_URL=https://t.me/YOUR_BOT_USERNAME
 
-# Security
-API_SECRET_KEY=your-secret-key-here
+# ══════════════════════════════════════════════════════════════
+# ПРИЛОЖЕНИЕ
+# ══════════════════════════════════════════════════════════════
+ENVIRONMENT=development
+DEBUG=true
+API_PORT=8001
+SENTRY_DSN=your_sentry_dsn_here  # опционально
+SONAR_TOKEN=your_sonar_token_here  # опционально
 
 # Platform v4.2
 PLATFORM_COMMISSION=0.15
@@ -296,13 +372,6 @@ MIN_PRICE_PER_POST=1000
 MIN_PAYOUT=1000
 MIN_TOPUP=500
 MIN_CAMPAIGN_BUDGET=2000
-PLACEMENT_TIMEOUT_HOURS=24
-PAYMENT_TIMEOUT_HOURS=24
-MAX_COUNTER_OFFERS=3
-
-# Environment
-ENVIRONMENT=development
-DEBUG=true
 ```
 
 #### 4. Запустить инфраструктуру
@@ -473,15 +542,25 @@ market-telegram-bot/
 │   │       ├── analytics.py      # GET /analytics/*
 │   │       ├── campaigns.py      # CRUD /campaigns/*
 │   │       ├── channels.py       # GET /channels/catalog, /channels/{id}
-│   │       ├── billing.py        # POST /billing/topup, /billing/withdraw
-│   │       ├── placements.py     # НОВЫЙ (Этап 6)
-│   │       ├── channel_settings.py  # НОВЫЙ (Этап 6)
-│   │       └── reputation.py     # НОВЫЙ (Этап 6)
+│   │       ├── billing.py        # POST /billing/topup, /billing/withdraw, /webhooks/yookassa
+│   │       ├── placements.py     # ✅ Этап 6: /placements/*
+│   │       ├── channel_settings.py  # ✅ Этап 6: /channel-settings/*
+│   │       ├── reputation.py     # ✅ Этап 6: /reputation/*
+│   │       ├── legal_profile.py  # ✅ v4.3: /legal-profile/*
+│   │       ├── contracts.py      # ✅ v4.3: /contracts/*
+│   │       ├── ord.py            # ✅ v4.3: /ord/* (ОРД-регистрация)
+│   │       ├── reviews.py        # ✅ v4.3: /reviews/*
+│   │       ├── categories.py     # ✅ v4.3: /categories/*
+│   │       ├── uploads.py        # ✅ v4.3: /uploads/* (видео, изображения)
+│   │       ├── feedback.py       # ✅ v4.3: /feedback/*
+│   │       ├── admin.py          # ✅ v4.3: /admin/* (7 экранов, 9 endpoints)
+│   │       ├── health.py         # GET /health, /health/balances (ESCROW-001)
+│   │       └── webhooks.py       # POST /webhooks/*
 │   │
 │   ├── db/                       # работа с БД
 │   │   ├── base.py               # DeclarativeBase
 │   │   ├── session.py            # async_sessionmaker, get_db()
-│   │   ├── models/               # SQLAlchemy модели (15 моделей)
+│   │   ├── models/               # SQLAlchemy модели (20+ моделей)
 │   │   │   ├── user.py           # User (role, credits, plan, XP, levels)
 │   │   │   ├── campaign.py       # Campaign (status, type: Broadcast/Placement)
 │   │   │   ├── analytics.py      # TelegramChat, ChatSnapshot
@@ -495,9 +574,15 @@ market-telegram-bot/
 │   │   │   ├── review.py         # Review
 │   │   │   ├── badge.py          # Badge, UserBadge
 │   │   │   ├── channel_rating.py # ChannelRating
-│   │   │   ├── b2b_package.py    # B2BPackage
+│   │   │   ├── legal_profile.py  # LegalProfile ✅ v4.3 (юрлица, ИП, самозанятые)
+│   │   │   ├── contract.py       # Contract ✅ v4.3 (договоры с платформой)
+│   │   │   ├── contract_signature.py  # ContractSignature ✅ v4.3
+│   │   │   ├── audit_log.py      # AuditLog ✅ v4.3 (журнал аудита)
+│   │   │   ├── publication_log.py  # PublicationLog ✅ v4.3 (лог публикаций)
+│   │   │   ├── ord_registration.py  # OrdRegistration ✅ v4.3 (ОРД-регистрация)
+│   │   │   ├── platform_account.py  # PlatformAccount ✅ v4.2 (счет платформы)
 │   │   │   └── ...
-│   │   ├── migrations/           # Alembic миграции (head: 006)
+│   │   ├── migrations/           # Alembic миграции (head: 010+)
 │   │   └── repositories/         # Repository pattern
 │   │       ├── base.py           # BaseRepository
 │   │       ├── user_repo.py
@@ -508,6 +593,9 @@ market-telegram-bot/
 │   │       ├── placement_request_repo.py  # НОВЫЙ ✅ Этап 2
 │   │       ├── channel_settings_repo.py   # НОВЫЙ ✅ Этап 2
 │   │       ├── reputation_repo.py         # НОВЫЙ ✅ Этап 2
+│   │       ├── legal_profile_repo.py      # НОВЫЙ ✅ v4.3
+│   │       ├── contract_repo.py           # НОВЫЙ ✅ v4.3
+│   │       ├── audit_log_repo.py          # НОВЫЙ ✅ v4.3
 │   │       └── ...
 │   │
 │   ├── core/                     # бизнес-логика
@@ -515,7 +603,7 @@ market-telegram-bot/
 │   │   └── services/
 │   │       ├── billing_service.py      # платежи, эскроу
 │   │       ├── mailing_service.py      # рассылки, публикация placement
-│   │       ├── payout_service.py       # выплаты
+│   │       ├── payout_service.py       # выплаты (velocity check, fee calculation)
 │   │       ├── notification_service.py # уведомления
 │   │       ├── analytics_service.py    # аналитика
 │   │       ├── mistral_ai_service.py   # ИИ-генерация (Mistral AI SDK)
@@ -524,10 +612,15 @@ market-telegram-bot/
 │   │       ├── badge_service.py        # бейджи (НЕ ТРОГАТЬ)
 │   │       ├── placement_request_service.py  # НОВЫЙ ✅ Этап 2
 │   │       ├── reputation_service.py       # НОВЫЙ ✅ Этап 2
+│   │       ├── legal_profile_service.py    # НОВЫЙ ✅ v4.3 (юр профили)
+│   │       ├── contract_service.py         # НОВЫЙ ✅ v4.3 (договоры)
+│   │       ├── ord_service.py              # НОВЫЙ ✅ v4.3 (ОРД-регистрация)
+│   │       ├── publication_service.py      # НОВЫЙ ✅ Этап 2 (публикация)
+│   │       ├── link_tracking_service.py    # НОВЫЙ ✅ v4.3 (трекинг ссылок)
 │   │       └── ...
 │   │
 │   ├── tasks/                    # Celery задачи
-│   │   ├── celery_app.py         # Celery instance, 3 очереди
+│   │   ├── celery_app.py         # Celery instance, 3 очереди (critical, background, monitoring)
 │   │   ├── celery_config.py      # Beat расписание
 │   │   ├── billing_tasks.py      # expire placements, unblock users
 │   │   ├── mailing_tasks.py      # send campaigns, publish placements
@@ -535,7 +628,12 @@ market-telegram-bot/
 │   │   ├── parser_tasks.py       # parse channels
 │   │   ├── gamification_tasks.py # reputation recovery
 │   │   ├── rating_tasks.py       # update channel ratings
-│   │   └── cleanup_tasks.py      # cleanup old logs
+│   │   ├── cleanup_tasks.py      # cleanup old logs
+│   │   ├── publication_tasks.py  # ✅ Этап 2: publish_placement, delete_published_post
+│   │   ├── placement_tasks.py    # ✅ Этап 2: placement workflow
+│   │   ├── ord_tasks.py          # ✅ v4.3: ORD registration tasks
+│   │   ├── integrity_tasks.py    # ✅ v4.3: data integrity checks
+│   │   └── badge_tasks.py        # ✅ v4.3: badge assignments
 │   │
 │   ├── utils/                    # утилиты
 │   │   ├── telegram/
