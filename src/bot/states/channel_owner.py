@@ -7,4 +7,5 @@ class AddChannelStates(StatesGroup):
     """Состояния добавления канала."""
 
     entering_username = State()
+    selecting_category = State()
     confirming = State()

@@ -7,12 +7,16 @@ Endpoints:
 """
 
 import logging
+from datetime import UTC, datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, get_db_session
+from src.api.dependencies import CurrentUser, get_current_user, get_db_session
+from src.db.models.user import User
 from src.db.repositories.reputation_repo import ReputationRepository
 
 logger = logging.getLogger(__name__)
@@ -28,13 +32,19 @@ class UserResponse(BaseModel):
 
     id: int
     telegram_id: int
-    username: str | None
-    first_name: str | None
+    username: str | None = None
+    first_name: str | None = None
     plan: str
     credits: int
     balance_rub: str
     earned_rub: str
     is_admin: bool
+    legal_status_completed: bool = False
+    legal_profile_prompted_at: datetime | None = None
+    legal_profile_skipped_at: datetime | None = None
+    platform_rules_accepted_at: datetime | None = None
+    privacy_policy_accepted_at: datetime | None = None
+    has_legal_profile: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -75,7 +85,7 @@ class ReferralItem(BaseModel):
     """Элемент списка рефералов."""
 
     id: int
-    username: str | None
+    username: str | None = None
     first_name: str
     joined_at: str
     is_active: bool
@@ -99,7 +109,7 @@ class ReferralStatsResponse(BaseModel):
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
     """
     Получить данные текущего авторизованного пользователя.
@@ -124,13 +134,35 @@ async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
         is_admin=current_user.is_admin,
+        legal_status_completed=current_user.legal_status_completed,
+        legal_profile_prompted_at=current_user.legal_profile_prompted_at,
+        legal_profile_skipped_at=current_user.legal_profile_skipped_at,
+        platform_rules_accepted_at=current_user.platform_rules_accepted_at,
+        privacy_policy_accepted_at=current_user.privacy_policy_accepted_at,
+        has_legal_profile=current_user.legal_profile is not None,
     )
 
 
-@router.get("/me/stats", response_model=UserStatsResponse)
+@router.post("/skip-legal-prompt")
+async def skip_legal_prompt(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Mark that the user skipped the legal profile prompt."""
+    now = datetime.now(UTC)
+    await session.execute(
+        sa_update(User)
+        .where(User.id == current_user.id)
+        .values(legal_profile_prompted_at=now, legal_profile_skipped_at=now)
+    )
+    await session.commit()
+    return {"success": True}
+
+
+@router.get("/me/stats", responses={404: {"description": "Reputation record not found"}})
 async def get_current_user_stats(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> UserStatsResponse:
     """
     Получить статистику репутации текущего пользователя.
@@ -171,10 +203,20 @@ async def get_current_user_stats(
     )
 
 
-@router.get("/me/referrals", response_model=ReferralStatsResponse)
+@router.get("/needs-accept-rules")
+async def needs_accept_rules(current_user: CurrentUser) -> dict:
+    """Check if user needs to accept platform rules (152-ФЗ compliance)."""
+    needs_accept = (
+        current_user.platform_rules_accepted_at is None
+        or current_user.privacy_policy_accepted_at is None
+    )
+    return {"needs_accept": needs_accept}
+
+
+@router.get("/me/referrals")
 async def get_my_referrals(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ReferralStatsResponse:
     """
     Реферальная статистика и код текущего пользователя.

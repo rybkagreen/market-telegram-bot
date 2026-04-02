@@ -4,8 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Text
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -36,7 +35,7 @@ class UserFeedback(Base, TimestampMixin):
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(
-        SQLEnum(FeedbackStatus),
+        String(32),
         default=FeedbackStatus.NEW,
         server_default="NEW",
         nullable=False,

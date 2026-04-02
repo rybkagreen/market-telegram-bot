@@ -5,14 +5,13 @@ S-13: Базовая проверка сервиса + инварианты ба
 
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from src.db.repositories.platform_account_repo import PlatformAccountRepository
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
+from src.db.repositories.platform_account_repo import PlatformAccountRepository
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -35,9 +34,9 @@ async def health_check() -> dict[str, Any]:
     }
 
 
-@router.get("/balances")
+@router.get("/balances", responses={403: {"description": "Admin key required"}})
 async def health_balances(
-    x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
+    x_admin_key: Annotated[str | None, Header(alias="X-Admin-Key")] = None,
 ) -> dict[str, Any]:
     """
     Инварианты балансов platform_account.

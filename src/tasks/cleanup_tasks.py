@@ -7,7 +7,7 @@ import logging
 from datetime import UTC
 from typing import Any
 
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
@@ -91,9 +91,9 @@ async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
         await session.commit()
 
     return {
-        "placements_deleted": r1.rowcount,
-        "reputation_history_deleted": r2.rowcount,
-        "payments_deleted": r3.rowcount,
+        "placements_deleted": r1.rowcount,  # type: ignore[attr-defined]
+        "reputation_history_deleted": r2.rowcount,  # type: ignore[attr-defined]
+        "payments_deleted": r3.rowcount,  # type: ignore[attr-defined]
         "cutoff_date": cutoff_placements.isoformat(),
     }
 

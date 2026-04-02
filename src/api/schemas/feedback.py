@@ -18,9 +18,9 @@ class FeedbackResponse(BaseModel):
     user_id: int
     text: str
     status: str
-    admin_response: str | None
+    admin_response: str | None = None
     created_at: datetime
-    responded_at: datetime | None
+    responded_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

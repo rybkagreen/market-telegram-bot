@@ -9,6 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+CASCADE_ALL = "all, delete-orphan"
+
 if TYPE_CHECKING:
     from src.db.models.channel_mediakit import ChannelMediakit
     from src.db.models.channel_settings import ChannelSettings
@@ -41,7 +43,6 @@ class TelegramChat(Base, TimestampMixin):
     avg_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     rating: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     category: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
-    subcategory: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     is_test: Mapped[bool] = mapped_column(
@@ -55,9 +56,9 @@ class TelegramChat(Base, TimestampMixin):
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="telegram_chats")
-    channel_settings: Mapped[Optional["ChannelSettings"]] = relationship("ChannelSettings", back_populates="channel", uselist=False, cascade="all, delete-orphan")
-    channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship("ChannelMediakit", back_populates="channel", uselist=False, cascade="all, delete-orphan")
-    placement_requests: Mapped[list["PlacementRequest"]] = relationship("PlacementRequest", back_populates="channel", cascade="all, delete-orphan")
+    channel_settings: Mapped[Optional["ChannelSettings"]] = relationship("ChannelSettings", back_populates="channel", uselist=False, cascade=CASCADE_ALL)
+    channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship("ChannelMediakit", back_populates="channel", uselist=False, cascade=CASCADE_ALL)
+    placement_requests: Mapped[list["PlacementRequest"]] = relationship("PlacementRequest", back_populates="channel", cascade=CASCADE_ALL)
     mailing_logs: Mapped[list["MailingLog"]] = relationship("MailingLog", back_populates="chat")
 
     def __repr__(self) -> str:

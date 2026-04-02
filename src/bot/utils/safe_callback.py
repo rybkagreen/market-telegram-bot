@@ -1,6 +1,6 @@
 """Safe callback utility."""
 
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 
 async def safe_callback_edit(
@@ -9,6 +9,8 @@ async def safe_callback_edit(
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
     """Безопасное редактирование callback."""
+    if not isinstance(callback.message, Message):
+        return
     try:
         await callback.message.edit_text(text, reply_markup=reply_markup)
     except Exception:

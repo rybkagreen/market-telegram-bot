@@ -46,7 +46,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--rh-space-1);
 }
 
 .nameRow {
@@ -67,7 +67,7 @@
 }
 
 .verified {
-  font-size: 10px;
+  font-size: var(--rh-text-2xs);
   color: var(--rh-accent);
   background: var(--rh-accent-muted);
   border-radius: var(--rh-radius-full);
@@ -82,7 +82,7 @@
 .meta {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rh-space-1);
 }
 
 .username {

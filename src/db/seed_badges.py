@@ -207,7 +207,7 @@ async def seed_badges() -> None:
         for badge in created_badges:
             achievement = BadgeAchievement(
                 badge_id=badge.id,
-                achievement_type=badge.condition_type.value,
+                achievement_type=badge.condition_type,
                 threshold=badge.condition_value,
                 description=badge.description,
                 is_active=badge.is_active,

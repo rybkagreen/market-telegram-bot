@@ -10,8 +10,7 @@ from typing import Any
 from aiogram import Bot
 
 from src.core.services.publication_service import PublicationService
-from src.db.repositories.placement_request_repo import PlacementRequestRepo
-from src.db.session import async_session_factory
+from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
@@ -122,8 +121,21 @@ def check_scheduled_deletions() -> dict[str, Any]:
 
     async def _check_async() -> dict[str, Any]:
         async with async_session_factory() as session:
-            placement_repo = PlacementRequestRepo(session)
-            placements = await placement_repo.get_scheduled_for_deletion(session)
+            from datetime import UTC, datetime
+
+            from sqlalchemy import select
+
+            from src.db.models.placement_request import PlacementRequest, PlacementStatus
+
+            now = datetime.now(UTC)
+            _result = await session.execute(
+                select(PlacementRequest).where(
+                    PlacementRequest.status == PlacementStatus.published,
+                    PlacementRequest.scheduled_delete_at <= now,
+                    PlacementRequest.scheduled_delete_at.isnot(None),
+                )
+            )
+            placements = list(_result.scalars().all())
 
             stats["total_found"] = len(placements)
 

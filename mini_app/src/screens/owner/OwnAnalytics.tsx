@@ -19,7 +19,6 @@ export default function OwnAnalytics() {
 
   // ИЗМЕНЕНО (UX-P0): Разделена обработка isError и !analytics
   if (isError) {
-    console.error('[OwnAnalytics] Analytics error:', isError) // ДОБАВЛЕНО (UX-P0)
     return (
       <ScreenShell>
         <Notification type="danger">
@@ -30,7 +29,6 @@ export default function OwnAnalytics() {
   }
 
   if (!analytics) {
-    console.warn('[OwnAnalytics] No analytics data') // ДОБАВЛЕНО (UX-P0)
     return null // ИЗМЕНЕНО (UX-P0): было Notification
   }
 
@@ -44,6 +42,11 @@ export default function OwnAnalytics() {
           { value: String(analytics.channel_count), label: 'Каналов', color: 'purple' },
         ]}
       />
+
+      {/* GAP-03: Platform commission info */}
+      <p className={styles.commissionNote}>
+        ℹ️ Комиссия платформы: 15% (включена в сумму выше)
+      </p>
 
       <p className={styles.sectionTitle}>По каналам</p>
 

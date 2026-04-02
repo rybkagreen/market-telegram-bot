@@ -24,15 +24,17 @@ class ChannelSettingsRepo(BaseRepository[ChannelSettings]):
             settings = ChannelSettings(channel_id=channel_id)
             self.session.add(settings)
             await self.session.flush()
+            await self.session.refresh(settings)
         return settings
 
-    async def update(self, channel_id: int, **kwargs) -> ChannelSettings:
+    async def update_settings(self, channel_id: int, **kwargs) -> ChannelSettings:
         """Update channel settings."""
         settings = await self.get_or_create(channel_id)
         for key, value in kwargs.items():
             if hasattr(settings, key):
                 setattr(settings, key, value)
         await self.session.flush()
+        await self.session.refresh(settings)
         return settings
 
     async def get_by_channel(self, channel_id: int) -> ChannelSettings | None:

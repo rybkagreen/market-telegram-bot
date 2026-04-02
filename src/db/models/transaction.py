@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -54,11 +54,11 @@ class Transaction(Base, TimestampMixin):
     meta_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     balance_before: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="transactions")
-    placement_request: Mapped[Optional["PlacementRequest"]] = relationship("PlacementRequest", back_populates="transactions")
+    placement_request: Mapped[Optional["PlacementRequest"]] = relationship("PlacementRequest", back_populates="transactions", foreign_keys=[placement_request_id])
     payout_request: Mapped[Optional["PayoutRequest"]] = relationship("PayoutRequest", back_populates="transactions")
 
     def __repr__(self) -> str:

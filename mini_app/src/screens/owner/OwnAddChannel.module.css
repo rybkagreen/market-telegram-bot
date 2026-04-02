@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--rh-space-1);
-  margin: var(--rh-space-3) 0;
+  margin: 0;
 }
 
 .label {
@@ -35,15 +35,15 @@
 }
 
 .testModeSection {
-  margin: var(--rh-space-3) 0;
+  margin: 0;
   padding: var(--rh-space-3);
   background: var(--rh-surface-2);
   border-radius: var(--rh-radius-md);
-  border: 1px solid var(--rh-border-muted);
+  border: 1px solid var(--rh-border);
 }
 
 .resultCard {
-  margin: var(--rh-space-3) 0;
+  margin: 0;
 }
 
 .resultRow {

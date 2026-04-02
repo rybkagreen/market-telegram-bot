@@ -18,7 +18,7 @@
 .main {
   flex: 1;
   padding: var(--rh-space-6);
-  padding-bottom: calc(var(--rh-space-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(var(--rh-space-6), env(safe-area-inset-bottom, 0px));
 }
 
 .header {

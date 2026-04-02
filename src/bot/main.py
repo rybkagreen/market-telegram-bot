@@ -3,11 +3,13 @@
 import asyncio
 import logging
 
+import sentry_sdk
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import MenuButtonWebApp, WebAppInfo  # добавлено
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
 from src.bot.handlers import main_router
 from src.bot.middlewares.db_session import DBSessionMiddleware
@@ -18,13 +20,23 @@ from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.sentry_environment,
+        traces_sample_rate=0.05,
+        integrations=[AsyncioIntegration()],
+        send_default_pii=False,
+    )
+
+bot = Bot(
+    token=settings.bot_token,
+    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+)
+
 
 async def main() -> None:
     """Запуск бота."""
-    bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
-    )
 
     # Устанавливаем Menu Button для открытия Mini App
     await bot.set_chat_menu_button(

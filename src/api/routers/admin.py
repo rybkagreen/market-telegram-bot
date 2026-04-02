@@ -8,8 +8,12 @@ Endpoints:
 """
 
 import logging
+from datetime import datetime
+from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,16 +28,123 @@ from src.db.models.feedback import UserFeedback
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
+from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
-@router.get("/stats", response_model=PlatformStatsResponse)
+async def _get_user_stats(session: AsyncSession) -> dict:
+    """Fetch user counts: total, active, admins."""
+    total = (await session.execute(select(func.count()).select_from(User))).scalar() or 0
+    active = (
+        await session.execute(select(func.count()).select_from(User).where(User.is_active))
+    ).scalar() or 0
+    admins = (
+        await session.execute(select(func.count()).select_from(User).where(User.is_admin))
+    ).scalar() or 0
+    return {"total": total, "active": active, "admins": admins}
+
+
+async def _get_feedback_stats(session: AsyncSession) -> dict:
+    """Fetch feedback counts by status."""
+    base = select(func.count()).select_from(UserFeedback)
+    total = (await session.execute(base)).scalar() or 0
+    new = (await session.execute(base.where(UserFeedback.status == "NEW"))).scalar() or 0
+    in_progress = (
+        await session.execute(base.where(UserFeedback.status == "IN_PROGRESS"))
+    ).scalar() or 0
+    resolved = (
+        await session.execute(base.where(UserFeedback.status == "RESOLVED"))
+    ).scalar() or 0
+    rejected = (
+        await session.execute(base.where(UserFeedback.status == "REJECTED"))
+    ).scalar() or 0
+    return {
+        "total": total,
+        "new": new,
+        "in_progress": in_progress,
+        "resolved": resolved,
+        "rejected": rejected,
+    }
+
+
+async def _get_dispute_stats(session: AsyncSession) -> dict:
+    """Fetch dispute counts by status."""
+    base = select(func.count()).select_from(PlacementDispute)
+    total = (await session.execute(base)).scalar() or 0
+    open_ = (await session.execute(base.where(PlacementDispute.status == "open"))).scalar() or 0
+    owner_explained = (
+        await session.execute(base.where(PlacementDispute.status == "owner_explained"))
+    ).scalar() or 0
+    resolved = (
+        await session.execute(base.where(PlacementDispute.status == "resolved"))
+    ).scalar() or 0
+    return {
+        "total": total,
+        "open": open_,
+        "owner_explained": owner_explained,
+        "resolved": resolved,
+    }
+
+
+async def _get_placement_stats(session: AsyncSession) -> dict:
+    """Fetch placement counts by status group."""
+    base = select(func.count()).select_from(PlacementRequest)
+    total = (await session.execute(base)).scalar() or 0
+    pending = (
+        await session.execute(
+            base.where(PlacementRequest.status == PlacementStatus.pending_owner)
+        )
+    ).scalar() or 0
+    active = (
+        await session.execute(
+            base.where(
+                PlacementRequest.status.in_([PlacementStatus.escrow, PlacementStatus.published])
+            )
+        )
+    ).scalar() or 0
+    completed = (
+        await session.execute(
+            base.where(PlacementRequest.status == PlacementStatus.published)
+        )
+    ).scalar() or 0
+    cancelled = (
+        await session.execute(
+            base.where(
+                PlacementRequest.status.in_(
+                    [PlacementStatus.cancelled, PlacementStatus.refunded, PlacementStatus.failed]
+                )
+            )
+        )
+    ).scalar() or 0
+    return {
+        "total": total,
+        "pending": pending,
+        "active": active,
+        "completed": completed,
+        "cancelled": cancelled,
+    }
+
+
+async def _get_financial_stats(session: AsyncSession) -> dict:
+    """Fetch financial totals from the platform account."""
+    from src.db.models.platform_account import PlatformAccount
+
+    platform_account = await session.get(PlatformAccount, 1)
+    return {
+        "total_revenue": str(platform_account.total_topups) if platform_account else "0.00",
+        "total_payouts": str(platform_account.total_payouts) if platform_account else "0.00",
+        "pending_payouts": str(platform_account.payout_reserved) if platform_account else "0.00",
+        "escrow_reserved": str(platform_account.escrow_reserved) if platform_account else "0.00",
+    }
+
+
+@router.get("/stats")
 async def get_platform_stats(
     admin_user: AdminUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlatformStatsResponse:
     """
     Get overall platform statistics (admin only).
@@ -55,148 +166,30 @@ async def get_platform_stats(
     logger.info(f"[ADMIN_STATS] Request received from admin user #{admin_user.id} ({admin_user.username})")
     logger.info(f"[ADMIN_STATS] User is_admin={admin_user.is_admin}")
 
-    # Users statistics
-    total_users = await session.execute(select(func.count()).select_from(User))
-    total_users_count = total_users.scalar() or 0
-
-    active_users_query = select(func.count()).select_from(User).where(
-        User.is_active
-    )
-    active_users_result = await session.execute(active_users_query)
-    active_users_count = active_users_result.scalar() or 0
-
-    admin_users_query = select(func.count()).select_from(User).where(
-        User.is_admin
-    )
-    admin_users_result = await session.execute(admin_users_query)
-    admin_users_count = admin_users_result.scalar() or 0
-
-    # Feedback statistics
-    feedback_total_query = select(func.count()).select_from(UserFeedback)
-    feedback_total = (await session.execute(feedback_total_query)).scalar() or 0
-
-    feedback_new_query = select(func.count()).select_from(UserFeedback).where(
-        UserFeedback.status == "NEW"
-    )
-    feedback_new = (await session.execute(feedback_new_query)).scalar() or 0
-
-    feedback_in_progress_query = select(func.count()).select_from(UserFeedback).where(
-        UserFeedback.status == "IN_PROGRESS"
-    )
-    feedback_in_progress = (await session.execute(feedback_in_progress_query)).scalar() or 0
-
-    feedback_resolved_query = select(func.count()).select_from(UserFeedback).where(
-        UserFeedback.status == "RESOLVED"
-    )
-    feedback_resolved = (await session.execute(feedback_resolved_query)).scalar() or 0
-
-    feedback_rejected_query = select(func.count()).select_from(UserFeedback).where(
-        UserFeedback.status == "REJECTED"
-    )
-    feedback_rejected = (await session.execute(feedback_rejected_query)).scalar() or 0
-
-    # Disputes statistics
-    disputes_total_query = select(func.count()).select_from(PlacementDispute)
-    disputes_total = (await session.execute(disputes_total_query)).scalar() or 0
-
-    disputes_open_query = select(func.count()).select_from(PlacementDispute).where(
-        PlacementDispute.status == "open"
-    )
-    disputes_open = (await session.execute(disputes_open_query)).scalar() or 0
-
-    disputes_owner_explained_query = select(func.count()).select_from(PlacementDispute).where(
-        PlacementDispute.status == "owner_explained"
-    )
-    disputes_owner_explained = (await session.execute(disputes_owner_explained_query)).scalar() or 0
-
-    disputes_resolved_query = select(func.count()).select_from(PlacementDispute).where(
-        PlacementDispute.status == "resolved"
-    )
-    disputes_resolved = (await session.execute(disputes_resolved_query)).scalar() or 0
-
-    # Placements statistics
-    placements_total_query = select(func.count()).select_from(PlacementRequest)
-    placements_total = (await session.execute(placements_total_query)).scalar() or 0
-
-    placements_pending_query = select(func.count()).select_from(PlacementRequest).where(
-        PlacementRequest.status == PlacementStatus.pending_owner
-    )
-    placements_pending = (await session.execute(placements_pending_query)).scalar() or 0
-
-    placements_active_query = select(func.count()).select_from(PlacementRequest).where(
-        PlacementRequest.status.in_(
-            [PlacementStatus.escrow, PlacementStatus.published]
-        )
-    )
-    placements_active = (await session.execute(placements_active_query)).scalar() or 0
-
-    placements_completed_query = select(func.count()).select_from(PlacementRequest).where(
-        PlacementRequest.status == PlacementStatus.published
-    )
-    placements_completed = (await session.execute(placements_completed_query)).scalar() or 0
-
-    placements_cancelled_query = select(func.count()).select_from(PlacementRequest).where(
-        PlacementRequest.status.in_(
-            [PlacementStatus.cancelled, PlacementStatus.refunded, PlacementStatus.failed]
-        )
-    )
-    placements_cancelled = (await session.execute(placements_cancelled_query)).scalar() or 0
-
-    # Financial statistics
-    from src.db.models.platform_account import PlatformAccount
-
-    platform_account = await session.get(PlatformAccount, 1)
-    total_revenue = str(platform_account.total_topups) if platform_account else "0.00"
-    total_payouts = str(platform_account.total_payouts) if platform_account else "0.00"
-    pending_payouts = str(platform_account.payout_reserved) if platform_account else "0.00"
-    escrow_reserved = str(platform_account.escrow_reserved) if platform_account else "0.00"
+    users = await _get_user_stats(session)
+    feedback = await _get_feedback_stats(session)
+    disputes = await _get_dispute_stats(session)
+    placements = await _get_placement_stats(session)
+    financial = await _get_financial_stats(session)
 
     logger.info(f"Admin {admin_user.id} retrieved platform statistics")
 
     return PlatformStatsResponse(
-        users={
-            "total": total_users_count,
-            "active": active_users_count,
-            "admins": admin_users_count,
-        },
-        feedback={
-            "total": feedback_total,
-            "new": feedback_new,
-            "in_progress": feedback_in_progress,
-            "resolved": feedback_resolved,
-            "rejected": feedback_rejected,
-        },
-        disputes={
-            "total": disputes_total,
-            "open": disputes_open,
-            "owner_explained": disputes_owner_explained,
-            "resolved": disputes_resolved,
-        },
-        placements={
-            "total": placements_total,
-            "pending": placements_pending,
-            "active": placements_active,
-            "completed": placements_completed,
-            "cancelled": placements_cancelled,
-        },
-        financial={
-            "total_revenue": total_revenue,
-            "total_payouts": total_payouts,
-            "pending_payouts": pending_payouts,
-            "escrow_reserved": escrow_reserved,
-        },
+        users=users,
+        feedback=feedback,
+        disputes=disputes,
+        placements=placements,
+        financial=financial,
     )
 
-    logger.info(f"[ADMIN_STATS] Statistics returned successfully for user #{admin_user.id}")
 
-
-@router.get("/users", response_model=UserListAdminResponse)
+@router.get("/users", responses={400: {"description": "Invalid role filter"}})
 async def get_all_users(
     admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     role: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    session: AsyncSession = Depends(get_db_session),
 ) -> UserListAdminResponse:
     """
     Get list of users with pagination (admin only).
@@ -308,11 +301,245 @@ async def get_all_users(
     return UserListAdminResponse(items=items, total=total, limit=limit, offset=offset)
 
 
-@router.get("/users/{user_id}", response_model=UserAdminResponse)
+# ─── Legal Profile Admin Endpoints (Gap 6) ──────────────────────────────────
+
+
+@router.get("/legal-profiles")
+async def list_legal_profiles(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    is_verified: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """List legal profiles with optional is_verified filter (admin only)."""
+    from sqlalchemy import select
+
+    from src.db.models.legal_profile import LegalProfile
+    from src.db.repositories.audit_log_repo import AuditLogRepo
+
+    q = select(LegalProfile)
+    if is_verified is not None:
+        q = q.where(LegalProfile.is_verified == is_verified)
+    q = q.limit(min(limit, 200)).offset(offset)
+    result = await session.execute(q)
+    profiles = list(result.scalars().all())
+
+    audit = AuditLogRepo(session)
+    await audit.log(
+        action="ADMIN_READ",
+        resource_type="legal_profile",
+        user_id=admin_user.id,
+        extra={"count": len(profiles)},
+    )
+    await session.commit()
+
+    return {
+        "items": [
+            {
+                "user_id": p.user_id,
+                "legal_status": p.legal_status,
+                "legal_name": p.legal_name,
+                "inn": "***" if p.inn else None,
+                "is_verified": p.is_verified,
+                "verified_at": p.verified_at.isoformat() if p.verified_at else None,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in profiles
+        ],
+        "total": len(profiles),
+    }
+
+
+@router.post("/legal-profiles/{user_id}/verify")
+async def verify_legal_profile(
+    user_id: int,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Verify a user's legal profile (admin only)."""
+    from datetime import UTC
+
+    from sqlalchemy import update as sa_update
+
+    from src.db.models.legal_profile import LegalProfile
+    from src.db.repositories.audit_log_repo import AuditLogRepo
+
+    now = datetime.now(UTC)
+    await session.execute(
+        sa_update(LegalProfile)
+        .where(LegalProfile.user_id == user_id)
+        .values(is_verified=True, verified_at=now)
+    )
+    audit = AuditLogRepo(session)
+    await audit.log(
+        action="ADMIN_WRITE",
+        resource_type="legal_profile",
+        user_id=admin_user.id,
+        target_user_id=user_id,
+        extra={"action": "verify"},
+    )
+    await session.commit()
+    logger.info(f"Admin {admin_user.id} verified legal profile for user {user_id}")
+    return {"success": True, "verified": True}
+
+
+@router.post("/legal-profiles/{user_id}/unverify")
+async def unverify_legal_profile(
+    user_id: int,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Unverify a user's legal profile (admin only)."""
+    from sqlalchemy import update as sa_update
+
+    from src.db.models.legal_profile import LegalProfile
+    from src.db.repositories.audit_log_repo import AuditLogRepo
+
+    await session.execute(
+        sa_update(LegalProfile)
+        .where(LegalProfile.user_id == user_id)
+        .values(is_verified=False, verified_at=None)
+    )
+    audit = AuditLogRepo(session)
+    await audit.log(
+        action="ADMIN_WRITE",
+        resource_type="legal_profile",
+        user_id=admin_user.id,
+        target_user_id=user_id,
+        extra={"action": "unverify"},
+    )
+    await session.commit()
+    logger.info(f"Admin {admin_user.id} unverified legal profile for user {user_id}")
+    return {"success": True, "verified": False}
+
+
+# ─── Audit Log Admin Endpoint (Gap 7) ────────────────────────────────────────
+
+
+@router.get("/audit-logs")
+async def list_audit_logs(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    user_id: int | None = None,
+    target_user_id: int | None = None,
+    resource_type: str | None = None,
+    action: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict:
+    """List audit logs with optional filters (admin only)."""
+    from sqlalchemy import select
+
+    from src.db.models.audit_log import AuditLog
+
+    q = select(AuditLog).order_by(AuditLog.created_at.desc())
+    if user_id is not None:
+        q = q.where(AuditLog.user_id == user_id)
+    if target_user_id is not None:
+        q = q.where(AuditLog.target_user_id == target_user_id)
+    if resource_type is not None:
+        q = q.where(AuditLog.resource_type == resource_type)
+    if action is not None:
+        q = q.where(AuditLog.action == action)
+    if date_from is not None:
+        q = q.where(AuditLog.created_at >= date_from)
+    if date_to is not None:
+        q = q.where(AuditLog.created_at <= date_to)
+    q = q.limit(min(limit, 500)).offset(offset)
+
+    result = await session.execute(q)
+    logs = list(result.scalars().all())
+
+    return {
+        "items": [
+            {
+                "id": log.id,
+                "user_id": log.user_id,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "target_user_id": log.target_user_id,
+                "ip_address": log.ip_address,
+                "extra": log.extra,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log in logs
+        ],
+        "total": len(logs),
+    }
+
+
+# ─── Platform Settings (legal requisites for contracts) ──────────────────────
+
+
+@router.get("/platform-settings")
+async def get_platform_settings(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Get platform legal requisites (admin only)."""
+    from src.db.models.platform_account import PlatformAccount
+
+    account = await session.get(PlatformAccount, 1)
+    if not account:
+        return {
+            "legal_name": None, "inn": None, "kpp": None, "ogrn": None,
+            "address": None, "bank_name": None, "bank_account": None,
+            "bank_bik": None, "bank_corr_account": None,
+        }
+    return {
+        "legal_name": account.legal_name,
+        "inn": account.inn,
+        "kpp": account.kpp,
+        "ogrn": account.ogrn,
+        "address": account.address,
+        "bank_name": account.bank_name,
+        "bank_account": account.bank_account,
+        "bank_bik": account.bank_bik,
+        "bank_corr_account": account.bank_corr_account,
+    }
+
+
+@router.put("/platform-settings", responses={400: {"description": "No valid fields provided"}})
+async def update_platform_settings(
+    payload: dict,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Update platform legal requisites (admin only)."""
+    from sqlalchemy import update as sa_update
+
+    from src.db.models.platform_account import PlatformAccount
+    from src.db.repositories.audit_log_repo import AuditLogRepo
+
+    allowed = {"legal_name", "inn", "kpp", "ogrn", "address", "bank_name", "bank_account", "bank_bik", "bank_corr_account"}
+    values = {k: v for k, v in payload.items() if k in allowed}
+    if not values:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No valid fields provided")
+
+    await session.execute(
+        sa_update(PlatformAccount).where(PlatformAccount.id == 1).values(**values)
+    )
+    audit = AuditLogRepo(session)
+    await audit.log(
+        action="ADMIN_WRITE",
+        resource_type="platform_account",
+        user_id=admin_user.id,
+        extra={"fields_updated": list(values.keys())},
+    )
+    await session.commit()
+    logger.info(f"Admin {admin_user.id} updated platform settings: {list(values.keys())}")
+    return {"success": True}
+
+
+@router.get("/users/{user_id}", responses={404: {"description": "User not found"}})
 async def get_user_details(
     user_id: int,
     admin_user: AdminUser,
-    session: AsyncSession = Depends(get_db_session),
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> UserAdminResponse:
     """
     Get detailed user information (admin only).
@@ -392,6 +619,73 @@ async def get_user_details(
         total_channels=total_channels,
         total_feedback=total_feedback,
         total_disputes=total_disputes,
+        reputation_score=float(reputation_score) if reputation_score else None,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
+# ─── Balance Top-Up ─────────────────────────────────────────────────────────
+
+
+class BalanceTopUpRequest(BaseModel):
+    amount: float = Field(..., gt=0, le=1_000_000, description="Сумма пополнения в рублях")
+    note: str = Field("", max_length=500, description="Примечание администратора")
+
+
+@router.post(
+    "/users/{user_id}/balance",
+    responses={404: {"description": "User not found"}, 400: {"description": "Invalid amount"}},
+)
+async def topup_user_balance(
+    user_id: int,
+    body: BalanceTopUpRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> UserAdminResponse:
+    """Зачислить рубли на баланс пользователя (только для администраторов)."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    repo = UserRepository(session)
+    await repo.update_balance(user_id, Decimal(str(body.amount)))
+
+    await session.refresh(user)
+
+    logger.info(
+        f"Admin #{admin_user.id} topped up balance for user #{user_id}: "
+        f"+{body.amount} RUB. Note: {body.note!r}"
+    )
+
+    from src.db.models.reputation_score import ReputationScore
+
+    rep_result = await session.execute(
+        select(ReputationScore.advertiser_score).where(ReputationScore.user_id == user_id)
+    )
+    reputation_score = rep_result.scalar_one_or_none()
+
+    return UserAdminResponse(
+        id=user.id,
+        telegram_id=user.telegram_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        role=user.current_role,
+        plan=user.plan,
+        plan_expires_at=user.plan_expires_at,
+        balance_rub=str(user.balance_rub),
+        earned_rub=str(user.earned_rub),
+        credits=user.credits,
+        is_admin=user.is_admin,
+        advertiser_xp=user.advertiser_xp,
+        advertiser_level=user.advertiser_level,
+        owner_xp=user.owner_xp,
+        owner_level=user.owner_level,
+        total_placements=0,
+        total_channels=0,
+        total_feedback=0,
+        total_disputes=0,
         reputation_score=float(reputation_score) if reputation_score else None,
         created_at=user.created_at,
         updated_at=user.updated_at,

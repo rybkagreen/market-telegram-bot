@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from src.config.settings import settings
 
@@ -33,11 +34,30 @@ async_engine = create_async_engine(
     pool_use_lifo=True,  # LIFO для лучшего использования соединений
 )
 
-# Фабрика сессий
+# Фабрика сессий (для FastAPI / бота — долгоживущий пул)
 async_session_factory: Final = async_sessionmaker(
     bind=async_engine,
     class_=AsyncSession,
     expire_on_commit=False,  # Не истекать объекты после коммита
+    autocommit=False,
+    autoflush=False,
+)
+
+# Движок для Celery-воркеров: NullPool — без постоянных соединений.
+# Celery использует asyncio.run() для каждой задачи (новый event loop),
+# поэтому пул с asyncpg-соединениями из предыдущего loop вызывает
+# "Future attached to a different loop". NullPool создаёт свежее
+# подключение на каждый запрос и сразу закрывает его.
+celery_async_engine = create_async_engine(
+    str(settings.database_url),
+    echo=settings.debug,
+    poolclass=NullPool,
+)
+
+celery_async_session_factory: Final = async_sessionmaker(
+    bind=celery_async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
     autocommit=False,
     autoflush=False,
 )

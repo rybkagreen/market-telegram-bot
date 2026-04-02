@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
@@ -17,16 +18,18 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <motion.div
           key={location.pathname}
           className={styles.page}
-          initial={{ opacity: 0, x: 8 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -8 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
         >
-          <Outlet />
+          <Suspense fallback={<SplashScreen />}>
+            <Outlet />
+          </Suspense>
         </motion.div>
       </AnimatePresence>
       <ToastContainer />

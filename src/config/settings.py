@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     postgres_db: str = Field("market_bot_db", alias="POSTGRES_DB")
     postgres_port: int = Field(5432, alias="POSTGRES_PORT")
     database_url: PostgresDsn = Field(..., alias="DATABASE_URL")
+    test_database_url: PostgresDsn | None = Field(default=None, alias="TEST_DATABASE_URL")
 
     # Redis
     redis_port: int = Field(6379, alias="REDIS_PORT")
@@ -74,6 +75,24 @@ class Settings(BaseSettings):
     ai_model: str = Field("mistral-medium-latest", alias="AI_MODEL")
 
     # ══════════════════════════════════════════════════════════════
+    # FIELD-LEVEL ENCRYPTION (S6A)
+    # FIELD_ENCRYPTION_KEY — Fernet:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # SEARCH_HASH_KEY — random 32-byte hex:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    # ══════════════════════════════════════════════════════════════
+    field_encryption_key: str = Field(
+        ...,
+        alias="FIELD_ENCRYPTION_KEY",
+        description="Fernet key for field-level encryption of PII columns",
+    )
+    search_hash_key: str = Field(
+        ...,
+        alias="SEARCH_HASH_KEY",
+        description="HMAC-SHA256 key for searchable hash of INN (hex string)",
+    )
+
+    # ══════════════════════════════════════════════════════════════
     # JWT для Mini App аутентификации
     # Генерировать: python -c "import secrets; print(secrets.token_hex(32))"
     # ══════════════════════════════════════════════════════════════
@@ -83,6 +102,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM", description="Алгоритм подписи JWT")
     jwt_expire_hours: int = Field(
         24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)"
+    )
+
+    # S9: Persistent storage for generated PDF contracts
+    contracts_storage_path: str = Field(
+        "/data/contracts",
+        alias="CONTRACTS_STORAGE_PATH",
+        description="Persistent volume path for generated PDF contracts",
     )
 
     # Параметры генерации
@@ -217,6 +243,22 @@ class Settings(BaseSettings):
     mailing_max_per_day: int = Field(2000, alias="MAILING_MAX_PER_DAY")
     mailing_flood_wait_threshold: int = Field(300, alias="MAILING_FLOOD_WAIT_THRESHOLD")
 
+    # ═══════════════════════════════════════════════════════════════
+    # ORD (Operator of Advertising Data) — маркировка рекламы
+    # ═══════════════════════════════════════════════════════════════
+    ord_provider: str = Field(
+        "stub",
+        alias="ORD_PROVIDER",
+        description="ORD провайдер: 'stub' | 'yandex' | 'vk' | 'ozon'",
+    )
+    ord_api_key: str | None = Field(None, alias="ORD_API_KEY")
+    ord_api_url: str | None = Field(None, alias="ORD_API_URL")
+    ord_block_publication_without_erid: bool = Field(
+        False,
+        alias="ORD_BLOCK_WITHOUT_ERID",
+        description="Блокировать публикацию без erid (включить после настройки провайдера)",
+    )
+
     # Admin IDs
     admin_ids_raw: str = Field("", alias="ADMIN_IDS")
 
@@ -224,8 +266,27 @@ class Settings(BaseSettings):
     webhook_url: str | None = Field(None, alias="WEBHOOK_URL")
     mini_app_url: str | None = Field(None, alias="MINI_APP_URL")
 
-    # Sentry
+    # Sentry / GlitchTip
     sentry_dsn: str | None = Field(None, alias="SENTRY_DSN")
+    sentry_environment: str = Field("production", alias="SENTRY_ENVIRONMENT")
+    sentry_traces_sample_rate: float = Field(0.1, alias="SENTRY_TRACES_SAMPLE_RATE")
+    glitchtip_webhook_secret: str = Field("", alias="GLITCHTIP_WEBHOOK_SECRET")
+
+    # Error report storage
+    error_reports_dir: str = Field(
+        "/opt/market-telegram-bot/reports/monitoring/error_reports",
+        alias="ERROR_REPORTS_DIR",
+    )
+    error_reports_max_mb: int = Field(100, alias="ERROR_REPORTS_MAX_MB")
+    dir_snapshot_dir: str = Field(
+        "/opt/market-telegram-bot/reports/monitoring/dir_snapshot",
+        alias="DIR_SNAPSHOT_DIR",
+    )
+    dir_snapshot_max_count: int = Field(10, alias="DIR_SNAPSHOT_MAX_COUNT")
+
+    # Admin Telegram (error notifications)
+    admin_telegram_id: int = Field(0, alias="ADMIN_TELEGRAM_ID")
+    admin_telegram_bot_token: str = Field("", alias="ADMIN_TELEGRAM_BOT_TOKEN")
 
     @property
     def admin_ids(self) -> list[int]:

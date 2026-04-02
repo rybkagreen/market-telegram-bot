@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useUsersList } from '@/hooks/queries/admin/useAdminQueries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Skeleton, Notification } from '@/components/ui'
@@ -17,6 +18,7 @@ import styles from './AdminUsersList.module.css'
 type RoleFilter = 'all' | 'advertiser' | 'owner' | 'both'
 
 export default function AdminUsersList() {
+  const navigate = useNavigate()
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -95,7 +97,7 @@ export default function AdminUsersList() {
             </Card>
           ) : (
             filteredData.items.map((user) => (
-              <Card key={user.id} className={styles.userCard}>
+              <Card key={user.id} className={styles.userCard} onClick={() => navigate(`/admin/users/${user.id}`)}>
                 <div className={styles.userHeader}>
                   <div className={styles.userInfo}>
                     <div className={styles.userName}>

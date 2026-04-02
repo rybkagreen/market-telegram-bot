@@ -93,7 +93,7 @@ PLAN_LIMITS: dict[str, dict] = {
 # ══════════════════════════════════════════════════════════════
 CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
 CRYPTO_CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
-PAYMENT_METHODS: list[str] = ["cryptobot", "stars"]
+PAYMENT_METHODS: list[str] = ["stars"]
 
 # Legacy пакеты ЮKassa (для обратной совместимости — используется в billing handler)
 YOOKASSA_PACKAGES: list[dict] = [

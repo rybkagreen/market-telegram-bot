@@ -6,12 +6,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.filters.admin import AdminFilter
 from src.bot.handlers.shared.notifications import notify_dispute_resolved
+from src.constants.payments import OWNER_SHARE
 from src.core.services.billing_service import BillingService
 from src.db.models.dispute import DisputeResolution, DisputeStatus, PlacementDispute
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
@@ -59,6 +60,8 @@ _RESOLUTION_MAP = {
 @router.callback_query(F.data == "admin:disputes", AdminFilter())
 async def admin_disputes_list(callback: CallbackQuery, session: AsyncSession) -> None:
     """Список открытых споров."""
+    if not isinstance(callback.message, Message):
+        return
     disputes = await DisputeRepository(session).get_open()
 
     builder = InlineKeyboardBuilder()
@@ -87,7 +90,9 @@ async def admin_disputes_list(callback: CallbackQuery, session: AsyncSession) ->
 @router.callback_query(F.data.regexp(r"^admin:dispute:(\d+)$"), AdminFilter())
 async def admin_review_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
     """Детали спора для принятия решения."""
-    dispute_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    dispute_id = int((callback.data or "").split(":")[-1])
 
     dispute = await session.get(PlacementDispute, dispute_id)
     if not dispute:
@@ -161,7 +166,9 @@ async def admin_review_dispute(callback: CallbackQuery, session: AsyncSession) -
 )
 async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
     """Вынести решение по спору."""
-    parts = callback.data.split(":")
+    if not isinstance(callback.message, Message):
+        return
+    parts = (callback.data or "").split(":")
     verdict = parts[3]
     dispute_id = int(parts[4])
 
@@ -194,7 +201,7 @@ async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) 
             new_status = PlacementStatus.refunded
         elif verdict == "advertiser_fault":
             # 85% владельцу
-            owner_amount = (price * Decimal("0.85")).quantize(Decimal("0.01"))
+            owner_amount = (price * OWNER_SHARE).quantize(Decimal("0.01"))
             await billing.release_escrow(
                 session=session,
                 placement_id=req.id,

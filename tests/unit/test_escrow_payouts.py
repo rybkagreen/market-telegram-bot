@@ -10,6 +10,7 @@ Tests cover:
 Note: v4.2 uses PlacementRequest instead of Campaign model.
 """
 
+import random
 from decimal import Decimal
 
 import pytest
@@ -23,6 +24,11 @@ from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
 
 
+def unique_telegram_id() -> int:
+    """Generate unique telegram_id for test isolation."""
+    return random.randint(100000000, 999999999)
+
+
 class TestEscrowFreeze:
     """Tests for freeze_placement_funds()."""
 
@@ -31,6 +37,7 @@ class TestEscrowFreeze:
         """Test successful fund freezing."""
         # Create advertiser with sufficient balance_rub
         advertiser_data = advertiser_test_data.copy()
+        advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["balance_rub"] = 1000
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
@@ -64,6 +71,7 @@ class TestEscrowFreeze:
 
         # Freeze funds
         result = await billing_service.freeze_escrow_for_placement(
+            db_session,
             placement.id,
             advertiser.id,
             placement.proposed_price,
@@ -82,6 +90,7 @@ class TestEscrowFreeze:
         """Test fund freezing with insufficient balance_rub."""
         # Create advertiser with insufficient balance_rub
         advertiser_data = advertiser_test_data.copy()
+        advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["balance_rub"] = 100
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
@@ -118,6 +127,7 @@ class TestEscrowFreeze:
         
         with pytest.raises(InsufficientFundsError):
             await billing_service.freeze_escrow_for_placement(
+                db_session,
                 placement.id,
                 advertiser.id,
                 placement.proposed_price,
@@ -130,8 +140,15 @@ class TestEscrowRelease:
     @pytest.mark.asyncio
     async def test_release_escrow_funds_success(self, db_session, owner_test_data):
         """Test successful escrow release."""
+        # Create platform account (singleton id=1)
+        from src.db.models.platform_account import PlatformAccount
+        platform_account = PlatformAccount(id=1)
+        db_session.add(platform_account)
+        await db_session.flush()
+
         # Create owner user
         owner_data = owner_test_data.copy()
+        owner_data["telegram_id"] = unique_telegram_id()
         owner_data["balance_rub"] = 0
         owner = User(**owner_data)
         db_session.add(owner)
@@ -189,13 +206,13 @@ class TestEscrowRelease:
 
         # Verify owner received 85% (425 rub) - using OWNER_SHARE constant
         await db_session.refresh(owner)
-        assert owner.balance_rub == 425
+        assert owner.earned_rub == Decimal("425")
 
         # Verify transaction created
         result = await db_session.execute(
             select(Transaction).where(
                 Transaction.user_id == owner.id,
-                Transaction.type == TransactionType.bonus,
+                Transaction.type == TransactionType.escrow_release,
             )
         )
         transaction = result.scalar_one()
@@ -205,8 +222,15 @@ class TestEscrowRelease:
     @pytest.mark.asyncio
     async def test_release_escrow_funds_idempotency(self, db_session, owner_test_data):
         """Test that release_escrow_funds is idempotent."""
+        # Create platform account (singleton id=1)
+        from src.db.models.platform_account import PlatformAccount
+        platform_account = PlatformAccount(id=1)
+        db_session.add(platform_account)
+        await db_session.flush()
+
         # Create owner user
         owner_data = owner_test_data.copy()
+        owner_data["telegram_id"] = unique_telegram_id()
         owner_data["balance_rub"] = 0
         owner = User(**owner_data)
         db_session.add(owner)
@@ -267,9 +291,9 @@ class TestEscrowRelease:
             placement_request.owner_id,
         )
 
-        # Verify owner received balance_rub only once
+        # Verify owner received earned_rub only once
         await db_session.refresh(owner)
-        assert owner.balance_rub == 425  # Not 850
+        assert owner.earned_rub == Decimal("425")  # Not 850
 
 
 class TestRefundFailedPlacement:
@@ -280,6 +304,7 @@ class TestRefundFailedPlacement:
         """Test successful refund for failed placement."""
         # Create advertiser user
         advertiser_data = advertiser_test_data.copy()
+        advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["credits"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
@@ -323,13 +348,16 @@ class TestRefundFailedPlacement:
         await db_session.commit()
 
         # Refund
-        result = await billing_service.refund_failed_placement(mailing.id)
+        result = await billing_service.refund_failed_placement(db_session, mailing.id)
 
         assert result is True
 
-        # Verify advertiser received refund
+        # Commit the transaction
+        await db_session.commit()
+
+        # Verify advertiser received refund to balance_rub
         await db_session.refresh(advertiser)
-        assert advertiser.credits == 500  # Was frozen, now refunded
+        assert advertiser.balance_rub == Decimal("500")  # Refunded to balance_rub
 
         # Verify transaction created
         result = await db_session.execute(
@@ -347,6 +375,7 @@ class TestRefundFailedPlacement:
         """Test refund only works for FAILED status."""
         # Create advertiser user
         advertiser_data = advertiser_test_data.copy()
+        advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["credits"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
@@ -390,7 +419,7 @@ class TestRefundFailedPlacement:
         await db_session.commit()
 
         # Try to refund (should fail)
-        result = await billing_service.refund_failed_placement(mailing.id)
+        result = await billing_service.refund_failed_placement(db_session, mailing.id)
 
         assert result is False
 
@@ -403,6 +432,7 @@ class TestPayoutRequest:
         """Test creating a payout."""
         # Create owner user
         owner_data = owner_test_data.copy()
+        owner_data["telegram_id"] = unique_telegram_id()
         owner_data["credits"] = 0
         owner = User(**owner_data)
         db_session.add(owner)

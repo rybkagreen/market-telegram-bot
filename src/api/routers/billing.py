@@ -11,7 +11,8 @@ Endpoints:
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from decimal import Decimal
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -99,7 +100,7 @@ class PlanDetail(BaseModel):
 class BalanceResponse(BaseModel):
     credits: int
     plan: str
-    plan_expires_at: str | None
+    plan_expires_at: str | None = None
     ai_generations_used: int
     ai_included: int
     packages: list[dict]
@@ -153,7 +154,7 @@ class InvoiceStatusResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.post("/topup", response_model=TopupResponse)
+@router.post("/topup", responses={400: {"description": "Bad request"}})
 async def create_unified_topup(
     body: TopupRequest,
     current_user: CurrentUser,
@@ -216,7 +217,7 @@ async def create_unified_topup(
     )
 
 
-@router.get("/topup/{payment_id}/status")
+@router.get("/topup/{payment_id}/status", responses={404: {"description": "Not found"}})
 async def get_topup_status(
     payment_id: str,
     current_user: CurrentUser,
@@ -268,7 +269,7 @@ async def get_topup_status(
         ) from e
 
 
-@router.get("/plans", response_model=list[PlanDetail])
+@router.get("/plans")
 async def get_plans() -> list[PlanDetail]:
     """
     Получить список тарифных планов.
@@ -342,7 +343,7 @@ async def get_plans() -> list[PlanDetail]:
 # ═══════════════════════════════════════════════════════════════
 
 
-@router.get("/balance", response_model=BalanceResponse)
+@router.get("/balance")
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
     plan_str = _plan_label(current_user.plan)
@@ -368,18 +369,18 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
         credits=current_user.credits,
         plan=plan_str,
         plan_expires_at=expires_str,
-        ai_generations_used=current_user.ai_generations_used,
+        ai_generations_used=current_user.ai_uses_count,
         ai_included=ai_included,
         packages=packages_with_price,
         plan_costs=PLAN_COSTS,
     )
 
 
-@router.get("/history", response_model=BillingHistoryResponse)
+@router.get("/history")
 async def get_history(
     current_user: CurrentUser,
-    page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=100),
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> BillingHistoryResponse:
     """
     История платежей пользователя YooKassa.
@@ -458,7 +459,35 @@ async def get_history(
         )
 
 
-@router.post("/plan", response_model=PlanResponse)
+@router.post("/credits", responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}})
+async def buy_credits(
+    body: TopupRequest,
+    current_user: CurrentUser,
+) -> dict:
+    """Конвертировать рубли баланса в кредиты (1 ₽ = 1 кредит)."""
+    from src.core.services.billing_service import BillingService, InsufficientFundsError
+
+    amount = Decimal(str(body.desired_amount))
+    if current_user.balance_rub < amount:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Недостаточно рублей на балансе: {current_user.balance_rub} < {amount}",
+        )
+
+    try:
+        billing_service = BillingService()
+        credits_added, _, _ = await billing_service.buy_credits_for_plan(current_user.id, amount)
+    except InsufficientFundsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Недостаточно рублей на балансе",
+        ) from e
+
+    logger.info(f"User #{current_user.id} converted {amount} RUB → {credits_added} credits")
+    return {"credits_added": credits_added, "amount_rub": body.desired_amount}
+
+
+@router.post("/plan", responses={400: {"description": "Bad request"}})
 async def change_plan(
     body: PlanRequest,
     current_user: CurrentUser,
@@ -504,7 +533,7 @@ async def change_plan(
             .values(
                 plan=plan_str,
                 plan_expires_at=expires_at,
-                ai_generations_used=0,
+                ai_uses_count=0,
             )
         )
         try:
@@ -533,12 +562,12 @@ async def change_plan(
     )
 
 
-@router.get("/invoice/{invoice_id}", response_model=InvoiceStatusResponse)
+@router.get("/invoice/{invoice_id}", responses={404: {"description": "Not found"}})
 async def get_invoice_status(
     invoice_id: str,
     current_user: CurrentUser,
 ) -> InvoiceStatusResponse:
-    """CryptoBot инвойсы удалены."""
+    """Метод не используется."""
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
@@ -547,7 +576,7 @@ async def get_invoice_status(
 # =============================================================================
 
 
-@router.post("/webhooks/yookassa", status_code=200)
+@router.post("/webhooks/yookassa", status_code=200, responses={403: {"description": "Forbidden"}})
 async def yookassa_webhook(
     request: Request,
 ) -> dict[str, str]:
@@ -561,7 +590,7 @@ async def yookassa_webhook(
     # Верификация IP-адреса YooKassa
     from ipaddress import ip_address, ip_network
 
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "0.0.0.0"
     if not any(ip_address(client_ip) in ip_network(net) for net in YOOKASSA_IPS):
         logger.warning(f"YooKassa webhook from unknown IP: {client_ip}")
         raise HTTPException(
@@ -570,7 +599,6 @@ async def yookassa_webhook(
         )
 
     try:
-        from decimal import Decimal
 
         from src.core.services.billing_service import BillingService
 
@@ -589,7 +617,7 @@ async def yookassa_webhook(
                 # Получить метаданные из YooKassaPayment
                 from sqlalchemy import select
 
-                from src.db.models.yookassa_payment import YooKassaPayment
+                from src.db.models.yookassa_payment import YookassaPayment as YooKassaPayment
 
                 result = await session.execute(
                     select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)

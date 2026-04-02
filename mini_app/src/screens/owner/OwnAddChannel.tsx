@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Button, Card, Notification, Toggle } from '@/components/ui'
+import { Button, Card, CategoryGrid, Notification, Toggle } from '@/components/ui'
 import { PermissionList } from '@/components/permissions'
 import { ChannelInstruction } from '@/components/channels'
 import { useHaptic } from '@/hooks/useHaptic'
 import { useCheckChannel, useAddChannel } from '@/hooks/queries/useChannelQueries'
 import { useMe } from '@/hooks/queries/useUserQueries'
+import { useCategories } from '@/hooks/queries/useCategoryQueries'
 import type { ChannelCheckResponse } from '@/lib/types'
 import styles from './OwnAddChannel.module.css'
 
@@ -16,9 +17,11 @@ export default function OwnAddChannel() {
   const { data: user } = useMe()
   const [inputValue, setInputValue] = useState('')
   const [isTest, setIsTest] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   const checkMutation = useCheckChannel()
   const addMutation = useAddChannel()
+  const { data: categories = [] } = useCategories()
 
   const checkResult: ChannelCheckResponse | null = checkMutation.data ?? null
 
@@ -28,15 +31,17 @@ export default function OwnAddChannel() {
 
   const handleCheck = () => {
     haptic.tap()
+    setSelectedCategory(null)
     checkMutation.mutate(channelIdentifier)
   }
 
   const handleAdd = () => {
     haptic.success()
     addMutation.mutate(
-      { 
+      {
         username: channelIdentifier,
-        is_test: isTest && user?.is_admin,  // Only admins can set test mode
+        is_test: isTest && user?.is_admin,
+        category: selectedCategory ?? undefined,
       },
       {
         onSuccess: () => {
@@ -158,6 +163,17 @@ export default function OwnAddChannel() {
               </div>
             )}
           </Card>
+
+          {/* Выбор категории */}
+          {canAdd && (
+            <Card title="📂 Выберите категорию">
+              <CategoryGrid
+                categories={categories.map((c) => ({ id: c.key, label: c.name, icon: c.emoji }))}
+                selected={selectedCategory ? [selectedCategory] : []}
+                onToggle={(id) => setSelectedCategory(id === selectedCategory ? null : id)}
+              />
+            </Card>
+          )}
 
           {/* Права бота через PermissionList */}
           <Card title="Права бота">

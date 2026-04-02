@@ -12,6 +12,7 @@ Endpoints:
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -37,7 +38,7 @@ class SummaryResponse(BaseModel):
     # Баланс и тариф
     credits: int
     plan: str
-    plan_expires_at: str | None
+    plan_expires_at: str | None = None
     ai_generations_used: int
     ai_included: int
 
@@ -62,7 +63,7 @@ class ActivityResponse(BaseModel):
 
 
 class TopChatItem(BaseModel):
-    username: str | None
+    username: str | None = None
     title: str
     member_count: int
     sent_count: int
@@ -79,7 +80,7 @@ class TopChatsResponse(BaseModel):
 class MiniAppChannel(BaseModel):
     id: int
     username: str
-    title: str | None
+    title: str | None = None
     member_count: int
 
 
@@ -117,7 +118,7 @@ def _plan_label(plan) -> str:
 # ─── Endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/summary", response_model=SummaryResponse)
+@router.get("/summary")
 async def get_summary(current_user: CurrentUser) -> SummaryResponse:
     """
     Сводная статистика пользователя.
@@ -159,7 +160,7 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
         credits=current_user.credits,
         plan=plan_str,
         plan_expires_at=expires_str,
-        ai_generations_used=current_user.ai_generations_used,
+        ai_generations_used=current_user.ai_uses_count,
         ai_included=_get_included_ai(plan_str),
         total_sent=total_sent,
         total_failed=total_failed,
@@ -169,10 +170,10 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
     )
 
 
-@router.get("/activity", response_model=ActivityResponse)
+@router.get("/activity")
 async def get_activity(
     current_user: CurrentUser,
-    days: int = Query(default=7, ge=1, le=90),
+    days: Annotated[int, Query(ge=1, le=90)] = 7,
 ) -> ActivityResponse:
     """
     Активность по дням для графика на Dashboard.
@@ -225,10 +226,10 @@ async def get_activity(
     )
 
 
-@router.get("/top-chats", response_model=TopChatsResponse)
+@router.get("/top-chats", responses={403: {"description": "PRO/BUSINESS plans only"}})
 async def get_top_chats(
     current_user: CurrentUser,
-    limit: int = Query(default=10, ge=1, le=20),
+    limit: Annotated[int, Query(ge=1, le=20)] = 10,
 ) -> TopChatsResponse:
     """
     Топ чатов по успешности рассылки.
@@ -274,7 +275,7 @@ class TopicsResponse(BaseModel):
     topics: list[TopicItem]
 
 
-@router.get("/topics", response_model=TopicsResponse)
+@router.get("/topics", responses={403: {"description": "PRO/BUSINESS plans only"}})
 async def get_topics_distribution(
     current_user: CurrentUser,
 ) -> TopicsResponse:
@@ -295,9 +296,9 @@ async def get_topics_distribution(
     async with async_session_factory() as session:
         # Берём тематики из filters_json кампаний пользователя
         result = await session.execute(
-            select(Campaign.filters_json).where(
-                Campaign.user_id == current_user.id,
-                Campaign.status == "done",
+            select(Campaign.filters_json).where(  # type: ignore[attr-defined]
+                Campaign.advertiser_id == current_user.id,
+                Campaign.status == PlacementStatus.published,
             )
         )
         rows = result.scalars().all()
@@ -345,7 +346,16 @@ class AIInsightsResponse(BaseModel):
     generated_at: str
 
 
-@router.get("/campaigns/{campaign_id}/ai-insights", response_model=AIInsightsResponse)
+@router.get(
+    "/campaigns/{campaign_id}/ai-insights",
+    responses={
+        403: {"description": "PRO/BUSINESS plans only or not your campaign"},
+        404: {"description": "Campaign not found"},
+        400: {"description": "Campaign not completed"},
+        429: {"description": "AI generation limit reached"},
+        409: {"description": "Data conflict"},
+    },
+)
 async def get_campaign_ai_insights(
     campaign_id: int,
     current_user: CurrentUser,
@@ -371,10 +381,10 @@ async def get_campaign_ai_insights(
     # Проверка лимита генераций
     ai_limits = {"pro": 5, "business": 20}
     limit = ai_limits.get(plan_str, 0)
-    if current_user.ai_generations_used >= limit and plan_str != "business":
+    if current_user.ai_uses_count >= limit and plan_str != "business":
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"AI generation limit reached ({current_user.ai_generations_used}/{limit})",
+            detail=f"AI generation limit reached ({current_user.ai_uses_count}/{limit})",
         )
 
     # Получаем данные кампании
@@ -388,7 +398,7 @@ async def get_campaign_ai_insights(
         )
 
     # Проверка что кампания принадлежит пользователю
-    if campaign.user_id != current_user.id:
+    if campaign.advertiser_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only analyze your own campaigns",
@@ -409,11 +419,11 @@ async def get_campaign_ai_insights(
     success_rate = 0.0
 
     campaign_data = {
-        "title": campaign.title or "Без названия",
+        "title": getattr(campaign, "title", None) or campaign.ad_text[:50] or "Без названия",
         "sent": total_sent,
         "failed": total_failed,
         "success_rate": success_rate,
-        "topics": (campaign.filters_json or {}).get("topics", []),
+        "topics": (getattr(campaign, "filters_json", None) or {}).get("topics", []),
         "date": "",
     }
 
@@ -428,7 +438,7 @@ async def get_campaign_ai_insights(
         await session.execute(
             update(User)
             .where(User.id == current_user.id)
-            .values(ai_generations_used=current_user.ai_generations_used + 1)
+            .values(ai_uses_count=current_user.ai_uses_count + 1)
         )
         try:
             await session.commit()
@@ -454,7 +464,7 @@ async def get_campaign_ai_insights(
 # ─── Mini App Analytics Endpoints ──────────────────────────────
 
 
-@router.get("/advertiser", response_model=AdvertiserAnalyticsResponse)
+@router.get("/advertiser")
 async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnalyticsResponse:
     """
     Аналитика рекламодателя для Mini App.
@@ -476,10 +486,10 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
         )
         placement_stats = placements_result.first()
 
-        total_campaigns = placement_stats.total_campaigns or 0
-        total_reach = placement_stats.total_reach or 0
-        total_spent = str(placement_stats.total_spent or Decimal("0"))
-        total_clicks = placement_stats.total_clicks or 0
+        total_campaigns = placement_stats.total_campaigns if placement_stats else 0
+        total_reach = (placement_stats.total_reach or 0) if placement_stats else 0
+        total_spent = str((placement_stats.total_spent or Decimal("0")) if placement_stats else Decimal("0"))
+        total_clicks = (placement_stats.total_clicks or 0) if placement_stats else 0
 
         # Рассчитываем CTR
         avg_ctr = round((total_clicks / total_reach * 100), 2) if total_reach > 0 else 0.0
@@ -520,7 +530,7 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
                 channel_stats = channel_placements.first()
                 channel_ctr = (
                     round((channel_stats.clicks or 0) / (channel_stats.reach or 1) * 100, 2)
-                    if channel_stats.reach
+                    if channel_stats and channel_stats.reach
                     else 0.0
                 )
 
@@ -536,7 +546,7 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
                 })
 
         # Распределение по категориям (заглушка, пока нет данных)
-        by_category = []
+        by_category: list[dict] = []
 
     return AdvertiserAnalyticsResponse(
         total_campaigns=total_campaigns,
@@ -548,7 +558,7 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
     )
 
 
-@router.get("/owner", response_model=OwnerAnalyticsResponse)
+@router.get("/owner")
 async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsResponse:
     """
     Аналитика владельца канала для Mini App.
@@ -575,8 +585,8 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
         )
         placement_stats = placements_result.first()
 
-        total_publications = placement_stats.total_publications or 0
-        total_earned = str(placement_stats.total_earned or Decimal("0"))
+        total_publications = (placement_stats.total_publications or 0) if placement_stats else 0
+        total_earned = str((placement_stats.total_earned or Decimal("0")) if placement_stats else Decimal("0"))
 
         # Средний рейтинг (заглушка — используем рейтинг каналов)
         if channels:
@@ -605,8 +615,8 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
                     "title": channel.title,
                     "member_count": channel.member_count,
                 },
-                "earned": str(channel_stats.earned or Decimal("0")),
-                "publications": channel_stats.publications or 0,
+                "earned": str((channel_stats.earned or Decimal("0")) if channel_stats else Decimal("0")),
+                "publications": (channel_stats.publications or 0) if channel_stats else 0,
             })
 
         # Заработок за период (сегодня, неделя, месяц)
@@ -615,7 +625,7 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
         week_start = now - timedelta(days=now.weekday())
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        async def get_period_earnings(start_date):
+        async def get_period_earnings(start_date: datetime) -> Decimal:
             result = await session.execute(
                 select(func.sum(PlacementRequest.final_price)).where(
                     PlacementRequest.owner_id == current_user.id,
@@ -648,38 +658,33 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
 class PlatformStatsResponse(BaseModel):
     """Публичная статистика платформы (Спринт 0)."""
 
-    active_channels: int
-    total_reach: int
-    campaigns_launched: int
-    campaigns_completed: int
-    avg_channel_rating: float
-    total_payouts: float
+    total_users: int
+    total_placements: int
+    total_revenue: float
 
 
-@router.get("/stats/public", response_model=PlatformStatsResponse)
+@router.get("/stats/public")
 async def get_public_stats() -> PlatformStatsResponse:
     """
     Публичная статистика платформы — доступна без авторизации.
     Используется для Mini App дашборда и лендинга.
     """
-    from src.core.services.analytics_service import analytics_service
+    from src.core.services.analytics_service import AnalyticsService
 
-    stats = await analytics_service.get_platform_stats()
+    analytics_service = AnalyticsService()
+    stats = await analytics_service.get_public_stats()
 
     return PlatformStatsResponse(
-        active_channels=stats.active_channels,
-        total_reach=stats.total_reach,
-        campaigns_launched=stats.campaigns_launched,
-        campaigns_completed=stats.campaigns_completed,
-        avg_channel_rating=stats.avg_channel_rating,
-        total_payouts=float(stats.total_payouts),
+        total_users=stats.total_users,
+        total_placements=stats.total_placements,
+        total_revenue=float(stats.total_revenue),
     )
 
 
 # ─── CTR-трекинг (Спринт 2) ────────────────────────────────────
 
 
-@router.get("/r/{short_code}")
+@router.get("/r/{short_code}", responses={404: {"description": "Short link not found"}})
 async def redirect_short_link(short_code: str):
     """
     Редирект по короткой ссылке с подсчётом кликов.

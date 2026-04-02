@@ -18,7 +18,7 @@
 .main {
   flex: 1;
   padding: var(--rh-space-6);
-  padding-bottom: calc(var(--rh-space-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(var(--rh-space-6), env(safe-area-inset-bottom, 0px));
 }
 
 .loading,
@@ -43,7 +43,7 @@
 }
 
 .statValue {
-  font-size: var(--rh-text-4xl);
+  font-size: var(--rh-text-3xl);
   font-weight: var(--rh-weight-bold);
   color: var(--rh-text-primary);
   margin-bottom: var(--rh-space-2);

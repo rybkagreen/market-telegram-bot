@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.billing.topup import (
@@ -25,12 +25,17 @@ logger = logging.getLogger(__name__)
 _PLAN_PRICES = {"starter": 490, "pro": 1490, "business": 4990}
 _PLAN_NAMES = {"free": "Free 🆓", "starter": "Starter 🚀", "pro": "Pro 💎", "business": "Agency 🏢"}
 
+USER_NOT_FOUND = "Пользователь не найден."
+CABINET_SCENE = "main:cabinet"
+
 router = Router()
 
 
 @router.callback_query(lambda c: c.data == "billing:topup_start")
 async def topup_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать пополнение."""
+    if not isinstance(callback.message, Message):
+        return
     await state.set_state(TopupStates.entering_amount)
     await callback.answer("Выберите сумму")
     await callback.message.answer("💰 Выберите сумму пополнения:", reply_markup=topup_amounts_kb())
@@ -39,7 +44,7 @@ async def topup_start(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(lambda c: c.data.startswith("topup:amount:"))
 async def topup_select_amount(callback: CallbackQuery, state: FSMContext) -> None:
     """Выбрать сумму пополнения."""
-    amount = callback.data.split(":")[-1]
+    amount = (callback.data or "").split(":")[-1]
     await state.update_data(amount=amount)
     await state.set_state(TopupStates.confirming)
     text = f"Пополнение на {amount} ₽\nКомиссия: {Decimal(amount) * Decimal('0.035'):.2f} ₽\nК оплате: {Decimal(amount) * Decimal('1.035'):.2f} ₽"
@@ -49,6 +54,8 @@ async def topup_select_amount(callback: CallbackQuery, state: FSMContext) -> Non
 @router.callback_query(F.data == "topup:pay", TopupStates.confirming)
 async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Создать платёж ЮKassa."""
+    if not isinstance(callback.message, Message):
+        return
     data = await state.get_data()
     amount = Decimal(str(data["amount"]))
     gross = (amount * Decimal("1.035")).quantize(Decimal("0.01"))
@@ -61,7 +68,7 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     from src.core.services.yookassa_service import yookassa_service
@@ -78,7 +85,7 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
             "💳 *Оплата*\n\n"
             "Перейдите по ссылке для оплаты.\n\n"
             "⏱ Ссылка действует 15 минут.",
-            reply_markup=topup_payment_kb(record.confirmation_url, record.payment_id),
+            reply_markup=topup_payment_kb(record.payment_url or "", record.payment_id),
             parse_mode="Markdown",
         )
     except Exception as e:
@@ -98,7 +105,9 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
 @router.callback_query(F.data.startswith("topup:check:"))
 async def topup_check(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Проверить статус платежа."""
-    payment_id = callback.data.split(":")[-1]
+    if not isinstance(callback.message, Message):
+        return
+    payment_id = (callback.data or "").split(":")[-1]
     from src.core.services.yookassa_service import yookassa_service
 
     try:
@@ -106,8 +115,9 @@ async def topup_check(callback: CallbackQuery, state: FSMContext, session: Async
         if status == "succeeded":
             user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
             await state.clear()
+            balance = user.balance_rub if user else 0
             await callback.message.edit_text(
-                f"✅ *Баланс пополнен!*\n\nНовый баланс: *{user.balance_rub} ₽*",
+                f"✅ *Баланс пополнен!*\n\nНовый баланс: *{balance} ₽*",
                 reply_markup=topup_success_kb(),
                 parse_mode="Markdown",
             )
@@ -127,11 +137,13 @@ async def topup_check(callback: CallbackQuery, state: FSMContext, session: Async
 @router.callback_query(F.data.startswith("topup:cancel:"))
 async def topup_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     """Отменить пополнение."""
+    if not isinstance(callback.message, Message):
+        return
     await state.clear()
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 В кабинет", callback_data="main:cabinet")
+    builder.button(text="🔙 В кабинет", callback_data=CABINET_SCENE)
     await callback.message.edit_text("❌ Пополнение отменено.", reply_markup=builder.as_markup())
     await callback.answer()
 
@@ -139,9 +151,11 @@ async def topup_cancel(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "billing:plans")
 async def show_plans(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать тарифные планы."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
     current = _PLAN_NAMES.get(user.plan, user.plan)
 
@@ -151,7 +165,7 @@ async def show_plans(callback: CallbackQuery, session: AsyncSession) -> None:
     for plan in ("starter", "pro", "business"):
         if user.plan != plan:
             builder.button(text=f"{_PLAN_NAMES[plan]} — {_PLAN_PRICES[plan]} ₽/мес", callback_data=f"plan:buy:{plan}")
-    builder.button(text="🔙 В кабинет", callback_data="main:cabinet")
+    builder.button(text="🔙 В кабинет", callback_data=CABINET_SCENE)
     builder.adjust(1)
 
     await callback.message.edit_text(
@@ -171,14 +185,16 @@ async def show_plans(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("plan:buy:"))
 async def buy_plan(callback: CallbackQuery, session: AsyncSession) -> None:
     """Купить тарифный план."""
-    plan = callback.data.split(":")[-1]
+    if not isinstance(callback.message, Message):
+        return
+    plan = (callback.data or "").split(":")[-1]
     if plan not in _PLAN_PRICES:
         await callback.answer("❌ Неверный тариф.", show_alert=True)
         return
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("Пользователь не найден.", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     price = _PLAN_PRICES[plan]
@@ -218,7 +234,7 @@ async def buy_plan(callback: CallbackQuery, session: AsyncSession) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📣 Меню рекламодателя", callback_data="main:adv_menu")
-    builder.button(text="👤 Кабинет", callback_data="main:cabinet")
+    builder.button(text="👤 Кабинет", callback_data=CABINET_SCENE)
     builder.adjust(1)
     await callback.message.edit_text(
         f"✅ *Тариф активирован!*\n\n"

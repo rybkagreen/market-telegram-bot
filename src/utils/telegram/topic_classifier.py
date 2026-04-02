@@ -14,6 +14,19 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Строковые константы для часто повторяющихся ключей тематик
+TOPIC_BIZNES = "бизнес"
+TOPIC_MARKETING = "маркетинг"
+TOPIC_FINANSY = "финансы"
+TOPIC_NOVOSTI = "новости"
+TOPIC_KRIPTO = "крипто"
+TOPIC_OBRAZOVANIE = "образование"
+TOPIC_PUTESHESTVIYA = "путешествия"
+TOPIC_ZDOROVYE = "здоровье"
+TOPIC_SPORT = "спорт"
+TOPIC_NEDVIZHIMOST = "недвижимость"
+TOPIC_BREND = "бренд"
+
 
 @dataclass
 class TopicMatch:
@@ -26,8 +39,8 @@ class TopicMatch:
 
 # Словари ключевых слов для каждой тематики (теперь с русскими названиями)
 TOPIC_KEYWORDS: dict[str, list[str]] = {
-    "бизнес": [
-        "бизнес",
+    TOPIC_BIZNES: [
+        TOPIC_BIZNES,
         "предприниматель",
         "стартап",
         "инвестиции",
@@ -35,13 +48,13 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "корпорация",
         "менеджмент",
         "продажи",
-        "маркетинг",
-        "бренд",
+        TOPIC_MARKETING,
+        TOPIC_BREND,
         "успех",
         "деньги",
         "прибыль",
         "доход",
-        "финансы",
+        TOPIC_FINANSY,
         "акции",
         "трейдинг",
         "экономика",
@@ -94,8 +107,8 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "хакер",
         "уязвимость",
     ],
-    "новости": [
-        "новости",
+    TOPIC_NOVOSTI: [
+        TOPIC_NOVOSTI,
         "события",
         "политика",
         "общество",
@@ -124,7 +137,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "срочно",
         "главное",
     ],
-    "крипто": [
+    TOPIC_KRIPTO: [
         "криптовалюта",
         "биткоин",
         "ethereum",
@@ -155,8 +168,8 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "staking",
         "yield farming",
     ],
-    "маркетинг": [
-        "маркетинг",
+    TOPIC_MARKETING: [
+        TOPIC_MARKETING,
         "реклама",
         "продвижение",
         "smm",
@@ -172,7 +185,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "crm",
         "email",
         "рассылка",
-        "бренд",
+        TOPIC_BREND,
         "упаковка",
         "позиционирование",
         "целевая аудитория",
@@ -186,8 +199,8 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "roi",
         "romi",
     ],
-    "финансы": [
-        "финансы",
+    TOPIC_FINANSY: [
+        TOPIC_FINANSY,
         "банк",
         "кредит",
         "ипотека",
@@ -218,8 +231,8 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "евро",
         "рубль",
     ],
-    "образование": [
-        "образование",
+    TOPIC_OBRAZOVANIE: [
+        TOPIC_OBRAZOVANIE,
         "обучение",
         "курс",
         "школа",
@@ -254,7 +267,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "лайфстайл",
         "хобби",
         "увлечение",
-        "путешествия",
+        TOPIC_PUTESHESTVIYA,
         "отдых",
         "развлечения",
         "кино",
@@ -282,7 +295,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "собаки",
     ],
     "health": [
-        "здоровье",
+        TOPIC_ZDOROVYE,
         "медицина",
         "врач",
         "больница",
@@ -293,7 +306,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "лекарства",
         "таблетки",
         "витамины",
-        "спорт",
+        TOPIC_SPORT,
         "фитнес",
         "тренировки",
         "йога",
@@ -316,7 +329,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "вакцинация",
     ],
     "sport": [
-        "спорт",
+        TOPIC_SPORT,
         "футбол",
         "хоккей",
         "баскетбол",
@@ -394,7 +407,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "lamborghini",
     ],
     "travel": [
-        "путешествия",
+        TOPIC_PUTESHESTVIYA,
         "туризм",
         "отпуск",
         "каникулы",
@@ -503,7 +516,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "массаж",
     ],
     "real-estate": [
-        "недвижимость",
+        TOPIC_NEDVIZHIMOST,
         "квартира",
         "дом",
         "коттедж",
@@ -546,19 +559,19 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
 # Синонимы для улучшения классификации (с русскими названиями)
 TOPIC_SYNONYMS: dict[str, list[str]] = {
     "it": ["технологии", "айти", "digital", "компьютеры", "софт", "приложения"],
-    "крипто": ["крипта", "цифровые активы", "виртуальные валюты"],
-    "бизнес": ["деловой", "коммерция", "предпринимательство"],
-    "маркетинг": ["продвижение", "реклама", "пиар"],
-    "финансы": ["финансовый", "денежный", "банковский"],
-    "новости": ["информация", "актуальное", "последнее"],
-    "образование": ["просвещение", "наука", "учеба"],
-    "здоровье": ["медицинский", "оздоровление", "велнес"],
-    "спорт": ["спортивный", "атлетика", "физкультура"],
-    "путешествия": ["туристический", "поездки", "туризм"],
+    TOPIC_KRIPTO: ["крипта", "цифровые активы", "виртуальные валюты"],
+    TOPIC_BIZNES: ["деловой", "коммерция", "предпринимательство"],
+    TOPIC_MARKETING: ["продвижение", "реклама", "пиар"],
+    TOPIC_FINANSY: ["финансовый", "денежный", "банковский"],
+    TOPIC_NOVOSTI: ["информация", "актуальное", "последнее"],
+    TOPIC_OBRAZOVANIE: ["просвещение", "наука", "учеба"],
+    TOPIC_ZDOROVYE: ["медицинский", "оздоровление", "велнес"],
+    TOPIC_SPORT: ["спортивный", "атлетика", "физкультура"],
+    TOPIC_PUTESHESTVIYA: ["туристический", "поездки", "туризм"],
     "еда": ["кулинарный", "гастрономический", "ресторанный"],
     "мода": ["модный", "стильный", "имидж"],
     "авто": ["автомобильный", "транспорт", "машины"],
-    "недвижимость": ["жилой", "коммерческий", "строительство"],
+    TOPIC_NEDVIZHIMOST: ["жилой", "коммерческий", "строительство"],
 }
 
 
@@ -589,6 +602,24 @@ class TopicClassifier:
             if topic in self._keywords_cache:
                 self._keywords_cache[topic].extend([syn.lower() for syn in synonyms])
 
+    def _keyword_matches(self, text: str) -> list[TopicMatch]:
+        """Return scored TopicMatch entries for every topic that has keyword hits."""
+        matches: list[TopicMatch] = []
+        for topic, keywords in self._keywords_cache.items():
+            if topic == "other":
+                continue
+            matched = [kw for kw in keywords if kw in text]
+            if matched:
+                matches.append(
+                    TopicMatch(
+                        topic=topic,
+                        score=len(matched) / len(keywords),
+                        matched_keywords=matched,
+                    )
+                )
+        matches.sort(key=lambda x: x.score, reverse=True)
+        return matches
+
     def classify(
         self,
         title: str,
@@ -606,35 +637,10 @@ class TopicClassifier:
         """
         text = f"{title} {description or ''}".lower()
 
-        # Находим совпадения по ключевым словам
-        matches: list[TopicMatch] = []
-
-        for topic, keywords in self._keywords_cache.items():
-            if topic == "other":
-                continue
-
-            matched_keywords = []
-            for keyword in keywords:
-                if keyword in text:
-                    matched_keywords.append(keyword)
-
-            if matched_keywords:
-                score = len(matched_keywords) / len(keywords)
-                matches.append(
-                    TopicMatch(
-                        topic=topic,
-                        score=score,
-                        matched_keywords=matched_keywords,
-                    )
-                )
-
-        # Сортируем по score
-        matches.sort(key=lambda x: x.score, reverse=True)
-
+        matches = self._keyword_matches(text)
         if matches and matches[0].score >= self.CONFIDENCE_THRESHOLD:
             return matches[0].topic
 
-        # Если не нашли по ключевым словам, используем fuzzy matching
         if fuzz is not None and process is not None:
             fuzzy_topic = self._fuzzy_classify(title)
             if fuzzy_topic:
@@ -701,21 +707,21 @@ class TopicClassifier:
             Описание.
         """
         descriptions = {
-            "бизнес": "Бизнес, предпринимательство, инвестиции",
+            TOPIC_BIZNES: "Бизнес, предпринимательство, инвестиции",
             "it": "IT, программирование, технологии",
-            "новости": "Новости, политика, общество",
-            "крипто": "Криптовалюты, блокчейн, трейдинг",
-            "маркетинг": "Маркетинг, реклама, продвижение",
-            "финансы": "Финансы, банки, инвестиции",
-            "образование": "Образование, наука, обучение",
+            TOPIC_NOVOSTI: "Новости, политика, общество",
+            TOPIC_KRIPTO: "Криптовалюты, блокчейн, трейдинг",
+            TOPIC_MARKETING: "Маркетинг, реклама, продвижение",
+            TOPIC_FINANSY: "Финансы, банки, инвестиции",
+            TOPIC_OBRAZOVANIE: "Образование, наука, обучение",
             "lifestyle": "Образ жизни, хобби, развлечения",
-            "здоровье": "Здоровье, медицина, спорт",
-            "спорт": "Спорт, соревнования, атлетика",
+            TOPIC_ZDOROVYE: "Здоровье, медицина, спорт",
+            TOPIC_SPORT: "Спорт, соревнования, атлетика",
             "авто": "Автомобили, транспорт, дороги",
-            "путешествия": "Путешествия, туризм, отдых",
+            TOPIC_PUTESHESTVIYA: "Путешествия, туризм, отдых",
             "еда": "Еда, кулинария, рестораны",
             "мода": "Мода, стиль, красота",
-            "недвижимость": "Недвижимость, строительство, жилье",
+            TOPIC_NEDVIZHIMOST: "Недвижимость, строительство, жилье",
             "other": "Прочее",
         }
         return descriptions.get(topic, "Неизвестная тематика")

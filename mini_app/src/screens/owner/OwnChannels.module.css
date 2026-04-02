@@ -50,7 +50,11 @@
 .channelItem {
   display: flex;
   flex-direction: column;
-  gap: var(--rh-space-1);
+  gap: var(--rh-space-2);
+}
+
+.categoryActions {
+  margin-top: var(--rh-space-2);
 }
 
 .channelMeta {

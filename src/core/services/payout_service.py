@@ -1,7 +1,7 @@
 """
 PayoutRequest Service — сервис для управления выплатами владельцам каналов.
 Спринт 1 — базовая система учёта выплат (80% от цены поста).
-Реальная интеграция с CryptoBot добавляется в Спринте 1 (Task 1).
+Выплаты обрабатываются вручную администратором.
 """
 
 import logging
@@ -29,7 +29,6 @@ from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 
-# Локальные exceptions (cryptobot_service удалён в v4.3 — выплаты ручные через admin)
 class InsufficientFundsError(Exception):
     pass
 
@@ -40,6 +39,7 @@ class PayoutAPIError(Exception):
 
 class UserNotFoundError(Exception):
     pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class PayoutService:
         calculate_payout: Рассчитать сумму выплаты (80% от цены поста)
         get_owner_balance: Получить баланс владельца к выплате
         create_pending_payout: Создать запись о выплате в статусе pending
-        process_payout: Обработать выплату через CryptoBot API
+        process_payout: Обработать выплату через ручную обработку администратором
     """
 
     def __init__(self) -> None:
@@ -186,14 +186,14 @@ class PayoutService:
 
     async def process_payout(self, payout_id: int) -> dict:
         """
-        Обработать выплату через CryptoBot API.
+        Обработать выплату через ручную обработку администратором.
 
         Шаги:
         1. Получить PayoutRequest из БД по payout_id
         2. Проверить статус: только PENDING → обрабатывать
         3. Проверить минимальную сумму
         4. Получить telegram_id владельца из User
-        5. Вызвать cryptobot_service.send_transfer()
+        5. Выполнить выплату через admin panel
         6. При успехе: статус → COMPLETED, записать transfer_id
         7. При ошибке: статус → FAILED, записать error_message
         8. Вернуть {"success": bool, "transfer_id": str | None, "error": str | None}
@@ -281,7 +281,7 @@ class PayoutService:
 
             except UserNotFoundError as e:
                 payout.status = PayoutStatus.rejected
-                error_msg = f"User not found in CryptoBot: {str(e)}"
+                error_msg = f"Payout processing error: {str(e)}"
                 logger.error(f"PayoutRequest {payout_id} failed: {error_msg}")
 
             except PayoutAPIError as e:
@@ -429,6 +429,7 @@ class PayoutService:
         async with async_session_factory() as session:
             session.add(payout)
             await session.flush()
+            await session.refresh(payout)
 
             logger.info(
                 f"PayoutRequest request created: {amount} USDT for owner {owner_id}, placement {placement_request_id}"
@@ -463,9 +464,7 @@ class PayoutService:
 
         # payouts_30d = await payout_repo.sum_completed_payouts_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         payout_repo = PayoutRepository(session)
-        payouts_30d = await payout_repo.sum_completed_payouts_window(
-            user_id, VELOCITY_WINDOW_DAYS
-        )
+        payouts_30d = await payout_repo.sum_completed_payouts_window(user_id, VELOCITY_WINDOW_DAYS)
 
         if topups_30d == Decimal("0"):
             # Нет пополнений за 30 дней — нечего проверять
@@ -543,11 +542,23 @@ class PayoutService:
             # Transaction(type=REFUND, amount=gross_amount, user_id=user_id)
             txn_repo = TransactionRepository(session)
             await txn_repo.create(
-                {"user_id": user_id, "type": TransactionType.refund_full, "amount": gross_amount, "meta_json": {"type": "payout_request", "gross_amount": str(gross_amount)}},
+                {
+                    "user_id": user_id,
+                    "type": TransactionType.refund_full,
+                    "amount": gross_amount,
+                    "meta_json": {"type": "payout_request", "gross_amount": str(gross_amount)},
+                },
             )
 
             # Transaction(type=PAYOUT_FEE, amount=fee_amount, user_id=user_id)
-            await txn_repo.create({"user_id": user_id, "type": TransactionType.payout_fee, "amount": fee_amount, "payout_id": 0})
+            await txn_repo.create(
+                {
+                    "user_id": user_id,
+                    "type": TransactionType.payout_fee,
+                    "amount": fee_amount,
+                    "payout_id": 0,
+                }
+            )
 
             # Создать PayoutRequest(gross=gross_amount, fee=fee_amount, net=net_amount, status='pending')
             payout = PayoutRequest(
@@ -560,6 +571,7 @@ class PayoutService:
             )
             session.add(payout)
             await session.flush()
+            await session.refresh(payout)
 
             logger.info(
                 f"PayoutRequest created: gross={gross_amount} ₽, fee={fee_amount} ₽, "
@@ -621,7 +633,7 @@ class PayoutService:
             if not payout:
                 raise ValueError(f"PayoutRequest {payout_id} not found")
 
-            gross_amount = payout.gross_amount or payout.gross_amount
+            gross_amount = payout.gross_amount or Decimal("0")
             fee_amount = payout.fee_amount or Decimal("0")
 
             payout.status = PayoutStatus.cancelled
@@ -644,12 +656,73 @@ class PayoutService:
             # Transaction(type=REFUND_FULL, amount=gross_amount)
             txn_repo = TransactionRepository(session)
             await txn_repo.create(
-                {"user_id": payout.owner_id, "type": TransactionType.refund_full, "amount": gross_amount, "meta_json": {"type": "payout_rejected", "reason": reason}},
+                {
+                    "user_id": payout.owner_id,
+                    "type": TransactionType.refund_full,
+                    "amount": gross_amount,
+                    "meta_json": {"type": "payout_rejected", "reason": reason},
+                },
             )
 
             await session.flush()
 
-            logger.info(f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽")
+            logger.info(
+                f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽"
+            )
+
+    async def calculate_payout_with_tax(self, user_id: int, gross_amount: Decimal) -> dict:
+        """
+        Рассчитать выплату с учётом налоговой нагрузки на основе юридического профиля.
+
+        Args:
+            user_id: ID пользователя.
+            gross_amount: Брутто-сумма выплаты.
+
+        Returns:
+            dict с ключами: gross, tax, net, tax_note.
+        """
+        from src.constants.legal import NDFL_RATE
+        from src.db.repositories.legal_profile_repo import LegalProfileRepo
+
+        async with async_session_factory() as session:
+            profile = await LegalProfileRepo(session).get_by_user_id(user_id)
+
+        if profile is None:
+            return {
+                "gross": gross_amount,
+                "tax": Decimal("0"),
+                "net": gross_amount,
+                "tax_note": "Заполните юридический профиль для расчёта налогов.",
+            }
+
+        status = profile.legal_status
+
+        if status in ("legal_entity", "individual_entrepreneur"):
+            return {
+                "gross": gross_amount,
+                "tax": Decimal("0"),
+                "net": gross_amount,
+                "tax_note": "Налог уплачивается вами самостоятельно по выбранному режиму.",
+            }
+
+        if status == "self_employed":
+            return {
+                "gross": gross_amount,
+                "tax": Decimal("0"),
+                "net": gross_amount,
+                "tax_note": "НПД (6%) вы уплачиваете самостоятельно через «Мой налог».",
+            }
+
+        if status == "individual":
+            ndfl = (gross_amount * NDFL_RATE).quantize(Decimal("0.01"))
+            return {
+                "gross": gross_amount,
+                "tax": ndfl,
+                "net": gross_amount - ndfl,
+                "tax_note": f"НДФЛ 13% ({ndfl} ₽) будет удержан платформой.",
+            }
+
+        return {"gross": gross_amount, "tax": Decimal("0"), "net": gross_amount, "tax_note": ""}
 
 
 # Глобальный экземпляр

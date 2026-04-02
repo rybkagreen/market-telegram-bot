@@ -1,9 +1,21 @@
 .available {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-size: var(--rh-text-2xl);
+  font-weight: var(--rh-weight-extrabold);
   color: var(--rh-success);
   margin: var(--rh-space-1) 0 0;
-  line-height: 1.2;
+  line-height: var(--rh-leading-tight);
+}
+
+.contractSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-2);
+  margin-bottom: var(--rh-space-4);
+}
+
+.contractSigned {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-success);
 }
 
 .label {
@@ -11,7 +23,7 @@
   font-size: var(--rh-text-sm);
   font-weight: 500;
   color: var(--rh-text-secondary);
-  margin: var(--rh-space-3) 0 var(--rh-space-1);
+  margin: 0 0 var(--rh-space-1);
 }
 
 .allBtn {
@@ -25,7 +37,7 @@
   font-size: var(--rh-text-xs);
   font-weight: 500;
   cursor: pointer;
-  margin: var(--rh-space-2) 0;
+  margin: 0;
   text-align: center;
   transition: background 0.15s;
 }
@@ -45,9 +57,20 @@
   box-sizing: border-box;
   outline: none;
   transition: border-color 0.15s;
-  margin-bottom: var(--rh-space-2);
+  margin: 0;
 }
 
 .input:focus {
   border-color: var(--rh-border-active);
+}
+
+/* GAP-04: USN tax note */
+.usnNote {
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-secondary);
+  padding: var(--rh-space-2);
+  background: var(--rh-info-muted);
+  border-radius: var(--rh-radius-sm);
+  margin: 0;
+  text-align: center;
 }

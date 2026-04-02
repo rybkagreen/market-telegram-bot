@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { RequestCard, EmptyState, Button, StatusPill, Skeleton } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/formatters'
-import { useMyPlacements } from '@/hooks/queries'
+import { useMyPlacements, useUpdatePlacement } from '@/hooks/queries'
 import type { PlacementStatus } from '@/lib/types'
 import styles from './MyCampaigns.module.css'
 
@@ -30,6 +30,7 @@ export default function MyCampaigns() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('active')
   const { data: placements = [], isLoading, refetch } = useMyPlacements()
+  const { mutate: updatePlacement, isPending: cancelling, variables: cancellingVars } = useUpdatePlacement()
 
   const activeCnt = placements.filter((p) => getFilter(p.status) === 'active').length
   const completedCnt = placements.filter((p) => getFilter(p.status) === 'completed').length
@@ -40,7 +41,7 @@ export default function MyCampaigns() {
   return (
     <ScreenShell>
       <div className={styles.toolbar}>
-        <Button variant="secondary" size="sm" onClick={() => refetch()}>
+        <Button variant="secondary" size="sm" onClick={() => { void refetch() }}>
           🔄 Обновить
         </Button>
       </div>
@@ -78,7 +79,7 @@ export default function MyCampaigns() {
           title="Нет кампаний"
           description={EMPTY_SUBTITLE[filter]}
           action={filter === 'active'
-            ? { label: '➕ Создать кампанию', onClick: () => navigate('/adv/campaigns/new/category') }
+            ? { label: '➕ Создать кампанию', onClick: () => { navigate('/adv/campaigns/new/category') } }
             : undefined
           }
         />
@@ -99,12 +100,22 @@ export default function MyCampaigns() {
                 }}
               />
               <div className={styles.actions}>
-                <Button variant="secondary" size="sm" onClick={() => alert(`Детали #${placement.id}`)}>
+                <Button variant="secondary" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}>
                   📊 Детали
                 </Button>
                 {filter === 'active' && (
-                  <Button variant="danger" size="sm" onClick={() => alert(`Отменить #${placement.id}`)}>
-                    ❌ Отменить
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={cancelling && cancellingVars?.id === placement.id}
+                    onClick={() => {
+                      updatePlacement(
+                        { id: placement.id, data: { action: 'cancel' } },
+                        { onSuccess: () => { void refetch() } },
+                      )
+                    }}
+                  >
+                    {cancelling && cancellingVars?.id === placement.id ? '⏳...' : '❌ Отменить'}
                   </Button>
                 )}
                 {filter === 'completed' && (

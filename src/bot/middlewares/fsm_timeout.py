@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from aiogram import BaseMiddleware
@@ -50,7 +50,7 @@ class FSMTimeoutMiddleware(BaseMiddleware):
         redis_key = f"fsm_activity:{user_id}"
         last_activity_raw = await self.redis.get(redis_key)
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now_timestamp = now.timestamp()
 
         if last_activity_raw:

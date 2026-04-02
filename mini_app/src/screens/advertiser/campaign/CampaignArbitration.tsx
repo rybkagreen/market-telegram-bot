@@ -23,7 +23,9 @@ export default function CampaignArbitration() {
     let firstId: number | null = null
     for (const ch of store.selectedChannels) {
       const schedule = store.proposedSchedules[ch.id] ?? '14:00'
-      const price = store.proposedPrices[ch.id] ?? 0
+      const basePrice = parseFloat(ch.settings.price_per_post)
+      const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
+      const price = store.proposedPrices[ch.id] ?? ownerPrice
       const today = new Date().toISOString().substring(0, 10)
       const result = await createPlacement({
         channel_id: ch.id,
@@ -31,6 +33,7 @@ export default function CampaignArbitration() {
         ad_text: store.adText,
         proposed_price: price,
         proposed_schedule: `${today}T${schedule}:00`,
+        is_test: store.isTest,
       })
       if (firstId === null) firstId = result.id
     }
@@ -109,7 +112,7 @@ export default function CampaignArbitration() {
       </div>
 
       <div className={styles.buttons}>
-        <Button variant="primary" fullWidth onClick={handleSubmit} disabled={isPending}>
+        <Button variant="primary" fullWidth onClick={() => void handleSubmit()} disabled={isPending}>
           {isPending ? '⏳ Отправка...' : '📤 Отправить заявку'}
         </Button>
         <Button variant="secondary" fullWidth onClick={() => navigate(-1 as unknown as string)}>

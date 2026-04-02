@@ -26,6 +26,11 @@ from src.db.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 router = Router()
 
+MY_REQUESTS_SCENE = "main:my_requests"
+CHANNEL_WORD = "канал"
+ALL_REQUESTS_BTN = "📋 Все заявки"
+SKIP_BTN = "⏩ Пропустить"
+
 _FORMAT_NAMES = {
     "post_24h": "Пост 24ч",
     "post_48h": "Пост 48ч",
@@ -45,9 +50,11 @@ def _fmt_name(req: PlacementRequest) -> str:
 # ---------------------------------------------------------------------------
 
 
-@router.callback_query(F.data == "main:my_requests")
+@router.callback_query(F.data == MY_REQUESTS_SCENE)
 async def show_owner_requests(callback: CallbackQuery, session: AsyncSession) -> None:
     """Показать заявки владельца."""
+    if not isinstance(callback.message, Message):
+        return
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
         await callback.answer("❌ Пользователь не найден", show_alert=True)
@@ -91,7 +98,9 @@ async def show_owner_requests(callback: CallbackQuery, session: AsyncSession) ->
 @router.callback_query(F.data.startswith("own:request:fulltext:"))
 async def show_fulltext(callback: CallbackQuery, session: AsyncSession) -> None:
     """Полный текст объявления."""
-    request_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
         await callback.answer("❌ Не найдено", show_alert=True)
@@ -110,7 +119,9 @@ async def show_fulltext(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.regexp(r"^own:request:\d+$"))
 async def show_request_detail(callback: CallbackQuery, session: AsyncSession) -> None:
     """Детали заявки."""
-    request_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
         await callback.answer("❌ Заявка не найдена", show_alert=True)
@@ -135,7 +146,7 @@ async def show_request_detail(callback: CallbackQuery, session: AsyncSession) ->
         builder.button(text="✏️ Контр-предложение", callback_data=f"own:counter:{request_id}")
         builder.button(text="❌ Отклонить", callback_data=f"own:reject:{request_id}")
     builder.button(text="👁 Полный текст", callback_data=f"own:request:fulltext:{request_id}")
-    builder.button(text="🔙 Все заявки", callback_data="main:my_requests")
+    builder.button(text="🔙 Все заявки", callback_data=MY_REQUESTS_SCENE)
     builder.adjust(1)
 
     ch_label = f"@{ch.username}" if ch and ch.username else str(req.channel_id)
@@ -162,7 +173,9 @@ async def show_request_detail(callback: CallbackQuery, session: AsyncSession) ->
 @router.callback_query(F.data.startswith("own:accept:"))
 async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None:
     """Принять заявку и уведомить рекламодателя."""
-    request_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req or req.status not in (PlacementStatus.pending_owner, PlacementStatus.counter_offer):
         await callback.answer("❌ Невозможно принять", show_alert=True)
@@ -185,7 +198,7 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
                 bot=callback.bot,
                 advertiser_telegram_id=advertiser.telegram_id,
                 request_id=request_id,
-                channel_name=channel.username if channel else "канал",
+                channel_name=channel.username if channel else CHANNEL_WORD,
                 format_name=_fmt_name(req),
                 final_price=req.final_price,
                 final_schedule=schedule_str,
@@ -194,7 +207,7 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
             logger.warning("notify_advertiser_accepted failed: %s", exc)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="📋 Все заявки", callback_data="main:my_requests")
+    builder.button(text=ALL_REQUESTS_BTN, callback_data=MY_REQUESTS_SCENE)
     await callback.message.edit_text(
         f"✅ *Заявка #{request_id} принята!*\n\n"
         "Рекламодатель получил уведомление с ссылкой на оплату.\n"
@@ -213,7 +226,9 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
 @router.callback_query(F.data.startswith("own:reject:"))
 async def reject_request_start(callback: CallbackQuery, state: FSMContext) -> None:
     """Начать FSM отклонения."""
-    request_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    request_id = int((callback.data or "").split(":")[-1])
     await state.update_data(rejecting_request_id=request_id)
     await state.set_state(ArbitrationStates.waiting_reject_comment)
 
@@ -234,6 +249,8 @@ async def reject_request_start(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(ArbitrationStates.waiting_reject_comment)
 async def reject_request_comment(message: Message, state: FSMContext, session: AsyncSession) -> None:
     """Сохранить причину и отклонить заявку."""
+    if message.text is None:
+        return
     comment = message.text.strip()
     if len(comment) < 10:
         await message.answer("❌ Минимум 10 символов.")
@@ -261,7 +278,7 @@ async def reject_request_comment(message: Message, state: FSMContext, session: A
             from src.db.repositories.reputation_repo import ReputationRepo
 
             rep_service = ReputationService(session, ReputationRepo(session))
-            await rep_service.on_invalid_rejection(owner_id=owner.id)
+            await rep_service.on_invalid_rejection(owner_id=owner.id, placement_request_id=req.id)
         except Exception as exc:
             logger.warning("reputation update failed: %s", exc)
 
@@ -274,7 +291,7 @@ async def reject_request_comment(message: Message, state: FSMContext, session: A
                 bot=message.bot,
                 advertiser_telegram_id=advertiser.telegram_id,
                 request_id=request_id,
-                channel_name=channel.username if channel else "канал",
+                channel_name=channel.username if channel else CHANNEL_WORD,
             )
         except Exception as exc:
             logger.warning("notify_advertiser_rejected failed: %s", exc)
@@ -282,7 +299,7 @@ async def reject_request_comment(message: Message, state: FSMContext, session: A
     await state.clear()
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="📋 Все заявки", callback_data="main:my_requests")
+    builder.button(text=ALL_REQUESTS_BTN, callback_data=MY_REQUESTS_SCENE)
     await message.answer(
         f"✅ Заявка #{request_id} отклонена.\nПричина: _{comment}_",
         reply_markup=builder.as_markup(),
@@ -298,7 +315,9 @@ async def reject_request_comment(message: Message, state: FSMContext, session: A
 @router.callback_query(F.data.startswith("own:counter:"))
 async def counter_offer_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Начать FSM контр-предложения."""
-    request_id = int(callback.data.split(":")[-1])
+    if not isinstance(callback.message, Message):
+        return
+    request_id = int((callback.data or "").split(":")[-1])
     req = await session.get(PlacementRequest, request_id)
     if not req:
         await callback.answer("❌ Заявка не найдена", show_alert=True)
@@ -332,6 +351,8 @@ async def counter_offer_start(callback: CallbackQuery, state: FSMContext, sessio
 @router.message(ArbitrationStates.entering_counter_price)
 async def counter_price_input(message: Message, state: FSMContext) -> None:
     """Ввод цены контр-предложения."""
+    if message.text is None:
+        return
     try:
         price = Decimal(message.text.strip().replace(" ", ""))
         if price < 100:
@@ -345,7 +366,7 @@ async def counter_price_input(message: Message, state: FSMContext) -> None:
     await state.set_state(ArbitrationStates.entering_counter_time)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⏩ Пропустить", callback_data="counter:time:skip")
+    builder.button(text=SKIP_BTN, callback_data="counter:time:skip")
     await message.answer(
         f"✅ Цена: *{price:.0f} ₽*\n\n"
         "⏰ Введите предпочтительное время публикации\n"
@@ -363,8 +384,9 @@ async def counter_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(ArbitrationStates.entering_counter_comment)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⏩ Пропустить", callback_data="counter:comment:skip")
-    await callback.message.edit_text(
+    builder.button(text=SKIP_BTN, callback_data="counter:comment:skip")
+    await safe_edit_or_answer(
+        callback,
         "💬 Добавьте комментарий к контр-предложению (необязательно):",
         reply_markup=builder.as_markup(),
     )
@@ -374,6 +396,8 @@ async def counter_time_skip(callback: CallbackQuery, state: FSMContext) -> None:
 @router.message(ArbitrationStates.entering_counter_time)
 async def counter_time_input(message: Message, state: FSMContext) -> None:
     """Ввод времени контр-предложения."""
+    if message.text is None:
+        return
     try:
         t = datetime.strptime(message.text.strip(), "%d.%m %H:%M")  # noqa: DTZ007
         t = t.replace(year=datetime.now().year)  # noqa: DTZ005
@@ -385,7 +409,7 @@ async def counter_time_input(message: Message, state: FSMContext) -> None:
     await state.set_state(ArbitrationStates.entering_counter_comment)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⏩ Пропустить", callback_data="counter:comment:skip")
+    builder.button(text=SKIP_BTN, callback_data="counter:comment:skip")
     await message.answer(
         f"✅ Время: *{message.text.strip()}*\n\n💬 Добавьте комментарий (необязательно):",
         reply_markup=builder.as_markup(),
@@ -397,6 +421,9 @@ async def counter_time_input(message: Message, state: FSMContext) -> None:
 async def counter_comment_skip(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     """Пропустить комментарий и отправить контр-предложение."""
     await state.update_data(counter_comment=None)
+    if not isinstance(callback.message, Message):
+        await callback.answer()
+        return
     await _send_counter_offer(callback.message, state, session, callback.bot)
     await callback.answer()
 
@@ -404,8 +431,20 @@ async def counter_comment_skip(callback: CallbackQuery, state: FSMContext, sessi
 @router.message(ArbitrationStates.entering_counter_comment)
 async def counter_comment_input(message: Message, state: FSMContext, session: AsyncSession) -> None:
     """Принять комментарий и отправить контр-предложение."""
+    if message.text is None:
+        return
     await state.update_data(counter_comment=message.text.strip())
     await _send_counter_offer(message, state, session, message.bot)
+
+
+async def safe_edit_or_answer(callback: CallbackQuery, text: str, **kwargs) -> None:
+    """Безопасно редактировать или отправить сообщение."""
+    if not isinstance(callback.message, Message):
+        return
+    if hasattr(callback.message, "edit_text"):
+        await callback.message.edit_text(text, **kwargs)
+    else:
+        await callback.message.answer(text, **kwargs)
 
 
 async def _send_counter_offer(
@@ -448,7 +487,7 @@ async def _send_counter_offer(
                 bot=bot,
                 advertiser_telegram_id=advertiser.telegram_id,
                 request_id=request_id,
-                channel_name=channel.username if channel else "канал",
+                channel_name=channel.username if channel else CHANNEL_WORD,
                 counter_price=counter_price,
                 counter_schedule=counter_schedule_str,
                 counter_round=req.counter_offer_count,
@@ -457,7 +496,7 @@ async def _send_counter_offer(
             logger.warning("notify_advertiser_counter failed: %s", exc)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="📋 Все заявки", callback_data="main:my_requests")
+    builder.button(text=ALL_REQUESTS_BTN, callback_data=MY_REQUESTS_SCENE)
 
     text = (
         f"✅ *Контр-предложение отправлено!*\n\n"

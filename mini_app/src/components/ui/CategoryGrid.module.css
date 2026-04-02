@@ -33,7 +33,7 @@
 }
 
 .label {
-  font-size: 11px;
+  font-size: var(--rh-text-xs);
   font-weight: var(--rh-weight-medium);
   color: var(--rh-text-secondary);
   text-align: center;
@@ -46,8 +46,8 @@
 
 .check {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  font-size: 10px;
+  top: var(--rh-space-1);
+  right: var(--rh-space-1);
+  font-size: var(--rh-text-2xs);
   color: var(--rh-accent);
 }

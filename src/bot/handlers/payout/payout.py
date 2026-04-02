@@ -19,6 +19,10 @@ from src.db.repositories.user_repo import UserRepository
 router = Router()
 logger = logging.getLogger(__name__)
 
+USER_NOT_FOUND = "❌ Пользователь не найден"
+PAYOUT_START_SCENE = "payout:request_start"
+CANCEL_BTN = "❌ Отмена"
+
 MIN_PAYOUT = Decimal("1000")
 _STATUS_EMOJI = {
     "pending": "⏳",
@@ -34,7 +38,7 @@ async def show_payouts(callback: CallbackQuery, session: AsyncSession) -> None:
     """Главный экран выплат."""
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     payouts = await PayoutRepository(session).get_by_owner(user.id)
@@ -51,10 +55,12 @@ async def show_payouts(callback: CallbackQuery, session: AsyncSession) -> None:
 
     builder = InlineKeyboardBuilder()
     if user.earned_rub >= MIN_PAYOUT:
-        builder.button(text="💸 Запросить вывод", callback_data="payout:request_start")
+        builder.button(text="💸 Запросить вывод", callback_data=PAYOUT_START_SCENE)
     builder.button(text="🔙 Меню владельца", callback_data="main:own_menu")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
         f"💸 *Выплаты*\n\n"
         f"💰 Доступно: *{user.earned_rub:.0f} ₽*\n\n"
@@ -68,15 +74,49 @@ async def show_payouts(callback: CallbackQuery, session: AsyncSession) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data == "payout:request_start")
+@router.callback_query(F.data == PAYOUT_START_SCENE)
 async def payout_request_start(
     callback: CallbackQuery, state: FSMContext, session: AsyncSession
 ) -> None:
     """Выбор суммы вывода."""
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+    # Load user by Telegram ID first — DB PK (user.id) needed for all service calls
+    payout_user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if payout_user is None:
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
+
+    # --- Legal profile + contract checks (S3 addition) ---
+    if not isinstance(callback.message, Message):
+        return
+    if not payout_user.legal_status_completed:
+        from src.bot.keyboards.shared.legal_profile import first_start_legal_prompt_keyboard
+
+        await callback.message.answer(
+            "⚠️ Для запроса выплаты необходимо заполнить юридический профиль.\n\n"
+            "Это нужно для расчёта налогов и оформления договора.",
+            reply_markup=first_start_legal_prompt_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    from src.core.services.contract_service import ContractService
+
+    contract_svc = ContractService(session)
+    if not await contract_svc.check_owner_contract(payout_user.id):
+        contract = await contract_svc.generate_contract(payout_user.id, "owner_service")
+        await session.commit()
+        from src.bot.keyboards.shared.contract import contract_sign_keyboard
+
+        await callback.message.answer(
+            "📄 Для получения выплаты необходимо подписать договор оказания услуг.\n\n"
+            "Ознакомьтесь с договором и подпишите его:",
+            reply_markup=contract_sign_keyboard(contract.id),
+        )
+        await callback.answer()
+        return
+    # --- end checks ---
+
+    user = payout_user  # Reuse already-loaded user (avoids duplicate DB query)
 
     if user.earned_rub < MIN_PAYOUT:
         await callback.answer("❌ Минимальная сумма вывода — 1 000 ₽", show_alert=True)
@@ -109,7 +149,7 @@ async def payout_request_start(
         callback_data="payout:amount:all",
     )
     builder.button(text="✏️ Ввести сумму", callback_data="payout:amount:custom")
-    builder.button(text="❌ Отмена", callback_data="main:payouts")
+    builder.button(text=CANCEL_BTN, callback_data="main:payouts")
     builder.adjust(1)
 
     await callback.message.edit_text(
@@ -125,15 +165,17 @@ async def payout_select_amount(
     callback: CallbackQuery, state: FSMContext, session: AsyncSession
 ) -> None:
     """Обработка выбора фиксированной / всей суммы; переход к custom-вводу."""
-    amount_str = callback.data.split(":")[-1]
+    amount_str = (callback.data or "").split(":")[-1]
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
+    if not isinstance(callback.message, Message):
+        return
     if amount_str == "custom":
         cancel_kb = InlineKeyboardBuilder()
-        cancel_kb.button(text="❌ Отмена", callback_data="payout:request_start")
+        cancel_kb.button(text=CANCEL_BTN, callback_data=PAYOUT_START_SCENE)
         await callback.message.edit_text(
             f"💸 Введите сумму вывода (в рублях):\n\n"
             f"📌 Минимум: 1 000 ₽\n"
@@ -157,19 +199,19 @@ async def payout_select_amount(
 
 
 @router.message(PayoutStates.entering_amount)
-async def payout_custom_input(
-    message: Message, state: FSMContext, session: AsyncSession
-) -> None:
+async def payout_custom_input(message: Message, state: FSMContext, session: AsyncSession) -> None:
     """Обработка произвольной суммы, введённой вручную."""
     try:
-        gross = Decimal(message.text.strip().replace(" ", "").replace(",", "."))
+        gross = Decimal((message.text or "").strip().replace(" ", "").replace(",", "."))
     except Exception:
         await message.answer("❌ Введите число (например: 5000)")
         return
 
+    if message.from_user is None:
+        return
     user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if not user:
-        await message.answer("❌ Пользователь не найден")
+        await message.answer(USER_NOT_FOUND)
         return
 
     if gross < MIN_PAYOUT:
@@ -198,7 +240,7 @@ async def _show_amount_confirmation(
 
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Продолжить (ввод реквизитов)", callback_data="payout:confirm")
-    builder.button(text="🔙 Изменить сумму", callback_data="payout:request_start")
+    builder.button(text="🔙 Изменить сумму", callback_data=PAYOUT_START_SCENE)
     builder.adjust(1)
 
     text = (
@@ -222,9 +264,11 @@ async def payout_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(PayoutStates.entering_requisites)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="❌ Отмена", callback_data="main:payouts")
+    builder.button(text=CANCEL_BTN, callback_data="main:payouts")
     builder.adjust(1)
 
+    if not isinstance(callback.message, Message):
+        return
     await callback.message.edit_text(
         "💳 Введите реквизиты для получения:\n\n"
         "• Номер карты (16 цифр)\n"
@@ -239,7 +283,7 @@ async def payout_requisites_input(
     message: Message, state: FSMContext, session: AsyncSession
 ) -> None:
     """Получить реквизиты и создать заявку на выплату."""
-    requisites = message.text.strip()
+    requisites = (message.text or "").strip()
     clean = requisites.replace(" ", "").replace("-", "")
 
     is_card = bool(re.match(r"^\d{16}$", clean))
@@ -247,8 +291,7 @@ async def payout_requisites_input(
 
     if not is_card and not is_phone:
         await message.answer(
-            "❌ Неверный формат.\n\n"
-            "Введите 16-значный номер карты или телефон (+7XXXXXXXXXX)"
+            "❌ Неверный формат.\n\nВведите 16-значный номер карты или телефон (+7XXXXXXXXXX)"
         )
         return
 
@@ -257,9 +300,12 @@ async def payout_requisites_input(
     fee = Decimal(data["fee_amount"])
     net = Decimal(data["net_amount"])
 
+    if message.from_user is None:
+        await state.clear()
+        return
     user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if not user:
-        await message.answer("❌ Пользователь не найден")
+        await message.answer(USER_NOT_FOUND)
         await state.clear()
         return
 
