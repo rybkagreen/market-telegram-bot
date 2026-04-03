@@ -20,7 +20,12 @@ export default function OwnRequestDetail() {
   const { data: request, isLoading } = usePlacement(numId)
   const { mutate: updatePlacement, isPending } = useUpdatePlacement()
 
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().substring(0, 10)
+
   const [counterPrice, setCounterPrice] = useState('')
+  const [counterDate, setCounterDate] = useState(defaultDate)
   const [counterTime, setCounterTime] = useState('14:00')
   const [rejectionText, setRejectionText] = useState('')
 
@@ -62,13 +67,12 @@ export default function OwnRequestDetail() {
 
   const handleCounter = () => {
     haptic.tap()
-    const today = new Date().toISOString().substring(0, 10)
     updatePlacement({
       id: request.id,
       data: {
         action: 'counter',
         price: parseFloat(counterPrice) || proposedNum,
-        schedule: `${today}T${counterTime}:00`,
+        schedule: `${counterDate}T${counterTime}:00`,
       },
     })
   }
@@ -81,8 +85,27 @@ export default function OwnRequestDetail() {
     )
   }
 
+  const isExpired = request.expires_at ? new Date(request.expires_at) < new Date() : false
+
+  const statusBanner = () => {
+    if (isExpired && request.status === 'pending_owner') {
+      return <Notification type="danger">⏰ Срок ответа истёк. Заявка будет автоматически отменена.</Notification>
+    }
+    if (request.status === 'pending_payment') {
+      return <Notification type="warning">💳 Ожидаем оплаты от рекламодателя</Notification>
+    }
+    if (request.status === 'escrow') {
+      return <Notification type="success">✅ Оплата получена. Публикация запланирована: {request.proposed_schedule ? formatDateTime(request.proposed_schedule) : '—'}</Notification>
+    }
+    if (request.status === 'counter_offer') {
+      return <Notification type="info">⏳ Ожидаем ответа рекламодателя на контрпредложение</Notification>
+    }
+    return null
+  }
+
   return (
     <ScreenShell>
+      {statusBanner()}
       <ArbitrationPanel title={`Заявка #${request.id} · @${request.channel?.username ?? request.channel_id}`}>
         <div className={styles.infoRows}>
           <div className={styles.infoRow}>
@@ -128,6 +151,16 @@ export default function OwnRequestDetail() {
                     type="number"
                     value={counterPrice || String(Math.round(proposedNum))}
                     onChange={(e) => setCounterPrice(e.target.value)}
+                  />
+                </div>
+                <div className={styles.counterField}>
+                  <label className={styles.label}>Дата</label>
+                  <input
+                    className={styles.input}
+                    type="date"
+                    value={counterDate}
+                    min={defaultDate}
+                    onChange={(e) => setCounterDate(e.target.value)}
                   />
                 </div>
                 <div className={styles.counterField}>

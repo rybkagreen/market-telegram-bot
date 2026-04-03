@@ -460,6 +460,12 @@ class PlacementRequestService:
         if result is None:
             raise ValueError("Counter offer limit reached")
 
+        # Устанавливаем срок действия контр-предложения (3 часа)
+        from datetime import UTC, timedelta
+        result.expires_at = datetime.now(UTC) + timedelta(hours=3)
+        await self.session.flush()
+        await self.session.refresh(result)
+
         # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser:

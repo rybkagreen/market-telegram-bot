@@ -164,11 +164,25 @@ class UserListAdminResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 
+class FinancialStats(BaseModel):
+    """Platform financial balance breakdown."""
+
+    total_topups: str       # Всего внесено пользователями
+    total_payouts: str      # Всего выведено владельцам
+    net_balance: str        # total_topups − total_payouts (реальный оборот)
+    escrow_reserved: str    # Сейчас заблокировано в эскроу
+    payout_reserved: str    # Зарезервировано под вывод (pending payouts)
+    profit_accumulated: str # Накопленная комиссия платформы
+    # backward-compat aliases
+    total_revenue: str
+    pending_payouts: str
+
+
 class PlatformStatsResponse(BaseModel):
     """Schema for platform statistics response."""
 
-    users: dict[str, int]  # total, active, admins
-    feedback: dict[str, int]  # total, new, in_progress, resolved, rejected
-    disputes: dict[str, int]  # total, open, owner_explained, resolved
-    placements: dict[str, int]  # total, pending, active, completed, cancelled
-    financial: dict[str, str]  # total_revenue, total_payouts, pending_payouts, escrow_reserved
+    users: dict[str, int]
+    feedback: dict[str, int]
+    disputes: dict[str, int]
+    placements: dict[str, int]
+    financial: FinancialStats

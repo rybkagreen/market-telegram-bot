@@ -12,3 +12,52 @@
   gap: var(--rh-space-2);
   margin: var(--rh-space-4) 0;
 }
+
+.counterOfferRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+}
+
+.value {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+}
+
+.originalPrice {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+  text-decoration: line-through;
+}
+
+.newPrice {
+  font-size: var(--rh-text-base);
+  font-weight: 600;
+  color: var(--rh-color-warning);
+}
+
+.commentRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+.comment {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-primary);
+  background: var(--rh-color-bg-tertiary);
+  padding: var(--rh-space-2);
+  border-radius: var(--rh-radius-sm);
+  margin: 0;
+}

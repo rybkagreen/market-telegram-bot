@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits } from '@/api/billing'
+import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits, getBillingHistory } from '@/api/billing'
 import { useUiStore } from '@/stores/uiStore'
+
+export const useBillingHistory = (page: number = 1) =>
+  useQuery({
+    queryKey: ['billing', 'history', page],
+    queryFn: () => getBillingHistory(page, 20),
+    staleTime: 30_000,
+  })
 
 export const usePlans = () =>
   useQuery({

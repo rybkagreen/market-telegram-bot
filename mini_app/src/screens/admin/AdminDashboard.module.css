@@ -56,6 +56,68 @@
   color: var(--rh-text-secondary);
 }
 
+/* Financial balance block */
+.finGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.finRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--rh-space-2) 0;
+  gap: var(--rh-space-3);
+}
+
+.finRowTotal {
+  background: var(--rh-bg-elevated);
+  border-radius: var(--rh-radius-sm);
+  padding: var(--rh-space-2) var(--rh-space-2);
+  margin: var(--rh-space-1) 0;
+}
+
+.finLabel {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-secondary);
+  flex-shrink: 0;
+}
+
+.finValueIn {
+  font-size: var(--rh-text-sm);
+  font-weight: 700;
+  font-family: var(--rh-font-mono);
+  color: var(--rh-success);
+}
+
+.finValueOut {
+  font-size: var(--rh-text-sm);
+  font-weight: 700;
+  font-family: var(--rh-font-mono);
+  color: var(--rh-danger);
+}
+
+.finValueNet {
+  font-size: var(--rh-text-sm);
+  font-weight: 700;
+  font-family: var(--rh-font-mono);
+  color: var(--rh-text-primary);
+}
+
+.finValueNeutral {
+  font-size: var(--rh-text-sm);
+  font-weight: 600;
+  font-family: var(--rh-font-mono);
+  color: var(--rh-warning);
+}
+
+.finDivider {
+  height: 1px;
+  background: var(--rh-border);
+  margin: var(--rh-space-1) 0;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;

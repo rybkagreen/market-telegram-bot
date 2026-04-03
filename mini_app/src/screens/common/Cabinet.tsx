@@ -86,6 +86,13 @@ export default function Cabinet() {
       />
 
       <MenuButton
+        icon="🧾"
+        title="История транзакций"
+        subtitle="Пополнения и платежи"
+        onClick={() => navigate('/billing/history')}
+      />
+
+      <MenuButton
         icon="👥"
         title="Реферальная программа"
         subtitle="Приглашайте друзей — получайте кредиты"
