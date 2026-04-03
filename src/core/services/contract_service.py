@@ -234,32 +234,51 @@ class ContractService:
         return signed
 
     async def accept_platform_rules(self, user_id: int) -> None:
-        """Принять правила платформы и политику конфиденциальности."""
+        """Принять правила платформы (единый документ: правила + конфиденциальность).
+
+        Создаёт/обновляет один контракт типа platform_rules.
+        Для обратной совместимости: если уже есть privacy_policy — обновляет и его.
+        """
         repo = ContractRepo(self.session)
         now = datetime.now(UTC)
-        for ct in ("platform_rules", "privacy_policy"):
-            existing = await repo.get_by_user_and_type(user_id, ct)
-            if existing:
-                await self.session.execute(
-                    sa_update(Contract)
-                    .where(Contract.id == existing.id)
-                    .values(
-                        contract_status="signed",
-                        signed_at=now,
-                        signature_method="button_accept",
-                    )
+
+        # Единый контракт — platform_rules
+        existing_rules = await repo.get_by_user_and_type(user_id, "platform_rules")
+        if existing_rules:
+            await self.session.execute(
+                sa_update(Contract)
+                .where(Contract.id == existing_rules.id)
+                .values(
+                    contract_status="signed",
+                    signed_at=now,
+                    signature_method="button_accept",
                 )
-            else:
-                await self.session.execute(
-                    insert(Contract).values(
-                        user_id=user_id,
-                        contract_type=ct,
-                        contract_status="signed",
-                        signed_at=now,
-                        signature_method="button_accept",
-                        template_version=CONTRACT_TEMPLATE_VERSION,
-                    )
+            )
+        else:
+            await self.session.execute(
+                insert(Contract).values(
+                    user_id=user_id,
+                    contract_type="platform_rules",
+                    contract_status="signed",
+                    signed_at=now,
+                    signature_method="button_accept",
+                    template_version=CONTRACT_TEMPLATE_VERSION,
                 )
+            )
+
+        # Обратная совместимость: обновляем privacy_policy если он есть
+        existing_privacy = await repo.get_by_user_and_type(user_id, "privacy_policy")
+        if existing_privacy:
+            await self.session.execute(
+                sa_update(Contract)
+                .where(Contract.id == existing_privacy.id)
+                .values(
+                    contract_status="signed",
+                    signed_at=now,
+                    signature_method="button_accept",
+                )
+            )
+
         await self.session.execute(
             sa_update(User)
             .where(User.id == user_id)
@@ -348,7 +367,9 @@ class ContractService:
         """Отрендерить HTML шаблон договора."""
         legal_status = getattr(profile, "legal_status", None) if profile else None
         templates = _CONTRACT_TEMPLATE_MAP.get(contract_type, {})
-        tpl_file = templates.get(legal_status or "") or templates.get("_default") or PLATFORM_RULES_FILE
+        tpl_file = (
+            templates.get(legal_status or "") or templates.get("_default") or PLATFORM_RULES_FILE
+        )
 
         ctx: dict = {
             "legal_name": getattr(profile, "legal_name", "") or "",
@@ -363,7 +384,10 @@ class ContractService:
             ctx.update({k: v for k, v in platform_ctx.items() if v is not None})
 
         if USE_JINJA2 and TEMPLATES_DIR.exists():
-            env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=select_autoescape(["html", "xml"]))
+            env = Environment(
+                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                autoescape=select_autoescape(["html", "xml"]),
+            )
             try:
                 return env.get_template(tpl_file).render(**ctx)
             except Exception:
@@ -395,3 +419,62 @@ class ContractService:
             html_path = CONTRACTS_OUTPUT_DIR / f"contract_{contract_id}.html"
             html_path.write_text(html, encoding="utf-8")
             return None  # no PDF available
+
+    async def render_platform_rules(self) -> str:
+        """Отрендерить HTML-текст Правил платформы (без привязки к пользователю).
+
+        Используется на экране принятия правил для предпросмотра.
+        """
+        platform_ctx = await self._get_platform_ctx()
+        ctx: dict = {
+            "legal_name": "",
+            "inn": "",
+            "address": "",
+            "yoomoney_wallet": "",
+            "contract_date": datetime.now(UTC).strftime("%d.%m.%Y"),
+            "platform_name": "RekHarborBot",
+            "contract_id": 0,
+        }
+        ctx.update({k: v for k, v in platform_ctx.items() if v is not None})
+
+        # CSS-переопределения для тёмной темы Mini App
+        dark_mode_css = """
+<style>
+  @media screen {
+    body { background: #1a1a2e !important; color: #e0e0e0 !important; }
+    .box-info { background: #0d2137 !important; border-left-color: #64b5f6 !important; color: #bbdefb !important; }
+    .box-warn { background: #2d1a00 !important; border-left-color: #ff9800 !important; color: #ffe0b2 !important; }
+    .hl { background: #3d3d1a !important; color: #fff9c4 !important; }
+    .consent { background: #1e1e30 !important; border-color: #555 !important; color: #e0e0e0 !important; }
+    th { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #444 !important; }
+    td { border-color: #444 !important; color: #e0e0e0 !important; }
+    h2 { border-bottom-color: #444 !important; color: #ffffff !important; }
+    h1, h3 { color: #ffffff !important; }
+    p, li { color: #e0e0e0 !important; }
+    .psub, .edate, .slabel { color: #888 !important; }
+    .sline { border-bottom-color: #888 !important; }
+  }
+</style>
+"""
+
+        if USE_JINJA2 and TEMPLATES_DIR.exists():
+            env = Environment(
+                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                autoescape=select_autoescape(["html", "xml"]),
+            )
+            try:
+                html = env.get_template(PLATFORM_RULES_FILE).render(**ctx)
+                # Вставляем dark_mode_css перед закрывающим </head>
+                if "</head>" in html:
+                    html = html.replace("</head>", f"  {dark_mode_css}\n</head>", 1)
+                return html
+            except Exception:
+                logger.exception("Failed to render platform rules template")
+
+        return (
+            "<html><body>"
+            "<h1>Правила платформы RekHarborBot</h1>"
+            "<p>Текст правил временно недоступен. "
+            "Обратитесь в поддержку для получения полной версии.</p>"
+            "</body></html>"
+        )

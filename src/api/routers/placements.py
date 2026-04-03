@@ -3,7 +3,7 @@ FastAPI router для управления заявками на размеще�
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated
@@ -103,6 +103,21 @@ async def _action_cancel(
     result = await service.advertiser_cancel(placement_id, user_id)
     return PlacementResponse.model_validate(result)
 
+
+async def _action_accept_counter(
+    service: "PlacementRequestService",
+    placement_id: int,
+    user_id: int,
+    is_advertiser: bool,
+    placement_status: PlacementStatus,
+) -> "PlacementResponse":
+    if not is_advertiser:
+        raise HTTPException(status_code=403, detail="Only advertiser can accept counter offer")
+    if placement_status != PlacementStatus.counter_offer:
+        raise HTTPException(status_code=409, detail="Placement not in counter_offer status")
+    result = await service.advertiser_accept_counter(placement_id, user_id)
+    return PlacementResponse.model_validate(result)
+
 # =============================================================================
 # Schemas
 # =============================================================================
@@ -116,6 +131,7 @@ class PlacementAction(str, Enum):
     counter = "counter"
     pay = "pay"
     cancel = "cancel"
+    accept_counter = "accept-counter"
 
 
 class PlacementUpdateRequest(BaseModel):
@@ -287,6 +303,21 @@ async def create_placement(
     # is_test может быть установлен только админом
     is_test = request.is_test and current_user.is_admin
     test_label = request.test_label if is_test else None
+
+    # Проверка даты публикации: минимум — следующий день (не тест)
+    if not is_test:
+        tomorrow_midnight = (datetime.now(UTC) + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        sched = request.scheduled_at
+        # Убедиться что datetime aware
+        if sched.tzinfo is None:
+            sched = sched.replace(tzinfo=UTC)
+        if sched < tomorrow_midnight:
+            raise HTTPException(
+                status_code=400,
+                detail="Publication must be scheduled for at least tomorrow (next day after today)",
+            )
 
     # Создание заявки
     service = PlacementRequestService(
@@ -510,6 +541,10 @@ async def pay_placement(
     if placement.status != PlacementStatus.pending_payment:
         raise HTTPException(status_code=409, detail="Placement not in pending_payment status")
 
+    # Проверка истечения срока (expires_at)
+    if placement.expires_at and placement.expires_at < datetime.now(UTC):
+        raise HTTPException(status_code=410, detail="Placement has expired")
+
     # Проверка баланса (для не-тестовых кампаний)
     if not placement.is_test and current_user.credits < (placement.final_price or placement.proposed_price):
         raise HTTPException(status_code=400, detail="Insufficient credits")
@@ -618,12 +653,15 @@ async def update_placement(
     is_owner = channel.owner_id == current_user.id
     is_advertiser = placement.advertiser_id == current_user.id
 
+    # Import BillingService for payment actions
+    from src.core.services.billing_service import BillingService
+
     service = PlacementRequestService(
         session=session,
         placement_repo=PlacementRequestRepository(session),
         channel_settings_repo=ChannelSettingsRepo(session),
         reputation_repo=ReputationRepository(session),
-        billing_service=None,
+        billing_service=BillingService(),
     )
 
     # Выполнение действия
@@ -633,11 +671,25 @@ async def update_placement(
         PlacementAction.counter: lambda: _action_counter(service, placement_id, current_user.id, is_owner, update_data),
         PlacementAction.pay: lambda: _action_pay(service, placement_id, current_user.id, is_advertiser, placement.status),
         PlacementAction.cancel: lambda: _action_cancel(service, placement_id, current_user.id, is_advertiser),
+        PlacementAction.accept_counter: lambda: _action_accept_counter(service, placement_id, current_user.id, is_advertiser, placement.status),
     }
     handler = _action_dispatch.get(update_data.action)
     if handler is None:
         raise HTTPException(status_code=400, detail=f"Unknown action: {update_data.action}")
     try:
-        return await handler()
+        result = await handler()
+        await session.commit()
+        return result
+    except HTTPException:
+        await session.rollback()
+        raise
     except ValueError as e:
+        await session.rollback()
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:
+        await session.rollback()
+        logger.exception(
+            "Unexpected error in update_placement placement_id=%s action=%s: %s",
+            placement_id, update_data.action, e,
+        )
+        raise HTTPException(status_code=500, detail="Internal server error") from e

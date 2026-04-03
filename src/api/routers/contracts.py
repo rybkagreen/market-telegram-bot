@@ -40,7 +40,9 @@ def _contract_to_response(contract: Contract) -> ContractResponse:
         contract_status=ContractStatus(contract.contract_status),
         placement_request_id=contract.placement_request_id,
         template_version=contract.template_version,
-        signature_method=SignatureMethod(contract.signature_method) if contract.signature_method else None,
+        signature_method=SignatureMethod(contract.signature_method)
+        if contract.signature_method
+        else None,
         signed_at=contract.signed_at,
         expires_at=contract.expires_at,
         pdf_url=pdf_url,
@@ -184,7 +186,10 @@ async def request_kep(
         # NotificationService does not have notify_admin — log instead
         logger.info(
             "KEP request: user=%s (INN: %s), contract=#%s, email=%s",
-            legal_name, inn, data.contract_id, data.email,
+            legal_name,
+            inn,
+            data.contract_id,
+            data.email,
         )
         _ = notif  # reference to suppress unused var warning
     except Exception:
@@ -217,4 +222,19 @@ async def download_pdf(
     pdf = Path(contract.pdf_file_path)
     if not pdf.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
-    return FileResponse(str(pdf), media_type="application/pdf", filename=f"contract_{contract_id}.pdf")
+    return FileResponse(
+        str(pdf), media_type="application/pdf", filename=f"contract_{contract_id}.pdf"
+    )
+
+
+# ─── Platform Rules Text (for AcceptRules screen) ──────────────────
+
+
+@router.get("/platform-rules/text")
+async def get_platform_rules_text(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Получить HTML-текст Правил платформы для экрана принятия."""
+    svc = ContractService(session)
+    html = await svc.render_platform_rules()
+    return {"html": html}

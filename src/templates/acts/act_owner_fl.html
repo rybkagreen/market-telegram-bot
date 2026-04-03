@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Акт выполненных работ №{{ act_number }} (ФЛ)</title>
+<style>
+  @page { margin: 20mm 25mm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.6; color: #000; background: #fff; padding: 20px 30px; }
+  h1 { text-align: center; font-size: 14pt; font-weight: bold; margin: 18px 0 6px; }
+  .meta { text-align: center; font-size: 10pt; color: #666; margin-bottom: 20px; }
+  h2 { font-size: 12pt; font-weight: bold; margin: 16px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+  p { margin-bottom: 7px; text-align: justify; }
+  .cl { margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 9px 0; font-size: 10pt; }
+  th { background: #f0f0f0; border: 1px solid #ccc; padding: 5px 8px; text-align: left; }
+  td { border: 1px solid #ccc; padding: 5px 8px; }
+  .sigs { margin-top: 36px; display: flex; gap: 36px; }
+  .sb { flex: 1; }
+  .sb h3 { font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 10px; }
+  .req { font-size: 10pt; line-height: 1.65; margin-top: 6px; }
+  .sline { border-bottom: 1px solid #000; margin: 14px 0 3px; min-height: 18px; }
+  .slabel { font-size: 8.5pt; color: #666; }
+  .box-ndfl { background: #fff3e0; border-left: 3px solid #e65100; padding: 7px 11px; margin: 10px 0; font-size: 10.5pt; }
+  .total-row { font-weight: bold; background: #f9f9f9; }
+</style>
+</head>
+<body>
+
+<h1>Акт выполненных работ №{{ act_number }}</h1>
+<div class="meta">от {{ act_date }} · Размещение рекламы в Telegram-канале</div>
+
+<h2>1. Стороны</h2>
+<p class="cl"><strong>Исполнитель (Владелец канала):</strong> {{ owner_name }}, ИНН {{ owner_inn | default('—') }}</p>
+{% if owner_passport_series or owner_passport_number %}
+<p class="cl"><strong>Паспортные данные:</strong> серия {{ owner_passport_series | default('—') }} № {{ owner_passport_number | default('—') }}, выдан {{ owner_passport_issued_by | default('—') }}, дата выдачи {{ owner_passport_issue_date | default('—') }}</p>
+{% endif %}
+<p class="cl"><strong>Заказчик (Платформа):</strong> {{ platform_legal_name | default('ООО «РекХарбор»') }}, ИНН {{ platform_inn | default('—') }}</p>
+
+<h2>2. Предмет акта</h2>
+<p class="cl">Исполнитель оказал, а Заказчик принял следующие услуги:</p>
+<table>
+  <tr><th>№</th><th>Наименование услуги</th><th>Ед.</th><th>Кол-во</th><th>Сумма</th></tr>
+  <tr><td>1</td><td>Предоставление места для размещения рекламы в Telegram-канале «{{ channel_name }}». Формат: {{ publication_format }}.</td><td>усл.</td><td>1</td><td>{{ final_price }} ₽</td></tr>
+  <tr class="total-row"><td colspan="4" style="text-align: right;">ИТОГО брутто:</td><td>{{ final_price }} ₽</td></tr>
+</table>
+
+{% if erid %}
+<p class="cl"><strong>Маркировка:</strong> erid: {{ erid }}</p>
+{% endif %}
+
+<h2>3. НДФЛ удержание</h2>
+<div class="box-ndfl">
+  <p class="cl"><strong>Налоговый агент:</strong> Заказчик удерживает НДФЛ 13% из вознаграждения Исполнителя (ст. 226 НК РФ).</p>
+  <p class="cl">Сумма НДФЛ: <strong>{{ ndfl_amount | default('0.00') }} ₽</strong></p>
+  <p class="cl">Сумма к выплате нетто: <strong>{{ net_amount | default(final_price) }} ₽</strong></p>
+</div>
+
+<h2>4. Подписи сторон</h2>
+<div class="sigs">
+  <div class="sb">
+    <h3>Исполнитель (ФЛ)</h3>
+    <div class="req">
+      {{ owner_name }}<br>
+      ИНН: {{ owner_inn | default('—') }}<br>
+      <div class="sline"></div>
+      <div class="slabel">Подпись / Дата</div>
+    </div>
+  </div>
+  <div class="sb">
+    <h3>Заказчик</h3>
+    <div class="req">
+      {{ platform_legal_name | default('ООО «РекХарбор»') }}<br>
+      ИНН: {{ platform_inn | default('—') }}<br>
+      <div class="sline"></div>
+      <div class="slabel">Подпись / Дата</div>
+    </div>
+  </div>
+</div>
+
+<p style="font-size: 8.5pt; color: #999; margin-top: 30px; text-align: center;">
+  Документ сформирован автоматически платформой RekHarborBot.
+  Подписание через интерфейс Платформы признаётся равнозначным собственноручной подписи.
+</p>
+
+</body>
+</html>

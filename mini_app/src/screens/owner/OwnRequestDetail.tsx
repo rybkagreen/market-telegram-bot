@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { ArbitrationPanel, Button, Card, Modal, Notification, Skeleton } from '@/components/ui'
+import { ArbitrationPanel, Button, Card, Modal, Notification, Skeleton, Text, Flex } from '@/components/ui'
 import { PUBLICATION_FORMATS, MAX_COUNTER_OFFERS, MIN_REJECTION_COMMENT } from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
@@ -20,7 +20,12 @@ export default function OwnRequestDetail() {
   const { data: request, isLoading } = usePlacement(numId)
   const { mutate: updatePlacement, isPending } = useUpdatePlacement()
 
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().substring(0, 10)
+
   const [counterPrice, setCounterPrice] = useState('')
+  const [counterDate, setCounterDate] = useState(defaultDate)
   const [counterTime, setCounterTime] = useState('14:00')
   const [rejectionText, setRejectionText] = useState('')
 
@@ -62,13 +67,12 @@ export default function OwnRequestDetail() {
 
   const handleCounter = () => {
     haptic.tap()
-    const today = new Date().toISOString().substring(0, 10)
     updatePlacement({
       id: request.id,
       data: {
         action: 'counter',
         price: parseFloat(counterPrice) || proposedNum,
-        schedule: `${today}T${counterTime}:00`,
+        schedule: `${counterDate}T${counterTime}:00`,
       },
     })
   }
@@ -81,8 +85,27 @@ export default function OwnRequestDetail() {
     )
   }
 
+  const isExpired = request.expires_at ? new Date(request.expires_at) < new Date() : false
+
+  const statusBanner = () => {
+    if (isExpired && request.status === 'pending_owner') {
+      return <Notification type="danger">⏰ Срок ответа истёк. Заявка будет автоматически отменена.</Notification>
+    }
+    if (request.status === 'pending_payment') {
+      return <Notification type="warning">💳 Ожидаем оплаты от рекламодателя</Notification>
+    }
+    if (request.status === 'escrow') {
+      return <Notification type="success">✅ Оплата получена. Публикация запланирована: {request.proposed_schedule ? formatDateTime(request.proposed_schedule) : '—'}</Notification>
+    }
+    if (request.status === 'counter_offer') {
+      return <Notification type="info">⏳ Ожидаем ответа рекламодателя на контрпредложение</Notification>
+    }
+    return null
+  }
+
   return (
     <ScreenShell>
+      {statusBanner()}
       <ArbitrationPanel title={`Заявка #${request.id} · @${request.channel?.username ?? request.channel_id}`}>
         <div className={styles.infoRows}>
           <div className={styles.infoRow}>
@@ -131,6 +154,16 @@ export default function OwnRequestDetail() {
                   />
                 </div>
                 <div className={styles.counterField}>
+                  <label className={styles.label}>Дата</label>
+                  <input
+                    className={styles.input}
+                    type="date"
+                    value={counterDate}
+                    min={defaultDate}
+                    onChange={(e) => setCounterDate(e.target.value)}
+                  />
+                </div>
+                <div className={styles.counterField}>
                   <label className={styles.label}>Время</label>
                   <input
                     className={styles.input}
@@ -146,9 +179,9 @@ export default function OwnRequestDetail() {
             </>
           ) : (
             <Notification type="warning">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 Максимум {MAX_COUNTER_OFFERS} раунда контр-предложений исчерпано
-              </span>
+              </Text>
             </Notification>
           )}
 
@@ -200,35 +233,38 @@ export default function OwnRequestDetail() {
       >
         {reviews?.my_review ? (
           <div>
-            <p style={{ marginBottom: 8, color: 'var(--rh-text-secondary, #888)', fontSize: 14 }}>
+            <Text variant="sm" color="secondary" as="p" className={styles.existingReviewLabel}>
               Вы уже оставили отзыв
-            </p>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            </Text>
+            <Flex gap={1} className={styles.reviewSection}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <span key={n} style={{ fontSize: 24, color: n <= reviews.my_review!.rating ? '#f5a623' : '#ccc' }}>
+                <span
+                  key={n}
+                  className={`${styles.star} ${n <= reviews.my_review!.rating ? styles.starActive : styles.starInactive}`}
+                >
                   ★
                 </span>
               ))}
-            </div>
+            </Flex>
             {reviews.my_review.comment && (
-              <p style={{ fontSize: 14 }}>{reviews.my_review.comment}</p>
+              <Text variant="sm" as="p">{reviews.my_review.comment}</Text>
             )}
           </div>
         ) : (
           <div>
-            <p style={{ marginBottom: 8, fontWeight: 500 }}>Оценка</p>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+            <Text variant="sm" weight="medium" as="p" className={styles.reviewSection}>Оценка</Text>
+            <Flex gap={1} className={styles.reviewSectionLarge}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <span
                   key={n}
                   onClick={() => setRating(n)}
-                  style={{ fontSize: 24, cursor: 'pointer', color: n <= rating ? '#f5a623' : '#ccc' }}
+                  className={`${styles.starClickable} ${n <= rating ? styles.starActive : styles.starInactive}`}
                 >
                   {n <= rating ? '★' : '☆'}
                 </span>
               ))}
-            </div>
-            <p style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий</p>
+            </Flex>
+            <Text variant="sm" weight="medium" as="p" className={styles.reviewSection}>Комментарий</Text>
             <textarea
               className={styles.textarea}
               placeholder="Опишите ваш опыт работы с рекламодателем..."

@@ -1,0 +1,57 @@
+/* Form styles */
+.stepTitle {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--rh-radius-sm, 8px);
+  border: 1px solid var(--rh-border, rgba(255,255,255,0.12));
+  background: var(--rh-surface, rgba(255,255,255,0.04));
+  color: inherit;
+  font-size: var(--rh-text-sm, 14px);
+  box-sizing: border-box;
+}
+
+.select {
+  composes: input;
+}
+
+.label {
+  display: block;
+  font-size: var(--rh-text-xs, 12px);
+  color: var(--rh-text-muted);
+  margin-bottom: 4px;
+}
+
+.labelWithMargin {
+  composes: label;
+  margin-top: 12px;
+}
+
+.validationText {
+  margin: 4px 0 0;
+  color: var(--rh-danger);
+  font-size: var(--rh-text-xs, 12px);
+}
+
+/* Step navigation */
+.stepNav {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Confirmation row */
+.confirmRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: var(--rh-text-sm, 14px);
+}
+
+.confirmLabel {
+  color: var(--rh-text-muted);
+}

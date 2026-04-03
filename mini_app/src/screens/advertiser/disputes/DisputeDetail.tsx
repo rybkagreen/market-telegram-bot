@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, StatusPill, ArbitrationPanel, Timeline, Notification, Skeleton } from '@/components/ui'
+import { Card, StatusPill, ArbitrationPanel, Timeline, Notification, Skeleton, Text } from '@/components/ui'
 import { PUBLICATION_FORMATS, DISPUTE_REASON_LABELS } from '@/lib/constants'
 import { formatCurrency, formatDateTime, formatDate } from '@/lib/formatters'
 import { useDispute } from '@/hooks/queries'
@@ -147,9 +147,9 @@ export default function DisputeDetail() {
 
       {(dispute.status === 'open' || dispute.status === 'owner_reply') && (
         <Notification type="info">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+          <Text variant="sm">
             Споры рассматриваются в течение 7 дней. Истекает: {formatDate(dispute.expires_at)}
-          </span>
+          </Text>
         </Notification>
       )}
     </ScreenShell>

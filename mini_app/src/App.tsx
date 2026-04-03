@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Outlet, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { RulesGuard } from '@/components/RulesGuard'
+import AdminGuard from '@/components/guards/AdminGuard'
 
 // ═══ Common ═══
 const MainMenu           = lazy(() => import('@/screens/common/MainMenu'))
@@ -20,6 +21,9 @@ const LegalProfileView   = lazy(() => import('@/screens/common/LegalProfileView'
 const ContractList       = lazy(() => import('@/screens/common/ContractList'))
 const ContractDetail     = lazy(() => import('@/screens/common/ContractDetail'))
 const AcceptRules        = lazy(() => import('@/screens/common/AcceptRules'))
+const TransactionHistory = lazy(() => import('@/screens/common/TransactionHistory'))
+const MyActsScreen       = lazy(() => import('@/screens/common/MyActsScreen'))
+const NotFoundScreen     = lazy(() => import('@/screens/common/NotFoundScreen'))
 
 // ═══ Advertiser ═══
 const AdvMenu        = lazy(() => import('@/screens/advertiser/AdvMenu'))
@@ -67,6 +71,8 @@ const AdminDisputeDetail      = lazy(() => import('@/screens/admin/AdminDisputeD
 const AdminUsersList          = lazy(() => import('@/screens/admin/AdminUsersList'))
 const AdminUserDetail         = lazy(() => import('@/screens/admin/AdminUserDetail'))
 const AdminPlatformSettings   = lazy(() => import('@/screens/admin/AdminPlatformSettings'))
+const AdminTaxSummary         = lazy(() => import('@/screens/admin/AdminTaxSummary'))
+const AdminAccounting         = lazy(() => import('@/screens/admin/Accounting'))
 
 function RulesGuardLayout() {
   return (
@@ -110,6 +116,8 @@ const router = createBrowserRouter([
       { path: 'contracts',                element: <ContractList /> },
       { path: 'contracts/:id',            element: <ContractDetail /> },
       { path: 'accept-rules',             element: <AcceptRules /> },
+      { path: 'billing/history',          element: <TransactionHistory /> },
+      { path: 'acts',                     element: <MyActsScreen /> },
       { path: 'campaign/video',           element: <CampaignVideo /> },
       { path: 'campaign/:id/ord',         element: <OrdStatus /> },
       { path: 'contracts/framework',      element: <AdvertiserFrameworkContract /> },
@@ -142,15 +150,25 @@ const router = createBrowserRouter([
       { path: 'own/payouts/request',                    element: <OwnPayoutRequest /> },
       { path: 'own/disputes/:id',                       element: <DisputeResponse /> },
 
-      // ── Admin ── (PHASE-5)
-      { path: 'admin',                                  element: <AdminDashboard /> },
-      { path: 'admin/feedback',                         element: <AdminFeedbackList /> },
-      { path: 'admin/feedback/:id',                     element: <AdminFeedbackDetail /> },
-      { path: 'admin/disputes',                         element: <AdminDisputesList /> },
-      { path: 'admin/disputes/:id',                     element: <AdminDisputeDetail /> },
-      { path: 'admin/users',                            element: <AdminUsersList /> },
-      { path: 'admin/users/:id',                        element: <AdminUserDetail /> },
-      { path: 'admin/settings',                         element: <AdminPlatformSettings /> },
+      // ── Admin ── (PHASE-5) — guarded by AdminGuard
+      {
+        element: <AdminGuard />,
+        children: [
+          { path: 'admin',                                  element: <AdminDashboard /> },
+          { path: 'admin/feedback',                         element: <AdminFeedbackList /> },
+          { path: 'admin/feedback/:id',                     element: <AdminFeedbackDetail /> },
+          { path: 'admin/disputes',                         element: <AdminDisputesList /> },
+          { path: 'admin/disputes/:id',                     element: <AdminDisputeDetail /> },
+          { path: 'admin/users',                            element: <AdminUsersList /> },
+          { path: 'admin/users/:id',                        element: <AdminUserDetail /> },
+          { path: 'admin/accounting',                       element: <AdminAccounting /> },
+          { path: 'admin/tax-summary',                      element: <AdminTaxSummary /> },
+          { path: 'admin/settings',                         element: <AdminPlatformSettings /> },
+        ],
+      },
+
+      // ── Catch-all ──
+      { path: '*', element: <NotFoundScreen /> },
         ],
       },
     ],

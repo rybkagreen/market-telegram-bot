@@ -361,7 +361,7 @@ YOOKASSA_RETURN_URL=https://t.me/YOUR_BOT_USERNAME
 # ══════════════════════════════════════════════════════════════
 ENVIRONMENT=development
 DEBUG=true
-API_PORT=8001
+API_PORT=8001  # Note: port not exposed to host — API accessible only via nginx or docker exec
 SENTRY_DSN=your_sentry_dsn_here  # опционально
 SONAR_TOKEN=your_sonar_token_here  # опционально
 
@@ -430,7 +430,7 @@ celery -A src.tasks.celery_app flower --port=5555
 cd mini_app
 npm install
 npm run dev
-# Прокси на /api → http://localhost:8001
+# Прокси на /api → http://localhost:8001 (local dev only — not Docker)
 ```
 
 ---
@@ -1032,7 +1032,7 @@ celery -A src.tasks.celery_app flower --port=5555
 cd mini_app
 npm install
 npm run dev
-# Прокси на /api → http://localhost:8001
+# Прокси на /api → http://localhost:8001 (local dev only — not Docker)
 ```
 
 ### Тестирование

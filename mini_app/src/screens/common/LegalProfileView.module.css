@@ -1,0 +1,35 @@
+/* Status badge wrapper */
+.statusWrapper {
+  margin-bottom: 8px;
+}
+
+/* Field rows */
+.fieldRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--rh-text-sm, 14px);
+}
+
+.fieldLabel {
+  color: var(--rh-text-muted);
+}
+
+/* Document rows */
+.docRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: var(--rh-text-sm, 14px);
+}
+
+.docLabel {
+  color: var(--rh-text-muted);
+}
+
+/* Action buttons */
+.actionButtons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

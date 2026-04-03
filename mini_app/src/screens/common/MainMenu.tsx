@@ -35,44 +35,19 @@ export default function MainMenu() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 14px',
-              borderRadius: 'var(--rh-radius-md, 12px)',
-              background: 'var(--rh-warning-muted, rgba(251,191,36,0.12))',
-              border: '1px solid var(--rh-warning, rgba(251,191,36,0.3))',
-              marginBottom: 8,
-              fontSize: 'var(--rh-text-sm, 14px)',
-            }}
+            className={styles.legalBanner}
           >
-            <span style={{ flex: 1 }}>
+            <span className={styles.legalBannerText}>
               Заполните юридический профиль для работы с договорами
             </span>
             <button
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--rh-accent)',
-                fontWeight: 600,
-                padding: '4px 8px',
-                fontSize: 'var(--rh-text-xs, 12px)',
-              }}
+              className={styles.legalBannerLink}
               onClick={() => navigate('/legal-profile')}
             >
               Заполнить
             </button>
             <button
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--rh-text-muted)',
-                padding: '4px',
-                fontSize: 16,
-              }}
+              className={styles.legalBannerDismiss}
               onClick={() => setBannerDismissed(true)}
             >
               ✕

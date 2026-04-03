@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StatGrid, MenuButton, StatusPill, PriceRow, Button, Skeleton, Notification } from '@/components/ui'
+import { StatGrid, MenuButton, StatusPill, PriceRow, Button, Skeleton, Notification, Text } from '@/components/ui'
 import { formatCompact, formatPercent } from '@/lib/formatters'
 import { useMyChannels, useChannelSettings, useDeleteChannel } from '@/hooks/queries/useChannelQueries'
 import { useHaptic } from '@/hooks/useHaptic'
@@ -43,7 +43,7 @@ export default function OwnChannelDetail() {
     return (
       <ScreenShell>
         <Notification type="danger">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>❌ Канал не найден</span>
+          <Text variant="sm">❌ Канал не найден</Text>
         </Notification>
       </ScreenShell>
     )

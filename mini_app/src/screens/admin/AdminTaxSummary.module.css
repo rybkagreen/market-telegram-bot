@@ -1,0 +1,109 @@
+/* ============================================================
+   RekHarbor Admin — AdminTaxSummary styles
+   ============================================================ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+  padding: var(--rh-space-4);
+  padding-bottom: max(var(--rh-space-4), env(safe-area-inset-bottom, 0px));
+}
+
+.select {
+  padding: var(--rh-space-2) var(--rh-space-3);
+  border: 1px solid var(--rh-border-active);
+  border-radius: var(--rh-radius-md);
+  background: var(--rh-bg-elevated);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color var(--rh-transition-fast),
+    box-shadow var(--rh-transition-fast);
+}
+
+.select:focus {
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 2px var(--rh-border-focus);
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--rh-space-3);
+}
+
+.statCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-1);
+}
+
+/* ── Table ── */
+.tableWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--rh-text-sm);
+}
+
+.table thead tr {
+  border-bottom: 1px solid var(--rh-border-active);
+}
+
+.table th {
+  padding: var(--rh-space-2) var(--rh-space-3);
+  text-align: left;
+  font-weight: var(--rh-weight-medium);
+  color: var(--rh-text-secondary);
+  font-size: var(--rh-text-xs);
+  white-space: nowrap;
+}
+
+.table th.right {
+  text-align: right;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--rh-border);
+  transition: background var(--rh-transition-fast);
+}
+
+.table tbody tr:hover {
+  background: var(--rh-surface);
+}
+
+.table td {
+  padding: var(--rh-space-2) var(--rh-space-3);
+  white-space: nowrap;
+}
+
+.table td.right {
+  text-align: right;
+}
+
+.table td.mono {
+  font-family: var(--rh-font-mono);
+  font-size: var(--rh-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr.totalRow {
+  background: var(--rh-surface-2);
+  font-weight: var(--rh-weight-bold);
+}
+
+.table tbody tr.totalRow:hover {
+  background: var(--rh-surface-2);
+}
+
+/* ── Back button wrapper ── */
+.backButtonWrap {
+  margin-top: var(--rh-space-6);
+}

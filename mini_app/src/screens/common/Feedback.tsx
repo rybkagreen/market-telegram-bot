@@ -3,6 +3,7 @@ import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Notification } from '@/components/ui/Notification'
+import { Text } from '@/components/ui/Text'
 import { useHaptic } from '@/hooks/useHaptic'
 import { useCreateFeedback, useMyFeedback } from '@/hooks/queries/useFeedbackQueries'
 import styles from './Feedback.module.css'
@@ -34,9 +35,9 @@ export default function Feedback() {
           placeholder="Опишите вашу проблему или предложение..."
           rows={6}
         />
-        <p style={{ fontSize: 'var(--rh-text-xs)', color: 'var(--rh-text-secondary)', marginTop: '4px' }}>
+        <Text variant="xs" color="secondary" as="p" className={styles.charCount}>
           {text.trim().length < 10 ? `Минимум 10 символов (введено ${text.trim().length})` : ''}
-        </p>
+        </Text>
       </Card>
 
       <Button

@@ -19,10 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import AdminUser, get_db_session
 from src.api.schemas.admin import (
+    AdminContractListResponse,
+    FinancialStats,
     PlatformStatsResponse,
     UserAdminResponse,
     UserListAdminResponse,
 )
+from src.db.models.contract import Contract
 from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
@@ -55,12 +58,8 @@ async def _get_feedback_stats(session: AsyncSession) -> dict:
     in_progress = (
         await session.execute(base.where(UserFeedback.status == "IN_PROGRESS"))
     ).scalar() or 0
-    resolved = (
-        await session.execute(base.where(UserFeedback.status == "RESOLVED"))
-    ).scalar() or 0
-    rejected = (
-        await session.execute(base.where(UserFeedback.status == "REJECTED"))
-    ).scalar() or 0
+    resolved = (await session.execute(base.where(UserFeedback.status == "RESOLVED"))).scalar() or 0
+    rejected = (await session.execute(base.where(UserFeedback.status == "REJECTED"))).scalar() or 0
     return {
         "total": total,
         "new": new,
@@ -94,9 +93,7 @@ async def _get_placement_stats(session: AsyncSession) -> dict:
     base = select(func.count()).select_from(PlacementRequest)
     total = (await session.execute(base)).scalar() or 0
     pending = (
-        await session.execute(
-            base.where(PlacementRequest.status == PlacementStatus.pending_owner)
-        )
+        await session.execute(base.where(PlacementRequest.status == PlacementStatus.pending_owner))
     ).scalar() or 0
     active = (
         await session.execute(
@@ -106,9 +103,7 @@ async def _get_placement_stats(session: AsyncSession) -> dict:
         )
     ).scalar() or 0
     completed = (
-        await session.execute(
-            base.where(PlacementRequest.status == PlacementStatus.published)
-        )
+        await session.execute(base.where(PlacementRequest.status == PlacementStatus.published))
     ).scalar() or 0
     cancelled = (
         await session.execute(
@@ -132,12 +127,20 @@ async def _get_financial_stats(session: AsyncSession) -> dict:
     """Fetch financial totals from the platform account."""
     from src.db.models.platform_account import PlatformAccount
 
-    platform_account = await session.get(PlatformAccount, 1)
+    pa = await session.get(PlatformAccount, 1)
+    total_topups = pa.total_topups if pa else Decimal("0")
+    total_payouts = pa.total_payouts if pa else Decimal("0")
+    net_balance = total_topups - total_payouts
     return {
-        "total_revenue": str(platform_account.total_topups) if platform_account else "0.00",
-        "total_payouts": str(platform_account.total_payouts) if platform_account else "0.00",
-        "pending_payouts": str(platform_account.payout_reserved) if platform_account else "0.00",
-        "escrow_reserved": str(platform_account.escrow_reserved) if platform_account else "0.00",
+        "total_topups": str(total_topups),
+        "total_payouts": str(total_payouts),
+        "net_balance": str(net_balance),
+        "escrow_reserved": str(pa.escrow_reserved if pa else Decimal("0")),
+        "payout_reserved": str(pa.payout_reserved if pa else Decimal("0")),
+        "profit_accumulated": str(pa.profit_accumulated if pa else Decimal("0")),
+        # backward-compat aliases
+        "total_revenue": str(total_topups),
+        "pending_payouts": str(pa.payout_reserved if pa else Decimal("0")),
     }
 
 
@@ -163,7 +166,9 @@ async def get_platform_stats(
     Returns:
         PlatformStatsResponse with all statistics
     """
-    logger.info(f"[ADMIN_STATS] Request received from admin user #{admin_user.id} ({admin_user.username})")
+    logger.info(
+        f"[ADMIN_STATS] Request received from admin user #{admin_user.id} ({admin_user.username})"
+    )
     logger.info(f"[ADMIN_STATS] User is_admin={admin_user.is_admin}")
 
     users = await _get_user_stats(session)
@@ -179,7 +184,7 @@ async def get_platform_stats(
         feedback=feedback,
         disputes=disputes,
         placements=placements,
-        financial=financial,
+        financial=FinancialStats.model_validate(financial),
     )
 
 
@@ -236,26 +241,30 @@ async def get_all_users(
     items = []
     for u in users:
         # Count user's placements
-        placements_count_query = select(func.count()).select_from(PlacementRequest).where(
-            PlacementRequest.advertiser_id == u.id
+        placements_count_query = (
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(PlacementRequest.advertiser_id == u.id)
         )
         total_placements = (await session.execute(placements_count_query)).scalar() or 0
 
         # Count user's channels
-        channels_count_query = select(func.count()).select_from(TelegramChat).where(
-            TelegramChat.owner_id == u.id
+        channels_count_query = (
+            select(func.count()).select_from(TelegramChat).where(TelegramChat.owner_id == u.id)
         )
         total_channels = (await session.execute(channels_count_query)).scalar() or 0
 
         # Count user's feedback
-        feedback_count_query = select(func.count()).select_from(UserFeedback).where(
-            UserFeedback.user_id == u.id
+        feedback_count_query = (
+            select(func.count()).select_from(UserFeedback).where(UserFeedback.user_id == u.id)
         )
         total_feedback = (await session.execute(feedback_count_query)).scalar() or 0
 
         # Count user's disputes
-        disputes_count_query = select(func.count()).select_from(PlacementDispute).where(
-            (PlacementDispute.advertiser_id == u.id) | (PlacementDispute.owner_id == u.id)
+        disputes_count_query = (
+            select(func.count())
+            .select_from(PlacementDispute)
+            .where((PlacementDispute.advertiser_id == u.id) | (PlacementDispute.owner_id == u.id))
         )
         total_disputes = (await session.execute(disputes_count_query)).scalar() or 0
 
@@ -486,9 +495,15 @@ async def get_platform_settings(
     account = await session.get(PlatformAccount, 1)
     if not account:
         return {
-            "legal_name": None, "inn": None, "kpp": None, "ogrn": None,
-            "address": None, "bank_name": None, "bank_account": None,
-            "bank_bik": None, "bank_corr_account": None,
+            "legal_name": None,
+            "inn": None,
+            "kpp": None,
+            "ogrn": None,
+            "address": None,
+            "bank_name": None,
+            "bank_account": None,
+            "bank_bik": None,
+            "bank_corr_account": None,
         }
     return {
         "legal_name": account.legal_name,
@@ -515,10 +530,22 @@ async def update_platform_settings(
     from src.db.models.platform_account import PlatformAccount
     from src.db.repositories.audit_log_repo import AuditLogRepo
 
-    allowed = {"legal_name", "inn", "kpp", "ogrn", "address", "bank_name", "bank_account", "bank_bik", "bank_corr_account"}
+    allowed = {
+        "legal_name",
+        "inn",
+        "kpp",
+        "ogrn",
+        "address",
+        "bank_name",
+        "bank_account",
+        "bank_bik",
+        "bank_corr_account",
+    }
     values = {k: v for k, v in payload.items() if k in allowed}
     if not values:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No valid fields provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No valid fields provided"
+        )
 
     await session.execute(
         sa_update(PlatformAccount).where(PlatformAccount.id == 1).values(**values)
@@ -564,26 +591,30 @@ async def get_user_details(
         )
 
     # Count user's placements
-    placements_count_query = select(func.count()).select_from(PlacementRequest).where(
-        PlacementRequest.advertiser_id == user_id
+    placements_count_query = (
+        select(func.count())
+        .select_from(PlacementRequest)
+        .where(PlacementRequest.advertiser_id == user_id)
     )
     total_placements = (await session.execute(placements_count_query)).scalar() or 0
 
     # Count user's channels
-    channels_count_query = select(func.count()).select_from(TelegramChat).where(
-        TelegramChat.owner_id == user_id
+    channels_count_query = (
+        select(func.count()).select_from(TelegramChat).where(TelegramChat.owner_id == user_id)
     )
     total_channels = (await session.execute(channels_count_query)).scalar() or 0
 
     # Count user's feedback
-    feedback_count_query = select(func.count()).select_from(UserFeedback).where(
-        UserFeedback.user_id == user_id
+    feedback_count_query = (
+        select(func.count()).select_from(UserFeedback).where(UserFeedback.user_id == user_id)
     )
     total_feedback = (await session.execute(feedback_count_query)).scalar() or 0
 
     # Count user's disputes
-    disputes_count_query = select(func.count()).select_from(PlacementDispute).where(
-        (PlacementDispute.advertiser_id == user_id) | (PlacementDispute.owner_id == user_id)
+    disputes_count_query = (
+        select(func.count())
+        .select_from(PlacementDispute)
+        .where((PlacementDispute.advertiser_id == user_id) | (PlacementDispute.owner_id == user_id))
     )
     total_disputes = (await session.execute(disputes_count_query)).scalar() or 0
 
@@ -690,3 +721,144 @@ async def topup_user_balance(
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
+
+
+# ─── Tax Summary & KUDiR Export (Sprint B.1) ────────────────────────────────
+
+
+@router.get("/tax/summary", responses={404: {"description": "Quarter not found"}})
+async def get_tax_summary(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    year: int,
+    quarter: int,
+) -> dict:
+    """Получить налоговую сводку за квартал (JSON)."""
+    from src.core.services.tax_aggregation_service import TaxAggregationService
+
+    try:
+        summary = await TaxAggregationService.get_quarterly_summary(session, year, quarter)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    # Сериализуем Decimal и datetime для JSON
+    serializable = {
+        **summary,
+        "usn_revenue": str(summary["usn_revenue"]),
+        "vat_accumulated": str(summary["vat_accumulated"]),
+        "ndfl_withheld": str(summary["ndfl_withheld"]),
+        "total_income": str(summary["total_income"]),
+        "tax_6percent": str(summary["tax_6percent"]),
+        "kudir_entries": [
+            {
+                "entry_number": e["entry_number"],
+                "operation_date": e["operation_date"].isoformat() if e["operation_date"] else None,
+                "description": e["description"],
+                "income_amount": str(e["income_amount"]),
+            }
+            for e in summary["kudir_entries"]
+        ],
+    }
+    logger.info(f"Admin {admin_user.id} retrieved tax summary for {year}-Q{quarter}")
+    return serializable
+
+
+@router.get(
+    "/tax/kudir/{year}/{quarter}/pdf",
+    responses={
+        404: {"description": "Quarter not found"},
+        500: {"description": "PDF generation failed"},
+    },
+)
+async def export_kudir_pdf(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    year: int,
+    quarter: int,
+):
+    """Экспорт КУДиР в PDF за квартал."""
+    from fastapi.responses import StreamingResponse
+
+    from src.core.services.kudir_export_service import KudirExportService
+
+    pdf_bytes = await KudirExportService.generate_kudir_pdf(session, year, quarter)
+
+    logger.info(f"Admin {admin_user.id} exported KUDiR PDF for {year}-Q{quarter}")
+    return StreamingResponse(
+        pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="kudir_{year}_Q{quarter}.pdf"'},
+    )
+
+
+@router.get(
+    "/tax/kudir/{year}/{quarter}/csv",
+    responses={404: {"description": "Quarter not found"}},
+)
+async def export_kudir_csv(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    year: int,
+    quarter: int,
+):
+    """Экспорт КУДиР в CSV за квартал (разделитель ;)."""
+    from io import StringIO
+
+    from fastapi.responses import StreamingResponse
+
+    from src.core.services.kudir_export_service import KudirExportService
+
+    csv_content = await KudirExportService.generate_kudir_csv(session, year, quarter)
+
+    logger.info(f"Admin {admin_user.id} exported KUDiR CSV for {year}-Q{quarter}")
+    return StreamingResponse(
+        StringIO(csv_content),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="kudir_{year}_Q{quarter}.csv"'},
+    )
+
+
+# ─── Admin Contracts ──────────────────────────────────────────────────
+
+
+@router.get("/contracts", response_model=AdminContractListResponse)
+async def list_all_contracts(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    limit: int = 50,
+    offset: int = 0,
+    status_filter: str | None = None,
+) -> AdminContractListResponse:
+    """List all platform contracts with pagination (admin only)."""
+    from src.api.schemas.admin import AdminContractItem
+
+    base = select(Contract)
+    if status_filter:
+        base = base.where(Contract.contract_status == status_filter)
+
+    # Count total
+    count_q = select(func.count()).select_from(Contract)
+    if status_filter:
+        count_q = count_q.where(Contract.contract_status == status_filter)
+    total = (await session.execute(count_q)).scalar() or 0
+
+    # Fetch paginated items
+    result = await session.execute(
+        base.order_by(Contract.created_at.desc()).offset(offset).limit(limit)
+    )
+    contracts = list(result.scalars().all())
+
+    items = [
+        AdminContractItem.model_validate(c)
+        for c in contracts
+    ]
+
+    logger.info(
+        "Admin %s listed contracts: limit=%d, offset=%d, status=%s, total=%d",
+        admin_user.id,
+        limit,
+        offset,
+        status_filter,
+        total,
+    )
+    return AdminContractListResponse(items=items, total=total, limit=limit, offset=offset)

@@ -1102,7 +1102,7 @@ async def _collect_all_chats_stats_async(task) -> dict[str, Any]:
     """Асинхронная реализация collect_all_chats_stats."""
     async for session in get_session():
         repo = TelegramChatRepository(session)
-        chats = await repo.get_all_active()  # type: ignore[attr-defined]
+        chats = await repo.get_active()
         break  # Выходим после первого yield
 
     if not chats:

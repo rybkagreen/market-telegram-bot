@@ -2,9 +2,10 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -20,7 +21,9 @@ class YookassaPayment(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     payment_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     gross_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     desired_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -28,8 +31,15 @@ class YookassaPayment(Base, TimestampMixin):
     payment_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Sprint A.2: enriched webhook data
+    payment_method_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    receipt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    yookassa_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
     # Relationships
     user: Mapped["User"] = relationship("User", backref="yookassa_payments")
 
     def __repr__(self) -> str:
-        return f"<YookassaPayment(id={self.id}, payment_id={self.payment_id}, status={self.status})>"
+        return (
+            f"<YookassaPayment(id={self.id}, payment_id={self.payment_id}, status={self.status})>"
+        )

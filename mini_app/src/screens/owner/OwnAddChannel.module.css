@@ -80,3 +80,13 @@
   font-weight: 600;
   color: var(--rh-danger);
 }
+
+/* Violations list styles */
+.violationsList {
+  margin: var(--rh-space-2) 0 0;
+  padding-left: var(--rh-space-4);
+}
+
+.violationsList li {
+  margin-bottom: var(--rh-space-1);
+}

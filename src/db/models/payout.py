@@ -31,7 +31,9 @@ class PayoutRequest(Base, TimestampMixin):
     __tablename__ = "payout_requests"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     gross_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -41,9 +43,25 @@ class PayoutRequest(Base, TimestampMixin):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Sprint B.2: NDFL withholding & NPD receipt tracking
+    ndfl_withheld: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True, default=Decimal("0"), server_default="0"
+    )
+    npd_receipt_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    npd_receipt_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    npd_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+
     # Relationships
-    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id], back_populates="payout_requests")
-    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="payout_request")
+    owner: Mapped["User"] = relationship(
+        "User", foreign_keys=[owner_id], back_populates="payout_requests"
+    )
+    transactions: Mapped[list["Transaction"]] = relationship(
+        "Transaction", back_populates="payout_request"
+    )
     admin: Mapped[Optional["User"]] = relationship("User", foreign_keys=[admin_id])
 
     def __repr__(self) -> str:

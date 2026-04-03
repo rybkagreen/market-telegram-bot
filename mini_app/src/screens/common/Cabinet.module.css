@@ -1,3 +1,24 @@
 .reputationGap {
   margin: 0;
 }
+
+.convertToggle {
+  margin-top: var(--rh-space-3);
+}
+
+.converterForm {
+  margin-top: var(--rh-space-3);
+  display: flex;
+  gap: var(--rh-space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.convertInput {
+  padding: var(--rh-space-2) var(--rh-space-3);
+  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border-color);
+  background: var(--rh-bg-elevated);
+  color: var(--rh-text-primary);
+  width: 140px;
+}

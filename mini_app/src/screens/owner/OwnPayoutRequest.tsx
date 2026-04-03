@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Button, AmountChips, FeeBreakdown, Notification } from '@/components/ui'
+import { Card, Button, AmountChips, FeeBreakdown, Notification, Text } from '@/components/ui'
 import { ContractCard } from '@/components/ContractCard'
 import { KepWarning } from '@/components/KepWarning'
 import { TaxBreakdown } from '@/components/TaxBreakdown'
@@ -138,9 +138,9 @@ export default function OwnPayoutRequest() {
       />
 
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           ⏱ Обработка: до 24 часов · 09:00–22:00 МСК
-        </span>
+        </Text>
       </Notification>
 
       {amount > 0 && legalProfile && (

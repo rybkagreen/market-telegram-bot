@@ -16,6 +16,11 @@ import { Card, Skeleton, Notification, MenuButton } from '@/components/ui'
 import AdminNav from '@/components/admin/AdminNav'
 import styles from './AdminDashboard.module.css'
 
+function formatRub(value: string | number): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value
+  return num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const { data: user, isLoading: userLoading } = useMe()
@@ -62,7 +67,7 @@ export default function AdminDashboard() {
       <ScreenShell>
         <Notification type="danger">
           Failed to load statistics
-          {error && <div style={{ fontSize: '12px', marginTop: '8px' }}>Error: {error.message}</div>}
+          {error && <div className={styles.errorDetail}>Error: {error.message}</div>}
         </Notification>
       </ScreenShell>
     )
@@ -114,17 +119,40 @@ export default function AdminDashboard() {
           </Card>
 
           {/* Financial Stats */}
-          <Card title="💰 Financial">
-            <div className={styles.statValue}>{stats.financial.total_revenue} ₽</div>
-            <div className={styles.statDetails}>
-              <span>Payouts: {stats.financial.total_payouts} ₽</span>
-              <span>Pending: {stats.financial.pending_payouts} ₽</span>
+          <Card title="💰 Балансы платформы">
+            <div className={styles.finGrid}>
+              <div className={styles.finRow}>
+                <span className={styles.finLabel}>💳 Внесено всего</span>
+                <span className={styles.finValueIn}>{formatRub(stats.financial.total_topups)}</span>
+              </div>
+              <div className={styles.finRow}>
+                <span className={styles.finLabel}>💸 Выведено всего</span>
+                <span className={styles.finValueOut}>{formatRub(stats.financial.total_payouts)}</span>
+              </div>
+              <div className={`${styles.finRow} ${styles.finRowTotal}`}>
+                <span className={styles.finLabel}>📊 Оборот (внесено − выведено)</span>
+                <span className={styles.finValueNet}>{formatRub(stats.financial.net_balance)}</span>
+              </div>
+              <div className={styles.finDivider} />
+              <div className={styles.finRow}>
+                <span className={styles.finLabel}>🔒 В эскроу сейчас</span>
+                <span className={styles.finValueNeutral}>{formatRub(stats.financial.escrow_reserved)}</span>
+              </div>
+              <div className={styles.finRow}>
+                <span className={styles.finLabel}>⏳ Ожидают вывода</span>
+                <span className={styles.finValueNeutral}>{formatRub(stats.financial.payout_reserved)}</span>
+              </div>
+              <div className={styles.finDivider} />
+              <div className={styles.finRow}>
+                <span className={styles.finLabel}>⭐ Комиссия платформы</span>
+                <span className={styles.finValueIn}>{formatRub(stats.financial.profit_accumulated)}</span>
+              </div>
             </div>
           </Card>
         </div>
 
         {/* Back to Main Menu Button */}
-        <div style={{ marginTop: 'var(--rh-space-6)' }}>
+        <div className={styles.backButtonWrap}>
           <MenuButton
             variant="back"
             icon="🔙"

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { MenuButton, Notification } from '@/components/ui'
+import { MenuButton, Notification, Text } from '@/components/ui'
 import { PLAN_INFO } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import styles from './AdvMenu.module.css'
@@ -24,9 +24,9 @@ export default function AdvMenu() {
   return (
     <ScreenShell>
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           📣 Режим рекламодателя · Тариф {plan?.displayName ?? '—'}
-        </span>
+        </Text>
       </Notification>
 
       <p className={styles.sectionTitle}>Меню рекламодателя</p>

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Skeleton, EmptyState, StatusPill } from '@/components/ui'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
+import styles from './LegalProfileView.module.css'
 
 const FIELD_LABELS: Record<string, string> = {
   legal_name: 'Название / ФИО',
@@ -51,7 +52,7 @@ export default function LegalProfileView() {
   return (
     <ScreenShell>
       {profile.is_verified && (
-        <div style={{ marginBottom: 8 }}>
+        <div className={styles.statusWrapper}>
           <StatusPill status="success">✅ Верифицирован</StatusPill>
         </div>
       )}
@@ -61,8 +62,8 @@ export default function LegalProfileView() {
           const val = profile[key]
           if (!val) return null
           return (
-            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 'var(--rh-text-sm, 14px)' }}>
-              <span style={{ color: 'var(--rh-text-muted)' }}>{FIELD_LABELS[key] ?? key}</span>
+            <div key={key} className={styles.fieldRow}>
+              <span className={styles.fieldLabel}>{FIELD_LABELS[key] ?? key}</span>
               <span>{String(val)}</span>
             </div>
           )
@@ -74,8 +75,8 @@ export default function LegalProfileView() {
           const val = profile[key]
           if (!val) return null
           return (
-            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 'var(--rh-text-sm, 14px)' }}>
-              <span style={{ color: 'var(--rh-text-muted)' }}>{FIELD_LABELS[key] ?? key}</span>
+            <div key={key} className={styles.fieldRow}>
+              <span className={styles.fieldLabel}>{FIELD_LABELS[key] ?? key}</span>
               <span>{String(val)}</span>
             </div>
           )
@@ -89,14 +90,14 @@ export default function LegalProfileView() {
           { key: 'has_self_employed_cert', label: 'Справка самозанятого' },
           { key: 'has_company_doc', label: 'Учредительные документы' },
         ].map(({ key, label }) => (
-          <div key={key} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 'var(--rh-text-sm, 14px)' }}>
+          <div key={key} className={styles.docRow}>
             <span>{profile[key as keyof typeof profile] ? '✅' : '⬜'}</span>
-            <span style={{ color: profile[key as keyof typeof profile] ? 'inherit' : 'var(--rh-text-muted)' }}>{label}</span>
+            <span className={profile[key as keyof typeof profile] ? undefined : styles.docLabel}>{label}</span>
           </div>
         ))}
       </Card>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+      <div className={styles.actionButtons}>
         <Button variant="secondary" fullWidth onClick={() => navigate('/legal-profile')}>
           Редактировать
         </Button>

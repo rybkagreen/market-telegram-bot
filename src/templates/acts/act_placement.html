@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Акт выполненных работ №{{ act_number }}</title>
+<style>
+  @page { margin: 20mm 25mm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; color: #000; background: #fff; padding: 20px 30px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .pname { font-size: 15pt; font-weight: bold; letter-spacing: 1px; }
+  .psub { font-size: 9.5pt; color: #555; margin-top: 2px; }
+  h1 { text-align: center; font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 18px 0 6px; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 11pt; }
+  .parties { margin: 16px 0; text-align: justify; }
+  h2 { font-size: 12pt; font-weight: bold; text-align: center; margin: 20px 0 10px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  p { margin-bottom: 7px; text-align: justify; }
+  .cl { margin-bottom: 6px; }
+  .table-services { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 10.5pt; }
+  .table-services th { background: #f0f0f0; padding: 6px 8px; text-align: left; border: 1px solid #ccc; }
+  .table-services td { padding: 6px 8px; border: 1px solid #ccc; }
+  .table-services .num { text-align: right; }
+  .box-info { background: #e8f5e9; border-left: 3px solid #2e7d32; padding: 7px 11px; margin: 10px 0; font-size: 10.5pt; }
+  .sigs { margin-top: 36px; display: flex; gap: 36px; }
+  .sb { flex: 1; }
+  .sb h3 { font-size: 11.5pt; font-weight: bold; text-align: center; margin-bottom: 10px; }
+  .req { font-size: 10pt; line-height: 1.65; margin-top: 6px; }
+  .sline { border-bottom: 1px solid #000; margin: 14px 0 3px; min-height: 18px; }
+  .slabel { font-size: 8.5pt; color: #666; }
+  .stamp { border: 1px dashed #aaa; height: 72px; margin-top: 10px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 8.5pt; }
+  .total-row td { font-weight: bold; background: #fffde7; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="pname">{{ platform_legal_name | default('RekHarborBot') }}</div>
+  <div class="psub">Платформа автоматизированного размещения рекламы в Telegram-каналах</div>
+</div>
+
+<h1>Акт выполненных работ №{{ act_number }}</h1>
+<div class="meta"><span>г. Москва</span><span>«{{ act_date }}»</span></div>
+
+<div class="parties">
+  <p><strong>{{ platform_legal_name | default('ИП РекХарбор') }}</strong>, ИНН {{ platform_inn | default('XXXXXXXXXX') }}, именуемый далее <strong>«Исполнитель»</strong>, с одной стороны, и <strong>{{ advertiser_name }}</strong>{% if advertiser_inn %}, ИНН {{ advertiser_inn }}{% endif %}, именуемый далее <strong>«Заказчик»</strong>, с другой стороны, составили настоящий Акт о нижеследующем.</p>
+</div>
+
+<h2>1. Перечень оказанных услуг</h2>
+<p class="cl">Исполнитель оказал, а Заказчик принял следующие услуги:</p>
+
+<table class="table-services">
+  <thead>
+    <tr>
+      <th>№</th>
+      <th>Наименование услуги</th>
+      <th>Формат</th>
+      <th>Период</th>
+      <th>Сумма, ₽</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align:center;">1</td>
+      <td>Размещение рекламы в Telegram-канале «{{ channel_name }}» (ID: {{ channel_id }})</td>
+      <td>{{ publication_format }}</td>
+      <td>{{ published_at }} — {{ deleted_at }}</td>
+      <td class="num">{{ final_price }}</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">Итого:</td>
+      <td class="num">{{ final_price }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box-info">
+  ✅ <strong>Маркировка:</strong> erid-токен {{ erid | default('присвоен') }}. Реклама размещена и удалена автоматически Ботом Платформы в соответствии с требованиями ФЗ «О рекламе» и ОРД.
+</div>
+
+<h2>2. Стороны подтверждают</h2>
+<p class="cl">2.1. Услуги оказаны в полном объёме, в установленные сроки и с надлежащим качеством.</p>
+<p class="cl">2.2. Заказчик не имеет претензий к Исполнителю по объёму, срокам и качеству оказанных услуг.</p>
+<p class="cl">2.3. Настоящий Акт является основанием для признания дохода Исполнителя и расхода Заказчика.</p>
+<p class="cl">2.4. Настоящий Акт составлен в двух экземплярах, имеющих равную юридическую силу, по одному для каждой из Сторон.</p>
+
+<h2>3. Реквизиты и подписи сторон</h2>
+<div class="sigs">
+  <div class="sb">
+    <h3>Исполнитель (Платформа)</h3>
+    <div class="req">
+      <strong>{{ platform_legal_name | default('ИП РекХарбор') }}</strong><br>
+      ИНН: {{ platform_inn | default('__________') }}<br>
+      {% if platform_kpp %}КПП: {{ platform_kpp }}<br>{% endif %}
+      {% if platform_ogrn %}ОГРН: {{ platform_ogrn }}<br>{% endif %}
+      {% if platform_address %}Адрес: {{ platform_address }}<br>{% endif %}
+      {% if platform_bank_account %}Р/С: {{ platform_bank_account }}<br>{% endif %}
+      {% if platform_bank_name %}Банк: {{ platform_bank_name }}<br>{% endif %}
+      {% if platform_bank_bik %}БИК: {{ platform_bank_bik }}<br>{% endif %}
+    </div>
+    <div class="sline"></div>
+    <div class="slabel">Подпись / ФИО / Дата</div>
+    <div class="stamp">М.П.</div>
+  </div>
+  <div class="sb">
+    <h3>Заказчик (Рекламодатель)</h3>
+    <div class="req">
+      <strong>{{ advertiser_name }}</strong><br>
+      {% if advertiser_inn %}ИНН: {{ advertiser_inn }}<br>{% endif %}
+      {% if advertiser_legal_status %}Статус: {{ advertiser_legal_status }}<br>{% endif %}
+    </div>
+    <div class="sline"></div>
+    <div class="slabel">Подпись / ФИО / Дата</div>
+    <div class="stamp">М.П.</div>
+  </div>
+</div>
+
+</body>
+</html>
