@@ -20,6 +20,7 @@ const LegalProfileView   = lazy(() => import('@/screens/common/LegalProfileView'
 const ContractList       = lazy(() => import('@/screens/common/ContractList'))
 const ContractDetail     = lazy(() => import('@/screens/common/ContractDetail'))
 const AcceptRules        = lazy(() => import('@/screens/common/AcceptRules'))
+const TransactionHistory = lazy(() => import('@/screens/common/TransactionHistory'))
 
 // ═══ Advertiser ═══
 const AdvMenu        = lazy(() => import('@/screens/advertiser/AdvMenu'))
@@ -110,6 +111,7 @@ const router = createBrowserRouter([
       { path: 'contracts',                element: <ContractList /> },
       { path: 'contracts/:id',            element: <ContractDetail /> },
       { path: 'accept-rules',             element: <AcceptRules /> },
+      { path: 'billing/history',          element: <TransactionHistory /> },
       { path: 'campaign/video',           element: <CampaignVideo /> },
       { path: 'campaign/:id/ord',         element: <OrdStatus /> },
       { path: 'contracts/framework',      element: <AdvertiserFrameworkContract /> },

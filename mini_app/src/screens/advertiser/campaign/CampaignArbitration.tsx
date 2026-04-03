@@ -17,22 +17,25 @@ export default function CampaignArbitration() {
   const format = store.format
   const formatInfo = format ? PUBLICATION_FORMATS[format] : null
 
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().substring(0, 10)
+
   const handleSubmit = async () => {
     if (!format || store.selectedChannels.length === 0) return
     haptic.success()
     let firstId: number | null = null
     for (const ch of store.selectedChannels) {
-      const schedule = store.proposedSchedules[ch.id] ?? '14:00'
+      const schedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
       const basePrice = parseFloat(ch.settings.price_per_post)
       const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
       const price = store.proposedPrices[ch.id] ?? ownerPrice
-      const today = new Date().toISOString().substring(0, 10)
       const result = await createPlacement({
         channel_id: ch.id,
         publication_format: format,
         ad_text: store.adText,
         proposed_price: price,
-        proposed_schedule: `${today}T${schedule}:00`,
+        proposed_schedule: `${schedule}:00`,
         is_test: store.isTest,
       })
       if (firstId === null) firstId = result.id
@@ -58,7 +61,10 @@ export default function CampaignArbitration() {
         const basePrice = parseFloat(ch.settings.price_per_post)
         const ownerPrice = format ? calcFormatPrice(basePrice, format) : basePrice
         const currentProposed = store.proposedPrices[ch.id] ?? ownerPrice
-        const currentSchedule = store.proposedSchedules[ch.id] ?? '14:00'
+        const currentSchedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
+
+        const currentDateTime = currentSchedule.includes('T') ? currentSchedule : `${defaultDate}T${currentSchedule}`
+        const [currentDatePart, currentTimePart] = currentDateTime.split('T')
 
         return (
           <ArbitrationPanel
@@ -83,12 +89,26 @@ export default function CampaignArbitration() {
                 />
               </div>
               <div className={styles.row}>
-                <span className={styles.rowLabel}>📅 Время публикации</span>
+                <span className={styles.rowLabel}>📅 Дата публикации</span>
+                <input
+                  type="date"
+                  className={styles.timeInput}
+                  value={currentDatePart ?? defaultDate}
+                  min={defaultDate}
+                  onChange={(e) =>
+                    store.setProposedSchedule(ch.id, `${e.target.value}T${currentTimePart ?? '14:00'}`)
+                  }
+                />
+              </div>
+              <div className={styles.row}>
+                <span className={styles.rowLabel}>🕐 Время публикации</span>
                 <input
                   type="time"
                   className={styles.timeInput}
-                  value={currentSchedule}
-                  onChange={(e) => store.setProposedSchedule(ch.id, e.target.value)}
+                  value={currentTimePart ?? '14:00'}
+                  onChange={(e) =>
+                    store.setProposedSchedule(ch.id, `${currentDatePart ?? defaultDate}T${e.target.value}`)
+                  }
                 />
               </div>
               <div className={styles.row}>

@@ -15,6 +15,7 @@ interface CampaignWizardState {
   format: PublicationFormat | null
   adText: string
   proposedPrices: Record<number, number>
+  /** Full datetime strings in format YYYY-MM-DDTHH:MM (date + time, minimum tomorrow) */
   proposedSchedules: Record<number, string>
   isTest: boolean
 

@@ -132,12 +132,20 @@ async def _get_financial_stats(session: AsyncSession) -> dict:
     """Fetch financial totals from the platform account."""
     from src.db.models.platform_account import PlatformAccount
 
-    platform_account = await session.get(PlatformAccount, 1)
+    pa = await session.get(PlatformAccount, 1)
+    total_topups = pa.total_topups if pa else Decimal("0")
+    total_payouts = pa.total_payouts if pa else Decimal("0")
+    net_balance = total_topups - total_payouts
     return {
-        "total_revenue": str(platform_account.total_topups) if platform_account else "0.00",
-        "total_payouts": str(platform_account.total_payouts) if platform_account else "0.00",
-        "pending_payouts": str(platform_account.payout_reserved) if platform_account else "0.00",
-        "escrow_reserved": str(platform_account.escrow_reserved) if platform_account else "0.00",
+        "total_topups": str(total_topups),
+        "total_payouts": str(total_payouts),
+        "net_balance": str(net_balance),
+        "escrow_reserved": str(pa.escrow_reserved if pa else Decimal("0")),
+        "payout_reserved": str(pa.payout_reserved if pa else Decimal("0")),
+        "profit_accumulated": str(pa.profit_accumulated if pa else Decimal("0")),
+        # backward-compat aliases
+        "total_revenue": str(total_topups),
+        "pending_payouts": str(pa.payout_reserved if pa else Decimal("0")),
     }
 
 
