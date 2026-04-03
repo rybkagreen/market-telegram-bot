@@ -7,6 +7,7 @@ import { KepWarning } from '@/components/KepWarning'
 import { useContract, useSignContract } from '@/hooks/useContractQueries'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import type { LegalStatus } from '@/lib/types'
+import styles from './ContractDetail.module.css'
 
 const SIGN_BUTTON_LABEL: Record<LegalStatus, string> = {
   individual: '✅ Подписать',
@@ -70,14 +71,7 @@ export default function ContractDetail() {
           href={contract.pdf_url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            display: 'block',
-            padding: '10px 16px',
-            textAlign: 'center',
-            color: 'var(--rh-accent)',
-            fontSize: 'var(--rh-text-sm, 14px)',
-            marginTop: 8,
-          }}
+          className={styles.pdfLink}
         >
           📥 Скачать PDF
         </a>
@@ -91,7 +85,7 @@ export default function ContractDetail() {
       ) : canSign ? (
         <>
           <KepWarning contract={contract} legalStatus={legalStatus} />
-          <div style={{ marginTop: 12 }}>
+          <div className={styles.actionWrapper}>
             <Button
               variant="primary"
               fullWidth

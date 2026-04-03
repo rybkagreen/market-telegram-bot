@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { ArbitrationPanel, Button, Card, Modal, Notification, Skeleton } from '@/components/ui'
+import { ArbitrationPanel, Button, Card, Modal, Notification, Skeleton, Text, Flex } from '@/components/ui'
 import { PUBLICATION_FORMATS, MAX_COUNTER_OFFERS, MIN_REJECTION_COMMENT } from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
@@ -179,9 +179,9 @@ export default function OwnRequestDetail() {
             </>
           ) : (
             <Notification type="warning">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 Максимум {MAX_COUNTER_OFFERS} раунда контр-предложений исчерпано
-              </span>
+              </Text>
             </Notification>
           )}
 
@@ -233,35 +233,38 @@ export default function OwnRequestDetail() {
       >
         {reviews?.my_review ? (
           <div>
-            <p style={{ marginBottom: 8, color: 'var(--rh-text-secondary, #888)', fontSize: 14 }}>
+            <Text variant="sm" color="secondary" as="p" className={styles.existingReviewLabel}>
               Вы уже оставили отзыв
-            </p>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            </Text>
+            <Flex gap={1} className={styles.reviewSection}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <span key={n} style={{ fontSize: 24, color: n <= reviews.my_review!.rating ? '#f5a623' : '#ccc' }}>
+                <span
+                  key={n}
+                  className={`${styles.star} ${n <= reviews.my_review!.rating ? styles.starActive : styles.starInactive}`}
+                >
                   ★
                 </span>
               ))}
-            </div>
+            </Flex>
             {reviews.my_review.comment && (
-              <p style={{ fontSize: 14 }}>{reviews.my_review.comment}</p>
+              <Text variant="sm" as="p">{reviews.my_review.comment}</Text>
             )}
           </div>
         ) : (
           <div>
-            <p style={{ marginBottom: 8, fontWeight: 500 }}>Оценка</p>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+            <Text variant="sm" weight="medium" as="p" className={styles.reviewSection}>Оценка</Text>
+            <Flex gap={1} className={styles.reviewSectionLarge}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <span
                   key={n}
                   onClick={() => setRating(n)}
-                  style={{ fontSize: 24, cursor: 'pointer', color: n <= rating ? '#f5a623' : '#ccc' }}
+                  className={`${styles.starClickable} ${n <= rating ? styles.starActive : styles.starInactive}`}
                 >
                   {n <= rating ? '★' : '☆'}
                 </span>
               ))}
-            </div>
-            <p style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий</p>
+            </Flex>
+            <Text variant="sm" weight="medium" as="p" className={styles.reviewSection}>Комментарий</Text>
             <textarea
               className={styles.textarea}
               placeholder="Опишите ваш опыт работы с рекламодателем..."

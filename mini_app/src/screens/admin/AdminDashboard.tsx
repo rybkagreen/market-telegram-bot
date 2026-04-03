@@ -67,7 +67,7 @@ export default function AdminDashboard() {
       <ScreenShell>
         <Notification type="danger">
           Failed to load statistics
-          {error && <div style={{ fontSize: '12px', marginTop: '8px' }}>Error: {error.message}</div>}
+          {error && <div className={styles.errorDetail}>Error: {error.message}</div>}
         </Notification>
       </ScreenShell>
     )
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Back to Main Menu Button */}
-        <div style={{ marginTop: 'var(--rh-space-6)' }}>
+        <div className={styles.backButtonWrap}>
           <MenuButton
             variant="back"
             icon="🔙"

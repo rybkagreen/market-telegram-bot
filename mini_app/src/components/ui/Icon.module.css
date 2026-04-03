@@ -1,0 +1,31 @@
+/* ============================================================
+   RekHarbor Icon — lucide-react wrapper with haptic feedback
+   ============================================================ */
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  transition: color var(--rh-transition-fast);
+}
+
+.clickable {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: var(--rh-radius-sm);
+  transition:
+    color var(--rh-transition-fast),
+    background var(--rh-transition-fast),
+    transform var(--rh-transition-fast);
+}
+
+.clickable:hover {
+  color: var(--rh-accent-hover);
+  background: var(--rh-surface);
+}
+
+.clickable:active {
+  transform: scale(0.92);
+}

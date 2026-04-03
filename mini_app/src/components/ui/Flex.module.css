@@ -1,0 +1,38 @@
+/* ============================================================
+   RekHarbor Flex — layout primitive using --rh-* spacing tokens
+   ============================================================ */
+
+.flex {
+  display: flex;
+}
+
+/* ── Directions ── */
+.row        { flex-direction: row; }
+.column     { flex-direction: column; }
+.rowReverse { flex-direction: row-reverse; }
+.columnReverse { flex-direction: column-reverse; }
+
+/* ── Wrap ── */
+.wrap      { flex-wrap: wrap; }
+.noWrap    { flex-wrap: nowrap; }
+.wrapReverse { flex-wrap: wrap-reverse; }
+
+/* ── Align items ── */
+.alignStart    { align-items: flex-start; }
+.alignEnd      { align-items: flex-end; }
+.alignCenter   { align-items: center; }
+.alignBaseline { align-items: baseline; }
+.alignStretch  { align-items: stretch; }
+
+/* ── Justify content ── */
+.justifyStart    { justify-content: flex-start; }
+.justifyEnd      { justify-content: flex-end; }
+.justifyCenter   { justify-content: center; }
+.justifyBetween  { justify-content: space-between; }
+.justifyAround   { justify-content: space-around; }
+.justifyEvenly   { justify-content: space-evenly; }
+
+/* ── Flex grow ── */
+.grow   { flex: 1 1 0%; }
+.shrink  { flex-shrink: 1; }
+.noShrink { flex-shrink: 0; }

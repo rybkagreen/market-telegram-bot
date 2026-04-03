@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Notification, FeeBreakdown, Button, Skeleton, Card } from '@/components/ui'
+import { Notification, FeeBreakdown, Button, Skeleton, Card, Text } from '@/components/ui'
 import { PUBLICATION_FORMATS } from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
@@ -153,16 +153,16 @@ export default function CampaignPayment() {
       />
 
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           ⏱ Действует до {formatDateTime(placement.expires_at)} (24 ч)
-        </span>
+        </Text>
       </Notification>
 
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-xs)' }}>
+        <Text variant="xs">
           📄 Нажимая «Оплатить», вы подтверждаете размещение рекламы в выбранных каналах согласно{' '}
           {frameworkRef}.
-        </span>
+        </Text>
       </Notification>
 
       <div className={styles.buttons}>
@@ -252,9 +252,9 @@ export default function CampaignPayment() {
       </div>
 
       <Notification type="warning">
-        <span style={{ fontSize: 'var(--rh-text-xs)' }}>
+        <Text variant="xs">
           ⚠️ Отмена после оплаты: возврат 50%
-        </span>
+        </Text>
       </Notification>
     </ScreenShell>
   )

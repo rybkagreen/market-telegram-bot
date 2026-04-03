@@ -1,0 +1,15 @@
+.title {
+  font-size: var(--rh-text-lg, 18px);
+  font-weight: var(--rh-weight-bold, 700);
+  margin-bottom: var(--rh-space-2, 8px);
+}
+
+.subtitle {
+  font-size: var(--rh-text-sm, 14px);
+  color: var(--rh-text-muted);
+  margin-bottom: var(--rh-space-4, 16px);
+}
+
+.signSection {
+  margin-top: var(--rh-space-3, 12px);
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>КУДиР — {{ summary.year }} Q{{ summary.quarter }}</title>
+    <style>
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 11px;
+            margin: 40px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 24px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        td.amount {
+            text-align: right;
+            font-family: "Courier New", monospace;
+        }
+        tr.total td {
+            font-weight: bold;
+            background-color: #e8e8e8;
+        }
+        .tax-summary {
+            margin-top: 16px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        .tax-summary p {
+            margin: 4px 0;
+        }
+        .footer {
+            margin-top: 32px;
+            font-size: 10px;
+            color: #999;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Книга учёта доходов и расходов (КУДиР)</h1>
+    <p class="subtitle">
+        Платформа: {{ platform_name }}<br>
+        Квартал: Q{{ summary.quarter }} / {{ summary.year }}
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px;">№</th>
+                <th style="width: 100px;">Дата</th>
+                <th>Описание операции</th>
+                <th style="width: 120px;">Сумма дохода (₽)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in summary.kudir_entries %}
+            <tr>
+                <td>{{ entry.entry_number }}</td>
+                <td>{{ entry.operation_date.strftime('%d.%m.%Y') }}</td>
+                <td>{{ entry.description }}</td>
+                <td class="amount">{{ "%.2f"|format(entry.income_amount) }}</td>
+            </tr>
+            {% endfor %}
+            {% if not summary.kudir_entries %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: #999;">
+                    Нет записей за данный квартал
+                </td>
+            </tr>
+            {% endif %}
+            <tr class="total">
+                <td colspan="3">ИТОГО</td>
+                <td class="amount">{{ "%.2f"|format(summary.total_income) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="tax-summary">
+        <p><strong>Выручка УСН:</strong> {{ "%.2f"|format(summary.usn_revenue) }} ₽</p>
+        <p><strong>Налог УСН 6%:</strong> {{ "%.2f"|format(summary.tax_6percent) }} ₽</p>
+        {% if summary.vat_accumulated > 0 %}
+        <p><strong>НДС накоплено:</strong> {{ "%.2f"|format(summary.vat_accumulated) }} ₽</p>
+        {% endif %}
+        {% if summary.ndfl_withheld > 0 %}
+        <p><strong>НДФЛ удержано:</strong> {{ "%.2f"|format(summary.ndfl_withheld) }} ₽</p>
+        {% endif %}
+    </div>
+
+    <p class="footer">
+        Сформировано: {{ generated_at.strftime('%d.%m.%Y %H:%M:%S') }}<br>
+        Документ сгенерирован автоматически системой RekHarborBot
+    </p>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Notification, Card, Button, Skeleton, StatusPill } from '@/components/ui'
+import { Notification, Card, Button, Skeleton, StatusPill, Text } from '@/components/ui'
 import { formatCurrency, formatTime, formatDateTime } from '@/lib/formatters'
 import { usePlacement } from '@/hooks/queries'
 import styles from './CampaignPublished.module.css'
@@ -52,7 +52,7 @@ export default function CampaignPublished() {
   return (
     <ScreenShell>
       <Notification type="success">
-        <span style={{ fontWeight: 600 }}>🎉 Публикация успешна!</span>
+        <Text weight="semibold">🎉 Публикация успешна!</Text>
       </Notification>
 
       <Card title="Результат" className={styles.card}>
@@ -87,19 +87,19 @@ export default function CampaignPublished() {
       </Card>
 
       {placement.erid !== undefined && (
-        <div style={{ marginBottom: 8 }}>
+        <div className={styles.eridSection}>
           <StatusPill status={placement.erid ? 'success' : 'warning'} size="sm">
             {placement.erid ? `erid: ${placement.erid}` : 'erid: ожидается'}
           </StatusPill>
           {placement.erid && (
-            <p style={{ fontFamily: 'monospace', fontSize: 'var(--rh-text-xs, 12px)', margin: '4px 0 0', color: 'var(--rh-text-muted)' }}>
+            <Text variant="xs" color="muted" font="mono" className={styles.eridToken}>
               Токен маркировки: {placement.erid}
-            </p>
+            </Text>
           )}
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
+      <div className={styles.ordButtonSection}>
         <Button variant="secondary" fullWidth onClick={() => navigate(`/adv/campaigns/${placement.id}/ord`)}>
           Статус ORD →
         </Button>

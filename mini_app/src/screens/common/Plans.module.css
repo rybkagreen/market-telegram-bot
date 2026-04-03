@@ -71,3 +71,8 @@
   font-weight: 700;
   flex-shrink: 0;
 }
+
+.convertLink {
+  cursor: pointer;
+  text-decoration: underline;
+}

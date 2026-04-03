@@ -25,6 +25,11 @@ class UserRepository(BaseRepository[User]):
         result = await self.session.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none()
 
+    async def get_all_admins(self) -> list[User]:
+        """Получить всех администраторов платформы."""
+        result = await self.session.execute(select(User).where(User.is_admin).order_by(User.id))
+        return list(result.scalars().all())
+
     def _is_admin_id(self, telegram_id: int) -> bool:
         """Проверяет, входит ли telegram_id в ADMIN_IDS."""
         return telegram_id in settings.admin_ids
@@ -48,26 +53,34 @@ class UserRepository(BaseRepository[User]):
 
     async def update_balance(self, user_id: int, delta: Decimal) -> None:
         """Обновить баланс пользователя (с блокировкой строки)."""
-        result = await self.session.execute(select(User).where(User.id == user_id).with_for_update())
+        result = await self.session.execute(
+            select(User).where(User.id == user_id).with_for_update()
+        )
         user = result.scalar_one()
         user.balance_rub += delta
         await self.session.flush()
 
     async def update_earned(self, user_id: int, delta: Decimal) -> None:
         """Обновить заработок пользователя (с блокировкой строки)."""
-        result = await self.session.execute(select(User).where(User.id == user_id).with_for_update())
+        result = await self.session.execute(
+            select(User).where(User.id == user_id).with_for_update()
+        )
         user = result.scalar_one()
         user.earned_rub += delta
         await self.session.flush()
 
     async def get_total_balance_sum(self) -> Decimal:
         """Получить сумму balance_rub всех пользователей."""
-        result = await self.session.execute(select(func.coalesce(func.sum(User.balance_rub), Decimal("0"))))
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(User.balance_rub), Decimal("0")))
+        )
         return result.scalar_one() or Decimal("0")
 
     async def get_total_earned_sum(self) -> Decimal:
         """Получить сумму earned_rub всех пользователей."""
-        result = await self.session.execute(select(func.coalesce(func.sum(User.earned_rub), Decimal("0"))))
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(User.earned_rub), Decimal("0")))
+        )
         return result.scalar_one() or Decimal("0")
 
     def _build_update_fields(
@@ -112,7 +125,9 @@ class UserRepository(BaseRepository[User]):
         """
         user = await self.get_by_telegram_id(telegram_id)
         if user:
-            update_data = self._build_update_fields(user, telegram_id, username, first_name, last_name)
+            update_data = self._build_update_fields(
+                user, telegram_id, username, first_name, last_name
+            )
             if update_data:
                 await self.update(user.id, update_data)
             return user

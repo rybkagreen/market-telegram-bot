@@ -1,8 +1,9 @@
 import { useParams } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Skeleton, StatusPill, Notification } from '@/components/ui'
+import { Skeleton, StatusPill, Notification, Text } from '@/components/ui'
 import { useOrdStatus } from '@/hooks/useOrdQueries'
 import type { OrdStatus as OrdStatusType } from '@/lib/types'
+import styles from './OrdStatus.module.css'
 
 const STATUS_LABELS: Record<OrdStatusType, string> = {
   pending: 'Ожидание регистрации',
@@ -27,9 +28,9 @@ export default function OrdStatus() {
 
   return (
     <ScreenShell>
-      <p style={{ fontWeight: 700, fontSize: 'var(--rh-text-lg, 18px)', marginBottom: 16 }}>
+      <Text variant="lg" weight="bold" font="display" className={styles.title}>
         Маркировка рекламы (ORD)
-      </p>
+      </Text>
 
       {isLoading ? (
         <>
@@ -40,23 +41,14 @@ export default function OrdStatus() {
         <Notification type="info">Данные ORD не найдены</Notification>
       ) : (
         <>
-          <div style={{ marginBottom: 12 }}>
+          <div className={styles.statusWrapper}>
             <StatusPill status={STATUS_PILL_MAP[ord.status]}>
               {STATUS_LABELS[ord.status]}
             </StatusPill>
           </div>
 
           {ord.erid && (
-            <div
-              style={{
-                padding: '10px 16px',
-                borderRadius: 'var(--rh-radius-sm, 8px)',
-                background: 'var(--rh-surface, rgba(255,255,255,0.04))',
-                fontFamily: 'monospace',
-                fontSize: 'var(--rh-text-sm, 14px)',
-                marginBottom: 12,
-              }}
-            >
+            <div className={styles.eridBox}>
               Токен erid: <strong>{ord.erid}</strong>
             </div>
           )}
@@ -66,16 +58,9 @@ export default function OrdStatus() {
           )}
 
           {ord.status === 'pending' && (
-            <p
-              style={{
-                fontSize: 'var(--rh-text-xs, 12px)',
-                color: 'var(--rh-text-muted)',
-                textAlign: 'center',
-                marginTop: 16,
-              }}
-            >
+            <Text variant="xs" color="muted" align="center" className={styles.pendingHint}>
               Обновляется автоматически...
-            </p>
+            </Text>
           )}
         </>
       )}

@@ -132,3 +132,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Error detail text ── */
+.errorDetail {
+  font-size: var(--rh-text-xs);
+  margin-top: var(--rh-space-2);
+}
+
+/* ── Back button wrapper ── */
+.backButtonWrap {
+  margin-top: var(--rh-space-6);
+}

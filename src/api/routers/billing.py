@@ -112,7 +112,9 @@ class BillingHistoryItem(BaseModel):
 
     id: int = Field(..., description="ID транзакции")
     type: str = Field(..., description="Тип транзакции")
-    amount: Decimal = Field(..., description="Сумма (всегда положительная; направление определяется типом)")
+    amount: Decimal = Field(
+        ..., description="Сумма (всегда положительная; направление определяется типом)"
+    )
     description: str | None = Field(None, description="Описание операции")
     placement_request_id: int | None = Field(None, description="ID заявки (если применимо)")
     status: str = Field(..., description="'completed' | 'pending'")
@@ -445,15 +447,19 @@ async def get_history(
                 if meta_type == "payout_request":
                     tx_type = "payout"
 
-            items.append(BillingHistoryItem(
-                id=tx.id,
-                type=tx_type,
-                amount=tx.amount,
-                description=tx.description,
-                placement_request_id=tx.placement_request_id,
-                status=tx.payment_status if tx.payment_status else "completed",
-                created_at=tx.created_at.isoformat() if tx.created_at else datetime.now(UTC).isoformat(),
-            ))
+            items.append(
+                BillingHistoryItem(
+                    id=tx.id,
+                    type=tx_type,
+                    amount=tx.amount,
+                    description=tx.description,
+                    placement_request_id=tx.placement_request_id,
+                    status=tx.payment_status if tx.payment_status else "completed",
+                    created_at=tx.created_at.isoformat()
+                    if tx.created_at
+                    else datetime.now(UTC).isoformat(),
+                )
+            )
 
         pages = (total + limit - 1) // limit if total > 0 else 1
 
@@ -465,7 +471,10 @@ async def get_history(
         )
 
 
-@router.post("/credits", responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}})
+@router.post(
+    "/credits",
+    responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}},
+)
 async def buy_credits(
     body: TopupRequest,
     current_user: CurrentUser,
@@ -605,7 +614,6 @@ async def yookassa_webhook(
         )
 
     try:
-
         from src.core.services.billing_service import BillingService
 
         body = await request.json()
@@ -631,9 +639,21 @@ async def yookassa_webhook(
                 record = result.scalar_one_or_none()
 
                 if record:
+                    # Sprint A.2: извлечь и сохранить payment_method и receipt
+                    payment_method = obj.get("payment_method", {})
+                    receipt = obj.get("receipt", {})
+
+                    record.payment_method_type = (
+                        payment_method.get("type") if payment_method else None
+                    )
+                    record.receipt_id = receipt.get("id") if receipt else None
+                    record.yookassa_metadata = obj  # сохраняем полный payload
+
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
-                        "desired_balance": str(record.desired_balance),  # credits = desired_balance в v4.2
+                        "desired_balance": str(
+                            record.desired_balance
+                        ),  # credits = desired_balance в v4.2
                         "user_id": str(record.user_id),
                     }
                     gross_amount = record.gross_amount
@@ -652,7 +672,8 @@ async def yookassa_webhook(
 
                     logger.info(
                         f"Topup processed: payment_id={payment_id}, "
-                        f"desired={metadata['desired_balance']}, gross={gross_amount}"
+                        f"desired={metadata['desired_balance']}, gross={gross_amount}, "
+                        f"method={record.payment_method_type}, receipt={record.receipt_id}"
                     )
                 else:
                     logger.warning(f"YooKassaPayment record not found for {payment_id}")

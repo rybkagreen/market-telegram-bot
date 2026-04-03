@@ -1,0 +1,50 @@
+/* ============================================================
+   RekHarbor Admin — AdminPlatformSettings styles
+   ============================================================ */
+
+.subtitle {
+  font-size: var(--rh-text-sm);
+  color: var(--rh-text-muted);
+  margin-bottom: var(--rh-space-4);
+}
+
+.notificationWrap {
+  margin-bottom: var(--rh-space-3);
+}
+
+.loadingText {
+  color: var(--rh-text-muted);
+}
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rh-space-3);
+}
+
+.formLabel {
+  display: block;
+  font-size: var(--rh-text-xs);
+  color: var(--rh-text-muted);
+  margin-bottom: var(--rh-space-1);
+}
+
+.formInput {
+  width: 100%;
+  padding: var(--rh-space-2) var(--rh-space-3);
+  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-bg-elevated);
+  color: var(--rh-text-primary);
+  font-size: var(--rh-text-sm);
+  box-sizing: border-box;
+  outline: none;
+  transition:
+    border-color var(--rh-transition-fast),
+    box-shadow var(--rh-transition-fast);
+}
+
+.formInput:focus {
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 2px var(--rh-border-focus);
+}

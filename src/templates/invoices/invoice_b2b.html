@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Счёт №{{ invoice_number }}</title>
+    <style>
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 12px;
+            margin: 40px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #333;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .header p {
+            margin: 4px 0;
+            color: #666;
+        }
+        .parties {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        .party {
+            width: 48%;
+        }
+        .party h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #555;
+        }
+        .party p {
+            margin: 2px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        td.amount {
+            text-align: right;
+            font-family: "Courier New", monospace;
+        }
+        tr.total td {
+            font-weight: bold;
+            background-color: #e8e8e8;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #ccc;
+            font-size: 10px;
+            color: #999;
+        }
+        .payment-details {
+            margin-top: 24px;
+            padding: 12px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Счёт на оплату №{{ invoice_number }}</h1>
+        <p>Дата выставления: {{ generated_at.strftime('%d.%m.%Y') }}</p>
+    </div>
+
+    <div class="parties">
+        <div class="party">
+            <h3>Поставщик:</h3>
+            <p><strong>{{ platform_name }}</strong></p>
+        </div>
+        <div class="party">
+            <h3>Покупатель:</h3>
+            <p><strong>{{ client_name }}</strong></p>
+            {% if client_inn %}
+            <p>ИНН: {{ client_inn }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px;">№</th>
+                <th>Наименование услуги</th>
+                <th style="width: 120px;">Сумма</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Пополнение баланса рекламного кабинета</td>
+                <td class="amount">{{ "%.2f"|format(amount) }} ₽</td>
+            </tr>
+            {% if vat_amount > 0 %}
+            <tr>
+                <td>2</td>
+                <td>НДС (22%)</td>
+                <td class="amount">{{ "%.2f"|format(vat_amount) }} ₽</td>
+            </tr>
+            {% endif %}
+            <tr class="total">
+                <td colspan="2">ИТОГО к оплате</td>
+                <td class="amount">{{ "%.2f"|format(total_with_vat) }} ₽</td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% if vat_amount > 0 %}
+    <div class="payment-details">
+        <p><strong>В т.ч. НДС:</strong> {{ "%.2f"|format(vat_amount) }} ₽</p>
+        <p><strong>Сумма без НДС:</strong> {{ "%.2f"|format(amount) }} ₽</p>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>Счёт действителен в течение 5 банковских дней с даты выставления.</p>
+        <p>Сформировано автоматически: {{ generated_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
+    </div>
+</body>
+</html>

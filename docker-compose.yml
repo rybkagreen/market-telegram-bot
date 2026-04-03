@@ -221,8 +221,10 @@ services:
       - ./alembic_sync.ini:/app/alembic_sync.ini:ro
       - contracts_data:/data/contracts
       - /opt/market-telegram-bot/reports/monitoring/payloads:/tmp/glitchtip_queue
-    ports:
-      - "${API_PORT:-8001}:8001"
+    # Port removed: API only accessible via nginx reverse proxy (security hardening)
+    # Direct access for debugging: docker exec -it market_bot_api curl -s http://localhost:8001/health
+    # ports:
+    #   - "${API_PORT:-8001}:8001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -291,6 +293,8 @@ services:
       GLITCHTIP_DOMAIN: http://localhost:8090
       DEFAULT_FROM_EMAIL: errors@rekharbor.ru
       CELERY_WORKER_CONCURRENCY: 2
+      # Separate Redis DB to avoid read-only replica conflicts with main app (DB /0)
+      VALKEY_URL: valkey://redis:6379/2
     ports:
       - "8090:8080"
     depends_on:
@@ -311,6 +315,8 @@ services:
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-changeme}
       EMAIL_URL: consolemail://
       GLITCHTIP_DOMAIN: http://localhost:8090
+      # Separate Redis DB to avoid read-only replica conflicts with main app (DB /0)
+      VALKEY_URL: valkey://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy

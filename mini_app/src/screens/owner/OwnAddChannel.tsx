@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Button, Card, CategoryGrid, Notification, Toggle } from '@/components/ui'
+import { Button, Card, CategoryGrid, Notification, Toggle, Text } from '@/components/ui'
 import { PermissionList } from '@/components/permissions'
 import { ChannelInstruction } from '@/components/channels'
 import { useHaptic } from '@/hooks/useHaptic'
@@ -86,50 +86,50 @@ export default function OwnAddChannel() {
           {/* Нарушения правил платформы (P3) */}
           {!checkResult.rules_valid && checkResult.rules_violations.length > 0 && (
             <Notification type="danger">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ❌ Канал не соответствует правилам платформы:
-                <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
+                <ul className={styles.violationsList}>
                   {checkResult.rules_violations.map((violation, i) => (
-                    <li key={i} style={{ marginBottom: '4px' }}>{violation}</li>
+                    <li key={i}>{violation}</li>
                   ))}
                 </ul>
-              </span>
+              </Text>
             </Notification>
           )}
 
           {/* Предупреждения о языке (P3) */}
           {!checkResult.language_valid && checkResult.language_warnings.length > 0 && (
             <Notification type="warning">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ⚠️ {checkResult.language_warnings.join('. ')}
-              </span>
+              </Text>
             </Notification>
           )}
 
           {/* Уведомление о дубликате */}
           {checkResult.is_already_added && (
             <Notification type="danger">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ❌ Этот канал уже добавлен
-              </span>
+              </Text>
             </Notification>
           )}
 
           {/* Уведомление о невалидном канале */}
           {!checkResult.valid && !checkResult.is_already_added && checkResult.rules_valid && (
             <Notification type="danger">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ❌ Недостаточно прав у бота для добавления канала
-              </span>
+              </Text>
             </Notification>
           )}
 
           {/* Уведомление об успешной проверке */}
           {checkResult.valid && (
             <Notification type="success">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ✅ Канал можно добавить
-              </span>
+              </Text>
             </Notification>
           )}
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ScreenShell } from '@/components/layout/ScreenShell'
+import { ScreenLayout } from '@/components/layout/ScreenLayout'
 import { Notification, Card, Button } from '@/components/ui'
 import { useHaptic } from '@/hooks/useHaptic'
 import styles from './Help.module.css'
@@ -76,7 +76,7 @@ export default function Help() {
   const haptic = useHaptic()
 
   return (
-    <ScreenShell>
+    <ScreenLayout title="Помощь">
       <Notification type="info">Если не нашли ответ — напишите нам!</Notification>
 
       <Card title="Для рекламодателей" className={styles.card}>
@@ -97,6 +97,6 @@ export default function Help() {
       >
         ✉️ Написать в поддержку
       </Button>
-    </ScreenShell>
+    </ScreenLayout>
   )
 }

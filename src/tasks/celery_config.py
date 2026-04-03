@@ -139,6 +139,12 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour="*/6", minute=30),
         "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 300},
     },
+    # Tax calendar reminder — ежедневно в 09:00 MSK (06:00 UTC)
+    "tax-calendar-reminder": {
+        "task": "tax:calendar_reminder",
+        "schedule": crontab(hour=6, minute=0),  # 09:00 MSK = 06:00 UTC
+        "options": {"queue": "billing"},
+    },
     # PLACEMENT SLA CHECKS (каждые 5 минут)
     "placement-check-owner-sla": {
         "task": "placement:check_owner_response_sla",
@@ -189,6 +195,9 @@ TASK_ROUTES = {
     # Очередь billing — задачи биллинга
     "billing.*": {"queue": "billing"},
     "src.tasks.billing_tasks.*": {"queue": "billing"},
+    # Очередь tax — налоговые задачи
+    "tax.*": {"queue": "billing"},
+    "src.tasks.tax_tasks.*": {"queue": "billing"},
     # Очередь placement — задачи размещения (критические)
     "placement.*": {"queue": QUEUE_WORKER_CRITICAL},
     "src.tasks.placement_tasks.*": {"queue": QUEUE_WORKER_CRITICAL},
