@@ -1,0 +1,25 @@
+.title {
+  font-size: var(--rh-text-lg, 18px);
+  font-weight: var(--rh-weight-bold, 700);
+  margin-bottom: var(--rh-space-4, 16px);
+}
+
+.statusWrapper {
+  margin-bottom: var(--rh-space-3, 12px);
+}
+
+.eridBox {
+  padding: var(--rh-space-2, 10px) var(--rh-space-4, 16px);
+  border-radius: var(--rh-radius-sm, 8px);
+  background: var(--rh-surface, rgba(255,255,255,0.04));
+  font-family: var(--rh-font-mono, monospace);
+  font-size: var(--rh-text-sm, 14px);
+  margin-bottom: var(--rh-space-3, 12px);
+}
+
+.pendingHint {
+  font-size: var(--rh-text-xs, 12px);
+  color: var(--rh-text-muted);
+  text-align: center;
+  margin-top: var(--rh-space-4, 16px);
+}

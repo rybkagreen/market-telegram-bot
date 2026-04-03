@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StepIndicator, Button, Card, Notification, Skeleton, Toggle } from '@/components/ui'
+import { StepIndicator, Button, Card, Notification, Skeleton, Toggle, Text } from '@/components/ui'
 import { PLAN_INFO } from '@/lib/constants'
 import { useMe, useGenerateAdText } from '@/hooks/queries'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
@@ -81,9 +81,9 @@ export default function CampaignText() {
           </Button>
 
           <Notification type="info">
-            <span style={{ fontSize: 'var(--rh-text-sm)' }}>
-              AI генерирует тексты через Mistral. Лимит: {plan.aiGenerations < 0 ? '∞' : plan.aiGenerations} генераций/мес
-            </span>
+            <Text variant="sm">
+              AI генерирует тексты через Mistral. Лимит: {plan.aiGenerations < 0 ? '\u221e' : plan.aiGenerations} генераций/мес
+            </Text>
           </Notification>
 
           {aiLoading && (

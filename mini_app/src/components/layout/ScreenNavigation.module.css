@@ -1,0 +1,53 @@
+/* ============================================================
+   RekHarbor ScreenNavigation — compact nav button bar
+   ============================================================ */
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-1);
+  padding: var(--rh-space-1) 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--rh-radius-md);
+  background: transparent;
+  color: var(--rh-text-secondary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    color var(--rh-transition-fast),
+    background var(--rh-transition-fast),
+    border-color var(--rh-transition-fast),
+    transform var(--rh-transition-fast);
+}
+
+.btn:hover {
+  color: var(--rh-accent);
+  background: var(--rh-surface);
+  border-color: var(--rh-border-active);
+}
+
+.btn:active {
+  transform: scale(0.90);
+  background: var(--rh-accent-muted);
+  color: var(--rh-accent);
+}
+
+/* Admin button — subtle danger tint */
+.admin {
+  color: var(--rh-danger);
+}
+
+.admin:hover {
+  background: var(--rh-danger-muted);
+  border-color: var(--rh-danger);
+  color: var(--rh-danger);
+}

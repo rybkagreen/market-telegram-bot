@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Button, Card, Notification, StepIndicator } from '@/components/ui'
+import { Text } from '@/components/ui/Text'
 import { LegalStatusSelector } from '@/components/LegalStatusSelector'
 import { useLegalProfileStore } from '@/stores/legalProfileStore'
 import {
@@ -12,6 +13,7 @@ import {
   useMyLegalProfile,
 } from '@/hooks/useLegalProfileQueries'
 import type { TaxRegime } from '@/lib/types'
+import styles from './LegalProfileSetup.module.css'
 
 const TAX_REGIME_OPTIONS: { value: TaxRegime; label: string }[] = [
   { value: 'osno', label: 'ОСНО' },
@@ -22,24 +24,6 @@ const TAX_REGIME_OPTIONS: { value: TaxRegime; label: string }[] = [
   { value: 'npd', label: 'НПД' },
   { value: 'ndfl', label: 'НДФЛ' },
 ]
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 'var(--rh-radius-sm, 8px)',
-  border: '1px solid var(--rh-border, rgba(255,255,255,0.12))',
-  background: 'var(--rh-surface, rgba(255,255,255,0.04))',
-  color: 'inherit',
-  fontSize: 'var(--rh-text-sm, 14px)',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 'var(--rh-text-xs, 12px)',
-  color: 'var(--rh-text-muted)',
-  marginBottom: 4,
-}
 
 export default function LegalProfileSetup() {
   const navigate = useNavigate()
@@ -107,9 +91,9 @@ export default function LegalProfileSetup() {
 
       {currentStep === 0 && (
         <>
-          <p style={{ fontWeight: 600, marginBottom: 12 }}>Выберите юридический статус</p>
+          <Text variant="sm" weight="semibold" className={styles.stepTitle}>Выберите юридический статус</Text>
           <LegalStatusSelector value={selectedStatus} onChange={setSelectedStatus} />
-          <div style={{ marginTop: 16 }}>
+          <div className={styles.stepNav}>
             <Button
               variant="primary"
               fullWidth
@@ -124,19 +108,19 @@ export default function LegalProfileSetup() {
 
       {currentStep === 1 && (
         <>
-          <p style={{ fontWeight: 600, marginBottom: 12 }}>Основные данные</p>
+          <Text variant="sm" weight="semibold" className={styles.stepTitle}>Основные данные</Text>
           <Card>
-            <label style={labelStyle}>Название / ФИО *</label>
+            <label className={styles.label}>Название / ФИО *</label>
             <input
-              style={inputStyle}
+              className={styles.input}
               value={formData.legal_name ?? ''}
               onChange={(e) => updateFormData({ legal_name: e.target.value })}
               placeholder="ООО Ромашка / Иванов Иван Иванович"
             />
 
-            <label style={{ ...labelStyle, marginTop: 12 }}>ИНН *</label>
+            <label className={styles.labelWithMargin}>ИНН *</label>
             <input
-              style={inputStyle}
+              className={styles.input}
               value={formData.inn ?? ''}
               onChange={(e) => updateFormData({ inn: e.target.value })}
               onBlur={(e) => {
@@ -145,16 +129,16 @@ export default function LegalProfileSetup() {
               placeholder="ИНН"
             />
             {innMutation.data && !innMutation.data.valid && (
-              <p style={{ margin: '4px 0 0', color: 'var(--rh-danger)', fontSize: 'var(--rh-text-xs, 12px)' }}>
+              <p className={styles.validationText}>
                 Неверный ИНН
               </p>
             )}
 
             {requiredFields?.fields.includes('kpp') && (
               <>
-                <label style={{ ...labelStyle, marginTop: 12 }}>КПП</label>
+                <label className={styles.labelWithMargin}>КПП</label>
                 <input
-                  style={inputStyle}
+                  className={styles.input}
                   value={formData.kpp ?? ''}
                   onChange={(e) => updateFormData({ kpp: e.target.value })}
                   placeholder="КПП"
@@ -164,9 +148,9 @@ export default function LegalProfileSetup() {
 
             {requiredFields?.fields.includes('ogrn') && (
               <>
-                <label style={{ ...labelStyle, marginTop: 12 }}>ОГРН</label>
+                <label className={styles.labelWithMargin}>ОГРН</label>
                 <input
-                  style={inputStyle}
+                  className={styles.input}
                   value={formData.ogrn ?? ''}
                   onChange={(e) => updateFormData({ ogrn: e.target.value })}
                   placeholder="ОГРН"
@@ -176,9 +160,9 @@ export default function LegalProfileSetup() {
 
             {requiredFields?.fields.includes('ogrnip') && (
               <>
-                <label style={{ ...labelStyle, marginTop: 12 }}>ОГРНИП</label>
+                <label className={styles.labelWithMargin}>ОГРНИП</label>
                 <input
-                  style={inputStyle}
+                  className={styles.input}
                   value={formData.ogrnip ?? ''}
                   onChange={(e) => updateFormData({ ogrnip: e.target.value })}
                   placeholder="ОГРНИП"
@@ -188,9 +172,9 @@ export default function LegalProfileSetup() {
 
             {requiredFields?.tax_regime_required && (
               <>
-                <label style={{ ...labelStyle, marginTop: 12 }}>Система налогообложения</label>
+                <label className={styles.labelWithMargin}>Система налогообложения</label>
                 <select
-                  style={inputStyle}
+                  className={styles.select}
                   value={formData.tax_regime ?? ''}
                   onChange={(e) => updateFormData({ tax_regime: e.target.value as TaxRegime })}
                 >
@@ -203,7 +187,7 @@ export default function LegalProfileSetup() {
             )}
           </Card>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div className={styles.stepNav}>
             <Button variant="secondary" onClick={handleBack}>← Назад</Button>
             <Button
               variant="primary"
@@ -219,39 +203,39 @@ export default function LegalProfileSetup() {
 
       {currentStep === 2 && (
         <>
-          <p style={{ fontWeight: 600, marginBottom: 12 }}>Платёжные реквизиты</p>
+          <Text variant="sm" weight="semibold" className={styles.stepTitle}>Платёжные реквизиты</Text>
           <Card>
             {requiredFields?.show_bank_details && (
               <>
-                <label style={labelStyle}>Название банка</label>
-                <input style={inputStyle} value={formData.bank_name ?? ''} onChange={(e) => updateFormData({ bank_name: e.target.value })} placeholder="Сбербанк" />
-                <label style={{ ...labelStyle, marginTop: 12 }}>Расчётный счёт</label>
-                <input style={inputStyle} value={formData.bank_account ?? ''} onChange={(e) => updateFormData({ bank_account: e.target.value })} placeholder="40702810..." />
-                <label style={{ ...labelStyle, marginTop: 12 }}>БИК</label>
-                <input style={inputStyle} value={formData.bank_bik ?? ''} onChange={(e) => updateFormData({ bank_bik: e.target.value })} placeholder="044525225" />
-                <label style={{ ...labelStyle, marginTop: 12 }}>Корр. счёт</label>
-                <input style={inputStyle} value={formData.bank_corr_account ?? ''} onChange={(e) => updateFormData({ bank_corr_account: e.target.value })} placeholder="30101810..." />
+                <label className={styles.label}>Название банка</label>
+                <input className={styles.input} value={formData.bank_name ?? ''} onChange={(e) => updateFormData({ bank_name: e.target.value })} placeholder="Сбербанк" />
+                <label className={styles.labelWithMargin}>Расчётный счёт</label>
+                <input className={styles.input} value={formData.bank_account ?? ''} onChange={(e) => updateFormData({ bank_account: e.target.value })} placeholder="40702810..." />
+                <label className={styles.labelWithMargin}>БИК</label>
+                <input className={styles.input} value={formData.bank_bik ?? ''} onChange={(e) => updateFormData({ bank_bik: e.target.value })} placeholder="044525225" />
+                <label className={styles.labelWithMargin}>Корр. счёт</label>
+                <input className={styles.input} value={formData.bank_corr_account ?? ''} onChange={(e) => updateFormData({ bank_corr_account: e.target.value })} placeholder="30101810..." />
               </>
             )}
             {requiredFields?.show_yoomoney && (
               <>
-                <label style={{ ...labelStyle, marginTop: requiredFields.show_bank_details ? 12 : 0 }}>ЮMoney кошелёк</label>
-                <input style={inputStyle} value={formData.yoomoney_wallet ?? ''} onChange={(e) => updateFormData({ yoomoney_wallet: e.target.value })} placeholder="41001..." />
+                <label className={styles.labelWithMargin} style={requiredFields.show_bank_details ? undefined : { marginTop: 0 }}>ЮMoney кошелёк</label>
+                <input className={styles.input} value={formData.yoomoney_wallet ?? ''} onChange={(e) => updateFormData({ yoomoney_wallet: e.target.value })} placeholder="41001..." />
               </>
             )}
             {requiredFields?.show_passport && (
               <>
-                <label style={{ ...labelStyle, marginTop: 12 }}>Серия паспорта</label>
-                <input style={inputStyle} value={formData.passport_series ?? ''} onChange={(e) => updateFormData({ passport_series: e.target.value })} placeholder="1234" />
-                <label style={{ ...labelStyle, marginTop: 12 }}>Номер паспорта</label>
-                <input style={inputStyle} value={formData.passport_number ?? ''} onChange={(e) => updateFormData({ passport_number: e.target.value })} placeholder="567890" />
-                <label style={{ ...labelStyle, marginTop: 12 }}>Кем выдан</label>
-                <input style={inputStyle} value={formData.passport_issued_by ?? ''} onChange={(e) => updateFormData({ passport_issued_by: e.target.value })} placeholder="УФМС России..." />
+                <label className={styles.labelWithMargin}>Серия паспорта</label>
+                <input className={styles.input} value={formData.passport_series ?? ''} onChange={(e) => updateFormData({ passport_series: e.target.value })} placeholder="1234" />
+                <label className={styles.labelWithMargin}>Номер паспорта</label>
+                <input className={styles.input} value={formData.passport_number ?? ''} onChange={(e) => updateFormData({ passport_number: e.target.value })} placeholder="567890" />
+                <label className={styles.labelWithMargin}>Кем выдан</label>
+                <input className={styles.input} value={formData.passport_issued_by ?? ''} onChange={(e) => updateFormData({ passport_issued_by: e.target.value })} placeholder="УФМС России..." />
               </>
             )}
           </Card>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div className={styles.stepNav}>
             <Button variant="secondary" onClick={handleBack}>← Назад</Button>
             <Button variant="primary" fullWidth onClick={handleNext}>Далее →</Button>
           </div>
@@ -260,12 +244,12 @@ export default function LegalProfileSetup() {
 
       {currentStep === 3 && (
         <>
-          <p style={{ fontWeight: 600, marginBottom: 12 }}>Подтверждение</p>
+          <Text variant="sm" weight="semibold" className={styles.stepTitle}>Подтверждение</Text>
           <Card title="Введённые данные">
             {Object.entries(formData).map(([key, val]) => (
               val ? (
-                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 'var(--rh-text-sm, 14px)' }}>
-                  <span style={{ color: 'var(--rh-text-muted)' }}>{key}</span>
+                <div key={key} className={styles.confirmRow}>
+                  <span className={styles.confirmLabel}>{key}</span>
                   <span>{String(val)}</span>
                 </div>
               ) : null
@@ -276,7 +260,7 @@ export default function LegalProfileSetup() {
             <Notification type="danger">Ошибка сохранения. Попробуйте ещё раз.</Notification>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div className={styles.stepNav}>
             <Button variant="secondary" onClick={handleBack}>← Назад</Button>
             <Button variant="primary" fullWidth disabled={isSaving} onClick={handleSave}>
               {isSaving ? '⏳ Сохранение...' : '✅ Сохранить'}

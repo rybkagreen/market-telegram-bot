@@ -62,11 +62,14 @@ docker compose up -d
 ### 8. Проверить доступность
 
 ```bash
-# API health check
-curl http://localhost:8001/health
+# API health check (via docker exec — port not exposed to host)
+docker exec market_bot_api curl -sf http://localhost:8001/health
 
-# Nginx health check
-curl http://localhost:8080/health
+# Nginx health check (through reverse proxy)
+curl http://localhost/health
+
+# API through nginx proxy
+curl http://localhost/api/health  # if endpoint exists
 
 # Flower UI
 open http://localhost:5555
@@ -109,6 +112,20 @@ nginx/
 - `/api/` — FastAPI API
 - `/flower/` — Flower мониторинг
 - `/health` — Health check
+
+---
+
+## Redis Architecture
+
+All services share a single Redis instance on `redis:6379`, using different DB indices for isolation:
+
+| Service Group | Redis URL | Purpose |
+|--------------|-----------|---------|
+| Main app (api, bot, workers, beat) | `redis://redis:6379/0` | Celery broker, caching, sessions |
+| Main app (Celery results) | `redis://redis:6379/1` | Celery result backend |
+| GlitchTip (monitoring) | `valkey://redis:6379/2` | Django vtasks queue, async features |
+
+**Reason:** Separating GlitchTip into DB `/2` prevents `ReadOnly: You can't write against a read only replica` errors caused by Redis connection conflicts with the main application.
 
 ---
 

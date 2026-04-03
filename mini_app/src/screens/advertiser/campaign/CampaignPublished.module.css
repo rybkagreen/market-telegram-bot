@@ -53,3 +53,18 @@
   flex-direction: column;
   gap: var(--rh-space-2);
 }
+
+.eridSection {
+  margin-bottom: var(--rh-space-2, 8px);
+}
+
+.eridToken {
+  font-family: var(--rh-font-mono, monospace);
+  font-size: var(--rh-text-xs, 12px);
+  margin: var(--rh-space-1, 4px) 0 0;
+  color: var(--rh-text-muted);
+}
+
+.ordButtonSection {
+  margin-bottom: var(--rh-space-2, 8px);
+}

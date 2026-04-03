@@ -1,5 +1,5 @@
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StatGrid, Card, Skeleton, Notification } from '@/components/ui'
+import { StatGrid, Card, Skeleton, Notification, Text } from '@/components/ui'
 import { formatCurrency } from '@/lib/formatters'
 import { useOwnerAnalytics } from '@/hooks/queries/useAnalyticsQueries'
 import styles from './OwnAnalytics.module.css'
@@ -22,7 +22,7 @@ export default function OwnAnalytics() {
     return (
       <ScreenShell>
         <Notification type="danger">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>❌ Не удалось загрузить аналитику</span>
+          <Text variant="sm">❌ Не удалось загрузить аналитику</Text>
         </Notification>
       </ScreenShell>
     )

@@ -98,3 +98,7 @@
   margin: var(--rh-space-1) 0 var(--rh-space-3);
   text-align: right;
 }
+
+.backSection {
+  margin-top: var(--rh-space-3);
+}

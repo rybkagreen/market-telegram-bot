@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { RequestCard, EmptyState, Button, StatusPill, Skeleton } from '@/components/ui'
+import { RequestCard, EmptyState, Button, StatusPill, Skeleton, Notification } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { useMyPlacements, useUpdatePlacement } from '@/hooks/queries'
 import type { PlacementStatus } from '@/lib/types'
@@ -31,6 +31,10 @@ export default function MyCampaigns() {
   const [filter, setFilter] = useState<Filter>('active')
   const { data: placements = [], isLoading, refetch } = useMyPlacements()
   const { mutate: updatePlacement, isPending: cancelling, variables: cancellingVars } = useUpdatePlacement()
+
+  const now = new Date()
+  const isExpired = (p: { expires_at?: string | null; status: PlacementStatus }) =>
+    !!p.expires_at && new Date(p.expires_at) < now && ACTIVE_STATUSES.includes(p.status)
 
   const activeCnt = placements.filter((p) => getFilter(p.status) === 'active').length
   const completedCnt = placements.filter((p) => getFilter(p.status) === 'completed').length
@@ -87,6 +91,11 @@ export default function MyCampaigns() {
         <div className={styles.list}>
           {filtered.map((placement) => (
             <div key={placement.id} className={styles.item}>
+              {isExpired(placement) && (
+                <Notification type="warning">
+                  ⏰ Заявка #{placement.id} просрочена — ожидает автоотмены
+                </Notification>
+              )}
               <RequestCard
                 id={placement.id}
                 channelName={placement.channel ? `@${placement.channel.username}` : `#${placement.channel_id}`}

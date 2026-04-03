@@ -6,12 +6,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Notification } from '@/components/ui'
+import { Card, Notification, Text } from '@/components/ui'
 import { Button } from '@/components/ui'
 import AdminNav from '@/components/admin/AdminNav'
 import { useMe } from '@/hooks/queries'
 import { api } from '@/api/client'
-import styles from './AdminDashboard.module.css'
+import styles from './AdminPlatformSettings.module.css'
 
 interface PlatformSettings {
   legal_name: string | null
@@ -103,37 +103,28 @@ export default function AdminPlatformSettings() {
       </aside>
       <main className={styles.main}>
         <h1 className={styles.title}>Реквизиты платформы</h1>
-        <p style={{ fontSize: 13, color: 'var(--rh-text-muted)', marginBottom: 16 }}>
+        <Text variant="sm" color="muted" className={styles.subtitle}>
           Заполните данные — они подставляются в договора с владельцами каналов и рекламодателями.
-        </p>
+        </Text>
 
-        {error && <div style={{ marginBottom: 12 }}><Notification type="danger">{error}</Notification></div>}
-        {success && <div style={{ marginBottom: 12 }}><Notification type="success">Реквизиты сохранены</Notification></div>}
+        {error && <div className={styles.notificationWrap}><Notification type="danger">{error}</Notification></div>}
+        {success && <div className={styles.notificationWrap}><Notification type="success">Реквизиты сохранены</Notification></div>}
 
         <Card>
           {loading ? (
-            <p style={{ color: 'var(--rh-text-muted)' }}>Загрузка...</p>
+            <Text variant="sm" color="muted" className={styles.loadingText}>Загрузка...</Text>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className={styles.formContainer}>
               {FIELDS.map(({ key, label, placeholder }) => (
                 <div key={key}>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--rh-text-muted)', marginBottom: 4 }}>
+                  <label className={styles.formLabel}>
                     {label}
                   </label>
                   <input
                     value={form[key] ?? ''}
                     placeholder={placeholder}
                     onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      border: '1px solid var(--rh-border, rgba(255,255,255,0.12))',
-                      background: 'var(--rh-surface, rgba(255,255,255,0.04))',
-                      color: 'inherit',
-                      fontSize: 14,
-                      boxSizing: 'border-box',
-                    }}
+                    className={styles.formInput}
                   />
                 </div>
               ))}

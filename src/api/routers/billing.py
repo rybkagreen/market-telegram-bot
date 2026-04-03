@@ -108,14 +108,16 @@ class BalanceResponse(BaseModel):
 
 
 class BillingHistoryItem(BaseModel):
-    """Элемент истории платежей YooKassa."""
+    """Элемент истории транзакций пользователя."""
 
-    id: str = Field(..., description="payment_id из YooKassa")
-    type: str = Field(..., description="'topup' | 'plan_purchase'")
-    amount: int = Field(..., description="сумма в рублях")
-    credits: int | None = Field(None, description="полученные кредиты (для topup)")
-    plan: str | None = Field(None, description="купленный тариф (для plan_purchase)")
-    status: str = Field(..., description="'succeeded' | 'pending' | 'canceled'")
+    id: int = Field(..., description="ID транзакции")
+    type: str = Field(..., description="Тип транзакции")
+    amount: Decimal = Field(
+        ..., description="Сумма (всегда положительная; направление определяется типом)"
+    )
+    description: str | None = Field(None, description="Описание операции")
+    placement_request_id: int | None = Field(None, description="ID заявки (если применимо)")
+    status: str = Field(..., description="'completed' | 'pending'")
     created_at: str = Field(..., description="ISO datetime")
 
 
@@ -376,6 +378,22 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     )
 
 
+# Типы транзакций, видимые пользователю в истории.
+# Примечание: payout / cancel_penalty / refund_partial / failed_permissions_refund
+# существуют только как enum-значения — в БД не пишутся.
+# Выводы средств записываются как refund_full с meta_json["type"]=="payout_request".
+_VISIBLE_TX_TYPES = {
+    "topup",
+    "escrow_freeze",
+    "escrow_release",
+    "credits_buy",
+    "spend",
+    "payout_fee",
+    "refund_full",
+    "bonus",
+}
+
+
 @router.get("/history")
 async def get_history(
     current_user: CurrentUser,
@@ -383,15 +401,10 @@ async def get_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> BillingHistoryResponse:
     """
-    История платежей пользователя YooKassa.
+    История всех транзакций пользователя.
 
-    Возвращает список платежей с пагинацией. Каждый платёж содержит:
-    - id: payment_id из YooKassa
-    - type: 'topup' (пополнение баланса)
-    - amount: сумма в рублях
-    - credits: полученные кредиты (desired_balance)
-    - status: 'succeeded' | 'pending' | 'canceled'
-    - created_at: ISO datetime
+    Включает: пополнения, эскроу, разблокировку эскроу, конвертацию кредитов,
+    оплату тарифов (spend), выводы средств, возвраты, бонусы.
 
     Args:
         current_user: Текущий пользователь.
@@ -399,53 +412,52 @@ async def get_history(
         limit: Количество записей (default: 20, max: 100).
 
     Returns:
-        BillingHistoryResponse: Список платежей с пагинацией.
+        BillingHistoryResponse: Список транзакций с пагинацией.
     """
     from sqlalchemy import func, select
 
-    from src.db.models.yookassa_payment import YookassaPayment
+    from src.db.models.transaction import Transaction
 
     async with async_session_factory() as session:
-        # Подсчёт общего количества
-        count_query = select(func.count()).select_from(YookassaPayment).where(
-            YookassaPayment.user_id == current_user.id
+        base_filter = (
+            Transaction.user_id == current_user.id,
+            Transaction.type.in_(_VISIBLE_TX_TYPES),
         )
+
+        count_query = select(func.count()).select_from(Transaction).where(*base_filter)
         total_result = await session.execute(count_query)
         total = total_result.scalar() or 0
 
-        # Запрос данных с пагинацией
         query = (
-            select(YookassaPayment)
-            .where(YookassaPayment.user_id == current_user.id)
-            .order_by(YookassaPayment.created_at.desc())
+            select(Transaction)
+            .where(*base_filter)
+            .order_by(Transaction.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
         result = await session.execute(query)
-        payments = result.scalars().all()
+        txs = result.scalars().all()
 
-        # Маппинг на BillingHistoryItem
         items = []
-        for p in payments:
-            # Маппинг статусов YooKassa
-            status_map = {
-                "pending": "pending",
-                "waiting_for_capture": "pending",
-                "succeeded": "succeeded",
-                "canceled": "canceled",
-                "failed": "canceled",
-            }
-            mapped_status = status_map.get(p.status, "pending")
+        for tx in txs:
+            tx_type = tx.type.value if hasattr(tx.type, "value") else str(tx.type)
+            # refund_full с meta_json["type"]=="payout_request" — это фактически вывод средств
+            if tx_type == "refund_full" and isinstance(tx.meta_json, dict):
+                meta_type = tx.meta_json.get("type", "")
+                if meta_type == "payout_request":
+                    tx_type = "payout"
 
             items.append(
                 BillingHistoryItem(
-                    id=p.payment_id,
-                    type="topup",
-                    amount=int(p.gross_amount),
-                    credits=int(p.desired_balance) if p.desired_balance else None,
-                    plan=None,
-                    status=mapped_status,
-                    created_at=p.created_at.isoformat() if p.created_at else datetime.now(UTC).isoformat(),
+                    id=tx.id,
+                    type=tx_type,
+                    amount=tx.amount,
+                    description=tx.description,
+                    placement_request_id=tx.placement_request_id,
+                    status=tx.payment_status if tx.payment_status else "completed",
+                    created_at=tx.created_at.isoformat()
+                    if tx.created_at
+                    else datetime.now(UTC).isoformat(),
                 )
             )
 
@@ -459,7 +471,10 @@ async def get_history(
         )
 
 
-@router.post("/credits", responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}})
+@router.post(
+    "/credits",
+    responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}},
+)
 async def buy_credits(
     body: TopupRequest,
     current_user: CurrentUser,
@@ -599,7 +614,6 @@ async def yookassa_webhook(
         )
 
     try:
-
         from src.core.services.billing_service import BillingService
 
         body = await request.json()
@@ -625,9 +639,21 @@ async def yookassa_webhook(
                 record = result.scalar_one_or_none()
 
                 if record:
+                    # Sprint A.2: извлечь и сохранить payment_method и receipt
+                    payment_method = obj.get("payment_method", {})
+                    receipt = obj.get("receipt", {})
+
+                    record.payment_method_type = (
+                        payment_method.get("type") if payment_method else None
+                    )
+                    record.receipt_id = receipt.get("id") if receipt else None
+                    record.yookassa_metadata = obj  # сохраняем полный payload
+
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
-                        "desired_balance": str(record.desired_balance),  # credits = desired_balance в v4.2
+                        "desired_balance": str(
+                            record.desired_balance
+                        ),  # credits = desired_balance в v4.2
                         "user_id": str(record.user_id),
                     }
                     gross_amount = record.gross_amount
@@ -646,7 +672,8 @@ async def yookassa_webhook(
 
                     logger.info(
                         f"Topup processed: payment_id={payment_id}, "
-                        f"desired={metadata['desired_balance']}, gross={gross_amount}"
+                        f"desired={metadata['desired_balance']}, gross={gross_amount}, "
+                        f"method={record.payment_method_type}, receipt={record.receipt_id}"
                     )
                 else:
                     logger.warning(f"YooKassaPayment record not found for {payment_id}")

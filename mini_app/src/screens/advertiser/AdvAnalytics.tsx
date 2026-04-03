@@ -1,5 +1,5 @@
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StatGrid, Card, Notification, Skeleton, Button } from '@/components/ui'
+import { StatGrid, Card, Notification, Skeleton, Button, Text } from '@/components/ui'
 import { formatCurrency, formatCompact, formatPercent } from '@/lib/formatters'
 import { useAdvertiserAnalytics } from '@/hooks/queries'
 import styles from './AdvAnalytics.module.css'
@@ -48,9 +48,9 @@ export default function AdvAnalytics() {
 
           {topChannel && (
             <Notification type="success">
-              <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+              <Text variant="sm">
                 ✨ AI-рекомендация: Увеличьте бюджет на IT-каналы (высокий CTR {topChannel.ctr}%)
-              </span>
+              </Text>
             </Notification>
           )}
         </>

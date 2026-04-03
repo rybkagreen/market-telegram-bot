@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Button, Notification, StatusPill, Skeleton } from '@/components/ui'
+import { Card, Button, Notification, StatusPill, Skeleton, Text } from '@/components/ui'
 import { PUBLICATION_FORMATS, DISPUTE_REASON_LABELS } from '@/lib/constants'
 import { formatCurrency } from '@/lib/formatters'
 import type { ResolutionAction } from '@/lib/types'
@@ -61,9 +61,9 @@ export default function DisputeResponse() {
   return (
     <ScreenShell>
       <Notification type="warning">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           ⚠️ У вас открытый спор по заявке #{dispute.placement_id}
-        </span>
+        </Text>
       </Notification>
 
       <p className={styles.sectionTitle}>Претензия рекламодателя</p>
@@ -108,9 +108,9 @@ export default function DisputeResponse() {
             onChange={(e) => setOwnerReply(e.target.value)}
           />
           <Notification type="info">
-            <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+            <Text variant="sm">
               Подробное и честное объяснение повышает шансы на благоприятное решение
-            </span>
+            </Text>
           </Notification>
           <Button
             fullWidth
@@ -129,7 +129,7 @@ export default function DisputeResponse() {
             <p className={styles.commentText}>{dispute.owner_comment}</p>
           </Card>
           <Notification type="info">
-            <span style={{ fontSize: 'var(--rh-text-sm)' }}>Ожидание решения администратора</span>
+            <Text variant="sm">Ожидание решения администратора</Text>
           </Notification>
         </>
       )}
@@ -154,13 +154,13 @@ export default function DisputeResponse() {
                 : 'danger'
             }
           >
-            <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+            <Text variant="sm">
               {dispute.resolution_action === 'no_refund'
-                ? '✅ Средства сохранены — спор решён в вашу пользу'
+                ? '✅ Средства сохранены -- спор решён в вашу пользу'
                 : dispute.resolution_action === 'warning'
                   ? '⚠️ Получено предупреждение'
-                  : `❌ ${RESOLUTION_PILL[dispute.resolution_action!].label} — часть средств возвращена рекламодателю`}
-            </span>
+                  : `❌ ${RESOLUTION_PILL[dispute.resolution_action!].label} -- часть средств возвращена рекламодателю`}
+            </Text>
           </Notification>
         </>
       )}

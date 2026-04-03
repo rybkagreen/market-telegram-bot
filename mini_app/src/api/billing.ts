@@ -26,12 +26,24 @@ export interface BillingBalance {
   plan_costs: Record<string, number>
 }
 
+// Типы, реально присутствующие в БД (+ payout синтезируется на бэкенде из refund_full+meta)
+export type TransactionType =
+  | 'topup'
+  | 'escrow_freeze'
+  | 'escrow_release'
+  | 'credits_buy'
+  | 'spend'
+  | 'payout'
+  | 'payout_fee'
+  | 'refund_full'
+  | 'bonus'
+
 export interface BillingHistoryItem {
-  id: string
-  type: string
+  id: number
+  type: TransactionType | string
   amount: number
-  credits: number | null
-  plan: string | null
+  description: string | null
+  placement_request_id: number | null
   status: string
   created_at: string
 }

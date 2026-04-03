@@ -1,21 +1,24 @@
 /**
  * AdminNav — Navigation component for admin panel
- * 
+ *
  * Features:
  * - Navigation between admin sections
  * - Active section highlighting
- * - Icons for each section
+ * - Icons via lucide-react (Icon component)
  */
 
 import { NavLink } from 'react-router-dom'
+import { Icon } from '@/components/ui/Icon'
 import styles from './AdminNav.module.css'
 
 const navItems = [
-  { path: '/admin', label: 'Dashboard', icon: '📊' },
-  { path: '/admin/feedback', label: 'Feedback', icon: '💬' },
-  { path: '/admin/disputes', label: 'Disputes', icon: '⚖️' },
-  { path: '/admin/users', label: 'Users', icon: '👥' },
-  { path: '/admin/settings', label: 'Реквизиты', icon: '🏢' },
+  { path: '/admin', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { path: '/admin/feedback', label: 'Feedback', icon: 'MessageSquare' },
+  { path: '/admin/disputes', label: 'Disputes', icon: 'Scale' },
+  { path: '/admin/users', label: 'Users', icon: 'Users' },
+  { path: '/admin/accounting', label: 'Бухгалтерия', icon: 'BookOpen' },
+  { path: '/admin/tax-summary', label: 'Налоги', icon: 'Receipt' },
+  { path: '/admin/settings', label: 'Реквизиты', icon: 'Building2' },
 ]
 
 export default function AdminNav() {
@@ -25,11 +28,13 @@ export default function AdminNav() {
         <NavLink
           key={item.path}
           to={item.path}
-          className={({ isActive }) => 
+          className={({ isActive }) =>
             `${styles.navItem} ${isActive ? styles.active : ''}`
           }
         >
-          <span className={styles.icon}>{item.icon}</span>
+          <span className={styles.icon}>
+            <Icon name={item.icon} size={18} />
+          </span>
           <span className={styles.label}>{item.label}</span>
         </NavLink>
       ))}

@@ -2,16 +2,36 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Button } from '@/components/ui'
+import { Text } from '@/components/ui/Text'
 import { useAcceptRules } from '@/hooks/useContractQueries'
 import { useMe } from '@/hooks/queries/useUserQueries'
+import { api } from '@/api/client'
+import * as Sentry from '@sentry/react'
+import styles from './AcceptRules.module.css'
 
 export default function AcceptRules() {
   const navigate = useNavigate()
-  const [rulesAccepted, setRulesAccepted] = useState(false)
-  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerHtml, setViewerHtml] = useState('')
+  const [viewerLoading, setViewerLoading] = useState(false)
 
   const { data: user } = useMe()
   const acceptMutation = useAcceptRules()
+
+  const openViewer = async () => {
+    setViewerOpen(true)
+    setViewerLoading(true)
+    try {
+      const data = await api.get('contracts/platform-rules/text').json<{ html: string }>()
+      setViewerHtml(data.html)
+    } catch (err) {
+      Sentry.captureException(err)
+      setViewerHtml('<p style="color:#e74c3c">Не удалось загрузить текст. Попробуйте позже.</p>')
+    } finally {
+      setViewerLoading(false)
+    }
+  }
 
   const handleAccept = () => {
     acceptMutation.mutate(undefined, {
@@ -25,51 +45,70 @@ export default function AcceptRules() {
     })
   }
 
-  const checkStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '12px 16px',
-    borderRadius: 'var(--rh-radius-md, 12px)',
-    background: 'var(--rh-surface, rgba(255,255,255,0.04))',
-    cursor: 'pointer',
-    fontSize: 'var(--rh-text-sm, 14px)',
-  }
-
   return (
     <ScreenShell>
-      <p style={{ fontWeight: 700, fontSize: 'var(--rh-text-lg, 18px)', marginBottom: 16 }}>
+      <Text variant="lg" weight="bold" as="h2" className={styles.pageTitle}>
         Правила использования
-      </p>
+      </Text>
 
-      <label style={checkStyle}>
-        <input
-          type="checkbox"
-          checked={rulesAccepted}
-          onChange={(e) => setRulesAccepted(e.target.checked)}
-        />
-        Я принимаю Правила платформы
-      </label>
-
-      <label style={{ ...checkStyle, marginTop: 8 }}>
-        <input
-          type="checkbox"
-          checked={privacyAccepted}
-          onChange={(e) => setPrivacyAccepted(e.target.checked)}
-        />
-        Я принимаю Политику конфиденциальности
-      </label>
-
-      <div style={{ marginTop: 24 }}>
-      <Button
-        variant="primary"
-        fullWidth
-        disabled={!rulesAccepted || !privacyAccepted || acceptMutation.isPending}
-        onClick={handleAccept}
-      >
-        {acceptMutation.isPending ? '⏳ Принятие...' : 'Принять'}
-      </Button>
+      {/* Single Rules Card */}
+      <div className={styles.rulesCard}>
+        <label className={styles.rulesLabel}>
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={(e) => setAccepted(e.target.checked)}
+          />
+          Я принимаю Правила платформы и Политику конфиденциальности
+        </label>
+        <button type="button" className={styles.viewerLink} onClick={openViewer}>
+          📖 Прочитать документ
+        </button>
       </div>
+
+      {/* Accept Button */}
+      <div className={styles.actionWrapper}>
+        <Button
+          variant="primary"
+          fullWidth
+          disabled={!accepted || acceptMutation.isPending}
+          onClick={handleAccept}
+        >
+          {acceptMutation.isPending ? '⏳ Принятие...' : 'Принять'}
+        </Button>
+      </div>
+
+      {/* Text Viewer Modal */}
+      {viewerOpen && (
+        <div
+          className={styles.viewerOverlay}
+          onClick={() => setViewerOpen(false)}
+        >
+          <div
+            className={styles.viewerContainer}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.viewerHeader}>
+              <Text variant="md" weight="semibold" as="h3" className={styles.viewerTitle}>
+                Правила платформы и Политика конфиденциальности
+              </Text>
+              <button
+                onClick={() => setViewerOpen(false)}
+                className={styles.viewerClose}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.viewerContent}>
+              {viewerLoading ? (
+                <p className={styles.viewerLoadingText}>Загрузка...</p>
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: viewerHtml }} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </ScreenShell>
   )
 }

@@ -24,14 +24,15 @@ function publishedSubtitle(publishedAt: string | null | undefined, proposedSched
   return ''
 }
 
-function buildTimelineEvents(placement: { status: string; created_at: string; expires_at: string; published_at?: string | null; proposed_schedule?: string | null }): TimelineEvent[] {
+function buildTimelineEvents(placement: { status: string; created_at: string; expires_at: string; published_at?: string | null; proposed_schedule?: string | null }, isExpired: boolean): TimelineEvent[] {
   const st = placement.status
   const isPastOwner = ['pending_payment', 'counter_offer', 'escrow', 'published'].includes(st)
   const isPastPayment = ['escrow', 'published'].includes(st)
   const isPublished = st === 'published'
+  const ownerWaiting = !isPastOwner && !isExpired
   return [
     { id: 'created', icon: '✅', title: 'Заявка создана', subtitle: formatDateTime(placement.created_at), variant: 'success' },
-    { id: 'waiting', icon: isPastOwner ? '✅' : '⏳', title: isPastOwner ? 'Владелец принял' : 'Ожидает ответа владельца', subtitle: isPastOwner ? '' : `До ${formatDateTime(placement.expires_at)} (24 ч)`, variant: isPastOwner ? 'success' : 'warning' },
+    { id: 'waiting', icon: isPastOwner ? '✅' : isExpired ? '⏰' : '⏳', title: isPastOwner ? 'Владелец принял' : isExpired ? 'Срок ответа истёк' : 'Ожидает ответа владельца', subtitle: isPastOwner ? '' : ownerWaiting ? `До ${formatDateTime(placement.expires_at)} (24 ч)` : '', variant: isPastOwner ? 'success' : isExpired ? 'default' : 'warning' },
     { id: 'payment', icon: isPastPayment ? '✅' : '💳', title: isPastPayment ? 'Оплачено' : 'Оплата', subtitle: isPastPayment ? '' : 'После подтверждения', variant: isPastPayment ? 'success' : 'default' },
     { id: 'escrow', icon: isPastPayment ? '✅' : '🔒', title: 'Эскроу', subtitle: isPastPayment ? 'Средства заблокированы' : '', variant: isPastPayment ? 'success' : 'default' },
     { id: 'published', icon: isPublished ? '✅' : '📢', title: 'Публикация', subtitle: publishedSubtitle(placement.published_at, placement.proposed_schedule, isPublished), variant: isPublished ? 'success' : 'default' },
@@ -47,12 +48,18 @@ export default function CampaignWaiting() {
   const { data: placement, isLoading } = usePlacement(numId, { refetchInterval: 10_000 })
   const { mutate: updatePlacement, isPending: cancelling } = useUpdatePlacement()
 
+  const isExpired = placement?.expires_at ? new Date(placement.expires_at) < new Date() : false
+
   // Poll for status changes and redirect
   useEffect(() => {
     if (!placement) return
     const path = getRedirectPath(placement.id, placement.status)
     if (path) navigate(path)
-  }, [placement?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Redirect expired placements in pending_owner state back to campaigns list
+    if (isExpired && placement.status === 'pending_owner') {
+      navigate('/adv/campaigns', { replace: true })
+    }
+  }, [placement?.status, isExpired]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
@@ -73,7 +80,7 @@ export default function CampaignWaiting() {
   }
 
   const formatInfo = PUBLICATION_FORMATS[placement.publication_format]
-  const timelineEvents = buildTimelineEvents(placement)
+  const timelineEvents = buildTimelineEvents(placement, isExpired)
 
   const handleCancel = () => {
     haptic.warning()
@@ -83,11 +90,21 @@ export default function CampaignWaiting() {
     )
   }
 
+  const isPaid = placement.status === 'escrow' || placement.status === 'published'
+
   return (
     <ScreenShell>
-      <Notification type="info">
-        ⏳ Заявка #{placement.id} отправлена владельцу канала
-      </Notification>
+      {isExpired && placement.status === 'pending_owner' ? (
+        <Notification type="danger">
+          ⏰ Срок ответа владельца истёк. Заявка #{placement.id} будет автоматически отменена.
+        </Notification>
+      ) : (
+        <Notification type={isPaid ? 'success' : 'info'}>
+          {isPaid
+            ? `✅ Оплата получена — ожидаем публикации заявки #${placement.id}`
+            : `⏳ Заявка #${placement.id} отправлена владельцу канала`}
+        </Notification>
+      )}
 
       <Card title="Статус заявки" className={styles.card}>
         <Timeline events={timelineEvents} />

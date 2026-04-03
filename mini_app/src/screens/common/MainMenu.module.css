@@ -11,3 +11,39 @@
   flex-direction: column;
   gap: var(--rh-space-2);
 }
+
+/* Legal profile banner */
+.legalBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--rh-radius-md, 12px);
+  background: var(--rh-warning-muted, rgba(251,191,36,0.12));
+  border: 1px solid var(--rh-warning, rgba(251,191,36,0.3));
+  margin-bottom: 8px;
+  font-size: var(--rh-text-sm, 14px);
+}
+
+.legalBannerText {
+  flex: 1;
+}
+
+.legalBannerLink {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--rh-accent);
+  font-weight: 600;
+  padding: 4px 8px;
+  font-size: var(--rh-text-xs, 12px);
+}
+
+.legalBannerDismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--rh-text-muted);
+  padding: 4px;
+  font-size: 16px;
+}
