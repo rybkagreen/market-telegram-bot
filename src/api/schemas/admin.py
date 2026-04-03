@@ -6,6 +6,7 @@ Contains Pydantic models for admin panel endpoints:
 - Disputes resolution
 - User management
 - Platform statistics
+- Contract listing (admin)
 """
 
 from datetime import datetime
@@ -186,3 +187,31 @@ class PlatformStatsResponse(BaseModel):
     disputes: dict[str, int]
     placements: dict[str, int]
     financial: FinancialStats
+
+
+# ═══════════════════════════════════════════════════════════════
+# Contract Schemas (Admin)
+# ═══════════════════════════════════════════════════════════════
+
+
+class AdminContractItem(BaseModel):
+    """Single contract item for admin listing — no sensitive fields."""
+
+    id: int
+    user_id: int
+    contract_type: str  # "owner_service", "advertiser_campaign", etc.
+    contract_status: str  # "draft", "pending", "signed", "expired", "cancelled"
+    signed_at: datetime | None = None
+    created_at: datetime
+    template_version: str
+
+    model_config = {"from_attributes": True}
+
+
+class AdminContractListResponse(BaseModel):
+    """Paginated list of all platform contracts (admin only)."""
+
+    items: list[AdminContractItem]
+    total: int
+    limit: int
+    offset: int

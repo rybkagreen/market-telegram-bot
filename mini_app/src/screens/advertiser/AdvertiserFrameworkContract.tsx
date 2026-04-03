@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Skeleton, Notification, Button } from '@/components/ui'
+import { Skeleton, Notification, Button, Text } from '@/components/ui'
 import { ContractCard } from '@/components/ContractCard'
 import { KepWarning } from '@/components/KepWarning'
 import {
@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useContractQueries'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import type { LegalStatus } from '@/lib/types'
+import styles from './AdvertiserFrameworkContract.module.css'
 
 const SIGN_BUTTON_LABEL: Record<LegalStatus, string> = {
   individual: '✅ Подписать',
@@ -83,12 +84,12 @@ export default function AdvertiserFrameworkContract() {
 
   return (
     <ScreenShell>
-      <p style={{ fontWeight: 700, fontSize: 'var(--rh-text-lg, 18px)', marginBottom: 8 }}>
+      <Text variant="lg" weight="bold" font="display" className={styles.title}>
         Рамочный договор на размещение рекламы
-      </p>
-      <p style={{ fontSize: 'var(--rh-text-sm, 14px)', color: 'var(--rh-text-muted)', marginBottom: 16 }}>
+      </Text>
+      <Text variant="sm" color="muted" className={styles.subtitle}>
         Этот договор подписывается один раз и охватывает все ваши рекламные кампании на платформе.
-      </p>
+      </Text>
 
       {contract && (
         <>
@@ -102,7 +103,7 @@ export default function AdvertiserFrameworkContract() {
           ✅ Договор подписан. Переходим к оплате...
         </Notification>
       ) : contract ? (
-        <div style={{ marginTop: 12 }}>
+        <div className={styles.signSection}>
           <Button variant="primary" fullWidth disabled={signing} onClick={handleSign}>
             {signing ? '⏳ Подписание...' : signLabel}
           </Button>

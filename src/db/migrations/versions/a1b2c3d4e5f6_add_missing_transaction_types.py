@@ -8,14 +8,14 @@ Adds bonus, spend, commission, refund values to the transactiontype enum.
 These are used in billing_service.py but were missing from the DB enum.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = 'a1b2c3d4e5f6'
-down_revision: Union[str, None] = '77dde07e4958'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = '77dde07e4958'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

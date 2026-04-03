@@ -1,0 +1,58 @@
+/* ============================================================
+   RekHarbor Text — typography component using --rh-* tokens
+   ============================================================ */
+
+.text {
+  margin: 0;
+  padding: 0;
+  font-family: var(--rh-font-body);
+  line-height: var(--rh-leading-normal);
+}
+
+/* ── Sizes ── */
+.xs        { font-size: var(--rh-text-xs); }
+.sm        { font-size: var(--rh-text-sm); }
+.md        { font-size: var(--rh-text-base); }
+.lg        { font-size: var(--rh-text-lg); }
+.xl        { font-size: var(--rh-text-xl); }
+
+/* ── Weights ── */
+.normal    { font-weight: var(--rh-weight-regular); }
+.medium    { font-weight: var(--rh-weight-medium); }
+.semibold  { font-weight: var(--rh-weight-semibold); }
+.bold      { font-weight: var(--rh-weight-bold); }
+
+/* ── Colors ── */
+.primary   { color: var(--rh-text-primary); }
+.secondary { color: var(--rh-text-secondary); }
+.muted     { color: var(--rh-text-tertiary); }
+.accent    { color: var(--rh-accent); }
+.danger    { color: var(--rh-danger); }
+.success   { color: var(--rh-success); }
+.warning   { color: var(--rh-warning); }
+.inverse   { color: var(--rh-text-inverse); }
+
+/* ── Font families ── */
+.display   { font-family: var(--rh-font-display); }
+.mono      { font-family: var(--rh-font-mono); }
+
+/* ── Leading ── */
+.tight     { line-height: var(--rh-leading-tight); }
+.relaxed   { line-height: var(--rh-leading-relaxed); }
+
+/* ── Alignment ── */
+.left      { text-align: left; }
+.center    { text-align: center; }
+.right     { text-align: right; }
+
+/* ── Truncation ── */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Mono numbers ── */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

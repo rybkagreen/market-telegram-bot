@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ScreenShell } from '@/components/layout/ScreenShell'
+import { ScreenLayout } from '@/components/layout/ScreenLayout'
 import { Card, MenuButton, StatGrid, ReputationBar, Notification, Skeleton, Button } from '@/components/ui'
+import { Text } from '@/components/ui/Text'
 import { PLAN_INFO } from '@/lib/constants'
 import { formatCurrency } from '@/lib/formatters'
 import { useMe, useMyStats } from '@/hooks/queries'
@@ -30,7 +31,7 @@ export default function Cabinet() {
     (contractsList?.items.some((c) => c.contract_status === 'signed' && !c.kep_requested) ?? false)
 
   return (
-    <ScreenShell>
+    <ScreenLayout title="Кабинет">
       <Card title="Ваши балансы">
         {userLoading ? (
           <Skeleton height={60} />
@@ -46,20 +47,20 @@ export default function Cabinet() {
               ]}
             />
             {!showConvert ? (
-              <div style={{ marginTop: 'var(--rh-space-3)' }}>
+              <div className={styles.convertToggle}>
                 <Button size="sm" variant="secondary" onClick={() => setShowConvert(true)}>
                   Конвертировать ₽ → кредиты
                 </Button>
               </div>
             ) : (
-              <div style={{ marginTop: 'var(--rh-space-3)', display: 'flex', gap: 'var(--rh-space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.converterForm}>
                 <input
                   type="number"
                   min="1"
                   placeholder="Сумма в ₽"
                   value={convertAmount}
                   onChange={(e) => setConvertAmount(e.target.value)}
-                  style={{ padding: 'var(--rh-space-2) var(--rh-space-3)', borderRadius: 'var(--rh-radius-md)', border: '1px solid var(--rh-border-color)', background: 'var(--rh-bg-elevated)', color: 'var(--rh-text-primary)', width: '140px' }}
+                  className={styles.convertInput}
                 />
                 <Button
                   size="sm"
@@ -148,12 +149,12 @@ export default function Cabinet() {
 
       {earnedAmount > 0 && (
         <Notification type="warning">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+          <Text variant="sm">
             💡 Налоговая информация: Ваш заработок:{' '}
             {user && formatCurrency(user.earned_rub)}. Не забудьте задекларировать доход.
-          </span>
+          </Text>
         </Notification>
       )}
-    </ScreenShell>
+    </ScreenLayout>
   )
 }

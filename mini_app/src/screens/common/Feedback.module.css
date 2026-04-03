@@ -2,6 +2,10 @@
   margin: 0;
 }
 
+.charCount {
+  margin-top: 4px;
+}
+
 .textarea {
   width: 100%;
   min-height: 120px;

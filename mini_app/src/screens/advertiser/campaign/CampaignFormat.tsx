@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StepIndicator, FormatSelector, Notification, Button } from '@/components/ui'
+import { StepIndicator, FormatSelector, Notification, Button, Text } from '@/components/ui'
 import { PUBLICATION_FORMATS } from '@/lib/constants'
 import { formatCurrency, calcFormatPrice, canUsePlan } from '@/lib/formatters'
 import { useMe } from '@/hooks/queries'
@@ -55,9 +55,9 @@ export default function CampaignFormat() {
       />
 
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           Базовая цена: {formatCurrency(Math.round(avgBasePrice))} ₽ · Множитель зависит от формата
-        </span>
+        </Text>
       </Notification>
 
       <div className={styles.selector}>
@@ -70,9 +70,9 @@ export default function CampaignFormat() {
 
       {hasUnavailable && (
         <Notification type="warning">
-          <span style={{ fontSize: 'var(--rh-text-xs)' }}>
+          <Text variant="xs">
             Некоторые форматы доступны на тарифах Pro и Agency
-          </span>
+          </Text>
         </Notification>
       )}
 

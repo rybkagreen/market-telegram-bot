@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { MenuButton, Notification } from '@/components/ui'
+import { MenuButton, Notification, Text } from '@/components/ui'
 import { formatCurrency } from '@/lib/formatters'
 import { useMe } from '@/hooks/queries/useUserQueries'
 import { useMyPlacements } from '@/hooks/queries/usePlacementQueries'
@@ -28,7 +28,7 @@ export default function OwnMenu() {
   return (
     <ScreenShell>
       <Notification type="info">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>📺 Режим владельца канала</span>
+        <Text variant="sm">📺 Режим владельца канала</Text>
       </Notification>
 
       <p className={styles.sectionTitle}>Меню владельца</p>

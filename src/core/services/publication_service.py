@@ -81,11 +81,11 @@ class PublicationService:
             can_delete = bool(member.can_delete_messages)
             # For channels: pin permission is bundled into can_edit_messages (Telegram Bot API docs).
             # can_pin_messages applies only to groups/supergroups.
-            can_pin = bool(member.can_edit_messages or member.can_pin_messages) if require_pin else True
-        else:
-            raise InsufficientPermissionsError(
-                'Бот не является администратором канала'
+            can_pin = (
+                bool(member.can_edit_messages or member.can_pin_messages) if require_pin else True
             )
+        else:
+            raise InsufficientPermissionsError("Бот не является администратором канала")
 
         if not can_post:
             raise InsufficientPermissionsError("Нет права публиковать сообщения")
@@ -286,7 +286,9 @@ class PublicationService:
 
         # 6b. После коммита объекты в сессии просрочены — перечитываем placement
         placement = (
-            await session.execute(select(PlacementRequest).where(PlacementRequest.id == placement_id))
+            await session.execute(
+                select(PlacementRequest).where(PlacementRequest.id == placement_id)
+            )
         ).scalar_one_or_none()
 
         if placement:
@@ -335,8 +337,8 @@ class PublicationService:
             return
 
         if channel.telegram_id is None:
-            logger.error('Channel %s has no telegram_id, cannot delete post', channel.id)
-            raise ValueError(f'Channel {channel.id} has no telegram_id')
+            logger.error("Channel %s has no telegram_id, cannot delete post", channel.id)
+            raise ValueError(f"Channel {channel.id} has no telegram_id")
 
         # Для pin форматов — сначала открепить
         if placement.publication_format in ("pin_24h", "pin_48h"):
@@ -372,6 +374,17 @@ class PublicationService:
             placement.advertiser_id,
             channel.owner_id,
         )
+
+        # Sprint A.2: автоматическая генерация акта выполненных работ
+        try:
+            from src.core.services.act_service import ActService
+
+            act = await ActService.generate_for_completed_placement(session, placement)
+            logger.info(f"Act generated for placement {placement_id}: {act.act_number}")
+        except Exception as e:
+            # Отказоустойчивость: ошибка генерации акта НЕ откатывает
+            # удаление поста и освобождение эскроу
+            logger.warning(f"Failed to generate act for placement {placement_id}: {e}")
 
         await session.flush()
 

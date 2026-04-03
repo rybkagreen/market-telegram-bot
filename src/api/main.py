@@ -15,6 +15,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from src.api.middleware.audit_middleware import AuditMiddleware
 from src.api.middleware.log_sanitizer import sanitized_validation_error_handler
+from src.api.routers.acts import router as acts_router  # ДОБАВЛЕНО (S-26 F.1)
 from src.api.routers.admin import router as admin_router  # ДОБАВЛЕНО (PHASE-2)
 from src.api.routers.ai import router as ai_router
 from src.api.routers.analytics import router as analytics_router
@@ -42,21 +43,32 @@ from src.core.exceptions import RekHarborError
 logger = logging.getLogger(__name__)
 
 _SENTRY_PII_KEYS = {
-    "passport_series", "passport_number", "passport_issued_by",
-    "bank_account", "bank_corr_account", "yoomoney_wallet",
-    "inn_scan_file_id", "passport_scan_file_id", "file_id",
-    "authorization", "x-api-key", "password", "token",
+    "passport_series",
+    "passport_number",
+    "passport_issued_by",
+    "bank_account",
+    "bank_corr_account",
+    "yoomoney_wallet",
+    "inn_scan_file_id",
+    "passport_scan_file_id",
+    "file_id",
+    "authorization",
+    "x-api-key",
+    "password",
+    "token",
 }
 
 
 def _scrub_pii(event: dict, hint: dict) -> dict:
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
-            return {k: "***" if k.lower() in _SENTRY_PII_KEYS else _clean(v)
-                    for k, v in obj.items()}
+            return {
+                k: "***" if k.lower() in _SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()
+            }
         if isinstance(obj, list):
             return [_clean(i) for i in obj]
         return obj
+
     if "request" in event:
         event["request"] = _clean(event["request"])
     return event
@@ -115,16 +127,21 @@ app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"]
 app.include_router(billing_router, prefix="/api/billing", tags=["Billing"])
 app.include_router(channels_router, prefix="/api/channels", tags=["Channels"])
 app.include_router(disputes_router, prefix="/api/disputes", tags=["Disputes"])
-app.include_router(feedback_router, prefix="/api/feedback", tags=["Feedback"])  # ДОБАВЛЕНО (2026-03-18)
+app.include_router(
+    feedback_router, prefix="/api/feedback", tags=["Feedback"]
+)  # ДОБАВЛЕНО (2026-03-18)
 app.include_router(admin_router, prefix="/api", tags=["Admin"])  # ДОБАВЛЕНО (PHASE-2)
 app.include_router(payouts_router, prefix="/api/payouts", tags=["Payouts"])
 app.include_router(placements_router, prefix="/api/placements", tags=["Placements"])
-app.include_router(channel_settings_router, prefix="/api/channel-settings", tags=["Channel Settings"])
+app.include_router(
+    channel_settings_router, prefix="/api/channel-settings", tags=["Channel Settings"]
+)
 app.include_router(reputation_router, prefix="/api/reputation", tags=["Reputation"])
 app.include_router(reviews_router, prefix="/api/reviews", tags=["Reviews"])
 app.include_router(categories_router, prefix="/api/categories", tags=["Categories"])
 app.include_router(legal_profile_router)
 app.include_router(contracts_router)
+app.include_router(acts_router)
 app.include_router(ord_router)
 app.include_router(uploads_router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(webhooks_router)

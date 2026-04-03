@@ -135,3 +135,41 @@
   margin: 0;
   line-height: 1.5;
 }
+
+/* Review modal styles */
+.reviewSection {
+  margin-bottom: var(--rh-space-2);
+}
+
+.reviewSectionLarge {
+  margin-bottom: var(--rh-space-4);
+}
+
+.starRow {
+  display: flex;
+  gap: var(--rh-space-1);
+}
+
+.star {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.starActive {
+  color: #f5a623;
+}
+
+.starInactive {
+  color: #ccc;
+}
+
+.starClickable {
+  composes: star;
+  cursor: pointer;
+}
+
+.existingReviewLabel {
+  color: var(--rh-text-secondary, #888);
+  font-size: var(--rh-text-sm);
+  margin-bottom: var(--rh-space-2);
+}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Button, CategoryGrid, ChannelCard, Notification, Skeleton } from '@/components/ui'
+import { ScreenLayout } from '@/components/layout/ScreenLayout'
+import { Button, CategoryGrid, ChannelCard, Notification, Skeleton, Text } from '@/components/ui'
 import { formatCompact } from '@/lib/formatters'
 import { useMyChannels, useUpdateChannelCategory } from '@/hooks/queries/useChannelQueries'
 import { useCategories } from '@/hooks/queries/useCategoryQueries'
@@ -22,7 +22,7 @@ export default function OwnChannels() {
   }
 
   return (
-    <ScreenShell>
+    <ScreenLayout title="Мои каналы">
       <button
         className={styles.addButton}
         onClick={() => navigate('/own/channels/add')}
@@ -40,7 +40,7 @@ export default function OwnChannels() {
 
       {isError && (
         <Notification type="danger">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>❌ Не удалось загрузить каналы</span>
+          <Text variant="sm">❌ Не удалось загрузить каналы</Text>
         </Notification>
       )}
 
@@ -65,9 +65,9 @@ export default function OwnChannels() {
                 {!channel.category && (
                   <div className={styles.categoryWarning}>
                     <Notification type="warning">
-                      <span style={{ fontSize: 'var(--rh-text-sm)' }}>
-                        ⚠️ Канал не виден рекламодателям — выберите категорию
-                      </span>
+                      <Text variant="sm">
+                        ⚠️ Канал не виден рекламодателям -- выберите категорию
+                      </Text>
                       <div className={styles.categoryActions}>
                         {editingCategoryFor === channel.id ? (
                           <CategoryGrid
@@ -96,6 +96,6 @@ export default function OwnChannels() {
           </div>
         </>
       )}
-    </ScreenShell>
+    </ScreenLayout>
   )
 }

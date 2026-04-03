@@ -28,9 +28,11 @@
 }
 
 .icon {
-  font-size: var(--rh-text-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: var(--rh-space-6);
-  text-align: center;
+  flex-shrink: 0;
 }
 
 .label {

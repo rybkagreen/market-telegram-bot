@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Button, Notification, Skeleton } from '@/components/ui'
+import { Card, Button, Notification, Skeleton, Text } from '@/components/ui'
 import { MIN_DISPUTE_COMMENT, DISPUTE_REASON_LABELS, PUBLICATION_FORMATS } from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import type { DisputeReason } from '@/lib/types'
@@ -83,9 +83,9 @@ export default function OpenDispute() {
     return (
       <ScreenShell>
         <Notification type="danger">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>❌ {reason}</span>
+          <Text variant="sm">❌ {reason}</Text>
         </Notification>
-        <div style={{ marginTop: 'var(--rh-space-3)' }}>
+        <div className={styles.backSection}>
           <Button variant="secondary" fullWidth onClick={() => navigate(-1)}>
             Назад
           </Button>
@@ -146,9 +146,9 @@ export default function OpenDispute() {
       <p className={styles.charHint}>{comment.length} / мин. {MIN_DISPUTE_COMMENT}</p>
 
       <Notification type="warning">
-        <span style={{ fontSize: 'var(--rh-text-sm)' }}>
+        <Text variant="sm">
           ⚠️ Необоснованные споры могут повлиять на вашу репутацию
-        </span>
+        </Text>
       </Notification>
 
       <Button

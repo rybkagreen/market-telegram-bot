@@ -251,20 +251,22 @@ class BillingService:
 
             # Создаём транзакцию со статусом pending
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create({
-                "user_id": user_id,
-                "amount": gross_amount,
-                "type": TransactionType.topup,
-                "yookassa_payment_id": payment_id,
-                "meta_json": {
-                    "status": "pending",
-                    "method": payment_method,
-                    "credits": credits_amount,
-                    "desired_balance": str(desired_balance),
-                    "fee_amount": str(fee_amount),
-                    "gross_amount": str(gross_amount),
-                },
-            })
+            await transaction_repo.create(
+                {
+                    "user_id": user_id,
+                    "amount": gross_amount,
+                    "type": TransactionType.topup,
+                    "yookassa_payment_id": payment_id,
+                    "meta_json": {
+                        "status": "pending",
+                        "method": payment_method,
+                        "credits": credits_amount,
+                        "desired_balance": str(desired_balance),
+                        "fee_amount": str(fee_amount),
+                        "gross_amount": str(gross_amount),
+                    },
+                }
+            )
 
             logger.info(
                 f"Payment {payment_id} created for user {user_id}: "
@@ -377,12 +379,14 @@ class BillingService:
 
             # Создаём транзакцию (для истории, в рублях)
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create({
-                "user_id": user_id,
-                "amount": Decimal(credits),  # 1 кредит = 1 рублю
-                "type": TransactionType.spend,
-                "meta_json": {"description": description, "credits_spent": credits},
-            })
+            await transaction_repo.create(
+                {
+                    "user_id": user_id,
+                    "amount": Decimal(credits),  # 1 кредит = 1 рублю
+                    "type": TransactionType.spend,
+                    "meta_json": {"description": description, "credits_spent": credits},
+                }
+            )
 
             logger.info(f"Spend {credits} credits from user {user_id}: {description}")
 
@@ -815,9 +819,7 @@ class BillingService:
 
         # Проверить статус
         if placement.status != MailingStatus.failed:
-            logger.warning(
-                f"Placement {placement_id} status is not failed ({placement.status})"
-            )
+            logger.warning(f"Placement {placement_id} status is not failed ({placement.status})")
             return False
 
         # ⚠️ ИДЕМПОТЕНТНОСТЬ: проверить флаг возврата
@@ -829,7 +831,11 @@ class BillingService:
             return True  # уже возвращено
 
         # 2. Получить placement_request и рекламодателя
-        stmt = select(PlacementRequest).where(PlacementRequest.id == placement.placement_request_id).with_for_update()
+        stmt = (
+            select(PlacementRequest)
+            .where(PlacementRequest.id == placement.placement_request_id)
+            .with_for_update()
+        )
         result = await session.execute(stmt)
         placement_request: PlacementRequest | None = result.scalar_one_or_none()
         if placement_request is None:
@@ -996,9 +1002,7 @@ class BillingService:
 
         # Проверка баланса (balance_rub для размещений)
         if user.balance_rub < amount:
-            raise InsufficientFundsError(
-                f"Insufficient balance_rub: {user.balance_rub} < {amount}"
-            )
+            raise InsufficientFundsError(f"Insufficient balance_rub: {user.balance_rub} < {amount}")
 
         # Списание средств с balance_rub
         balance_before = user.balance_rub
@@ -1127,6 +1131,30 @@ class BillingService:
             session.add(transaction)
             await session.flush()
 
+            # Sprint A.3: записать выручку в УСН и КУДиР
+            from src.core.services.tax_aggregation_service import TaxAggregationService
+
+            await TaxAggregationService.record_income_for_usn(
+                session,
+                gross_amount,
+                f"Topup via YooKassa (payment_id={payment_id})",
+            )
+
+            # Sprint D.2: записать расход — комиссия ЮKassa (BANK_COMMISSIONS)
+            try:
+                from src.constants.expense_categories import ExpenseCategory
+
+                if gross_amount > desired_balance:
+                    yk_fee = gross_amount - desired_balance
+                    await TaxAggregationService.record_expense_for_usn(
+                        session,
+                        yk_fee,
+                        ExpenseCategory.BANK_COMMISSIONS.value,
+                        f"ЮKassa commission for payment {payment_id}",
+                    )
+            except Exception as e:
+                logger.error(f"Failed to record YooKassa fee expense for payment {payment_id}: {e}")
+
             logger.info(
                 f"Topup webhook processed: +{desired_balance} ₽ for user {user_id}, "
                 f"payment_id={payment_id}, gross={gross_amount} ₽"
@@ -1223,6 +1251,7 @@ class BillingService:
             from sqlalchemy import select
 
             from src.db.models.mailing_log import MailingLog, MailingStatus
+
             stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
             result = await session.execute(stmt)
             mailing = result.scalar_one_or_none()
@@ -1285,10 +1314,24 @@ class BillingService:
             session.add(commission_transaction)
             await session.flush()
 
+            # Sprint A.3: записать комиссию размещения в УСН и КУДиР
+            # Sprint C.1: рассчитать НДС 22% от комиссии платформы
+            from src.core.services.tax_aggregation_service import TaxAggregationService
+
+            vat_amount = (platform_fee * Decimal("0.22")).quantize(Decimal("0.01"))
+
+            await TaxAggregationService.record_income_for_usn(
+                session,
+                platform_fee,
+                f"Placement commission (placement_id={placement_id})",
+                vat_amount=vat_amount,
+            )
+
             # Update mailing status to paid
             from sqlalchemy import select
 
             from src.db.models.mailing_log import MailingLog, MailingStatus
+
             stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
             result = await session.execute(stmt)
             mailing = result.scalar_one_or_none()

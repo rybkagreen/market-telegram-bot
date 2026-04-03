@@ -1,0 +1,95 @@
+/* Page title */
+.pageTitle {
+  font-weight: 700;
+  font-size: var(--rh-text-lg, 18px);
+  margin-bottom: 16px;
+}
+
+/* Rules row */
+.rulesRow {
+  background: var(--rh-surface, rgba(255,255,255,0.04));
+  border-radius: var(--rh-radius-md, 12px);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rulesLabel {
+  font-size: 14px;
+}
+
+.rulesAccepted {
+  color: #22c55e;
+  font-size: 12px;
+}
+
+.readButton {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #60a5fa;
+  cursor: pointer;
+}
+
+/* Viewer modal */
+.viewerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewerContainer {
+  background: var(--rh-bg, #0b0e14);
+  margin: 16px;
+  border-radius: var(--rh-radius-lg, 16px);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+
+.viewerHeader {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.viewerTitle {
+  margin: 0;
+  font-size: 16px;
+}
+
+.viewerClose {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 8px;
+}
+
+.viewerContent {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.viewerContent div {
+  color: #e5e7eb;
+}
+
+.viewerLoadingText {
+  text-align: center;
+  opacity: 0.6;
+}

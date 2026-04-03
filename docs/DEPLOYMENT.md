@@ -307,11 +307,11 @@ docker compose ps
 ### Health checks
 
 ```bash
-# API
-curl http://localhost:8001/health
+# API (via docker exec — port not exposed to host)
+docker exec market_bot_api curl -sf http://localhost:8001/health
 
-# Nginx
-curl http://localhost:8081/health
+# Nginx (reverse proxy)
+curl http://localhost/health
 
 # Flower (Celery UI)
 # Откройте: http://<SERVER_IP>:5555

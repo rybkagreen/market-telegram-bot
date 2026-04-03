@@ -529,7 +529,23 @@ class PayoutService:
             fee_amount = (gross_amount * PAYOUT_FEE_RATE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-            net_amount = gross_amount - fee_amount
+
+            # Sprint B.2: рассчитать НДФЛ / NPD статус
+            legal_status = user.legal_profile.legal_status if user.legal_profile else "individual"
+            ndfl_withheld = Decimal("0")
+            npd_status = "pending"
+
+            if legal_status == "individual":
+                # Физлицо — удержать НДФЛ 13%
+                ndfl_withheld = (gross_amount * Decimal("0.13")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            elif legal_status == "self_employed":
+                # Самозанятый — ждать чек НПД (48h таймаут)
+                npd_status = "pending"
+            # legal_entity, individual_entrepreneur — без удержания
+
+            net_amount = gross_amount - fee_amount - ndfl_withheld
 
             # Списать с earned_rub
             user.earned_rub -= gross_amount
@@ -539,28 +555,7 @@ class PayoutService:
             await platform_repo.add_to_payout_reserved(session, gross_amount)
             await platform_repo.add_to_profit(session, fee_amount)
 
-            # Transaction(type=REFUND, amount=gross_amount, user_id=user_id)
-            txn_repo = TransactionRepository(session)
-            await txn_repo.create(
-                {
-                    "user_id": user_id,
-                    "type": TransactionType.refund_full,
-                    "amount": gross_amount,
-                    "meta_json": {"type": "payout_request", "gross_amount": str(gross_amount)},
-                },
-            )
-
-            # Transaction(type=PAYOUT_FEE, amount=fee_amount, user_id=user_id)
-            await txn_repo.create(
-                {
-                    "user_id": user_id,
-                    "type": TransactionType.payout_fee,
-                    "amount": fee_amount,
-                    "payout_id": 0,
-                }
-            )
-
-            # Создать PayoutRequest(gross=gross_amount, fee=fee_amount, net=net_amount, status='pending')
+            # Создать PayoutRequest с рассчитанными полями
             payout = PayoutRequest(
                 owner_id=user_id,
                 gross_amount=gross_amount,
@@ -568,14 +563,54 @@ class PayoutService:
                 net_amount=net_amount,
                 status=PayoutStatus.pending,
                 requisites="payout_request",
+                ndfl_withheld=ndfl_withheld,
+                npd_status=npd_status,
             )
             session.add(payout)
             await session.flush()
             await session.refresh(payout)
 
+            # Создаём транзакции ПОСЛЕ flush() — payout.id уже известен
+            txn_repo = TransactionRepository(session)
+            await txn_repo.create(
+                {
+                    "user_id": user_id,
+                    "type": TransactionType.refund_full,
+                    "amount": gross_amount,
+                    "payout_id": payout.id,
+                    "meta_json": {"type": "payout_request", "gross_amount": str(gross_amount)},
+                },
+            )
+
+            await txn_repo.create(
+                {
+                    "user_id": user_id,
+                    "type": TransactionType.payout_fee,
+                    "amount": fee_amount,
+                    "payout_id": payout.id,
+                },
+            )
+
+            # Sprint B.2: транзакция удержания НДФЛ (если > 0)
+            if ndfl_withheld > 0:
+                await txn_repo.create(
+                    {
+                        "user_id": user_id,
+                        "type": TransactionType.ndfl_withholding,
+                        "amount": ndfl_withheld,
+                        "payout_id": payout.id,
+                        "meta_json": {
+                            "type": "ndfl_withholding",
+                            "rate": "0.13",
+                            "legal_status": legal_status,
+                        },
+                    },
+                )
+
             logger.info(
                 f"PayoutRequest created: gross={gross_amount} ₽, fee={fee_amount} ₽, "
-                f"net={net_amount} ₽ for user {user_id}"
+                f"ndfl={ndfl_withheld} ₽, net={net_amount} ₽ for user {user_id} "
+                f"(legal_status={legal_status})"
             )
 
             return payout
@@ -609,6 +644,21 @@ class PayoutService:
             await platform_repo.complete_payout(session, payout.gross_amount, payout.net_amount)
 
             await session.flush()
+
+            # Sprint D.2: записать расход — выплата владельцу канала (PAYOUT_TO_CONTRACTORS)
+            try:
+                from src.constants.expense_categories import ExpenseCategory
+                from src.core.services.tax_aggregation_service import TaxAggregationService
+
+                if payout.net_amount > 0:
+                    await TaxAggregationService.record_expense_for_usn(
+                        session,
+                        payout.net_amount,
+                        ExpenseCategory.PAYOUT_TO_CONTRACTORS.value,
+                        f"Payout to channel owner for request {payout_id}",
+                    )
+            except Exception as e:
+                logger.error(f"Failed to record payout expense for payout {payout_id}: {e}")
 
             logger.info(
                 f"PayoutRequest {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"

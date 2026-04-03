@@ -1,0 +1,297 @@
+/**
+ * Icon — lucide-react wrapper with strict name mapping + haptic
+ *
+ * Props:
+ *   name      — lucide icon key (strict map, fallback to CircleAlert)
+ *   size      — pixel size (default 20)
+ *   color     — CSS color string or token (default: inherit)
+ *   strokeWidth — lucide strokeWidth (default 2)
+ *   className — additional CSS classes
+ *   onClick   — if provided, enables clickable styles + haptic
+ */
+
+import { memo } from 'react'
+import {
+  ArrowLeft,
+  House,
+  ShieldCheck,
+  LayoutDashboard,
+  MessageSquare,
+  Scale,
+  Users,
+  BookOpen,
+  Receipt,
+  Building2,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  Plus,
+  X,
+  Check,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  CircleAlert,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  CreditCard,
+  Wallet,
+  BarChart3,
+  Settings,
+  Search,
+  Bell,
+  Eye,
+  EyeOff,
+  Copy,
+  ExternalLink,
+  Download,
+  Upload,
+  Trash2,
+  Edit,
+  Save,
+  Send,
+  RefreshCw,
+  Clock,
+  Calendar,
+  User,
+  UserPlus,
+  UserCheck,
+  Mail,
+  Phone,
+  MapPin,
+  FileText,
+  FolderOpen,
+  Archive,
+  Star,
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  MessageCircle,
+  HelpCircle,
+  LogOut,
+  Menu,
+  XCircle,
+  CheckCircle,
+  AlertOctagon,
+  Loader2,
+  ChevronUp,
+  Minus,
+  Play,
+  Pause,
+  Video,
+  Image,
+  Camera,
+  Mic,
+  Volume2,
+  Link,
+  Unlink,
+  Share2,
+  Bookmark,
+  Tag,
+  Hash,
+  Globe,
+  Zap,
+  Award,
+  Target,
+  Flag,
+  Filter,
+  SlidersHorizontal,
+  MoreVertical,
+  MoreHorizontal,
+  GripVertical,
+  Move,
+  RotateCw,
+  Undo2,
+  Redo2,
+  Package,
+  ShoppingCart,
+  Truck,
+  Percent,
+  Calculator,
+  Banknote,
+  Coins,
+  ReceiptText,
+  FileCheck,
+  FileX,
+  FilePlus,
+  FileMinus,
+  ListChecks,
+  ClipboardList,
+  Sheet,
+  Table,
+  Columns,
+  Rows,
+  LayoutGrid,
+  LayoutList,
+  PanelLeft,
+  PanelRight,
+  Sidebar,
+} from 'lucide-react'
+import { useHaptic } from '@/hooks/useHaptic'
+import styles from './Icon.module.css'
+
+// Strict name → Lucide component mapping
+const ICON_MAP: Record<string, typeof CircleAlert> = {
+  ArrowLeft,
+  House,
+  ShieldCheck,
+  LayoutDashboard,
+  MessageSquare,
+  Scale,
+  Users,
+  BookOpen,
+  Receipt,
+  Building2,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  Plus,
+  X,
+  Check,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  CircleAlert,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  CreditCard,
+  Wallet,
+  BarChart3,
+  Settings,
+  Search,
+  Bell,
+  Eye,
+  EyeOff,
+  Copy,
+  ExternalLink,
+  Download,
+  Upload,
+  Trash2,
+  Edit,
+  Save,
+  Send,
+  RefreshCw,
+  Clock,
+  Calendar,
+  User,
+  UserPlus,
+  UserCheck,
+  Mail,
+  Phone,
+  MapPin,
+  FileText,
+  FolderOpen,
+  Archive,
+  Star,
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  MessageCircle,
+  HelpCircle,
+  LogOut,
+  Menu,
+  XCircle,
+  CheckCircle,
+  AlertOctagon,
+  Loader2,
+  Minus,
+  Play,
+  Pause,
+  Video,
+  Image,
+  Camera,
+  Mic,
+  Volume2,
+  Link,
+  Unlink,
+  Share2,
+  Bookmark,
+  Tag,
+  Hash,
+  Globe,
+  Zap,
+  Award,
+  Target,
+  Flag,
+  Filter,
+  SlidersHorizontal,
+  MoreVertical,
+  MoreHorizontal,
+  GripVertical,
+  Move,
+  RotateCw,
+  Undo2,
+  Redo2,
+  Package,
+  ShoppingCart,
+  Truck,
+  Percent,
+  Calculator,
+  Banknote,
+  Coins,
+  ReceiptText,
+  FileCheck,
+  FileX,
+  FilePlus,
+  FileMinus,
+  ListChecks,
+  ClipboardList,
+  Sheet,
+  Table,
+  Columns,
+  Rows,
+  LayoutGrid,
+  LayoutList,
+  PanelLeft,
+  PanelRight,
+  Sidebar,
+}
+
+const FALLBACK = CircleAlert
+
+export interface IconProps {
+  name: string
+  size?: number
+  color?: string
+  strokeWidth?: number
+  className?: string
+  onClick?: () => void
+}
+
+export const Icon = memo(function Icon({
+  name,
+  size = 20,
+  color,
+  strokeWidth = 2,
+  className,
+  onClick,
+}: IconProps) {
+  const haptic = useHaptic()
+  const LucideIcon = ICON_MAP[name] ?? FALLBACK
+  const isClickable = onClick !== undefined
+
+  const handleClick = () => {
+    if (isClickable) haptic.tap()
+    onClick?.()
+  }
+
+  const cn = [
+    styles.icon,
+    isClickable ? styles.clickable : '',
+    className ?? '',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <span className={cn} onClick={handleClick} role={isClickable ? 'button' : undefined}>
+      <LucideIcon
+        size={size}
+        color={color}
+        strokeWidth={strokeWidth}
+        aria-hidden={!isClickable}
+      />
+    </span>
+  )
+})

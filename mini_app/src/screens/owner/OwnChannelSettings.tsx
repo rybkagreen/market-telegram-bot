@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Button, Toggle, Skeleton, Notification } from '@/components/ui'
+import { Card, Button, Toggle, Skeleton, Notification, Text } from '@/components/ui'
 import { PUBLICATION_FORMATS, MIN_PRICE_PER_POST } from '@/lib/constants'
 import { formatCurrency, calcFormatPrice } from '@/lib/formatters'
 import { useMyChannels, useChannelSettings, useUpdateChannelSettings } from '@/hooks/queries/useChannelQueries'
@@ -135,7 +135,7 @@ export default function OwnChannelSettings() {
     return (
       <ScreenShell>
         <Notification type="danger">
-          <span style={{ fontSize: 'var(--rh-text-sm)' }}>❌ Не удалось загрузить настройки канала</span>
+          <Text variant="sm">❌ Не удалось загрузить настройки канала</Text>
         </Notification>
       </ScreenShell>
     )
