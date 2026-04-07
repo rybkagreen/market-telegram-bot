@@ -63,12 +63,14 @@ async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
         # Удалить старые завершённые/отменённые заявки
         r1 = await session.execute(
             delete(PlacementRequest).where(
-                PlacementRequest.status.in_([
-                    PlacementStatus.cancelled,
-                    PlacementStatus.refunded,
-                    PlacementStatus.failed,
-                    PlacementStatus.failed_permissions,
-                ]),
+                PlacementRequest.status.in_(
+                    [
+                        PlacementStatus.cancelled,
+                        PlacementStatus.refunded,
+                        PlacementStatus.failed,
+                        PlacementStatus.failed_permissions,
+                    ]
+                ),
                 PlacementRequest.created_at < cutoff_placements,
             )
         )

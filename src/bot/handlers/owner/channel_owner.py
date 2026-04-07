@@ -94,7 +94,9 @@ async def show_channel_detail(callback: CallbackQuery, session: AsyncSession) ->
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:settings:{channel_id}")
-    builder.button(text=f"📋 Заявки ({pending})", callback_data=f"own:channel_requests:{channel_id}")
+    builder.button(
+        text=f"📋 Заявки ({pending})", callback_data=f"own:channel_requests:{channel_id}"
+    )
     builder.button(text="❌ Удалить канал", callback_data=f"own:delete_channel:{channel_id}")
     builder.button(text="🔙 Мои каналы", callback_data=MY_CHANNELS_SCENE)
     builder.adjust(1)
@@ -194,15 +196,19 @@ async def add_channel_username(message: Message, state: FSMContext, session: Asy
     cats_list = list(categories)
     for i in range(0, len(cats_list), 2):
         row = []
-        row.append(InlineKeyboardButton(
-            text=f"{cats_list[i].emoji} {cats_list[i].name_ru}",
-            callback_data=f"own:add_channel:cat:{cats_list[i].slug}",
-        ))
+        row.append(
+            InlineKeyboardButton(
+                text=f"{cats_list[i].emoji} {cats_list[i].name_ru}",
+                callback_data=f"own:add_channel:cat:{cats_list[i].slug}",
+            )
+        )
         if i + 1 < len(cats_list):
-            row.append(InlineKeyboardButton(
-                text=f"{cats_list[i + 1].emoji} {cats_list[i + 1].name_ru}",
-                callback_data=f"own:add_channel:cat:{cats_list[i + 1].slug}",
-            ))
+            row.append(
+                InlineKeyboardButton(
+                    text=f"{cats_list[i + 1].emoji} {cats_list[i + 1].name_ru}",
+                    callback_data=f"own:add_channel:cat:{cats_list[i + 1].slug}",
+                )
+            )
         builder.row(*row)
     builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data="own:add_channel:cancel"))
 
@@ -213,8 +219,12 @@ async def add_channel_username(message: Message, state: FSMContext, session: Asy
     )
 
 
-@router.callback_query(F.data.startswith("own:add_channel:cat:"), AddChannelStates.selecting_category)
-async def add_channel_select_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+@router.callback_query(
+    F.data.startswith("own:add_channel:cat:"), AddChannelStates.selecting_category
+)
+async def add_channel_select_category(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Выбрать категорию канала и перейти к подтверждению."""
     if not isinstance(callback.message, Message):
         return
@@ -262,7 +272,9 @@ async def add_channel_select_category(callback: CallbackQuery, state: FSMContext
 
 
 @router.callback_query(F.data == "own:add_channel:back_to_cat", AddChannelStates.confirming)
-async def add_channel_back_to_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def add_channel_back_to_category(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Вернуться к выбору категории."""
     if not isinstance(callback.message, Message):
         return
@@ -273,15 +285,19 @@ async def add_channel_back_to_category(callback: CallbackQuery, state: FSMContex
     cats_list = list(categories)
     for i in range(0, len(cats_list), 2):
         row = []
-        row.append(InlineKeyboardButton(
-            text=f"{cats_list[i].emoji} {cats_list[i].name_ru}",
-            callback_data=f"own:add_channel:cat:{cats_list[i].slug}",
-        ))
+        row.append(
+            InlineKeyboardButton(
+                text=f"{cats_list[i].emoji} {cats_list[i].name_ru}",
+                callback_data=f"own:add_channel:cat:{cats_list[i].slug}",
+            )
+        )
         if i + 1 < len(cats_list):
-            row.append(InlineKeyboardButton(
-                text=f"{cats_list[i + 1].emoji} {cats_list[i + 1].name_ru}",
-                callback_data=f"own:add_channel:cat:{cats_list[i + 1].slug}",
-            ))
+            row.append(
+                InlineKeyboardButton(
+                    text=f"{cats_list[i + 1].emoji} {cats_list[i + 1].name_ru}",
+                    callback_data=f"own:add_channel:cat:{cats_list[i + 1].slug}",
+                )
+            )
         builder.row(*row)
     builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data="own:add_channel:cancel"))
 
@@ -309,7 +325,9 @@ async def add_channel_cancel(callback: CallbackQuery, state: FSMContext) -> None
 
 
 @router.callback_query(F.data == "own:add_channel:confirm", AddChannelStates.confirming)
-async def add_channel_confirm(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def add_channel_confirm(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Подтвердить добавление канала."""
     if not isinstance(callback.message, Message):
         return
@@ -343,8 +361,7 @@ async def add_channel_confirm(callback: CallbackQuery, state: FSMContext, sessio
     builder.adjust(1)
 
     await callback.message.edit_text(
-        f"✅ *Канал @{data['username']} добавлен!*\n\n"
-        "Теперь настройте цену и форматы публикаций.",
+        f"✅ *Канал @{data['username']} добавлен!*\n\nТеперь настройте цену и форматы публикаций.",
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )
@@ -367,9 +384,7 @@ async def delete_channel(callback: CallbackQuery, session: AsyncSession) -> None
         .limit(1)
     )
     if result.scalar_one_or_none():
-        await callback.answer(
-            "❌ Невозможно удалить — есть активные размещения", show_alert=True
-        )
+        await callback.answer("❌ Невозможно удалить — есть активные размещения", show_alert=True)
         return
 
     ch = await session.get(TelegramChat, channel_id)

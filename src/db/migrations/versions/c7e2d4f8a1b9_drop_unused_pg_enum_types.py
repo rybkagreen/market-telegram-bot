@@ -10,13 +10,14 @@ Revises: 671474e06737
 Create Date: 2026-03-22 00:00:00.000000
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c7e2d4f8a1b9'
-down_revision: str | None = '671474e06737'
+revision: str = "c7e2d4f8a1b9"
+down_revision: str | None = "671474e06737"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

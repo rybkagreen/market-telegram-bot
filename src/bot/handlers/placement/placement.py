@@ -407,9 +407,9 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
 
     # --- ORD auto-trigger (S7 addition) ---
     try:
-        from src.core.services.ord_service import OrdService
+        from src.core.services.ord_service import get_ord_service
 
-        ord_svc = OrdService(session)
+        ord_svc = get_ord_service(session)
         await ord_svc.register_creative(
             placement_request_id=req.id,
             ad_text=req.ad_text or "",

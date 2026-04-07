@@ -22,9 +22,13 @@ class ContractSignature(Base):
     signed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    signature_method: Mapped[str] = mapped_column(String(20), nullable=False)  # 'button_accept' | 'sms_code' | 'kep_diadoc'
+    signature_method: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'button_accept' | 'sms_code' | 'kep_diadoc'
     document_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA-256 hex
-    template_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0", server_default="1.0")
+    template_version: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="1.0", server_default="1.0"
+    )
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

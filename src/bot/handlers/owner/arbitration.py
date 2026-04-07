@@ -41,7 +41,11 @@ _FORMAT_NAMES = {
 
 
 def _fmt_name(req: PlacementRequest) -> str:
-    val = req.publication_format.value if hasattr(req.publication_format, "value") else str(req.publication_format)
+    val = (
+        req.publication_format.value
+        if hasattr(req.publication_format, "value")
+        else str(req.publication_format)
+    )
     return _FORMAT_NAMES.get(val, val)
 
 
@@ -62,7 +66,11 @@ async def show_owner_requests(callback: CallbackQuery, session: AsyncSession) ->
 
     all_reqs = await PlacementRequestRepository(session).get_by_owner(user.id)
 
-    pending = [r for r in all_reqs if r.status in (PlacementStatus.pending_owner, PlacementStatus.counter_offer)]
+    pending = [
+        r
+        for r in all_reqs
+        if r.status in (PlacementStatus.pending_owner, PlacementStatus.counter_offer)
+    ]
     processing = [r for r in all_reqs if r.status == PlacementStatus.pending_payment]
     escrow = [r for r in all_reqs if r.status == PlacementStatus.escrow]
     published = [r for r in all_reqs if r.status == PlacementStatus.published]
@@ -135,7 +143,9 @@ async def show_request_detail(callback: CallbackQuery, session: AsyncSession) ->
 
     your_price = settings.price_per_post if settings else Decimal("1000")
     adv_username = (advertiser.username or f"id{advertiser.telegram_id}") if advertiser else "—"
-    proposed_time = req.proposed_schedule.strftime("%d.%m %H:%M") if req.proposed_schedule else "Не указано"
+    proposed_time = (
+        req.proposed_schedule.strftime("%d.%m %H:%M") if req.proposed_schedule else "Не указано"
+    )
     expires = req.expires_at.strftime("%d.%m %H:%M") if req.expires_at else "—"
     ad_preview = req.ad_text[:200] + ("..." if len(req.ad_text) > 200 else "")
 
@@ -192,7 +202,11 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
     advertiser = await session.get(User, req.advertiser_id)
     channel = await session.get(TelegramChat, req.channel_id)
     if advertiser and callback.bot:
-        schedule_str = req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
+        schedule_str = (
+            req.final_schedule.strftime("%d.%m.%Y %H:%M")
+            if req.final_schedule
+            else "По договорённости"
+        )
         try:
             await notify_advertiser_accepted(
                 bot=callback.bot,
@@ -247,7 +261,9 @@ async def reject_request_start(callback: CallbackQuery, state: FSMContext) -> No
 
 
 @router.message(ArbitrationStates.waiting_reject_comment)
-async def reject_request_comment(message: Message, state: FSMContext, session: AsyncSession) -> None:
+async def reject_request_comment(
+    message: Message, state: FSMContext, session: AsyncSession
+) -> None:
     """Сохранить причину и отклонить заявку."""
     if message.text is None:
         return
@@ -313,7 +329,9 @@ async def reject_request_comment(message: Message, state: FSMContext, session: A
 
 
 @router.callback_query(F.data.startswith("own:counter:"))
-async def counter_offer_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def counter_offer_start(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Начать FSM контр-предложения."""
     if not isinstance(callback.message, Message):
         return
@@ -418,7 +436,9 @@ async def counter_time_input(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "counter:comment:skip", ArbitrationStates.entering_counter_comment)
-async def counter_comment_skip(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def counter_comment_skip(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Пропустить комментарий и отправить контр-предложение."""
     await state.update_data(counter_comment=None)
     if not isinstance(callback.message, Message):
@@ -480,7 +500,9 @@ async def _send_counter_offer(
     channel = await session.get(TelegramChat, req.channel_id)
     if advertiser and bot:
         counter_schedule_str = (
-            req.counter_schedule.strftime("%d.%m %H:%M") if req.counter_schedule else "без изменений"
+            req.counter_schedule.strftime("%d.%m %H:%M")
+            if req.counter_schedule
+            else "без изменений"
         )
         try:
             await notify_advertiser_counter(

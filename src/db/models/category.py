@@ -15,7 +15,9 @@ class Category(Base):
     slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     name_ru: Mapped[str] = mapped_column(String(128), nullable=False)
     emoji: Mapped[str] = mapped_column(String(8), nullable=False, server_default="🔖")
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     def __repr__(self) -> str:

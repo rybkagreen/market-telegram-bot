@@ -37,6 +37,22 @@ class OrdProvider(Protocol):
         """Register an ad creative and return erid."""
         ...
 
+    async def register_platform(self, channel_id: int, channel_url: str, channel_name: str) -> str:
+        """Register a Telegram channel as a platform (site) in ORD.
+        Returns deterministic platform_ord_id: 'platform-{channel_id}'."""
+        ...
+
+    async def register_contract(
+        self,
+        placement_request_id: int,
+        advertiser_ord_id: str,
+        amount_rub: str,
+        date_str: str,
+    ) -> str:
+        """Register a contract between advertiser (RD) and RekHarbor (RR) in ORD.
+        Returns deterministic contract_ord_id: 'contract-{placement_request_id}'."""
+        ...
+
     async def report_publication(
         self,
         erid: str,

@@ -63,6 +63,7 @@ async def _check_plan_renewals() -> dict:
                 try:
                     await user_repo.update_credits(user.id, -plan_cost)
                     from sqlalchemy import update as _update
+
                     await session.execute(
                         _update(User).where(User.id == user.id).values(ai_uses_count=0)
                     )
@@ -76,8 +77,7 @@ async def _check_plan_renewals() -> dict:
                     await session.commit()
                     renewed += 1
                     logger.info(
-                        f"Plan renewed: user={user.telegram_id}, "
-                        f"plan={user.plan}, cost={plan_cost}"
+                        f"Plan renewed: user={user.telegram_id}, plan={user.plan}, cost={plan_cost}"
                     )
 
                     # Отправляем уведомление об успешном продлении
@@ -109,10 +109,11 @@ async def _check_plan_renewals() -> dict:
             else:
                 # Недостаточно кредитов — понижаем до FREE
                 from sqlalchemy import update as _update
+
                 await session.execute(
-                    _update(User).where(User.id == user.id).values(
-                        plan="free", plan_expires_at=None, ai_uses_count=0
-                    )
+                    _update(User)
+                    .where(User.id == user.id)
+                    .values(plan="free", plan_expires_at=None, ai_uses_count=0)
                 )
                 await session.commit()
                 logger.warning(

@@ -41,13 +41,17 @@ class DisputeCreate(BaseModel):
 
     placement_id: int = Field(..., description="ID заявки на размещение")
     reason: DisputeReason = Field(..., description="Причина спора")
-    comment: str = Field(..., min_length=10, max_length=2000, description="Комментарий рекламодателя")
+    comment: str = Field(
+        ..., min_length=10, max_length=2000, description="Комментарий рекламодателя"
+    )
 
 
 class DisputeUpdate(BaseModel):
     """Схема обновления диспута (ответ владельца)."""
 
-    owner_comment: str = Field(..., min_length=10, max_length=2000, description="Объяснение владельца")
+    owner_comment: str = Field(
+        ..., min_length=10, max_length=2000, description="Объяснение владельца"
+    )
 
 
 class DisputeResponse(BaseModel):

@@ -82,7 +82,10 @@ async def get_my_payouts(
     return [PayoutResponse.model_validate(p) for p in payouts]
 
 
-@router.get("/{payout_id}", responses={404: {"description": "Payout not found"}, 403: {"description": "Access denied"}})
+@router.get(
+    "/{payout_id}",
+    responses={404: {"description": "Payout not found"}, 403: {"description": "Access denied"}},
+)
 async def get_payout(
     payout_id: int,
     current_user: CurrentUser,

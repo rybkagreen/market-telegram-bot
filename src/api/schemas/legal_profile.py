@@ -222,3 +222,33 @@ class OrdRegistrationResponse(BaseModel):
 class ValidateInnResponse(BaseModel):
     valid: bool
     type: str
+
+
+class FnsValidationError(BaseModel):
+    field: str
+    message: str
+
+
+class FnsValidationResponse(BaseModel):
+    """Результат валидации через ФНС (контрольные суммы ИНН/ОГРН)."""
+    is_valid: bool
+    entity_type: str | None = None  # 'legal_entity', 'individual_entrepreneur', 'individual'
+    inn: str | None = None
+    name: str | None = None
+    kpp: str | None = None
+    ogrn: str | None = None
+    status: str | None = None
+    errors: list[FnsValidationError] = []
+    warnings: list[str] = []
+
+
+class ValidateEntityRequest(BaseModel):
+    """Запрос на валидацию юрлица или ИП."""
+    inn: str
+    legal_status: str  # needed to cross-validate INN type vs selected status
+    legal_name: str | None = None
+    kpp: str | None = None
+    ogrn: str | None = None
+    ogrnip: str | None = None
+    passport_series: str | None = None
+    passport_number: str | None = None

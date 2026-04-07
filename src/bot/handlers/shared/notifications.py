@@ -251,10 +251,7 @@ async def notify_admin_new_dispute(
     with contextlib.suppress(Exception):
         await bot.send_message(
             chat_id=admin_telegram_id,
-            text=(
-                f"⚠️ *Новый спор #{dispute_id}*\n\n"
-                f"Размещение #{placement_id} оспорено."
-            ),
+            text=(f"⚠️ *Новый спор #{dispute_id}*\n\nРазмещение #{placement_id} оспорено."),
             reply_markup=builder.as_markup(),
             parse_mode="Markdown",
         )
@@ -274,8 +271,7 @@ async def notify_dispute_opened_advertiser(
         await bot.send_message(
             chat_id=advertiser_telegram_id,
             text=(
-                f"⚠️ *Спор #{dispute_id} открыт*\n\n"
-                f"Ваша жалоба принята и передана администратору."
+                f"⚠️ *Спор #{dispute_id} открыт*\n\nВаша жалоба принята и передана администратору."
             ),
             reply_markup=builder.as_markup(),
             parse_mode="Markdown",
@@ -289,7 +285,9 @@ async def notify_dispute_opened_owner(
 ) -> None:
     """Владельцу: открыт спор по его каналу."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="📝 Объяснить ситуацию", callback_data=f"dispute:owner_explain:{dispute_id}")
+    builder.button(
+        text="📝 Объяснить ситуацию", callback_data=f"dispute:owner_explain:{dispute_id}"
+    )
     builder.button(text="📋 Детали спора", callback_data=f"dispute:detail:{dispute_id}")
     builder.adjust(1)
     with contextlib.suppress(Exception):
@@ -317,10 +315,7 @@ async def notify_dispute_resolved(
     with contextlib.suppress(Exception):
         await bot.send_message(
             chat_id=telegram_id,
-            text=(
-                f"✅ *Спор #{dispute_id} разрешён*\n\n"
-                f"{resolution}"
-            ),
+            text=(f"✅ *Спор #{dispute_id} разрешён*\n\n{resolution}"),
             reply_markup=builder.as_markup(),
             parse_mode="Markdown",
         )
@@ -329,6 +324,7 @@ async def notify_dispute_resolved(
 # ---------------------------------------------------------------------------
 # Backward-compat aliases used by existing callers
 # ---------------------------------------------------------------------------
+
 
 async def notify_placement_new(
     bot: Bot,
@@ -347,7 +343,9 @@ async def notify_payment_received(
     channel_name: str = "",
 ) -> None:
     """Alias → notify_owner_post_completed (backward compat)."""
-    await notify_owner_post_completed(bot, owner_telegram_id, Decimal(str(earned_rub)), channel_name)
+    await notify_owner_post_completed(
+        bot, owner_telegram_id, Decimal(str(earned_rub)), channel_name
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +369,11 @@ async def notify_owner_accepted(placement, advertiser, channel_name: str) -> Non
         advertiser.telegram_id,
         placement.id,
         channel_name,
-        str(placement.publication_format.value if hasattr(placement.publication_format, 'value') else placement.publication_format),
+        str(
+            placement.publication_format.value
+            if hasattr(placement.publication_format, "value")
+            else placement.publication_format
+        ),
         placement.final_price or placement.proposed_price,
         str(placement.final_schedule or placement.proposed_schedule or ""),
     )
@@ -401,7 +403,11 @@ async def notify_counter_accepted(placement, advertiser, owner, channel_name: st
         advertiser.telegram_id,
         placement.id,
         channel_name,
-        str(placement.publication_format.value if hasattr(placement.publication_format, 'value') else placement.publication_format),
+        str(
+            placement.publication_format.value
+            if hasattr(placement.publication_format, "value")
+            else placement.publication_format
+        ),
         placement.final_price or placement.proposed_price,
         str(placement.final_schedule or ""),
     )
@@ -414,7 +420,9 @@ async def notify_rejected(placement, advertiser, channel_name: str) -> None:
     await notify_advertiser_rejected(bot, advertiser.telegram_id, placement.id, channel_name)
 
 
-async def notify_cancelled(placement, advertiser, owner, channel_name: str, reputation_delta=None) -> None:
+async def notify_cancelled(
+    placement, advertiser, owner, channel_name: str, reputation_delta=None
+) -> None:
     """Wrapper: уведомить рекламодателя об отмене заявки."""
     from src.bot.main import bot
 

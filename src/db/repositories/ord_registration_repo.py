@@ -14,7 +14,9 @@ class OrdRegistrationRepo(BaseRepository[OrdRegistration]):
     async def get_by_placement(self, placement_request_id: int) -> OrdRegistration | None:
         """Получить регистрацию по placement_request_id."""
         result = await self.session.execute(
-            select(OrdRegistration).where(OrdRegistration.placement_request_id == placement_request_id)
+            select(OrdRegistration).where(
+                OrdRegistration.placement_request_id == placement_request_id
+            )
         )
         return result.scalar_one_or_none()
 

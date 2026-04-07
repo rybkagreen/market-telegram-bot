@@ -1,0 +1,58 @@
+import { useEffect } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuthStore } from '@/stores/authStore'
+import { api } from '@shared/api/client'
+
+/**
+ * AuthGuard — проверяет наличие JWT и валидность через /api/auth/me.
+ * Если токен есть в localStorage, но пользователь не загружен — пробуем загрузить.
+ */
+export function AuthGuard() {
+  const { isAuthenticated, isLoading, user, setAuth, setLoading, logout } = useAuthStore()
+
+  useEffect(() => {
+    // Нет токена — снять loading, редиректить на /login
+    if (!isAuthenticated) {
+      setLoading(false)
+      return
+    }
+    // Есть токен и user уже загружен — ничего не делать
+    if (user) {
+      setLoading(false)
+      return
+    }
+    // Есть токен, нет user — проверить токен через API
+    setLoading(true)
+    api
+      .get('auth/me')
+      .json()
+      .then((data) => {
+        const token = localStorage.getItem('rh_token')
+        if (token) {
+          setAuth(token, data as Parameters<typeof setAuth>[1])
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        logout()
+      })
+  }, [isAuthenticated])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-harbor-bg">
+        <div className="text-center">
+          <div className="text-4xl mb-4 animate-pulse">⚓</div>
+          <p className="text-text-secondary">Загрузка...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <Outlet />
+}

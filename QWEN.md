@@ -777,3 +777,15 @@ src/db/models/ord_registration.py  ← ОРД-регистрация
 
 ## Qwen Added Memories
 - Activate .venv virtual environment when working with the backend
+- During S-27 (web portal sprint), save all reports to /opt/market-telegram-bot/reports/s-27-web-portal/
+- S-27 Tech Debt Registry (5 items):
+TD-01 (HIGH): Hardcoded plan prices in web_portal/src/lib/constants.ts (business: 4990). Fix: use GET /api/billing/plans via usePlans() hook.
+TD-02 (MEDIUM): Cabinet.tsx, Feedback.tsx, NotFoundScreen.tsx never audited — existed before S-27 prompts, quality unknown.
+TD-03 (MEDIUM): MyCampaigns.tsx is a stub (2.10KB) — shows empty state with Telegram bot redirect, not real campaign management.
+TD-04 (LOW): mini_app package.json still on TS 5.9.3, tsconfig prepared for 6.0. Planned for S-30.
+TD-05 (LOW): queries.ts for cross-cutting hooks (Variant B). Rule: only session/stats/contracts go here, domain hooks in separate files.
+
+Architectural decisions locked: Tailwind v4 @theme, web_portal/src/shared/ separate from mini_app, style={{}} only in StatusBadge/AmountDisplay, domain-split types/, internal key vs display name two-layer tariff system, baseUrl removed, types:['node'] explicit.
+
+S-28 checklist: audit constants.ts prices, implement /api/billing/plans if missing, update Plans.tsx with API prices, audit 3 undocumented screens, document MyCampaigns stub, smoke test production API.
+- S-27 Sprint closed 04.04.2026. Tech debts: TD-01 (HIGH) hardcoded plan prices → fix in S-28. TD-02 RESOLVED — Cabinet/Feedback/NotFoundScreen audited, all production-ready. TD-03 ACCEPTED — MyCampaigns intentional stub with UI notice. TD-04 LOW — mini_app TS 5.9.3→6.0 planned S-30. TD-05 LOW — queries.ts Variant B documented. S-28 checklist: fix hardcoded prices, smoke test production API.

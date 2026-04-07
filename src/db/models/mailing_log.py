@@ -49,14 +49,14 @@ class MailingLog(Base, TimestampMixin):
     placement_request_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("placement_requests.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    campaign_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True
-    )
+    campaign_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     chat_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("telegram_chats.id", ondelete="SET NULL"), nullable=True
     )
     chat_telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    status: Mapped[MailingStatus] = mapped_column(String(32), default=MailingStatus.pending, server_default="pending", index=True)
+    status: Mapped[MailingStatus] = mapped_column(
+        String(32), default=MailingStatus.pending, server_default="pending", index=True
+    )
     message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -70,7 +70,9 @@ class MailingLog(Base, TimestampMixin):
     placement_request: Mapped["PlacementRequest | None"] = relationship(
         "PlacementRequest", back_populates="mailing_logs"
     )
-    chat: Mapped["TelegramChat | None"] = relationship("TelegramChat", back_populates="mailing_logs")
+    chat: Mapped["TelegramChat | None"] = relationship(
+        "TelegramChat", back_populates="mailing_logs"
+    )
 
     __table_args__ = (
         UniqueConstraint("placement_request_id", "chat_id", name="uq_mailing_placement_chat"),

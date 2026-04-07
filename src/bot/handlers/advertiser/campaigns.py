@@ -94,7 +94,9 @@ async def camp_counter_accept(callback: CallbackQuery, session: AsyncSession) ->
 
 # ISSUE #11: Начать раунд контр-переговоров
 @router.callback_query(F.data.startswith("camp:counter:reply:"))
-async def camp_counter_reply(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_counter_reply(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Рекламодатель отправляет встречное предложение по цене."""
     from src.db.models.placement_request import PlacementRequest
 
@@ -174,7 +176,9 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
         try:
             notify_kb = InlineKeyboardBuilder()
             notify_kb.button(text="👀 Посмотреть", callback_data=f"req:view:{request_id}")
-            await notify_placement_new(message.bot, owner.telegram_id, request_id, notify_kb.as_markup())
+            await notify_placement_new(
+                message.bot, owner.telegram_id, request_id, notify_kb.as_markup()
+            )
         except Exception as e:
             logger.warning(f"Failed to send notification to owner: {e}")
 
@@ -193,7 +197,9 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
 # ── Video upload flow (S3 addition) ──────────────────────────────────────────
 
 
-async def _proceed_after_video(event: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:  # noqa: ARG001
+async def _proceed_after_video(
+    event: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:  # noqa: ARG001
     """Перейти к подтверждению кампании после (необязательного) шага с видео."""
     await state.set_state(PlacementStates.waiting_response)
     if not isinstance(event.message, Message):
@@ -202,7 +208,9 @@ async def _proceed_after_video(event: CallbackQuery, state: FSMContext, session:
 
 
 @router.callback_query(F.data == "campaign:skip_video")
-async def camp_skip_video(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_skip_video(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Пропустить добавление видео."""
     await state.update_data(media_type="none")
     await _proceed_after_video(callback, state, session)
@@ -219,7 +227,9 @@ async def camp_add_video(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "campaign:video_confirm")
-async def camp_video_confirm(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def camp_video_confirm(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
     """Подтвердить загруженное видео и продолжить."""
     await _proceed_after_video(callback, state, session)
     await callback.answer()
@@ -228,9 +238,13 @@ async def camp_video_confirm(callback: CallbackQuery, state: FSMContext, session
 @router.callback_query(F.data == "campaign:remove_video")
 async def camp_remove_video(callback: CallbackQuery, state: FSMContext) -> None:
     """Удалить видео и предложить загрузить другое."""
-    await state.update_data(media_type="none", video_file_id=None, video_duration=None, video_thumbnail_file_id=None)
+    await state.update_data(
+        media_type="none", video_file_id=None, video_duration=None, video_thumbnail_file_id=None
+    )
     if isinstance(callback.message, Message):
-        await callback.message.answer("Видео удалено. Хотите добавить другое?", reply_markup=video_upload_keyboard())
+        await callback.message.answer(
+            "Видео удалено. Хотите добавить другое?", reply_markup=video_upload_keyboard()
+        )
     await callback.answer()
 
 
@@ -243,7 +257,9 @@ async def camp_upload_video(message: Message, state: FSMContext) -> None:
     _max_duration = 120
     _max_size = 50 * 1024 * 1024
     if message.video.duration and message.video.duration > _max_duration:
-        await message.answer(f"❌ Видео слишком длинное. Максимум {_max_duration} секунд (2 минуты).")
+        await message.answer(
+            f"❌ Видео слишком длинное. Максимум {_max_duration} секунд (2 минуты)."
+        )
         return
     if message.video.file_size and message.video.file_size > _max_size:
         await message.answer("❌ Файл слишком большой. Максимум 50 МБ.")
@@ -282,4 +298,6 @@ async def camp_upload_video(message: Message, state: FSMContext) -> None:
     # --- end video result storage ---
 
     duration_str = f"{message.video.duration}с" if message.video.duration else "—"
-    await message.answer(f"✅ Видео загружено ({duration_str})", reply_markup=video_confirm_keyboard())
+    await message.answer(
+        f"✅ Видео загружено ({duration_str})", reply_markup=video_confirm_keyboard()
+    )

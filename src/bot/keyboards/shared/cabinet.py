@@ -11,13 +11,19 @@ def cabinet_kb(role: str, earned_rub: Decimal) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     if role in ("advertiser", "both"):
-        builder.row(InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start"))
+        builder.row(
+            InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start")
+        )
 
     if role in ("owner", "both") and earned_rub >= Decimal("1000"):
-        builder.row(InlineKeyboardButton(text="💸 Запросить вывод", callback_data="payout:request_start"))
+        builder.row(
+            InlineKeyboardButton(text="💸 Запросить вывод", callback_data="payout:request_start")
+        )
 
     builder.row(InlineKeyboardButton(text="⭐ Изменить тариф", callback_data="billing:plans"))
-    builder.row(InlineKeyboardButton(text="🎁 Реферальная программа", callback_data="cabinet:referral"))
+    builder.row(
+        InlineKeyboardButton(text="🎁 Реферальная программа", callback_data="cabinet:referral")
+    )
     builder.row(InlineKeyboardButton(text="🏆 Геймификация", callback_data="cabinet:gamification"))
     builder.row(InlineKeyboardButton(text="🔙 Главное меню", callback_data="main:main_menu"))
 
@@ -27,7 +33,9 @@ def cabinet_kb(role: str, earned_rub: Decimal) -> InlineKeyboardMarkup:
 def referral_kb() -> InlineKeyboardMarkup:
     """Клавиатура реферальной программы."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", callback_data="cabinet:referral:copy"))
+    builder.row(
+        InlineKeyboardButton(text="📋 Скопировать ссылку", callback_data="cabinet:referral:copy")
+    )
     builder.row(InlineKeyboardButton(text="🔙 Кабинет", callback_data="main:cabinet"))
     return builder.as_markup()
 

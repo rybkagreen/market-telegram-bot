@@ -53,7 +53,9 @@ async def show_settings(callback: CallbackQuery, session: AsyncSession) -> None:
         icon = "✅" if getattr(settings, attr, False) else "❌"
         formats_lines.append(f"{icon} {name}")
 
-    start = settings.publish_start_time.strftime("%H:%M") if settings.publish_start_time else "09:00"
+    start = (
+        settings.publish_start_time.strftime("%H:%M") if settings.publish_start_time else "09:00"
+    )
     end = settings.publish_end_time.strftime("%H:%M") if settings.publish_end_time else "21:00"
     brk_str = (
         f"{settings.break_start_time.strftime('%H:%M')}–{settings.break_end_time.strftime('%H:%M')}"
@@ -238,7 +240,9 @@ async def edit_schedule(callback: CallbackQuery, state: FSMContext, session: Asy
     channel_id = int((callback.data or "").split(":")[-1])
     settings = await _get_or_create_settings(session, channel_id)
 
-    start = settings.publish_start_time.strftime("%H:%M") if settings.publish_start_time else "09:00"
+    start = (
+        settings.publish_start_time.strftime("%H:%M") if settings.publish_start_time else "09:00"
+    )
     end = settings.publish_end_time.strftime("%H:%M") if settings.publish_end_time else "21:00"
     brk = (
         f"{settings.break_start_time.strftime('%H:%M')}–{settings.break_end_time.strftime('%H:%M')}"

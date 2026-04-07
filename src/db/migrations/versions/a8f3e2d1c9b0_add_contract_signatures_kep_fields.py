@@ -47,15 +47,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_contract_signatures_contract_id", "contract_signatures", ["contract_id"]
-    )
-    op.create_index(
-        "ix_contract_signatures_user_id", "contract_signatures", ["user_id"]
-    )
-    op.create_index(
-        "ix_contract_signatures_signed_at", "contract_signatures", ["signed_at"]
-    )
+    op.create_index("ix_contract_signatures_contract_id", "contract_signatures", ["contract_id"])
+    op.create_index("ix_contract_signatures_user_id", "contract_signatures", ["user_id"])
+    op.create_index("ix_contract_signatures_signed_at", "contract_signatures", ["signed_at"])
 
     op.add_column(
         "contracts",
@@ -83,7 +77,5 @@ def downgrade() -> None:
 
     op.drop_index("ix_contract_signatures_signed_at", table_name="contract_signatures")
     op.drop_index("ix_contract_signatures_user_id", table_name="contract_signatures")
-    op.drop_index(
-        "ix_contract_signatures_contract_id", table_name="contract_signatures"
-    )
+    op.drop_index("ix_contract_signatures_contract_id", table_name="contract_signatures")
     op.drop_table("contract_signatures")

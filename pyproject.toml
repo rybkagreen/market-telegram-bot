@@ -18,6 +18,7 @@ alembic = "^1.14.1"
 celery = "^5.4.0"
 flower = "^2.0.1"
 fastapi = "^0.115.8"
+python-multipart = "^0.0.18"
 uvicorn = {extras = ["standard"], version = "^0.34.0"}
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 aiohttp = "^3.11.11"
@@ -36,6 +37,13 @@ rapidfuzz = "^3.6.0"
 # AI Services — Mistral AI (официальный SDK)
 mistralai = "^1.12.4"
 
+# Document processing & OCR
+PyMuPDF = "^1.24.0"           # PDF text extraction
+pytesseract = "^0.3.13"       # OCR for images
+opencv-python-headless = "^4.10.0"  # Image quality analysis
+pillow-heif = "^0.20.0"       # HEIC/HEIF support
+Pillow = "^11.0.0"            # Image processing
+
 # TGStat Parser
 beautifulsoup4 = "^4.12.3"
 httpx = "^0.28.1"
@@ -47,6 +55,9 @@ sentry-sdk = {extras = ["asyncio", "fastapi", "sqlalchemy"], version = "^2.55.0"
 # Server Monitoring
 psutil = "^6.1.0"
 jinja2 = "^3.1.6"
+
+# Rate Limiting
+slowapi = "^0.1.9"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.9.3"

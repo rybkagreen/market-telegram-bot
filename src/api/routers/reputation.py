@@ -274,9 +274,15 @@ async def get_admin_reputation_history(
     query = (
         select(ReputationHistory, User.username)
         .join(User, ReputationHistory.user_id == User.id)
-        .where(*conditions) if conditions else select(ReputationHistory, User.username).join(User, ReputationHistory.user_id == User.id)
+        .where(*conditions)
+        if conditions
+        else select(ReputationHistory, User.username).join(
+            User, ReputationHistory.user_id == User.id
+        )
     )
-    query = query.order_by(ReputationHistory.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    query = (
+        query.order_by(ReputationHistory.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    )
 
     result = await session.execute(query)
     rows = result.all()

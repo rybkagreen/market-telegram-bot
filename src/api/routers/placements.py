@@ -118,6 +118,7 @@ async def _action_accept_counter(
     result = await service.advertiser_accept_counter(placement_id, user_id)
     return PlacementResponse.model_validate(result)
 
+
 # =============================================================================
 # Schemas
 # =============================================================================
@@ -153,13 +154,17 @@ class PlacementCreateRequest(BaseModel):
     channel_id: int = Field(..., description="ID канала")
     proposed_price: int = Field(..., ge=100, description="Предложенная цена >= 100")
     post_text: str = Field(
-        ..., min_length=10, max_length=4096, description="Текст поста",
+        ...,
+        min_length=10,
+        max_length=4096,
+        description="Текст поста",
         validation_alias="ad_text",
     )
     publication_format: str | None = Field(None, description="Формат публикации")
     media_file_id: str | None = Field(None, description="Telegram file_id медиа")
     scheduled_at: datetime = Field(
-        ..., description="Желаемая дата публикации UTC",
+        ...,
+        description="Желаемая дата публикации UTC",
         validation_alias="proposed_schedule",
     )
     # Test mode fields (admin only)
@@ -259,13 +264,11 @@ async def list_placements(
             current_user.id, statuses=[status_enum] if status_enum else None
         )
         # Apply pagination manually
-        placements = placements[offset:offset + limit] if limit else placements[offset:]
+        placements = placements[offset : offset + limit] if limit else placements[offset:]
     else:
-        placements = await repo.get_by_channel(
-            current_user.id, statuses=None
-        )
+        placements = await repo.get_by_channel(current_user.id, statuses=None)
         # Apply pagination manually
-        placements = placements[offset:offset + limit] if limit else placements[offset:]
+        placements = placements[offset : offset + limit] if limit else placements[offset:]
 
     # Фильтр по channel_id если указан
     if channel_id is not None:
@@ -546,7 +549,9 @@ async def pay_placement(
         raise HTTPException(status_code=410, detail="Placement has expired")
 
     # Проверка баланса (для не-тестовых кампаний)
-    if not placement.is_test and current_user.credits < (placement.final_price or placement.proposed_price):
+    if not placement.is_test and current_user.credits < (
+        placement.final_price or placement.proposed_price
+    ):
         raise HTTPException(status_code=400, detail="Insufficient credits")
 
     service = PlacementRequestService(
@@ -666,12 +671,24 @@ async def update_placement(
 
     # Выполнение действия
     _action_dispatch = {
-        PlacementAction.accept: lambda: _action_accept(service, placement_id, current_user.id, is_owner),
-        PlacementAction.reject: lambda: _action_reject(service, placement_id, current_user.id, is_owner, update_data),
-        PlacementAction.counter: lambda: _action_counter(service, placement_id, current_user.id, is_owner, update_data),
-        PlacementAction.pay: lambda: _action_pay(service, placement_id, current_user.id, is_advertiser, placement.status),
-        PlacementAction.cancel: lambda: _action_cancel(service, placement_id, current_user.id, is_advertiser),
-        PlacementAction.accept_counter: lambda: _action_accept_counter(service, placement_id, current_user.id, is_advertiser, placement.status),
+        PlacementAction.accept: lambda: _action_accept(
+            service, placement_id, current_user.id, is_owner
+        ),
+        PlacementAction.reject: lambda: _action_reject(
+            service, placement_id, current_user.id, is_owner, update_data
+        ),
+        PlacementAction.counter: lambda: _action_counter(
+            service, placement_id, current_user.id, is_owner, update_data
+        ),
+        PlacementAction.pay: lambda: _action_pay(
+            service, placement_id, current_user.id, is_advertiser, placement.status
+        ),
+        PlacementAction.cancel: lambda: _action_cancel(
+            service, placement_id, current_user.id, is_advertiser
+        ),
+        PlacementAction.accept_counter: lambda: _action_accept_counter(
+            service, placement_id, current_user.id, is_advertiser, placement.status
+        ),
     }
     handler = _action_dispatch.get(update_data.action)
     if handler is None:
@@ -690,6 +707,8 @@ async def update_placement(
         await session.rollback()
         logger.exception(
             "Unexpected error in update_placement placement_id=%s action=%s: %s",
-            placement_id, update_data.action, e,
+            placement_id,
+            update_data.action,
+            e,
         )
         raise HTTPException(status_code=500, detail="Internal server error") from e

@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile для FastAPI
+# Multi-stage Dockerfile для FastAPI с поддержкой OCR
 FROM python:3.13-slim as builder
 
 WORKDIR /app
@@ -18,9 +18,18 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Устанавливаем системные зависимости
+# Устанавливаем системные зависимости для OCR и обработки изображений
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    # Tesseract OCR
+    tesseract-ocr \
+    tesseract-ocr-rus \
+    tesseract-ocr-eng \
+    # OpenCV dependencies
+    libgl1 \
+    libglib2.0-0 \
+    # Image format support
+    libheif1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем установленные пакеты из builder
@@ -34,6 +43,9 @@ COPY pyproject.toml ./
 # Устанавливаем проект
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --only-root
+
+# Создаём директорию для загрузок
+RUN mkdir -p /data/uploads/legal_profiles && chmod 755 /data/uploads/legal_profiles
 
 # Открываем порт
 EXPOSE 8001

@@ -163,7 +163,11 @@ async def get_placement_requests(  # noqa: B008
         )
 
 
-@router.get("/{placement_request_id}", response_model=CampaignResponse, responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
+@router.get(
+    "/{placement_request_id}",
+    response_model=CampaignResponse,
+    responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}},
+)
 async def get_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
@@ -198,7 +202,15 @@ async def get_placement_request(
         return placement_request
 
 
-@router.patch("/{placement_request_id}", response_model=CampaignResponse, responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}, 400: {"description": "Bad request"}})
+@router.patch(
+    "/{placement_request_id}",
+    response_model=CampaignResponse,
+    responses={
+        404: {"description": "Not found"},
+        403: {"description": "Forbidden"},
+        400: {"description": "Bad request"},
+    },
+)
 async def update_placement_request(
     placement_request_id: int,
     placement_request_data: CampaignUpdate,
@@ -245,7 +257,11 @@ async def update_placement_request(
         return updated
 
 
-@router.delete("/{placement_request_id}", status_code=status.HTTP_204_NO_CONTENT, responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
+@router.delete(
+    "/{placement_request_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}},
+)
 async def delete_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
@@ -276,7 +292,10 @@ async def delete_placement_request(
         await placement_repo.delete(placement_request_id)
 
 
-@router.post("/{placement_request_id}/start", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
+@router.post(
+    "/{placement_request_id}/start",
+    responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}},
+)
 async def start_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
@@ -315,7 +334,14 @@ async def start_placement_request(
         return {"status": "queued", "placement_request_id": placement_request_id}
 
 
-@router.post("/{placement_request_id}/cancel", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}, 400: {"description": "Bad request"}})
+@router.post(
+    "/{placement_request_id}/cancel",
+    responses={
+        404: {"description": "Not found"},
+        403: {"description": "Forbidden"},
+        400: {"description": "Bad request"},
+    },
+)
 async def cancel_placement_request(
     placement_request_id: int,
     current_user: CurrentUser,
@@ -453,7 +479,11 @@ async def list_placement_requests_mini_app(
     return CampaignsListResponse(items=items, total=total, page=page, pages=pages)
 
 
-@router.get("/{placement_request_id}/stats", response_model=CampaignStats, responses={404: {"description": "Not found"}})
+@router.get(
+    "/{placement_request_id}/stats",
+    response_model=CampaignStats,
+    responses={404: {"description": "Not found"}},
+)
 async def get_placement_request_stats(
     placement_request_id: int,
     current_user: CurrentUser,
@@ -476,7 +506,9 @@ async def get_placement_request_stats(
 
     # Возвращаем реальные данные из агрегированных полей PlacementRequest
     camp_status = (
-        placement_request.status.value if hasattr(placement_request.status, "value") else str(placement_request.status)
+        placement_request.status.value
+        if hasattr(placement_request.status, "value")
+        else str(placement_request.status)
     )
 
     total_sent = placement_request.sent_count or 0
@@ -492,7 +524,9 @@ async def get_placement_request_stats(
         failed=total_failed,
         skipped=0,
         success_rate=round(total_sent / total * 100, 1) if total > 0 else 0.0,
-        started_at=placement_request.last_published_at.isoformat() if placement_request.last_published_at else None,
+        started_at=placement_request.last_published_at.isoformat()
+        if placement_request.last_published_at
+        else None,
         finished_at=None,
     )
 
@@ -548,4 +582,6 @@ async def duplicate_placement_request(
             ) from e
         await session.refresh(new_placement_request)
 
-    return DuplicateResponse(id=new_placement_request.id, title=new_ad_text[:50] if new_ad_text else "")
+    return DuplicateResponse(
+        id=new_placement_request.id, title=new_ad_text[:50] if new_ad_text else ""
+    )

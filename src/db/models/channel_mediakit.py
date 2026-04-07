@@ -17,7 +17,9 @@ class ChannelMediakit(Base, TimestampMixin):
     __tablename__ = "channel_mediakits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    channel_id: Mapped[int] = mapped_column(Integer, ForeignKey("telegram_chats.id"), unique=True, nullable=False)
+    channel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("telegram_chats.id"), unique=True, nullable=False
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     audience_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     avg_post_reach: Mapped[int] = mapped_column(Integer, default=0)
@@ -26,7 +28,9 @@ class ChannelMediakit(Base, TimestampMixin):
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     # Relationships
-    channel: Mapped["TelegramChat"] = relationship("TelegramChat", back_populates="channel_mediakit")
+    channel: Mapped["TelegramChat"] = relationship(
+        "TelegramChat", back_populates="channel_mediakit"
+    )
 
     def __repr__(self) -> str:
         return f"<ChannelMediakit(id={self.id}, channel_id={self.channel_id}, is_published={self.is_published})>"
