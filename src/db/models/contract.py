@@ -22,17 +22,25 @@ class Contract(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     contract_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    contract_status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", server_default="draft")
-    placement_request_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=True)
+    contract_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="draft", server_default="draft"
+    )
+    placement_request_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("placement_requests.id"), nullable=True
+    )
     legal_status_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    template_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0", server_default="1.0")
+    template_version: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="1.0", server_default="1.0"
+    )
     pdf_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     pdf_telegram_file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     signature_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     signature_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    kep_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    kep_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     kep_request_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     role: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'owner' | 'advertiser'
 
