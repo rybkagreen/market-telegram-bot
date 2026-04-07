@@ -109,7 +109,11 @@ async def admin_review_dispute(callback: CallbackQuery, session: AsyncSession) -
     channel = await session.get(TelegramChat, req.channel_id)
     price = req.final_price if req.final_price is not None else req.proposed_price
 
-    fmt_val = req.publication_format.value if hasattr(req.publication_format, "value") else str(req.publication_format)
+    fmt_val = (
+        req.publication_format.value
+        if hasattr(req.publication_format, "value")
+        else str(req.publication_format)
+    )
     paid_h = _FORMAT_HOURS.get(fmt_val, 24)
     actual_h = 0
     if req.published_at and req.deleted_at:
@@ -120,8 +124,14 @@ async def admin_review_dispute(callback: CallbackQuery, session: AsyncSession) -
     published = req.published_at.strftime("%d.%m %H:%M") if req.published_at else "—"
     deleted = req.deleted_at.strftime("%d.%m %H:%M") if req.deleted_at else "—"
 
-    owner_expl = f"_{dispute.owner_explanation}_" if dispute.owner_explanation else "_Объяснение не предоставлено_"
-    adv_comment = f"_{dispute.advertiser_comment}_" if dispute.advertiser_comment else "_Нет комментария_"
+    owner_expl = (
+        f"_{dispute.owner_explanation}_"
+        if dispute.owner_explanation
+        else "_Объяснение не предоставлено_"
+    )
+    adv_comment = (
+        f"_{dispute.advertiser_comment}_" if dispute.advertiser_comment else "_Нет комментария_"
+    )
 
     builder = InlineKeyboardBuilder()
     for verdict, label in [
@@ -161,7 +171,9 @@ async def admin_review_dispute(callback: CallbackQuery, session: AsyncSession) -
 
 
 @router.callback_query(
-    F.data.regexp(r"^admin:dispute:resolve:(owner_fault|advertiser_fault|technical|partial):(\d+)$"),
+    F.data.regexp(
+        r"^admin:dispute:resolve:(owner_fault|advertiser_fault|technical|partial):(\d+)$"
+    ),
     AdminFilter(),
 )
 async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) -> None:

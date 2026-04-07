@@ -82,9 +82,7 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
         await state.update_data(payment_id=record.payment_id)
         await state.set_state(TopupStates.waiting_payment)
         await callback.message.edit_text(
-            "💳 *Оплата*\n\n"
-            "Перейдите по ссылке для оплаты.\n\n"
-            "⏱ Ссылка действует 15 минут.",
+            "💳 *Оплата*\n\nПерейдите по ссылке для оплаты.\n\n⏱ Ссылка действует 15 минут.",
             reply_markup=topup_payment_kb(record.payment_url or "", record.payment_id),
             parse_mode="Markdown",
         )
@@ -164,7 +162,10 @@ async def show_plans(callback: CallbackQuery, session: AsyncSession) -> None:
     builder = InlineKeyboardBuilder()
     for plan in ("starter", "pro", "business"):
         if user.plan != plan:
-            builder.button(text=f"{_PLAN_NAMES[plan]} — {_PLAN_PRICES[plan]} ₽/мес", callback_data=f"plan:buy:{plan}")
+            builder.button(
+                text=f"{_PLAN_NAMES[plan]} — {_PLAN_PRICES[plan]} ₽/мес",
+                callback_data=f"plan:buy:{plan}",
+            )
     builder.button(text="🔙 В кабинет", callback_data=CABINET_SCENE)
     builder.adjust(1)
 
