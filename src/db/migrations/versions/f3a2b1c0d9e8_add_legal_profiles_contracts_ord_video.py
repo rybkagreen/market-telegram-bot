@@ -48,8 +48,18 @@ def upgrade() -> None:
         sa.Column("company_doc_file_id", sa.String(200), nullable=True),
         sa.Column("is_verified", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id"),
@@ -73,15 +83,29 @@ def upgrade() -> None:
         sa.Column("signature_ip", sa.String(45), nullable=True),
         sa.Column("signed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["placement_request_id"], ["placement_requests.id"]),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_contracts_user_id", "contracts", ["user_id"], unique=False)
-    op.create_index("ix_contracts_placement_request_id", "contracts", ["placement_request_id"], unique=False)
-    op.create_index("ix_contracts_type_status", "contracts", ["contract_type", "contract_status"], unique=False)
+    op.create_index(
+        "ix_contracts_placement_request_id", "contracts", ["placement_request_id"], unique=False
+    )
+    op.create_index(
+        "ix_contracts_type_status", "contracts", ["contract_type", "contract_status"], unique=False
+    )
 
     # --- Create table: ord_registrations ---
     op.create_table(
@@ -98,24 +122,48 @@ def upgrade() -> None:
         sa.Column("token_received_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("reported_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["contract_id"], ["contracts.id"]),
         sa.ForeignKeyConstraint(["placement_request_id"], ["placement_requests.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("placement_request_id"),
     )
     op.create_index(
-        "ix_ord_registrations_placement_request_id", "ord_registrations", ["placement_request_id"], unique=True
+        "ix_ord_registrations_placement_request_id",
+        "ord_registrations",
+        ["placement_request_id"],
+        unique=True,
     )
     op.create_index("ix_ord_registrations_erid", "ord_registrations", ["erid"], unique=False)
 
     # --- Add columns to users ---
-    op.add_column("users", sa.Column("legal_status_completed", sa.Boolean(), server_default="false", nullable=False))
-    op.add_column("users", sa.Column("legal_profile_prompted_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("legal_profile_skipped_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("platform_rules_accepted_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("privacy_policy_accepted_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "users",
+        sa.Column("legal_status_completed", sa.Boolean(), server_default="false", nullable=False),
+    )
+    op.add_column(
+        "users", sa.Column("legal_profile_prompted_at", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.add_column(
+        "users", sa.Column("legal_profile_skipped_at", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.add_column(
+        "users", sa.Column("platform_rules_accepted_at", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.add_column(
+        "users", sa.Column("privacy_policy_accepted_at", sa.DateTime(timezone=True), nullable=True)
+    )
 
     # --- Add columns to placement_requests ---
     op.add_column(
@@ -124,7 +172,9 @@ def upgrade() -> None:
     )
     op.add_column("placement_requests", sa.Column("video_file_id", sa.String(200), nullable=True))
     op.add_column("placement_requests", sa.Column("video_url", sa.String(500), nullable=True))
-    op.add_column("placement_requests", sa.Column("video_thumbnail_file_id", sa.String(200), nullable=True))
+    op.add_column(
+        "placement_requests", sa.Column("video_thumbnail_file_id", sa.String(200), nullable=True)
+    )
     op.add_column("placement_requests", sa.Column("video_duration", sa.Integer(), nullable=True))
     op.add_column("placement_requests", sa.Column("erid", sa.String(100), nullable=True))
 
