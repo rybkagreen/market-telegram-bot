@@ -1,0 +1,62 @@
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'ghost'
+  size?: 'sm' | 'md' | 'lg'
+  fullWidth?: boolean
+  loading?: boolean
+  disabled?: boolean
+  children: React.ReactNode
+  onClick?: () => void
+  className?: string
+  type?: 'button' | 'submit'
+}
+
+const sizeClasses: Record<string, string> = {
+  sm: 'px-3 py-1.5 text-sm min-h-[36px]',
+  md: 'px-4 py-2.5 text-base min-h-[44px]',
+  lg: 'px-6 py-3 text-base min-h-[52px]',
+}
+
+const variantClasses: Record<string, string> = {
+  primary: 'bg-accent text-accent-text hover:brightness-110 active:scale-[0.98] active:brightness-95',
+  secondary: 'bg-transparent border border-border-active text-text-primary hover:border-accent hover:text-accent active:scale-[0.98]',
+  danger: 'bg-danger-muted text-danger border border-danger-muted hover:brightness-115 active:scale-[0.98]',
+  success: 'bg-success-muted text-success border border-success-muted hover:brightness-115 active:scale-[0.98]',
+  ghost: 'bg-transparent text-text-secondary hover:bg-harbor-elevated hover:text-text-primary active:scale-[0.98]',
+}
+
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+  loading = false,
+  disabled = false,
+  children,
+  onClick,
+  className = '',
+  type = 'button',
+}: ButtonProps) {
+  const handleClick = () => {
+    if (loading || disabled) return
+    onClick?.()
+  }
+
+  const cn = [
+    'inline-flex items-center justify-center gap-2 rounded-md font-semibold',
+    'border transition-all duration-fast select-none whitespace-nowrap',
+    'cursor-pointer disabled:opacity-50 disabled:pointer-events-none',
+    sizeClasses[size],
+    variantClasses[variant],
+    fullWidth ? 'w-full' : '',
+    loading ? 'pointer-events-none' : '',
+    className,
+  ].filter(Boolean).join(' ')
+
+  return (
+    <button type={type} className={cn} onClick={handleClick} disabled={disabled || loading}>
+      <span className={loading ? 'opacity-0' : undefined}>{children}</span>
+      {loading && (
+        <span className="absolute w-4 h-4 border-2 border-border border-t-accent rounded-full animate-spin" aria-hidden="true" />
+      )}
+    </button>
+  )
+}
