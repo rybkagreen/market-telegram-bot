@@ -30,15 +30,23 @@ class LoginRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """Данные пользователя для Mini App."""
+    """Данные текущего пользователя (Mini App + Web Portal)."""
 
     id: int
     telegram_id: int
     username: str | None = None
     first_name: str | None = None
+    last_name: str | None = None
     plan: str
+    role: str
+    balance_rub: str
+    earned_rub: str
     credits: int
+    is_admin: bool
     ai_generations_used: int
+    platform_rules_accepted_at: str | None = None
+    privacy_policy_accepted_at: str | None = None
+    legal_profile_prompted_at: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -113,8 +121,13 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             telegram_id=user.telegram_id,
             username=user.username,
             first_name=user.first_name,
+            last_name=user.last_name,
             plan=plan_value,
+            role=user.current_role,
+            balance_rub=str(user.balance_rub),
+            earned_rub=str(user.earned_rub),
             credits=user.credits,
+            is_admin=user.is_admin,
             ai_generations_used=user.ai_uses_count,
         ),
     )
@@ -141,7 +154,15 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         telegram_id=current_user.telegram_id,
         username=current_user.username,
         first_name=current_user.first_name,
+        last_name=current_user.last_name,
         plan=plan_value,
+        role=current_user.current_role,
+        balance_rub=str(current_user.balance_rub),
+        earned_rub=str(current_user.earned_rub),
         credits=current_user.credits,
+        is_admin=current_user.is_admin,
         ai_generations_used=current_user.ai_uses_count,
+        platform_rules_accepted_at=str(current_user.platform_rules_accepted_at) if current_user.platform_rules_accepted_at else None,
+        privacy_policy_accepted_at=str(current_user.privacy_policy_accepted_at) if current_user.privacy_policy_accepted_at else None,
+        legal_profile_prompted_at=str(current_user.legal_profile_prompted_at) if hasattr(current_user, 'legal_profile_prompted_at') and current_user.legal_profile_prompted_at else None,
     )

@@ -1,6 +1,5 @@
 """ReviewService for managing placement reviews and channel ratings."""
 
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,17 +63,28 @@ class ReviewService:
         growth_score = 3.0
         frequency_score = 3.0
 
-        reviews_result = await session.execute(select(func.avg(Review.rating)).where(Review.reviewed_id == channel.owner_id))
+        reviews_result = await session.execute(
+            select(func.avg(Review.rating)).where(Review.reviewed_id == channel.owner_id)
+        )
         avg_review_rating = float(reviews_result.scalar() or 3.0)
         reliability_score = avg_review_rating
         age_score = 3.0
 
-        new_rating = reach_score * 0.30 + er_score * 0.25 + growth_score * 0.15 + frequency_score * 0.10 + reliability_score * 0.15 + age_score * 0.05
+        new_rating = (
+            reach_score * 0.30
+            + er_score * 0.25
+            + growth_score * 0.15
+            + frequency_score * 0.10
+            + reliability_score * 0.15
+            + age_score * 0.05
+        )
         channel.rating = new_rating
         await session.flush()
         return new_rating
 
-    async def get_channel_reviews(self, channel_id: int, session: AsyncSession, limit: int = 20) -> list[Review]:
+    async def get_channel_reviews(
+        self, channel_id: int, session: AsyncSession, limit: int = 20
+    ) -> list[Review]:
         """Получить последние отзывы канала."""
 
         result = await session.execute(
@@ -88,6 +98,8 @@ class ReviewService:
 
     async def get_user_rating(self, user_id: int, role: str, session: AsyncSession) -> float:
         """Средний рейтинг пользователя как владельца канала."""
-        result = await session.execute(select(func.avg(Review.rating)).where(Review.reviewed_id == user_id))
+        result = await session.execute(
+            select(func.avg(Review.rating)).where(Review.reviewed_id == user_id)
+        )
         avg_rating = result.scalar()
         return float(avg_rating) if avg_rating else 0.0

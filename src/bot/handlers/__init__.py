@@ -21,11 +21,13 @@ from src.bot.handlers.shared.feedback import router as feedback_router
 from src.bot.handlers.shared.help import router as help_router
 from src.bot.handlers.shared.legal_profile import legal_profile_router
 from src.bot.handlers.shared.start import router as start_router
+from src.bot.handlers.shared.login_code import router as login_code_router
 
 main_router = Router()
 
 # Router order: shared → billing → payout → advertiser → placement → owner → admin → dispute
 main_router.include_router(start_router)
+main_router.include_router(login_code_router)
 main_router.include_router(cabinet_router)
 main_router.include_router(help_router)
 main_router.include_router(feedback_router)

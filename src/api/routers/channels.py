@@ -99,7 +99,9 @@ async def _get_bot_admin_member(bot: "Bot", chat_id: int, username: str):  # typ
         chat_member = await bot.get_chat_member(chat_id, bot.id)
         logger.info(f"Bot chat_member type: {type(chat_member).__name__}")
         logger.info(f"Bot chat_member status: {chat_member.status}")
-        logger.info(f"Is ChatMemberAdministrator: {isinstance(chat_member, ChatMemberAdministrator)}")
+        logger.info(
+            f"Is ChatMemberAdministrator: {isinstance(chat_member, ChatMemberAdministrator)}"
+        )
     except Exception as e:
         logger.error(f"Cannot get chat member for {username}: {type(e).__name__}: {e}")
         raise HTTPException(
@@ -117,6 +119,7 @@ async def _get_bot_admin_member(bot: "Bot", chat_id: int, username: str):  # typ
             detail="Бот не является администратором канала",
         )
     return chat_member
+
 
 CACHE_KEY = "channels:stats:v1"
 CACHE_TTL = 3600  # 1 час
@@ -209,9 +212,7 @@ async def check_channel(
         "pin_messages": chat_member.can_pin_messages,
     }
 
-    missing_permissions = [
-        perm for perm, has in required_permissions.items() if not has
-    ]
+    missing_permissions = [perm for perm, has in required_permissions.items() if not has]
 
     bot_permissions = {
         "is_admin": True,
@@ -284,7 +285,11 @@ async def check_channel(
 
 @router.post(
     "/",
-    responses={400: {"description": "Bad request"}, 403: {"description": "Forbidden"}, 409: {"description": "Conflict"}},
+    responses={
+        400: {"description": "Bad request"},
+        403: {"description": "Forbidden"},
+        409: {"description": "Conflict"},
+    },
 )
 async def create_channel(
     body: ChannelCreateRequest,
@@ -385,15 +390,17 @@ async def create_channel(
     # is_test может быть установлен только админом
     is_test = body.is_test and current_user.is_admin
 
-    new_channel = await repo.create({
-        "telegram_id": chat.id,
-        "username": username_clean,
-        "title": chat.title or NO_NAME,
-        "owner_id": current_user.id,
-        "member_count": member_count,
-        "is_test": is_test,
-        "category": channel_category,
-    })
+    new_channel = await repo.create(
+        {
+            "telegram_id": chat.id,
+            "username": username_clean,
+            "title": chat.title or NO_NAME,
+            "owner_id": current_user.id,
+            "member_count": member_count,
+            "is_test": is_test,
+            "category": channel_category,
+        }
+    )
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
     try:
@@ -424,7 +431,11 @@ async def create_channel(
 @router.delete(
     "/{channel_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}, 409: {"description": "Conflict"}},
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+        409: {"description": "Conflict"},
+    },
 )
 async def delete_channel(
     channel_id: int,
@@ -469,7 +480,11 @@ async def delete_channel(
 
 @router.patch(
     "/{channel_id}/category",
-    responses={400: {"description": "Bad request"}, 403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+    responses={
+        400: {"description": "Bad request"},
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
 )
 async def update_channel_category(
     channel_id: int,
@@ -727,9 +742,7 @@ async def _build_category_stats_item(
     for tariff in ("free", "starter", "pro", "business"):
         conds = _tariff_conditions(tariff)
         conds.append(TelegramChat.category == row.topic)
-        cnt_r = await session.execute(
-            select(func.count(TelegramChat.id)).where(and_(*conds))
-        )
+        cnt_r = await session.execute(select(func.count(TelegramChat.id)).where(and_(*conds)))
         available_by_tariff[tariff] = cnt_r.scalar() or 0
 
     return CategoryStatsItem(
@@ -824,9 +837,7 @@ async def get_channel_stats() -> DatabaseStatsResponse:
         for row in cat_rows:
             if not row.topic:
                 continue
-            categories.append(
-                await _build_category_stats_item(session, row, total)
-            )
+            categories.append(await _build_category_stats_item(session, row, total))
 
         # Статистика по тарифам
         tariff_stats: list[TariffStatsItem] = []
@@ -954,7 +965,9 @@ class ComparisonResponse(BaseModel):
     recommendation: ComparisonRecommendation
 
 
-@router.post("/compare", responses={400: {"description": "Bad request"}, 404: {"description": "Not found"}})
+@router.post(
+    "/compare", responses={400: {"description": "Bad request"}, 404: {"description": "Not found"}}
+)
 async def compare_channels(
     request: ChannelIdsRequest,
     current_user: CurrentUser,

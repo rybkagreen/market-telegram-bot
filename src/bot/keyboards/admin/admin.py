@@ -17,10 +17,24 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
 def dispute_review_kb(did: int) -> InlineKeyboardMarkup:
     """Рассмотрение спора."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Вина владельца", callback_data=f"admin:dispute:resolve:owner_fault:{did}"))
-    builder.row(InlineKeyboardButton(text="Частичный", callback_data=f"admin:dispute:resolve:partial:{did}"))
-    builder.row(InlineKeyboardButton(text="Необоснована", callback_data=f"admin:dispute:resolve:advertiser_fault:{did}"))
-    builder.row(InlineKeyboardButton(text="Техошибка", callback_data=f"admin:dispute:resolve:technical:{did}"))
+    builder.row(
+        InlineKeyboardButton(
+            text="Вина владельца", callback_data=f"admin:dispute:resolve:owner_fault:{did}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(text="Частичный", callback_data=f"admin:dispute:resolve:partial:{did}")
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Необоснована", callback_data=f"admin:dispute:resolve:advertiser_fault:{did}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Техошибка", callback_data=f"admin:dispute:resolve:technical:{did}"
+        )
+    )
     return builder.as_markup()
 
 
@@ -28,5 +42,9 @@ def disputes_list_kb(disputes: list) -> InlineKeyboardMarkup:
     """Список споров."""
     builder = InlineKeyboardBuilder()
     for disp in disputes[:10]:
-        builder.row(InlineKeyboardButton(text=f"Спор #{disp['id']}", callback_data=f"admin:dispute:{disp['id']}"))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"Спор #{disp['id']}", callback_data=f"admin:dispute:{disp['id']}"
+            )
+        )
     return builder.as_markup()

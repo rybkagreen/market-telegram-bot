@@ -14,6 +14,8 @@ from src.api.schemas.legal_profile import (
     ScanUpload,
     ValidateInnRequest,
     ValidateInnResponse,
+    FnsValidationResponse,
+    ValidateEntityRequest,
 )
 from src.core.services.legal_profile_service import LegalProfileService
 from src.db.models.user import User
@@ -33,7 +35,11 @@ def _mask_bank_account(account: str | None) -> str | None:
 
 def _build_response(profile, user: User) -> LegalProfileResponse:
     """Construct LegalProfileResponse from ORM object."""
-    data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns if c.name in _RESPONSE_FIELDS}
+    data = {
+        c.name: getattr(profile, c.name)
+        for c in profile.__table__.columns
+        if c.name in _RESPONSE_FIELDS
+    }
     # Mask sensitive fields before returning to API caller
     data["bank_account"] = _mask_bank_account(data.get("bank_account"))
     data["bank_corr_account"] = _mask_bank_account(data.get("bank_corr_account"))
@@ -127,3 +133,61 @@ async def validate_inn(
     """Validate an INN number."""
     valid, inn_type = LegalProfileService.validate_inn(data.inn)
     return ValidateInnResponse(valid=valid, type=inn_type)
+
+
+@router.post("/validate-entity", response_model=FnsValidationResponse)
+async def validate_entity(
+    data: ValidateEntityRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FnsValidationResponse:
+    """
+    Валидация юрлица или ИП через контрольные суммы ФНС.
+
+    Проверяет:
+    - ИНН (контрольная сумма)
+    - КПП (формат)
+    - ОГРН/ОГРНИП (контрольная сумма)
+    """
+    from src.core.services.fns_validation_service import (
+        validate_inn_type,
+        validate_legal_entity,
+        validate_individual_entrepreneur,
+        validate_entity_type_match,
+    )
+
+    # Cross-validate: does the selected status match the INN type?
+    type_ok, type_error = validate_entity_type_match(data.legal_status, data.inn)
+    if not type_ok:
+        return FnsValidationResponse(
+            is_valid=False,
+            errors=[FnsValidationError(field="inn", message=type_error or "Несоответствие типа ИНН")],
+        )
+
+    # Quick INN check
+    inn_result = validate_inn_type(data.inn)
+    if not inn_result["valid"]:
+        return FnsValidationResponse(
+            is_valid=False,
+            errors=[FnsValidationError(field="inn", message=e) for e in inn_result["errors"]],
+        )
+
+    entity_type = inn_result["type"]
+
+    if entity_type == "legal_entity":
+        result = validate_legal_entity(data.inn, data.kpp, data.ogrn)
+    elif entity_type == "individual":
+        result = validate_individual_entrepreneur(data.inn, data.ogrnip)
+    else:
+        result = validate_legal_entity(data.inn, data.kpp, data.ogrn)
+
+    return FnsValidationResponse(
+        is_valid=result.is_valid,
+        entity_type=result.entity_type,
+        inn=result.inn,
+        name=result.name,
+        kpp=result.kpp,
+        ogrn=result.ogrn,
+        status=result.status,
+        errors=[FnsValidationError(field=e.field, message=e.message) for e in result.errors],
+        warnings=result.warnings,
+    )

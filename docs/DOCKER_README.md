@@ -209,6 +209,7 @@ docker compose exec redis redis-cli
 ```bash
 docker compose restart api
 docker compose up -d --build api  # Пересобрать и перезапустить
+cd /opt/market-telegram-bot && docker compose build --no-cache nginx && docker compose up -d --force-recreate nginx  # Пересобрать nginx чтобы применились изменения по фронтенду и mini app
 ```
 
 ---

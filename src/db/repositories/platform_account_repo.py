@@ -24,7 +24,9 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
 
     async def get_for_update(self) -> PlatformAccount:
         """Получить аккаунт платформы с блокировкой строки."""
-        result = await self.session.execute(select(PlatformAccount).where(PlatformAccount.id == 1).with_for_update())
+        result = await self.session.execute(
+            select(PlatformAccount).where(PlatformAccount.id == 1).with_for_update()
+        )
         account = result.scalar_one()
         if account is None:
             account = PlatformAccount(id=1)
@@ -66,11 +68,14 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
         account.payout_reserved -= gross_amount
         await session.flush()
 
-    async def release_from_escrow(self, session, final_price: Decimal, platform_fee: Decimal) -> None:
+    async def release_from_escrow(
+        self, session, final_price: Decimal, platform_fee: Decimal
+    ) -> None:
         """Освободить эскроу — списать с payout_reserved и добавить к profit."""
         account = await self.get_for_update()
         account.payout_reserved -= final_price
         account.profit_accumulated += platform_fee
         await session.flush()
+
 
 PlatformAccountRepo = PlatformAccountRepository

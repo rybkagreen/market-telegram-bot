@@ -167,7 +167,7 @@ Username: @{username or "нет"}
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
             if content.startswith(JSON_FENCE):
-                content = content[len(JSON_FENCE):]
+                content = content[len(JSON_FENCE) :]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
@@ -225,7 +225,7 @@ Username: @{username or "нет"}
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
             if content.startswith(JSON_FENCE):
-                content = content[len(JSON_FENCE):]
+                content = content[len(JSON_FENCE) :]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
@@ -308,7 +308,7 @@ Username: @{username or "нет"}
             # Очищаем ответ от markdown кода если есть
             content = content.strip()  # type: ignore[union-attr]
             if content.startswith(JSON_FENCE):
-                content = content[len(JSON_FENCE):]
+                content = content[len(JSON_FENCE) :]
             if content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):

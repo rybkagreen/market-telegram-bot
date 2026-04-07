@@ -6,7 +6,12 @@ from src.db.models.legal_profile import LegalProfile
 from src.db.repositories.base import BaseRepository
 
 _SCAN_FIELDS = frozenset(
-    {"inn_scan_file_id", "passport_scan_file_id", "self_employed_cert_file_id", "company_doc_file_id"}
+    {
+        "inn_scan_file_id",
+        "passport_scan_file_id",
+        "self_employed_cert_file_id",
+        "company_doc_file_id",
+    }
 )
 
 

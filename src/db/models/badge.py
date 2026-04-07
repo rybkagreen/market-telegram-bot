@@ -80,7 +80,9 @@ class UserBadge(Base, TimestampMixin):
     __tablename__ = "user_badges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     badge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

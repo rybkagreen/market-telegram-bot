@@ -48,7 +48,9 @@ class AuditLogRepo:
             )
             await self.session.flush()
         except Exception:
-            logger.warning("Audit log write failed — ignoring to not block main operation", exc_info=True)
+            logger.warning(
+                "Audit log write failed — ignoring to not block main operation", exc_info=True
+            )
 
     async def query_logs(
         self,

@@ -413,9 +413,7 @@ async def _check_ad_rules(parser: TelegramParser, chat_info: Any) -> None:
     try:
         rules_result = await check_channel_rules(parser._client, chat_info.username)
         if not rules_result.allows_ads:
-            logger.info(
-                f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}"
-            )
+            logger.info(f"Channel @{chat_info.username} skipped: {rules_result.reject_reason}")
     except Exception as e:
         logger.debug(f"Rules check failed for @{chat_info.username}: {e}")
 
@@ -428,8 +426,7 @@ async def _is_content_blocked(chat_info: Any) -> bool:
     filter_result = await content_filter_check(channel_content)
     if not filter_result.passed:
         logger.debug(
-            f"Channel '{chat_info.title}' blocked by content filter: "
-            f"{filter_result.categories}"
+            f"Channel '{chat_info.title}' blocked by content filter: {filter_result.categories}"
         )
         return True
     return False

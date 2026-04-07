@@ -40,7 +40,8 @@
     "05_api_contracts": {"issues": 2, "critical": 0, "high": 0, "medium": 2, "false_positives": 16, "status": "CORRECTED"},
     "06_security": {"issues": 0, "critical": 0, "high": 0, "medium": 0, "false_positives": 8, "status": "ALL_PROTECTED"},
     "07_error_handling": {"issues": 12, "critical": 0, "high": 2, "medium": 10, "false_positives": 0, "status": "VERIFIED"},
-    "08_frontend_backend_consistency": {"issues": 0, "critical": 0, "high": 0, "medium": 0, "status": "CONSISTENT"}
+    "08_frontend_backend_consistency": {"issues": 0, "critical": 0, "high": 0, "medium": 0, "status": "CONSISTENT"},
+    "09_missing_endpoints_analysis": {"endpoints_analyzed": 33, "admin_only": 10, "duplicates": 8, "should_implement": 15, "status": "COMPLETED"}
   },
 
   "critical_issues_requiring_immediate_fix": [
@@ -77,6 +78,36 @@
     "missing_in_backend": 0,
     "missing_in_frontend": 33,
     "note": "33 backend endpoints not used in frontend (may be intentional - admin features, advanced analytics, etc.)"
+  },
+
+  "missing_endpoints_analysis": {
+    "report_file": "09_missing_endpoints_analysis.md",
+    "total_missing": 33,
+    "admin_only_no_frontend_needed": 10,
+    "duplicates_use_existing": 8,
+    "should_implement": 15,
+    "high_priority": [
+      "/api/billing/balance",
+      "/api/billing/history",
+      "/api/channels/compare",
+      "/api/campaigns/{id}/start"
+    ],
+    "medium_priority": [
+      "/api/analytics/activity",
+      "/api/analytics/summary",
+      "/api/analytics/top-chats",
+      "/api/channels/preview",
+      "/api/billing/invoice/{invoice_id}"
+    ],
+    "low_priority": [
+      "/api/analytics/campaigns/{id}/ai-insights",
+      "/api/analytics/stats/public",
+      "/api/analytics/topics",
+      "/api/channels/stats",
+      "/api/channels/subcategories/{parent_topic}",
+      "/api/reputation/me/history"
+    ],
+    "conclusion": "No critical gaps found. All core functionality is implemented. 15 endpoints should be considered for future development."
   },
 
   "high_priority_issues": [

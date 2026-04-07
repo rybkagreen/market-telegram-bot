@@ -112,13 +112,13 @@ class BadgeService:
             return False  # Только вручную
 
         if condition == BadgeConditionType.STREAK_DAYS:
-            return (getattr(user, 'streak_days', None) or 0) >= value
+            return (getattr(user, "streak_days", None) or 0) >= value
 
         if condition == BadgeConditionType.SPEND_AMOUNT:
-            return float(getattr(user, 'total_spent', None) or 0) >= value
+            return float(getattr(user, "total_spent", None) or 0) >= value
 
         if condition == BadgeConditionType.EARNED_AMOUNT:
-            return float(getattr(user, 'total_earned', None) or 0) >= value
+            return float(getattr(user, "total_earned", None) or 0) >= value
 
         # Campaigns count
         if condition == BadgeConditionType.CAMPAIGNS_COUNT:
@@ -131,11 +131,8 @@ class BadgeService:
             # Считаем размещения по каналам пользователя через SUM(sent_count)
             from src.db.models.placement_request import PlacementRequest
 
-            stmt = (
-                select(func.sum(PlacementRequest.sent_count))
-                .where(
-                    PlacementRequest.owner_id == user.id,
-                )
+            stmt = select(func.sum(PlacementRequest.sent_count)).where(
+                PlacementRequest.owner_id == user.id,
             )
             count = (await session.execute(stmt)).scalar() or 0
             return count >= value
@@ -429,18 +426,15 @@ class BadgeService:
 
         # Placement count (для владельцев каналов) — используем агрегированные данные
         if achievement_type == "placement_count":
-            stmt = (
-                select(func.sum(PlacementRequest.sent_count))
-                .where(
-                    PlacementRequest.owner_id == user.id,
-                )
+            stmt = select(func.sum(PlacementRequest.sent_count)).where(
+                PlacementRequest.owner_id == user.id,
             )
             count = (await session.execute(stmt)).scalar() or 0
             return count >= threshold
 
         # Streak days
         if achievement_type == "streak_days":
-            return (getattr(user, 'login_streak_days', None) or 0) >= threshold
+            return (getattr(user, "login_streak_days", None) or 0) >= threshold
 
         # XP level
         if achievement_type == "xp_level":
@@ -448,11 +442,11 @@ class BadgeService:
 
         # Total spent
         if achievement_type == "total_spent":
-            return float(getattr(user, 'total_spent', None) or 0) >= threshold
+            return float(getattr(user, "total_spent", None) or 0) >= threshold
 
         # Total earned
         if achievement_type == "total_earned":
-            return float(getattr(user, 'total_earned', None) or 0) >= threshold
+            return float(getattr(user, "total_earned", None) or 0) >= threshold
 
         # Review count
         if achievement_type == "review_count":

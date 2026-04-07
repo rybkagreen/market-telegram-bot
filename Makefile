@@ -123,3 +123,26 @@ check:
 	poetry run pytest tests/ --tb=short -v
 	@echo ""
 	@echo "✓ All checks passed!"
+
+# ══════════════════════════════════════════════════════════════
+# Web Portal (S-27)
+# ══════════════════════════════════════════════════════════════
+
+build-portal:
+	@echo "Building web portal..."
+	cd web_portal && npm ci && npm run build
+	@echo "✓ Web portal built in web_portal/dist/"
+
+deploy-portal: build-portal
+	@echo "Deploying web portal to server..."
+	@echo "  1. git pull on server"
+	@echo "  2. cd web_portal && npm ci && npm run build"
+	@echo "  3. docker compose up -d --no-deps nginx"
+	@echo ""
+	@echo "Run on server: cd /opt/market-telegram-bot && git pull && make build-portal && docker compose up -d --no-deps nginx"
+
+portal-dev:
+	cd web_portal && npm run dev
+
+portal-preview:
+	cd web_portal && npm run preview

@@ -101,7 +101,9 @@ class LinkTrackingService:
 
         async with async_session_factory() as session:
             # Находим placement request по коду
-            stmt = select(PlacementRequest).where(PlacementRequest.tracking_short_code == short_code)
+            stmt = select(PlacementRequest).where(
+                PlacementRequest.tracking_short_code == short_code
+            )
             result = await session.execute(stmt)
             placement = result.scalar_one_or_none()
 
@@ -131,7 +133,11 @@ class LinkTrackingService:
                 f"Tracked click for placement {placement.id}: {placement.clicks_count + 1} total"
             )
 
-            return f"https://rekharbor.ru/t/{placement.tracking_short_code}" if placement.tracking_short_code else None
+            return (
+                f"https://rekharbor.ru/t/{placement.tracking_short_code}"
+                if placement.tracking_short_code
+                else None
+            )
 
     async def get_link_stats(self, campaign_id: int) -> dict[str, Any]:
         """
@@ -161,7 +167,9 @@ class LinkTrackingService:
             return {
                 "clicks_count": campaign.clicks_count or 0,
                 "short_link": short_link,
-                "original_url": f"https://rekharbor.ru/t/{campaign.tracking_short_code}" if campaign.tracking_short_code else None,
+                "original_url": f"https://rekharbor.ru/t/{campaign.tracking_short_code}"
+                if campaign.tracking_short_code
+                else None,
             }
 
 

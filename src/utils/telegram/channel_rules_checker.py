@@ -154,10 +154,14 @@ class ChannelRulesChecker:
         if member_count < cls.MIN_SUBSCRIBERS:
             if is_admin:
                 # Для админов — только предупреждение (тестовый канал)
-                warnings.append(f"Тестовый канал ({member_count} подписчиков, мин. {cls.MIN_SUBSCRIBERS})")
+                warnings.append(
+                    f"Тестовый канал ({member_count} подписчиков, мин. {cls.MIN_SUBSCRIBERS})"
+                )
             else:
                 # Для обычных пользователей — блокирующее нарушение
-                violations.append(f"Минимум {cls.MIN_SUBSCRIBERS} подписчиков (сейчас: {member_count})")
+                violations.append(
+                    f"Минимум {cls.MIN_SUBSCRIBERS} подписчиков (сейчас: {member_count})"
+                )
 
         # 4. Проверка описания на запрещённые слова
         description = getattr(chat, "description", "") or ""

@@ -10,6 +10,7 @@ from src.db.models.contract import Contract
 from src.db.models.contract_signature import ContractSignature
 from src.db.models.dispute import DisputeReason, DisputeResolution, DisputeStatus, PlacementDispute
 from src.db.models.document_counter import DocumentCounter
+from src.db.models.document_upload import DocumentUpload
 from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.models.invoice import Invoice
 from src.db.models.kudir_record import KudirRecord
@@ -69,4 +70,5 @@ __all__ = [
     "ClickTracking",
     "AuditLog",
     "PublicationLog",
+    "DocumentUpload",
 ]
