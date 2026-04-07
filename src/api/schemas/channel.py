@@ -21,7 +21,7 @@ class ChannelCheckRequest(BaseModel):
         chat_id: ID канала (начинается с -100). Либо username.
     """
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
     username: str | None = Field(
         default=None,
         min_length=3,
@@ -57,12 +57,16 @@ class ChannelCheckResponse(BaseModel):
     channel: dict[str, Any] = Field(
         default_factory=dict,
         description="Информация о канале",
-        examples=[{"id": 12345, "title": "Channel Name", "username": "channel", "member_count": 5000}],
+        examples=[
+            {"id": 12345, "title": "Channel Name", "username": "channel", "member_count": 5000}
+        ],
     )
     bot_permissions: dict[str, bool | None] = Field(
         default_factory=dict,
         description="Права бота в канале",
-        examples=[{"is_admin": True, "post_messages": True, "delete_messages": True, "pin_messages": True}],
+        examples=[
+            {"is_admin": True, "post_messages": True, "delete_messages": True, "pin_messages": True}
+        ],
     )
     missing_permissions: list[str] = Field(
         default_factory=list,
@@ -111,7 +115,7 @@ class ChannelCreateRequest(BaseModel):
         is_test: Флаг тестового канала (только для админов, по умолчанию False)
     """
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
     username: str = Field(
         ...,
         min_length=3,

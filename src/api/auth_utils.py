@@ -140,3 +140,68 @@ def decode_jwt_token(token: str) -> dict:
         settings.jwt_secret,
         algorithms=[settings.jwt_algorithm],
     )
+
+
+# ─── Telegram Login Widget валидация ──────────────────────────
+
+
+def validate_telegram_login_widget(data: dict) -> dict:
+    """
+    Проверить подпись данных от Telegram Login Widget.
+
+    Алгоритм (официальная документация):
+    https://core.telegram.org/widgets/login#checking-authorization
+
+    1. Извлечь hash из данных
+    2. Отсортировать остальные поля по ключу
+    3. Соединить в формате key=value через \n
+    4. secret_key = SHA256(bot_token)
+    5. hmac = HMAC-SHA256(secret_key, data_check_string).hexdigest()
+    6. Сравнить с hash (constant-time)
+    7. Проверить что auth_date < 24h
+
+    Args:
+        data: dict с полями {id, auth_date, hash, first_name?, username?, photo_url?}
+
+    Returns:
+        dict с данными пользователя (telegram_id, first_name, username и т.д.)
+
+    Raises:
+        ValueError: если подпись невалидна или данные устарели (> 24 часа)
+    """
+    received_hash = data.get("hash")
+    if not received_hash:
+        raise ValueError("Missing hash in login widget data")
+
+    # Формируем строку для проверки без hash (ключи отсортированы)
+    check_data = {k: v for k, v in data.items() if k != "hash"}
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(check_data.items()))
+
+    # Секретный ключ = SHA256(bot_token) — НЕ HMAC с "WebAppData"!
+    secret_key = hashlib.sha256(settings.bot_token.encode()).digest()
+
+    # Вычисляем подпись
+    expected_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    # Сравниваем (constant-time)
+    if not hmac.compare_digest(expected_hash, received_hash):
+        raise ValueError("Invalid login widget signature")
+
+    # Проверяем свежесть (не старше 24 часов для Login Widget)
+    auth_date = int(data.get("auth_date", 0))
+    age_seconds = int(datetime.now(UTC).timestamp()) - auth_date
+    if age_seconds > 86400:
+        raise ValueError(f"Login widget data expired ({age_seconds}s old)")
+
+    return {
+        "telegram_id": int(data["id"]),
+        "first_name": data.get("first_name", ""),
+        "last_name": data.get("last_name"),
+        "username": data.get("username"),
+        "photo_url": data.get("photo_url"),
+        "auth_date": auth_date,
+    }

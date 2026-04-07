@@ -127,7 +127,10 @@ async def get_my_disputes(
     return [DisputeResponse.model_validate(d) for d in disputes]
 
 
-@router.get("/{dispute_id}", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
+@router.get(
+    "/{dispute_id}",
+    responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}},
+)
 async def get_dispute(
     dispute_id: int,
     current_user: CurrentUser,
@@ -152,7 +155,15 @@ async def get_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}, 409: {"description": "Conflict"}})
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        404: {"description": "Not found"},
+        403: {"description": "Forbidden"},
+        409: {"description": "Conflict"},
+    },
+)
 async def create_dispute(
     dispute_data: DisputeCreate,
     current_user: CurrentUser,
@@ -214,7 +225,10 @@ async def create_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
-@router.patch("/{dispute_id}", responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}})
+@router.patch(
+    "/{dispute_id}",
+    responses={404: {"description": "Not found"}, 403: {"description": "Forbidden"}},
+)
 async def update_dispute(
     dispute_id: int,
     update_data: DisputeUpdate,
@@ -486,7 +500,10 @@ async def get_all_disputes_admin(
     return DisputeListAdminResponse(items=items, total=total, limit=limit, offset=offset)
 
 
-@router.post("/admin/disputes/{dispute_id}/resolve", responses={404: {"description": "Not found"}, 400: {"description": "Bad request"}})
+@router.post(
+    "/admin/disputes/{dispute_id}/resolve",
+    responses={404: {"description": "Not found"}, 400: {"description": "Bad request"}},
+)
 async def resolve_dispute_admin(
     dispute_id: int,
     body: DisputeResolveRequest,
@@ -539,7 +556,9 @@ async def resolve_dispute_admin(
         advertiser_refund_pct = 100.0
         owner_payout_pct = 100.0
     elif body.resolution == "partial":
-        advertiser_refund_pct = float(body.custom_split_percent) if body.custom_split_percent else 50.0
+        advertiser_refund_pct = (
+            float(body.custom_split_percent) if body.custom_split_percent else 50.0
+        )
         owner_payout_pct = 100.0 - advertiser_refund_pct
 
     # Update dispute

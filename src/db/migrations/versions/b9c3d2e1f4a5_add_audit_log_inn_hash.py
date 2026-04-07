@@ -32,17 +32,33 @@ def upgrade() -> None:
     # EncryptedString uses String(300/500/1000). We alter varchar lengths.
     op.alter_column("legal_profiles", "inn", type_=sa.String(300), existing_nullable=True)
     op.alter_column("legal_profiles", "bank_account", type_=sa.String(300), existing_nullable=True)
-    op.alter_column("legal_profiles", "bank_corr_account", type_=sa.String(300), existing_nullable=True)
-    op.alter_column("legal_profiles", "yoomoney_wallet", type_=sa.String(300), existing_nullable=True)
-    op.alter_column("legal_profiles", "passport_series", type_=sa.String(300), existing_nullable=True)
-    op.alter_column("legal_profiles", "passport_number", type_=sa.String(300), existing_nullable=True)
-    op.alter_column("legal_profiles", "passport_issued_by", type_=sa.String(1000), existing_nullable=True)
-    op.alter_column("legal_profiles", "inn_scan_file_id", type_=sa.String(500), existing_nullable=True)
-    op.alter_column("legal_profiles", "passport_scan_file_id", type_=sa.String(500), existing_nullable=True)
+    op.alter_column(
+        "legal_profiles", "bank_corr_account", type_=sa.String(300), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "yoomoney_wallet", type_=sa.String(300), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "passport_series", type_=sa.String(300), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "passport_number", type_=sa.String(300), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "passport_issued_by", type_=sa.String(1000), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "inn_scan_file_id", type_=sa.String(500), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "passport_scan_file_id", type_=sa.String(500), existing_nullable=True
+    )
     op.alter_column(
         "legal_profiles", "self_employed_cert_file_id", type_=sa.String(500), existing_nullable=True
     )
-    op.alter_column("legal_profiles", "company_doc_file_id", type_=sa.String(500), existing_nullable=True)
+    op.alter_column(
+        "legal_profiles", "company_doc_file_id", type_=sa.String(500), existing_nullable=True
+    )
 
     # ── audit_logs table ─────────────────────────────────────────────────────
     op.create_table(
@@ -84,12 +100,18 @@ def downgrade() -> None:
     # Restore original column sizes
     op.alter_column("legal_profiles", "inn", type_=sa.String(12), existing_nullable=True)
     op.alter_column("legal_profiles", "bank_account", type_=sa.String(20), existing_nullable=True)
-    op.alter_column("legal_profiles", "bank_corr_account", type_=sa.String(20), existing_nullable=True)
-    op.alter_column("legal_profiles", "yoomoney_wallet", type_=sa.String(50), existing_nullable=True)
+    op.alter_column(
+        "legal_profiles", "bank_corr_account", type_=sa.String(20), existing_nullable=True
+    )
+    op.alter_column(
+        "legal_profiles", "yoomoney_wallet", type_=sa.String(50), existing_nullable=True
+    )
     op.alter_column("legal_profiles", "passport_series", type_=sa.String(4), existing_nullable=True)
     op.alter_column("legal_profiles", "passport_number", type_=sa.String(6), existing_nullable=True)
     op.alter_column("legal_profiles", "passport_issued_by", type_=sa.Text(), existing_nullable=True)
-    op.alter_column("legal_profiles", "inn_scan_file_id", type_=sa.String(200), existing_nullable=True)
+    op.alter_column(
+        "legal_profiles", "inn_scan_file_id", type_=sa.String(200), existing_nullable=True
+    )
     op.alter_column(
         "legal_profiles", "passport_scan_file_id", type_=sa.String(200), existing_nullable=True
     )

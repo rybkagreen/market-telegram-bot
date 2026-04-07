@@ -186,7 +186,9 @@ async def cb_role_advertiser(callback: CallbackQuery, session: AsyncSession) -> 
 
         user.legal_profile_prompted_at = datetime.now(UTC)
         await session.execute(
-            sa_update(User).where(User.id == user.id).values(legal_profile_prompted_at=user.legal_profile_prompted_at)
+            sa_update(User)
+            .where(User.id == user.id)
+            .values(legal_profile_prompted_at=user.legal_profile_prompted_at)
         )
         await session.commit()
         await callback.message.answer(
@@ -202,8 +204,7 @@ async def cb_role_advertiser(callback: CallbackQuery, session: AsyncSession) -> 
     # --- end legal profile prompt ---
     plan_name = _PLAN_NAMES.get(user.plan, user.plan)
     await callback.message.edit_text(
-        f"📣 *Меню рекламодателя*\n\n"
-        f"💳 Баланс: *{user.balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
+        f"📣 *Меню рекламодателя*\n\n💳 Баланс: *{user.balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
         reply_markup=adv_menu_kb(),
         parse_mode="Markdown",
     )
@@ -239,7 +240,9 @@ async def cb_role_owner(callback: CallbackQuery, session: AsyncSession) -> None:
 
         user.legal_profile_prompted_at = datetime.now(UTC)
         await session.execute(
-            sa_update(User).where(User.id == user.id).values(legal_profile_prompted_at=user.legal_profile_prompted_at)
+            sa_update(User)
+            .where(User.id == user.id)
+            .values(legal_profile_prompted_at=user.legal_profile_prompted_at)
         )
         await session.commit()
         await callback.message.answer(
@@ -274,8 +277,7 @@ async def go_to_adv_menu(callback: CallbackQuery, session: AsyncSession) -> None
         return
     plan_name = _PLAN_NAMES.get(user.plan, user.plan)
     await callback.message.edit_text(
-        f"📣 *Меню рекламодателя*\n\n"
-        f"💳 Баланс: *{user.balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
+        f"📣 *Меню рекламодателя*\n\n💳 Баланс: *{user.balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
         reply_markup=adv_menu_kb(),
         parse_mode="Markdown",
     )

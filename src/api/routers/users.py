@@ -246,7 +246,9 @@ async def get_my_referrals(
     referral_users = list(result.scalars().all())
 
     # Подсчёт общего количества
-    count_query = select(func.count()).select_from(User).where(User.referred_by_id == current_user.id)
+    count_query = (
+        select(func.count()).select_from(User).where(User.referred_by_id == current_user.id)
+    )
     total_result = await session.execute(count_query)
     total_referrals = total_result.scalar() or 0
 

@@ -10,7 +10,9 @@ def topup_amounts_kb() -> InlineKeyboardMarkup:
     """Выбор суммы пополнения."""
     builder = InlineKeyboardBuilder()
     for amount in QUICK_TOPUP_AMOUNTS:
-        builder.row(InlineKeyboardButton(text=f"{amount} ₽", callback_data=f"topup:amount:{amount}"))
+        builder.row(
+            InlineKeyboardButton(text=f"{amount} ₽", callback_data=f"topup:amount:{amount}")
+        )
     builder.row(InlineKeyboardButton(text="Ввести свою сумму", callback_data="topup:amount:custom"))
     builder.row(InlineKeyboardButton(text="Отмена", callback_data="main:cabinet"))
     return builder.as_markup()

@@ -22,7 +22,10 @@ def legal_status_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура выбора юридического статуса."""
     builder = InlineKeyboardBuilder()
     builder.button(text="🏢 Юридическое лицо", callback_data="legal:status:legal_entity")
-    builder.button(text="👤 Индивидуальный предприниматель", callback_data="legal:status:individual_entrepreneur")
+    builder.button(
+        text="👤 Индивидуальный предприниматель",
+        callback_data="legal:status:individual_entrepreneur",
+    )
     builder.button(text="📱 Самозанятый", callback_data="legal:status:self_employed")
     builder.button(text="🙋 Физическое лицо", callback_data="legal:status:individual")
     builder.button(text="⏭ Заполнить позже", callback_data="legal:skip")

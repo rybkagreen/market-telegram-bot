@@ -40,9 +40,7 @@ class ContractRepo(BaseRepository[Contract]):
         )
         return result.scalar_one_or_none()
 
-    async def list_by_user(
-        self, user_id: int, contract_type: str | None = None
-    ) -> list[Contract]:
+    async def list_by_user(self, user_id: int, contract_type: str | None = None) -> list[Contract]:
         """Получить список договоров пользователя."""
         conditions = [Contract.user_id == user_id]
         if contract_type is not None:
@@ -52,9 +50,7 @@ class ContractRepo(BaseRepository[Contract]):
         )
         return list(result.scalars().all())
 
-    async def mark_signed(
-        self, contract_id: int, method: str, ip: str | None
-    ) -> Contract:
+    async def mark_signed(self, contract_id: int, method: str, ip: str | None) -> Contract:
         """Пометить договор как подписанный."""
         contract = await self.get_by_id(contract_id)
         if contract is None:
@@ -97,7 +93,9 @@ class ContractRepo(BaseRepository[Contract]):
             self.session.add(sig)
             await self.session.flush()
         except Exception:
-            logger.exception("Failed to record contract signature audit entry, contract_id=%s", contract_id)
+            logger.exception(
+                "Failed to record contract signature audit entry, contract_id=%s", contract_id
+            )
 
     async def get_framework_contract(self, user_id: int, role: str) -> Contract | None:
         """Получить подписанный рамочный договор рекламодателя для данного пользователя и роли."""

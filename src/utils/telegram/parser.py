@@ -472,9 +472,7 @@ class TelegramParser:
                     chat_info.meta_json = chat_info.meta_json or {}
                     chat_info.meta_json["russian_score"] = russian_score
                     russian_channels.append(chat_info)
-                    logger.debug(
-                        f"✓ Russian channel: {chat_info.title} (@{chat_info.username})"
-                    )
+                    logger.debug(f"✓ Russian channel: {chat_info.title} (@{chat_info.username})")
                 else:
                     logger.debug(f"✗ Skipping non-Russian channel: {chat_info.title}")
             except Exception as e:

@@ -19,8 +19,12 @@ class AuditLog(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # NULL = system
-    action: Mapped[str] = mapped_column(String(20), nullable=False)  # READ, WRITE, DELETE, ADMIN_READ
-    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'legal_profile', 'contract', 'payout'
+    action: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # READ, WRITE, DELETE, ADMIN_READ
+    resource_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'legal_profile', 'contract', 'payout'
     resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)

@@ -19,7 +19,9 @@ class LegalProfile(Base, TimestampMixin):
     __tablename__ = "legal_profiles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False, unique=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False, unique=True
+    )
     legal_status: Mapped[str] = mapped_column(String(30), nullable=False)
     # INN — encrypted at rest; inn_hash for indexed search (HMAC-SHA256)
     inn: Mapped[str | None] = mapped_column(HashableEncryptedString(300), nullable=True)
@@ -44,9 +46,13 @@ class LegalProfile(Base, TimestampMixin):
     # Document file IDs — encrypted at rest (Telegram file_ids are sensitive)
     inn_scan_file_id: Mapped[str | None] = mapped_column(EncryptedString(500), nullable=True)
     passport_scan_file_id: Mapped[str | None] = mapped_column(EncryptedString(500), nullable=True)
-    self_employed_cert_file_id: Mapped[str | None] = mapped_column(EncryptedString(500), nullable=True)
+    self_employed_cert_file_id: Mapped[str | None] = mapped_column(
+        EncryptedString(500), nullable=True
+    )
     company_doc_file_id: Mapped[str | None] = mapped_column(EncryptedString(500), nullable=True)
-    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
