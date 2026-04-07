@@ -56,7 +56,12 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
             raise ValueError(f"Channel {channel_id} not found")
 
         from src.db.models.placement_request import PublicationFormat
-        fmt = PublicationFormat(publication_format) if publication_format else PublicationFormat.post_24h
+
+        fmt = (
+            PublicationFormat(publication_format)
+            if publication_format
+            else PublicationFormat.post_24h
+        )
 
         from datetime import UTC, timedelta
 
@@ -78,42 +83,61 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         await self.session.refresh(placement)
         return placement
 
-    async def get_by_advertiser(self, advertiser_id: int, statuses: list[PlacementStatus] | None = None) -> list[PlacementRequest]:
+    async def get_by_advertiser(
+        self, advertiser_id: int, statuses: list[PlacementStatus] | None = None
+    ) -> list[PlacementRequest]:
         """Получить заявки рекламодателя."""
         conditions = [PlacementRequest.advertiser_id == advertiser_id]
         if statuses:
             conditions.append(PlacementRequest.status.in_(statuses))
-        result = await self.session.execute(select(PlacementRequest).where(and_(*conditions)).order_by(PlacementRequest.created_at.desc()))
+        result = await self.session.execute(
+            select(PlacementRequest)
+            .where(and_(*conditions))
+            .order_by(PlacementRequest.created_at.desc())
+        )
         return list(result.scalars().all())
 
-    async def get_by_channel(self, channel_id: int, statuses: list[PlacementStatus] | None = None) -> list[PlacementRequest]:
+    async def get_by_channel(
+        self, channel_id: int, statuses: list[PlacementStatus] | None = None
+    ) -> list[PlacementRequest]:
         """Получить заявки по ID канала."""
         conditions = [PlacementRequest.channel_id == channel_id]
         if statuses:
             conditions.append(PlacementRequest.status.in_(statuses))
         result = await self.session.execute(
-            select(PlacementRequest).where(and_(*conditions)).order_by(PlacementRequest.created_at.desc())
+            select(PlacementRequest)
+            .where(and_(*conditions))
+            .order_by(PlacementRequest.created_at.desc())
         )
         return list(result.scalars().all())
 
-    async def get_by_owner(self, owner_id: int, statuses: list[PlacementStatus] | None = None) -> list[PlacementRequest]:
+    async def get_by_owner(
+        self, owner_id: int, statuses: list[PlacementStatus] | None = None
+    ) -> list[PlacementRequest]:
         """Получить заявки владельца канала."""
         from src.db.models.telegram_chat import TelegramChat
+
         conditions = [TelegramChat.owner_id == owner_id]
         if statuses:
             conditions.append(PlacementRequest.status.in_(statuses))
         result = await self.session.execute(
-            select(PlacementRequest).join(TelegramChat, PlacementRequest.channel_id == TelegramChat.id).where(and_(*conditions))
+            select(PlacementRequest)
+            .join(TelegramChat, PlacementRequest.channel_id == TelegramChat.id)
+            .where(and_(*conditions))
         )
         return list(result.scalars().all())
 
     async def get_pending_for_owner(self, owner_id: int) -> list[PlacementRequest]:
         """Получить ожидающие заявки для владельца."""
-        return await self.get_by_owner(owner_id, statuses=[PlacementStatus.pending_owner, PlacementStatus.counter_offer])
+        return await self.get_by_owner(
+            owner_id, statuses=[PlacementStatus.pending_owner, PlacementStatus.counter_offer]
+        )
 
     async def get_active_escrow(self) -> list[PlacementRequest]:
         """Получить активные заявки в эскроу."""
-        result = await self.session.execute(select(PlacementRequest).where(PlacementRequest.status == PlacementStatus.escrow))
+        result = await self.session.execute(
+            select(PlacementRequest).where(PlacementRequest.status == PlacementStatus.escrow)
+        )
         return list(result.scalars().all())
 
     async def get_published_active(self) -> list[PlacementRequest]:
@@ -128,9 +152,17 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
 
     async def count_active_for_advertiser(self, advertiser_id: int) -> int:
         """Посчитать активные заявки рекламодателя."""
-        active_statuses = [PlacementStatus.pending_owner, PlacementStatus.counter_offer, PlacementStatus.pending_payment, PlacementStatus.escrow, PlacementStatus.published]
+        active_statuses = [
+            PlacementStatus.pending_owner,
+            PlacementStatus.counter_offer,
+            PlacementStatus.pending_payment,
+            PlacementStatus.escrow,
+            PlacementStatus.published,
+        ]
         result = await self.session.execute(
-            select(func.count()).select_from(PlacementRequest).where(
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(
                 PlacementRequest.advertiser_id == advertiser_id,
                 PlacementRequest.status.in_(active_statuses),
             )
@@ -141,13 +173,17 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         """Получить просроченные заявки."""
         result = await self.session.execute(
             select(PlacementRequest).where(
-                PlacementRequest.status.in_([PlacementStatus.pending_owner, PlacementStatus.pending_payment]),
+                PlacementRequest.status.in_(
+                    [PlacementStatus.pending_owner, PlacementStatus.pending_payment]
+                ),
                 PlacementRequest.expires_at < before,
             )
         )
         return list(result.scalars().all())
 
-    async def update_status(self, placement_id: int, new_status: PlacementStatus) -> PlacementRequest | None:
+    async def update_status(
+        self, placement_id: int, new_status: PlacementStatus
+    ) -> PlacementRequest | None:
         """Обновляет поле status записи PlacementRequest."""
         placement = await self.get_by_id(placement_id)
         if not placement:
@@ -250,7 +286,9 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         """Количество отменённых заявок рекламодателя за последние 30 дней."""
         since = datetime.now(UTC) - timedelta(days=30)
         result = await self.session.execute(
-            select(func.count()).select_from(PlacementRequest).where(
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(
                 PlacementRequest.advertiser_id == advertiser_id,
                 PlacementRequest.status == PlacementStatus.cancelled,
                 PlacementRequest.updated_at >= since,

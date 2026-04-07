@@ -18,13 +18,18 @@ class TransactionRepository(BaseRepository[Transaction]):
     async def get_by_user(self, user_id: int, limit: int = 50) -> list[Transaction]:
         """Получить последние транзакции пользователя."""
         result = await self.session.execute(
-            select(Transaction).where(Transaction.user_id == user_id).order_by(Transaction.created_at.desc()).limit(limit)
+            select(Transaction)
+            .where(Transaction.user_id == user_id)
+            .order_by(Transaction.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 
     async def get_by_placement(self, placement_request_id: int) -> list[Transaction]:
         """Получить транзакции по заявке."""
-        result = await self.session.execute(select(Transaction).where(Transaction.placement_request_id == placement_request_id))
+        result = await self.session.execute(
+            select(Transaction).where(Transaction.placement_request_id == placement_request_id)
+        )
         return list(result.scalars().all())
 
     async def sum_topups_30d(self, user_id: int) -> Decimal:
