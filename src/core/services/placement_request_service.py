@@ -240,6 +240,7 @@ class PlacementRequestService:
 
         # Проверка 2: цена >= минимальной
         from src.constants.payments import MIN_PRICE_PER_POST as _MIN_PRICE
+
         if proposed_price < _MIN_PRICE:
             raise ValueError(f"Price must be >= {_MIN_PRICE}")
 
@@ -462,6 +463,7 @@ class PlacementRequestService:
 
         # Устанавливаем срок действия контр-предложения (3 часа)
         from datetime import UTC, timedelta
+
         result.expires_at = datetime.now(UTC) + timedelta(hours=3)
         await self.session.flush()
         await self.session.refresh(result)
@@ -507,9 +509,7 @@ class PlacementRequestService:
 
         # Отправляем уведомление владельцу
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(
-            User, placement.channel.owner_id if placement.channel else 0
-        )
+        owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and result and channel:
             await _notify_counter_accepted(result, advertiser, owner, channel)
@@ -615,9 +615,7 @@ class PlacementRequestService:
 
         # Отправляем уведомление
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(
-            User, placement.channel.owner_id if placement.channel else 0
-        )
+        owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and channel:
             await _notify_cancelled(result, advertiser, owner, channel, 0.0)
@@ -710,9 +708,7 @@ class PlacementRequestService:
 
         # Отправляем уведомления
         channel = await self.session.get(TelegramChat, placement.channel_id)
-        owner = await self.session.get(
-            User, placement.channel.owner_id if placement.channel else 0
-        )
+        owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and channel:
             await _notify_payment_received(result, advertiser, owner, channel)
@@ -876,9 +872,7 @@ class PlacementRequestService:
             r"^([0-9])\1{4,}$",  # 5+ одинаковых цифр
         ]
 
-        return all(
-            not re.match(pattern, reason, re.IGNORECASE) for pattern in meaningless_patterns
-        )
+        return all(not re.match(pattern, reason, re.IGNORECASE) for pattern in meaningless_patterns)
 
     # ══════════════════════════════════════════════════════════════
     # S-08: PlacementRequestService v4.2 — новые методы

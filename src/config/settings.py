@@ -258,6 +258,21 @@ class Settings(BaseSettings):
         alias="ORD_BLOCK_WITHOUT_ERID",
         description="Блокировать публикацию без erid (включить после настройки провайдера)",
     )
+    ord_rekharbor_org_id: str = Field(
+        "",
+        alias="ORD_REKHARBOR_ORG_ID",
+        description="ID RekHarbor как организации в Яндекс ОРД (регистрируется вручную)",
+    )
+    ord_rekharbor_inn: str = Field(
+        "",
+        alias="ORD_REKHARBOR_INN",
+        description="ИНН РекХарбора для регистрации org в Яндекс ОРД",
+    )
+    ord_default_kktu_code: str = Field(
+        "30.10.1",
+        alias="ORD_DEFAULT_KKTU_CODE",
+        description="ККТУ код по умолчанию (30.10.1 — размещение рекламы)",
+    )
 
     # Admin IDs
     admin_ids_raw: str = Field("", alias="ADMIN_IDS")

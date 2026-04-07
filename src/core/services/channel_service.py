@@ -28,7 +28,9 @@ class ChannelService:
         if category:
             conditions.append(TelegramChat.category == category)
 
-        result = await session.execute(select(TelegramChat).where(and_(*conditions)).order_by(TelegramChat.rating.desc()))
+        result = await session.execute(
+            select(TelegramChat).where(and_(*conditions)).order_by(TelegramChat.rating.desc())
+        )
         return list(result.scalars().all())
 
     @staticmethod
@@ -43,7 +45,9 @@ class ChannelService:
         ]
         return [fmt for flag, fmt in format_flags if flag]
 
-    async def get_channel_comparison(self, channel_ids: list[int], session: AsyncSession) -> list[dict[str, Any]]:
+    async def get_channel_comparison(
+        self, channel_ids: list[int], session: AsyncSession
+    ) -> list[dict[str, Any]]:
         """Данные для сравнения каналов."""
         result = await session.execute(
             select(
@@ -82,9 +86,13 @@ class ChannelService:
             for row in result.all()
         ]
 
-    async def get_or_create_mediakit(self, channel_id: int, session: AsyncSession) -> ChannelMediakit:
+    async def get_or_create_mediakit(
+        self, channel_id: int, session: AsyncSession
+    ) -> ChannelMediakit:
         """Получить или создать медиакит канала."""
-        mediakit = await session.execute(select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id))
+        mediakit = await session.execute(
+            select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id)
+        )
         result = mediakit.scalar_one_or_none()
         if not result:
             result = ChannelMediakit(channel_id=channel_id)
@@ -93,10 +101,19 @@ class ChannelService:
             await session.refresh(result)
         return result
 
-    async def update_mediakit(self, channel_id: int, data: dict[str, Any], session: AsyncSession) -> ChannelMediakit:
+    async def update_mediakit(
+        self, channel_id: int, data: dict[str, Any], session: AsyncSession
+    ) -> ChannelMediakit:
         """Обновить поля медиакита."""
         mediakit = await self.get_or_create_mediakit(channel_id, session)
-        valid_fields = {"description", "audience_description", "avg_post_reach", "views_count", "downloads_count", "is_published"}
+        valid_fields = {
+            "description",
+            "audience_description",
+            "avg_post_reach",
+            "views_count",
+            "downloads_count",
+            "is_published",
+        }
         for field, value in data.items():
             if field in valid_fields:
                 setattr(mediakit, field, value)
@@ -107,7 +124,9 @@ class ChannelService:
     async def suggest_optimal_publish_time(self, channel_id: int, session: AsyncSession) -> int:
         """Вернуть оптимальный час публикации (0-23)."""
         result = await session.execute(
-            select(func.count()).select_from(PlacementRequest).where(
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(
                 PlacementRequest.channel_id == channel_id,
                 PlacementRequest.status == PlacementStatus.published,
                 PlacementRequest.published_at.isnot(None),

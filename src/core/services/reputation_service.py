@@ -186,7 +186,9 @@ class ReputationService:
         """
         delta = self.DELTA_CANCEL_AFTER if after_confirmation else self.DELTA_CANCEL_BEFORE
         action = (
-            ReputationAction.cancel_after_confirm if after_confirmation else ReputationAction.cancel_before_escrow
+            ReputationAction.cancel_after_confirm
+            if after_confirmation
+            else ReputationAction.cancel_before_escrow
         )
 
         await self._apply_delta(
@@ -433,9 +435,7 @@ class ReputationService:
         score = await self.reputation_repo.get_or_create(user_id)
 
         # Получаем текущий score
-        current_score = (
-            score.advertiser_score if role == "advertiser" else score.owner_score
-        )
+        current_score = score.advertiser_score if role == "advertiser" else score.owner_score
 
         # Применяем дельту
         new_score = current_score + delta
@@ -470,7 +470,9 @@ class ReputationService:
             score = await self.reputation_repo.get_by_user(user_id)
             if score:
                 violations = (
-                    score.advertiser_violations_count if role == "advertiser" else score.owner_violations_count
+                    score.advertiser_violations_count
+                    if role == "advertiser"
+                    else score.owner_violations_count
                 )
                 if violations >= self.PERMANENT_BAN_VIOLATIONS:
                     # Перманентная блокировка
