@@ -17,6 +17,20 @@ class StubOrdProvider:
         logger.warning("ORD stub: реальный провайдер не настроен (register_advertiser)")
         return f"STUB-ADV-{user_id}"
 
+    async def register_platform(self, channel_id: int, channel_url: str, channel_name: str) -> str:
+        logger.warning("ORD stub: реальный провайдер не настроен (register_platform)")
+        return f"STUB-PLATFORM-{channel_id}"
+
+    async def register_contract(
+        self,
+        placement_request_id: int,
+        advertiser_ord_id: str,
+        amount_rub: str,
+        date_str: str,
+    ) -> str:
+        logger.warning("ORD stub: реальный провайдер не настроен (register_contract)")
+        return f"STUB-CONTRACT-{placement_request_id}"
+
     async def register_creative(
         self,
         placement_request_id: int,

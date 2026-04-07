@@ -47,7 +47,9 @@ class PlacementDispute(Base, TimestampMixin):
     __tablename__ = "placement_disputes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    placement_request_id: Mapped[int] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=False, index=True)
+    placement_request_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("placement_requests.id"), nullable=False, index=True
+    )
     advertiser_id: Mapped[int] = mapped_column(Integer, ForeignKey(_USERS_FK), nullable=False)
     owner_id: Mapped[int] = mapped_column(Integer, ForeignKey(_USERS_FK), nullable=False)
     reason: Mapped[DisputeReason] = mapped_column(nullable=False)
@@ -63,9 +65,15 @@ class PlacementDispute(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship("PlacementRequest", back_populates="disputes")
-    advertiser: Mapped["User"] = relationship("User", foreign_keys=[advertiser_id], back_populates="disputes_advertiser")
-    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id], back_populates="disputes_owner")
+    placement_request: Mapped["PlacementRequest"] = relationship(
+        "PlacementRequest", back_populates="disputes"
+    )
+    advertiser: Mapped["User"] = relationship(
+        "User", foreign_keys=[advertiser_id], back_populates="disputes_advertiser"
+    )
+    owner: Mapped["User"] = relationship(
+        "User", foreign_keys=[owner_id], back_populates="disputes_owner"
+    )
     admin: Mapped[Optional["User"]] = relationship("User", foreign_keys=[admin_id])
 
     def __repr__(self) -> str:

@@ -72,7 +72,9 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
         return
 
     if req.status != PlacementStatus.published:
-        await callback.answer("❌ Спор можно открыть только по активной публикации", show_alert=True)
+        await callback.answer(
+            "❌ Спор можно открыть только по активной публикации", show_alert=True
+        )
         return
 
     # Проверить — нет ли уже открытого спора
@@ -86,7 +88,11 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
 
     # Определить причину автоматически
     reason = DisputeReason.advertiser_complaint
-    if req.deleted_at and req.scheduled_delete_at and req.deleted_at < req.scheduled_delete_at - timedelta(minutes=5):
+    if (
+        req.deleted_at
+        and req.scheduled_delete_at
+        and req.deleted_at < req.scheduled_delete_at - timedelta(minutes=5)
+    ):
         reason = DisputeReason.post_removed_early
 
     price = req.final_price if req.final_price is not None else req.proposed_price
@@ -106,7 +112,11 @@ async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
     reason_human = _REASON_LABELS.get(reason.value, reason.value)
 
     # Вычислить продолжительность
-    fmt_val = req.publication_format.value if hasattr(req.publication_format, "value") else str(req.publication_format)
+    fmt_val = (
+        req.publication_format.value
+        if hasattr(req.publication_format, "value")
+        else str(req.publication_format)
+    )
     paid_h = _FORMAT_HOURS.get(fmt_val, 24)
     actual_h = _compute_actual_hours(req)
 

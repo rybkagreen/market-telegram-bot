@@ -37,11 +37,13 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         offset: int = 0,
     ) -> Sequence[UserFeedback]:
         """Get all feedback from user."""
-        query = select(UserFeedback).where(
-            UserFeedback.user_id == user_id
-        ).order_by(
-            UserFeedback.created_at.desc()
-        ).limit(limit).offset(offset)
+        query = (
+            select(UserFeedback)
+            .where(UserFeedback.user_id == user_id)
+            .order_by(UserFeedback.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self.session.execute(query)
         return result.scalars().all()
 
@@ -51,11 +53,12 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         limit: int = 50,
     ) -> Sequence[UserFeedback]:
         """Get feedback by status (for admin)."""
-        query = select(UserFeedback).where(
-            UserFeedback.status == status
-        ).order_by(
-            UserFeedback.created_at.desc()
-        ).limit(limit)
+        query = (
+            select(UserFeedback)
+            .where(UserFeedback.status == status)
+            .order_by(UserFeedback.created_at.desc())
+            .limit(limit)
+        )
         result = await self.session.execute(query)
         return result.scalars().all()
 
@@ -82,7 +85,9 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
 
     async def count_by_user(self, user_id: int) -> int:
         """Посчитать количество отзывов пользователя."""
-        result = await self.session.execute(select(func.count()).where(UserFeedback.user_id == user_id))
+        result = await self.session.execute(
+            select(func.count()).where(UserFeedback.user_id == user_id)
+        )
         return result.scalar_one() or 0
 
     async def count_by_status(self, status: FeedbackStatus | None = None) -> int:
@@ -90,5 +95,7 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
         if status is None:
             result = await self.session.execute(select(func.count()).select_from(UserFeedback))
         else:
-            result = await self.session.execute(select(func.count()).where(UserFeedback.status == status))
+            result = await self.session.execute(
+                select(func.count()).where(UserFeedback.status == status)
+            )
         return result.scalar_one() or 0

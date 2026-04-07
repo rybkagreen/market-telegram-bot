@@ -46,5 +46,7 @@ async def get_category(
     repo = CategoryRepo(session)
     category = await repo.get_by_slug(slug)
     if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{slug}' not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{slug}' not found"
+        )
     return CategoryResponse(key=category.slug, name=category.name_ru, emoji=category.emoji)

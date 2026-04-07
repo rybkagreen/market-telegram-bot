@@ -745,6 +745,12 @@ async def get_tax_summary(
     serializable = {
         **summary,
         "usn_revenue": str(summary["usn_revenue"]),
+        "total_expenses": str(summary.get("total_expenses", "0")),
+        "tax_base_15": str(summary.get("tax_base_15", "0")),
+        "calculated_tax_15": str(summary.get("calculated_tax_15", "0")),
+        "min_tax_1": str(summary.get("min_tax_1", "0")),
+        "tax_due": str(summary.get("tax_due", "0")),
+        "applicable_rate": summary.get("applicable_rate"),
         "vat_accumulated": str(summary["vat_accumulated"]),
         "ndfl_withheld": str(summary["ndfl_withheld"]),
         "total_income": str(summary["total_income"]),
@@ -755,6 +761,8 @@ async def get_tax_summary(
                 "operation_date": e["operation_date"].isoformat() if e["operation_date"] else None,
                 "description": e["description"],
                 "income_amount": str(e["income_amount"]),
+                "expense_amount": str(e.get("expense_amount", "0")) if e.get("expense_amount") else None,
+                "operation_type": e.get("operation_type", "income"),
             }
             for e in summary["kudir_entries"]
         ],
@@ -848,10 +856,7 @@ async def list_all_contracts(
     )
     contracts = list(result.scalars().all())
 
-    items = [
-        AdminContractItem.model_validate(c)
-        for c in contracts
-    ]
+    items = [AdminContractItem.model_validate(c) for c in contracts]
 
     logger.info(
         "Admin %s listed contracts: limit=%d, offset=%d, status=%s, total=%d",

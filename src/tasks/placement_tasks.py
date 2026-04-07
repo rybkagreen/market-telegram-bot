@@ -158,6 +158,7 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
         from datetime import UTC, datetime
+
         all_expired = await repo.get_expired(before=datetime.now(UTC))
         expired_placements = [p for p in all_expired if p.status == PlacementStatus.pending_owner]
 
@@ -257,6 +258,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
     async with async_session_factory() as session:
         repo = PlacementRequestRepository(session)
         from datetime import UTC, datetime
+
         all_expired = await repo.get_expired(before=datetime.now(UTC))
         expired_placements = [p for p in all_expired if p.status == PlacementStatus.pending_payment]
 
@@ -354,6 +356,7 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
         from sqlalchemy import select as _select
 
         from src.db.models.placement_request import PlacementRequest
+
         _expired_result = await session.execute(
             _select(PlacementRequest).where(
                 PlacementRequest.status == PlacementStatus.counter_offer,
@@ -498,6 +501,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             if updated:
                 channel_id = updated.channel_id
                 from src.db.models.telegram_chat import TelegramChat
+
                 channel = await session.get(TelegramChat, channel_id)
                 rep_service = ReputationService(session, ReputationRepo(session))
                 await rep_service.on_publication(
@@ -742,9 +746,7 @@ async def _check_published_posts_health_async() -> dict[str, Any]:
                     await session.commit()
 
                 except Exception as e:
-                    logger.error(
-                        f"Error checking health for placement {placement.id}: {e}"
-                    )
+                    logger.error(f"Error checking health for placement {placement.id}: {e}")
                     stats["errors"] += 1
 
     finally:

@@ -88,7 +88,13 @@ class ChannelSettingsUpdateRequest(BaseModel):
 # =============================================================================
 
 
-@router.get("/", responses={404: {"description": "Channel not found"}, 403: {"description": "Not channel owner"}})
+@router.get(
+    "/",
+    responses={
+        404: {"description": "Channel not found"},
+        403: {"description": "Not channel owner"},
+    },
+)
 async def get_channel_settings(
     channel_id: int,
     current_user: CurrentUser,

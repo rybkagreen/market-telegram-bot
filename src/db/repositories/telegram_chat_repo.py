@@ -15,7 +15,9 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
 
     async def get_by_telegram_id(self, telegram_id: int) -> TelegramChat | None:
         """Получить канал по Telegram ID."""
-        result = await self.session.execute(select(TelegramChat).where(TelegramChat.telegram_id == telegram_id))
+        result = await self.session.execute(
+            select(TelegramChat).where(TelegramChat.telegram_id == telegram_id)
+        )
         return result.scalar_one_or_none()
 
     async def get_by_owner(self, owner_id: int) -> list[TelegramChat]:
@@ -48,7 +50,9 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
     async def get_active(self) -> list[TelegramChat]:
         """Получить все активные каналы."""
         result = await self.session.execute(
-            select(TelegramChat).where(TelegramChat.is_active.is_(True)).order_by(TelegramChat.rating.desc())
+            select(TelegramChat)
+            .where(TelegramChat.is_active.is_(True))
+            .order_by(TelegramChat.rating.desc())
         )
         return list(result.scalars().all())
 

@@ -153,6 +153,20 @@ mini_app/*.tsbuildinfo
 mini_app/*.js
 mini_app/*.d.ts
 
+# Web Portal
+web_portal/node_modules/
+web_portal/dist/
+web_portal/.env
+
+# Working documentation (drafts, design systems, sprint plans)
+DESIGN_SYSTEM_v2.md
+WEB_PORTAL_RULES.md
+docs/CONSTANTS_АУДИТ.md
+docs/SPRINT_PLAN_WEB_PORTAL_FULL.md
+
+# Development middleware (duplicate/legacy)
+src/core/middleware/
+
 # ══════════════════════════════════════════════════════════════
 # SECURITY: Sensitive credentials & development files
 # ══════════════════════════════════════════════════════════════

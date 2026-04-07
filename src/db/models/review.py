@@ -18,20 +18,34 @@ class Review(Base, TimestampMixin):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    placement_request_id: Mapped[int] = mapped_column(Integer, ForeignKey("placement_requests.id"), nullable=False)
-    reviewer_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    reviewed_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    placement_request_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("placement_requests.id"), nullable=False
+    )
+    reviewer_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    reviewed_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship("PlacementRequest", back_populates="reviews")
-    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id], back_populates="reviews_given")
-    reviewed: Mapped["User"] = relationship("User", foreign_keys=[reviewed_id], back_populates="reviews_received")
+    placement_request: Mapped["PlacementRequest"] = relationship(
+        "PlacementRequest", back_populates="reviews"
+    )
+    reviewer: Mapped["User"] = relationship(
+        "User", foreign_keys=[reviewer_id], back_populates="reviews_given"
+    )
+    reviewed: Mapped["User"] = relationship(
+        "User", foreign_keys=[reviewed_id], back_populates="reviews_received"
+    )
 
     __table_args__ = (
         CheckConstraint("rating >= 1 AND rating <= 5", name="check_rating_range"),
-        UniqueConstraint("placement_request_id", "reviewer_id", name="uq_review_placement_reviewer"),
+        UniqueConstraint(
+            "placement_request_id", "reviewer_id", name="uq_review_placement_reviewer"
+        ),
     )
 
     def __repr__(self) -> str:

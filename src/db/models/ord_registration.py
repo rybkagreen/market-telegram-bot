@@ -22,19 +22,33 @@ class OrdRegistration(Base, TimestampMixin):
     placement_request_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("placement_requests.id"), nullable=False, unique=True
     )
-    contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("contracts.id"), nullable=True)
+    contract_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("contracts.id"), nullable=True
+    )
     advertiser_ord_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     creative_ord_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     erid: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    ord_provider: Mapped[str] = mapped_column(String(50), nullable=False, default="default", server_default="default")
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    ord_provider: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="default", server_default="default"
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
     registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    token_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Yandex ORD specific fields (S-28 Phase 2)
+    yandex_request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    platform_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contract_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship("PlacementRequest", foreign_keys=[placement_request_id])
+    placement_request: Mapped["PlacementRequest"] = relationship(
+        "PlacementRequest", foreign_keys=[placement_request_id]
+    )
     contract: Mapped["Contract | None"] = relationship("Contract", foreign_keys=[contract_id])
 
     __table_args__ = (

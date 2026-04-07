@@ -123,7 +123,9 @@ async def show_gamification(callback: CallbackQuery, session: AsyncSession) -> N
         select(UserBadge).where(UserBadge.user_id == user.id).limit(10)
     )
     badges = badges_result.scalars().all()
-    badges_list = "\n".join([f"🏅 {b.badge_type}" for b in badges]) if badges else "Пока нет бейджей"
+    badges_list = (
+        "\n".join([f"🏅 {b.badge_type}" for b in badges]) if badges else "Пока нет бейджей"
+    )
     await callback.message.edit_text(
         f"🏆 *Геймификация*\n\n"
         f"─── Рекламодатель ───\n"

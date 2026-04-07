@@ -427,9 +427,9 @@ class XPService:
                 "xp_points": combined_xp,
                 "progress": progress,
                 "privileges": privileges,
-                "total_spent": float(getattr(user, 'total_spent', None) or 0),
-                "total_earned": float(getattr(user, 'total_earned', None) or 0),
-                "streak_days": getattr(user, 'streak_days', None) or 0,
+                "total_spent": float(getattr(user, "total_spent", None) or 0),
+                "total_earned": float(getattr(user, "total_earned", None) or 0),
+                "streak_days": getattr(user, "streak_days", None) or 0,
             }
 
     # === Спринт 5: Раздельная статистика ===

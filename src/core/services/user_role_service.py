@@ -44,4 +44,9 @@ class UserRoleService:
         user = await session.get(User, user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
-        return UserContext(role=user.current_role, balance_rub=user.balance_rub, earned_rub=user.earned_rub, plan=user.plan)
+        return UserContext(
+            role=user.current_role,
+            balance_rub=user.balance_rub,
+            earned_rub=user.earned_rub,
+            plan=user.plan,
+        )

@@ -92,8 +92,7 @@ class TelegramSender:
         """Handle FloodWait. Returns a terminal SendResult or None to retry."""
         retry_after = e.retry_after + 5
         logger.warning(
-            f"FloodWait for {e.retry_after}s on chat {chat_id}, "
-            f"retrying after {retry_after}s"
+            f"FloodWait for {e.retry_after}s on chat {chat_id}, retrying after {retry_after}s"
         )
         if attempt < self._max_retries - 1:
             return None  # Signal: sleep externally then retry
@@ -112,7 +111,9 @@ class TelegramSender:
         error_text = str(e).lower()
         if "banned" in error_text or "kicked" in error_text or "user is banned" in error_text:
             logger.warning(f"User banned in chat {chat_id}: {e}")
-            return SendResult(status=SendStatus.USER_BANNED, error_message=f"UserBannedInChannel: {e}")
+            return SendResult(
+                status=SendStatus.USER_BANNED, error_message=f"UserBannedInChannel: {e}"
+            )
         logger.warning(f"Bot forbidden for chat {chat_id}: {e}")
         return SendResult(status=SendStatus.CHAT_BLOCKED, error_message=f"ChatWriteForbidden: {e}")
 

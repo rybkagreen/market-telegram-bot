@@ -335,7 +335,9 @@ async def _send_owner_placement_notification(
         )
         return True
     except TelegramForbiddenError:
-        logger.warning(f"Owner {owner_telegram_id} blocked the bot, skipping placement notification")
+        logger.warning(
+            f"Owner {owner_telegram_id} blocked the bot, skipping placement notification"
+        )
         return False
     except Exception as e:
         error_str = str(e).lower()
@@ -488,7 +490,9 @@ def notify_payout_created_task(payout_id: int) -> bool:
                 f"Статус: ожидает выплаты\n\n"
                 f"Выплата будет обработана в ближайшее время."
             )
-            return await _send_payout_message(payout_id, owner.telegram_id, message, "payout created")
+            return await _send_payout_message(
+                payout_id, owner.telegram_id, message, "payout created"
+            )
 
     try:
         return asyncio.run(_notify_async())

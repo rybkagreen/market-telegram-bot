@@ -37,7 +37,9 @@ class TelegramChat(Base, TimestampMixin):
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
-    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     member_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_er: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     avg_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -56,9 +58,15 @@ class TelegramChat(Base, TimestampMixin):
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="telegram_chats")
-    channel_settings: Mapped[Optional["ChannelSettings"]] = relationship("ChannelSettings", back_populates="channel", uselist=False, cascade=CASCADE_ALL)
-    channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship("ChannelMediakit", back_populates="channel", uselist=False, cascade=CASCADE_ALL)
-    placement_requests: Mapped[list["PlacementRequest"]] = relationship("PlacementRequest", back_populates="channel", cascade=CASCADE_ALL)
+    channel_settings: Mapped[Optional["ChannelSettings"]] = relationship(
+        "ChannelSettings", back_populates="channel", uselist=False, cascade=CASCADE_ALL
+    )
+    channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship(
+        "ChannelMediakit", back_populates="channel", uselist=False, cascade=CASCADE_ALL
+    )
+    placement_requests: Mapped[list["PlacementRequest"]] = relationship(
+        "PlacementRequest", back_populates="channel", cascade=CASCADE_ALL
+    )
     mailing_logs: Mapped[list["MailingLog"]] = relationship("MailingLog", back_populates="chat")
 
     def __repr__(self) -> str:
