@@ -128,18 +128,18 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
 
     async with async_session_factory() as session:
         service = AnalyticsService()
-        stats = await service.get_advertiser_stats(
-            advertiser_id=current_user.id, session=session
-        )
+        stats = await service.get_advertiser_stats(advertiser_id=current_user.id, session=session)
 
         active_result = await session.execute(
             select(func.count(PlacementRequest.id)).where(
                 PlacementRequest.advertiser_id == current_user.id,
-                PlacementRequest.status.in_([
-                    PlacementStatus.pending_owner,
-                    PlacementStatus.pending_payment,
-                    PlacementStatus.escrow,
-                ]),
+                PlacementRequest.status.in_(
+                    [
+                        PlacementStatus.pending_owner,
+                        PlacementStatus.pending_payment,
+                        PlacementStatus.escrow,
+                    ]
+                ),
             )
         )
         campaigns_active = active_result.scalar() or 0
@@ -488,7 +488,9 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
 
         total_campaigns = placement_stats.total_campaigns if placement_stats else 0
         total_reach = (placement_stats.total_reach or 0) if placement_stats else 0
-        total_spent = str((placement_stats.total_spent or Decimal("0")) if placement_stats else Decimal("0"))
+        total_spent = str(
+            (placement_stats.total_spent or Decimal("0")) if placement_stats else Decimal("0")
+        )
         total_clicks = (placement_stats.total_clicks or 0) if placement_stats else 0
 
         # Рассчитываем CTR
@@ -534,16 +536,18 @@ async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnaly
                     else 0.0
                 )
 
-                top_channels.append({
-                    "channel": {
-                        "id": channel.id,
-                        "username": channel.username,
-                        "title": channel.title,
-                        "member_count": channel.member_count,
-                    },
-                    "reach": channel_row.reach or 0,
-                    "ctr": channel_ctr,
-                })
+                top_channels.append(
+                    {
+                        "channel": {
+                            "id": channel.id,
+                            "username": channel.username,
+                            "title": channel.title,
+                            "member_count": channel.member_count,
+                        },
+                        "reach": channel_row.reach or 0,
+                        "ctr": channel_ctr,
+                    }
+                )
 
         # Распределение по категориям (заглушка, пока нет данных)
         by_category: list[dict] = []
@@ -586,7 +590,9 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
         placement_stats = placements_result.first()
 
         total_publications = (placement_stats.total_publications or 0) if placement_stats else 0
-        total_earned = str((placement_stats.total_earned or Decimal("0")) if placement_stats else Decimal("0"))
+        total_earned = str(
+            (placement_stats.total_earned or Decimal("0")) if placement_stats else Decimal("0")
+        )
 
         # Средний рейтинг (заглушка — используем рейтинг каналов)
         if channels:
@@ -608,16 +614,20 @@ async def get_owner_analytics(current_user: CurrentUser) -> OwnerAnalyticsRespon
                 )
             )
             channel_stats = channel_placements.first()
-            by_channel.append({
-                "channel": {
-                    "id": channel.id,
-                    "username": channel.username,
-                    "title": channel.title,
-                    "member_count": channel.member_count,
-                },
-                "earned": str((channel_stats.earned or Decimal("0")) if channel_stats else Decimal("0")),
-                "publications": (channel_stats.publications or 0) if channel_stats else 0,
-            })
+            by_channel.append(
+                {
+                    "channel": {
+                        "id": channel.id,
+                        "username": channel.username,
+                        "title": channel.title,
+                        "member_count": channel.member_count,
+                    },
+                    "earned": str(
+                        (channel_stats.earned or Decimal("0")) if channel_stats else Decimal("0")
+                    ),
+                    "publications": (channel_stats.publications or 0) if channel_stats else 0,
+                }
+            )
 
         # Заработок за период (сегодня, неделя, месяц)
         now = datetime.now(UTC)

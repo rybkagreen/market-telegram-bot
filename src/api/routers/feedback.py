@@ -49,6 +49,7 @@ async def create_feedback(
         async with async_session_factory() as notif_session:
             # Получаем telegram_id пользователя для уведомления
             from src.db.repositories.user_repo import UserRepository
+
             user_repo = UserRepository(notif_session)
             user = await user_repo.get_by_id(current_user.id)
             if user:
@@ -76,7 +77,10 @@ async def get_my_feedback(
     )
 
 
-@router.get("/{feedback_id}", responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}})
+@router.get(
+    "/{feedback_id}",
+    responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
+)
 async def get_feedback(
     feedback_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
