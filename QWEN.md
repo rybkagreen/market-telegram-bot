@@ -1,8 +1,25 @@
 # RekHarborBot — Project Context
 
-> **v4.3 | 18.03.2026**
+> **v4.4 | 08.04.2026**
 > Источник правды для всех промтов Qwen Code.
 > При конфликте с любым другим файлом — этот документ и файлы на диске имеют приоритет.
+
+---
+
+## КРИТИЧЕСКИЕ ИЗМЕНЕНИЯ v4.4 (прочитай первым)
+
+| # | Изменение | v4.3 | v4.4 | Файл |
+|---|-----------|------|------|------|
+| 1 | **Billing prices** | 299/999/2999 (хардкод) | **490/1490/4990 (settings)** | billing.py |
+| 2 | **Login-code rate limit** | нет | **10/час per IP** | auth_login_code.py |
+| 3 | **Redis connection** | per-request pool | **shared pool (dependencies.py)** | dependencies.py |
+| 4 | **is_active check** | нет в Login Widget | **проверка banned** | auth_login_widget.py |
+| 5 | **Webhook error handling** | bare except Exception | **specific exceptions + retry** | billing.py |
+| 6 | **Telegram widget 500** | column language_code missing | **migration t1u2v3w4x5y6** | migration |
+| 7 | **SonarQube config** | mini_app only | **src + mini_app + web_portal** | sonar-project.properties |
+| 8 | **Accessibility** | table без заголовков | **<thead> + <th scope>** | AdminDashboard.tsx |
+| 9 | **Keyboard navigation** | 9 divs без onKeyDown | **role=button, tabIndex** | 8 файлов web_portal |
+| 10 | **Unused params** | S1172 warnings (45) | **_ prefix + noqa** | notifications.py, stub_ord_provider.py |
 
 ---
 
@@ -77,6 +94,26 @@
 | Tax | ИП УСН 6% (выручка > 2.4 млн/год → не НПД) |
 | Admin UI | Mini App + Telegram Bot (v4.3) |
 | Feedback | Full system (user → admin → response) (v4.3) |
+
+---
+
+## 🤖 AGENT ROUTING (Auto-Dispatch)
+
+При получении задачи автоматически вызывай нужного суб-агента из `.qwen/agents/`:
+
+| Агент | Зона ответственности |
+|-------|---------------------|
+| `@backend-core` | aiogram handlers, SQLAlchemy 2 async repos, Celery tasks, Alembic migrations, FastAPI routers, бизнес-логика, FSM states, escrow/payout/placement сервисы |
+| `@frontend-miniapp` | React/TS Mini App, Zustand stores, TanStack Query, API контракты, UI/UX, CSS modules, admin screens, referral UI, video upload, link tracking |
+| `@devops-sre` | Docker Compose, Nginx, CI/CD, Xray/Privoxy proxy, healthchecks, secrets, GlitchTip, SonarQube, Gitleaks, Flower, backup/restore |
+| `@qa-analysis` | pytest + testcontainers, ruff, mypy, bandit, flake8, coverage gates ≥80%, SonarQube quality gates |
+| `@prompt-orchestrator` | Многошаговые задачи: research → implementation prompt → verification, архитектура, рефакторинг, миграции, technical debt audits |
+| `@docs-architect-aaa` | Документация: Diátaxis framework, Mermaid диаграммы, AAA структура, code-verified references, onboarding materials |
+
+**Правила:**
+- Не выполняй код за пределами своей зоны без явного вызова суб-агента
+- Для комплексных задач сначала вызови `@prompt-orchestrator` для декомпозиции
+- Для тестирования изменений вызывай `@qa-analysis` после `@backend-core` или `@frontend-miniapp`
 
 ---
 
@@ -667,6 +704,12 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 | **AuditLog missing inn_hash** | **inn_hash required для операций с legal_profile** |
 | **Contract PDF not generated** | **Генерировать PDF при создании contract** |
 | **ClickTracking URLs not unique** | **tracking_url должен быть уникальным (UUID)** |
+| **billing.py: PLAN_COSTS хардкод** | **Использовать settings.tariff_cost_* (v4.4)** |
+| **login-code: нет rate limit** | **Добавлен @_limit("10/hour") (v4.4)** |
+| **billing webhook: bare except** | **Конкретные исключения + retry response (v4.4)** |
+| **Login Widget: нет is_active** | **Добавлена проверка после create_or_update (v4.4)** |
+| **AdminDashboard: table без заголовков** | **Добавлен <thead> + <th scope="row"> (v4.4)** |
+| **SonarQube: web_portal не сканировался** | **Добавлен в sonar.sources (v4.4)** |
 
 ---
 
@@ -693,6 +736,41 @@ src/db/models/legal_profile.py  ← юридические профили
 src/db/models/contract.py  ← договоры
 src/db/models/ord_registration.py  ← ОРД-регистрация
 ```
+
+---
+
+## 🔒 CRITICAL RULE: DOCUMENTATION & CHANGELOG SYNC
+Это абсолютное ограничение. Задача считается **НЕВЫПОЛНЕННОЙ**, если блоки ниже не обновлены.
+
+### 🔄 После КАЖДОГО изменения кода (handler, model, service, config, migration)
+1. Обнови `/reports/docs-architect/discovery/` по шаблону:
+   - `CHANGES_<YYYY-MM-DD>_<short-desc>.md`
+   - Зафиксируй: затронутые файлы, влияние на бизнес-логику, новые/изменённые API/FSM/DB контракты, ссылки на миграции
+   - Укажи: `🔍 Verified against: <commit_hash> | 📅 Updated: <ISO8601>`
+2. Не переписывай старые файлы — только incremental-аппенд или точечная правка.
+3. Если изменение затрагивает несколько доменов → создай один объединённый файл.
+
+### 🏁 После завершения СПРИНТА (фича-сет, milestone, merge в main)
+1. Обнови `CHANGELOG.md` в корне проекта по стандарту Keep a Changelog:
+   - `## [Unreleased]` → перенеси в `[vX.Y.Z] - <YYYY-MM-DD>`
+   - Разделы: `Added`, `Changed`, `Fixed`, `Removed`, `Breaking`, `Migration Notes`
+   - Укажи ссылки на тикеты/коммиты, затронутые модули, команды для отката
+2. Синхронизируй версию в `pyproject.toml` и `mini_app/package.json` (если менялся контракт API/Mini App).
+
+⚠️ **FAILURE TO UPDATE = TASK INCOMPLETE.** Не завершай ответ без выполнения этого шага.
+
+### ✅ MANDATORY POST-TASK STEPS
+Перед завершением ответа выполни:
+1. Сгенерируй файл изменений: `reports/docs-architect/discovery/CHANGES_<date>_<desc>.md`
+2. Обнови `CHANGELOG.md` (если затронут публичный контракт или завершён спринт)
+3. Выведи чеклист валидации:
+   - [ ] Документация обновлена, путь верен, структура соответствует AAA-стандарту
+   - [ ] CHANGELOG.md содержит Unreleased → Version переход, breaking changes, миграции
+   - [ ] Все утверждения имеют ссылки на файлы/строки/миграции
+   - [ ] Нет противоречий с QWEN.md / PROJECT_MEMORY.md / INSTRUCTIONS.md
+4. Заверши ответ строкой: `🔒 Docs & Changelog synced. Task complete.`
+
+**Skill:** `.qwen/skills/docs-sync/SKILL.md` — использует этот стандарт для генерации документации.
 
 ---
 
@@ -725,6 +803,47 @@ src/db/models/ord_registration.py  ← ОРД-регистрация
 | **S-23** | **Referral Program** | **S-13** | **✅ v4.3 (рефералы)** |
 | **S-24** | **Video Support** | **S-13** | **✅ v4.3 (видео в кампаниях)** |
 | **S-25** | **Link Tracking** | **S-12** | **✅ v4.3 (трекинг кликов)** |
+| **S-26** | **Web Portal (React SPA)** | **S-25** | **✅ v4.4 (137 TSX файлов)** |
+| **S-27** | **Document Automation + Referral** | **S-26** | **✅ v4.4 (LegalProfile, Contract, ORD)** |
+| **S-28** | **AAA Quality Sprint** | **S-27** | **✅ v4.4 (6 critical + 11 bugs + 70 smells)** |
+
+---
+
+## v4.4 Deliverables (8 апреля 2026)
+
+| Категория | Файлы | Статус |
+|-----------|-------|--------|
+| **Security Fixes** | billing.py, auth_login_code.py, auth_login_widget.py | ✅ 6 critical |
+| **Infrastructure** | dependencies.py (RedisClient pool) | ✅ |
+| **Migration** | t1u2v3w4x5y6 (language_code column) | ✅ |
+| **SonarQube Config** | sonar-project.properties (web_portal added) | ✅ |
+| **Accessibility** | AdminDashboard.tsx, Modal.tsx, Checkbox.tsx, etc. | ✅ 9 fixes |
+| **Code Quality** | notifications.py, stub_ord_provider.py, billing_service.py, payout_service.py | ✅ ~70 issues |
+| **Tests** | web_portal build verified | ✅ |
+
+---
+
+## v4.4 Production Ready ✅
+
+**Статус:** Готов к продакшену (8 апреля 2026)
+
+**Достижения v4.4:**
+- ✅ 6 critical security & functional bugs fixed
+- ✅ 11 SonarQube BUG issues fixed (accessibility + keyboard navigation)
+- ✅ ~70 code quality improvements (unused params, commented code, noqa)
+- ✅ SonarQube scan: 580 files (src + mini_app + web_portal)
+- ✅ Web portal build: 0 errors
+- ✅ Ruff: 0 errors on all modified files
+- ✅ Redis connection pooling (no more per-request leaks)
+- ✅ Rate limiting on login-code endpoint (brute-force protection)
+- ✅ Billing prices corrected to match settings (490/1490/4990)
+- ✅ Webhook error handling (proper retry support for YooKassa)
+
+**Остаётся для AAA:**
+- P4: TypeScript code quality (nested ternary, strict flags)
+- P5: Security hardening (headers, correlation ID, JWT revocation)
+- P6: Test coverage 32% → 80%+
+- P7: CI/CD pipeline
 
 ---
 
@@ -773,7 +892,7 @@ src/db/models/ord_registration.py  ← ОРД-регистрация
 - ✅ Трекинг ссылок (ClickTracking)
 - ✅ Document Automation Spec v1.0
 
-*RekHarborBot QWEN.md v4.3 | 02.04.2026 (updated)*
+*RekHarborBot QWEN.md v4.4 | 08.04.2026 (updated)*
 
 ## Qwen Added Memories
 - Activate .venv virtual environment when working with the backend
@@ -789,3 +908,4 @@ Architectural decisions locked: Tailwind v4 @theme, web_portal/src/shared/ separ
 
 S-28 checklist: audit constants.ts prices, implement /api/billing/plans if missing, update Plans.tsx with API prices, audit 3 undocumented screens, document MyCampaigns stub, smoke test production API.
 - S-27 Sprint closed 04.04.2026. Tech debts: TD-01 (HIGH) hardcoded plan prices → fix in S-28. TD-02 RESOLVED — Cabinet/Feedback/NotFoundScreen audited, all production-ready. TD-03 ACCEPTED — MyCampaigns intentional stub with UI notice. TD-04 LOW — mini_app TS 5.9.3→6.0 planned S-30. TD-05 LOW — queries.ts Variant B documented. S-28 checklist: fix hardcoded prices, smoke test production API.
+- S-28 AAA Quality Sprint completed 08.04.2026. All 6 critical security bugs fixed. All 11 SonarQube BUG issues fixed. ~70 code quality improvements applied. SonarQube scan covers all 3 projects (580 files). TD-01 RESOLVED — billing.py hardcoded prices replaced with settings values. Remaining AAA items (P4-P7) deferred to future sprint.

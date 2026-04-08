@@ -6,7 +6,8 @@
   },
   "context": {
     "fileName": [
-      "QWEN.md"
+      "QWEN.md",
+      ".qwen/PROJECT_SKILLS.md"
     ],
     "loadFromIncludeDirectories": true
   },
@@ -14,7 +15,13 @@
   "permissions": {
     "allow": [
       "Bash(docker-compose *)",
-      "Bash(docker compose exec *)"
+      "Bash(docker compose exec *)",
+      "Bash(npm run *)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(pytest *)",
+      "Bash(alembic *)",
+      "Bash(bandit *)"
     ]
   }
 }

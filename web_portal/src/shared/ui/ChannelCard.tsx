@@ -24,6 +24,9 @@ export function ChannelCard({ name, username, subscribers, category, price, stat
           : 'border-border bg-harbor-card hover:border-border/80'
       } ${onClick ? 'cursor-pointer' : ''}`}
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.() }}
+      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? 'button' : undefined}
     >
       {/* Top row: avatar + info */}
       <div className="flex items-center gap-3 min-w-0">

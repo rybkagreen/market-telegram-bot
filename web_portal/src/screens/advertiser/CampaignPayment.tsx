@@ -5,6 +5,7 @@ import { Card, Notification, Button, Skeleton } from '@shared/ui'
 import { formatCurrency } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useContracts } from '@/hooks/queries'
+import { useToast } from '@/hooks/useToast'
 
 const PUBLICATION_FORMATS: Record<string, { name: string; multiplier: number }> = {
   post_24h: { name: 'Пост 24ч', multiplier: 1.0 },
@@ -25,6 +26,7 @@ export default function CampaignPayment() {
   const queryClient = useQueryClient()
   const hasSubmitted = useRef(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const { showToast, ToastComponent } = useToast()
 
   const isExpired = placement?.expires_at ? new Date(placement.expires_at) < new Date() : false
   const isCounterOffer = placement?.status === 'counter_offer'
@@ -101,7 +103,8 @@ export default function CampaignPayment() {
           if (action === 'cancel') {
             navigate('/adv/campaigns')
           } else {
-            navigate(`/adv/campaigns/${placement.id}/waiting`)
+            showToast('Оплата прошла успешно. Ожидайте подтверждения владельца.', 'success')
+            setTimeout(() => navigate(`/adv/campaigns/${placement.id}/waiting`), 1500)
           }
         },
         onError: (err) => {
@@ -111,7 +114,7 @@ export default function CampaignPayment() {
             queryClient.invalidateQueries({ queryKey: ['placement-request', placement.id] })
             setSubmitError('Статус заявки изменился. Страница будет обновлена.')
           } else {
-            setSubmitError('Произошла ошибка. Попробуйте ещё раз.')
+            showToast('Ошибка оплаты. Попробуйте ещё раз.', 'error')
           }
         },
       },
@@ -236,6 +239,8 @@ export default function CampaignPayment() {
       <Notification type="warning">
         ⚠️ Отмена после оплаты: возврат 50%
       </Notification>
+
+      {ToastComponent}
     </div>
   )
 }

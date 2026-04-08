@@ -20,6 +20,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
+from src.config.settings import settings
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -51,9 +52,9 @@ CREDIT_PACKAGES = [
 
 PLAN_COSTS = {
     "free": 0,
-    "starter": 299,
-    "pro": 999,
-    "business": 2999,
+    "starter": settings.tariff_cost_starter,
+    "pro": settings.tariff_cost_pro,
+    "business": settings.tariff_cost_business,
 }
 
 CURRENCIES = ["USDT", "TON", "BTC", "ETH", "LTC"]
@@ -678,6 +679,11 @@ async def yookassa_webhook(
                 else:
                     logger.warning(f"YooKassaPayment record not found for {payment_id}")
 
+    except (ValueError, KeyError, TypeError) as e:
+        logger.error("Invalid webhook payload from YooKassa: %s", e)
+        return {"status": "error", "detail": "Invalid webhook payload"}
     except Exception as e:
-        logger.error("Ошибка обработки webhook ЮKassa: %s", e)
+        logger.error("Unexpected error processing YooKassa webhook: %s", e, exc_info=True)
+        # Return error so YooKassa retries
+        return {"status": "error", "detail": "Webhook processing failed"}
     return {"status": "ok"}

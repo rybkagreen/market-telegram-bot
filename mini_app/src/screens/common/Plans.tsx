@@ -79,7 +79,7 @@ export default function Plans() {
       {credits < 299 && (
         <Notification type="warning">
           Для смены тарифа нужны кредиты.{' '}
-          <span className={styles.convertLink} onClick={() => navigate('/cabinet')}>
+          <span className={styles.convertLink} role="button" tabIndex={0} onClick={() => navigate('/cabinet')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/cabinet') }}>
             Конвертируйте ₽ → кредиты в кабинете
           </span>
         </Notification>

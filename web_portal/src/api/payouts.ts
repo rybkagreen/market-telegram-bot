@@ -12,7 +12,7 @@ export interface Payout {
 }
 
 export async function getMyPayouts() {
-  return api.get('payouts/my').json<Payout[]>()
+  return api.get('payouts/').json<Payout[]>()
 }
 
 export async function createPayout(data: { amount: number; payment_details: string }) {

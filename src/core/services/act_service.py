@@ -169,7 +169,7 @@ class ActService:
         }
 
     @classmethod
-    def _render_act_template(
+    def _render_act_template(  # NOSONAR: python:S3776
         cls,
         placement: PlacementRequest,
         act_number: str,

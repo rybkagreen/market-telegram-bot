@@ -7,15 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
 from src.api.schemas.legal_profile import (
+    FnsValidationError,
+    FnsValidationResponse,
     LegalProfileCreate,
     LegalProfileResponse,
     LegalProfileUpdate,
     RequiredFieldsResponse,
     ScanUpload,
+    ValidateEntityRequest,
     ValidateInnRequest,
     ValidateInnResponse,
-    FnsValidationResponse,
-    ValidateEntityRequest,
 )
 from src.core.services.legal_profile_service import LegalProfileService
 from src.db.models.user import User
@@ -135,7 +136,7 @@ async def validate_inn(
     return ValidateInnResponse(valid=valid, type=inn_type)
 
 
-@router.post("/validate-entity", response_model=FnsValidationResponse)
+@router.post("/validate-entity")
 async def validate_entity(
     data: ValidateEntityRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -149,10 +150,10 @@ async def validate_entity(
     - ОГРН/ОГРНИП (контрольная сумма)
     """
     from src.core.services.fns_validation_service import (
+        validate_entity_type_match,
+        validate_individual_entrepreneur,
         validate_inn_type,
         validate_legal_entity,
-        validate_individual_entrepreneur,
-        validate_entity_type_match,
     )
 
     # Cross-validate: does the selected status match the INN type?

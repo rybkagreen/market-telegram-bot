@@ -1,11 +1,6 @@
 ---
 name: aiogram-handler
-description: >
-  Creates aiogram 3.x Telegram bot handlers, FSM state machines, callback
-  handlers, and middlewares following this project's conventions.
-  Use when writing /command handlers, inline keyboard callbacks, FSM wizard
-  steps, or any bot-facing code in src/bot/handlers/ or src/bot/states/.
-  Enforces: no DB access in handlers, call services only, throttling via Redis.
+description: "MUST BE USED for aiogram 3.x handlers, FSM states, callback routing with F.data.regexp(), keyboard builders, middlewares, throttling. Use when editing src/bot/handlers/, src/bot/states/, implementing Telegram UI flows, command handlers, inline callbacks, or CallbackData factories. Enforces: no DB access in handlers, call services only, ParseMode.HTML."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

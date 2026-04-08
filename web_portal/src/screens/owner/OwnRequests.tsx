@@ -4,10 +4,10 @@ import { Button, StatusPill, Skeleton, EmptyState, Card } from '@shared/ui'
 import { formatCurrency } from '@/lib/constants'
 import { useMyPlacements } from '@/hooks/useCampaignQueries'
 
-type Filter = 'new' | 'published' | 'cancelled'
+type Filter = 'new' | 'active' | 'cancelled'
 
-const NEW_STATUSES = ['pending_owner', 'counter_offer']
-const PUBLISHED_STATUSES = ['published']
+const NEW_STATUSES = ['pending_owner', 'counter_offer', 'pending_payment']
+const ACTIVE_STATUSES = ['escrow', 'published']
 const CANCELLED_STATUSES = ['cancelled', 'refunded', 'failed', 'failed_permissions']
 
 function formatDate(dt: string | null | undefined): string {
@@ -19,6 +19,8 @@ function statusToPill(status: string): { status: 'success' | 'warning' | 'danger
   const map: Record<string, { status: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
     pending_owner: { status: 'warning', label: '⏳ Новая заявка' },
     counter_offer: { status: 'warning', label: '🔄 Контр-оферта' },
+    pending_payment: { status: 'warning', label: '💳 Ожидает оплаты' },
+    escrow: { status: 'success', label: '🔒 В эскроу' },
     published: { status: 'success', label: '✅ Опубликован' },
     cancelled: { status: 'danger', label: '❌ Отменён' },
     refunded: { status: 'danger', label: '💸 Возврат' },
@@ -34,12 +36,12 @@ export default function OwnRequests() {
   const { data: requests = [], isLoading, refetch } = useMyPlacements(undefined, 'owner')
 
   const newCount = requests.filter((r) => NEW_STATUSES.includes(r.status)).length
-  const publishedCount = requests.filter((r) => PUBLISHED_STATUSES.includes(r.status)).length
+  const activeCount = requests.filter((r) => ACTIVE_STATUSES.includes(r.status)).length
   const cancelledCount = requests.filter((r) => CANCELLED_STATUSES.includes(r.status)).length
 
   const filtered = requests.filter((r) => {
     if (filter === 'new') return NEW_STATUSES.includes(r.status)
-    if (filter === 'published') return PUBLISHED_STATUSES.includes(r.status)
+    if (filter === 'active') return ACTIVE_STATUSES.includes(r.status)
     return CANCELLED_STATUSES.includes(r.status)
   })
 
@@ -65,13 +67,13 @@ export default function OwnRequests() {
         </button>
         <button
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-            filter === 'published'
+            filter === 'active'
               ? 'bg-success-muted text-success border border-success/30'
               : 'bg-harbor-card text-text-secondary border border-border hover:border-success/30'
           }`}
-          onClick={() => setFilter('published')}
+          onClick={() => setFilter('active')}
         >
-          🟢 Опубли. ({publishedCount})
+          🟢 Активные ({activeCount})
         </button>
         <button
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
@@ -98,7 +100,7 @@ export default function OwnRequests() {
         <div className="space-y-4">
           {filtered.map((req) => {
             const pill = statusToPill(req.status)
-            const isNew = NEW_STATUSES.includes(req.status)
+            const isActionable = ['pending_owner', 'counter_offer'].includes(req.status)
 
             return (
               <Card key={req.id} className="p-4">
@@ -122,7 +124,7 @@ export default function OwnRequests() {
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
-                  {isNew && (
+                  {isActionable && (
                     <>
                       <Button variant="success" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
                         ✅ Принять
@@ -135,15 +137,15 @@ export default function OwnRequests() {
                       </Button>
                     </>
                   )}
+                  {ACTIVE_STATUSES.includes(req.status) && (
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
+                      📊 Детали
+                    </Button>
+                  )}
                   {req.status === 'published' && (
-                    <>
-                      <Button variant="secondary" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                        📊 Детали
-                      </Button>
-                      <Button variant="success" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                        ⭐ Отзыв
-                      </Button>
-                    </>
+                    <Button variant="success" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
+                      ⭐ Отзыв
+                    </Button>
                   )}
                   {CANCELLED_STATUSES.includes(req.status) && (
                     <Button variant="ghost" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
