@@ -16,6 +16,7 @@ from src.db.models.user import User
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
+from src.tasks.notification_tasks import notify_owner_new_placement_task
 
 if TYPE_CHECKING:
     from src.core.services.billing_service import BillingService
@@ -263,11 +264,14 @@ class PlacementRequestService:
             publication_format=publication_format,
         )
 
-        # Отправляем уведомление владельцу
-        owner = await self.session.get(User, channel.owner_id)
-        advertiser = await self.session.get(User, advertiser_id)
-        if owner and advertiser:
-            await _notify_create_request(placement, advertiser, owner, channel)
+        # Отправляем уведомление владельцу через Celery (API и bot — разные контейнеры)
+        try:
+            notify_owner_new_placement_task.apply_async(
+                args=[placement.id],
+                queue="notifications",
+            )
+        except Exception as e:
+            logger.error(f"Failed to enqueue notification for placement {placement.id}: {e}")
 
         return placement
 
@@ -654,6 +658,7 @@ class PlacementRequestService:
 
             result.tracking_short_code = secrets.token_urlsafe(8)[:8]
             await self.session.flush()
+            await self.session.refresh(result)  # reload expired updated_at after flush
 
         return result
 

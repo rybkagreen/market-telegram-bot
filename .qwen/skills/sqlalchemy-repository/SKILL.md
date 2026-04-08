@@ -1,11 +1,6 @@
 ---
 name: sqlalchemy-repository
-description: >
-  Creates SQLAlchemy 2.0 async repositories, models, and queries following
-  the project's Repository pattern. Use when writing new DB models in
-  src/db/models/, new repository methods in src/db/repositories/, or
-  composing complex async queries. Enforces: Generic BaseRepository[T],
-  asyncpg driver, no ORM lazy-loading, atomic balance updates with RETURNING.
+description: "MUST BE USED for SQLAlchemy 2.0 async: repository pattern, session management, get_by_telegram_id() pattern, session.refresh() after flush, atomic balance updates with RETURNING. Use when working with src/db/models/, src/db/repositories/, or composing async queries. Enforces: Generic BaseRepository[T], asyncpg driver, no lazy-loading, selectinload/joinedload for relations."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

@@ -7,8 +7,8 @@ Flow:
 3. User enters code on web portal to get JWT
 """
 
-import random
 import logging
+import random
 
 from aiogram import Router
 from aiogram.filters import Command

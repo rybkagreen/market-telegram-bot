@@ -23,7 +23,7 @@ class ReviewResponse(BaseModel):
     reviewer_id: int
     reviewed_id: int
     rating: int
-    comment: str | None
+    comment: str | None = None
     created_at: datetime
 
 
@@ -31,5 +31,5 @@ class PlacementReviewsResponse(BaseModel):
     """Оба отзыва по placement: мой и встречный."""
 
     placement_request_id: int
-    my_review: ReviewResponse | None
-    their_review: ReviewResponse | None
+    my_review: ReviewResponse | None = None
+    their_review: ReviewResponse | None = None

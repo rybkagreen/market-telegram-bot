@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /assets/
+
+User-agent: Yandex
+Allow: /
+Crawl-delay: 1
+
+Sitemap: https://rekharbor.ru/sitemap.xml

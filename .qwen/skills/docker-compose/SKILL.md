@@ -1,11 +1,6 @@
 ---
 name: docker-compose
-description: >
-  Creates and edits Docker Compose configurations, Dockerfiles, and Nginx
-  configs for this project. Use when adding new services, modifying container
-  resources, configuring Nginx routing, or updating production docker-compose.prod.yml.
-  Enforces: multi-stage Python builds with Poetry, healthchecks for postgres and redis,
-  restart: unless-stopped in prod, resource limits, named volumes.
+description: "MUST BE USED for Docker Compose: service definitions, multi-stage Python builds with Poetry, healthchecks for postgres/redis, volume mounts, network config, Nginx reverse proxy, resource limits, proxy isolation (Xray/Privoxy). Use when editing docker-compose.yml, Dockerfile, nginx configs, or deployment configs. Enforces: restart unless-stopped in prod, named volumes, env_file for secrets."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

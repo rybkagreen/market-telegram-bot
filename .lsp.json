@@ -1,0 +1,33 @@
+{
+  "python": {
+    "command": "/opt/market-telegram-bot/.venv/bin/pylsp",
+    "args": ["--check-parent-process", "--verbose"],
+    "env": {
+      "PYTHONPATH": "/opt/market-telegram-bot/src"
+    },
+    "settings": {
+      "pylsp": {
+        "plugins": {
+          "pycodestyle": { "enabled": false },
+          "pyflakes": { "enabled": true },
+          "mccabe": { "enabled": false },
+          "pylint": { "enabled": false },
+          "rope_rename": { "enabled": true },
+          "rope_autoimport": { "enabled": false },
+          "jedi_completion": { "enabled": true, "include_params": true },
+          "jedi_signature_help": { "enabled": true },
+          "jedi_hover": { "enabled": true },
+          "jedi_references": { "enabled": true },
+          "jedi_definition": { "enabled": true, "follow_imports": true },
+          "flake8_lint": { "enabled": false },
+          "yapf": { "enabled": false },
+          "autopep8": { "enabled": false }
+        }
+      }
+    },
+    "extensionToLanguage": {
+      ".py": "python"
+    },
+    "startupTimeout": 30000
+  }
+}

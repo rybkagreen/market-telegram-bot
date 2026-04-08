@@ -1,11 +1,6 @@
 ---
 name: celery-task
-description: >
-  Creates Celery 5 tasks and Beat schedules for this project's async
-  task queue. Use when adding new background tasks in src/tasks/,
-  configuring periodic jobs in celery_config.py, or handling task
-  retries and error cases. Enforces: bind=True for retries, acks_late,
-  separate queues for mailing vs parser tasks, exponential backoff.
+description: "MUST BE USED for Celery tasks: critical/background/game queues, retry policies, Beat schedules, task signatures, exponential backoff. Use when working with src/tasks/, celery_config.py, async background jobs, mailing campaigns, parser updates, or periodic monitoring tasks. Enforces: bind=True for retries, acks_late, separate queues, run_async() helper."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

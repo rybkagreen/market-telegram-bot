@@ -1,9 +1,11 @@
 """Notification functions (NOT a Router)."""
 
 import contextlib
+import html
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -15,18 +17,55 @@ async def notify_owner_new_request(
     bot: Bot,
     owner_telegram_id: int,
     request_id: int,
+    placement: Any = None,
+    channel_title: str | None = None,
 ) -> None:
     """Владельцу: новая заявка на размещение."""
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Просмотреть заявку", callback_data=f"own:request:{request_id}")
     builder.adjust(1)
+
+    if placement is not None:
+        proposed_price = getattr(placement, "proposed_price", None)
+        proposed_schedule = getattr(placement, "proposed_schedule", None)
+        ad_text = getattr(placement, "ad_text", "") or ""
+        media_type = getattr(placement, "media_type", "none") or "none"
+
+        schedule_str = (
+            proposed_schedule.strftime("%d.%m.%Y %H:%M") if proposed_schedule else "По договорённости"
+        )
+        channel_line = f"📢 Канал: {html.escape(channel_title)}\n" if channel_title else ""
+        price_str = f"{proposed_price:.0f}" if proposed_price is not None else "—"
+        media_line = "\n🎥 К объявлению прикреплено видео" if media_type == "video" else ""
+
+        ad_text_preview = html.escape(ad_text[:500] + ("…" if len(ad_text) > 500 else ""))
+        text = (
+            f"📬 <b>Новая заявка #{request_id}</b>\n\n"
+            f"{channel_line}"
+            f"💰 Предложенная цена: <b>{price_str} ₽</b>\n"
+            f"📅 Дата размещения: <b>{schedule_str}</b>\n\n"
+            f"📝 Текст объявления:\n{ad_text_preview}"
+            f"{media_line}"
+        )
+        parse_mode = "HTML"
+    else:
+        text = f"🔔 <b>Новая заявка на размещение!</b>\n\nЗаявка #{request_id} ожидает вашего рассмотрения."
+        parse_mode = "HTML"
+
     with contextlib.suppress(Exception):
         await bot.send_message(
             chat_id=owner_telegram_id,
-            text=f"🔔 *Новая заявка на размещение!*\n\nЗаявка #{request_id} ожидает вашего рассмотрения.",
+            text=text,
             reply_markup=builder.as_markup(),
-            parse_mode="Markdown",
+            parse_mode=parse_mode,
         )
+
+    if placement is not None and getattr(placement, "video_file_id", None):
+        with contextlib.suppress(Exception):
+            await bot.send_video(
+                chat_id=owner_telegram_id,
+                video=placement.video_file_id,
+            )
 
 
 async def notify_advertiser_accepted(
@@ -353,20 +392,22 @@ async def notify_payment_received(
 # ---------------------------------------------------------------------------
 
 
-async def notify_new_request(placement, advertiser, owner, channel_name: str) -> None:
+async def notify_new_request(placement, _advertiser, owner, channel_name: str) -> None:
     """Wrapper: уведомить владельца о новой заявке."""
     from src.bot.main import bot
 
-    await notify_owner_new_request(bot, owner.telegram_id, placement.id)
+    await notify_owner_new_request(
+        bot, owner.telegram_id, placement.id, placement=placement, channel_title=channel_name
+    )
 
 
-async def notify_owner_accepted(placement, advertiser, channel_name: str) -> None:
+async def notify_owner_accepted(placement, _advertiser, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя о принятии заявки."""
     from src.bot.main import bot
 
     await notify_advertiser_accepted(
         bot,
-        advertiser.telegram_id,
+        _advertiser.telegram_id,
         placement.id,
         channel_name,
         str(
@@ -394,13 +435,13 @@ async def notify_counter_offer(placement, advertiser, channel_name: str) -> None
     )
 
 
-async def notify_counter_accepted(placement, advertiser, owner, channel_name: str) -> None:
+async def notify_counter_accepted(placement, _advertiser, _owner, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя о принятии контр-предложения."""
     from src.bot.main import bot
 
     await notify_advertiser_accepted(
         bot,
-        advertiser.telegram_id,
+        _advertiser.telegram_id,
         placement.id,
         channel_name,
         str(
@@ -421,19 +462,21 @@ async def notify_rejected(placement, advertiser, channel_name: str) -> None:
 
 
 async def notify_cancelled(
-    placement, advertiser, owner, channel_name: str, reputation_delta=None
+    placement, _advertiser, _owner, channel_name: str, _reputation_delta=None
 ) -> None:
     """Wrapper: уведомить рекламодателя об отмене заявки."""
     from src.bot.main import bot
 
-    await notify_advertiser_rejected(bot, advertiser.telegram_id, placement.id, channel_name)
+    await notify_advertiser_rejected(bot, _advertiser.telegram_id, placement.id, channel_name)
 
 
-async def notify_sla_expired(placement, advertiser, owner, channel_name: str) -> None:
+async def notify_sla_expired(placement, _advertiser, owner, channel_name: str) -> None:
     """Wrapper: уведомить при истечении SLA."""
     from src.bot.main import bot
 
-    await notify_owner_new_request(bot, owner.telegram_id, placement.id)
+    await notify_owner_new_request(
+        bot, owner.telegram_id, placement.id, placement=placement, channel_title=channel_name
+    )
 
 
 def format_yookassa_payment_success(

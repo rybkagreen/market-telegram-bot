@@ -1,11 +1,6 @@
 ---
 name: content-filter
-description: >
-  Applies the project's 3-level content moderation pipeline to text.
-  Use when checking advertising text before sending, testing filter rules,
-  adding new stop-word categories, or extending the moderation service.
-  Pipeline: Level 1 regex → Level 2 pymorphy3 morphology → Level 3 LLM.
-  Returns FilterResult(passed, score, categories, flagged_fragments).
+description: "MUST BE USED for content moderation: 3-level pipeline (regex → pymorphy3 → Mistral LLM), stop-word categories, policy enforcement, FilterResult validation. Use when checking advertising text, adding stop-word categories, testing moderation rules, or extending the moderation service. Enforces: ContentFilter singleton, check() before campaign creation, 10+ tests per new category."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

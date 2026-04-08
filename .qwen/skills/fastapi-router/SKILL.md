@@ -1,11 +1,6 @@
 ---
 name: fastapi-router
-description: >
-  Creates FastAPI routers, Pydantic v2 schemas, and dependency injection
-  for the Mini App backend in src/api/. Use when adding new API endpoints,
-  writing request/response schemas, or implementing authentication dependencies.
-  Enforces: JWT via Telegram initData HMAC-SHA256, Pydantic v2 models,
-  async route handlers, proper HTTP status codes.
+description: "MUST BE USED for FastAPI routers, JWT auth via Telegram initData HMAC-SHA256, Pydantic v2 schemas, dependency injection, OpenAPI specs, Mini App endpoints. Use when working with src/api/routers/, auth middleware, webhook handlers, or adding new API endpoints. Enforces: async route handlers, no business logic in routers, proper HTTP status codes."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

@@ -48,6 +48,9 @@ function CompareModal({ channels, onClose }: { channels: ChannelData[]; onClose:
       ref={dialogRef}
       className="w-full max-w-3xl rounded-xl bg-harbor-card border border-border shadow-2xl p-0 backdrop:bg-black/60"
       onClick={(e) => { if (e.target === dialogRef.current) onClose() }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { if (e.target === dialogRef.current) onClose() } }}
+      role="button"
+      tabIndex={0}
     >
       <div className="flex items-center justify-between px-6 py-4 border-b border-border">
         <h2 className="text-lg font-display font-bold text-text-primary">Сравнение каналов</h2>

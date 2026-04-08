@@ -6,6 +6,7 @@ import logging
 from typing import Annotated
 
 import jwt as pyjwt
+import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select as sa_select
@@ -130,6 +131,37 @@ async def get_current_admin_user(
 
 
 AdminUser = Annotated[User, Depends(get_current_admin_user)]
+
+
+# ─── Redis ─────────────────────────────────────────────────────
+
+_redis_pool: aioredis.Redis | None = None
+
+
+async def get_redis() -> aioredis.Redis:
+    """
+    Получить shared Redis connection pool.
+    Создаёт пул при первом вызове, переиспользует далее.
+    """
+    global _redis_pool
+    if _redis_pool is None or _redis_pool.connection_pool is None:
+        _redis_pool = aioredis.from_url(
+            str(settings.redis_url),
+            max_connections=10,
+            decode_responses=False,
+        )
+    return _redis_pool
+
+
+async def close_redis_pool():
+    """Закрыть Redis пул при shutdown (вызывается из lifespan)."""
+    global _redis_pool
+    if _redis_pool is not None:
+        await _redis_pool.close()
+        _redis_pool = None
+
+
+RedisClient = Annotated[aioredis.Redis, Depends(get_redis)]
 
 
 async def get_bot() -> Bot:
