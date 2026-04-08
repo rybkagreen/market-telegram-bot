@@ -328,7 +328,7 @@ class TaxAggregationService:
             quarter=quarter_str,
             entry_number=entry_number,
             description=f"Сторно: {reason} (orig txn #{original_txn_id})",
-            income_amount=Decimal("0") if is_income_storno else Decimal("0"),
+            income_amount=Decimal("0"),
             operation_type="expense" if not is_income_storno else "income",
             expense_category=original.expense_category,
             expense_amount=None if is_income_storno else abs(original.amount),

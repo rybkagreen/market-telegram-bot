@@ -102,6 +102,7 @@ export function ChannelInstruction({ channelUsername }: ChannelInstructionProps)
       <div
         className={styles.header}
         onClick={handleToggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleToggle() }}
         role="button"
         tabIndex={0}
         aria-expanded={expanded}

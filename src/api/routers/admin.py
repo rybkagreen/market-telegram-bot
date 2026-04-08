@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import AdminUser, get_db_session
 from src.api.schemas.admin import (
     AdminContractListResponse,
+    AdminUserUpdateRequest,
     FinancialStats,
     PlatformStatsResponse,
     UserAdminResponse,
@@ -36,6 +37,8 @@ from src.db.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+_USER_NOT_FOUND = "User not found"
 
 
 async def _get_user_stats(session: AsyncSession) -> dict:
@@ -562,7 +565,7 @@ async def update_platform_settings(
     return {"success": True}
 
 
-@router.get("/users/{user_id}", responses={404: {"description": "User not found"}})
+@router.get("/users/{user_id}", responses={404: {"description": _USER_NOT_FOUND}})
 async def get_user_details(
     user_id: int,
     admin_user: AdminUser,
@@ -587,7 +590,7 @@ async def get_user_details(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail=_USER_NOT_FOUND,
         )
 
     # Count user's placements
@@ -656,6 +659,79 @@ async def get_user_details(
     )
 
 
+@router.patch(
+    "/users/{user_id}",
+    responses={
+        404: {"description": _USER_NOT_FOUND},
+        400: {"description": "Cannot remove own admin status"},
+    },
+)
+async def update_user(
+    user_id: int,
+    body: AdminUserUpdateRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> UserAdminResponse:
+    """Partial update of user role, plan, or admin status (admin only)."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
+
+    if body.is_admin is False and admin_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove admin status from yourself",
+        )
+
+    update_data: dict[str, object] = {}
+    if body.role is not None:
+        update_data["current_role"] = body.role
+    if body.plan is not None:
+        update_data["plan"] = body.plan
+    if body.is_admin is not None:
+        update_data["is_admin"] = body.is_admin
+
+    if update_data:
+        repo = UserRepository(session)
+        await repo.update(user_id, update_data)
+        await session.refresh(user)
+
+    logger.info(f"Admin #{admin_user.id} updated user #{user_id}: {list(update_data.keys())}")
+
+    from src.db.models.reputation_score import ReputationScore
+
+    rep_result = await session.execute(
+        select(ReputationScore.advertiser_score).where(ReputationScore.user_id == user_id)
+    )
+    reputation_score = rep_result.scalar_one_or_none()
+
+    return UserAdminResponse(
+        id=user.id,
+        telegram_id=user.telegram_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        role=user.current_role,
+        plan=user.plan,
+        plan_expires_at=user.plan_expires_at,
+        balance_rub=str(user.balance_rub),
+        earned_rub=str(user.earned_rub),
+        credits=user.credits,
+        is_admin=user.is_admin,
+        advertiser_xp=user.advertiser_xp,
+        advertiser_level=user.advertiser_level,
+        owner_xp=user.owner_xp,
+        owner_level=user.owner_level,
+        total_placements=0,
+        total_channels=0,
+        total_feedback=0,
+        total_disputes=0,
+        reputation_score=float(reputation_score) if reputation_score else None,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
 # ─── Balance Top-Up ─────────────────────────────────────────────────────────
 
 
@@ -666,7 +742,7 @@ class BalanceTopUpRequest(BaseModel):
 
 @router.post(
     "/users/{user_id}/balance",
-    responses={404: {"description": "User not found"}, 400: {"description": "Invalid amount"}},
+    responses={404: {"description": _USER_NOT_FOUND}, 400: {"description": "Invalid amount"}},
 )
 async def topup_user_balance(
     user_id: int,
@@ -677,7 +753,7 @@ async def topup_user_balance(
     """Зачислить рубли на баланс пользователя (только для администраторов)."""
     user = await session.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
 
     repo = UserRepository(session)
     await repo.update_balance(user_id, Decimal(str(body.amount)))
@@ -829,7 +905,7 @@ async def export_kudir_csv(
 # ─── Admin Contracts ──────────────────────────────────────────────────
 
 
-@router.get("/contracts", response_model=AdminContractListResponse)
+@router.get("/contracts")
 async def list_all_contracts(
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],

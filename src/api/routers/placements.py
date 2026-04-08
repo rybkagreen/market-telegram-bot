@@ -196,6 +196,11 @@ class PlacementResponse(BaseModel):
     counter_offer_count: int
     is_test: bool = False
     test_label: str | None = None
+    media_type: str = "none"
+    video_file_id: str | None = None
+    video_url: str | None = None
+    video_thumbnail_file_id: str | None = None
+    video_duration: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -266,7 +271,7 @@ async def list_placements(
         # Apply pagination manually
         placements = placements[offset : offset + limit] if limit else placements[offset:]
     else:
-        placements = await repo.get_by_channel(current_user.id, statuses=None)
+        placements = await repo.get_by_owner(current_user.id, statuses=None)
         # Apply pagination manually
         placements = placements[offset : offset + limit] if limit else placements[offset:]
 

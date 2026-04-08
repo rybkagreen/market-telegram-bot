@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     queue="default",
     name="document_ocr.process_document",
 )
-def process_document_ocr(self, upload_id: int) -> dict:
+def process_document_ocr(self, upload_id: int) -> dict:  # NOSONAR: python:S3776
     """
     Async OCR processing for a single document upload.
 

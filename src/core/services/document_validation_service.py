@@ -10,16 +10,13 @@ Pipeline:
 6. Validation against user-entered data
 """
 
-import json
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 import cv2
 import fitz  # PyMuPDF
-import numpy as np
 import pytesseract
 from PIL import Image
 

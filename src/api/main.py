@@ -21,16 +21,16 @@ from src.api.routers.admin import router as admin_router  # ДОБАВЛЕНО (
 from src.api.routers.ai import router as ai_router
 from src.api.routers.analytics import router as analytics_router
 from src.api.routers.auth import router as auth_router
-from src.api.routers.auth_login_widget import router as auth_login_widget_router  # ДОБАВЛЕНО (S-27)
 from src.api.routers.auth_login_code import router as auth_login_code_router  # ДОБАВЛЕНО (S-29)
+from src.api.routers.auth_login_widget import router as auth_login_widget_router  # ДОБАВЛЕНО (S-27)
 from src.api.routers.billing import router as billing_router
 from src.api.routers.campaigns import router as campaigns_router
 from src.api.routers.categories import router as categories_router
 from src.api.routers.channel_settings import router as channel_settings_router
 from src.api.routers.channels import router as channels_router
 from src.api.routers.contracts import router as contracts_router
-from src.api.routers.document_validation import router as document_validation_router
 from src.api.routers.disputes import router as disputes_router
+from src.api.routers.document_validation import router as document_validation_router
 from src.api.routers.feedback import router as feedback_router  # ДОБАВЛЕНО (2026-03-18)
 from src.api.routers.legal_profile import router as legal_profile_router
 from src.api.routers.ord import router as ord_router
@@ -160,10 +160,11 @@ app.add_middleware(
 )
 
 # Роутеры
+_AUTH_PREFIX = "/api/auth"
 app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
-app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
-app.include_router(auth_login_widget_router, prefix="/api/auth", tags=["Auth"])  # ДОБАВЛЕНО (S-27)
-app.include_router(auth_login_code_router, prefix="/api/auth", tags=["Auth"])  # ДОБАВЛЕНО (S-29)
+app.include_router(auth_router, prefix=_AUTH_PREFIX, tags=["Auth"])
+app.include_router(auth_login_widget_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-27)
+app.include_router(auth_login_code_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-29)
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])

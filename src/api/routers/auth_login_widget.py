@@ -55,7 +55,7 @@ class LoginWidgetResponse(BaseModel):
 
 
 @_limit("5/minute")
-@router.post("/telegram-login-widget", response_model=LoginWidgetResponse)
+@router.post("/telegram-login-widget")
 async def login_telegram_login_widget(
     request: Request, body: LoginWidgetRequest
 ) -> LoginWidgetResponse:
@@ -94,6 +94,13 @@ async def login_telegram_login_widget(
             last_name=widget_data.get("last_name"),
         )
         await session.commit()
+
+    # Проверяем что пользователь активен (не забанен)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Аккаунт заблокирован",
+        )
 
     plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
     logger.info(f"Login Widget auth: telegram_id={telegram_id}, plan={plan_value}")

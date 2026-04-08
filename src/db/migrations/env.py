@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, pool
 
 from src.config.settings import settings
 from src.db.base import Base
-from src.db.models import *  # noqa: F401, F403
+from src.db.models import *  # noqa: F401,F403,S2208
 
 logger = logging.getLogger(__name__)
 

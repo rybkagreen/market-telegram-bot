@@ -191,6 +191,10 @@ export default function DocumentUpload() {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => document.getElementById('doc-file-input')?.click()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') document.getElementById('doc-file-input')?.click() }}
+              role="button"
+              tabIndex={0}
+              aria-label="Загрузить документ (нажмите или перетащите файл)"
             >
               <input
                 id="doc-file-input"

@@ -26,7 +26,7 @@ export function Card({ title, children, onClick, glass = false, className }: Car
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={cn} onClick={onClick ? handleClick : undefined}>
+    <div className={cn} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick ? handleClick : undefined} onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}>
       {title && <p className={styles.title}>{title}</p>}
       {children}
     </div>

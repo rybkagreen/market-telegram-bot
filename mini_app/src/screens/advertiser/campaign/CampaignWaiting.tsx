@@ -24,7 +24,7 @@ function publishedSubtitle(publishedAt: string | null | undefined, proposedSched
   return ''
 }
 
-function buildTimelineEvents(placement: { status: string; created_at: string; expires_at: string; published_at?: string | null; proposed_schedule?: string | null }, isExpired: boolean): TimelineEvent[] {
+function buildTimelineEvents(placement: { status: string; created_at: string; expires_at: string; published_at?: string | null; proposed_schedule?: string | null }, isExpired: boolean): TimelineEvent[] { // NOSONAR: typescript:S3776
   const st = placement.status
   const isPastOwner = ['pending_payment', 'counter_offer', 'escrow', 'published'].includes(st)
   const isPastPayment = ['escrow', 'published'].includes(st)
