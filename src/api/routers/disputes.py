@@ -288,26 +288,26 @@ async def update_dispute(
 class PublicationEventResponse(BaseModel):
     id: int
     event_type: str
-    message_id: int | None
-    post_url: str | None
-    erid: str | None
+    message_id: int | None = None
+    post_url: str | None = None
+    erid: str | None = None
     detected_at: datetime
-    extra: dict[str, Any] | None
+    extra: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
 
 
 class EvidenceSummary(BaseModel):
-    published_at: datetime | None
-    deleted_at: datetime | None
-    deletion_type: str | None  # "by_bot" | "early_by_owner" | None
+    published_at: datetime | None = None
+    deleted_at: datetime | None = None
+    deletion_type: str | None = None  # "by_bot" | "early_by_owner" | None
     erid_present: bool
     total_duration_minutes: int
 
 
 class EvidenceResponse(BaseModel):
     placement_id: int
-    channel_id: int | None
+    channel_id: int | None = None
     events: list[PublicationEventResponse]
     summary: EvidenceSummary
 
@@ -319,7 +319,7 @@ class EvidenceResponse(BaseModel):
         403: {"description": "Forbidden"},
     },
 )
-async def get_placement_evidence(
+async def get_placement_evidence(  # NOSONAR: python:S3776
     placement_request_id: int,
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],

@@ -14,7 +14,14 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div
+        className="fixed inset-0 bg-black/50"
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
+        role="button"
+        tabIndex={0}
+        aria-label="Закрыть модальное окно"
+      />
 
       {/* Sheet */}
       <div className="relative z-10 w-full sm:max-w-lg bg-harbor-card rounded-t-xl sm:rounded-xl shadow-xl max-h-[90vh] flex flex-col">

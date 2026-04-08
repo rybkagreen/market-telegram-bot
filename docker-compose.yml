@@ -251,9 +251,6 @@ services:
     networks:
       - market_bot_network
     restart: unless-stopped
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./nginx/ssl:/var/www/certbot:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s

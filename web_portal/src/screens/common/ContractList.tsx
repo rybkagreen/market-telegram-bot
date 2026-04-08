@@ -130,7 +130,14 @@ export default function ContractList() {
 
       {/* Rules viewer modal */}
       {viewerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setViewerOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setViewerOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewerOpen(false) }}
+          tabIndex={0}
+          role="button"
+          aria-label="Закрыть просмотр правил"
+        >
           <div className="bg-harbor-card rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <h3 className="text-lg font-semibold text-text-primary">Правила и Политика конфиденциальности</h3>

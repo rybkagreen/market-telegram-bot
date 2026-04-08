@@ -10,16 +10,27 @@ Flow:
 
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from src.api.auth_utils import create_jwt_token
+from src.api.dependencies import RedisClient
+from src.core.middleware.rate_limit import limiter
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _limit(rate: str):
+    """Safe limiter decorator — no-op if limiter not yet initialized."""
+    def decorator(fn):
+        if limiter is None:
+            return fn
+        return limiter.limit(rate)(fn)
+    return decorator
 
 
 class LoginCodeRequest(BaseModel):
@@ -32,70 +43,72 @@ class LoginCodeResponse(BaseModel):
     user: dict
 
 
-@router.post("/login-code", response_model=LoginCodeResponse)
-async def login_with_code(body: LoginCodeRequest) -> LoginCodeResponse:
+@_limit("10/hour")
+@router.post("/login-code")
+async def login_with_code(
+    request: Request,
+    body: LoginCodeRequest,
+    redis: RedisClient,
+) -> LoginCodeResponse:
     """
     Авторизация по одноразовому коду из Telegram-бота.
 
     Принимает 6-значный код, ищет в Redis, получает telegram_id,
     создаёт/обновляет пользователя, возвращает JWT.
 
+    Rate limited: 10 requests per hour per IP.
+
     Errors:
         400: код невалиден или истёк
-        500: ошибка БД
+        429: превышен лимит попыток
+        500: ошибка БД или Redis
     """
-    import redis.asyncio as aioredis
-
-    from src.config.settings import settings
-
     code = body.code.strip()
-    if not code or len(code) != 6:
+    if not code or len(code) != 6 or not code.isdigit():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Код должен состоять из 6 цифр",
         )
 
     redis_key = f"login_code:{code}"
-    r = aioredis.from_url(str(settings.redis_url))
-
     try:
-        telegram_id_raw = await r.get(redis_key)
+        telegram_id_raw = await redis.get(redis_key)
         if not telegram_id_raw:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Неверный или просроченный код. Отправьте /login боту для получения нового.",
             )
 
-        telegram_id = int(telegram_id_raw.decode() if isinstance(telegram_id_raw, bytes) else telegram_id_raw)
+        if isinstance(telegram_id_raw, bytes):
+            telegram_id_raw = telegram_id_raw.decode()
+        telegram_id = int(telegram_id_raw)
         # Delete code immediately (one-time use)
-        await r.delete(redis_key)
+        await redis.delete(redis_key)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неверный формат кода",
         ) from None
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Redis error during login-code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка сервера авторизации",
         ) from e
-    finally:
-        await r.aclose()  # type: ignore[attr-defined]
 
     # Find or create user
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(telegram_id)
         if user:
-            # Update user info
             update_data = user_repo._build_update_fields(
                 user, telegram_id, user.username, user.first_name, user.last_name
             )
             if update_data:
                 await user_repo.update(user.id, update_data)
         else:
-            # Create new user
             user = await user_repo.create_or_update(
                 telegram_id=telegram_id,
                 username=None,

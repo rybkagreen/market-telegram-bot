@@ -1,10 +1,6 @@
 ---
 name: python-async
-description: >
-  Generates correct async Python 3.13 code for this project.
-  Use when writing or editing any async function, coroutine, context manager,
-  or asyncio pattern. Enforces project conventions: no blocking calls in
-  async context, proper exception handling, type hints on all signatures.
+description: "MUST BE USED for async Python patterns: asyncio.gather(), async context managers, session lifecycle, error propagation, type hints on all signatures. Use when implementing async logic in src/core/services/, src/tasks/, or any async def function. Enforces: no blocking calls in async context, proper exception handling, async with for resources."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

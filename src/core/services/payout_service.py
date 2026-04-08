@@ -458,11 +458,9 @@ class PayoutService:
         Raises:
             VelocityCheckError: Если ratio > VELOCITY_MAX_RATIO (80%).
         """
-        # topups_30d = await transaction_repo.sum_topups_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         txn_repo = TransactionRepository(session)
         topups_30d = await txn_repo.sum_topups_30d(user_id)
 
-        # payouts_30d = await payout_repo.sum_completed_payouts_window(session, user_id, days=VELOCITY_WINDOW_DAYS)
         payout_repo = PayoutRepository(session)
         payouts_30d = await payout_repo.sum_completed_payouts_window(user_id, VELOCITY_WINDOW_DAYS)
 

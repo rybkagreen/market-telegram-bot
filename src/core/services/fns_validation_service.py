@@ -10,6 +10,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_INN_DIGITS_ONLY = "ИНН должен содержать только цифры"
+_INN_CHECKSUM_ERROR = "Неверная контрольная сумма ИНН"
+_INN_LENGTH_ERROR = "ИНН должен быть 10 или 12 цифр"
+
 
 class FNSValidationError:
     """Ошибка валидации."""
@@ -76,10 +80,7 @@ def validate_inn_checksum(inn: str) -> bool:
 
         total2 = sum(int(inn[i]) * weights2[i] for i in range(11))
         check2 = (total2 % 11) % 10
-        if check2 != int(inn[11]):
-            return False
-
-        return True
+        return check2 == int(inn[11])
 
     return False
 
@@ -110,11 +111,9 @@ def validate_ogrn_checksum(ogrn: str) -> bool:
 
 def validate_kpp_format(kpp: str) -> bool:
     """Проверить формат КПП (9 цифр)."""
-    if not kpp.isdigit() or len(kpp) != 9:
-        return False
     # Первые 4 цифры — код налогового органа (должен быть валидным)
     # Для MVP просто проверяем формат
-    return True
+    return kpp.isdigit() and len(kpp) == 9
 
 
 def validate_legal_entity(inn: str, kpp: str | None = None, ogrn: str | None = None) -> FNSValidationResult:
@@ -135,25 +134,24 @@ def validate_legal_entity(inn: str, kpp: str | None = None, ogrn: str | None = N
         return FNSValidationResult(is_valid=False, errors=errors)
 
     if not inn.isdigit():
-        errors.append(FNSValidationError("inn", "ИНН должен содержать только цифры"))
+        errors.append(FNSValidationError("inn", _INN_DIGITS_ONLY))
         return FNSValidationResult(is_valid=False, errors=errors)
 
     if len(inn) == 10:
         if not validate_inn_checksum(inn):
-            errors.append(FNSValidationError("inn", "Неверная контрольная сумма ИНН"))
+            errors.append(FNSValidationError("inn", _INN_CHECKSUM_ERROR))
             return FNSValidationResult(is_valid=False, errors=errors)
         entity_type = "legal_entity"
     elif len(inn) == 12:
         warnings.append("ИНН из 12 цифр характерен для ИП/физлица, а не для ООО")
         entity_type = "individual_entrepreneur"
     else:
-        errors.append(FNSValidationError("inn", "ИНН должен быть 10 или 12 цифр"))
+        errors.append(FNSValidationError("inn", _INN_LENGTH_ERROR))
         return FNSValidationResult(is_valid=False, errors=errors)
 
     # КПП
-    if kpp:
-        if not validate_kpp_format(kpp):
-            errors.append(FNSValidationError("kpp", "КПП должен быть 9 цифр"))
+    if kpp and not validate_kpp_format(kpp):
+        errors.append(FNSValidationError("kpp", "КПП должен быть 9 цифр"))
 
     # ОГРН
     if ogrn:
@@ -195,11 +193,11 @@ def validate_individual_entrepreneur(
         return FNSValidationResult(is_valid=False, errors=errors)
 
     if len(inn) not in (10, 12):
-        errors.append(FNSValidationError("inn", "ИНН должен быть 10 или 12 цифр"))
+        errors.append(FNSValidationError("inn", _INN_LENGTH_ERROR))
         return FNSValidationResult(is_valid=False, errors=errors)
 
     if not validate_inn_checksum(inn):
-        errors.append(FNSValidationError("inn", "Неверная контрольная сумма ИНН"))
+        errors.append(FNSValidationError("inn", _INN_CHECKSUM_ERROR))
         return FNSValidationResult(is_valid=False, errors=errors)
 
     # ОГРНИП
@@ -230,14 +228,14 @@ def validate_inn_type(inn: str) -> dict[str, Any]:
         dict с полями: valid, type, errors
     """
     if not inn or not inn.isdigit():
-        return {"valid": False, "type": None, "errors": ["ИНН должен содержать только цифры"]}
+        return {"valid": False, "type": None, "errors": [_INN_DIGITS_ONLY]}
 
     if len(inn) == 10:
         valid = validate_inn_checksum(inn)
         return {
             "valid": valid,
             "type": "legal_entity",
-            "errors": [] if valid else ["Неверная контрольная сумма ИНН"],
+            "errors": [] if valid else [_INN_CHECKSUM_ERROR],
         }
 
     if len(inn) == 12:
@@ -245,13 +243,13 @@ def validate_inn_type(inn: str) -> dict[str, Any]:
         return {
             "valid": valid,
             "type": "individual",
-            "errors": [] if valid else ["Неверная контрольная сумма ИНН"],
+            "errors": [] if valid else [_INN_CHECKSUM_ERROR],
         }
 
     return {
         "valid": False,
         "type": None,
-        "errors": ["ИНН должен быть 10 или 12 цифр"],
+        "errors": [_INN_LENGTH_ERROR],
     }
 
 
@@ -266,7 +264,7 @@ def validate_entity_type_match(legal_status: str, inn: str) -> tuple[bool, str |
         (is_valid, error_message)
     """
     if not inn or not inn.isdigit():
-        return False, "ИНН должен содержать только цифры"
+        return False, _INN_DIGITS_ONLY
 
     inn_type = None
     if len(inn) == 10:
@@ -274,7 +272,7 @@ def validate_entity_type_match(legal_status: str, inn: str) -> tuple[bool, str |
     elif len(inn) == 12:
         inn_type = "individual"  # covers individual, self_employed, IE
     else:
-        return False, "ИНН должен быть 10 или 12 цифр"
+        return False, _INN_LENGTH_ERROR
 
     # 10-значный ИНН не может быть ИП или физлицом
     if inn_type == "legal_entity" and legal_status != "legal_entity":

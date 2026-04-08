@@ -9,20 +9,20 @@ DELETE /api/legal-profile/documents/:id — Delete uploaded document
 
 import json
 import logging
+from contextlib import suppress
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.api.dependencies import get_current_user
-from src.db.models.user import User as UserModel
 from src.core.services.document_validation_service import (
+    MAX_FILE_SIZE,
     DocumentValidationService,
     validate_file_type,
-    MAX_FILE_SIZE,
 )
+from src.db.models.user import User as UserModel
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -62,8 +62,8 @@ class DocumentStatusResponse(BaseModel):
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     current_user: Annotated[UserModel, Depends(get_current_user)],
-    file: UploadFile = File(...),
-    document_type: str = Form(...),
+    file: Annotated[UploadFile, File(...)],
+    document_type: Annotated[str, Form(...)],
 ):
     """
     Upload a legal document for OCR validation.
@@ -79,7 +79,7 @@ async def upload_document(
     if not file_type:
         raise HTTPException(
             status_code=400,
-            detail=f"Неподдерживаемый формат. Допустимые: JPG, PNG, WEBP, HEIC, PDF",
+            detail="Неподдерживаемый формат. Допустимые: JPG, PNG, WEBP, HEIC, PDF",
         )
 
     # Validate document type
@@ -112,8 +112,8 @@ async def upload_document(
     )
 
     # Create DB record
+
     from src.db.models.document_upload import DocumentUpload
-    from datetime import UTC, datetime
 
     async with async_session_factory() as session:
         upload = DocumentUpload(
@@ -181,10 +181,8 @@ async def get_document_status(
         # Parse validation details
         validation_details = None
         if upload.validation_details:
-            try:
+            with suppress(json.JSONDecodeError, TypeError):
                 validation_details = json.loads(upload.validation_details)
-            except (json.JSONDecodeError, TypeError):
-                pass
 
         return DocumentStatusResponse(
             upload_id=upload.id,
@@ -250,6 +248,7 @@ async def delete_document(
 ):
     """Delete an uploaded document."""
     import os
+
     from src.db.models.document_upload import DocumentUpload
 
     async with async_session_factory() as session:

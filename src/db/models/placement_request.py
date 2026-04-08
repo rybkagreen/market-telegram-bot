@@ -21,6 +21,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
 
+_CASCADE_ALL_DELETE = "all, delete-orphan"
+
 if TYPE_CHECKING:
     from src.db.models.act import Act
     from src.db.models.dispute import PlacementDispute
@@ -157,7 +159,7 @@ class PlacementRequest(Base, TimestampMixin):
         "TelegramChat", back_populates="placement_requests"
     )
     acts: Mapped[list["Act"]] = relationship(
-        "Act", back_populates="placement", cascade="all, delete-orphan"
+        "Act", back_populates="placement", cascade=_CASCADE_ALL_DELETE
     )
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction",
@@ -165,10 +167,10 @@ class PlacementRequest(Base, TimestampMixin):
         foreign_keys="[Transaction.placement_request_id]",
     )
     reviews: Mapped[list["Review"]] = relationship(
-        "Review", back_populates="placement_request", cascade="all, delete-orphan"
+        "Review", back_populates="placement_request", cascade=_CASCADE_ALL_DELETE
     )
     disputes: Mapped[list["PlacementDispute"]] = relationship(
-        "PlacementDispute", back_populates="placement_request", cascade="all, delete-orphan"
+        "PlacementDispute", back_populates="placement_request", cascade=_CASCADE_ALL_DELETE
     )
     reputation_history: Mapped[list["ReputationHistory"]] = relationship(
         "ReputationHistory", back_populates="placement_request"

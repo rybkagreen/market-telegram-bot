@@ -42,7 +42,10 @@ export function DisputeCard({
   return (
     <div
       className={`${styles.card} ${onClick ? styles.clickable : ''}`}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick ? handleClick : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}
     >
       <div className={styles.header}>
         <span className={styles.id}>Спор #{id}</span>

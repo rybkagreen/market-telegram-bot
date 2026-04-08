@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- DNS / Preconnect for Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Fonts: DM Sans, Outfit, Poppins, Roboto -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Outfit:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Roboto:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Preload critical hero image (AVIF, filled in during Phase 2) -->
+    <!-- <link rel="preload" as="image" href="/assets/hero.avif" fetchpriority="high" type="image/avif" /> -->
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Primary Meta -->
+    <title>RekHarbor — биржа рекламы в Telegram с эскроу и автовыплатами</title>
+    <meta name="description" content="Покупайте размещения в Telegram-каналах с защитой эскроу. Регистрация в ОРД, автоматические выплаты владельцам каналов, 0 ручного труда." />
+    <meta name="robots" content="index, follow" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#1456f0" />
+    <link rel="canonical" href="https://rekharbor.ru/" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
+    <!-- hreflang -->
+    <link rel="alternate" hreflang="ru" href="https://rekharbor.ru/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://rekharbor.ru/" />
+    <meta property="og:site_name" content="RekHarbor" />
+    <meta property="og:title" content="RekHarbor — биржа рекламы в Telegram с эскроу" />
+    <meta property="og:description" content="Покупайте размещения в Telegram-каналах с защитой эскроу. Регистрация в ОРД, автоматические выплаты владельцам." />
+    <meta property="og:image" content="https://rekharbor.ru/assets/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ru_RU" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RekHarbor — биржа рекламы в Telegram с эскроу" />
+    <meta name="twitter:description" content="Покупайте размещения в Telegram-каналах с защитой эскроу. Регистрация в ОРД, автовыплаты." />
+    <meta name="twitter:image" content="https://rekharbor.ru/assets/og-cover.png" />
+
+    <!-- JSON-LD: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "RekHarbor",
+      "url": "https://rekharbor.ru/",
+      "description": "Биржа рекламы в Telegram с защитой эскроу и автоматической регистрацией в ОРД",
+      "inLanguage": "ru"
+    }
+    </script>
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "ООО «АЛГОРИТМИК АРТС»",
+      "alternateName": "RekHarbor",
+      "url": "https://rekharbor.ru/",
+      "logo": "https://rekharbor.ru/favicon.svg",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "availableLanguage": "Russian"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD: Service -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "name": "Биржа рекламы в Telegram",
+      "provider": {
+        "@type": "Organization",
+        "name": "ООО «АЛГОРИТМИК АРТС»"
+      },
+      "serviceType": "Рекламная биржа Telegram",
+      "description": "Платформа для покупки и продажи рекламных размещений в Telegram-каналах с защитой эскроу, регистрацией в ОРД и автоматическими выплатами",
+      "areaServed": "RU",
+      "url": "https://rekharbor.ru/"
+    }
+    </script>
+
+    <!-- JSON-LD: FAQPage — заполняется в Phase 4 при реализации FAQ-компонента -->
+
+    <!-- JSON-LD: BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Главная",
+          "item": "https://rekharbor.ru/"
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

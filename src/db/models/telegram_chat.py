@@ -4,8 +4,12 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
+import itertools
+
 from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+
+_fake_telegram_id_counter = itertools.count(start=-(2**32))
 
 from src.db.base import Base, TimestampMixin
 
@@ -34,7 +38,13 @@ class TelegramChat(Base, TimestampMixin):
     __tablename__ = "telegram_chats"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
+    telegram_id: Mapped[int] = mapped_column(
+        BigInteger,
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: next(_fake_telegram_id_counter),
+    )
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     owner_id: Mapped[int] = mapped_column(
@@ -43,6 +53,9 @@ class TelegramChat(Base, TimestampMixin):
     member_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_er: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     avg_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_avg_views: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    last_post_frequency: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    price_per_post: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     rating: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     category: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -55,6 +68,10 @@ class TelegramChat(Base, TimestampMixin):
         index=True,
     )
     last_parsed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # Aliases for compatibility
+    owner_user_id = synonym("owner_id")
+    topic = synonym("category")
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="telegram_chats")
