@@ -285,7 +285,7 @@ export const Icon = memo(function Icon({
   ].filter(Boolean).join(' ')
 
   return (
-    <span className={cn} onClick={handleClick} role={isClickable ? 'button' : undefined}>
+    <span className={cn} onClick={handleClick} role={isClickable ? 'button' : undefined} onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}>
       <LucideIcon
         size={size}
         color={color}

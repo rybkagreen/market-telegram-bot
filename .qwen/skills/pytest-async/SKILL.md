@@ -1,11 +1,6 @@
 ---
 name: pytest-async
-description: >
-  Creates async pytest tests following this project's testing conventions.
-  Use when writing unit tests for services/filters, integration tests for
-  repositories with real PostgreSQL via testcontainers, or API tests with
-  FastAPI TestClient. Enforces: pytest-asyncio, testcontainers for integration
-  tests, mock for external services (Telegram API, Claude API, YooKassa).
+description: "MUST BE USED for async testing: pytest-asyncio auto mode, testcontainers with real PostgreSQL, mocking external APIs (YooKassa, Mistral, Telegram), FastAPI TestClient. Use when writing tests/, configuring coverage gates ≥80%, or adding fixtures in conftest.py. Enforces: testcontainers for integration tests, mock for external services only, .env.test for test config."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

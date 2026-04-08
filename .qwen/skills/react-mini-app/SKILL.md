@@ -1,11 +1,6 @@
 ---
 name: react-mini-app
-description: >
-  Creates React TypeScript components for the Telegram Mini App in mini_app/src/.
-  Use when writing new pages, UI components, or Telegram WebApp integrations.
-  Enforces: glassmorphism design (backdrop-filter blur), Tailwind CSS utility classes,
-  @twa-dev/sdk for Telegram integration, zustand for state, recharts for charts,
-  react-router-dom for navigation, dark/light theme via Telegram.WebApp.colorScheme.
+description: "MUST BE USED for Telegram Mini App frontend: React 19 + TypeScript + Vite, glassmorphism design, Tailwind CSS, @twa-dev/sdk, Zustand store, recharts charts, react-router-dom navigation. Use when editing mini_app/src/, creating UI components, pages, or Telegram WebApp integrations. Enforces: dark/light theme via Telegram.WebApp.colorScheme, no inline styles except glassmorphism, custom hooks for API data."
 license: MIT
 version: 1.0.0
 author: market-telegram-bot

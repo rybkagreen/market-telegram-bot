@@ -62,7 +62,7 @@ def _compute_actual_hours(req: PlacementRequest) -> int:
 
 
 @router.callback_query(F.data.regexp(r"^dispute:open:(\d+)$"))
-async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:
+async def open_dispute(callback: CallbackQuery, session: AsyncSession) -> None:  # NOSONAR: python:S3776
     """Открыть спор по размещению."""
     placement_id = int((callback.data or "").split(":")[-1])
 

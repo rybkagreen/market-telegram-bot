@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/acts", tags=["acts"])
 
+_ACT_NOT_FOUND = "Act not found"
+_PLACEMENT_NOT_FOUND = "Placement not found"
+_ACCESS_DENIED = "Access denied"
+
 
 def _act_to_dict(act: Act) -> dict:
     """Build dict response from Act ORM object."""
@@ -60,14 +64,14 @@ async def get_act(
     result = await session.execute(select(Act).join(PlacementRequest).where(Act.id == act_id))
     act = result.scalar_one_or_none()
     if not act:
-        raise HTTPException(status_code=404, detail="Act not found")
+        raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 
     # Проверка доступа
     placement = await session.get(PlacementRequest, act.placement_request_id)
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=_PLACEMENT_NOT_FOUND)
     if placement.advertiser_id != current_user.id and placement.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=_ACCESS_DENIED)
 
     return _act_to_dict(act)
 
@@ -83,14 +87,14 @@ async def sign_act(
     result = await session.execute(select(Act).join(PlacementRequest).where(Act.id == act_id))
     act = result.scalar_one_or_none()
     if not act:
-        raise HTTPException(status_code=404, detail="Act not found")
+        raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 
     # Проверка доступа
     placement = await session.get(PlacementRequest, act.placement_request_id)
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=_PLACEMENT_NOT_FOUND)
     if placement.advertiser_id != current_user.id and placement.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=_ACCESS_DENIED)
 
     # Проверка статуса
     if act.sign_status in ("signed", "auto_signed"):
@@ -131,14 +135,14 @@ async def download_act_pdf(
     result = await session.execute(select(Act).where(Act.id == act_id))
     act = result.scalar_one_or_none()
     if not act:
-        raise HTTPException(status_code=404, detail="Act not found")
+        raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 
     # Проверка доступа
     placement = await session.get(PlacementRequest, act.placement_request_id)
     if not placement:
-        raise HTTPException(status_code=404, detail="Placement not found")
+        raise HTTPException(status_code=404, detail=_PLACEMENT_NOT_FOUND)
     if placement.advertiser_id != current_user.id and placement.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=_ACCESS_DENIED)
 
     if not act.pdf_path:
         raise HTTPException(status_code=404, detail="PDF not generated")

@@ -134,6 +134,28 @@ export default function OwnRequestDetail() {
         <p className={styles.adText}>{request.ad_text}</p>
       </Card>
 
+      {request.media_type === 'video' && request.video_url && (
+        <>
+          <p className={styles.sectionTitle}>Видеоматериал</p>
+          <Card>
+            <video
+              src={request.video_url}
+              controls
+              style={{ maxWidth: '100%', borderRadius: '8px', display: 'block' }}
+            />
+          </Card>
+        </>
+      )}
+
+      {request.media_type === 'video' && !request.video_url && request.video_file_id && (
+        <>
+          <p className={styles.sectionTitle}>Видеоматериал</p>
+          <Card>
+            <p className={styles.adText}>🎥 К объявлению прикреплено видео (просмотр в Telegram)</p>
+          </Card>
+        </>
+      )}
+
       {request.status === 'pending_owner' && (
         <>
           <Button variant="success" fullWidth onClick={handleAccept} disabled={isPending}>
@@ -257,7 +279,10 @@ export default function OwnRequestDetail() {
               {[1, 2, 3, 4, 5].map((n) => (
                 <span
                   key={n}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setRating(n)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setRating(n) }}
                   className={`${styles.starClickable} ${n <= rating ? styles.starActive : styles.starInactive}`}
                 >
                   {n <= rating ? '★' : '☆'}

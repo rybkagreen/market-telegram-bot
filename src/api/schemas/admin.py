@@ -162,6 +162,24 @@ class UserListAdminResponse(BaseModel):
     offset: int
 
 
+class AdminUserUpdateRequest(BaseModel):
+    """Schema for admin partial update of user role, plan, or admin status."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str | None = Field(
+        default=None,
+        pattern="^(new|advertiser|owner|both)$",
+        description="User role",
+    )
+    plan: str | None = Field(
+        default=None,
+        pattern="^(free|starter|pro|business)$",
+        description="Subscription plan",
+    )
+    is_admin: bool | None = Field(default=None, description="Admin flag")
+
+
 # ═══════════════════════════════════════════════════════════════
 # Statistics Schemas
 # ═══════════════════════════════════════════════════════════════

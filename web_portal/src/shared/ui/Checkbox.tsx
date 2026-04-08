@@ -12,6 +12,8 @@ export function Checkbox({ checked, onChange, label, disabled, className = '' }:
       <div
         role="checkbox"
         aria-checked={checked}
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onChange(!checked) }}
         className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-fast shrink-0 ${
           checked
             ? 'bg-accent border-accent text-accent-text'

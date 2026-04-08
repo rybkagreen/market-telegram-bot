@@ -20,7 +20,7 @@ const itemVariants = {
 export default function OwnMenu() {
   const navigate = useNavigate()
   const { data: me } = useMe()
-  const { data: pendingPlacements } = useMyPlacements({ status: 'pending_owner' })
+  const { data: pendingPlacements } = useMyPlacements({ role: 'owner', status: 'pending_owner' })
 
   const earnedRub = me?.earned_rub ?? '0.00'
   const pendingCount = pendingPlacements?.length ?? 0

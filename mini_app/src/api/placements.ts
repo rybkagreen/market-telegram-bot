@@ -30,6 +30,7 @@ export interface CampaignResponse {
 export function getMyPlacements(params?: {
   status?: PlacementStatus
   channel_id?: number
+  role?: 'advertiser' | 'owner'
   include_test?: boolean  // Include test campaigns (admin only)
 }): Promise<PlacementRequest[]> {
   return api.get('placements/', { searchParams: params ?? {} }).json<PlacementRequest[]>()

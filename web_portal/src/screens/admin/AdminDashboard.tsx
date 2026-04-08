@@ -78,30 +78,36 @@ export default function AdminDashboard() {
       <Card title="💰 Финансы платформы" className="p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Параметр</th>
+                <th scope="col">Сумма</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-border">
               <tr>
-                <td className="px-5 py-3 text-text-secondary">Внесено всего</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">Внесено всего</th>
                 <td className="px-5 py-3 text-right font-mono text-text-primary">{formatCurrency(stats.financial.total_topups)}</td>
               </tr>
               <tr>
-                <td className="px-5 py-3 text-text-secondary">Выведено всего</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">Выведено всего</th>
                 <td className="px-5 py-3 text-right font-mono text-text-primary">{formatCurrency(stats.financial.total_payouts)}</td>
               </tr>
               <tr className="bg-harbor-elevated/50">
-                <td className="px-5 py-3 text-text-secondary font-medium">Оборот (внесено − выведено)</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">Оборот (внесено − выведено)</th>
                 <td className="px-5 py-3 text-right font-mono font-bold text-text-primary">{formatCurrency(stats.financial.net_balance)}</td>
               </tr>
               <tr><td colSpan={2} className="px-5 border-t border-border" /></tr>
               <tr>
-                <td className="px-5 py-3 text-text-secondary">🔒 В эскроу</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">🔒 В эскроу</th>
                 <td className="px-5 py-3 text-right font-mono text-text-secondary">{formatCurrency(stats.financial.escrow_reserved)}</td>
               </tr>
               <tr>
-                <td className="px-5 py-3 text-text-secondary">⏳ Ожидают вывода</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">⏳ Ожидают вывода</th>
                 <td className="px-5 py-3 text-right font-mono text-text-secondary">{formatCurrency(stats.financial.payout_reserved)}</td>
               </tr>
               <tr className="bg-accent-muted/30">
-                <td className="px-5 py-3 text-text-secondary font-medium">⭐ Комиссия платформы</td>
+                <th scope="row" className="px-5 py-3 text-text-secondary font-normal">⭐ Комиссия платформы</th>
                 <td className="px-5 py-3 text-right font-mono font-bold text-accent">{formatCurrency(stats.financial.profit_accumulated)}</td>
               </tr>
             </tbody>

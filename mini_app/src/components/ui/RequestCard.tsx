@@ -56,7 +56,10 @@ export function RequestCard({
   return (
     <div
       className={`${styles.card} ${onClick ? styles.clickable : ''}`}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick ? handleClick : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}
     >
       <div className={styles.header}>
         <span className={styles.channel}>{channelName}</span>

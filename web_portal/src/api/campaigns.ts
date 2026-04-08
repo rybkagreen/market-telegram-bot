@@ -27,8 +27,7 @@ export async function getMyPlacements(params?: { status?: string; role?: 'advert
   if (params?.role) search.set('role', params.role)
   search.set('page', '1')
   search.set('page_size', '100')
-  const resp = await api.get(`placements/?${search}`).json<{ placement_requests: PlacementRequest[] }>()
-  return resp.placement_requests
+  return api.get(`placements/?${search}`).json<PlacementRequest[]>()
 }
 
 // ═══ Get placement by ID ═══

@@ -13,11 +13,16 @@ interface TelegramLoginWidgetProps {
 
 function TelegramLoginWidget({ botName, onAuth }: TelegramLoginWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const scriptLoaded = useRef(false)
+  const onAuthRef = useRef(onAuth)
+
+  // Keep ref updated
+  useEffect(() => {
+    onAuthRef.current = onAuth
+  }, [onAuth])
 
   useEffect(() => {
-    if (scriptLoaded.current) return
-    scriptLoaded.current = true
+    // Prevent multiple script loads
+    if (containerRef.current?.hasChildNodes()) return
 
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
@@ -35,17 +40,21 @@ function TelegramLoginWidget({ botName, onAuth }: TelegramLoginWidgetProps) {
       script.setAttribute(key, value)
     })
 
+    // Define onTelegramAuth globally — use ref to always call latest onAuth
     ;(window as unknown as Record<string, unknown>).onTelegramAuth = (data: Record<string, unknown>) => {
-      onAuth(data)
+      onAuthRef.current(data)
     }
 
     containerRef.current?.appendChild(script)
 
     return () => {
-      containerRef.current?.removeChild(script)
-      delete (window as unknown as Record<string, unknown>).onTelegramAuth
+      // Don't remove the function from window — widget may cache and call it later
+      // Just clean up the script element
+      if (containerRef.current?.contains(script)) {
+        containerRef.current.removeChild(script)
+      }
     }
-  }, [botName, onAuth])
+  }, [botName])
 
   return <div ref={containerRef} />
 }

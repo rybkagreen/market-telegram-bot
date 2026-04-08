@@ -82,11 +82,16 @@ export default function AcceptRules() {
       {viewerOpen && (
         <div
           className={styles.viewerOverlay}
+          role="button"
+          tabIndex={0}
           onClick={() => setViewerOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewerOpen(false) }}
         >
           <div
             className={styles.viewerContainer}
+            role="presentation"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           >
             <div className={styles.viewerHeader}>
               <Text variant="md" weight="semibold" as="h3" className={styles.viewerTitle}>
