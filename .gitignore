@@ -193,3 +193,4 @@ src/tasks/__pycache__/
 src/api/middleware/__pycache__/
 src/core/security/__pycache__/
 src/db/seeds/__pycache__/
+ssl_certs/

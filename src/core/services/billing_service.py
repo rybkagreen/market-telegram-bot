@@ -1259,11 +1259,11 @@ class BillingService:
                 logger.info(f"Escrow release skipped - already paid for placement {placement_id}")
                 return
 
-            # owner_amount = final_price * OWNER_SHARE (округление)
+            # Formula: owner_amount = final_price * OWNER_SHARE (rounded)
             owner_amount = (final_price * OWNER_SHARE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-            # platform_fee = final_price - owner_amount (остаток)
+            # Formula: platform_fee = final_price - owner_amount (remainder)
             platform_fee = final_price - owner_amount
 
             # UPDATE users SET earned_rub = earned_rub + owner_amount WHERE id = owner_id
@@ -1383,7 +1383,7 @@ class BillingService:
                 owner_compensation = (final_price * Decimal("0.425")).quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 )
-                # platform_share = final_price - advertiser_refund - owner_compensation (остаток)
+                # Formula: platform_share = final_price - advertiser_refund - owner_compensation
                 platform_share = final_price - advertiser_refund - owner_compensation
 
             else:

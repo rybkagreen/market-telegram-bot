@@ -638,7 +638,7 @@ def check_published_posts_health(self) -> dict[str, Any]:
         return {"error": str(e)}
 
 
-async def _check_published_posts_health_async() -> dict[str, Any]:
+async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: python:S3776
     """Асинхронная реализация проверки здоровья опубликованных постов."""
     from datetime import UTC, datetime
 

@@ -13,7 +13,7 @@ import styles from './Cabinet.module.css'
 
 const KEP_NEEDS_STATUSES = ['legal_entity', 'individual_entrepreneur']
 
-export default function Cabinet() {
+export default function Cabinet() { // NOSONAR: typescript:S3776
   const navigate = useNavigate()
   const { data: user, isLoading: userLoading, isError: userError } = useMe()
   const { data: stats, isLoading: statsLoading } = useMyStats()

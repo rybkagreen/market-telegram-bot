@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/uiStore'
 interface GetPlacementsParams {
   status?: PlacementStatus
   channel_id?: number
+  role?: 'advertiser' | 'owner'
 }
 
 export const useMyPlacements = (params?: GetPlacementsParams) =>

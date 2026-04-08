@@ -21,7 +21,7 @@ function toCardStatus(s: string): RequestCardStatus {
 export default function OwnRequests() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('new')
-  const { data: requests = [], isLoading, refetch } = useMyPlacements()
+  const { data: requests = [], isLoading, refetch } = useMyPlacements({ role: 'owner' })
 
   const newCount = requests.filter((r) => NEW_STATUSES.includes(r.status as PlacementStatus)).length
   const publishedCount = requests.filter((r) => PUBLISHED_STATUSES.includes(r.status as PlacementStatus)).length

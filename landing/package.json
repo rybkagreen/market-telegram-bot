@@ -1,0 +1,35 @@
+{
+  "name": "rekharbor-landing",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "prebuild": "tsx scripts/generate-sitemap.ts",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "lint": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "lhci": "npx serve dist -l 5175 & sleep 3 && npx lhci autorun; kill %1"
+  },
+  "dependencies": {
+    "motion": "^12.0.0",
+    "lucide-react": "latest",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.0.0"
+  },
+  "devDependencies": {
+    "@lhci/cli": "latest",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "eslint": "^9.0.0",
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "tsx": "latest",
+    "typescript": "6.0.2",
+    "vite": "^8.0.0"
+  }
+}

@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import tempfile
 from pathlib import Path
+from typing import Annotated
 
+import aiofiles
+import aiofiles.os
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from src.config.settings import settings
@@ -27,7 +29,7 @@ QUEUE_DIR = Path("/tmp/glitchtip_queue")
 @router.post("/glitchtip-alert")
 async def glitchtip_alert(
     request: Request,
-    x_webhook_token: str | None = Header(default=None, alias="X-Webhook-Token"),
+    x_webhook_token: Annotated[str | None, Header(alias="X-Webhook-Token")] = None,
 ) -> dict[str, bool]:
     """
     Принять alert от GlitchTip, сохранить payload в очередь.
@@ -48,16 +50,10 @@ async def glitchtip_alert(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON") from exc
 
-    QUEUE_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-        mode="w",
-        suffix=".json",
-        delete=False,
-        dir=str(QUEUE_DIR),
-        prefix="glitchtip_",
-    )
-    json.dump(payload, tmp)
-    tmp.close()
+    await aiofiles.os.makedirs(QUEUE_DIR, exist_ok=True)
+    file_path = QUEUE_DIR / f"glitchtip_{secrets.token_hex(8)}.json"
+    async with aiofiles.open(file_path, mode="w") as f:
+        await f.write(json.dumps(payload))
 
-    logger.info("GlitchTip alert queued: %s", tmp.name)
+    logger.info("GlitchTip alert queued: %s", file_path)
     return {"ok": True}

@@ -20,8 +20,8 @@ from src.bot.handlers.shared.contract_signing import contract_signing_router
 from src.bot.handlers.shared.feedback import router as feedback_router
 from src.bot.handlers.shared.help import router as help_router
 from src.bot.handlers.shared.legal_profile import legal_profile_router
-from src.bot.handlers.shared.start import router as start_router
 from src.bot.handlers.shared.login_code import router as login_code_router
+from src.bot.handlers.shared.start import router as start_router
 
 main_router = Router()
 

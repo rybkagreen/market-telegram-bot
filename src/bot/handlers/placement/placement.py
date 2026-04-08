@@ -23,6 +23,7 @@ from src.db.repositories.user_repo import UserRepository
 router = Router()
 
 REQUEST_NOT_FOUND = "❌ Заявка не найдена"
+USER_NOT_FOUND = "❌ Пользователь не найден"
 
 FORMATS = {
     "post_24h": {
@@ -158,7 +159,7 @@ async def camp_select_format(
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if user is None:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     channels = []
@@ -230,12 +231,25 @@ async def camp_step4_format(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.answer("📝 Введите текст:", reply_markup=text_method_kb("free", 0))
 
 
+@router.message(PlacementStates.entering_text, F.text)
+async def camp_step5_text_input(message: Message, state: FSMContext) -> None:
+    """Шаг 5а: Захват текста от пользователя → предложение добавить видео."""
+    if message.text is None:
+        return
+    await state.update_data(text=message.text)
+    await message.answer(
+        "Хотите добавить видео к рекламному посту? (опционально)",
+        reply_markup=video_upload_keyboard(),
+    )
+
+
 @router.callback_query(lambda c: c.data.startswith("camp:text:"))
 async def camp_step5_text(callback: CallbackQuery, state: FSMContext) -> None:
-    """Шаг 5: Ввод текста → предложение добавить видео."""
+    """Шаг 5б: Выбор текста через кнопку (AI/шаблон) → предложение добавить видео."""
     if not isinstance(callback.message, Message):
         return
-    await state.update_data(text="sample")
+    selected_text = (callback.data or "").split(":", 2)[-1]
+    await state.update_data(text=selected_text if selected_text else "")
     # Offer video upload (S3 addition)
     await callback.message.answer(
         "Хотите добавить видео к рекламному посту? (опционально)",
@@ -268,7 +282,7 @@ async def camp_step6_submit(
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     placement = await PlacementRequestRepository(session).create_placement(
@@ -286,7 +300,13 @@ async def camp_step6_submit(
         if owner:
             if callback.bot is None:
                 return
-            await notify_owner_new_request(callback.bot, owner.telegram_id, placement.id)
+            await notify_owner_new_request(
+                callback.bot,
+                owner.telegram_id,
+                placement.id,
+                placement=placement,
+                channel_title=channel.title or channel.username or "",
+            )
 
     await state.clear()
     await callback.answer(
@@ -381,7 +401,7 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     price = req.final_price or req.proposed_price
@@ -513,7 +533,7 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
 
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
     price = req.final_price or req.proposed_price

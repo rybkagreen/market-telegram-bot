@@ -114,6 +114,9 @@ export function PortalShell() {
         <div
           className="fixed inset-0 bg-black/50 z-40"
           onClick={() => setSidebarOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSidebarOpen(false) }}
+          tabIndex={0}
+          role="button"
         />
       )}
 

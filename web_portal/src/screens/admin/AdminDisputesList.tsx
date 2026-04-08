@@ -73,6 +73,9 @@ export default function AdminDisputesList() {
                 key={dispute.id}
                 className="px-5 py-4 hover:bg-harbor-elevated/50 transition-colors cursor-pointer"
                 onClick={() => navigate(`/disputes/${dispute.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/disputes/${dispute.id}`) }}
+                tabIndex={0}
+                role="button"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">

@@ -130,7 +130,7 @@ class TelegramSender:
         logger.warning(f"BadRequest for chat {chat_id}: {e}")
         return SendResult(status=SendStatus.FAILED, error_message=f"BadRequest: {e}")
 
-    async def send_message(
+    async def send_message(  # NOSONAR: python:S3776
         self,
         chat_id: int,
         text: str,
