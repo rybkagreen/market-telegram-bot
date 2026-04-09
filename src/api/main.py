@@ -102,6 +102,8 @@ async def lifespan(app: FastAPI):
     # Инициализация пула БД происходит лениво через async_session_factory
 
     # ─── ORD Provider injection (S-28 Phase 2) ────────────────
+    from src.core.services.ord_service import OrdService
+
     if settings.ord_provider == "yandex" and settings.ord_api_key:
         try:
             from src.core.services.ord_service import OrdService

@@ -17,12 +17,17 @@ from src.bot.keyboards.billing.topup import (
 )
 from src.bot.states.billing import TopupStates
 from src.bot.utils.safe_callback import safe_callback_edit
+from src.config.settings import settings
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
-_PLAN_PRICES = {"starter": 490, "pro": 1490, "business": 4990}
+_PLAN_PRICES = {
+    "starter": settings.tariff_cost_starter,
+    "pro": settings.tariff_cost_pro,
+    "business": settings.tariff_cost_business,
+}
 _PLAN_NAMES = {"free": "Free 🆓", "starter": "Starter 🚀", "pro": "Pro 💎", "business": "Agency 🏢"}
 
 USER_NOT_FOUND = "Пользователь не найден."
@@ -59,7 +64,6 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
     data = await state.get_data()
     amount = Decimal(str(data["amount"]))
     gross = (amount * Decimal("1.035")).quantize(Decimal("0.01"))
-    credits = int(amount)
 
     await callback.message.edit_text(
         f"⏳ *Создаём платёж...*\n\nСумма к оплате: *{gross} ₽*",
@@ -76,7 +80,6 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
     try:
         record = await yookassa_service.create_payment(
             amount_rub=gross,
-            credits=credits,
             user_id=user.id,
         )
         await state.update_data(payment_id=record.payment_id)

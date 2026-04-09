@@ -41,7 +41,6 @@ class UserResponse(BaseModel):
     role: str
     balance_rub: str
     earned_rub: str
-    credits: int
     is_admin: bool
     ai_generations_used: int
     platform_rules_accepted_at: str | None = None
@@ -126,7 +125,6 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             role=user.current_role,
             balance_rub=str(user.balance_rub),
             earned_rub=str(user.earned_rub),
-            credits=user.credits,
             is_admin=user.is_admin,
             ai_generations_used=user.ai_uses_count,
         ),
@@ -159,7 +157,6 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         role=current_user.current_role,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
-        credits=current_user.credits,
         is_admin=current_user.is_admin,
         ai_generations_used=current_user.ai_uses_count,
         platform_rules_accepted_at=str(current_user.platform_rules_accepted_at) if current_user.platform_rules_accepted_at else None,
