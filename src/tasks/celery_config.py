@@ -213,6 +213,9 @@ TASK_ROUTES = {
     # Очередь placement — задачи размещения (критические)
     "placement.*": {"queue": QUEUE_WORKER_CRITICAL},
     "src.tasks.placement_tasks.*": {"queue": QUEUE_WORKER_CRITICAL},
+    # Очередь background — ORD задачи
+    "ord.*": {"queue": "background"},
+    "src.tasks.ord_tasks.*": {"queue": "background"},
 }
 
 # =============================================================================
@@ -282,6 +285,11 @@ QUEUE_CONFIG = {
         "max_tasks_per_child": 50,
         "prefetch_multiplier": 1,
         "concurrency": 2,
+    },
+    "background": {
+        "max_tasks_per_child": 50,
+        "prefetch_multiplier": 1,
+        "concurrency": 1,
     },
 }
 

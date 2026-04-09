@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
 from src.config.settings import settings
+from src.constants.payments import PLAN_LIMITS
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -49,8 +50,6 @@ PLAN_COSTS = {
     "pro": settings.tariff_cost_pro,
     "business": settings.tariff_cost_business,
 }
-
-CURRENCIES = ["USDT", "TON", "BTC", "ETH", "LTC"]
 
 
 def _plan_label(plan) -> str:
@@ -128,12 +127,6 @@ class PlanResponse(BaseModel):
     plan: str
     balance_rub_remaining: Decimal
     message: str
-
-
-class InvoiceStatusResponse(BaseModel):
-    invoice_id: str
-    status: str
-    credited: bool
 
 
 # ─── Endpoints ──────────────────────────────────────────────────
@@ -337,7 +330,7 @@ async def get_plans() -> list[PlanDetail]:
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
     plan_str = _plan_label(current_user.plan)
-    ai_included = {"pro": 5, "business": 20}.get(plan_str, 0)
+    ai_included = PLAN_LIMITS.get(plan_str, {}).get("ai_per_month", 0)
 
     expires_str = None
     if current_user.plan_expires_at:
@@ -550,15 +543,6 @@ async def change_plan(
         balance_rub_remaining=remaining,
         message=f"Тариф {plan_labels.get(plan_str, plan_str)} активирован на 30 дней",
     )
-
-
-@router.get("/invoice/{invoice_id}", responses={404: {"description": "Not found"}})
-async def get_invoice_status(
-    invoice_id: str,
-    current_user: CurrentUser,
-) -> InvoiceStatusResponse:
-    """Метод не используется."""
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
 # =============================================================================
