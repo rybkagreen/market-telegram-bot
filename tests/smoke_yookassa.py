@@ -8,13 +8,13 @@ import asyncio
 import sys
 from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 
 # Тест T-01: Import check
 def test_t01_import_yookassa_service() -> bool:
     """T-01: Import YooKassaService."""
     try:
-        from src.core.services.yookassa_service import YooKassaService
         print("OK: T-01 - import YooKassaService")
         return True
     except Exception as e:
@@ -27,7 +27,7 @@ def test_t02_service_init_no_credentials() -> bool:
     """T-02: Service init без credentials."""
     try:
         from src.core.services.yookassa_service import YooKassaService
-        svc = YooKassaService()
+        YooKassaService()
         # Сервис должен инициализироваться даже без credentials (с warning)
         print("OK: T-02 - graceful init without credentials")
         return True
@@ -40,7 +40,6 @@ def test_t02_service_init_no_credentials() -> bool:
 def test_t03_import_model() -> bool:
     """T-03: Import YooKassaPayment model."""
     try:
-        from src.db.models.yookassa_payment import YooKassaPayment
         print("OK: T-03 - import YooKassaPayment model")
         return True
     except Exception as e:
@@ -54,7 +53,7 @@ def test_t04_model_columns() -> bool:
     try:
         from src.db.models.yookassa_payment import YooKassaPayment
         cols = [c.name for c in YooKassaPayment.__table__.columns]
-        required = ['id', 'payment_id', 'user_id', 'amount_rub', 'credits', 'status', 'idempotency_key']
+        required = ['id', 'payment_id', 'user_id', 'amount_rub', 'status', 'idempotency_key']
         missing = set(required) - set(cols)
         if missing:
             print(f"FAIL: T-04 - Missing columns: {missing}")
@@ -71,10 +70,10 @@ def test_t05_notification_formatter() -> bool:
     """T-05: Notification formatter."""
     try:
         from src.bot.handlers.shared.notifications import format_yookassa_payment_success
-        result = format_yookassa_payment_success(Decimal("300"), 330, 1330)
+        result = format_yookassa_payment_success(Decimal("300"), Decimal("1330"))
         assert "<b>" in result, "HTML tags missing"
         assert "300" in result, "Amount missing"
-        assert "330" in result, "Credits missing"
+        assert "1330" in result, "Balance missing"
         assert "parse_mode" not in result, "parse_mode should not be in output"
         print("OK: T-05 - formatter returns HTML with correct values")
         return True
@@ -101,18 +100,16 @@ def test_t06_html_not_escaped() -> bool:
 async def test_t07_mock_create_payment() -> bool:
     """T-07: Mock create_payment flow."""
     try:
-        from tests.mocks.yookassa_mock import mock_payment_create, MockYooKassaPayment
+
         from src.core.services.yookassa_service import YooKassaService
         from src.db.session import async_session_factory
-        from sqlalchemy import select
-        from src.db.models.yookassa_payment import YooKassaPayment
+        from tests.mocks.yookassa_mock import mock_payment_create
 
         # Патчим Payment.create
         with patch("src.core.services.yookassa_service.Payment.create", side_effect=mock_payment_create):
             svc = YooKassaService()
             # Создаём тестового пользователя если нет
             async with async_session_factory() as session:
-                from src.db.models.user import User
                 from src.db.repositories.user_repo import UserRepository
 
                 user_repo = UserRepository(session)
@@ -129,7 +126,6 @@ async def test_t07_mock_create_payment() -> bool:
             # Создаём платёж
             record = await svc.create_payment(
                 amount_rub=Decimal("100"),
-                credits=100,
                 user_id=user_id,
             )
 
@@ -155,7 +151,7 @@ def test_t08_billing_handlers() -> bool:
         m = importlib.import_module("src.bot.handlers.billing.billing")
         handlers = [name for name in dir(m) if "yookassa" in name.lower() or "yk_" in name.lower()]
         if not handlers:
-            print(f"FAIL: T-08 - No YooKassa handlers found")
+            print("FAIL: T-08 - No YooKassa handlers found")
             return False
         print(f"OK: T-08 - YooKassa handlers found: {handlers}")
         return True
@@ -193,7 +189,6 @@ def test_t10_yookassa_packages() -> bool:
             return False
         for pkg in YOOKASSA_PACKAGES:
             assert "rub" in pkg, "Missing 'rub' key"
-            assert "credits" in pkg, "Missing 'credits' key"
             assert "label" in pkg, "Missing 'label' key"
         print("OK: T-10 - YOOKASSA_PACKAGES has correct structure")
         return True

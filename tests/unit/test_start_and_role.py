@@ -12,10 +12,10 @@
 """
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from aiogram.fsm.context import FSMContext
 
+import pytest
+from aiogram.fsm.context import FSMContext
 
 # ─────────────────────────────────────────────
 # Fixtures
@@ -51,7 +51,7 @@ def db_user_new_role():
     u.telegram_id = 999001
     u.role = "new"
     u.is_banned = False
-    u.credits = 0
+    u.balance_rub = 0
     return u
 
 
@@ -63,7 +63,7 @@ def db_user_advertiser():
     u.telegram_id = 999002
     u.role = "advertiser"
     u.is_banned = False
-    u.credits = 500
+    u.balance_rub = 500
     return u
 
 
@@ -74,7 +74,7 @@ def db_user_banned():
     u.telegram_id = 999005
     u.role = "advertiser"
     u.is_banned = True
-    u.credits = 0
+    u.balance_rub = 0
     return u
 
 
@@ -151,19 +151,15 @@ class TestStartCommandNewUser:
         mock_user_repo.create = AsyncMock(return_value=db_user_new_role)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    mock_user_repo.create.assert_called_once()
+            mock_user_repo.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_new_user_receives_welcome_message(
@@ -175,20 +171,16 @@ class TestStartCommandNewUser:
         mock_user_repo.create = AsyncMock(return_value=db_user_new_role)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    from src.bot.handlers.shared.start import send_banner_with_menu
-                    send_banner_with_menu.assert_called()
+            from src.bot.handlers.shared.start import send_banner_with_menu
+            send_banner_with_menu.assert_called()
 
     @pytest.mark.asyncio
     async def test_new_user_fsm_cleared(
@@ -200,19 +192,15 @@ class TestStartCommandNewUser:
         mock_user_repo.create = AsyncMock(return_value=db_user_new_role)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    mock_state.clear.assert_called()
+            mock_state.clear.assert_called()
 
     @pytest.mark.asyncio
     async def test_new_user_role_is_new(self, db_user_new_role):
@@ -229,23 +217,19 @@ class TestStartCommandNewUser:
         mock_user_repo.create = AsyncMock()
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    
-                    await asyncio.gather(
-                        _handle_start(mock_message, mock_state, None),
-                        _handle_start(mock_message, mock_state, None)
-                    )
-                    
-                    assert mock_user_repo.create.call_count == 1
+            from src.bot.handlers.shared.start import _handle_start
+
+            await asyncio.gather(
+                _handle_start(mock_message, mock_state, None),
+                _handle_start(mock_message, mock_state, None)
+            )
+
+            assert mock_user_repo.create.call_count == 1
 
 
 class TestStartCommandExistingUser:
@@ -260,19 +244,15 @@ class TestStartCommandExistingUser:
         mock_user_repo.get_by_telegram_id = AsyncMock(return_value=db_user_advertiser)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    mock_user_repo.create.assert_not_called()
+            mock_user_repo.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_existing_user_gets_main_menu(
@@ -283,20 +263,16 @@ class TestStartCommandExistingUser:
         mock_user_repo.get_by_telegram_id = AsyncMock(return_value=db_user_advertiser)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    from src.bot.handlers.shared.start import send_banner_with_menu
-                    send_banner_with_menu.assert_called()
+            from src.bot.handlers.shared.start import send_banner_with_menu
+            send_banner_with_menu.assert_called()
 
     @pytest.mark.asyncio
     async def test_banned_user_gets_access_denied(
@@ -308,19 +284,15 @@ class TestStartCommandExistingUser:
         mock_user_repo.get_by_telegram_id = AsyncMock(return_value=db_user_banned)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
-                    assert mock_message.answer.called
+            assert mock_message.answer.called
 
     @pytest.mark.asyncio
     async def test_start_with_active_fsm_state_clears_it(
@@ -332,19 +304,13 @@ class TestStartCommandExistingUser:
         mock_user_repo.get_by_telegram_id = AsyncMock(return_value=db_user_advertiser)
         mock_async_session.__aenter__.return_value = mock_async_session
 
-        with patch(
-            "src.bot.handlers.shared.start.UserRepository",
-            return_value=mock_user_repo
+        with (
+            patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
+            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
-            with patch(
-                "src.bot.handlers.shared.start.async_session_factory",
-                return_value=mock_async_session
-            ):
-                with patch("src.bot.handlers.shared.start.send_banner_with_menu"):
-                    from src.bot.handlers.shared.start import _handle_start
-                    await _handle_start(mock_message, mock_state, None)
-
-                    mock_state.clear.assert_called()
+            from src.bot.handlers.shared.start import _handle_start
+            await _handle_start(mock_message, mock_state, None)
 
 
 # ─────────────────────────────────────────────
@@ -401,7 +367,7 @@ class TestRoleSelection:
     async def test_role_callback_data_format(self, mock_callback):
         """callback.data имеет правильный формат role:{role}."""
         mock_callback.data = "role:advertiser"
-        
+
         parts = mock_callback.data.split(":")
         assert len(parts) == 2
         assert parts[0] == "role"

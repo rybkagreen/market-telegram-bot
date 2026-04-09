@@ -42,7 +42,7 @@ class MockYooKassaPayment:
         self.paid = paid
         self.confirmation = MockConfirmation(confirmation_url)
         self.amount = MockAmount(amount_value, amount_currency)
-        self.metadata = metadata or {"user_id": "1", "credits": "100"}
+        self.metadata = metadata or {"user_id": "1", "amount_rub": "100"}
 
 
 def mock_payment_create(
