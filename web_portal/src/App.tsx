@@ -73,6 +73,7 @@ const AdminPlatformSettings = lazy(() => import('@/screens/admin/AdminPlatformSe
 
 // ═══ Shared screens ═══
 const DisputeDetail = lazy(() => import('@/screens/shared/DisputeDetail'))
+const MyDisputes = lazy(() => import('@/screens/shared/MyDisputes'))
 
 // ═══ Placeholder screens для MVP ═══
 function PlaceholderScreen({ title }: { title: string }) {
@@ -152,6 +153,7 @@ const router = createBrowserRouter([
           { path: 'adv/campaigns/:id/payment', element: <CampaignPayment /> },
           { path: 'adv/campaigns/:id/published', element: <CampaignPublished /> },
           { path: 'adv/campaigns/:id/dispute', element: <OpenDispute /> },
+          { path: 'adv/disputes', element: <MyDisputes /> },
 
           // Video & ORD
           { path: 'campaign/video', element: <CampaignVideo /> },
@@ -170,9 +172,10 @@ const router = createBrowserRouter([
           { path: 'own/channels/:id/settings', element: <OwnChannelSettings /> },
           { path: 'own/requests', element: <OwnRequests /> },
           { path: 'own/requests/:id', element: <OwnRequestDetail /> },
+          { path: 'own/disputes', element: <MyDisputes /> },
+          { path: 'own/disputes/:id', element: <DisputeResponse /> },
           { path: 'own/payouts', element: <OwnPayouts /> },
           { path: 'own/payouts/request', element: <OwnPayoutRequest /> },
-          { path: 'own/disputes/:id', element: <DisputeResponse /> },
 
           // ── Disputes ──
           { path: 'disputes/:id', element: <DisputeDetail /> },

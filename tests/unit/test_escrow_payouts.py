@@ -17,9 +17,9 @@ import pytest
 from sqlalchemy import select
 
 from src.core.services.billing_service import billing_service
-from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.mailing_log import MailingLog, MailingStatus
 from src.db.models.payout import PayoutRequest, PayoutStatus
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
 
@@ -86,7 +86,7 @@ class TestEscrowFreeze:
         assert result.meta_json.get("placement_id") == placement.id
 
     @pytest.mark.asyncio
-    async def test_freeze_placement_funds_insufficient_credits(self, db_session, advertiser_test_data):
+    async def test_freeze_placement_funds_insufficient_balance_rub(self, db_session, advertiser_test_data):
         """Test fund freezing with insufficient balance_rub."""
         # Create advertiser with insufficient balance_rub
         advertiser_data = advertiser_test_data.copy()
@@ -124,7 +124,7 @@ class TestEscrowFreeze:
 
         # Try to freeze funds - should raise InsufficientFundsError
         from src.core.services.billing_service import InsufficientFundsError
-        
+
         with pytest.raises(InsufficientFundsError):
             await billing_service.freeze_escrow_for_placement(
                 db_session,
@@ -305,7 +305,7 @@ class TestRefundFailedPlacement:
         # Create advertiser user
         advertiser_data = advertiser_test_data.copy()
         advertiser_data["telegram_id"] = unique_telegram_id()
-        advertiser_data["credits"] = 500
+        advertiser_data["balance_rub"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
         await db_session.flush()
@@ -376,7 +376,7 @@ class TestRefundFailedPlacement:
         # Create advertiser user
         advertiser_data = advertiser_test_data.copy()
         advertiser_data["telegram_id"] = unique_telegram_id()
-        advertiser_data["credits"] = 500
+        advertiser_data["balance_rub"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
         await db_session.flush()
@@ -433,7 +433,7 @@ class TestPayoutRequest:
         # Create owner user
         owner_data = owner_test_data.copy()
         owner_data["telegram_id"] = unique_telegram_id()
-        owner_data["credits"] = 0
+        owner_data["balance_rub"] = 0
         owner = User(**owner_data)
         db_session.add(owner)
         await db_session.flush()

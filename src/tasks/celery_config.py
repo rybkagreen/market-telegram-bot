@@ -139,6 +139,12 @@ BEAT_SCHEDULE = {
         "schedule": crontab(hour="*/6", minute=30),
         "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 300},
     },
+    # Scheduled deletions check — каждые 5 минут (consolidated from publication_tasks)
+    "placement-check-scheduled-deletions": {
+        "task": "placement:check_scheduled_deletions",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+    },
     # Tax calendar reminder — ежедневно в 09:00 MSK (06:00 UTC)
     "tax-calendar-reminder": {
         "task": "tax:calendar_reminder",
@@ -158,6 +164,12 @@ BEAT_SCHEDULE = {
     },
     "placement-check-counter-sla": {
         "task": "placement:check_counter_offer_sla",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+    },
+    # ESCROW SLA CHECK — detect stalled placements (Fix 2)
+    "placement-check-escrow-sla": {
+        "task": "placement:check_escrow_sla",
         "schedule": crontab(minute="*/5"),
         "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
     },

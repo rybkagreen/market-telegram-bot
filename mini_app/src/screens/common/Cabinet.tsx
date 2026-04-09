@@ -1,14 +1,12 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenLayout } from '@/components/layout/ScreenLayout'
-import { Card, MenuButton, StatGrid, ReputationBar, Notification, Skeleton, Button } from '@/components/ui'
+import { Card, MenuButton, StatGrid, ReputationBar, Notification, Skeleton } from '@/components/ui'
 import { Text } from '@/components/ui/Text'
 import { PLAN_INFO } from '@/lib/constants'
 import { formatCurrency } from '@/lib/formatters'
 import { useMe, useMyStats } from '@/hooks/queries'
 import { useContracts } from '@/hooks/useContractQueries'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
-import { useBuyCredits } from '@/hooks/queries/useBillingQueries'
 import styles from './Cabinet.module.css'
 
 const KEP_NEEDS_STATUSES = ['legal_entity', 'individual_entrepreneur']
@@ -19,9 +17,6 @@ export default function Cabinet() { // NOSONAR: typescript:S3776
   const { data: stats, isLoading: statsLoading } = useMyStats()
   const { data: profile } = useMyLegalProfile()
   const { data: contractsList } = useContracts()
-  const buyCredits = useBuyCredits()
-  const [convertAmount, setConvertAmount] = useState('')
-  const [showConvert, setShowConvert] = useState(false)
   const plan = user ? PLAN_INFO[user.plan] : null
   const earnedAmount = user ? parseFloat(user.earned_rub) : 0
 
@@ -43,38 +38,8 @@ export default function Cabinet() { // NOSONAR: typescript:S3776
               items={[
                 { value: formatCurrency(user!.balance_rub), label: '💳 Баланс рекл.', color: 'blue' },
                 { value: formatCurrency(user!.earned_rub), label: '💰 Заработок', color: 'green' },
-                { value: String(user!.credits), label: '🎟 Кредиты', color: 'purple' },
               ]}
             />
-            {!showConvert ? (
-              <div className={styles.convertToggle}>
-                <Button size="sm" variant="secondary" onClick={() => setShowConvert(true)}>
-                  Конвертировать ₽ → кредиты
-                </Button>
-              </div>
-            ) : (
-              <div className={styles.converterForm}>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Сумма в ₽"
-                  value={convertAmount}
-                  onChange={(e) => setConvertAmount(e.target.value)}
-                  className={styles.convertInput}
-                />
-                <Button
-                  size="sm"
-                  disabled={buyCredits.isPending || !convertAmount}
-                  onClick={() => {
-                    const amt = parseInt(convertAmount, 10)
-                    if (amt > 0) buyCredits.mutate(amt, { onSuccess: () => { setConvertAmount(''); setShowConvert(false) } })
-                  }}
-                >
-                  {buyCredits.isPending ? '...' : 'Обменять'}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setShowConvert(false)}>Отмена</Button>
-              </div>
-            )}
           </>
         )}
       </Card>

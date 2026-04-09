@@ -5,7 +5,7 @@ import { api } from './client'
 import type { AdvertiserAnalytics, OwnerAnalytics } from '@/lib/types'
 
 export interface AnalyticsSummary {
-  credits: number
+  balance_rub: number
   plan: string
   plan_expires_at: string | null
   ai_generations_used: number

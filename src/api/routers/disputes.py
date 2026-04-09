@@ -2,12 +2,13 @@
 FastAPI router для управления спорами (Disputes).
 
 Endpoints:
-  GET  /api/disputes/         — список диспутов текущего пользователя
+  GET  /api/disputes/         — список диспутов текущего пользователя (пагинированный)
   POST /api/disputes/         — создать диспут
   GET  /api/disputes/{id}     — детали диспута
   PATCH /api/disputes/{id}    — ответить на диспут (владелец)
-  GET  /api/admin/disputes    — список всех диспутов (admin)
-  POST /api/admin/disputes/{id}/resolve — решить диспут (admin)
+  GET  /api/disputes/evidence/{placement_id} — доказательная база
+  GET  /api/disputes/admin/disputes    — список всех диспутов (admin)
+  POST /api/disputes/admin/disputes/{id}/resolve — решить диспут с финансами (admin)
 """
 
 import logging
@@ -28,13 +29,15 @@ from src.api.schemas.admin import (
 )
 from src.api.schemas.dispute import (
     DisputeCreate,
+    DisputeListResponse,
     DisputeResolution,
     DisputeResponse,
     DisputeStatus,
     DisputeUpdate,
 )
+from src.core.services.billing_service import billing_service
 from src.db.models.dispute import PlacementDispute
-from src.db.models.placement_request import PlacementRequest
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 from src.db.repositories.dispute_repo import DisputeRepository
@@ -105,26 +108,46 @@ async def _get_placement_or_404(
 
 @router.get("/")
 async def get_my_disputes(
+    status_filter: str = "all",
+    limit: int = 20,
+    offset: int = 0,
+    *,
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> list[DisputeResponse]:
+) -> DisputeListResponse:
     """
-    Получить список всех диспутов текущего пользователя.
+    Получить список всех диспутов текущего пользователя с пагинацией.
 
     Возвращает диспуты где пользователь является рекламодателем
     или владельцем канала.
 
     Args:
+        status_filter: Фильтр по статусу (open, owner_explained, resolved, closed, all)
+        limit: Макс. количество записей (1-100)
+        offset: Смещение для пагинации
         current_user: Текущий авторизованный пользователь.
         session: Асинхронная сессия БД.
 
     Returns:
-        list[DisputeResponse]: Список диспутов пользователя.
+        DisputeListResponse: Пагинированный список диспутов.
     """
-    repo = DisputeRepository(session)
-    disputes = await repo.get_by_user(current_user.id)
+    # Validate limit
+    if limit < 1:
+        limit = 1
+    elif limit > 100:
+        limit = 100
 
-    return [DisputeResponse.model_validate(d) for d in disputes]
+    repo = DisputeRepository(session)
+    disputes, total = await repo.get_by_user_paginated(
+        current_user.id, status_filter, limit, offset
+    )
+
+    return DisputeListResponse(
+        items=[DisputeResponse.model_validate(d) for d in disputes],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
@@ -192,7 +215,8 @@ async def create_dispute(
     placement = await _get_placement_or_404(dispute_data.placement_id, session, current_user)
 
     # Проверяем что диспут ещё не создан для этой заявки
-    existing_dispute = await session.get(PlacementDispute, placement.id)
+    repo = DisputeRepository(session)
+    existing_dispute = await repo.get_by_placement(dispute_data.placement_id)
     if existing_dispute:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -512,7 +536,12 @@ async def resolve_dispute_admin(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DisputeAdminResponse:
     """
-    Resolve a dispute (admin only).
+    Resolve a dispute with financial operations (admin only).
+
+    Financial logic mirrors the Telegram bot handler:
+    - owner_fault / technical → refund_escrow(scenario="before_escrow") → 100% advertiser
+    - advertiser_fault → release_escrow() → 85% owner
+    - partial → refund_escrow(scenario="after_confirmation") → ~50/50 split
 
     Args:
         dispute_id: Dispute ID
@@ -561,6 +590,60 @@ async def resolve_dispute_admin(
         )
         owner_payout_pct = 100.0 - advertiser_refund_pct
 
+    # ── Financial operations (mirrors Telegram bot handler) ──
+    placement = await session.get(PlacementRequest, dispute.placement_request_id)
+    if not placement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Placement request not found",
+        )
+
+    price = placement.final_price if placement.final_price is not None else placement.proposed_price
+    new_status: PlacementStatus = PlacementStatus.refunded
+
+    try:
+        if body.resolution in ("owner_fault", "technical"):
+            # 100% refund to advertiser
+            await billing_service.refund_escrow(
+                session=session,
+                placement_id=placement.id,
+                final_price=price,
+                advertiser_id=placement.advertiser_id,
+                owner_id=placement.owner_id,
+                scenario="before_escrow",
+            )
+            new_status = PlacementStatus.refunded
+
+        elif body.resolution == "advertiser_fault":
+            # 85% to owner
+            await billing_service.release_escrow(
+                session=session,
+                placement_id=placement.id,
+                final_price=price,
+                advertiser_id=placement.advertiser_id,
+                owner_id=placement.owner_id,
+            )
+            new_status = PlacementStatus.published
+
+        elif body.resolution == "partial":
+            # ~50/50 split
+            await billing_service.refund_escrow(
+                session=session,
+                placement_id=placement.id,
+                final_price=price,
+                advertiser_id=placement.advertiser_id,
+                owner_id=placement.owner_id,
+                scenario="after_confirmation",
+            )
+            new_status = PlacementStatus.refunded
+
+    except Exception as exc:
+        logger.error("Dispute resolve billing error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Financial operation failed: {exc}",
+        ) from exc
+
     # Update dispute
     dispute.status = DisputeStatus.resolved
     dispute.resolution = DisputeResolution(body.resolution)
@@ -570,7 +653,10 @@ async def resolve_dispute_admin(
     dispute.advertiser_refund_pct = advertiser_refund_pct
     dispute.owner_payout_pct = owner_payout_pct
 
-    await session.flush()
+    # Update placement status
+    placement.status = new_status
+
+    await session.commit()
     await session.refresh(dispute)
 
     advertiser_username = dispute.advertiser.username if dispute.advertiser else None
@@ -578,7 +664,8 @@ async def resolve_dispute_admin(
 
     logger.info(
         f"Admin {admin_user.id} resolved dispute #{dispute_id} "
-        f"with resolution={body.resolution}, advertiser_refund={advertiser_refund_pct}%"
+        f"with resolution={body.resolution}, advertiser_refund={advertiser_refund_pct}%, "
+        f"placement_status={new_status.value}"
     )
 
     return DisputeAdminResponse(

@@ -48,6 +48,7 @@ const CampaignPublished  = lazy(() => import('@/screens/advertiser/campaign/Camp
 // ═══ Advertiser / Disputes ═══
 const OpenDispute    = lazy(() => import('@/screens/advertiser/disputes/OpenDispute'))
 const DisputeDetail  = lazy(() => import('@/screens/advertiser/disputes/DisputeDetail'))
+const MyDisputes     = lazy(() => import('@/screens/shared/MyDisputes'))
 
 // ═══ Owner ═══
 const OwnMenu            = lazy(() => import('@/screens/owner/OwnMenu'))
@@ -135,6 +136,7 @@ const router = createBrowserRouter([
       { path: 'adv/campaigns/:id/payment',              element: <CampaignPayment /> },
       { path: 'adv/campaigns/:id/published',            element: <CampaignPublished /> },
       { path: 'adv/campaigns/:id/dispute',              element: <OpenDispute /> },
+      { path: 'adv/disputes',                           element: <MyDisputes /> },
       { path: 'adv/disputes/:id',                       element: <DisputeDetail /> },
 
       // ── Owner ──
@@ -146,6 +148,7 @@ const router = createBrowserRouter([
       { path: 'own/channels/:id/settings',              element: <OwnChannelSettings /> },
       { path: 'own/requests',                           element: <OwnRequests /> },
       { path: 'own/requests/:id',                       element: <OwnRequestDetail /> },
+      { path: 'own/disputes',                           element: <MyDisputes /> },
       { path: 'own/payouts',                            element: <OwnPayouts /> },
       { path: 'own/payouts/request',                    element: <OwnPayoutRequest /> },
       { path: 'own/disputes/:id',                       element: <DisputeResponse /> },

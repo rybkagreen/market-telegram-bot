@@ -8,21 +8,12 @@ export interface PlanDetail {
   features: string[]
 }
 
-export interface TopupPackage {
-  id: string
-  credits: number
-  bonus: number
-  label: string
-  total_credits: number
-}
-
 export interface BillingBalance {
-  credits: number
+  balance_rub: string
   plan: string
   plan_expires_at: string | null
   ai_generations_used: number
   ai_included: number
-  packages: TopupPackage[]
   plan_costs: Record<string, number>
 }
 
@@ -31,7 +22,6 @@ export type TransactionType =
   | 'topup'
   | 'escrow_freeze'
   | 'escrow_release'
-  | 'credits_buy'
   | 'spend'
   | 'payout'
   | 'payout_fee'
@@ -62,7 +52,7 @@ export interface PlanPurchaseRequest {
 export interface PlanPurchaseResponse {
   success: boolean
   plan: string
-  credits_remaining: number
+  balance_rub_remaining: number
   message: string
 }
 
@@ -95,7 +85,6 @@ export function getPlans(): Promise<PlanDetail[]> {
 }
 
 export interface BuyCreditsResponse {
-  credits_added: number
   amount_rub: number
 }
 

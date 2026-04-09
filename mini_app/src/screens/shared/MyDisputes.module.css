@@ -1,0 +1,111 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filterBtn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filterBtn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.filterActive {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.disputeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.disputeId {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.statusBadge {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.statusBadge.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.statusBadge.info {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.statusBadge.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.statusBadge.neutral {
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+}
+
+.disputeReason {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.disputeMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.metaLabel {
+  color: var(--text-secondary);
+}
+
+.metaValue {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.backSection {
+  margin-top: 16px;
+}
+
+.backBtn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.backBtn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}

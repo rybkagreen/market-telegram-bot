@@ -19,7 +19,6 @@ const TX_META: Record<string, TxMeta> = {
   topup:         { label: 'Пополнение баланса',      icon: '💳', incoming: true  },
   escrow_freeze: { label: 'Оплата эскроу',           icon: '🔒', incoming: false },
   escrow_release:{ label: 'Получение выплаты',       icon: '✅', incoming: true  },
-  credits_buy:   { label: 'Конвертация ₽ → кредиты', icon: '🎟', incoming: true  },
   spend:         { label: 'Оплата тарифа',           icon: '⭐', incoming: false },
   payout:        { label: 'Вывод средств',           icon: '💸', incoming: false },
   payout_fee:    { label: 'Комиссия за вывод',       icon: '📋', incoming: false },
