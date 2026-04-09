@@ -84,8 +84,13 @@ async def upload_document(
 
     # Validate document type
     allowed_doc_types = {
-        "inn_certificate", "ogrn_certificate", "bank_details",
-        "passport", "tax_registration", "self_employed_certificate", "other",
+        "inn_certificate",
+        "ogrn_certificate",
+        "bank_details",
+        "passport",
+        "tax_registration",
+        "self_employed_certificate",
+        "other",
     }
     if document_type not in allowed_doc_types:
         raise HTTPException(
@@ -189,7 +194,9 @@ async def get_document_status(
             status=upload.validation_status,
             file_type=upload.file_type,
             document_type=upload.document_type,
-            image_quality_score=float(upload.image_quality_score) if upload.image_quality_score else None,
+            image_quality_score=float(upload.image_quality_score)
+            if upload.image_quality_score
+            else None,
             quality_issues=quality_issues,
             is_readable=upload.is_readable,
             ocr_confidence=float(upload.ocr_confidence) if upload.ocr_confidence else None,

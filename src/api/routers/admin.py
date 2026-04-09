@@ -833,7 +833,9 @@ async def get_tax_summary(
                 "operation_date": e["operation_date"].isoformat() if e["operation_date"] else None,
                 "description": e["description"],
                 "income_amount": str(e["income_amount"]),
-                "expense_amount": str(e.get("expense_amount", "0")) if e.get("expense_amount") else None,
+                "expense_amount": str(e.get("expense_amount", "0"))
+                if e.get("expense_amount")
+                else None,
                 "operation_type": e.get("operation_type", "income"),
             }
             for e in summary["kudir_entries"]
