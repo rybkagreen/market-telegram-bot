@@ -122,7 +122,9 @@ def _check_dedup(task_name: str, placement_id: int) -> bool:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_owner_response_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_owner_response_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_owner_response_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA ответа владельца (24ч).
@@ -223,7 +225,9 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_payment_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_payment_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_payment_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA оплаты рекламодателем (24ч).
@@ -316,7 +320,9 @@ async def _check_payment_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_counter_offer_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_counter_offer_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_counter_offer_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA ответа на контр-предложение (24ч).
@@ -422,7 +428,9 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:publish_placement")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:publish_placement", queue=QUEUE_WORKER_CRITICAL
+)
 def publish_placement(self, placement_id: int) -> dict[str, Any]:
     """
     Выполнить публикацию поста в канале в запланированное время.
@@ -553,7 +561,9 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:retry_failed_publication")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:retry_failed_publication", queue=QUEUE_WORKER_CRITICAL
+)
 def retry_failed_publication(self, placement_id: int) -> dict[str, Any]:
     """
     Повторная попытка публикации через 1ч после неудачи.
@@ -618,7 +628,12 @@ async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_published_posts_health")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:check_published_posts_health",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def check_published_posts_health(self) -> dict[str, Any]:
     """
     Периодическая задача — проверить здоровье опубликованных постов.
@@ -767,7 +782,9 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_escrow_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_escrow_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_escrow_sla(self) -> dict[str, Any]:
     """
     Find placements in escrow where scheduled time has passed but no message sent.
@@ -892,7 +909,12 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:schedule_placement_publication")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:schedule_placement_publication",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def schedule_placement_publication(
     self,
     placement_id: int,
@@ -945,7 +967,9 @@ def schedule_placement_publication(
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:delete_published_post")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:delete_published_post", queue=QUEUE_WORKER_CRITICAL
+)
 def delete_published_post(self, placement_id: int) -> dict[str, Any]:
     """
     Удалить опубликованный пост.
@@ -1004,7 +1028,12 @@ async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_scheduled_deletions")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:check_scheduled_deletions",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def check_scheduled_deletions(self) -> dict[str, Any]:
     """
     Периодическая задача — найти посты с истёкшим scheduled_delete_at.
