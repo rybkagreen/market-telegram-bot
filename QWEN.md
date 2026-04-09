@@ -774,6 +774,64 @@ src/db/models/ord_registration.py  ← ОРД-регистрация
 
 ---
 
+## 🔀 CRITICAL RULE: GIT FLOW
+Это абсолютное ограничение. Спринт считается **НЕВЫПОЛНЕННЫМ**, если git flow не выполнен.
+
+**Ветки:** `feature/*` → `develop` → `main`
+
+### 🔄 После КАЖДОГО набора изменений (внутри feature-ветки)
+
+Разбить файлы на **смысловые группы** и создать отдельный коммит для каждой:
+
+| Тип | Скоп | Когда |
+|-----|------|-------|
+| `feat` | `(backend)`, `(mini-app)`, `(landing)` | Новая функциональность |
+| `fix` | `(tasks)`, `(billing)` | Исправление бага |
+| `chore` | `(migrations)`, `(config)` | Инфраструктура, без логики |
+| `refactor` | `(services)` | Рефакторинг без изменения поведения |
+| `test` | — | Только тесты |
+| `docs` | — | CHANGELOG, discovery-отчёты |
+
+**Правила:**
+- **ЗАПРЕЩЕНО** `git add .` одним коммитом — только точечные `git add` по группам
+- Формат [Conventional Commits](https://www.conventionalcommits.org/): `тип(скоп): описание`
+- Описание — на английском, в повелительном наклонении, до 72 символов
+
+### 🏁 После завершения СПРИНТА / фичи
+
+Выполнить **строго в этом порядке**, при первом конфликте — СТОП:
+
+```bash
+# 1. Проверить чистоту рабочего дерева
+git status   # должно быть "nothing to commit, working tree clean"
+
+# 2. Запушить feature-ветку
+git push origin $CURRENT_BRANCH
+
+# 3. Влить в develop
+git checkout develop && git pull origin develop
+git merge $CURRENT_BRANCH --no-ff -m "chore(develop): merge $CURRENT_BRANCH — <краткое описание>"
+git push origin develop
+
+# 4. Влить develop в main
+git checkout main && git pull origin main
+git merge develop --no-ff -m "chore(main): merge develop — <краткое описание>"
+git push origin main
+
+# 5. Вернуться в feature-ветку
+git checkout $CURRENT_BRANCH
+```
+
+**Жёсткие ограничения:**
+- `--no-ff` ОБЯЗАТЕЛЕН на каждом merge — fast-forward запрещён
+- При ЛЮБОМ конфликте merge — **СТОП и сообщить пользователю**, не разрешать автоматически
+- Никогда не делать force-push в `develop` или `main`
+- Никогда не пропускать `git pull` перед слиянием
+
+⚠️ **FAILURE TO FOLLOW = SPRINT INCOMPLETE.** Не завершай задачу без выполнения этих шагов.
+
+---
+
 ## Sprint Map
 
 | Спринт | Содержание | Зависит от | Статус |
