@@ -190,12 +190,6 @@ def get_beat_schedule() -> dict[str, Any]:
             "schedule": crontab(hour=settings.plan_renewal_check_hour, minute=0),
             "options": {"queue": "billing", "priority": 9},
         },
-        # ========== CHECK PENDING INVOICES (каждые 5 минут) ==========
-        "check-pending-invoices": {
-            "task": "billing:check_pending_invoices",
-            "schedule": 300.0,  # 5 минут
-            "options": {"queue": "billing", "priority": 9},
-        },
     }
 
 
