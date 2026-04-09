@@ -8,6 +8,7 @@ Endpoints:
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -35,7 +36,6 @@ class UserResponse(BaseModel):
     username: str | None = None
     first_name: str | None = None
     plan: str
-    credits: int
     balance_rub: str
     earned_rub: str
     is_admin: bool
@@ -100,7 +100,7 @@ class ReferralStatsResponse(BaseModel):
     referral_link: str
     total_referrals: int
     active_referrals: int
-    total_earned_credits: int
+    total_earned_rub: Decimal
     referrals: list[ReferralItem]
 
     model_config = {"from_attributes": True}
@@ -130,7 +130,6 @@ async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
         username=current_user.username,
         first_name=current_user.first_name,
         plan=plan_value,
-        credits=current_user.credits,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
         is_admin=current_user.is_admin,
@@ -264,7 +263,7 @@ async def get_my_referrals(
     active_result = await session.execute(active_query)
     active_referrals = active_result.scalar() or 0
 
-    # Total earned credits — сумма desired_balance из успешных платежей рефералов
+    # Total earned rub — сумма desired_balance из успешных платежей рефералов
     earned_query = (
         select(func.sum(YookassaPayment.desired_balance))
         .join(User, User.id == YookassaPayment.user_id)
@@ -274,7 +273,7 @@ async def get_my_referrals(
         )
     )
     earned_result = await session.execute(earned_query)
-    total_earned_credits = int(earned_result.scalar() or 0)
+    total_earned_rub = Decimal(str(earned_result.scalar() or 0))
 
     # Формируем ссылку (используем заглушку для bot_username, если не настроено)
     bot_username = "RekHarborBot"  # Default, can be overridden via settings
@@ -309,6 +308,6 @@ async def get_my_referrals(
         referral_link=referral_link,
         total_referrals=total_referrals,
         active_referrals=active_referrals,
-        total_earned_credits=total_earned_credits,
+        total_earned_rub=total_earned_rub,
         referrals=referrals,
     )

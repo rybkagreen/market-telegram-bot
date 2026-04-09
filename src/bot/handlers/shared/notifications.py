@@ -481,15 +481,13 @@ async def notify_sla_expired(placement, _advertiser, owner, channel_name: str) -
 
 def format_yookassa_payment_success(
     amount_rub: float | Decimal,
-    credits: int,
-    new_balance: int,
+    new_balance: float | Decimal,
 ) -> str:
     """Форматировать сообщение об успешном платеже ЮKassa."""
     return (
         f"✅ <b>Оплата получена!</b>\n\n"
-        f"💳 Сумма: <b>{amount_rub:.0f} ₽</b>\n"
-        f"🪙 Зачислено кредитов: <b>{credits}</b>\n"
-        f"💰 Баланс: <b>{new_balance}</b> кр.\n\n"
+        f"💳 Сумма: <b>{amount_rub:.2f} ₽</b>\n"
+        f"💰 Баланс: <b>{new_balance:.2f} ₽</b>\n\n"
         f"Спасибо за пополнение!"
     )
 
