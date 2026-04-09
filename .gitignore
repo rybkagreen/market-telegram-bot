@@ -132,8 +132,10 @@ logs/nginx/
 docker-compose.override.yml
 
 # Development reports and diagnostics
-reports/
-CLAUDE.md
+reports/*
+!reports/docs-architect/
+reports/docs-architect/*
+!reports/docs-architect/discovery/
 api_fixing.json
 REBUILD_*.json
 *_report.json
