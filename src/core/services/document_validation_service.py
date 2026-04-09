@@ -33,16 +33,18 @@ ALLOWED_TYPES = {"jpg", "jpeg", "png", "webp", "heic", "pdf"}
 # Quality thresholds
 MIN_RESOLUTION = 800  # minimum width or height in pixels
 BLUR_THRESHOLD = 100  # Laplacian variance below this = blurry
-DARK_THRESHOLD = 30   # mean brightness below this = too dark
+DARK_THRESHOLD = 30  # mean brightness below this = too dark
 
 # ─── Regex patterns for data extraction ──────────────────────────────
 
-INN_PATTERN = re.compile(r'(?:ИНН|inn)[\s:]*\.?\s*(\d{10}|\d{12})', re.IGNORECASE)
-KPP_PATTERN = re.compile(r'(?:КПП|kpp)[\s:]*\.?\s*(\d{9})', re.IGNORECASE)
-OGRN_PATTERN = re.compile(r'(?:ОГРН|ogrn)[\s:]*\.?\s*(\d{13})', re.IGNORECASE)
-OGRNIP_PATTERN = re.compile(r'(?:ОГРНИП|ogrnip)[\s:]*\.?\s*(\d{15})', re.IGNORECASE)
-BIK_PATTERN = re.compile(r'(?:БИК|bik)[\s:]*\.?\s*(\d{9})', re.IGNORECASE)
-ACCOUNT_PATTERN = re.compile(r'(?:р[./]?с|расчетный\s+счет|сч[её]т)[\s:]*\.?\s*([\d]{20})', re.IGNORECASE)
+INN_PATTERN = re.compile(r"(?:ИНН|inn)[\s:]*\.?\s*(\d{10}|\d{12})", re.IGNORECASE)
+KPP_PATTERN = re.compile(r"(?:КПП|kpp)[\s:]*\.?\s*(\d{9})", re.IGNORECASE)
+OGRN_PATTERN = re.compile(r"(?:ОГРН|ogrn)[\s:]*\.?\s*(\d{13})", re.IGNORECASE)
+OGRNIP_PATTERN = re.compile(r"(?:ОГРНИП|ogrnip)[\s:]*\.?\s*(\d{15})", re.IGNORECASE)
+BIK_PATTERN = re.compile(r"(?:БИК|bik)[\s:]*\.?\s*(\d{9})", re.IGNORECASE)
+ACCOUNT_PATTERN = re.compile(
+    r"(?:р[./]?с|расчетный\s+счет|сч[её]т)[\s:]*\.?\s*([\d]{20})", re.IGNORECASE
+)
 
 
 def validate_file_type(filename: str) -> str | None:
@@ -109,6 +111,7 @@ def convert_heic_to_jpeg(heic_path: str) -> str | None:
     """Convert HEIC to JPEG. Returns JPEG path or None on failure."""
     try:
         from pillow_heif import register_heif_opener
+
         register_heif_opener()
 
         img = Image.open(heic_path)
@@ -193,7 +196,7 @@ def extract_structured_data(text: str) -> dict[str, str | None]:
         result["inn"] = inn_match.group(1)
     else:
         # Try standalone 10 or 12 digit numbers
-        standalone = re.findall(r'\b(\d{10}|\d{12})\b', text)
+        standalone = re.findall(r"\b(\d{10}|\d{12})\b", text)
         if standalone:
             result["inn"] = standalone[0]
 
@@ -223,14 +226,18 @@ def extract_structured_data(text: str) -> dict[str, str | None]:
         result["account"] = acc_match.group(1)
 
     # Company name — try to extract from common patterns
-    name_match = re.search(r'(?:Наименование|Название|Организация|ООО|ИП)[\s:]*[„"]?([^\n"]+)', text)
+    name_match = re.search(
+        r'(?:Наименование|Название|Организация|ООО|ИП)[\s:]*[„"]?([^\n"]+)', text
+    )
     if name_match:
         result["name"] = name_match.group(1).strip()[:200]
 
     return result
 
 
-def validate_against_profile(extracted: dict[str, str | None], profile_data: dict[str, str | None]) -> dict[str, Any]:
+def validate_against_profile(
+    extracted: dict[str, str | None], profile_data: dict[str, str | None]
+) -> dict[str, Any]:
     """
     Compare extracted OCR data with user-entered profile data.
 
@@ -300,7 +307,9 @@ class DocumentValidationService:
         return stored_path, len(file_content)
 
     @staticmethod
-    def process_document(stored_path: str, file_type: str, user_id: int, document_type: str) -> dict[str, Any]:
+    def process_document(
+        stored_path: str, file_type: str, user_id: int, document_type: str
+    ) -> dict[str, Any]:
         """
         Full OCR + validation pipeline.
 

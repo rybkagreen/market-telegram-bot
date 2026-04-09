@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29A: Hotfixes (v4.5 — April 2026)
+
+#### Fixed
+- **D-02 (CRITICAL):** `PLAN_PRICES` key `'agency'` → `'business'` — prevents `KeyError` when accessing by `UserPlan.BUSINESS.value` (`src/constants/payments.py`)
+- **D-08:** `ai_included` in `/api/billing/balance` now uses `PLAN_LIMITS` — Pro: 5→20 AI/month, Business: 20→-1 (unlimited) (`src/api/routers/billing.py`)
+- **D-07:** Removed dead `GET /api/billing/invoice/{invoice_id}` endpoint (always returned 404) + `InvoiceStatusResponse` model (`src/api/routers/billing.py`)
+- **D-09:** Export `LegalProfileStates`, `ContractSigningStates`, `AdminFeedbackStates` from `src/bot/states/__init__.py`
+- **D-11:** Added `'background'` queue to `TASK_ROUTES` and `QUEUE_CONFIG` for ORD task routing (`src/tasks/celery_config.py`)
+- **D-06:** Removed `check_pending_invoices` from Celery Beat schedule, marked task as deprecated (`src/tasks/celery_app.py`, `src/tasks/billing_tasks.py`)
+
+#### Removed
+- **D-15:** `STARS_ENABLED=true` from `.env.example` (Telegram Stars removed in v4.2)
+- **D-16:** Legacy constants: `CURRENCIES`, `CRYPTO_CURRENCIES`, `PAYMENT_METHODS`, `YOOKASSA_PACKAGES` from `src/constants/payments.py` and re-exports from `src/constants/__init__.py`
+- Duplicate `CURRENCIES` constant from `src/api/routers/billing.py`
+
+#### Docs
+- Added `docs/AAA-11_PRODUCTION_FIX_PLAN.md` — deep-dive investigation of 22 discrepancies + 4-sprint fix plan
+
+### S-29B: Medium Priority (v4.5 — April 2026)
+
+#### Fixed
+- **D-12:** Implemented `COOLDOWN_HOURS` (24h) enforcement in `PayoutService.create_payout()` — prevents rapid payout abuse (`src/core/services/payout_service.py`)
+- **D-12:** Added `PayoutRepository.get_last_completed_for_owner()` — queries last `paid` payout for cooldown check (`src/db/repositories/payout_repo.py`)
+- **D-03:** Added `placement:check_escrow_stuck` Celery task — detects escrow placements with `scheduled_delete_at` >48h past, marks `meta_json` for admin alert (`src/tasks/placement_tasks.py`)
+- **D-03:** Added Beat schedule entry `placement-check-escrow-stuck` (every 30min) (`src/tasks/celery_config.py`)
+- **D-10:** Added async Redis client (`redis.asyncio.Redis`) in `placement_tasks.py` — sync client retained only for Celery dedup (runs in sync context)
+
+#### Docs
+- Updated `docs/AAA-11_PRODUCTION_FIX_PLAN.md` — verified D-06, D-07 existence, corrected severity assessments
+
+### S-29C: Quality Sprint (v4.5 — April 2026)
+
+#### Changed
+- **D-05:** Added explicit `queue=QUEUE_WORKER_CRITICAL` to all 10 placement task decorators — defense-in-depth beyond TASK_ROUTES (`src/tasks/placement_tasks.py`)
+- **D-22:** Updated QWEN.md admin endpoint count 9 → 11 (documentation accuracy)
+
+#### Verified
+- **TD-04/D-21:** Both `mini_app` and `web_portal` already on TypeScript 6.0.2 — no action needed
+
 ### Fixed
 - **CRITICAL:** `camp_pay_balance` handler now schedules Celery publication task after payment — fixes stalled escrow placements that never got published (`src/bot/handlers/placement/placement.py`)
 - **HIGH:** Added `placement:check_escrow_sla` Celery Beat task — detects and auto-refunds placements stuck in escrow past scheduled time (`src/tasks/placement_tasks.py`, `src/tasks/celery_config.py`)

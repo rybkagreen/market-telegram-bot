@@ -15,6 +15,7 @@ from src.db.base import Base, TimestampMixin
 def _default_referral_code() -> str:
     return str(uuid.uuid4()).replace("-", "")[:16]
 
+
 CASCADE_ALL = "all, delete-orphan"
 
 

@@ -116,7 +116,9 @@ def validate_kpp_format(kpp: str) -> bool:
     return kpp.isdigit() and len(kpp) == 9
 
 
-def validate_legal_entity(inn: str, kpp: str | None = None, ogrn: str | None = None) -> FNSValidationResult:
+def validate_legal_entity(
+    inn: str, kpp: str | None = None, ogrn: str | None = None
+) -> FNSValidationResult:
     """
     Валидация данных юридического лица.
 
@@ -174,9 +176,7 @@ def validate_legal_entity(inn: str, kpp: str | None = None, ogrn: str | None = N
     )
 
 
-def validate_individual_entrepreneur(
-    inn: str, ogrnip: str | None = None
-) -> FNSValidationResult:
+def validate_individual_entrepreneur(inn: str, ogrnip: str | None = None) -> FNSValidationResult:
     """
     Валидация данных ИП.
 

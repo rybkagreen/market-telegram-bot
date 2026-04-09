@@ -19,18 +19,14 @@ class ComparisonService:
     ) -> list[dict[str, Any]]:
         """Получить данные каналов для сравнения по списку id."""
         async with _session_ctx(session) as s:
-            result = await s.execute(
-                select(TelegramChat).where(TelegramChat.id.in_(channel_ids))
-            )
+            result = await s.execute(select(TelegramChat).where(TelegramChat.id.in_(channel_ids)))
             chats = result.scalars().all()
 
             channels: list[dict[str, Any]] = []
             for chat in chats:
                 member_count = chat.member_count or 0
                 price_per_post = chat.price_per_post or 0
-                price_per_1k = (
-                    price_per_post / (member_count / 1000) if member_count > 0 else 0.0
-                )
+                price_per_1k = price_per_post / (member_count / 1000) if member_count > 0 else 0.0
                 channels.append(
                     {
                         "channel_id": chat.id,

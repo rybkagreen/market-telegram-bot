@@ -26,10 +26,12 @@ router = APIRouter()
 
 def _limit(rate: str):
     """Safe limiter decorator — no-op if limiter not yet initialized."""
+
     def decorator(fn):
         if limiter is None:
             return fn
         return limiter.limit(rate)(fn)
+
     return decorator
 
 

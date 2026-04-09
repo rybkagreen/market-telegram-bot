@@ -32,7 +32,9 @@ async def notify_owner_new_request(
         media_type = getattr(placement, "media_type", "none") or "none"
 
         schedule_str = (
-            proposed_schedule.strftime("%d.%m.%Y %H:%M") if proposed_schedule else "По договорённости"
+            proposed_schedule.strftime("%d.%m.%Y %H:%M")
+            if proposed_schedule
+            else "По договорённости"
         )
         channel_line = f"📢 Канал: {html.escape(channel_title)}\n" if channel_title else ""
         price_str = f"{proposed_price:.0f}" if proposed_price is not None else "—"

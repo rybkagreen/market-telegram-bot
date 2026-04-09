@@ -161,7 +161,9 @@ async def validate_entity(
     if not type_ok:
         return FnsValidationResponse(
             is_valid=False,
-            errors=[FnsValidationError(field="inn", message=type_error or "Несоответствие типа ИНН")],
+            errors=[
+                FnsValidationError(field="inn", message=type_error or "Несоответствие типа ИНН")
+            ],
         )
 
     # Quick INN check
