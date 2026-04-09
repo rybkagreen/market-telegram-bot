@@ -17,11 +17,22 @@ if TYPE_CHECKING:
 
 
 class DisputeReason(str, Enum):
-    """Причины споров."""
+    """Причины споров.
 
+    Объединены значения из Telegram-бота (legacy) и фронтенда (mini_app/web_portal).
+    """
+
+    # Legacy (Telegram bot)
     post_removed_early = "post_removed_early"
     bot_kicked = "bot_kicked"
     advertiser_complaint = "advertiser_complaint"
+
+    # Frontend (mini_app / web_portal)
+    not_published = "not_published"
+    wrong_time = "wrong_time"
+    wrong_text = "wrong_text"
+    early_deletion = "early_deletion"
+    other = "other"
 
 
 class DisputeStatus(str, Enum):
@@ -30,15 +41,26 @@ class DisputeStatus(str, Enum):
     open = "open"
     owner_explained = "owner_explained"
     resolved = "resolved"
+    closed = "closed"
 
 
 class DisputeResolution(str, Enum):
-    """Резолюции споров."""
+    """Резолюции споров.
 
+    Объединены значения из Telegram-бота (financial) и фронтенда (display).
+    """
+
+    # Telegram bot — финансовые резолюции
     owner_fault = "owner_fault"
     advertiser_fault = "advertiser_fault"
     technical = "technical"
     partial = "partial"
+
+    # Frontend — отображаемые резолюции
+    full_refund = "full_refund"
+    partial_refund = "partial_refund"
+    no_refund = "no_refund"
+    warning = "warning"
 
 
 class PlacementDispute(Base, TimestampMixin):

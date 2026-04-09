@@ -36,7 +36,7 @@ router = APIRouter(tags=["analytics"])
 
 class SummaryResponse(BaseModel):
     # Баланс и тариф
-    credits: int
+    balance_rub: Decimal
     plan: str
     plan_expires_at: str | None = None
     ai_generations_used: int
@@ -157,7 +157,7 @@ async def get_summary(current_user: CurrentUser) -> SummaryResponse:
         expires_str = current_user.plan_expires_at.isoformat()
 
     return SummaryResponse(
-        credits=current_user.credits,
+        balance_rub=current_user.balance_rub,
         plan=plan_str,
         plan_expires_at=expires_str,
         ai_generations_used=current_user.ai_uses_count,

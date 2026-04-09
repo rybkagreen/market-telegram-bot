@@ -96,8 +96,8 @@ export default function AdminUserDetail() {
                 <p className="text-xs text-text-tertiary mt-1">Заработано</p>
               </div>
               <div className="text-center p-3 bg-harbor-elevated rounded-lg">
-                <p className="text-xl font-bold text-text-primary">{user.credits}</p>
-                <p className="text-xs text-text-tertiary mt-1">Кредиты</p>
+                <p className="text-xl font-bold text-text-primary">{user.balance_rub}</p>
+                <p className="text-xs text-text-tertiary mt-1">Баланс ₽</p>
               </div>
               <div className="text-center p-3 bg-harbor-elevated rounded-lg">
                 <p className="text-xl font-bold text-text-primary">{user.reputation_score?.toFixed(1) ?? '—'}</p>

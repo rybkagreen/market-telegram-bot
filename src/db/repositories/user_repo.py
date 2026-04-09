@@ -146,12 +146,12 @@ class UserRepository(BaseRepository[User]):
         await self.session.refresh(new_user)
         return new_user
 
-    async def update_credits(self, user_id: int, delta: int) -> User | None:
-        """Атомарно обновляет поле credits пользователя на delta (может быть отрицательным)."""
+    async def update_balance_rub(self, user_id: int, delta: Decimal) -> User | None:
+        """Атомарно обновляет поле balance_rub пользователя на delta (может быть отрицательным)."""
         user = await self.get_by_id(user_id)
         if not user:
             return None
-        user.credits += delta
+        user.balance_rub += delta
         await self.session.flush()
         await self.session.refresh(user)
         return user

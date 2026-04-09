@@ -12,7 +12,7 @@ Endpoints:
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -43,13 +43,6 @@ YOOKASSA_IPS: list[str] = [
     "2a02:5180::/32",
 ]
 
-CREDIT_PACKAGES = [
-    {"id": "nano", "credits": 300, "bonus": 0, "label": "Nano"},
-    {"id": "mini", "credits": 600, "bonus": 0, "label": "Mini"},
-    {"id": "standard", "credits": 1200, "bonus": 100, "label": "Standard"},
-    {"id": "business", "credits": 3500, "bonus": 500, "label": "Business"},
-]
-
 PLAN_COSTS = {
     "free": 0,
     "starter": settings.tariff_cost_starter,
@@ -58,10 +51,6 @@ PLAN_COSTS = {
 }
 
 CURRENCIES = ["USDT", "TON", "BTC", "ETH", "LTC"]
-
-
-def _get_package(package_id: str) -> dict | None:
-    return next((p for p in CREDIT_PACKAGES if p["id"] == package_id), None)
 
 
 def _plan_label(plan) -> str:
@@ -99,12 +88,11 @@ class PlanDetail(BaseModel):
 
 
 class BalanceResponse(BaseModel):
-    credits: int
+    balance_rub: Decimal
     plan: str
     plan_expires_at: str | None = None
     ai_generations_used: int
     ai_included: int
-    packages: list[dict]
     plan_costs: dict[str, int]
 
 
@@ -138,14 +126,13 @@ class PlanRequest(BaseModel):
 class PlanResponse(BaseModel):
     success: bool
     plan: str
-    credits_remaining: int
+    balance_rub_remaining: Decimal
     message: str
 
 
 class InvoiceStatusResponse(BaseModel):
     invoice_id: str
     status: str
-    credits: int
     credited: bool
 
 
@@ -283,7 +270,7 @@ async def get_plans() -> list[PlanDetail]:
     Returns:
         list[PlanDetail]: Список тарифов.
     """
-    from src.constants.tariffs import PLAN_DISPLAY_NAMES, PLAN_EMOJIS, TARIFF_CREDIT_COST
+    from src.constants.tariffs import PLAN_DISPLAY_NAMES, PLAN_EMOJIS
 
     # Тарифы из констант
     plans_data = {
@@ -326,7 +313,7 @@ async def get_plans() -> list[PlanDetail]:
     for plan_id, plan_info in plans_data.items():
         display_name = PLAN_DISPLAY_NAMES.get(plan_id, plan_id)
         emoji = PLAN_EMOJIS.get(plan_id, "")
-        cost = TARIFF_CREDIT_COST.get(plan_id, 0)
+        cost = PLAN_COSTS.get(plan_id, 0)
 
         plans.append(
             PlanDetail(
@@ -356,25 +343,12 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     if current_user.plan_expires_at:
         expires_str = current_user.plan_expires_at.isoformat()
 
-    # v4.2: ЮKassa only — USDT конвертация удалена
-    # Добавляем total_credits к каждому пакету
-    packages_with_price: list[dict[str, Any]] = []
-    for pkg in CREDIT_PACKAGES:
-        total = int(str(pkg["credits"])) + int(str(pkg["bonus"]))
-        packages_with_price.append(
-            {
-                **pkg,
-                "total_credits": total,
-            }
-        )
-
     return BalanceResponse(
-        credits=current_user.credits,
+        balance_rub=current_user.balance_rub,
         plan=plan_str,
         plan_expires_at=expires_str,
         ai_generations_used=current_user.ai_uses_count,
         ai_included=ai_included,
-        packages=packages_with_price,
         plan_costs=PLAN_COSTS,
     )
 
@@ -480,27 +454,27 @@ async def buy_credits(
     body: TopupRequest,
     current_user: CurrentUser,
 ) -> dict:
-    """Конвертировать рубли баланса в кредиты (1 ₽ = 1 кредит)."""
+    """Оплатить тариф с рублёвого баланса (кредиты удалены, единая валюта ₽)."""
     from src.core.services.billing_service import BillingService, InsufficientFundsError
 
     amount = Decimal(str(body.desired_amount))
     if current_user.balance_rub < amount:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Недостаточно рублей на балансе: {current_user.balance_rub} < {amount}",
+            detail=f"Недостаточно средств на балансе: {current_user.balance_rub} < {amount}",
         )
 
     try:
         billing_service = BillingService()
-        credits_added, _, _ = await billing_service.buy_credits_for_plan(current_user.id, amount)
+        amount_paid, _, _ = await billing_service.buy_credits_for_plan(current_user.id, amount)
     except InsufficientFundsError as e:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Недостаточно рублей на балансе",
+            detail="Недостаточно средств на балансе",
         ) from e
 
-    logger.info(f"User #{current_user.id} converted {amount} RUB → {credits_added} credits")
-    return {"credits_added": credits_added, "amount_rub": body.desired_amount}
+    logger.info(f"User #{current_user.id} paid {amount} ₽ for plan")
+    return {"amount_rub": body.desired_amount}
 
 
 @router.post("/plan", responses={400: {"description": "Bad request"}})
@@ -509,7 +483,7 @@ async def change_plan(
     current_user: CurrentUser,
 ) -> PlanResponse:
     """
-    Сменить тариф. Списывает кредиты за новый тариф.
+    Сменить тариф. Списывает ₽ с баланса за новый тариф.
     Нельзя перейти на тот же тариф.
     """
     plan_str = body.plan.lower()
@@ -529,17 +503,17 @@ async def change_plan(
     cost = PLAN_COSTS[plan_str]
 
     # Проверяем баланс
-    if cost > 0 and current_user.credits < cost:
+    if cost > 0 and current_user.balance_rub < Decimal(str(cost)):
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient credits. Need {cost}, have {current_user.credits}",
+            detail=f"Insufficient balance. Need {cost} ₽, have {current_user.balance_rub} ₽",
         )
 
     # Применяем тариф
     async with async_session_factory() as session:
         repo = UserRepository(session)
         if cost > 0:
-            await repo.update_credits(current_user.id, -cost)
+            await repo.update_balance_rub(current_user.id, -Decimal(str(cost)))
 
         expires_at = datetime.now(UTC) + timedelta(days=30) if plan_str != "free" else None
 
@@ -561,7 +535,7 @@ async def change_plan(
                 detail="Конфликт данных: запись уже существует или нарушено ограничение",
             ) from e
 
-    remaining = current_user.credits - cost
+    remaining = current_user.balance_rub - Decimal(str(cost))
 
     plan_labels = {
         "free": "FREE",
@@ -573,7 +547,7 @@ async def change_plan(
     return PlanResponse(
         success=True,
         plan=plan_str,
-        credits_remaining=remaining,
+        balance_rub_remaining=remaining,
         message=f"Тариф {plan_labels.get(plan_str, plan_str)} активирован на 30 дней",
     )
 

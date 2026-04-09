@@ -67,7 +67,7 @@ export default function Referral() {
             <p className="text-xs text-text-tertiary mt-1">Активных</p>
           </div>
           <div>
-            <p className="text-xl font-bold text-warning">{stats.total_earned_credits} кр.</p>
+            <p className="text-xl font-bold text-warning">{Number(stats.total_earned_rub).toFixed(0)} ₽</p>
             <p className="text-xs text-text-tertiary mt-1">Заработано</p>
           </div>
         </div>

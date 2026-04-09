@@ -20,32 +20,16 @@ const FOOTER_LINKS = {
   ],
 } as const
 
-function FooterLink({
-  href,
-  label,
-  isInternal = false,
-}: {
-  href: string
-  label: string
-  isInternal?: boolean
-}) {
-  const cls = 'text-sm transition-colors hover:text-white focus-visible:text-white'
-  const style = { fontFamily: 'var(--font-ui)', color: 'rgba(255,255,255,0.7)' }
-
+function FooterLink({ href, label, isInternal = false }: { href: string; label: string; isInternal?: boolean }) {
+  const cls = 'text-sm text-white/70 hover:text-white transition-colors'
   if (isInternal) {
-    return (
-      <Link to={href} className={cls} style={style}>
-        {label}
-      </Link>
-    )
+    return <Link to={href} className={cls}>{label}</Link>
   }
-
   const isAnchor = href.startsWith('#')
   return (
     <a
       href={href}
       className={cls}
-      style={style}
       {...(!isAnchor && { target: '_blank', rel: 'noopener noreferrer' })}
     >
       {label}
@@ -57,30 +41,17 @@ export default function Footer() {
   const year = new Date().getFullYear()
 
   return (
-    <footer
-      style={{ background: 'var(--color-bg-dark)', fontFamily: 'var(--font-ui)' }}
-      aria-label="Подвал сайта"
-    >
+    <footer className="bg-gray-900 dark:bg-zinc-950 text-white" aria-label="Подвал сайта">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
 
-          {/* Brand column */}
+          {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link
-              to="/"
-              className="inline-flex items-baseline gap-0.5 mb-4"
-              aria-label="RekHarbor — на главную"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              <span className="text-xl font-semibold" style={{ color: 'var(--color-brand-blue-light)' }}>
-                Rek
-              </span>
-              <span className="text-xl font-semibold text-white">Harbor</span>
+            <Link to="/" className="inline-flex items-baseline gap-0.5 mb-4" aria-label="RekHarbor">
+              <span className="text-xl font-semibold text-blue-400" style={{ fontFamily: 'var(--font-display)' }}>Rek</span>
+              <span className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>Harbor</span>
             </Link>
-            <p
-              className="text-sm leading-relaxed max-w-xs"
-              style={{ color: 'rgba(255,255,255,0.55)' }}
-            >
+            <p className="text-sm leading-relaxed text-white/55 max-w-xs">
               Рекламная биржа для Telegram-каналов с защитой эскроу, авторегистрацией в ОРД
               и автоматическими выплатами.
             </p>
@@ -88,29 +59,17 @@ export default function Footer() {
 
           {/* Product */}
           <div>
-            <h3
-              className="text-xs font-semibold uppercase tracking-wider mb-4"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-            >
-              Продукт
-            </h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-4">Продукт</h3>
             <ul className="flex flex-col gap-2.5">
               {FOOTER_LINKS.product.map(link => (
-                <li key={link.label}>
-                  <FooterLink {...link} />
-                </li>
+                <li key={link.label}><FooterLink {...link} /></li>
               ))}
             </ul>
           </div>
 
           {/* Company */}
           <div>
-            <h3
-              className="text-xs font-semibold uppercase tracking-wider mb-4"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-            >
-              Компания
-            </h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-4">Компания</h3>
             <ul className="flex flex-col gap-2.5">
               {FOOTER_LINKS.company.map(link => (
                 <li key={link.label}>
@@ -122,37 +81,22 @@ export default function Footer() {
 
           {/* Contacts */}
           <div>
-            <h3
-              className="text-xs font-semibold uppercase tracking-wider mb-4"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-            >
-              Контакты
-            </h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-4">Контакты</h3>
             <ul className="flex flex-col gap-2.5">
               {FOOTER_LINKS.contacts.map(link => (
-                <li key={link.label}>
-                  <FooterLink {...link} />
-                </li>
+                <li key={link.label}><FooterLink {...link} /></li>
               ))}
             </ul>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-
-        {/* Bottom row: legal */}
-        <div className="pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+        <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <p className="text-xs text-white/35">
             © {year} ООО «АЛГОРИТМИК АРТС». Все права защищены.
           </p>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          <p className="text-xs text-white/35">
             Товарный знак RekHarbor (РекХарбор).{' '}
-            <Link
-              to="/privacy"
-              className="underline underline-offset-2 hover:text-white transition-colors"
-              style={{ color: 'rgba(255,255,255,0.45)' }}
-            >
+            <Link to="/privacy" className="underline underline-offset-2 hover:text-white transition-colors">
               Политика конфиденциальности
             </Link>
           </p>

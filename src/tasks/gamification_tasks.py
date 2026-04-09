@@ -236,14 +236,15 @@ async def _award_return_bonus(user_id: int) -> None:
         user_id: ID пользователя.
     """
     async with async_session_factory() as session:
+        from decimal import Decimal
+
         from src.db.models.transaction import TransactionType
         from src.db.repositories.user_repo import UserRepository
 
         user_repo = UserRepository(session)
-        await user_repo.update_credits(user_id, 50)  # +50 кредитов
+        await user_repo.update_balance_rub(user_id, Decimal("50"))  # +50 ₽ бонус
 
         # Создаём транзакцию
-        from decimal import Decimal
 
         from src.db.repositories.transaction_repo import TransactionRepository
 

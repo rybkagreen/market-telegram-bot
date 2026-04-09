@@ -68,19 +68,19 @@ export default function Plans() {
   const { data: planDetails = [] } = usePlans()
   const currentPlan = user?.plan ?? 'free'
   const currentInfo = PLAN_INFO[currentPlan]
-  const credits = user?.credits ?? 0
+  const balanceRub = Number(user?.balance_rub ?? 0)
   const planCostMap = Object.fromEntries(planDetails.map((p) => [p.key, p.price]))
 
   return (
     <ScreenShell>
       <Notification type="info">
-        Текущий тариф: {currentInfo.displayName} · Кредиты: {credits} 🎟
+        Текущий тариф: {currentInfo.displayName} · Баланс: {balanceRub} ₽
       </Notification>
-      {credits < 299 && (
+      {balanceRub < 500 && (
         <Notification type="warning">
-          Для смены тарифа нужны кредиты.{' '}
+          Для смены тарифа нужен баланс.{' '}
           <span className={styles.convertLink} role="button" tabIndex={0} onClick={() => navigate('/cabinet')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/cabinet') }}>
-            Конвертируйте ₽ → кредиты в кабинете
+            Пополните баланс в кабинете
           </span>
         </Notification>
       )}
@@ -107,7 +107,7 @@ export default function Plans() {
                   <span className={styles.priceValue}>
                     {planCostMap[key] ?? (info.price > 0 ? info.price : 0)}
                   </span>
-                  <span className={styles.priceSuffix}> кр/мес</span>
+                  <span className={styles.priceSuffix}> ₽/мес</span>
                 </span>
               </div>
 

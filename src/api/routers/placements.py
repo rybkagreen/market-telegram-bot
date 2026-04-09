@@ -554,10 +554,10 @@ async def pay_placement(
         raise HTTPException(status_code=410, detail="Placement has expired")
 
     # Проверка баланса (для не-тестовых кампаний)
-    if not placement.is_test and current_user.credits < (
+    if not placement.is_test and current_user.balance_rub < (
         placement.final_price or placement.proposed_price
     ):
-        raise HTTPException(status_code=400, detail="Insufficient credits")
+        raise HTTPException(status_code=400, detail="Insufficient balance")
 
     service = PlacementRequestService(
         session=session,

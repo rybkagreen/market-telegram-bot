@@ -120,7 +120,7 @@ async def login_telegram_login_widget(
             "username": user.username,
             "first_name": user.first_name,
             "plan": plan_value,
-            "credits": user.credits,
+            "balance_rub": str(user.balance_rub),
             "ai_generations_used": user.ai_uses_count,
         },
     )
