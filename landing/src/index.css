@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@source "./**/*.{ts,tsx}";
+
+/* Dark mode: class strategy */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   /* Fonts */
@@ -20,7 +24,7 @@
   --color-text-primary:   #222222;
   --color-text-dark:      #18181b;
   --color-text-secondary: #45515e;
-  --color-text-muted:     #8e8e93;
+  --color-text-muted:     #767676;
   --color-text-helper:    #5f5f5f;
 
   /* Surfaces */
@@ -60,12 +64,34 @@
 /* Google Fonts — loaded in index.html via preconnect + stylesheet link */
 /* DM Sans, Outfit, Poppins, Roboto */
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ── Dark theme overrides ── */
+.dark {
+  /* Text */
+  --color-text-primary:   #e4e4e7;
+  --color-text-dark:      #f4f4f5;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted:     #71717a;
+  --color-text-helper:    #a1a1aa;
+
+  /* Surfaces */
+  --color-bg-primary:  #0f0f11;
+  --color-bg-light:    #1a1a1f;
+  --color-bg-dark:     #09090b;
+  --color-bg-glass:    hsla(0, 0%, 8%, 0.6);
+
+  /* Borders */
+  --color-border:        #27272a;
+  --color-border-subtle: #1f1f23;
+
+  /* Semantic */
+  --color-success-bg: #0a2e12;
+
+  /* Shadows — darker, more subtle on dark bg */
+  --shadow-card:      0px 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-ambient:   0px 0px 22.576px rgba(0, 0, 0, 0.3);
+  --shadow-brand:     0px 0px 15px rgba(44, 30, 116, 0.25);
+  --shadow-brand-dir: 6.5px 2px 17.5px rgba(44, 30, 116, 0.2);
+  --shadow-elevated:  0px 12px 16px -4px rgba(0, 0, 0, 0.3);
 }
 
 html {
