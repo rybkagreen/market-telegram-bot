@@ -63,7 +63,7 @@ async def advertiser(db_session: AsyncSession) -> User:
         username="test_advertiser_rv",
         first_name="Advertiser",
         current_role="advertiser",
-        credits=1000,
+        balance_rub=Decimal("1000"),
         referral_code="rv_adv_001",
     )
     db_session.add(user)
@@ -79,7 +79,7 @@ async def owner(db_session: AsyncSession) -> User:
         username="test_owner_rv",
         first_name="Owner",
         current_role="owner",
-        credits=500,
+        balance_rub=Decimal("500"),
         referral_code="rv_own_001",
     )
     db_session.add(user)

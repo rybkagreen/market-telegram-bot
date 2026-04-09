@@ -1,35 +1,10 @@
-import { useState } from 'react'
-import { Card, Notification, Skeleton, MenuButton, Button } from '@shared/ui'
+import { Card, Notification, Skeleton, MenuButton } from '@shared/ui'
 import { formatCurrency, PLAN_INFO } from '@/lib/constants'
 import { useMe, useMyStats } from '@/hooks/queries'
-import { api } from '@shared/api/client'
 
 export default function Cabinet() {
   const { data: user, isLoading: userLoading, isError: userError } = useMe()
   const { data: stats, isLoading: statsLoading } = useMyStats()
-
-  const [convertAmount, setConvertAmount] = useState('')
-  const [showConvert, setShowConvert] = useState(false)
-  const [converting, setConverting] = useState(false)
-  const [convertError, setConvertError] = useState<string | null>(null)
-  const [convertSuccess, setConvertSuccess] = useState(false)
-
-  const handleConvert = () => {
-    const amt = parseInt(convertAmount, 10)
-    if (!amt || amt <= 0) return
-    setConverting(true)
-    setConvertError(null)
-    setConvertSuccess(false)
-    api.post('billing/convert-credits', { json: { amount_rub: amt } })
-      .json()
-      .then(() => {
-        setConvertSuccess(true)
-        setConvertAmount('')
-        setTimeout(() => setShowConvert(false), 2000)
-      })
-      .catch(() => setConvertError('Ошибка при конвертации'))
-      .finally(() => setConverting(false))
-  }
 
   if (userLoading) {
     return (
@@ -54,7 +29,7 @@ export default function Cabinet() {
 
       {/* Balances */}
       <Card title="Ваши балансы">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="text-center p-4 bg-accent-muted rounded-lg">
             <p className="text-2xl font-bold text-accent">
               {user ? formatCurrency(user.balance_rub) : '—'}
@@ -67,41 +42,6 @@ export default function Cabinet() {
             </p>
             <p className="text-sm text-text-secondary mt-1">💰 Заработок</p>
           </div>
-          <div className="text-center p-4 bg-harbor-elevated rounded-lg">
-            <p className="text-2xl font-bold text-purple-400">
-              {user ? user.credits : '—'}
-            </p>
-            <p className="text-sm text-text-secondary mt-1">🎟 Кредиты</p>
-          </div>
-        </div>
-
-        {/* Credits converter */}
-        <div className="mt-4 pt-4 border-t border-border">
-          {!showConvert ? (
-            <Button variant="ghost" size="sm" onClick={() => setShowConvert(true)}>
-              💱 Конвертировать ₽ → кредиты
-            </Button>
-          ) : (
-            <div className="flex gap-2 items-end flex-wrap">
-              <div>
-                <label className="block text-xs text-text-secondary mb-1">Сумма в ₽</label>
-                <input
-                  className="w-32 px-3 py-2 bg-harbor-elevated border border-border rounded-md text-sm text-text-primary focus:border-accent focus:outline-none"
-                  type="number"
-                  min="1"
-                  placeholder="Сумма"
-                  value={convertAmount}
-                  onChange={(e) => setConvertAmount(e.target.value)}
-                />
-              </div>
-              <Button size="sm" loading={converting} disabled={!convertAmount} onClick={handleConvert}>
-                Обменять
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setShowConvert(false)}>Отмена</Button>
-            </div>
-          )}
-          {convertError && <Notification type="danger" className="mt-2">{convertError}</Notification>}
-          {convertSuccess && <Notification type="success" className="mt-2">Кредиты зачислены</Notification>}
         </div>
       </Card>
 

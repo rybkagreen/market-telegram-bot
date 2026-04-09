@@ -1,5 +1,6 @@
 """Placement wizard handler - 6 steps."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from aiogram import F, Router
@@ -444,10 +445,16 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
 
     await session.commit()
 
+    # --- Schedule publication (Fix: stalled escrow root cause) ---
+    from datetime import timedelta as _timedelta
+
+    from src.tasks.placement_tasks import schedule_placement_publication
+
+    scheduled_at = req.final_schedule or (datetime.now(UTC) + _timedelta(minutes=5))
+    schedule_placement_publication.delay(req.id, scheduled_at.isoformat())
+    # --- end publication scheduling ---
+
     channel = await session.get(TelegramChat, req.channel_id)
-    schedule = (
-        req.final_schedule.strftime("%d.%m.%Y %H:%M") if req.final_schedule else "По договорённости"
-    )
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Отслеживать статус", callback_data=f"camp:status:{request_id}")
@@ -457,16 +464,55 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
     builder.adjust(1)
 
     channel_name = f"@{channel.username}" if channel and channel.username else "канал"
-    await callback.message.edit_text(
-        f"🔒 *Средства заморожены в эскроу!*\n\n"
-        f"✅ Заблокировано: *{price:.0f} ₽*\n"
-        f"📅 Публикация: *{schedule}*\n"
-        f"📺 Канал: {channel_name}\n\n"
-        f"💡 Бот автоматически опубликует рекламу и удалит её по расписанию.\n"
-        f"Деньги владелец получит после удаления.",
-        reply_markup=builder.as_markup(),
-        parse_mode="Markdown",
+    schedule_display = (
+        scheduled_at.strftime("%d.%m.%Y %H:%M") if scheduled_at else "По договорённости"
     )
+    await callback.message.edit_text(
+        f"✅ Оплата {price:.0f} ₽ принята\n"
+        f"🔒 Средства заморожены в эскроу\n"
+        f"📅 Публикация запланирована на {schedule_display}\n"
+        f"📺 Канал: {channel_name}\n"
+        f"🔖 ID размещения: {req.id}",
+        reply_markup=builder.as_markup(),
+    )
+
+    # --- Notify channel owner about new paid placement ---
+    if channel is not None:
+        from src.bot.main import bot as main_bot
+        from src.db.models.user import User as UserModel
+
+        owner = await session.get(UserModel, channel.owner_id)
+        if owner and owner.telegram_id and main_bot is not None:
+            fmt_display = FORMAT_NAMES.get(
+                req.publication_format.value
+                if hasattr(req.publication_format, "value")
+                else str(req.publication_format),
+                str(req.publication_format),
+            )
+            try:
+                owner_kb = InlineKeyboardBuilder()
+                owner_kb.button(text="📋 Детали заявки", callback_data=f"own:request:{req.id}")
+                owner_kb.adjust(1)
+                await main_bot.send_message(
+                    chat_id=owner.telegram_id,
+                    text=(
+                        f"📢 <b>Оплата за размещение получена</b>\n\n"
+                        f"💰 Сумма в эскроу: <b>{price:.0f} ₽</b>\n"
+                        f"📅 Публикация: {schedule_display}\n"
+                        f"📄 Формат: {fmt_display}\n"
+                        f"📺 Канал: {channel_name}\n"
+                        f"🔖 ID размещения: {req.id}\n\n"
+                        f"Средства будут зачислены на ваш баланс после удаления поста."
+                    ),
+                    reply_markup=owner_kb.as_markup(),
+                    parse_mode="HTML",
+                )
+            except Exception as _notif_exc:
+                logging.getLogger(__name__).warning(
+                    f"Failed to notify owner {owner.telegram_id} about payment: {_notif_exc}"
+                )
+    # --- end owner notification ---
+
     await callback.answer()
 
 

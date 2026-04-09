@@ -10,7 +10,6 @@ interface User {
   role: string
   balance_rub: string
   earned_rub: string
-  credits: number
   is_admin: boolean
 }
 

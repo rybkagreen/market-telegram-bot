@@ -4,7 +4,6 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
-from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -22,6 +21,7 @@ from src.core.services.placement_request_service import PlacementRequestService
 from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
 from src.db.models.telegram_chat import TelegramChat
+
 # from src.db.models.campaign import Campaign  # REMOVED in v4.2 — using PlacementRequest instead
 from src.db.models.user import User
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
@@ -335,7 +335,7 @@ def advertiser_test_data() -> dict[str, Any]:
         "username": "advertiser",
         "first_name": "Advertiser",
         "current_role": "advertiser",
-        "credits": 5000,
+        "balance_rub": 5000,
         "referral_code": "adv_ref_001",
     }
 
@@ -348,7 +348,7 @@ def owner_test_data() -> dict[str, Any]:
         "username": "owner",
         "first_name": "Owner",
         "current_role": "owner",
-        "credits": 1000,
+        "balance_rub": 1000,
         "referral_code": "own_ref_001",
     }
 

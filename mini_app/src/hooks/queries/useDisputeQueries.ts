@@ -3,10 +3,10 @@ import { getMyDisputes, getDispute, createDispute, replyToDispute } from '@/api/
 import type { Dispute, DisputeReason } from '@/lib/types'
 import { useUiStore } from '@/stores/uiStore'
 
-export const useMyDisputes = () =>
+export const useMyDisputes = (statusFilter = 'all', limit = 50, offset = 0) =>
   useQuery({
-    queryKey: ['disputes'],
-    queryFn: getMyDisputes,
+    queryKey: ['disputes', statusFilter, limit, offset],
+    queryFn: () => getMyDisputes(),
     staleTime: 60_000,
   })
 

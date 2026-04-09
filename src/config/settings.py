@@ -135,14 +135,6 @@ class Settings(BaseSettings):
     rub_per_ltc: int = Field(7_000, alias="RUB_PER_LTC")
 
     # ═══════════════════════════════════════════════════════════════
-    # КУРС ПОКУПКИ КРЕДИТОВ ДЛЯ ПОДПИСОК (1 кредит = 1 рубль)
-    # ═══════════════════════════════════════════════════════════════
-    credits_per_rub_for_plan: float = Field(
-        1.0,
-        alias="CREDITS_PER_RUB_FOR_PLAN",
-        description="Кредитов за 1 рубль при покупке для тарифа",
-    )
-
     # Payout settings (v4.2)
     min_payout_rub: float = Field(
         1000.0, alias="MIN_PAYOUT_RUB", description="Минимальная сумма выплаты в рублях"

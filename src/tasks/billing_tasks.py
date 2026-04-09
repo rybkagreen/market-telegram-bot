@@ -7,14 +7,21 @@ Celery задачи для биллинга: продление тарифов, 
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
-from src.constants.tariffs import TARIFF_CREDIT_COST
+from src.config.settings import settings
 from src.db.models.user import User, UserPlan
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+_PLAN_COSTS = {
+    "starter": settings.tariff_cost_starter,
+    "pro": settings.tariff_cost_pro,
+    "business": settings.tariff_cost_business,
+}
 
 
 @celery_app.task(name="billing:check_plan_renewals", queue="billing")
@@ -25,9 +32,9 @@ def check_plan_renewals() -> dict:
     Запускается ежедневно в 03:00 UTC через Celery Beat.
 
     Логика:
-    - Если plan_expires_at <= now() → пытаемся списать кредиты
-    - Кредитов хватает → продляем на 30 дней
-    - Кредитов не хватает → план → FREE, уведомление
+    - Если plan_expires_at <= now() → пытаемся списать balance_rub
+    - balance_rub хватает → продляем на 30 дней
+    - balance_rub не хватает → план → FREE, уведомление
     """
     return asyncio.run(_check_plan_renewals())
 
@@ -54,14 +61,14 @@ async def _check_plan_renewals() -> dict:
         users = result.scalars().all()
 
         for user in users:
-            # Конвертируем plan.value в строку для TARIFF_CREDIT_COST
+            # Конвертируем plan.value в строку для _PLAN_COSTS
             plan_key = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
-            plan_cost = TARIFF_CREDIT_COST.get(plan_key, 0)
+            plan_cost = _PLAN_COSTS.get(plan_key, 0)
 
-            if user.credits >= plan_cost:
-                # Списываем кредиты и продляем
+            if user.balance_rub >= Decimal(str(plan_cost)):
+                # Списываем рубли и продляем
                 try:
-                    await user_repo.update_credits(user.id, -plan_cost)
+                    await user_repo.update_balance_rub(user.id, -Decimal(str(plan_cost)))
                     from sqlalchemy import update as _update
 
                     await session.execute(
@@ -90,7 +97,7 @@ async def _check_plan_renewals() -> dict:
                         message = (
                             f"✅ <b>Тариф продлён</b>\n\n"
                             f"Ваш тариф <b>{plan_name}</b> успешно продлён.\n"
-                            f"Списано кредитов: <b>{plan_cost}</b>\n"
+                            f"Списано: <b>{plan_cost} ₽</b>\n"
                             f"Действует до: <b>{new_expires.strftime('%d.%m.%Y')}</b>\n\n"
                             f"Спасибо что остаётесь с нами!"
                         )
@@ -118,7 +125,7 @@ async def _check_plan_renewals() -> dict:
                 await session.commit()
                 logger.warning(
                     f"Plan expired: user={user.telegram_id}, "
-                    f"had {user.credits} credits, needed {plan_cost}"
+                    f"had {user.balance_rub} ₽, needed {plan_cost} ₽"
                 )
                 downgraded += 1
 

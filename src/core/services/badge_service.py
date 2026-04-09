@@ -7,6 +7,7 @@ PRD §9.2: значки за действия — Первый запуск, 100
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from src.db.session import async_session_factory
@@ -174,9 +175,9 @@ class BadgeService:
         )
         session.add(user_badge)
 
-        # Добавляем XP и кредиты за значок
+        # Добавляем XP и баланс за значок
         badge = await session.get(Badge, badge_id)
-        rewards = {"xp": 0, "credits": 0}
+        rewards = {"xp": 0, "balance_rub": Decimal("0")}
 
         if badge:
             # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
@@ -192,11 +193,12 @@ class BadgeService:
                     rewards["xp"] = badge.xp_reward
 
                 if badge.credits_reward > 0:
-                    user.credits += badge.credits_reward
-                    rewards["credits"] = badge.credits_reward
+                    reward_amount = Decimal(str(badge.credits_reward))
+                    user.balance_rub += reward_amount
+                    rewards["balance_rub"] = reward_amount
 
         logger.info(
-            f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Credits: {rewards['credits']})"
+            f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Balance: {rewards['balance_rub']} ₽)"
         )
         return rewards
 
