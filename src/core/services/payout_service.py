@@ -524,9 +524,7 @@ class PayoutService:
             # Cooldown check (D-12): минимальный интервал между выплатами
             last_payout = await payout_repo.get_last_completed_for_owner(user_id)
             if last_payout:
-                hours_since = (
-                    datetime.now(UTC) - last_payout.created_at
-                ).total_seconds() / 3600
+                hours_since = (datetime.now(UTC) - last_payout.created_at).total_seconds() / 3600
                 if hours_since < COOLDOWN_HOURS:
                     remaining = int(COOLDOWN_HOURS - hours_since)
                     raise ValueError(
