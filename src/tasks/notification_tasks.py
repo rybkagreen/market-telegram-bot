@@ -80,7 +80,7 @@ async def _check_low_balance_async() -> dict[str, Any]:
                     continue
 
                 # Отправляем уведомление
-                await _notify_low_balance(user.telegram_id, user.credits)
+                await _notify_low_balance(user.telegram_id, user.balance_rub)
                 stats["notified"] += 1
 
             except Exception as e:
@@ -90,13 +90,13 @@ async def _check_low_balance_async() -> dict[str, Any]:
         return stats
 
 
-async def _notify_low_balance(telegram_id: int, credits: int) -> None:
+async def _notify_low_balance(telegram_id: int, balance_rub: Decimal) -> None:
     """
     Отправить уведомление о низком балансе.
 
     Args:
         telegram_id: Telegram ID пользователя.
-        credits: Текущий баланс в кредитах.
+        balance_rub: Текущий баланс в рублях.
     """
     # Импортируем aiogram Bot
     from aiogram import Bot
@@ -108,7 +108,7 @@ async def _notify_low_balance(telegram_id: int, credits: int) -> None:
 
     message = (
         f"⚠️ <b>Низкий баланс</b>\n\n"
-        f"Ваш баланс: {credits} кр\n"
+        f"Ваш баланс: <b>{balance_rub:.2f} ₽</b>\n"
         f"Пополните баланс для продолжения использования бота.\n\n"
         f"Используйте команду /billing для пополнения."
     )
@@ -1163,9 +1163,9 @@ def notify_pending_placement_reminders() -> dict:
 # ─────────────────────────────────────────────
 
 _RENEWAL_COSTS: dict[str, int] = {
-    "starter": 299,
-    "pro": 999,
-    "business": 2999,
+    "starter": 490,
+    "pro": 1490,
+    "business": 4990,
 }
 
 
@@ -1195,8 +1195,8 @@ async def _notify_expiring_user(user: Any, bot: Any, session: Any, now: Any) -> 
     message = (
         f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
         f"Дата окончания: {expires_str}\n"
-        f"Стоимость продления: {renewal_cost} кр\n"
-        f"Текущий баланс: {user.credits} кр\n\n"
+        f"Стоимость продления: {renewal_cost} ₽\n"
+        f"Текущий баланс: {user.credits} ₽\n\n"
         f"Продлите тариф чтобы не потерять доступ к функциям.\n"
         f"Кабинет → Сменить тариф"
     )
