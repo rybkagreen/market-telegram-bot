@@ -173,6 +173,62 @@ without these steps.
 1. Update `CHANGELOG.md` → move `[Unreleased]` to `[vX.Y.Z] - <YYYY-MM-DD>`
    Sections: Added | Changed | Fixed | Removed | Breaking | Migration Notes
 
+---
+
+## Git Flow (MANDATORY)
+
+This section is enforced by hooks. Every sprint is INCOMPLETE without these steps.
+**Branches**: `feature/*` → `develop` → `main`
+
+### After EVERY batch of code changes (within a feature branch)
+
+Split staged files into **semantic groups** and commit each group separately:
+
+| Type | Scope examples | When to use |
+|------|---------------|-------------|
+| `feat` | `(backend)`, `(mini-app)`, `(landing)` | New functionality |
+| `fix` | `(tasks)`, `(billing)` | Bug fix |
+| `chore` | `(migrations)`, `(config)` | Infrastructure, no logic change |
+| `refactor` | `(services)` | Refactoring without behaviour change |
+| `test` | — | Test files only |
+| `docs` | — | CHANGELOG, discovery reports |
+
+**Rules:**
+- NEVER `git add .` in a single commit — always add files by group
+- Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`
+- `git commit -m "feat(backend): ..."` — English, imperative, under 72 chars
+
+### After EVERY sprint / feature completion
+
+Execute **in this exact order**, stopping immediately on any conflict:
+
+```bash
+# 1. Verify clean state
+git status   # must be "nothing to commit, working tree clean"
+
+# 2. Push feature branch
+git push origin $CURRENT_BRANCH
+
+# 3. Merge into develop
+git checkout develop && git pull origin develop
+git merge $CURRENT_BRANCH --no-ff -m "chore(develop): merge $CURRENT_BRANCH — <sprint summary>"
+git push origin develop
+
+# 4. Merge develop into main
+git checkout main && git pull origin main
+git merge develop --no-ff -m "chore(main): merge develop — <sprint summary>"
+git push origin main
+
+# 5. Return to feature branch
+git checkout $CURRENT_BRANCH
+```
+
+**Hard limits:**
+- `--no-ff` is REQUIRED on every merge — never fast-forward
+- On ANY merge conflict: **STOP and report** — never auto-resolve
+- Never force-push `develop` or `main`
+- Never skip `git pull` before merging
+
 ### NEVER TOUCH (extended list for Claude Code)
 # Original list from CLAUDE.md applies PLUS:
 src/core/security/field_encryption.py
