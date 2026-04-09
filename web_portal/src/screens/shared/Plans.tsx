@@ -56,7 +56,7 @@ export default function Plans() {
 
   const currentPlan = user?.plan ?? 'free'
   const currentInfo = PLAN_INFO[currentPlan]
-  const credits = user?.credits ?? 0
+  const balanceRub = Number(user?.balance_rub ?? 0)
 
   // Build price map from API data
   const planCostMap: Record<string, number> = {}
@@ -83,15 +83,15 @@ export default function Plans() {
       <div>
         <h1 className="text-2xl font-display font-bold text-text-primary">Тарифы</h1>
         <p className="text-text-secondary mt-1">
-          Текущий: {currentInfo.displayName} · Кредиты: {credits} 🎟
+          Текущий: {currentInfo.displayName} · Баланс: {balanceRub} ₽
         </p>
       </div>
 
-      {credits < 299 && (
+      {balanceRub < 500 && (
         <Notification type="warning">
-          Для смены тарифа нужны кредиты.{' '}
+          Для смены тарифа нужен баланс.{' '}
           <button className="text-accent underline" onClick={() => navigate('/cabinet')}>
-            Конвертируйте ₽ → кредиты в кабинете
+            Пополните баланс в кабинете
           </button>
         </Notification>
       )}
@@ -121,7 +121,7 @@ export default function Plans() {
               <p className="text-2xl font-bold text-text-primary mt-2">
                 {price > 0 ? formatCurrency(price) : 'Бесплатно'}
               </p>
-              {price > 0 && <p className="text-xs text-text-tertiary">кредитов/мес</p>}
+              {price > 0 && <p className="text-xs text-text-tertiary">₽/мес</p>}
 
               <ul className="space-y-2 mt-4 flex-1">
                 {features.map((f) => (

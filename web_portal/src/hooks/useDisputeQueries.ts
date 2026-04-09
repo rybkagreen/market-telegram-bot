@@ -1,11 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createDispute, getMyDisputes, getDisputeById, replyToDispute } from '@/api/disputes'
+import {
+  createDispute,
+  getDisputeById,
+  replyToDispute,
+  resolveDispute,
+} from '@/api/disputes'
+import { api } from '@shared/api/client'
 import type { DisputeDetailResponse, DisputeListResponse } from '@/lib/types'
 
-export function useMyDisputes() {
+export function useMyDisputes(statusFilter = 'all', limit = 50, offset = 0) {
   return useQuery<DisputeListResponse>({
-    queryKey: ['disputes', 'my'],
-    queryFn: getMyDisputes,
+    queryKey: ['disputes', 'my', statusFilter, limit, offset],
+    queryFn: () =>
+      api.get(`disputes?status_filter=${statusFilter}&limit=${limit}&offset=${offset}`).json<DisputeListResponse>(),
     staleTime: 30_000,
   })
 }
@@ -36,6 +43,28 @@ export function useReplyToDispute() {
       replyToDispute(id, comment),
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['disputes', id] })
+    },
+  })
+}
+
+export function useResolveDispute() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      resolution,
+      adminComment,
+      customSplitPercent,
+    }: {
+      id: number
+      resolution: string
+      adminComment?: string
+      customSplitPercent?: number
+    }) =>
+      resolveDispute(id, resolution, adminComment, customSplitPercent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['disputes'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'disputes'] })
     },
   })
 }

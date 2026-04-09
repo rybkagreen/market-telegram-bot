@@ -33,7 +33,7 @@ export default function DisputeDetail() {
         <div>
           <h1 className="text-2xl font-display font-bold text-text-primary">Спор #{dispute.id}</h1>
           <p className="text-text-secondary mt-1">
-            @{dispute.placement?.channel?.username ?? `#${dispute.placement_id}`}
+            @{dispute.placement?.channel?.username ?? `#${dispute.placement_request_id}`}
           </p>
         </div>
         <StatusBadge status={dispute.status} />
