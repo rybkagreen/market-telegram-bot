@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f0f4ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Фон -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Декоративный круг (brand accent) -->
+  <circle cx="1100" cy="80" r="200" fill="rgba(20,86,240,0.06)"/>
+
+  <!-- Логотип-бейдж -->
+  <rect x="80" y="80" width="170" height="52" rx="12" fill="#1456f0"/>
+  <text x="165" y="114" font-family="Arial, sans-serif" font-size="22" font-weight="700"
+        fill="white" text-anchor="middle">RekHarbor</text>
+
+  <!-- Заголовок -->
+  <text x="80" y="280" font-family="Arial, sans-serif" font-size="68" font-weight="700"
+        fill="#222222">Реклама в Telegram</text>
+
+  <!-- Подзаголовок -->
+  <text x="80" y="345" font-family="Arial, sans-serif" font-size="36" font-weight="400"
+        fill="#1456f0">без рисков и лишних слов</text>
+
+  <!-- Описание -->
+  <text x="80" y="430" font-family="Arial, sans-serif" font-size="26" font-weight="400"
+        fill="#45515e">Эскроу · Автоматический ОРД · Выплаты владельцам 85%</text>
+
+  <!-- Разделитель -->
+  <line x1="80" y1="490" x2="1120" y2="490" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Домен -->
+  <text x="80" y="540" font-family="Arial, sans-serif" font-size="24" fill="#8e8e93">
+    rekharbor.ru
+  </text>
+</svg>
