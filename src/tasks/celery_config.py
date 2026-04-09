@@ -173,6 +173,12 @@ BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/5"),
         "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
     },
+    # ESCROW STUCK DETECTION — detect stuck funds (D-03 monitoring, every 30 min)
+    "placement-check-escrow-stuck": {
+        "task": "placement:check_escrow_stuck",
+        "schedule": crontab(minute="*/30"),
+        "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 120},
+    },
 }
 
 # =============================================================================
