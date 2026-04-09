@@ -16,6 +16,10 @@ const RESOLUTION_PILL: Record<ResolutionAction, { variant: 'success' | 'warning'
   partial_refund:  { variant: 'warning', label: 'Частичный возврат' },
   no_refund:       { variant: 'danger',  label: 'Без возврата' },
   warning:         { variant: 'neutral', label: 'Предупреждение' },
+  owner_fault:     { variant: 'danger',  label: 'Вина владельца' },
+  advertiser_fault:{ variant: 'success', label: 'Жалоба необоснована' },
+  technical:       { variant: 'warning', label: 'Техническая ошибка' },
+  partial:         { variant: 'warning', label: 'Частичный возврат' },
 }
 
 export default function DisputeResponse() {
@@ -122,7 +126,7 @@ export default function DisputeResponse() {
         </>
       )}
 
-      {dispute.status === 'owner_reply' && dispute.owner_comment && (
+      {dispute.status === 'owner_explained' && dispute.owner_comment && (
         <>
           <p className={styles.sectionTitle}>Ваш ответ</p>
           <Card>

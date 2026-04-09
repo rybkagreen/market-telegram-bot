@@ -88,8 +88,8 @@ export default function AdminUserDetail() {
                   <span className={styles.statValue}>{user.earned_rub} ₽</span>
                 </div>
                 <div className={styles.statItem}>
-                  <span className={styles.statLabel}>Кредиты</span>
-                  <span className={styles.statValue}>{user.credits}</span>
+                  <span className={styles.statLabel}>Баланс ₽</span>
+                  <span className={styles.statValue}>{user.balance_rub}</span>
                 </div>
                 <div className={styles.statItem}>
                   <span className={styles.statLabel}>Размещений</span>
