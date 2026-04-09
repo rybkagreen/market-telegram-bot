@@ -10,11 +10,11 @@ import { usePlacement, useCreateDispute } from '@/hooks/queries'
 import styles from './OpenDispute.module.css'
 
 const DISPUTE_REASONS: { key: DisputeReason; icon: string }[] = [
-  { key: 'not_published', icon: '📭' },
-  { key: 'wrong_time',    icon: '⏰' },
-  { key: 'wrong_text',    icon: '✏️' },
+  { key: 'not_published',  icon: '📭' },
+  { key: 'wrong_time',     icon: '⏰' },
+  { key: 'wrong_text',     icon: '✏️' },
   { key: 'early_deletion', icon: '🗑' },
-  { key: 'other',         icon: '💬' },
+  { key: 'other',          icon: '💬' },
 ]
 
 const DISPUTE_WINDOW_MS = 48 * 60 * 60 * 1000

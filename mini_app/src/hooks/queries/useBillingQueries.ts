@@ -43,14 +43,14 @@ export const useBuyCredits = () => {
     mutationFn: (amountRub: number) => buyCredits(amountRub),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['user', 'me'] })
-      addToast('success', `Зачислено ${data.credits_added} кредитов`)
+      addToast('success', `Оплачено ${data.amount_rub} ₽`)
     },
     onError: (err: unknown) => {
       const httpStatus = (err as { response?: { status?: number } })?.response?.status
       if (httpStatus === 402) {
-        addToast('error', 'Недостаточно рублей на балансе')
+        addToast('error', 'Недостаточно средств на балансе')
       } else {
-        addToast('error', 'Ошибка при покупке кредитов')
+        addToast('error', 'Ошибка при оплате тарифа')
       }
     },
   })
@@ -69,7 +69,7 @@ export const usePurchasePlan = () => {
     onError: (err: unknown) => {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 402) {
-        addToast('error', 'Недостаточно кредитов. Пополните баланс.')
+        addToast('error', 'Недостаточно средств. Пополните баланс.')
       } else if (status === 409) {
         addToast('error', 'Вы уже на этом тарифе')
       } else {
