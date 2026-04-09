@@ -13,9 +13,11 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import redis as redis_sync
+from redis import Redis as RedisSync
+from redis.asyncio import Redis
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
@@ -26,11 +28,14 @@ from src.db.repositories.placement_request_repo import PlacementRequestRepositor
 from src.db.repositories.reputation_repo import ReputationRepo
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
+from src.tasks.celery_config import QUEUE_WORKER_CRITICAL
 
 logger = logging.getLogger(__name__)
 
-# Sync Redis для дедупликации задач
-redis_sync_client = redis_sync.from_url(settings.celery_broker_url, decode_responses=True)
+# Async Redis для дедупликации задач (D-10 fix)
+redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
+# Sync Redis only for Celery task dedup (runs in sync context)
+redis_sync_client = RedisSync.from_url(settings.celery_broker_url, decode_responses=True)
 
 # =============================================================================
 # SLA КОНСТАНТЫ
@@ -1063,6 +1068,82 @@ async def _check_scheduled_deletions_async() -> dict[str, Any]:
 
             except Exception as e:
                 logger.error(f"Failed to schedule deletion for placement {placement.id}: {e}")
+                stats["errors"] += 1
+
+    return stats
+
+
+# =============================================================================
+# T8: ESCROW STUCK DETECTION (D-03 monitoring)
+# =============================================================================
+
+
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_escrow_stuck", queue=QUEUE_WORKER_CRITICAL
+)
+def check_escrow_stuck(self) -> dict[str, Any]:
+    """
+    Detect placements in ESCROW status where scheduled_delete_at passed >48h ago.
+    These are 'stuck' — the delete task may have failed silently.
+    Alerts admin for manual intervention.
+    """
+    logger.info("Checking for stuck escrow placements")
+
+    try:
+        stats = asyncio.run(_check_escrow_stuck_async())
+        logger.info(f"Escrow stuck check completed: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error checking escrow stuck: {e}")
+        return {"error": str(e)}
+
+
+async def _check_escrow_stuck_async() -> dict[str, Any]:
+    """Async implementation of escrow stuck detection."""
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from src.db.models.placement_request import PlacementRequest, PlacementStatus
+
+    stats: dict[str, Any] = {"total_checked": 0, "stuck": 0, "alerted": 0, "errors": 0}
+
+    threshold = datetime.now(UTC) - timedelta(hours=48)
+
+    async with async_session_factory() as session:
+        stmt = (
+            select(PlacementRequest)
+            .where(
+                PlacementRequest.status == PlacementStatus.escrow,
+                PlacementRequest.scheduled_delete_at.isnot(None),
+                PlacementRequest.scheduled_delete_at < threshold,
+            )
+            .options(selectinload(PlacementRequest.channel))
+        )
+        result = await session.execute(stmt)
+        stuck_placements = list(result.scalars().all())
+
+        stats["total_checked"] = len(stuck_placements)
+
+        for placement in stuck_placements:
+            try:
+                stats["stuck"] += 1
+                logger.critical(
+                    f"STUCK ESCROW: placement #{placement.id}, "
+                    f"scheduled_delete_at={placement.scheduled_delete_at}, "
+                    f"channel={placement.channel.username if placement.channel else 'unknown'}"
+                )
+
+                # Mark in meta
+                if placement.meta_json is None:
+                    placement.meta_json = {}
+                placement.meta_json["escrow_stuck_detected"] = datetime.now(UTC).isoformat()
+
+                stats["alerted"] += 1
+
+            except Exception as e:
+                logger.error(f"Failed to process stuck escrow #{placement.id}: {e}")
                 stats["errors"] += 1
 
     return stats
