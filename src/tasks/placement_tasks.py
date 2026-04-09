@@ -5,6 +5,7 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 - check_owner_response_sla: Проверка истечения SLA ответа владельца (24ч)
 - check_payment_sla: Проверка истечения SLA оплаты (24ч)
 - check_counter_offer_sla: Проверка истечения SLA контр-предложения (24ч)
+- check_escrow_sla: Проверка зависших размещений в эскроу
 - publish_placement: Публикация поста в запланированное время
 - retry_failed_publication: Повторная попытка публикации через 1ч
 - schedule_placement_publication: Планирование публикации (хелпер)
@@ -15,10 +16,11 @@ import logging
 from typing import Any
 
 import redis as redis_sync
+from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
 from src.core.services.reputation_service import ReputationService
-from src.db.models.placement_request import PlacementStatus
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.user import User
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
@@ -756,6 +758,131 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
 
 
 # =============================================================================
+# T5b: CHECK ESCROW SLA — stalled placements that should have been published
+# =============================================================================
+
+
+@celery_app.task(bind=True, base=BaseTask, name="placement:check_escrow_sla")
+def check_escrow_sla(self) -> dict[str, Any]:
+    """
+    Find placements in escrow where scheduled time has passed but no message sent.
+    If final_schedule (or scheduled_for) has passed and message_id is None → mark as
+    failed + refund advertiser.
+
+    Запускается Beat каждые 5 минут.
+
+    Returns:
+        Статистика обработанных заявок.
+    """
+    logger.info("Checking escrow SLA for stalled placements")
+
+    try:
+        stats = asyncio.run(_check_escrow_sla_async())
+        logger.info(f"Escrow SLA check completed: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error checking escrow SLA: {e}")
+        return {"error": str(e)}
+
+
+async def _check_escrow_sla_async() -> dict[str, Any]:
+    """Асинхронная реализация проверки escrow SLA."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from src.db.models.transaction import Transaction, TransactionType
+    from src.db.models.user import User
+
+    stats: dict[str, Any] = {
+        "total_checked": 0,
+        "stalled": 0,
+        "refunded": 0,
+        "errors": 0,
+    }
+
+    async with async_session_factory() as session:
+        now = datetime.now(UTC)
+        # Find escrow placements where scheduled time has passed but no message sent
+        stmt = (
+            select(PlacementRequest)
+            .where(
+                PlacementRequest.status == PlacementStatus.escrow,
+                PlacementRequest.message_id.is_(None),
+                PlacementRequest.final_schedule.isnot(None),
+                PlacementRequest.final_schedule <= now,
+            )
+            .options(selectinload(PlacementRequest.channel))
+        )
+        result = await session.execute(stmt)
+        stalled_placements = list(result.scalars().all())
+
+        stats["total_checked"] = len(stalled_placements)
+
+        for placement in stalled_placements:
+            try:
+                # Дедупликация
+                if _check_dedup("check_escrow_sla", placement.id):
+                    logger.info(f"Placement {placement.id} already being processed, skipping")
+                    continue
+
+                # Mark as failed
+                placement.status = PlacementStatus.failed
+                if placement.meta_json is None:
+                    placement.meta_json = {}
+                placement.meta_json["sla_error"] = (
+                    "Publication SLA violated: scheduled time passed without publication"
+                )
+
+                # Refund advertiser
+                final_price = placement.final_price or placement.proposed_price
+
+                advertiser = await session.get(User, placement.advertiser_id)
+                if advertiser:
+                    advertiser.balance_rub += final_price
+                    await session.flush()
+                    await session.refresh(advertiser)
+
+                    # Log refund transaction
+                    txn = Transaction(
+                        user_id=placement.advertiser_id,
+                        type=TransactionType.refund,
+                        amount=final_price,
+                        description=f"Refund for placement #{placement.id} — SLA violation",
+                        placement_request_id=placement.id,
+                    )
+                    session.add(txn)
+
+                stats["stalled"] += 1
+                stats["refunded"] += 1
+
+                # Notify both parties
+                await _notify_user(
+                    placement.advertiser_id,
+                    f"❌ Ошибка публикации размещения #{placement.id}.\n"
+                    f"Средства {final_price:.0f} ₽ возвращены на баланс.",
+                )
+
+                channel = placement.channel
+                if channel:
+                    owner = await session.get(User, channel.owner_id)
+                    if owner:
+                        await _notify_user(
+                            channel.owner_id,
+                            f"⚠️ Размещение #{placement.id} не было опубликовано в срок и отменено.",
+                        )
+
+            except Exception as e:
+                logger.error(f"Error processing stalled placement {placement.id}: {e}")
+                stats["errors"] += 1
+
+        await session.commit()
+
+    return stats
+
+
+# =============================================================================
 # T6: SCHEDULE PLACEMENT PUBLICATION
 # =============================================================================
 
@@ -764,26 +891,30 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
 def schedule_placement_publication(
     self,
     placement_id: int,
-    scheduled_at: str,
+    scheduled_iso: str | None = None,
 ) -> dict[str, Any]:
     """
     Хелпер: планирует публикацию на нужное время.
 
-    Вызывается из PlacementRequestService при переходе в escrow.
+    Вызывается из PlacementRequestService / camp_pay_balance при переходе в escrow.
 
     Args:
         placement_id: ID заявки.
-        scheduled_at: ISO формат datetime (UTC).
+        scheduled_iso: ISO формат datetime (UTC). Если None — публикуем через 5 минут.
 
     Returns:
         Результат планирования.
     """
-    logger.info(f"Scheduling placement {placement_id} for {scheduled_at}")
+    logger.info(f"Scheduling placement {placement_id} for {scheduled_iso}")
 
     try:
-        from datetime import datetime
+        from datetime import UTC, datetime, timedelta
 
-        eta = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+        if scheduled_iso:
+            eta = datetime.fromisoformat(scheduled_iso.replace("Z", "+00:00"))
+        else:
+            # Default: publish in 5 minutes if no schedule provided
+            eta = datetime.now(UTC) + timedelta(minutes=5)
 
         # Планируем задачу
         publish_placement.apply_async(
@@ -795,10 +926,143 @@ def schedule_placement_publication(
         return {
             "success": True,
             "placement_id": placement_id,
-            "scheduled_at": scheduled_at,
+            "scheduled_at": eta.isoformat(),
             "task_id": f"publish:{placement_id}",
         }
 
     except Exception as e:
         logger.error(f"Error scheduling placement {placement_id}: {e}")
         return {"error": str(e)}
+
+
+# =============================================================================
+# T7: DELETE PUBLISHED POST (consolidated from publication_tasks.py)
+# =============================================================================
+
+
+@celery_app.task(bind=True, base=BaseTask, name="placement:delete_published_post")
+def delete_published_post(self, placement_id: int) -> dict[str, Any]:
+    """
+    Удалить опубликованный пост.
+
+    Args:
+        placement_id: ID заявки.
+
+    Returns:
+        Результат удаления.
+    """
+    logger.info(f"Deleting placement post {placement_id}")
+
+    try:
+        result = asyncio.run(_delete_published_post_async(placement_id))
+        logger.info(f"Placement {placement_id} deletion: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error deleting placement {placement_id}: {e}")
+        return {"error": str(e)}
+
+
+async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
+    """Асинхронная реализация удаления опубликованного поста."""
+    from aiogram import Bot
+
+    from src.core.services.publication_service import PublicationService
+
+    result: dict[str, Any] = {"success": False, "message": ""}
+
+    async with async_session_factory() as session:
+        bot = Bot(token=settings.bot_token)
+        pub_service = PublicationService()
+
+        try:
+            await pub_service.delete_published_post(
+                bot=bot, session=session, placement_id=placement_id
+            )
+            await session.commit()
+            result["success"] = True
+            result["message"] = "Success"
+
+        except Exception as e:
+            logger.error(f"Error deleting placement {placement_id}: {e}")
+            await session.rollback()
+            result["message"] = str(e)
+
+        finally:
+            await bot.session.close()
+
+    return result
+
+
+# =============================================================================
+# T8: CHECK SCHEDULED DELETIONS (Beat task — replaces publication:check_scheduled_deletions)
+# =============================================================================
+
+
+@celery_app.task(bind=True, base=BaseTask, name="placement:check_scheduled_deletions")
+def check_scheduled_deletions(self) -> dict[str, Any]:
+    """
+    Периодическая задача — найти посты с истёкшим scheduled_delete_at.
+
+    Запускается каждые 5 минут через Celery Beat.
+
+    Returns:
+        Статистика удалений.
+    """
+    logger.info("Checking scheduled deletions")
+
+    try:
+        stats = asyncio.run(_check_scheduled_deletions_async())
+        logger.info(f"Scheduled deletions check completed: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error checking scheduled deletions: {e}")
+        return {"error": str(e)}
+
+
+async def _check_scheduled_deletions_async() -> dict[str, Any]:
+    """Асинхронная реализация проверки запланированных удалений."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from src.db.models.placement_request import PlacementStatus
+
+    stats: dict[str, Any] = {
+        "total_found": 0,
+        "scheduled": 0,
+        "errors": 0,
+    }
+
+    async with async_session_factory() as session:
+        now = datetime.now(UTC)
+        result = await session.execute(
+            select(PlacementRequest).where(
+                PlacementRequest.status == PlacementStatus.published,
+                PlacementRequest.scheduled_delete_at <= now,
+                PlacementRequest.scheduled_delete_at.isnot(None),
+            )
+        )
+        placements = list(result.scalars().all())
+
+        stats["total_found"] = len(placements)
+
+        for placement in placements:
+            try:
+                if _check_dedup("check_scheduled_deletions", placement.id):
+                    logger.info(f"Placement {placement.id} deletion already scheduled, skipping")
+                    continue
+
+                # Schedule deletion task
+                delete_published_post.apply_async(
+                    args=[placement.id],
+                    countdown=60,  # 1 minute buffer
+                )
+                stats["scheduled"] += 1
+
+            except Exception as e:
+                logger.error(f"Failed to schedule deletion for placement {placement.id}: {e}")
+                stats["errors"] += 1
+
+    return stats
