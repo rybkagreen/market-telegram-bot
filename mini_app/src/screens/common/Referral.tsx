@@ -103,10 +103,10 @@ export default function Referral() {
           items={[
             { value: data.total_referrals.toString(), label: 'Приглашено', color: 'blue' },
             { value: data.active_referrals.toString(), label: 'Активных', color: 'green' },
-            { 
-              value: `${data.total_earned_credits} кр.`, 
-              label: 'Заработано', 
-              color: 'yellow' 
+            {
+              value: `${Number(data.total_earned_rub).toFixed(0)} ₽`,
+              label: 'Заработано',
+              color: 'yellow'
             },
           ]}
         />

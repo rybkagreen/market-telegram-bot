@@ -111,19 +111,20 @@ class BillingService:
         amount_rub: Decimal,
     ) -> tuple[int, Transaction, Transaction]:
         """
-        Купить кредиты для тарифа с рублёвого баланса.
+        Оплатить тариф с рублёвого баланса.
+
+        Кредиты удалены — используется единая валюта balance_rub.
 
         Args:
             user_id: ID пользователя.
-            amount_rub: Сумма в рублях (списывается с balance_rub).
+            amount_rub: Сумма в рублях.
 
         Returns:
-            Кортеж (credits_purchased, spend_transaction, topup_transaction).
+            Кортеж (amount_int, transaction, transaction) — дубли для обратной совместимости.
 
         Raises:
             InsufficientFundsError: Если недостаточно balance_rub.
         """
-        from src.config.settings import settings
         from src.db.models.transaction import Transaction
 
         async with async_session_factory() as session:
@@ -139,58 +140,34 @@ class BillingService:
                     f"Insufficient balance_rub: {user.balance_rub} < {amount_rub}"
                 )
 
-            # Конвертация: 1 кредит = 1 рубль (v4.2)
-            credits_to_add = int(amount_rub * Decimal(str(settings.credits_per_rub_for_plan)))
-
             # Списываем рубли
             balance_rub_before = user.balance_rub
             user.balance_rub -= amount_rub
 
-            spend_transaction = Transaction(
+            transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.credits_buy,
+                type=TransactionType.spend,
                 yookassa_payment_id=None,
-                description=f"Покупка {credits_to_add} кр для тарифа",
+                description=f"Оплата тарифа: {amount_rub} ₽",
                 meta_json={
-                    "type": "buy_credits",
+                    "type": "plan_payment",
                     "currency": "rub",
                 },
                 balance_before=balance_rub_before,
                 balance_after=user.balance_rub,
                 created_at=datetime.now(UTC),
             )
-            session.add(spend_transaction)
-
-            # Зачисляем кредиты
-            credits_before = user.credits
-            user.credits += credits_to_add
-
-            topup_transaction = Transaction(
-                user_id=user_id,
-                amount=Decimal(str(credits_to_add)),
-                type=TransactionType.credits_buy,
-                yookassa_payment_id=None,
-                description=f"Начислено {credits_to_add} кр за {amount_rub} ₽",
-                meta_json={
-                    "type": "credits_purchase",
-                    "currency": "credits",
-                },
-                balance_before=Decimal(str(credits_before)),
-                balance_after=Decimal(str(user.credits)),
-                created_at=datetime.now(UTC),
-            )
-            session.add(topup_transaction)
+            session.add(transaction)
 
             await session.commit()
-            await session.refresh(spend_transaction)
-            await session.refresh(topup_transaction)
+            await session.refresh(transaction)
 
             logger.info(
-                f"Credits purchased: {credits_to_add} кр for {amount_rub} ₽ by user {user_id}"
+                f"Plan payment: {amount_rub} ₽ by user {user_id}"
             )
 
-            return credits_to_add, spend_transaction, topup_transaction
+            return int(amount_rub), transaction, transaction
 
     async def create_payment(
         self,
@@ -316,24 +293,24 @@ class BillingService:
             # Если paid, то зачисляем кредиты на баланс
             credited = meta.get("credited") if meta else None
             if status == "succeeded" and credited is not True:
-                # Зачисляем кредиты на баланс (1 рубль = 1 кредит)
+                # Зачисляем рубли на баланс
                 user_repo = UserRepository(session)
-                credits_amount = int(transaction.amount)
-                await user_repo.update_credits(user_id, credits_amount)
+                amount_rub = transaction.amount
+                await user_repo.update_balance_rub(user_id, amount_rub)
 
                 # Обновляем транзакцию
                 meta["credited"] = True
-                meta["credits_credited"] = credits_amount
+                meta["rub_credited"] = float(amount_rub)
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
                 logger.info(
-                    f"Payment {payment_id} credited: {credits_amount} credits to user {user_id}"
+                    f"Payment {payment_id} credited: {amount_rub} ₽ to user {user_id}"
                 )
 
                 # Уведомляем пользователя
                 await notification_service.notify_low_balance(
                     user_id=user_id,
-                    balance=Decimal(credits_amount),
+                    balance=amount_rub,
                 )
 
             return {
@@ -343,18 +320,18 @@ class BillingService:
                 "credited": meta.get("credited", False),
             }
 
-    async def deduct_credits(
+    async def deduct_balance_rub(
         self,
         user_id: int,
-        credits: int,
+        amount_rub: Decimal,
         description: str = "",
     ) -> bool:
         """
-        Списать кредиты с баланса.
+        Списать рубли с баланса.
 
         Args:
             user_id: ID пользователя.
-            credits: Количество кредитов для списания.
+            amount_rub: Сумма для списания.
             description: Описание списания.
 
         Returns:
@@ -368,27 +345,27 @@ class BillingService:
             if not user:
                 return False
 
-            if user.credits < credits:
+            if user.balance_rub < amount_rub:
                 logger.warning(
-                    f"User {user_id} has insufficient credits: {user.credits} < {credits}"
+                    f"User {user_id} has insufficient balance: {user.balance_rub} < {amount_rub}"
                 )
                 return False
 
-            # Списываем кредиты
-            await user_repo.update_credits(user_id, -credits)
+            # Списываем рубли
+            await user_repo.update_balance_rub(user_id, -amount_rub)
 
-            # Создаём транзакцию (для истории, в рублях)
+            # Создаём транзакцию
             transaction_repo = TransactionRepository(session)
             await transaction_repo.create(
                 {
                     "user_id": user_id,
-                    "amount": Decimal(credits),  # 1 кредит = 1 рублю
+                    "amount": amount_rub,
                     "type": TransactionType.spend,
-                    "meta_json": {"description": description, "credits_spent": credits},
+                    "meta_json": {"description": description},
                 }
             )
 
-            logger.info(f"Spend {credits} credits from user {user_id}: {description}")
+            logger.info(f"Spent {amount_rub} ₽ from user {user_id}: {description}")
 
             return True
 
@@ -459,9 +436,9 @@ class BillingService:
 
         Логика:
         1. Получить цену тарифа из settings (tariff_cost_*)
-        2. Проверить user.credits >= plan_price
+        2. Проверить user.balance_rub >= plan_price
         3. Атомарно (session.begin()):
-           - Списать credits
+           - Списать balance_rub
            - Установить user.plan = plan
            - Установить user.plan_expires_at = now() + 30 дней
            - Создать Transaction(type="plan_purchase")
@@ -511,15 +488,15 @@ class BillingService:
                 return True
 
             # 3. Проверить баланс
-            if user.credits < plan_price:
+            if user.balance_rub < Decimal(str(plan_price)):
                 logger.warning(
-                    f"User {user_id} has insufficient credits: {user.credits} < {plan_price}"
+                    f"User {user_id} has insufficient balance: {user.balance_rub} < {plan_price}"
                 )
                 return False
 
             try:
-                # 4. Атомарно: списать кредиты, установить тариф, создать транзакцию
-                user.credits -= plan_price
+                # 4. Атомарно: списать рубли, установить тариф, создать транзакцию
+                user.balance_rub -= Decimal(str(plan_price))
                 user.plan = UserPlan(plan.lower())
                 user.plan_expires_at = datetime.now(UTC) + timedelta(days=30)
                 user.ai_uses_count = 0
@@ -528,22 +505,21 @@ class BillingService:
                 transaction = Transaction(
                     user_id=user.id,
                     amount=Decimal(str(plan_price)),
-                    type="spend",
+                    type=TransactionType.spend,
                     yookassa_payment_id=None,
                     meta_json={
                         "type": "plan_purchase",
                         "plan": plan.lower(),
-                        "credits_spent": plan_price,
                     },
-                    balance_before=Decimal(str(user.credits + plan_price)),
-                    balance_after=Decimal(str(user.credits)),
+                    balance_before=user.balance_rub + Decimal(str(plan_price)),
+                    balance_after=user.balance_rub,
                     created_at=datetime.now(UTC),
                 )
                 session.add(transaction)
 
                 # session.begin() автоматически commit
                 logger.info(
-                    f"User {user_id} activated {plan.upper()} plan for {plan_price} credits"
+                    f"User {user_id} activated {plan.upper()} plan for {plan_price} ₽"
                 )
                 return True
 
@@ -634,14 +610,14 @@ class BillingService:
                 reason="referral_first_campaign",
             )
 
-            # Также начисляем кредиты (100 кр)
+            # Начисляем бонус на баланс (100 ₽)
             user_repo = UserRepository(session)
-            await user_repo.update_credits(referrer_id, 100)
+            await user_repo.update_balance_rub(referrer_id, Decimal("100"))
 
             return {
                 "success": True,
                 "xp_awarded": 100,
-                "credits_awarded": 100,
+                "balance_rub_awarded": 100,
                 "level_up": level_up is not None,
                 "new_level": referrer.advertiser_level + (1 if level_up else 0),
             }
@@ -701,9 +677,9 @@ class BillingService:
 
         Логика:
         1. Получить кампанию из БД
-        2. Проверить что у пользователя хватает credits >= campaign.cost
-        3. Списать credits с user.credits
-        4. Установить campaign.status = "queued"
+        2. Проверить что у пользователя хватает balance_rub >= campaign.cost
+        3. Списать balance_rub
+        4. Установить campaign.status = "escrow"
         5. Создать запись Transaction(type="escrow_freeze", amount=campaign.cost)
         6. Вернуть True при успехе, False при недостатке средств
 
@@ -744,37 +720,36 @@ class BillingService:
             campaign_cost = campaign.final_price or campaign.proposed_price
 
             # 3. Проверить баланс
-            if user.credits < campaign_cost:
+            if user.balance_rub < campaign_cost:
                 logger.warning(
-                    f"User {user.id} has insufficient credits: {user.credits} < {campaign_cost}"
+                    f"User {user.id} has insufficient balance: {user.balance_rub} < {campaign_cost}"
                 )
                 return False
 
             try:
                 # 4. Все три операции атомарно (внутри session.begin())
-                user.credits -= int(campaign_cost)
+                user.balance_rub -= campaign_cost
                 campaign.status = CampaignStatus.escrow
 
-                # Создать транзакцию напрямую через session.add
+                # Создать транзакцию
                 transaction = Transaction(
                     user_id=user.id,
                     amount=Decimal(str(campaign_cost)),
-                    type="spend",
+                    type=TransactionType.spend,
                     yookassa_payment_id=None,
                     meta_json={
                         "type": "escrow_freeze",
                         "campaign_id": campaign_id,
-                        "credits_frozen": int(campaign_cost),
                     },
-                    balance_before=Decimal(str(user.credits + int(campaign_cost))),
-                    balance_after=Decimal(str(user.credits)),
+                    balance_before=user.balance_rub + campaign_cost,
+                    balance_after=user.balance_rub,
                     created_at=datetime.now(UTC),
                 )
                 session.add(transaction)
 
                 # session.begin() автоматически commit при выходе без исключений
                 logger.info(
-                    f"Frozen {campaign_cost} credits for campaign {campaign_id} (user {user.id})"
+                    f"Frozen {campaign_cost} ₽ for campaign {campaign_id} (user {user.id})"
                 )
                 return True
 
@@ -921,7 +896,7 @@ class BillingService:
         amount: Decimal,
     ) -> bool:
         """
-        Вернуть средства из эскроу рекламодателю (в credits).
+        Вернуть средства из эскроу рекламодателю.
 
         Args:
             placement_id: ID заявки.
@@ -942,7 +917,11 @@ class BillingService:
                 return False
 
             # Начисление средств
-            user.credits += int(amount)
+            balance_before = user.balance_rub
+            await user_repo.update_balance_rub(advertiser_id, amount)
+
+            # Перечитываем для accurate balance_after
+            await session.refresh(user)
 
             # Создание транзакции
             transaction = Transaction(
@@ -954,15 +933,15 @@ class BillingService:
                     "type": "escrow_refund",
                     "placement_id": placement_id,
                 },
-                balance_before=Decimal(str(user.credits - int(amount))),
-                balance_after=Decimal(str(user.credits)),
+                balance_before=balance_before,
+                balance_after=user.balance_rub,
                 created_at=datetime.now(UTC),
             )
             session.add(transaction)
             await session.flush()
 
             logger.info(
-                f"Escrow refunded: {amount} credits to advertiser {advertiser_id} for placement {placement_id}"
+                f"Escrow refunded: {amount} ₽ to advertiser {advertiser_id} for placement {placement_id}"
             )
 
             return True

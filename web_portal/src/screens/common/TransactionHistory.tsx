@@ -8,7 +8,6 @@ const TX_META: Record<string, { label: string; icon: string; incoming: boolean }
   topup: { label: 'Пополнение баланса', icon: '💳', incoming: true },
   escrow_freeze: { label: 'Оплата эскроу', icon: '🔒', incoming: false },
   escrow_release: { label: 'Получение выплаты', icon: '✅', incoming: true },
-  credits_buy: { label: 'Конвертация ₽ → кредиты', icon: '🎟', incoming: true },
   payout: { label: 'Вывод средств', icon: '💸', incoming: false },
   payout_fee: { label: 'Комиссия за вывод', icon: '📋', incoming: false },
   refund_full: { label: 'Возврат средств', icon: '↩️', incoming: true },

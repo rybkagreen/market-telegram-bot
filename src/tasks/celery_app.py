@@ -34,6 +34,7 @@ def create_celery_app() -> Celery:
             "src.tasks.placement_tasks",
             "src.tasks.ord_tasks",
             "src.tasks.document_ocr_tasks",
+            "src.tasks.dispute_tasks",
         ],
     )
 
@@ -91,11 +92,11 @@ def create_celery_app() -> Celery:
         force=True,
     )
 
-    # Регистрация периодических задач для publication
-    app.conf.beat_schedule["check-scheduled-deletions"] = {
-        "task": "publication:check_scheduled_deletions",
+    # Регистрация периодических задач для publication (consolidated into placement:)
+    app.conf.beat_schedule["placement-check-scheduled-deletions"] = {
+        "task": "placement:check_scheduled_deletions",
         "schedule": crontab(minute="*/5"),
-        "options": {"queue": "default"},
+        "options": {"queue": "worker_critical"},
     }
 
     return app

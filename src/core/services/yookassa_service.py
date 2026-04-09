@@ -39,7 +39,6 @@ class YooKassaService:
     async def create_payment(
         self,
         amount_rub: Decimal,
-        credits: int,
         user_id: int,
     ) -> YooKassaPayment:
         """
@@ -47,7 +46,6 @@ class YooKassaService:
 
         Args:
             amount_rub: Сумма в рублях.
-            credits: Количество кредитов для зачисления.
             user_id: ID пользователя.
 
         Returns:
@@ -58,7 +56,7 @@ class YooKassaService:
             Exception: Неожиданная ошибка.
         """
         idempotency_key = str(uuid4())
-        description = f"Пополнение баланса RekHarborBot: {credits} кредитов"
+        description = f"Пополнение баланса RekHarborBot: {amount_rub} ₽"
 
         try:
             # Вызов синхронного SDK через asyncio.to_thread
@@ -70,7 +68,7 @@ class YooKassaService:
                 },
                 "capture": True,
                 "description": description,
-                "metadata": {"user_id": str(user_id), "credits": str(credits)},
+                "metadata": {"user_id": str(user_id), "amount_rub": str(amount_rub)},
             }
 
             payment = await asyncio.to_thread(
@@ -85,7 +83,7 @@ class YooKassaService:
                     payment_id=payment.id,
                     user_id=user_id,
                     amount_rub=amount_rub,
-                    credits=credits,
+                    credits=int(amount_rub),  # legacy column, keep 1:1 for now
                     status="pending",
                     description=description,
                     confirmation_url=payment.confirmation.confirmation_url,
@@ -97,7 +95,7 @@ class YooKassaService:
 
             self.logger.info(
                 f"ЮKassa платёж создан: payment_id={payment.id}, user_id={user_id}, "
-                f"amount={amount_rub} RUB, credits={credits}"
+                f"amount={amount_rub} RUB"
             )
             return record
 
@@ -161,7 +159,7 @@ class YooKassaService:
                 record.processed_at = datetime.now(UTC)
                 await session.commit()
                 await self._credit_user(
-                    record.user_id, int(record.desired_balance), record.gross_amount, payment_id
+                    record.user_id, record.desired_balance, record.gross_amount, payment_id
                 )
 
             elif event_type == "payment.canceled":
@@ -172,42 +170,42 @@ class YooKassaService:
     async def _credit_user(
         self,
         user_id: int,
-        credits: int,
         amount_rub: Decimal,
+        gross_amount: Decimal,
         payment_id: str,
     ) -> None:
         """
-        Начислить кредиты пользователю и отправить уведомление.
+        Начислить рубли пользователю и отправить уведомление.
 
         Args:
             user_id: ID пользователя.
-            credits: Количество кредитов.
-            amount_rub: Сумма в рублях.
+            amount_rub: Желаемая сумма пополнения.
+            gross_amount: Фактическая сумма платежа.
             payment_id: UUID платежа.
         """
         try:
             from sqlalchemy import select
 
-            # Начислить кредиты напрямую через БД
+            # Начислить рубли напрямую через БД
             async with async_session_factory() as session:
                 result = await session.execute(select(User).where(User.id == user_id))
                 user = result.scalar_one_or_none()
 
                 if not user:
-                    self.logger.error("User %s not found for credit update", user_id)
+                    self.logger.error("User %s not found for balance update", user_id)
                     return
 
                 # Начисление средств
-                balance_before = Decimal(str(user.credits))
-                user.credits += credits
-                balance_after = Decimal(str(user.credits))
+                balance_before = user.balance_rub
+                user.balance_rub += amount_rub
+                balance_after = user.balance_rub
 
                 # Создать транзакцию
                 from src.db.models.transaction import Transaction, TransactionType
 
                 transaction = Transaction(
                     user_id=user_id,
-                    amount=Decimal(str(credits)),
+                    amount=amount_rub,
                     type=TransactionType.topup,
                     description=f"Пополнение ЮKassa #{payment_id[:8]}",
                     reference_id=None,
@@ -218,7 +216,7 @@ class YooKassaService:
                 session.add(transaction)
                 await session.commit()
 
-                new_balance = int(user.credits)
+                new_balance = float(user.balance_rub)
 
             # Отправить уведомление
             from aiogram import Bot
@@ -234,7 +232,6 @@ class YooKassaService:
                 try:
                     text = format_yookassa_payment_success(
                         amount_rub=amount_rub,
-                        credits=credits,
                         new_balance=new_balance,
                     )
                     await bot.send_message(chat_id=user.telegram_id, text=text, parse_mode="HTML")

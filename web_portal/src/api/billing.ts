@@ -39,7 +39,6 @@ export async function getBalance() {
   return api.get('billing/balance').json<{
     balance_rub: string
     earned_rub: string
-    credits: number
     plan: string
   }>()
 }

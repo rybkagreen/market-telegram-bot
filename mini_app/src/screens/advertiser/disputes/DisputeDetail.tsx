@@ -8,17 +8,21 @@ import type { DisputeStatus, ResolutionAction } from '@/lib/types'
 import styles from './DisputeDetail.module.css'
 
 const STATUS_PILL: Record<DisputeStatus, { variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral'; label: string }> = {
-  open:        { variant: 'warning', label: 'Ожидает ответа владельца' },
-  owner_reply: { variant: 'info',    label: 'Владелец ответил' },
-  resolved:    { variant: 'success', label: 'Решён' },
-  closed:      { variant: 'neutral', label: 'Закрыт' },
+  open:              { variant: 'warning', label: 'Ожидает ответа владельца' },
+  owner_explained:   { variant: 'info',    label: 'Владелец ответил' },
+  resolved:          { variant: 'success', label: 'Решён' },
+  closed:            { variant: 'neutral', label: 'Закрыт' },
 }
 
 const RESOLUTION_PILL: Record<ResolutionAction, { variant: 'success' | 'warning' | 'danger' | 'neutral'; label: string }> = {
-  full_refund:     { variant: 'success', label: 'Полный возврат' },
-  partial_refund:  { variant: 'warning', label: 'Частичный возврат' },
-  no_refund:       { variant: 'danger',  label: 'Без возврата' },
-  warning:         { variant: 'neutral', label: 'Предупреждение' },
+  full_refund:      { variant: 'success', label: 'Полный возврат' },
+  partial_refund:   { variant: 'warning', label: 'Частичный возврат' },
+  no_refund:        { variant: 'danger',  label: 'Без возврата' },
+  warning:          { variant: 'neutral', label: 'Предупреждение' },
+  owner_fault:      { variant: 'danger',  label: 'Вина владельца' },
+  advertiser_fault: { variant: 'danger',  label: 'Вина рекламодателя' },
+  technical:        { variant: 'neutral', label: 'Технический сбой' },
+  partial:          { variant: 'warning', label: 'Частичное решение' },
 }
 
 export default function DisputeDetail() {
@@ -145,7 +149,7 @@ export default function DisputeDetail() {
         </>
       )}
 
-      {(dispute.status === 'open' || dispute.status === 'owner_reply') && (
+      {(dispute.status === 'open' || dispute.status === 'owner_explained') && (
         <Notification type="info">
           <Text variant="sm">
             Споры рассматриваются в течение 7 дней. Истекает: {formatDate(dispute.expires_at)}

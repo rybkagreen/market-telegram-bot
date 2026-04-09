@@ -55,15 +55,6 @@ TARIFF_TOPICS: dict[str, list[str] | None] = {
 # Порог "premium" каналов
 PREMIUM_SUBSCRIBER_THRESHOLD = settings.premium_subscriber_threshold
 
-# Стоимость тарифов в кредитах
-TARIFF_CREDIT_COST: dict[str, int] = {
-    "free": settings.tariff_cost_free,
-    "starter": settings.tariff_cost_starter,
-    "pro": settings.tariff_cost_pro,
-    "business": settings.tariff_cost_business,
-    "admin": settings.tariff_cost_admin,
-}
-
 TARIFF_LABELS: dict[str, str] = {
     "free": "FREE",
     "starter": "STARTER",

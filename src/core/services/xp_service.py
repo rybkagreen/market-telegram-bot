@@ -1,22 +1,11 @@
 """
 XP Service — сервис для управления опытом и уровнями.
 Спринт 4 — геймификация и удержание пользователей.
-
-Таблица уровней (PRD §9.1):
-- Уровень 1: 0 XP (Новичок)
-- Уровень 2: 100 XP (Начинающий)
-- Уровень 3: 300 XP (Опытный)
-- Уровень 4: 600 XP (Продвинутый)
-- Уровень 5: 1000 XP (Эксперт)
-- Уровень 6: 1500 XP (Профессионал)
-- Уровень 7: 2100 XP (Мастер)
-- Уровень 8: 2800 XP (Ветеран)
-- Уровень 9: 3600 XP (Легенда)
-- Уровень 10: 4500 XP (Икона)
 """
 
 import logging
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from src.db.session import async_session_factory
@@ -518,10 +507,10 @@ class XPService:
 
         # Таблица бонусов
         bonuses = {
-            7: {"xp": 50, "credits": 10, "badge_code": None},
-            14: {"xp": 100, "credits": 25, "badge_code": None},
-            30: {"xp": 300, "credits": 100, "badge_code": "streak_30_days"},
-            100: {"xp": 1000, "credits": 500, "badge_code": "streak_100_days"},
+            7: {"xp": 50, "balance_rub": 10, "badge_code": None},
+            14: {"xp": 100, "balance_rub": 25, "badge_code": None},
+            30: {"xp": 300, "balance_rub": 100, "badge_code": "streak_30_days"},
+            100: {"xp": 1000, "balance_rub": 500, "badge_code": "streak_100_days"},
         }
 
         # Находим максимальный порог который достигнут
@@ -548,8 +537,8 @@ class XPService:
             # Начисляем XP
             user.advertiser_xp += earned_bonus["xp"]  # type: ignore
 
-            # Начисляем кредиты
-            user.credits += earned_bonus["credits"]  # type: ignore
+            # Начисляем баланс
+            user.balance_rub += Decimal(str(earned_bonus["balance_rub"]))  # type: ignore
 
             # Выдаём значок если есть
             badge_awarded: dict[str, Any] | None = None
@@ -564,7 +553,7 @@ class XPService:
                 "success": True,
                 "streak_days": streak_days,
                 "xp_awarded": earned_bonus["xp"],  # type: ignore
-                "credits_awarded": earned_bonus["credits"],  # type: ignore
+                "balance_rub_awarded": earned_bonus["balance_rub"],  # type: ignore
                 "badge_awarded": badge_awarded,
             }
 

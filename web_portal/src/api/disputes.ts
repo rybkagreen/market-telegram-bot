@@ -17,8 +17,17 @@ export async function replyToDispute(id: number, comment: string) {
   return api.patch(`disputes/${id}`, { json: { owner_comment: comment } }).json<DisputeDetailResponse>()
 }
 
-export async function resolveDispute(id: number, resolution: string, adminComment?: string) {
+export async function resolveDispute(
+  id: number,
+  resolution: string,
+  adminComment?: string,
+  customSplitPercent?: number,
+) {
   return api.post(`disputes/admin/disputes/${id}/resolve`, {
-    json: { resolution, admin_comment: adminComment },
+    json: {
+      resolution,
+      admin_comment: adminComment,
+      custom_split_percent: customSplitPercent,
+    },
   }).json<DisputeDetailResponse>()
 }

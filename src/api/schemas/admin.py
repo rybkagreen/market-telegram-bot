@@ -136,7 +136,6 @@ class UserAdminResponse(BaseModel):
     plan_expires_at: datetime | None = None
     balance_rub: str
     earned_rub: str
-    credits: int
     is_admin: bool
     advertiser_xp: int
     advertiser_level: int
