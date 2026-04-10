@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 BOT_STARTUP_MAX_RETRIES = 5
 BOT_STARTUP_BACKOFF = 3  # seconds: 3, 6, 12, 24, 48
 
+# Module-level bot instance for access from services/handlers
+bot: Bot | None = None
+
 if settings.sentry_dsn:
     sentry_sdk.init(
         dsn=settings.sentry_dsn,
@@ -35,14 +38,29 @@ if settings.sentry_dsn:
         debug=False,  # Disable verbose retry logging in production
     )
 
-bot = Bot(
-    token=settings.bot_token,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-)
+
+async def _create_bot() -> Bot:
+    """Create Bot with proxy if configured."""
+    if settings.telegram_proxy:
+        from aiogram.client.session.aiohttp import AiohttpSession
+
+        session = AiohttpSession(proxy=settings.telegram_proxy)
+        return Bot(
+            token=settings.bot_token,
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+            session=session,
+        )
+    return Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
 
 
 async def main() -> None:
     """Запуск бота с retry логикой."""
+    global bot
+    bot = await _create_bot()
+
     storage = RedisStorage.from_url(str(settings.redis_url))
     dp = Dispatcher(storage=storage)
 

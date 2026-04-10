@@ -153,7 +153,7 @@ class BadgeService:
         session,
         user_id: int,
         badge_id: int,
-    ) -> dict[str, int]:
+    ) -> "dict[str, Any]":
         """
         Внутренний метод выдачи значка.
 

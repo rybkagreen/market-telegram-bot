@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,10 +99,8 @@ async def cb_legal_any(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-def legal_profile_redirect_keyboard():
+def legal_profile_redirect_keyboard() -> InlineKeyboardMarkup:
     """Keyboard with portal redirect button."""
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [

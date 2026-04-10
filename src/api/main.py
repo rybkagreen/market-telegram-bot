@@ -133,6 +133,9 @@ async def lifespan(app: FastAPI):
     if hasattr(provider, "close"):
         await provider.close()
 
+    from src.api.dependencies import close_bot
+
+    await close_bot()
     logger.info("Shutting down FastAPI application...")
     # Закрытие пула БД происходит автоматически
 

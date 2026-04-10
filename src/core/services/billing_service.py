@@ -703,31 +703,28 @@ class BillingService:
             # 2. Получить пользователя с блокировкой
             stmt = select(User).where(User.id == campaign.advertiser_id).with_for_update()
             result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
-            if user is None:
+            advertiser: User | None = result.scalar_one_or_none()
+            if advertiser is None:
                 logger.error(f"User {campaign.advertiser_id} not found for campaign {campaign_id}")
                 return False
-
-            # Type guard: user is guaranteed to be User here
-            assert isinstance(user, User), "user must be User instance"
 
             campaign_cost = campaign.final_price or campaign.proposed_price
 
             # 3. Проверить баланс
-            if user.balance_rub < campaign_cost:
+            if advertiser.balance_rub < campaign_cost:
                 logger.warning(
-                    f"User {user.id} has insufficient balance: {user.balance_rub} < {campaign_cost}"
+                    f"User {advertiser.id} has insufficient balance: {advertiser.balance_rub} < {campaign_cost}"
                 )
                 return False
 
             try:
                 # 4. Все три операции атомарно (внутри session.begin())
-                user.balance_rub -= campaign_cost
+                advertiser.balance_rub -= campaign_cost
                 campaign.status = CampaignStatus.escrow
 
                 # Создать транзакцию
                 transaction = Transaction(
-                    user_id=user.id,
+                    user_id=advertiser.id,
                     amount=Decimal(str(campaign_cost)),
                     type=TransactionType.spend,
                     yookassa_payment_id=None,
@@ -735,14 +732,16 @@ class BillingService:
                         "type": "escrow_freeze",
                         "campaign_id": campaign_id,
                     },
-                    balance_before=user.balance_rub + campaign_cost,
-                    balance_after=user.balance_rub,
+                    balance_before=advertiser.balance_rub + campaign_cost,
+                    balance_after=advertiser.balance_rub,
                     created_at=datetime.now(UTC),
                 )
                 session.add(transaction)
 
                 # session.begin() автоматически commit при выходе без исключений
-                logger.info(f"Frozen {campaign_cost} ₽ for campaign {campaign_id} (user {user.id})")
+                logger.info(
+                    f"Frozen {campaign_cost} ₽ for campaign {campaign_id} (user {advertiser.id})"
+                )
                 return True
 
             except Exception as e:
@@ -811,18 +810,15 @@ class BillingService:
 
         stmt = select(User).where(User.id == placement_request.advertiser_id).with_for_update()
         result = await session.execute(stmt)
-        user = result.scalar_one_or_none()
-        if user is None:
+        advertiser: User | None = result.scalar_one_or_none()
+        if advertiser is None:
             logger.error(f"Advertiser {placement_request.advertiser_id} not found for refund")
             return False
-
-        # Type guard: user is guaranteed to be User here
-        assert isinstance(user, User), "user must be User instance"
 
         try:
             # 3. Вернуть средства + установить флаг атомарно
             refund_amount = Decimal(str(placement.cost))
-            user.balance_rub += refund_amount
+            advertiser.balance_rub += refund_amount
 
             # Установить флаг что возврат отправлен
             meta["refund_sent"] = True
@@ -831,7 +827,7 @@ class BillingService:
 
             # 4. Создать транзакцию возврата
             transaction = Transaction(
-                user_id=user.id,
+                user_id=advertiser.id,
                 amount=refund_amount,
                 type=TransactionType.refund_full,
                 yookassa_payment_id=None,
@@ -841,18 +837,18 @@ class BillingService:
                     "placement_request_id": placement.placement_request_id,
                     "reason": "failed_placement",
                 },
-                balance_before=user.balance_rub - refund_amount,
-                balance_after=user.balance_rub,
+                balance_before=advertiser.balance_rub - refund_amount,
+                balance_after=advertiser.balance_rub,
                 created_at=datetime.now(UTC),
             )
             session.add(transaction)
 
             logger.info(
-                f"Refunded {refund_amount} to advertiser {user.id} for placement {placement_id}"
+                f"Refunded {refund_amount} to advertiser {advertiser.id} for placement {placement_id}"
             )
 
             # Сохраняем данные для уведомления (после коммита)
-            user_telegram_id = user.telegram_id
+            user_telegram_id = advertiser.telegram_id
             placement_desc = f"Placement #{placement_id}"
 
         except Exception as e:
@@ -1125,6 +1121,14 @@ class BillingService:
                     )
             except Exception as e:
                 logger.error(f"Failed to record YooKassa fee expense for payment {payment_id}: {e}")
+
+            # Referral bonus: check if this user has a referrer
+            try:
+                await self.process_referral_topup_bonus(
+                    session, user_id=user_id, topup_amount=desired_balance
+                )
+            except Exception as e:
+                logger.error(f"Failed to process referral topup bonus for user {user_id}: {e}")
 
             logger.info(
                 f"Topup webhook processed: +{desired_balance} ₽ for user {user_id}, "
@@ -1423,6 +1427,237 @@ class BillingService:
                 f"Escrow refunded: scenario={scenario}, advertiser={advertiser_refund} ₽, "
                 f"owner={owner_compensation} ₽, platform={platform_share} ₽"
             )
+
+    async def admin_credit_from_platform(
+        self,
+        session: AsyncSession,
+        admin_id: int,
+        user_id: int,
+        amount: Decimal,
+        comment: str = "",
+    ) -> Transaction:
+        """
+        Зачисляет средства из profit_accumulated платформы на баланс пользователя.
+        Проверяет что profit_accumulated >= amount перед списанием.
+        """
+        from src.db.models.platform_account import PlatformAccount
+        from src.db.models.transaction import Transaction
+        from src.db.models.user import User
+
+        # 1. Загрузить PlatformAccount (id=1)
+        pa = await session.get(PlatformAccount, 1)
+        if not pa:
+            # Создать если не существует
+            pa = PlatformAccount(id=1)
+            session.add(pa)
+            await session.flush()
+            await session.refresh(pa)
+
+        # 2. Загрузить пользователя
+        user = await session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+
+        # 3. Проверить: platform_account.profit_accumulated >= amount
+        if pa.profit_accumulated < amount:
+            raise ValueError(
+                f"Недостаточно средств на балансе платформы: {pa.profit_accumulated} < {amount}"
+            )
+
+        # 4. Списать с платформы, зачислить пользователю
+        pa.profit_accumulated -= amount
+        balance_before = user.balance_rub
+        user.balance_rub += amount
+
+        # 5. Создать Transaction
+        transaction = Transaction(
+            user_id=user_id,
+            amount=amount,
+            type=TransactionType.admin_credit,
+            yookassa_payment_id=None,
+            description=f"Зачисление администратором: {comment}"
+            if comment
+            else "Зачисление администратором",
+            meta_json={
+                "type": "admin_credit",
+                "admin_id": admin_id,
+                "comment": comment,
+            },
+            balance_before=balance_before,
+            balance_after=user.balance_rub,
+            created_at=datetime.now(UTC),
+        )
+        session.add(transaction)
+        await session.flush()
+        await session.refresh(transaction)
+
+        logger.info(f"Admin credit: {amount} ₽ from platform to user {user_id} by admin {admin_id}")
+
+        return transaction
+
+    async def admin_gamification_bonus(
+        self,
+        session: AsyncSession,
+        admin_id: int,
+        user_id: int,
+        amount: Decimal,
+        xp_amount: int = 0,
+        comment: str = "",
+    ) -> Transaction:
+        """
+        Начисляет геймификационный бонус из profit_accumulated.
+        amount > 0 — денежный бонус, xp_amount > 0 — XP.
+        """
+        from src.db.models.platform_account import PlatformAccount
+        from src.db.models.transaction import Transaction
+        from src.db.models.user import User
+
+        # 1. Загрузить PlatformAccount
+        pa = await session.get(PlatformAccount, 1)
+        if not pa:
+            pa = PlatformAccount(id=1)
+            session.add(pa)
+            await session.flush()
+            await session.refresh(pa)
+
+        # 2. Загрузить пользователя
+        user = await session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+
+        # 3. Проверить достаточно средств (если amount > 0)
+        if amount > 0 and pa.profit_accumulated < amount:
+            raise ValueError(
+                f"Недостаточно средств на балансе платформы: {pa.profit_accumulated} < {amount}"
+            )
+
+        # 4. Списать с платформы, зачислить
+        if amount > 0:
+            pa.profit_accumulated -= amount
+            balance_before = user.balance_rub
+            user.balance_rub += amount
+        else:
+            balance_before = user.balance_rub
+
+        if xp_amount > 0:
+            user.advertiser_xp += xp_amount
+
+        # 5. Создать Transaction
+        transaction = Transaction(
+            user_id=user_id,
+            amount=amount,
+            type=TransactionType.gamification_bonus,
+            yookassa_payment_id=None,
+            description=f"Геймификационный бонус: {comment}"
+            if comment
+            else "Геймификационный бонус",
+            meta_json={
+                "type": "gamification_bonus",
+                "admin_id": admin_id,
+                "xp_amount": xp_amount,
+                "comment": comment,
+            },
+            balance_before=balance_before,
+            balance_after=user.balance_rub,
+            created_at=datetime.now(UTC),
+        )
+        session.add(transaction)
+        await session.flush()
+        await session.refresh(transaction)
+
+        logger.info(
+            f"Gamification bonus: {amount} ₽ + {xp_amount} XP to user {user_id} by admin {admin_id}"
+        )
+
+        return transaction
+
+    async def process_referral_topup_bonus(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        topup_amount: Decimal,
+    ) -> bool:
+        """
+        Вызывается при каждом пополнении пользователя.
+        Проверяет условия и начисляет разовый реферальный бонус рефереру.
+        Возвращает True если бонус был начислен.
+
+        Бизнес-правило:
+        - Реферер получает REFERRAL_BONUS_PERCENT % от суммы пополнения
+        - Выплата РАЗОВАЯ (идемпотентность через meta_json)
+        - Минимальная сумма: REFERRAL_MIN_QUALIFYING_TOPUP
+        """
+        from sqlalchemy import select, text
+
+        from src.constants.payments import (
+            REFERRAL_BONUS_PERCENT,
+            REFERRAL_MIN_QUALIFYING_TOPUP,
+        )
+        from src.db.models.user import User
+
+        # 1. Загрузить user с referred_by_id
+        user = await session.get(User, user_id)
+        if not user or user.referred_by_id is None:
+            return False  # не реферал
+
+        referrer_id = user.referred_by_id
+
+        # 2. Проверить идемпотентность — бонус уже выплачен за этого реферала
+        existing_txn = await session.execute(
+            select(Transaction)
+            .where(
+                Transaction.user_id == referrer_id,
+                Transaction.type == TransactionType.bonus,
+                text("meta_json->>'referral_user_id' = :ruid"),
+            )
+            .params(ruid=str(user_id))
+        )
+        if existing_txn.scalar_one_or_none():
+            return False  # уже выплачено за этого реферала
+
+        # 3. Проверить topup_amount >= REFERRAL_MIN_QUALIFYING_TOPUP
+        if topup_amount < REFERRAL_MIN_QUALIFYING_TOPUP:
+            return False
+
+        # 4. Рассчитать бонус
+        bonus_amount = (topup_amount * REFERRAL_BONUS_PERCENT).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+        # 5. Начислить бонус рефереру
+        referrer = await session.get(User, referrer_id)
+        if not referrer:
+            return False
+
+        balance_before = referrer.balance_rub
+        referrer.balance_rub += bonus_amount
+
+        # 6. Создать Transaction
+        transaction = Transaction(
+            user_id=referrer_id,
+            amount=bonus_amount,
+            type=TransactionType.bonus,
+            yookassa_payment_id=None,
+            description=f"Реферальный бонус за пополнение пользователя {user_id}",
+            meta_json={
+                "type": "referral_topup_bonus",
+                "referral_user_id": str(user_id),
+                "topup_amount": str(topup_amount),
+                "bonus_percent": str(REFERRAL_BONUS_PERCENT),
+            },
+            balance_before=balance_before,
+            balance_after=referrer.balance_rub,
+            created_at=datetime.now(UTC),
+        )
+        session.add(transaction)
+        await session.flush()
+
+        logger.info(
+            f"Referral topup bonus: {bonus_amount} ₽ to referrer {referrer_id} "
+            f"for user {user_id} topup of {topup_amount} ₽"
+        )
+
+        return True
 
 
 # Глобальный экземпляр

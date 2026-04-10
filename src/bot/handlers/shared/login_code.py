@@ -8,7 +8,7 @@ Flow:
 """
 
 import logging
-import random
+import secrets
 
 from aiogram import Router
 from aiogram.filters import Command
@@ -37,8 +37,8 @@ async def cmd_login(message: Message) -> None:
 
     telegram_id = message.from_user.id
 
-    # Generate 6-digit code
-    code = f"{random.randint(100000, 999999)}"
+    # Generate cryptographically secure 6-digit code
+    code = f"{secrets.randbelow(900000) + 100000}"
 
     # Store in Redis (TTL 5 min)
     import redis.asyncio as aioredis

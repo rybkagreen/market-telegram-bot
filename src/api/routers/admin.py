@@ -795,6 +795,126 @@ async def topup_user_balance(
     )
 
 
+# ─── Platform Credit & Gamification Bonus ──────────────────────────────────
+
+
+class PlatformCreditRequest(BaseModel):
+    user_id: int = Field(..., gt=0, description="ID пользователя")
+    amount: float = Field(..., gt=0, le=1_000_000, description="Сумма зачисления из комиссий")
+    comment: str = Field("", max_length=500, description="Комментарий администратора")
+
+
+@router.post(
+    "/credits/platform-credit",
+    responses={
+        404: {"description": _USER_NOT_FOUND},
+        400: {"description": "Invalid amount or insufficient platform balance"},
+    },
+)
+async def create_platform_credit(
+    body: PlatformCreditRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Зачислить средства из profit_accumulated платформы на баланс пользователя."""
+    from src.core.services.billing_service import BillingService
+    from src.db.models.platform_account import PlatformAccount
+
+    user = await session.get(User, body.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
+
+    try:
+        billing = BillingService()
+        txn = await billing.admin_credit_from_platform(
+            session=session,
+            admin_id=admin_user.id,
+            user_id=body.user_id,
+            amount=Decimal(str(body.amount)),
+            comment=body.comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    # Перечитать PlatformAccount
+    pa = await session.get(PlatformAccount, 1)
+
+    await session.refresh(user)
+
+    logger.info(
+        f"Admin #{admin_user.id} credited {body.amount} ₽ from platform to user #{body.user_id}"
+    )
+
+    return {
+        "success": True,
+        "transaction_id": txn.id,
+        "new_platform_balance": str(pa.profit_accumulated if pa else Decimal("0")),
+        "new_user_balance": str(user.balance_rub),
+    }
+
+
+class GamificationBonusRequest(BaseModel):
+    user_id: int = Field(..., gt=0, description="ID пользователя")
+    amount: float = Field(0, ge=0, le=1_000_000, description="Денежный бонус (может быть 0)")
+    xp_amount: int = Field(0, ge=0, description="XP бонус")
+    comment: str = Field("", max_length=500, description="Комментарий администратора")
+
+
+@router.post(
+    "/credits/gamification-bonus",
+    responses={
+        404: {"description": _USER_NOT_FOUND},
+        400: {"description": "Invalid amount or insufficient platform balance"},
+    },
+)
+async def create_gamification_bonus(
+    body: GamificationBonusRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Начислить геймификационный бонус из profit_accumulated."""
+    from src.core.services.billing_service import BillingService
+    from src.db.models.platform_account import PlatformAccount
+
+    user = await session.get(User, body.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
+
+    if body.amount == 0 and body.xp_amount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one of amount or xp_amount must be > 0",
+        )
+
+    try:
+        billing = BillingService()
+        txn = await billing.admin_gamification_bonus(
+            session=session,
+            admin_id=admin_user.id,
+            user_id=body.user_id,
+            amount=Decimal(str(body.amount)),
+            xp_amount=body.xp_amount,
+            comment=body.comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    pa = await session.get(PlatformAccount, 1)
+    await session.refresh(user)
+
+    logger.info(
+        f"Admin #{admin_user.id} gave gamification bonus: {body.amount} ₽ + {body.xp_amount} XP to user #{body.user_id}"
+    )
+
+    return {
+        "success": True,
+        "transaction_id": txn.id,
+        "new_platform_balance": str(pa.profit_accumulated if pa else Decimal("0")),
+        "new_user_balance": str(user.balance_rub),
+        "new_user_xp": user.advertiser_xp,
+    }
+
+
 # ─── Tax Summary & KUDiR Export (Sprint B.1) ────────────────────────────────
 
 
