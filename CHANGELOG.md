@@ -46,6 +46,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Verified
 - **TD-04/D-21:** Both `mini_app` and `web_portal` already on TypeScript 6.0.2 — no action needed
 
+### S-29D: Deferred Items (v4.5 — April 2026)
+
+#### Fixed
+- **D-01:** Fixed `legal_profiles.user_id` type `BigInteger` → `Integer` + migration `d01fix_user_id`
+- **D-14:** Created 8 missing repository classes: `CampaignRepository`, `BadgeRepository`, `YookassaPaymentRepository`, `ClickTrackingRepository`, `KudirRecordRepository`, `DocumentUploadRepository`, `MailingLogRepository`, `PlatformQuarterlyRevenueRepository`
+- **D-18:** Added `ON DELETE SET NULL` to self-referencing FKs (`users.referred_by_id`, `transactions.reverses_transaction_id`) + migration `d18cascade_selfref`
+
+### AAA P4-P5: Code Quality + Security (v4.5 — April 2026)
+
+#### Changed
+- **P4:** Fixed 10 nested ternary expressions across 9 TSX files — extracted lookup maps and helper functions
+- **P4:** Changed 3 `any` types to `unknown` in analytics components
+- **P5:** Added security headers middleware to FastAPI (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `HSTS`, `Cache-Control: no-store`)
+
 ### Fixed
 - **CRITICAL:** `camp_pay_balance` handler now schedules Celery publication task after payment — fixes stalled escrow placements that never got published (`src/bot/handlers/placement/placement.py`)
 - **HIGH:** Added `placement:check_escrow_sla` Celery Beat task — detects and auto-refunds placements stuck in escrow past scheduled time (`src/tasks/placement_tasks.py`, `src/tasks/celery_config.py`)
