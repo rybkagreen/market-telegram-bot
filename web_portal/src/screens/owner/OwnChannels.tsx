@@ -179,13 +179,13 @@ export default function OwnChannels() {
               : null
 
             return (
-              <Card key={channel.id} className="p-4 hover:shadow-lg transition-shadow">
+              <Card key={channel.id} className="p-3 sm:p-4 hover:shadow-lg transition-shadow">
                 {/* Main row: Identity | Metrics | Actions */}
                 <div className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:items-center">
                   {/* Zone A: Identity (col-span-5) */}
-                  <div className="sm:col-span-5 flex items-start gap-2 sm:gap-3 min-w-0">
+                  <div className="sm:col-span-5 flex items-center gap-2 sm:gap-3 min-w-0">
                     {/* Avatar */}
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent-muted flex items-center justify-center text-base sm:text-lg shrink-0">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-accent-muted flex items-center justify-center text-base sm:text-lg shrink-0">
                       {channel.title[0]?.toUpperCase() ?? '📺'}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -195,37 +195,40 @@ export default function OwnChannels() {
                         </span>
                         <StatusPill status={statusPill.status} size="sm">{statusPill.label}</StatusPill>
                       </div>
-                      <p className="text-sm text-text-secondary truncate">{channel.title}</p>
-                      {categoryLabel ? (
-                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-accent-muted text-accent">
-                          {categoryLabel.emoji} {categoryLabel.label}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-muted text-warning">
-                          ⚠️ Без категории
-                        </span>
-                      )}
+                      {/* Badges in a row: title + category */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-sm text-text-secondary truncate">{channel.title}</span>
+                        {categoryLabel ? (
+                          <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-accent-muted text-accent">
+                            {categoryLabel.emoji} {categoryLabel.label}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warning-muted text-warning">
+                            ⚠️ Нет категории
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Zone B: Metrics (col-span-3) */}
-                  <div className="sm:col-span-3 sm:border-l sm:border-border sm:pl-4 flex items-center justify-center bg-harbor-elevated/30 sm:bg-transparent rounded-md sm:rounded-none px-3 py-2 sm:py-0">
+                  <div className="sm:col-span-3 sm:border-l sm:border-border sm:pl-4 flex items-center justify-center bg-harbor-elevated/30 sm:bg-transparent rounded-md sm:rounded-none px-3 py-1.5 sm:py-0">
                     <div className="text-center">
-                      <p className="text-base font-semibold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
-                      <p className="text-[10px] text-text-tertiary">подписчики</p>
+                      <p className="text-sm font-semibold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
+                      <p className="text-[10px] text-text-tertiary">подп.</p>
                     </div>
-                    <div className="w-px h-8 bg-border mx-3" />
+                    <div className="w-px h-6 bg-border mx-2" />
                     <div className="text-center">
-                      <p className="text-base font-semibold text-text-primary">{channel.rating.toFixed(1)}</p>
-                      <p className="text-[10px] text-text-tertiary">рейтинг</p>
+                      <p className="text-sm font-semibold text-text-primary">{channel.rating.toFixed(1)}</p>
+                      <p className="text-[10px] text-text-tertiary">рейт.</p>
                     </div>
                   </div>
 
                   {/* Zone C: Actions (col-span-4) */}
-                  <div className="sm:col-span-4 sm:border-l sm:border-border sm:pl-4 flex items-center justify-end gap-1 sm:gap-2 flex-wrap">
+                  <div className="sm:col-span-4 sm:border-l sm:border-border sm:pl-4 flex items-center justify-end gap-1 sm:gap-2">
                     {/* Compare — text on desktop, icon only on mobile */}
                     <button
-                      className={`px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
                         compareIds.has(channel.id)
                           ? 'bg-accent text-accent-text'
                           : compareIds.size >= MAX_COMPARE
@@ -243,7 +246,7 @@ export default function OwnChannels() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="px-2 sm:px-3"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5"
                       onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
                     >
                       <span>⚙️</span>
@@ -253,12 +256,12 @@ export default function OwnChannels() {
                     <Button
                       variant="danger"
                       size="sm"
-                      className="px-2 sm:px-3"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5"
                       disabled={deletingChannelId !== null}
                       onClick={() => handleDeleteChannel(channel.id, channel.title)}
                     >
                       {deletingChannelId === channel.id ? (
-                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
                           <span>🗑️</span>
