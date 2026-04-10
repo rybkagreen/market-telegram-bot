@@ -87,8 +87,7 @@ export default function OwnAnalytics() {
               width={70}
             />
             <Tooltip
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any) => [formatCurrency(Number(value)), 'Доход']}
+              formatter={(value: unknown) => [formatCurrency(Number(value)), 'Доход']}
               contentStyle={{
                 background: 'var(--color-harbor-card, #1e293b)',
                 border: '1px solid var(--color-border, #334155)',
@@ -122,8 +121,7 @@ export default function OwnAnalytics() {
                     width={70}
                   />
                   <Tooltip
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any) => [formatCurrency(Number(value)), 'Доход']}
+              formatter={(value: unknown) => [formatCurrency(Number(value)), 'Доход']}
                     contentStyle={{
                       background: 'var(--color-harbor-card, #1e293b)',
                       border: '1px solid var(--color-border, #334155)',

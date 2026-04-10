@@ -163,9 +163,7 @@ class BillingService:
             await session.commit()
             await session.refresh(transaction)
 
-            logger.info(
-                f"Plan payment: {amount_rub} ₽ by user {user_id}"
-            )
+            logger.info(f"Plan payment: {amount_rub} ₽ by user {user_id}")
 
             return int(amount_rub), transaction, transaction
 
@@ -303,9 +301,7 @@ class BillingService:
                 meta["rub_credited"] = float(amount_rub)
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
-                logger.info(
-                    f"Payment {payment_id} credited: {amount_rub} ₽ to user {user_id}"
-                )
+                logger.info(f"Payment {payment_id} credited: {amount_rub} ₽ to user {user_id}")
 
                 # Уведомляем пользователя
                 await notification_service.notify_low_balance(
@@ -518,9 +514,7 @@ class BillingService:
                 session.add(transaction)
 
                 # session.begin() автоматически commit
-                logger.info(
-                    f"User {user_id} activated {plan.upper()} plan for {plan_price} ₽"
-                )
+                logger.info(f"User {user_id} activated {plan.upper()} plan for {plan_price} ₽")
                 return True
 
             except Exception as e:
@@ -748,9 +742,7 @@ class BillingService:
                 session.add(transaction)
 
                 # session.begin() автоматически commit при выходе без исключений
-                logger.info(
-                    f"Frozen {campaign_cost} ₽ for campaign {campaign_id} (user {user.id})"
-                )
+                logger.info(f"Frozen {campaign_cost} ₽ for campaign {campaign_id} (user {user.id})")
                 return True
 
             except Exception as e:

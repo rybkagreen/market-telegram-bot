@@ -81,7 +81,9 @@ def process_document_ocr(self, upload_id: int) -> dict:  # NOSONAR: python:S3776
 
             # Check for errors
             if svc_result.get("error"):
-                status = "failed" if "not extracted" in svc_result["error"].lower() else "unreadable"
+                status = (
+                    "failed" if "not extracted" in svc_result["error"].lower() else "unreadable"
+                )
                 await session.execute(
                     sa_update(DocumentUpload)
                     .where(DocumentUpload.id == upload_id)
@@ -143,7 +145,9 @@ def process_document_ocr(self, upload_id: int) -> dict:  # NOSONAR: python:S3776
             }
 
             if not is_readable:
-                update_values["error_message"] = f"Низкое качество изображения: {', '.join(quality.get('issues', []))}"
+                update_values["error_message"] = (
+                    f"Низкое качество изображения: {', '.join(quality.get('issues', []))}"
+                )
 
             await session.execute(
                 sa_update(DocumentUpload)

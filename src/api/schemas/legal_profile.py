@@ -231,6 +231,7 @@ class FnsValidationError(BaseModel):
 
 class FnsValidationResponse(BaseModel):
     """Результат валидации через ФНС (контрольные суммы ИНН/ОГРН)."""
+
     is_valid: bool
     entity_type: str | None = None  # 'legal_entity', 'individual_entrepreneur', 'individual'
     inn: str | None = None
@@ -244,6 +245,7 @@ class FnsValidationResponse(BaseModel):
 
 class ValidateEntityRequest(BaseModel):
     """Запрос на валидацию юрлица или ИП."""
+
     inn: str
     legal_status: str  # needed to cross-validate INN type vs selected status
     legal_name: str | None = None

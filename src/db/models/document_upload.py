@@ -28,8 +28,12 @@ class DocumentUpload(Base):
     #          self_employed_certificate, other
 
     # Image quality check results
-    image_quality_score: Mapped[float | None] = mapped_column(Numeric(3, 2), nullable=True)  # 0.00–1.00
-    quality_issues: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["blurry", "dark", "low_res"]
+    image_quality_score: Mapped[float | None] = mapped_column(
+        Numeric(3, 2), nullable=True
+    )  # 0.00–1.00
+    quality_issues: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # JSON: ["blurry", "dark", "low_res"]
     is_readable: Mapped[bool] = mapped_column(
         "is_readable", nullable=False, default=False, server_default="false"
     )
@@ -49,11 +53,15 @@ class DocumentUpload(Base):
         String(16), nullable=False, default="pending", server_default="pending"
     )
     # Options: pending, processing, completed, failed, unreadable
-    validation_details: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: {field: {match: bool, confidence: float}}
+    validation_details: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # JSON: {field: {match: bool, confidence: float}}
 
     # Processing metadata
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

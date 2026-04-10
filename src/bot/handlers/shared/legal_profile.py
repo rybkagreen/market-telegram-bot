@@ -55,10 +55,10 @@ async def cb_legal_skip_first_start(
     await session.commit()
     await state.clear()
     await callback.message.answer(
-        "Вы можете заполнить профиль позже через веб-портал:\n"
-        f"{PORTAL_URL}/legal-profile"
+        f"Вы можете заполнить профиль позже через веб-портал:\n{PORTAL_URL}/legal-profile"
     )
     from src.bot.keyboards.shared.main_menu import main_menu_kb
+
     await callback.message.answer("🏠 Главное меню", reply_markup=main_menu_kb())
     await callback.answer()
 
@@ -70,8 +70,7 @@ async def cb_legal_skip(callback: CallbackQuery, state: FSMContext) -> None:
         return
     await state.clear()
     await callback.message.answer(
-        "Хорошо. Заполните профиль позже через веб-портал:\n"
-        f"{PORTAL_URL}/legal-profile"
+        f"Хорошо. Заполните профиль позже через веб-портал:\n{PORTAL_URL}/legal-profile"
     )
     await callback.answer()
 
@@ -82,8 +81,7 @@ async def cb_legal_edit(callback: CallbackQuery) -> None:
     if not isinstance(callback.message, Message):
         return
     await callback.message.answer(
-        "✏️ Для редактирования профиля перейдите на веб-портал:\n"
-        f"{PORTAL_URL}/legal-profile",
+        f"✏️ Для редактирования профиля перейдите на веб-портал:\n{PORTAL_URL}/legal-profile",
         reply_markup=legal_profile_redirect_keyboard(),
     )
     await callback.answer()
@@ -95,8 +93,7 @@ async def cb_legal_any(callback: CallbackQuery) -> None:
     if not isinstance(callback.message, Message):
         return
     await callback.message.answer(
-        "🔒 Заполнение юридического профиля доступно на веб-портале:\n"
-        f"{PORTAL_URL}/legal-profile",
+        f"🔒 Заполнение юридического профиля доступно на веб-портале:\n{PORTAL_URL}/legal-profile",
         reply_markup=legal_profile_redirect_keyboard(),
     )
     await callback.answer()

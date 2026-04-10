@@ -100,7 +100,7 @@ class Transaction(Base, TimestampMixin):
 
     # Sprint D.2: storno/reversal support
     reverses_transaction_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("transactions.id"), nullable=True
+        Integer, ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True
     )
     is_reversed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"

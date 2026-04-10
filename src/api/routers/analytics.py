@@ -465,7 +465,9 @@ async def get_campaign_ai_insights(
 
 
 @router.get("/advertiser")
-async def get_advertiser_analytics(current_user: CurrentUser) -> AdvertiserAnalyticsResponse:  # NOSONAR: python:S3776
+async def get_advertiser_analytics(
+    current_user: CurrentUser,
+) -> AdvertiserAnalyticsResponse:  # NOSONAR: python:S3776
     """
     Аналитика рекламодателя для Mini App.
     Возвращает данные о кампаниях, охвате, CTR и топ каналах.
