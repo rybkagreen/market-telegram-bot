@@ -60,6 +60,27 @@ export default function CampaignWaiting() {
   const formatInfo = PUBLICATION_FORMATS[placement.publication_format]
   const isPaid = placement.status === 'escrow' || placement.status === 'published'
 
+  function getWaitingIcon(): string {
+    if (isPaid) return '✅'
+    if (isExpired) return '⏰'
+    return '⏳'
+  }
+  function getWaitingTitle(): string {
+    if (isPaid) return 'Владелец принял'
+    if (isExpired) return 'Срок ответа истёк'
+    return 'Ожидает ответа владельца'
+  }
+  function getWaitingSubtitle(): string {
+    if (isPaid) return ''
+    if (!isExpired) return `До ${formatDateTime(placement?.expires_at)} (24 ч)`
+    return ''
+  }
+  function getWaitingVariant(): 'success' | 'default' | 'warning' {
+    if (isPaid) return 'success'
+    if (isExpired) return 'default'
+    return 'warning'
+  }
+
   const timelineEvents = [
     {
       id: 'created',
@@ -70,10 +91,10 @@ export default function CampaignWaiting() {
     },
     {
       id: 'waiting',
-      icon: isPaid ? '✅' : isExpired ? '⏰' : '⏳',
-      title: isPaid ? 'Владелец принял' : isExpired ? 'Срок ответа истёк' : 'Ожидает ответа владельца',
-      subtitle: isPaid ? '' : !isExpired ? `До ${formatDateTime(placement.expires_at)} (24 ч)` : '',
-      variant: isPaid ? 'success' as const : isExpired ? 'default' as const : 'warning' as const,
+      icon: getWaitingIcon(),
+      title: getWaitingTitle(),
+      subtitle: getWaitingSubtitle(),
+      variant: getWaitingVariant(),
     },
     {
       id: 'payment',
