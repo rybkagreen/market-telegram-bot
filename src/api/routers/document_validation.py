@@ -14,7 +14,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import select
 
 from src.api.dependencies import get_current_user
 from src.core.services.document_validation_service import (
@@ -23,6 +22,7 @@ from src.core.services.document_validation_service import (
     validate_file_type,
 )
 from src.db.models.user import User as UserModel
+from src.db.repositories.document_upload_repo import DocumentUploadRepository
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -117,22 +117,18 @@ async def upload_document(
     )
 
     # Create DB record
-
-    from src.db.models.document_upload import DocumentUpload
-
     async with async_session_factory() as session:
-        upload = DocumentUpload(
-            user_id=current_user.id,
-            original_filename=file.filename,
-            stored_path=stored_path,
-            file_type=file_type,
-            file_size=actual_size,
-            document_type=document_type,
+        repo = DocumentUploadRepository(session)
+        upload = await repo.create(
+            {
+                "user_id": current_user.id,
+                "original_filename": file.filename,
+                "stored_path": stored_path,
+                "file_type": file_type,
+                "file_size": actual_size,
+                "document_type": document_type,
+            }
         )
-        session.add(upload)
-        await session.flush()
-        await session.refresh(upload)
-        await session.commit()
 
     # Trigger async OCR processing
     from src.tasks.document_ocr_tasks import process_document_ocr
@@ -161,18 +157,11 @@ async def get_document_status(
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ):
     """Check processing status of an uploaded document."""
-    from src.db.models.document_upload import DocumentUpload
-
     async with async_session_factory() as session:
-        result = await session.execute(
-            select(DocumentUpload).where(
-                DocumentUpload.id == upload_id,
-                DocumentUpload.user_id == current_user.id,
-            )
-        )
-        upload = result.scalar_one_or_none()
+        repo = DocumentUploadRepository(session)
+        upload = await repo.get_by_id(upload_id)
 
-        if not upload:
+        if not upload or upload.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Документ не найден")
 
         # Parse quality issues
@@ -219,15 +208,9 @@ async def list_documents(
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ):
     """List all uploaded documents for current user."""
-    from src.db.models.document_upload import DocumentUpload
-
     async with async_session_factory() as session:
-        result = await session.execute(
-            select(DocumentUpload)
-            .where(DocumentUpload.user_id == current_user.id)
-            .order_by(DocumentUpload.created_at.desc())
-        )
-        uploads = result.scalars().all()
+        repo = DocumentUploadRepository(session)
+        uploads = await repo.get_by_user(current_user.id)
 
         return {
             "documents": [
@@ -256,18 +239,11 @@ async def delete_document(
     """Delete an uploaded document."""
     import os
 
-    from src.db.models.document_upload import DocumentUpload
-
     async with async_session_factory() as session:
-        result = await session.execute(
-            select(DocumentUpload).where(
-                DocumentUpload.id == upload_id,
-                DocumentUpload.user_id == current_user.id,
-            )
-        )
-        upload = result.scalar_one_or_none()
+        repo = DocumentUploadRepository(session)
+        upload = await repo.get_by_id(upload_id)
 
-        if not upload:
+        if not upload or upload.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Документ не найден")
 
         # Delete file from disk
@@ -278,7 +254,6 @@ async def delete_document(
             logger.warning(f"Failed to delete file {upload.stored_path}: {e}")
 
         # Delete DB record
-        await session.delete(upload)
-        await session.commit()
+        await repo.delete(upload_id)
 
     return {"success": True}

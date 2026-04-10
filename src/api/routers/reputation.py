@@ -3,10 +3,12 @@ FastAPI router для репутации пользователей (ReputationS
 """
 
 import logging
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
@@ -252,8 +254,6 @@ async def get_admin_reputation_history(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
 
-    from sqlalchemy import func, select
-
     from src.db.models.user import User
 
     # Построение запроса с JOIN к users для получения username
@@ -268,7 +268,7 @@ async def get_admin_reputation_history(
     if conditions:
         count_query = count_query.where(*conditions)
     total_result = await session.execute(count_query)
-    total = total_result.scalar() or 0
+    total = int(total_result.scalar() or 0)
 
     # Запрос данных с пагинацией и JOIN к users
     query = (
@@ -303,7 +303,7 @@ async def get_admin_reputation_history(
             )
         )
 
-    pages = (total + limit - 1) // limit if total > 0 else 1
+    pages = math.ceil(total / limit) if total > 0 else 1
 
     return ReputationAdminHistoryResponse(
         items=items,

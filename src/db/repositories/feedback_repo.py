@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from src.db.models.feedback import FeedbackStatus, UserFeedback
 from src.db.repositories.base import BaseRepository
@@ -99,3 +100,72 @@ class FeedbackRepository(BaseRepository[UserFeedback]):
                 select(func.count()).where(UserFeedback.status == status)
             )
         return result.scalar_one() or 0
+
+    async def get_by_id_with_user(
+        self,
+        feedback_id: int,
+    ) -> UserFeedback | None:
+        """Получить feedback с загруженными user и responder."""
+        query = (
+            select(UserFeedback)
+            .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+            .where(UserFeedback.id == feedback_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def list_all_paginated(
+        self,
+        status: FeedbackStatus | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Sequence[UserFeedback]:
+        """Получить все feedback с пагинацией и загруженными relationships."""
+        query = (
+            select(UserFeedback)
+            .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
+            .order_by(UserFeedback.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if status is not None:
+            query = query.where(UserFeedback.status == status)
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def respond(
+        self,
+        feedback_id: int,
+        admin_user_id: int,
+        response_text: str,
+        status: FeedbackStatus = FeedbackStatus.RESOLVED,
+    ) -> UserFeedback | None:
+        """Ответить на feedback (с загрузкой relationships)."""
+        feedback = await self.get_by_id_with_user(feedback_id)
+        if not feedback:
+            return None
+
+        feedback.admin_response = response_text
+        feedback.status = status
+        feedback.responded_by_id = admin_user_id
+        feedback.responded_at = datetime.now(UTC)
+
+        await self.session.flush()
+        await self.session.refresh(feedback)
+        return feedback
+
+    async def update_status_only(
+        self,
+        feedback_id: int,
+        status: FeedbackStatus,
+    ) -> UserFeedback | None:
+        """Обновить только статус feedback (с загрузкой relationships)."""
+        feedback = await self.get_by_id_with_user(feedback_id)
+        if not feedback:
+            return None
+
+        feedback.status = status
+
+        await self.session.flush()
+        await self.session.refresh(feedback)
+        return feedback

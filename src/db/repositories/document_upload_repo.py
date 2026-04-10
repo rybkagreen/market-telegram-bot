@@ -1,9 +1,8 @@
 """DocumentUploadRepository for DocumentUpload model operations."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from src.db.models.document_upload import DocumentUpload
 from src.db.repositories.base import BaseRepository
@@ -73,8 +72,7 @@ class DocumentUploadRepository(BaseRepository[DocumentUpload]):
         """Получить зависшие в обработке документы."""
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
         result = await self.session.execute(
-            select(DocumentUpload)
-            .where(
+            select(DocumentUpload).where(
                 DocumentUpload.validation_status == "processing",
                 DocumentUpload.processing_started_at < cutoff,
             )

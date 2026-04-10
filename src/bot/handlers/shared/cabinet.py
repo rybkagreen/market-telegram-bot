@@ -4,13 +4,12 @@ from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.shared.cabinet import cabinet_kb, gamification_kb, referral_kb
 from src.db.models.badge import UserBadge
 from src.db.models.reputation_score import ReputationScore
-from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 
 router = Router()
@@ -79,8 +78,7 @@ async def show_referral(callback: CallbackQuery, session: AsyncSession) -> None:
     if not user:
         await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
-    result = await session.execute(select(func.count()).where(User.referred_by_id == user.id))
-    ref_count = result.scalar_one()
+    ref_count = await UserRepository(session).count_referrals(user.id)
     await callback.message.edit_text(
         f"🎁 *Реферальная программа*\n\n"
         f"Приглашайте друзей и получайте бонусы!\n\n"

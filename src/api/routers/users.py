@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import CurrentUser, get_current_user, get_db_session
 from src.db.models.user import User
 from src.db.repositories.reputation_repo import ReputationRepository
+from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -229,51 +230,19 @@ async def get_my_referrals(
     Returns:
         ReferralStatsResponse: Реферальная статистика пользователя.
     """
-    from sqlalchemy import func, select
-
-    from src.db.models.user import User
-    from src.db.models.yookassa_payment import YookassaPayment
+    user_repo = UserRepository(session)
 
     # Получаем рефералов (пользователи у которых referred_by_id == current_user.id)
-    referrals_query = (
-        select(User)
-        .where(User.referred_by_id == current_user.id)
-        .order_by(User.created_at.desc())
-        .limit(20)
-    )
-    result = await session.execute(referrals_query)
-    referral_users = list(result.scalars().all())
+    referral_users = await user_repo.get_referrals(current_user.id, limit=20)
 
     # Подсчёт общего количества
-    count_query = (
-        select(func.count()).select_from(User).where(User.referred_by_id == current_user.id)
-    )
-    total_result = await session.execute(count_query)
-    total_referrals = total_result.scalar() or 0
+    total_referrals = await user_repo.count_referrals(current_user.id)
 
     # Active referrals — те кто совершил хотя бы одну оплату (есть запись в YookassaPayment со status=succeeded)
-    active_query = (
-        select(func.count(User.id))
-        .join(YookassaPayment, User.id == YookassaPayment.user_id)
-        .where(
-            User.referred_by_id == current_user.id,
-            YookassaPayment.status == "succeeded",
-        )
-    )
-    active_result = await session.execute(active_query)
-    active_referrals = active_result.scalar() or 0
+    active_referrals = await user_repo.count_active_referrals(current_user.id)
 
     # Total earned rub — сумма desired_balance из успешных платежей рефералов
-    earned_query = (
-        select(func.sum(YookassaPayment.desired_balance))
-        .join(User, User.id == YookassaPayment.user_id)
-        .where(
-            User.referred_by_id == current_user.id,
-            YookassaPayment.status == "succeeded",
-        )
-    )
-    earned_result = await session.execute(earned_query)
-    total_earned_rub = Decimal(str(earned_result.scalar() or 0))
+    total_earned_rub = await user_repo.sum_referral_earnings(current_user.id)
 
     # Формируем ссылку (используем заглушку для bot_username, если не настроено)
     bot_username = "RekHarborBot"  # Default, can be overridden via settings
@@ -283,15 +252,7 @@ async def get_my_referrals(
     referrals = []
     for ref in referral_users:
         # Проверяем активность (была ли оплата)
-        payment_check = await session.execute(
-            select(YookassaPayment.id)
-            .where(
-                YookassaPayment.user_id == ref.id,
-                YookassaPayment.status == "succeeded",
-            )
-            .limit(1)
-        )
-        is_active = payment_check.scalar_one_or_none() is not None
+        is_active = await user_repo.has_successful_payment(ref.id)
 
         referrals.append(
             ReferralItem(

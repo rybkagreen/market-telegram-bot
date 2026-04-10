@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from src.config.settings import settings
 from src.db.models.user import User
+from src.db.models.yookassa_payment import YookassaPayment
 from src.db.repositories.base import BaseRepository
 
 
@@ -23,6 +24,11 @@ class UserRepository(BaseRepository[User]):
     async def get_by_username(self, username: str) -> User | None:
         """Получить пользователя по username."""
         result = await self.session.execute(select(User).where(User.username == username))
+        return result.scalar_one_or_none()
+
+    async def get_by_referral_code(self, referral_code: str) -> User | None:
+        """Получить пользователя по referral_code."""
+        result = await self.session.execute(select(User).where(User.referral_code == referral_code))
         return result.scalar_one_or_none()
 
     async def get_all_admins(self) -> list[User]:
@@ -155,3 +161,57 @@ class UserRepository(BaseRepository[User]):
         await self.session.flush()
         await self.session.refresh(user)
         return user
+
+    async def count_referrals(self, user_id: int) -> int:
+        """Посчитать количество рефералов пользователя."""
+        result = await self.session.execute(
+            select(func.count()).select_from(User).where(User.referred_by_id == user_id)
+        )
+        return result.scalar_one() or 0
+
+    async def get_referrals(self, user_id: int, limit: int = 20, offset: int = 0) -> list[User]:
+        """Получить список рефералов пользователя (по referred_by_id)."""
+        result = await self.session.execute(
+            select(User)
+            .where(User.referred_by_id == user_id)
+            .order_by(User.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
+    async def count_active_referrals(self, user_id: int) -> int:
+        """Посчитать активных рефералов (тех, у кого есть succeeded платёж)."""
+        result = await self.session.execute(
+            select(func.count(User.id))
+            .join(YookassaPayment, User.id == YookassaPayment.user_id)
+            .where(
+                User.referred_by_id == user_id,
+                YookassaPayment.status == "succeeded",
+            )
+        )
+        return result.scalar_one() or 0
+
+    async def sum_referral_earnings(self, user_id: int) -> Decimal:
+        """Получить сумму desired_balance от успешных платежей рефералов."""
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(YookassaPayment.desired_balance), Decimal("0")))
+            .join(User, User.id == YookassaPayment.user_id)
+            .where(
+                User.referred_by_id == user_id,
+                YookassaPayment.status == "succeeded",
+            )
+        )
+        return result.scalar_one() or Decimal("0")
+
+    async def has_successful_payment(self, user_id: int) -> bool:
+        """Проверить, есть ли у пользователя хотя бы один успешный платёж."""
+        result = await self.session.execute(
+            select(YookassaPayment.id)
+            .where(
+                YookassaPayment.user_id == user_id,
+                YookassaPayment.status == "succeeded",
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None

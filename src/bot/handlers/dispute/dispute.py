@@ -9,7 +9,6 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.handlers.shared.notifications import (
@@ -135,9 +134,9 @@ async def open_dispute(
             logger.warning("notify owner dispute failed: %s", exc)
 
     # Уведомить всех админов
-    admins_result = await session.execute(select(User).where(User.is_admin == True))  # noqa: E712
+    admins = await UserRepository(session).get_all_admins()
     if callback.bot:
-        for admin in admins_result.scalars().all():
+        for admin in admins:
             with contextlib.suppress(Exception):
                 await notify_admin_new_dispute(
                     bot=callback.bot,
@@ -280,8 +279,8 @@ async def owner_explain_text(message: Message, state: FSMContext, session: Async
     await state.clear()
 
     # Уведомить администраторов
-    admins_result = await session.execute(select(User).where(User.is_admin == True))  # noqa: E712
-    for admin in admins_result.scalars().all():
+    admins = await UserRepository(session).get_all_admins()
+    for admin in admins:
         try:
             builder_adm = InlineKeyboardBuilder()
             builder_adm.button(
