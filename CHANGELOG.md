@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29E: Fix Channel Name Bug (v4.6 — April 2026)
+
+#### Fixed
+- **"@#1" on My Campaigns** — added `channel: ChannelRef | None` to `PlacementResponse` schema and `selectinload` in repository queries. Now channel username is returned by API. (`src/api/routers/placements.py`, `src/db/repositories/placement_request_repo.py`, `mini_app/src/lib/types.ts`)
+
+### S-29D: Mini App Channels Layout Fix (v4.6 — April 2026)
+
+#### Changed
+- **OwnChannels screen** — wrapped all content in shared `.container` to align "Add" button, channel cards, and warning banners to the same width (`mini_app/src/screens/owner/OwnChannels.tsx`, `.module.css`)
+- **ChannelCard layout** — extracted status pill + chevron into `.actions` container with `margin-left: auto`, preventing them from competing with channel name for space (`mini_app/src/components/ui/ChannelCard.tsx`, `.module.css`)
+
 ### S-29B: Sidebar Icon-Only Collapsed State (v4.6 — April 2026)
 
 #### Added
