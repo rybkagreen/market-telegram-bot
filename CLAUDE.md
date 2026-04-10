@@ -88,6 +88,29 @@ Any state → `cancelled` / `refunded` / `failed` / `failed_permissions`
 - **background**: parser, cleanup, rating (concurrency 4)
 - **game**: badges, XP (concurrency 2)
 
+## Migration Strategy (Pre-Production)
+
+**CURRENT RULE (until first production user):**
+- Do NOT create incremental Alembic migrations for model changes
+- Instead: edit `src/db/migrations/versions/0001_initial_schema.py` directly
+- After editing: drop and recreate the DB, then `alembic upgrade head`
+
+**Reset command:**
+```bash
+docker compose exec db psql -U postgres \
+  -c "DROP DATABASE market_bot_db; CREATE DATABASE market_bot_db;" \
+  && docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+```
+
+**Verify sync after every model change:**
+```bash
+docker compose exec api poetry run alembic -c alembic.docker.ini check
+# Must output: "No new upgrade operations detected."
+```
+
+**Switch to incremental migrations ONLY when:** first real user appears in production.
+At that point — `0001_initial_schema.py` becomes immutable (standard Alembic rules apply).
+
 ## Deleted in v4.3 Rebuild
 
 Do **not** import these — they no longer exist:

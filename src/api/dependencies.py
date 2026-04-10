@@ -164,18 +164,33 @@ async def close_redis_pool():
 RedisClient = Annotated[aioredis.Redis, Depends(get_redis)]
 
 
+# ─── Telegram Bot singleton ────────────────────────────────────
+
+_bot_instance: Bot | None = None
+
+
 async def get_bot() -> Bot:
     """
-    Получить экземпляр Telegram Bot для проверки прав в каналах.
-
-    Использование:
-        @router.post("/channels/check")
-        async def check_channel(bot: Bot = Depends(get_bot)):
-            chat = await bot.get_chat(f"@{username}")  # Add @ prefix for username
-
-    Returns:
-        Экземпляр Telegram Bot для взаимодействия с Telegram API
+    Получить shared экземпляр Telegram Bot (singleton).
+    Создаётся и инициализируется один раз, переиспользуется далее.
+    Если задан TELEGRAM_PROXY, все запросы идут через него (SOCKS5/HTTP).
     """
-    bot = Bot(token=settings.bot_token)
-    await bot.initialize()
-    return bot
+    global _bot_instance
+    if _bot_instance is None:
+        if settings.telegram_proxy:
+            from telegram.request import HTTPXRequest
+
+            request = HTTPXRequest(proxy=settings.telegram_proxy)
+            _bot_instance = Bot(token=settings.bot_token, request=request)
+        else:
+            _bot_instance = Bot(token=settings.bot_token)
+        await _bot_instance.initialize()
+    return _bot_instance
+
+
+async def close_bot() -> None:
+    """Закрыть Bot при shutdown (вызывается из lifespan)."""
+    global _bot_instance
+    if _bot_instance is not None:
+        await _bot_instance.shutdown()
+        _bot_instance = None
