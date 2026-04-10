@@ -181,11 +181,11 @@ export default function OwnChannels() {
             return (
               <Card key={channel.id} className="p-4 hover:shadow-lg transition-shadow">
                 {/* Main row: Identity | Metrics | Actions */}
-                <div className="flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:items-center">
+                <div className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:items-center">
                   {/* Zone A: Identity (col-span-5) */}
-                  <div className="sm:col-span-5 flex items-start gap-3 min-w-0">
+                  <div className="sm:col-span-5 flex items-start gap-2 sm:gap-3 min-w-0">
                     {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full bg-accent-muted flex items-center justify-center text-lg shrink-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent-muted flex items-center justify-center text-base sm:text-lg shrink-0">
                       {channel.title[0]?.toUpperCase() ?? '📺'}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -209,21 +209,23 @@ export default function OwnChannels() {
                   </div>
 
                   {/* Zone B: Metrics (col-span-3) */}
-                  <div className="sm:col-span-3 flex items-center gap-6 sm:justify-center py-1">
+                  <div className="sm:col-span-3 sm:border-l sm:border-border sm:pl-4 flex items-center justify-center bg-harbor-elevated/30 sm:bg-transparent rounded-md sm:rounded-none px-3 py-2 sm:py-0">
                     <div className="text-center">
-                      <p className="text-lg font-semibold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
-                      <p className="text-xs text-text-tertiary">подписчики</p>
+                      <p className="text-base font-semibold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
+                      <p className="text-[10px] text-text-tertiary">подписчики</p>
                     </div>
+                    <div className="w-px h-8 bg-border mx-3" />
                     <div className="text-center">
-                      <p className="text-lg font-semibold text-text-primary">{channel.rating.toFixed(1)}</p>
-                      <p className="text-xs text-text-tertiary">рейтинг</p>
+                      <p className="text-base font-semibold text-text-primary">{channel.rating.toFixed(1)}</p>
+                      <p className="text-[10px] text-text-tertiary">рейтинг</p>
                     </div>
                   </div>
 
                   {/* Zone C: Actions (col-span-4) */}
-                  <div className="sm:col-span-4 flex items-center justify-end gap-2 flex-wrap">
+                  <div className="sm:col-span-4 sm:border-l sm:border-border sm:pl-4 flex items-center justify-end gap-1 sm:gap-2 flex-wrap">
+                    {/* Compare — text on desktop, icon only on mobile */}
                     <button
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      className={`px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
                         compareIds.has(channel.id)
                           ? 'bg-accent text-accent-text'
                           : compareIds.size >= MAX_COMPARE
@@ -234,25 +236,34 @@ export default function OwnChannels() {
                       disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
                       onClick={() => toggleCompare(channel.id)}
                     >
-                      ⚖️
+                      <span>⚖️</span>
+                      <span className="hidden sm:inline">Сравнить</span>
                     </button>
+                    {/* Settings — icon only on mobile, icon+text on desktop */}
                     <Button
                       variant="secondary"
                       size="sm"
+                      className="px-2 sm:px-3"
                       onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
                     >
-                      ⚙️
+                      <span>⚙️</span>
+                      <span className="hidden sm:inline ml-1">Настр.</span>
                     </Button>
+                    {/* Delete — icon only on mobile, icon+text on desktop */}
                     <Button
                       variant="danger"
                       size="sm"
+                      className="px-2 sm:px-3"
                       disabled={deletingChannelId !== null}
                       onClick={() => handleDeleteChannel(channel.id, channel.title)}
                     >
                       {deletingChannelId === channel.id ? (
                         <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        '🗑️'
+                        <>
+                          <span>🗑️</span>
+                          <span className="hidden sm:inline ml-1">Удалить</span>
+                        </>
                       )}
                     </Button>
                   </div>
@@ -260,8 +271,8 @@ export default function OwnChannels() {
 
                 {/* Category inline picker (only when missing) */}
                 {!channel.category && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs text-warning mb-2">⚠️ Добавьте категорию — без неё канал не виден рекламодателям</p>
+                  <div className="mt-2">
+                    <p className="text-xs text-warning mb-1.5">⚠️ Добавьте категорию — без неё канал не виден рекламодателям</p>
                     {editingCategoryFor === channel.id ? (
                       <div className="flex flex-wrap gap-1.5">
                         {CATEGORY_OPTIONS.map((cat) => (
