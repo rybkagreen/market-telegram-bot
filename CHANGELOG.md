@@ -61,7 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **P5:** Added security headers middleware to FastAPI (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `HSTS`, `Cache-Control: no-store`)
 
 ### Fixed
-- **CRITICAL:** `camp_pay_balance` handler now schedules Celery publication task after payment — fixes stalled escrow placements that never got published (`src/bot/handlers/placement/placement.py`)
+- **CRITICAL:** Bot startup now retries with exponential backoff (3→6→12→24→48s, max 5 attempts) instead of crashing on Telegram API timeout. Added explicit `bot.session.close()` in finally block to prevent aiohttp session leak (`src/bot/main.py`)
+- **CRITICAL:** Nginx no longer fails with `host not found in upstream "flower:5555"` during startup — added `flower` to nginx `depends_on` list (`docker-compose.yml`)
+- **HIGH:** Sentry SDK now has `shutdown_timeout=2` and `debug=False` — prevents blocking exit and verbose retry logging (`src/bot/main.py`)
+- **MEDIUM:** Changed bot `ParseMode.MARKDOWN` → `ParseMode.HTML` (per QWEN.md axioms)
 - **HIGH:** Added `placement:check_escrow_sla` Celery Beat task — detects and auto-refunds placements stuck in escrow past scheduled time (`src/tasks/placement_tasks.py`, `src/tasks/celery_config.py`)
 - **HIGH:** Channel owner now receives notification when placement is paid and scheduled (`src/bot/handlers/placement/placement.py`)
 - `placement:schedule_placement_publication` now handles NULL `scheduled_iso` parameter (defaults to now + 5 min)
