@@ -1,17 +1,16 @@
 """TelegramChat model for Telegram channels/chats."""
 
+import itertools
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
-
-import itertools
 
 from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 _fake_telegram_id_counter = itertools.count(start=-(2**32))
 
-from src.db.base import Base, TimestampMixin
+from src.db.base import Base, TimestampMixin  # noqa: E402
 
 CASCADE_ALL = "all, delete-orphan"
 

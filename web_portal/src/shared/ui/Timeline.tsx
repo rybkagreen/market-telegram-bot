@@ -10,14 +10,28 @@ interface TimelineProps {
   events: TimelineEvent[]
 }
 
+const DOT_BG_MAP: Record<string, string> = {
+  success: 'bg-success-muted',
+  warning: 'bg-warning-muted',
+  default: 'bg-border',
+}
+
+const DOT_INNER_MAP: Record<string, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  default: 'bg-border-active',
+}
+
 export function Timeline({ events }: TimelineProps) {
   return (
     <div className="flex flex-col">
       {events.map((event, i) => {
         const isFirst = i === 0
         const isLast = i === events.length - 1
-        const dotBg = event.variant === 'success' ? 'bg-success-muted' : event.variant === 'warning' ? 'bg-warning-muted' : 'bg-border'
-        const dotInner = event.variant === 'success' ? 'bg-success' : event.variant === 'warning' ? 'bg-warning' : 'bg-border-active'
+        const variant = event.variant ?? 'default'
+        const dotBg = DOT_BG_MAP[variant]
+        const dotInner = DOT_INNER_MAP[variant]
+        const paddingClasses = [isLast && 'pb-0', isFirst && 'pt-1'].filter(Boolean).join(' ')
 
         return (
           <div key={event.id} className="flex gap-3">
@@ -33,7 +47,7 @@ export function Timeline({ events }: TimelineProps) {
               )}
             </div>
             {/* Content */}
-            <div className={`pb-6 ${isLast ? 'pb-0' : ''} ${isFirst ? 'pt-1' : ''}`}>
+            <div className={`pb-6 ${paddingClasses}`}>
               <div className="text-sm font-medium text-text-primary">{event.title}</div>
               {event.subtitle && <div className="text-xs text-text-tertiary mt-0.5">{event.subtitle}</div>}
             </div>

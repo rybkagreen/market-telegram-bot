@@ -81,6 +81,13 @@ export default function AdminFeedbackDetail() {
     rejected: 'text-danger',
   }
 
+  const STATUS_LABELS: Record<string, string> = {
+    new: 'Новое',
+    in_progress: 'В работе',
+    resolved: 'Решено',
+    rejected: 'Отклонено',
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -167,7 +174,7 @@ export default function AdminFeedbackDetail() {
               size="sm"
               onClick={() => handleStatusChange(status)}
             >
-              {status === 'new' ? 'Новое' : status === 'in_progress' ? 'В работе' : status === 'resolved' ? 'Решено' : 'Отклонено'}
+              {STATUS_LABELS[status] ?? status}
             </Button>
           ))}
         </div>

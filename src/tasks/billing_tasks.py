@@ -155,24 +155,12 @@ async def _check_plan_renewals() -> dict:
     return {"renewed": renewed, "downgraded": downgraded}
 
 
-@celery_app.task(name="billing:check_pending_invoices", queue="billing", bind=True)
-def check_pending_invoices(self) -> dict:
-    """
-    Устаревший метод — не используется.
-    Запускается каждые 5 минут.
-    """
-    import asyncio
-
-    # Создаём новый event loop для async операций
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(_check_pending_invoices())
-        return result
-    finally:
-        loop.close()
+@celery_app.task(name="billing:check_pending_invoices", queue="billing")
+def check_pending_invoices() -> dict:
+    """DEPRECATED: Removed in v4.5. No-op — safe to delete."""
+    return {"deprecated": True, "removed_in": "v4.5"}
 
 
 async def _check_pending_invoices() -> dict:
-    """Устаревший метод — нечего проверять."""
-    return {"credited": 0, "expired": 0}
+    """DEPRECATED: Removed in v4.5."""
+    return {"deprecated": True, "removed_in": "v4.5"}

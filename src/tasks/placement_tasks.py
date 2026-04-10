@@ -13,9 +13,11 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import redis as redis_sync
+from redis import Redis as RedisSync
+from redis.asyncio import Redis
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
@@ -26,11 +28,14 @@ from src.db.repositories.placement_request_repo import PlacementRequestRepositor
 from src.db.repositories.reputation_repo import ReputationRepo
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
+from src.tasks.celery_config import QUEUE_WORKER_CRITICAL
 
 logger = logging.getLogger(__name__)
 
-# Sync Redis для дедупликации задач
-redis_sync_client = redis_sync.from_url(settings.celery_broker_url, decode_responses=True)
+# Async Redis для дедупликации задач (D-10 fix)
+redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
+# Sync Redis only for Celery task dedup (runs in sync context)
+redis_sync_client = RedisSync.from_url(settings.celery_broker_url, decode_responses=True)
 
 # =============================================================================
 # SLA КОНСТАНТЫ
@@ -117,7 +122,9 @@ def _check_dedup(task_name: str, placement_id: int) -> bool:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_owner_response_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_owner_response_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_owner_response_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA ответа владельца (24ч).
@@ -218,7 +225,9 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_payment_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_payment_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_payment_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA оплаты рекламодателем (24ч).
@@ -311,7 +320,9 @@ async def _check_payment_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_counter_offer_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_counter_offer_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_counter_offer_sla(self) -> dict[str, Any]:
     """
     Проверить истечение SLA ответа на контр-предложение (24ч).
@@ -417,7 +428,9 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:publish_placement")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:publish_placement", queue=QUEUE_WORKER_CRITICAL
+)
 def publish_placement(self, placement_id: int) -> dict[str, Any]:
     """
     Выполнить публикацию поста в канале в запланированное время.
@@ -548,7 +561,9 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:retry_failed_publication")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:retry_failed_publication", queue=QUEUE_WORKER_CRITICAL
+)
 def retry_failed_publication(self, placement_id: int) -> dict[str, Any]:
     """
     Повторная попытка публикации через 1ч после неудачи.
@@ -613,7 +628,12 @@ async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_published_posts_health")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:check_published_posts_health",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def check_published_posts_health(self) -> dict[str, Any]:
     """
     Периодическая задача — проверить здоровье опубликованных постов.
@@ -762,7 +782,9 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_escrow_sla")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_escrow_sla", queue=QUEUE_WORKER_CRITICAL
+)
 def check_escrow_sla(self) -> dict[str, Any]:
     """
     Find placements in escrow where scheduled time has passed but no message sent.
@@ -887,7 +909,12 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:schedule_placement_publication")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:schedule_placement_publication",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def schedule_placement_publication(
     self,
     placement_id: int,
@@ -940,7 +967,9 @@ def schedule_placement_publication(
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:delete_published_post")
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:delete_published_post", queue=QUEUE_WORKER_CRITICAL
+)
 def delete_published_post(self, placement_id: int) -> dict[str, Any]:
     """
     Удалить опубликованный пост.
@@ -999,7 +1028,12 @@ async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
 # =============================================================================
 
 
-@celery_app.task(bind=True, base=BaseTask, name="placement:check_scheduled_deletions")
+@celery_app.task(
+    bind=True,
+    base=BaseTask,
+    name="placement:check_scheduled_deletions",
+    queue=QUEUE_WORKER_CRITICAL,
+)
 def check_scheduled_deletions(self) -> dict[str, Any]:
     """
     Периодическая задача — найти посты с истёкшим scheduled_delete_at.
@@ -1063,6 +1097,82 @@ async def _check_scheduled_deletions_async() -> dict[str, Any]:
 
             except Exception as e:
                 logger.error(f"Failed to schedule deletion for placement {placement.id}: {e}")
+                stats["errors"] += 1
+
+    return stats
+
+
+# =============================================================================
+# T8: ESCROW STUCK DETECTION (D-03 monitoring)
+# =============================================================================
+
+
+@celery_app.task(
+    bind=True, base=BaseTask, name="placement:check_escrow_stuck", queue=QUEUE_WORKER_CRITICAL
+)
+def check_escrow_stuck(self) -> dict[str, Any]:
+    """
+    Detect placements in ESCROW status where scheduled_delete_at passed >48h ago.
+    These are 'stuck' — the delete task may have failed silently.
+    Alerts admin for manual intervention.
+    """
+    logger.info("Checking for stuck escrow placements")
+
+    try:
+        stats = asyncio.run(_check_escrow_stuck_async())
+        logger.info(f"Escrow stuck check completed: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error checking escrow stuck: {e}")
+        return {"error": str(e)}
+
+
+async def _check_escrow_stuck_async() -> dict[str, Any]:
+    """Async implementation of escrow stuck detection."""
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from src.db.models.placement_request import PlacementRequest, PlacementStatus
+
+    stats: dict[str, Any] = {"total_checked": 0, "stuck": 0, "alerted": 0, "errors": 0}
+
+    threshold = datetime.now(UTC) - timedelta(hours=48)
+
+    async with async_session_factory() as session:
+        stmt = (
+            select(PlacementRequest)
+            .where(
+                PlacementRequest.status == PlacementStatus.escrow,
+                PlacementRequest.scheduled_delete_at.isnot(None),
+                PlacementRequest.scheduled_delete_at < threshold,
+            )
+            .options(selectinload(PlacementRequest.channel))
+        )
+        result = await session.execute(stmt)
+        stuck_placements = list(result.scalars().all())
+
+        stats["total_checked"] = len(stuck_placements)
+
+        for placement in stuck_placements:
+            try:
+                stats["stuck"] += 1
+                logger.critical(
+                    f"STUCK ESCROW: placement #{placement.id}, "
+                    f"scheduled_delete_at={placement.scheduled_delete_at}, "
+                    f"channel={placement.channel.username if placement.channel else 'unknown'}"
+                )
+
+                # Mark in meta
+                if placement.meta_json is None:
+                    placement.meta_json = {}
+                placement.meta_json["escrow_stuck_detected"] = datetime.now(UTC).isoformat()
+
+                stats["alerted"] += 1
+
+            except Exception as e:
+                logger.error(f"Failed to process stuck escrow #{placement.id}: {e}")
                 stats["errors"] += 1
 
     return stats

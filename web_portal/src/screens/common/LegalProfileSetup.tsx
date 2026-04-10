@@ -62,6 +62,12 @@ export default function LegalProfileSetup() {
   const isSelfEmployed = status === 'self_employed'
   const showBank = isLegalEntity || isIE
 
+  function getLegalNameLabel(): string {
+    if (isLegalEntity) return 'Название организации *'
+    if (isIE) return 'ФИО ИП *'
+    return 'ФИО *'
+  }
+
   // Pre-fill from existing profile
   useEffect(() => {
     if (existingProfile) {
@@ -201,7 +207,7 @@ export default function LegalProfileSetup() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm text-text-secondary mb-1">
-                {isLegalEntity ? 'Название организации *' : isIE ? 'ФИО ИП *' : 'ФИО *'}
+                {getLegalNameLabel()}
               </label>
               <input
                 className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"

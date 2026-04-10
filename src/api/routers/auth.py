@@ -159,7 +159,14 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         earned_rub=str(current_user.earned_rub),
         is_admin=current_user.is_admin,
         ai_generations_used=current_user.ai_uses_count,
-        platform_rules_accepted_at=str(current_user.platform_rules_accepted_at) if current_user.platform_rules_accepted_at else None,
-        privacy_policy_accepted_at=str(current_user.privacy_policy_accepted_at) if current_user.privacy_policy_accepted_at else None,
-        legal_profile_prompted_at=str(current_user.legal_profile_prompted_at) if hasattr(current_user, 'legal_profile_prompted_at') and current_user.legal_profile_prompted_at else None,
+        platform_rules_accepted_at=str(current_user.platform_rules_accepted_at)
+        if current_user.platform_rules_accepted_at
+        else None,
+        privacy_policy_accepted_at=str(current_user.privacy_policy_accepted_at)
+        if current_user.privacy_policy_accepted_at
+        else None,
+        legal_profile_prompted_at=str(current_user.legal_profile_prompted_at)
+        if hasattr(current_user, "legal_profile_prompted_at")
+        and current_user.legal_profile_prompted_at
+        else None,
     )

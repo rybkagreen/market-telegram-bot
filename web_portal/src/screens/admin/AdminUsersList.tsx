@@ -9,6 +9,13 @@ type RoleFilter = 'all' | 'advertiser' | 'owner' | 'both'
 const ROLES = ['advertiser', 'owner', 'both']
 const PLANS = ['free', 'starter', 'pro', 'business']
 
+const ROLE_LABELS: Record<RoleFilter, string> = {
+  all: 'Все',
+  advertiser: 'Рекл.',
+  owner: 'Владелец',
+  both: 'Обе',
+}
+
 export default function AdminUsersList() {
   const navigate = useNavigate()
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
@@ -114,7 +121,7 @@ export default function AdminUsersList() {
               }`}
               onClick={() => { setRoleFilter(role); setPage(0); setSelectedIds(new Set()) }}
             >
-              {role === 'all' ? 'Все' : role === 'both' ? 'Обе' : role === 'advertiser' ? 'Рекл.' : 'Владелец'}
+              {ROLE_LABELS[role]}
             </button>
           ))}
         </div>

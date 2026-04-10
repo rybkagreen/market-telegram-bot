@@ -6,7 +6,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
@@ -24,6 +23,7 @@ from src.api.schemas.legal_profile import (
 from src.core.services.contract_service import ContractService
 from src.db.models.contract import Contract
 from src.db.models.user import User
+from src.db.repositories.contract_repo import ContractRepo
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +116,8 @@ async def get_contract(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ContractResponse:
     """Get a single contract by ID."""
-    result = await session.execute(select(Contract).where(Contract.id == contract_id))
-    contract = result.scalar_one_or_none()
+    repo = ContractRepo(session)
+    contract = await repo.get_by_id(contract_id)
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     if contract.user_id != current_user.id:
@@ -193,7 +193,7 @@ async def request_kep(
         )
         _ = notif  # reference to suppress unused var warning
     except Exception:
-        pass  # notification failure must not block the request
+        pass  # nosec B110 — notification failure must not block the request
 
     return {
         "success": True,
@@ -211,8 +211,8 @@ async def download_pdf(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FileResponse:
     """Download a contract PDF."""
-    result = await session.execute(select(Contract).where(Contract.id == contract_id))
-    contract = result.scalar_one_or_none()
+    repo = ContractRepo(session)
+    contract = await repo.get_by_id(contract_id)
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     if contract.user_id != current_user.id:

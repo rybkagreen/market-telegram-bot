@@ -56,6 +56,16 @@ class TransactionRepository(BaseRepository[Transaction]):
         )
         return result.scalar() or Decimal("0")
 
+    async def sum_by_user_and_type(self, user_id: int, txn_type: TransactionType) -> Decimal:
+        """Посчитать сумму транзакций пользователя по типу."""
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), Decimal("0"))).where(
+                Transaction.user_id == user_id,
+                Transaction.type == txn_type,
+            )
+        )
+        return result.scalar() or Decimal("0")
+
     async def create(self, data: dict[str, Any]) -> Transaction:
         """Создать транзакцию."""
         txn = Transaction(**data)
@@ -63,3 +73,48 @@ class TransactionRepository(BaseRepository[Transaction]):
         await self.session.flush()
         await self.session.refresh(txn)
         return txn
+
+    async def list_by_user_id(
+        self,
+        user_id: int,
+        types_filter: set[str],
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[Transaction], int]:
+        """
+        Получить транзакции пользователя с пагинацией и фильтром по типам.
+
+        Args:
+            user_id: ID пользователя.
+            types_filter: Набор допустимых типов транзакций.
+            page: Номер страницы (1-based).
+            limit: Размер страницы.
+
+        Returns:
+            Кортеж (список транзакций, общее количество).
+        """
+        from sqlalchemy import func
+
+        base_conditions = [
+            Transaction.user_id == user_id,
+            Transaction.type.in_(types_filter),
+        ]
+
+        # Total count
+        count_query = select(func.count()).select_from(Transaction).where(*base_conditions)
+        total_result = await self.session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Paginated data
+        offset = (page - 1) * limit
+        query = (
+            select(Transaction)
+            .where(*base_conditions)
+            .order_by(Transaction.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.session.execute(query)
+        items = list(result.scalars().all())
+
+        return items, total
