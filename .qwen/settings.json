@@ -15,13 +15,85 @@
   "permissions": {
     "allow": [
       "Bash(docker-compose *)",
-      "Bash(docker compose exec *)",
+      "Bash(docker compose *)",
       "Bash(npm run *)",
       "Bash(ruff *)",
       "Bash(mypy *)",
       "Bash(pytest *)",
       "Bash(alembic *)",
-      "Bash(bandit *)"
+      "Bash(bandit *)",
+      "Bash(flake8 *)",
+      "Bash(python -c *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(make *)",
+      "Bash(poetry run *)",
+      "Bash(docker *)",
+      "Bash(ls *)",
+      "Bash(psql *)",
+      "Bash(curl *)"
     ]
+  },
+  "model": {
+    "maxTokens": 1000000,
+    "temperature": 0.7,
+    "timeout": 300,
+    "toolResponseMaxTokens": 200,
+    "reasoning": {
+      "enabled": true
+    }
+  },
+  "project": {
+    "name": "RekHarborBot",
+    "description": "Telegram advertising exchange bot",
+    "database": {
+      "host": "localhost",
+      "port": 5432,
+      "name": "market_bot_db",
+      "user": "market_bot",
+      "password": "market_bot_pass",
+      "asyncUrl": "postgresql+asyncpg://market_bot:market_bot_pass@localhost:5432/market_bot_db",
+      "syncUrl": "postgresql://market_bot:market_bot_pass@localhost:5432/market_bot_db"
+    },
+    "techStack": {
+      "backend": {
+        "language": "Python 3.13",
+        "framework": "aiogram 3.x + FastAPI",
+        "orm": "SQLAlchemy 2.0 async",
+        "queue": "Celery + Redis",
+        "ai": "Mistral AI official SDK",
+        "payment": "YooKassa only"
+      },
+      "miniApp": {
+        "framework": "React 19.2.4 + TypeScript 6.0.2 + Vite 8",
+        "state": "Zustand + TanStack Query",
+        "ui": "Tailwind CSS v4 + glassmorphism",
+        "telegram": "@telegram-apps/sdk-react",
+        "routing": "react-router-dom v7",
+        "forms": "react-hook-form + zod"
+      },
+      "webPortal": {
+        "framework": "React 19.2.4 + TypeScript 6.0.2 + Vite 8",
+        "state": "Zustand + TanStack Query",
+        "ui": "Tailwind CSS v4",
+        "charts": "recharts v3",
+        "routing": "react-router-dom v7",
+        "forms": "react-hook-form + zod"
+      },
+      "infrastructure": {
+        "database": "PostgreSQL 16",
+        "cache": "Redis 7",
+        "proxy": "Nginx",
+        "monitoring": ["Flower", "GlitchTip", "SonarQube", "Gitleaks"],
+        "workers": {
+          "critical": "market_bot_worker_critical",
+          "background": "market_bot_worker_background",
+          "game": "market_bot_worker_game"
+        }
+      }
+    }
   }
 }

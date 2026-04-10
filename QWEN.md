@@ -29,7 +29,7 @@
 |---|-----------|------|------|------|
 | 1 | **Выплаты** | CryptoBot API | **Ручные через admin** | payout_service.py |
 | 2 | **B2B пакеты** | были | **удалены** | billing.py, main_menu.py |
-| 3 | **Admin панель Mini App** | нет | **7 экранов, 9 endpoints** | admin.py, mini_app/src/screens/admin/ |
+| 3 | **Admin панель Mini App** | нет | **7 экранов, 11 endpoints** | admin.py, mini_app/src/screens/admin/ |
 | 4 | **Feedback система** | нет | **полная (пользователь → админ)** | feedback.py, UserFeedback |
 | 5 | **ESCROW-001** | release при публикации | **release ТОЛЬКО после удаления поста** | publication_service.py |
 | 6 | **FSM States** | частично | **5 файлов + 2 middleware** | states/, middlewares/ |
@@ -909,7 +909,7 @@ git checkout $CURRENT_BRANCH
 
 | Категория | Файлы | Статус |
 |-----------|-------|--------|
-| **Backend API** | feedback.py, admin.py (9 endpoints) | ✅ |
+| **Backend API** | feedback.py, admin.py (11 endpoints) | ✅ |
 | **Frontend UI** | 16 файлов (admin screens, feedback) | ✅ |
 | **Отчёты** | 20+ отчётов в docs/, reports/ | ✅ |
 | **Тесты** | 101 тест (все проходят) | ✅ |
@@ -932,7 +932,7 @@ git checkout $CURRENT_BRANCH
 **Достижения v4.3:**
 - ✅ 101 тест — все проходят
 - ✅ 20+ отчётов документации
-- ✅ Admin панель в Mini App (7 экранов, 9 endpoints)
+- ✅ Admin панель в Mini App (7 экранов, 11 endpoints)
 - ✅ Feedback система (пользователь → админ → ответ)
 - ✅ Critical fix: is_banned → is_active
 - ✅ UX fixes: кнопки, бейджи, текст

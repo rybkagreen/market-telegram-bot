@@ -1,13 +1,10 @@
 """Feedback API router."""
 
 import logging
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
 from src.api.schemas.admin import (
@@ -17,7 +14,7 @@ from src.api.schemas.admin import (
     FeedbackStatusUpdateRequest,
 )
 from src.api.schemas.feedback import FeedbackCreate, FeedbackListResponse, FeedbackResponse
-from src.db.models.feedback import FeedbackStatus, UserFeedback
+from src.db.models.feedback import FeedbackStatus
 from src.db.models.user import User
 from src.db.repositories.feedback_repo import FeedbackRepository
 
@@ -140,35 +137,27 @@ async def get_all_feedback(
         limit = 100
 
     # Build query
-    query = select(UserFeedback)
+    feedback_repo = FeedbackRepository(session)
 
-    # Apply status filter
+    # Get total count
+    status_enum: FeedbackStatus | None = None
     if status_filter != "all":
         try:
             status_enum = FeedbackStatus(status_filter.upper())
-            query = query.where(UserFeedback.status == status_enum)
         except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status: {status_filter}. Must be one of: new, in_progress, resolved, rejected, all",
             ) from err
 
-    # Get total count using repository
-    feedback_repo = FeedbackRepository(session)
-    if status_filter != "all":
-        total = await feedback_repo.count_by_status(status_enum)
-    else:
-        total = await feedback_repo.count_by_status(None)
+    total = await feedback_repo.count_by_status(status_enum)
 
-    # Apply pagination
-    query = (
-        query.options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
-        .order_by(UserFeedback.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+    # Get paginated feedback with relationships
+    feedbacks = await feedback_repo.list_all_paginated(
+        status=status_enum,
+        limit=limit,
+        offset=offset,
     )
-    result = await session.execute(query)
-    feedbacks = result.scalars().all()
 
     # Build response with responder info
     items = []
@@ -216,12 +205,8 @@ async def get_feedback_admin(
     Raises:
         HTTPException 404: Feedback not found
     """
-    result = await session.execute(
-        select(UserFeedback)
-        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
-        .where(UserFeedback.id == feedback_id)
-    )
-    feedback = result.scalar_one_or_none()
+    feedback_repo = FeedbackRepository(session)
+    feedback = await feedback_repo.get_by_id_with_user(feedback_id)
 
     if not feedback:
         raise HTTPException(
@@ -268,29 +253,19 @@ async def respond_to_feedback(
     Raises:
         HTTPException 404: Feedback not found
     """
-    result = await session.execute(
-        select(UserFeedback)
-        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
-        .where(UserFeedback.id == feedback_id)
+    feedback_repo = FeedbackRepository(session)
+    feedback = await feedback_repo.respond(
+        feedback_id=feedback_id,
+        admin_user_id=admin_user.id,
+        response_text=body.response_text,
+        status=FeedbackStatus(body.status.upper()),
     )
-    feedback = result.scalar_one_or_none()
 
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=FEEDBACK_NOT_FOUND,
         )
-
-    # Update feedback
-    feedback.admin_response = body.response_text
-    feedback.status = FeedbackStatus(body.status.upper())
-    feedback.responded_by_id = admin_user.id
-    feedback.responded_at = datetime.now(UTC)
-
-    await session.flush()
-    await session.refresh(feedback)
-
-    responder_username = feedback.responder.username if feedback.responder else None
 
     logger.info(f"Admin {admin_user.id} responded to feedback #{feedback_id}")
 
@@ -301,7 +276,7 @@ async def respond_to_feedback(
         text=feedback.text,
         status=feedback.status,  # type: ignore
         admin_response=feedback.admin_response,
-        responder_username=responder_username,
+        responder_username=feedback.responder.username if feedback.responder else None,
         responder_id=feedback.responded_by_id,
         created_at=feedback.created_at,
         responded_at=feedback.responded_at,
@@ -331,26 +306,17 @@ async def update_feedback_status(
     Raises:
         HTTPException 404: Feedback not found
     """
-    result = await session.execute(
-        select(UserFeedback)
-        .options(selectinload(UserFeedback.user), selectinload(UserFeedback.responder))
-        .where(UserFeedback.id == feedback_id)
+    feedback_repo = FeedbackRepository(session)
+    feedback = await feedback_repo.update_status_only(
+        feedback_id=feedback_id,
+        status=FeedbackStatus(body.status.upper()),
     )
-    feedback = result.scalar_one_or_none()
 
     if not feedback:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=FEEDBACK_NOT_FOUND,
         )
-
-    # Update status only
-    feedback.status = FeedbackStatus(body.status.upper())
-
-    await session.flush()
-    await session.refresh(feedback)
-
-    responder_username = feedback.responder.username if feedback.responder else None
 
     logger.info(f"Admin {admin_user.id} updated status of feedback #{feedback_id} to {body.status}")
 
@@ -361,7 +327,7 @@ async def update_feedback_status(
         text=feedback.text,
         status=feedback.status,  # type: ignore
         admin_response=feedback.admin_response,
-        responder_username=responder_username,
+        responder_username=feedback.responder.username if feedback.responder else None,
         responder_id=feedback.responded_by_id,
         created_at=feedback.created_at,
         responded_at=feedback.responded_at,

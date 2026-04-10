@@ -55,6 +55,17 @@ class PayoutRepository(BaseRepository[PayoutRequest]):
         )
         return result.scalar() or Decimal("0")
 
+    async def get_last_completed_for_owner(self, owner_id: int) -> PayoutRequest | None:
+        """Получить последнюю завершённую выплату владельца."""
+        result = await self.session.execute(
+            select(PayoutRequest)
+            .where(PayoutRequest.owner_id == owner_id)
+            .where(PayoutRequest.status == PayoutStatus.paid)
+            .order_by(PayoutRequest.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get_pending_sum(self) -> Decimal:
         """Получить сумму gross_amount по ожидающим выплатам."""
         result = await self.session.execute(

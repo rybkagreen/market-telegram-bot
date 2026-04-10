@@ -7,17 +7,16 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ChatMemberAdministrator, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.channel_owner import AddChannelStates
 from src.db.models.channel_settings import ChannelSettings
-from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
-from src.db.models.transaction import Transaction, TransactionType
+from src.db.models.transaction import TransactionType
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
+from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -71,26 +70,18 @@ async def show_channel_detail(callback: CallbackQuery, session: AsyncSession) ->
     settings = await session.get(ChannelSettings, channel_id)
     price = settings.price_per_post if settings else Decimal("1000")
 
-    pub_result = await session.execute(
-        select(func.count())
-        .select_from(PlacementRequest)
-        .where(
-            PlacementRequest.channel_id == channel_id,
-            PlacementRequest.status == PlacementStatus.published,
-        )
+    publications_count = await PlacementRequestRepository(session).count_published_by_channel(
+        channel_id
     )
-    publications_count = pub_result.scalar_one()
 
     pending_reqs = await PlacementRequestRepository(session).get_pending_for_owner(ch.owner_id)
     pending = sum(1 for r in pending_reqs if r.channel_id == channel_id)
 
-    earned_result = await session.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == ch.owner_id,
-            Transaction.type == TransactionType.escrow_release,
-        )
+    earned = await TransactionRepository(session).sum_by_user_and_type(
+        ch.owner_id,
+        TransactionType.escrow_release,
     )
-    total_earned = earned_result.scalar_one() or 0
+    total_earned = earned or 0
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:settings:{channel_id}")
@@ -375,15 +366,8 @@ async def delete_channel(callback: CallbackQuery, session: AsyncSession) -> None
         return
     channel_id = int((callback.data or "").split(":")[-1])
 
-    result = await session.execute(
-        select(PlacementRequest)
-        .where(
-            PlacementRequest.channel_id == channel_id,
-            PlacementRequest.status.in_([PlacementStatus.escrow, PlacementStatus.published]),
-        )
-        .limit(1)
-    )
-    if result.scalar_one_or_none():
+    has_active = await PlacementRequestRepository(session).has_active_placements(channel_id)
+    if has_active:
         await callback.answer("❌ Невозможно удалить — есть активные размещения", show_alert=True)
         return
 

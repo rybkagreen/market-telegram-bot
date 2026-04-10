@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
 from src.config.settings import settings
+from src.constants.payments import PLAN_LIMITS
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -49,8 +50,6 @@ PLAN_COSTS = {
     "pro": settings.tariff_cost_pro,
     "business": settings.tariff_cost_business,
 }
-
-CURRENCIES = ["USDT", "TON", "BTC", "ETH", "LTC"]
 
 
 def _plan_label(plan) -> str:
@@ -128,12 +127,6 @@ class PlanResponse(BaseModel):
     plan: str
     balance_rub_remaining: Decimal
     message: str
-
-
-class InvoiceStatusResponse(BaseModel):
-    invoice_id: str
-    status: str
-    credited: bool
 
 
 # ─── Endpoints ──────────────────────────────────────────────────
@@ -337,7 +330,7 @@ async def get_plans() -> list[PlanDetail]:
 async def get_balance(current_user: CurrentUser) -> BalanceResponse:
     """Баланс пользователя + информация для Billing страницы."""
     plan_str = _plan_label(current_user.plan)
-    ai_included = {"pro": 5, "business": 20}.get(plan_str, 0)
+    ai_included = PLAN_LIMITS.get(plan_str, {}).get("ai_per_month", 0)
 
     expires_str = None
     if current_user.plan_expires_at:
@@ -389,29 +382,16 @@ async def get_history(
     Returns:
         BillingHistoryResponse: Список транзакций с пагинацией.
     """
-    from sqlalchemy import func, select
-
-    from src.db.models.transaction import Transaction
+    from src.db.repositories.transaction_repo import TransactionRepository
 
     async with async_session_factory() as session:
-        base_filter = (
-            Transaction.user_id == current_user.id,
-            Transaction.type.in_(_VISIBLE_TX_TYPES),
+        repo = TransactionRepository(session)
+        txs, total = await repo.list_by_user_id(
+            user_id=current_user.id,
+            types_filter=_VISIBLE_TX_TYPES,
+            page=page,
+            limit=limit,
         )
-
-        count_query = select(func.count()).select_from(Transaction).where(*base_filter)
-        total_result = await session.execute(count_query)
-        total = total_result.scalar() or 0
-
-        query = (
-            select(Transaction)
-            .where(*base_filter)
-            .order_by(Transaction.created_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-        )
-        result = await session.execute(query)
-        txs = result.scalars().all()
 
         items = []
         for tx in txs:
@@ -436,7 +416,7 @@ async def get_history(
                 )
             )
 
-        pages = (total + limit - 1) // limit if total > 0 else 1
+        pages = (total + limit - 1) // limit if total > 0 else 0
 
         return BillingHistoryResponse(
             items=items,
@@ -552,15 +532,6 @@ async def change_plan(
     )
 
 
-@router.get("/invoice/{invoice_id}", responses={404: {"description": "Not found"}})
-async def get_invoice_status(
-    invoice_id: str,
-    current_user: CurrentUser,
-) -> InvoiceStatusResponse:
-    """Метод не используется."""
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-
-
 # =============================================================================
 # YOOKASSA WEBHOOK
 # =============================================================================
@@ -580,7 +551,13 @@ async def yookassa_webhook(
     # Верификация IP-адреса YooKassa
     from ipaddress import ip_address, ip_network
 
-    client_ip = request.client.host if request.client else "0.0.0.0"
+    client_ip = request.client.host if request.client else ""
+    if not client_ip:
+        logger.warning("YooKassa webhook with no client IP")
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: request not from YooKassa IP",
+        )
     if not any(ip_address(client_ip) in ip_network(net) for net in YOOKASSA_IPS):
         logger.warning(f"YooKassa webhook from unknown IP: {client_ip}")
         raise HTTPException(
@@ -603,15 +580,10 @@ async def yookassa_webhook(
             # который зачисляет metadata['desired_balance'] в balance_rub
             billing_service = BillingService()
             async with async_session_factory() as session:
-                # Получить метаданные из YooKassaPayment
-                from sqlalchemy import select
+                from src.db.repositories.yookassa_payment_repo import YookassaPaymentRepository
 
-                from src.db.models.yookassa_payment import YookassaPayment as YooKassaPayment
-
-                result = await session.execute(
-                    select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)
-                )
-                record = result.scalar_one_or_none()
+                repo = YookassaPaymentRepository(session)
+                record = await repo.get_by_payment_id(payment_id)
 
                 if record:
                     # Sprint A.2: извлечь и сохранить payment_method и receipt

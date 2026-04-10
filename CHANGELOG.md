@@ -7,8 +7,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29B: Sidebar Icon-Only Collapsed State (v4.6 — April 2026)
+
+#### Added
+- **3-state sidebar** (`open` / `collapsed` / `closed`) in web_portal — collapsed mode shows 64px icon rail with all navigation tool icons visible
+- **Tooltips on collapsed nav buttons** — native `title` attribute shows label when sidebar is collapsed
+- **Compact user footer** in collapsed mode — avatar + logout only, avatar shows tooltip with user info
+
+#### Changed
+- **`usePortalUiStore`** — replaced `sidebarOpen: boolean` with `sidebarMode: 'open' | 'collapsed' | 'closed'`, added `openSidebar()`, `collapseSidebar()`, `closeSidebar()`, `toggleSidebar(isDesktop)` (`web_portal/src/stores/portalUiStore.ts`)
+- **`PortalShell.tsx`** — conditional rendering for 3 states: width transitions, label hide/show, icon centering, header button icon swap (`web_portal/src/components/layout/PortalShell.tsx`)
+- **Desktop default** — sidebar now defaults to `collapsed` (icon rail) instead of fully open
+
+### S-29C: DAL Cleanup + Referral + Platform Credit + Security (v4.6 — April 2026)
+
+#### Added
+- **Admin Platform Credit:** `POST /api/admin/credits/platform-credit` — deduct from `PlatformAccount.profit_accumulated`, credit to `user.balance_rub` with `TransactionType.admin_credit` (`src/api/routers/admin.py`, `src/core/services/billing_service.py`)
+- **Admin Gamification Bonus:** `POST /api/admin/credits/gamification-bonus` — deduct from platform balance, credit `balance_rub` + `advertiser_xp` with `TransactionType.gamification_bonus`
+- **Referral Topup Bonus:** one-time 10% bonus to referrer on invitee's first qualifying topup (≥500₽), idempotent via `Transaction.meta_json` (`src/constants/payments.py`, `src/core/services/billing_service.py`, `src/bot/handlers/shared/start.py`, `src/db/repositories/user_repo.py`)
+- **ReputationHistoryRepository:** `get_by_user_id()`, `add_batch()` (`src/db/repositories/reputation_history_repo.py`)
+- **ChannelMediakitRepo:** `get_by_channel_id()`, `update_metrics()` (`src/db/repositories/channel_mediakit_repo.py`)
+- **YookassaPaymentRepository:** `get_by_payment_id()` — wired in billing webhook (`src/db/repositories/yookassa_payment_repo.py`)
+- **New repository methods:** `UserRepository.count_referrals()`, `get_referrals()`, `count_active_referrals()`, `sum_referral_earnings()`, `has_successful_payment()`, `get_by_referral_code()`; `TransactionRepository.sum_by_user_and_type()`, `list_by_user_id()`; `PlacementRequestRepository.has_active_placements()`, `count_published_by_channel()`; `TelegramChatRepository.count_active_by_owner()`; `DisputeRepository.get_all_paginated()`; `FeedbackRepository.get_by_id_with_user()`, `list_all_paginated()`, `respond()`, `update_status_only()`
+
+#### Changed
+- **DAL boundary enforcement:** 43 `session.execute()` calls in handlers/routers replaced with repository wiring across 12 files (`src/bot/handlers/dispute/dispute.py`, `channel_owner.py`, `cabinet.py`, `contract_signing.py`, `src/api/routers/users.py`, `billing.py`, `acts.py`, `ord.py`, `feedback.py`, `disputes.py`, `document_validation.py`)
+- **`mediakit_service.py`:** wired `ChannelMediakitRepo` for reads
+- **Bot singleton:** module-level `bot: Bot | None` in `src/bot/main.py`; `get_bot()` singleton + `close_bot()` in `src/api/dependencies.py` (fixes 8 mypy errors)
+
+#### Removed
+- **6 dead repository files** (zero callers in src/mini_app/web_portal/tests): `badge_repo.py`, `campaign_repo.py`, `click_tracking_repo.py`, `mailing_log_repo.py`, `platform_revenue_repo.py`, `yookassa_payment_repo.py` (original)
+- **`TransactionType` enum:** removed `admin_credit`/`gamification_bonus` duplicate placeholders (added properly in this release)
+
+#### Fixed
+- **B311:** `random.randint` → `secrets.randbelow()` in `/login` auth code generation (`src/bot/handlers/shared/login_code.py`)
+- **B104:** `0.0.0.0` hardcoded bind → empty string + explicit IP validation in YooKassa webhook (`src/api/routers/billing.py`)
+- **B101:** removed `assert` type guards → proper `User | None` annotations (`src/core/services/billing_service.py`)
+- **mypy union-attr:** `isinstance(Message)` guards before `edit_reply_markup()` (`src/bot/handlers/admin/monitoring.py`)
+- **mypy:** 31 → 0 errors (dead repos + type annotations + bot singleton)
+- **bandit:** 7 → 0 issues identified
+
+### S-29B: Telegram Proxy Hotfix (v4.5 — April 2026)
+
+#### Fixed
+- **Hotfix:** `/api/channels/check` 500 + bot crash-loop — Docker containers can't reach `api.telegram.org` (firewall). Configured SOCKS5 proxy (`socks5://172.18.0.1:1080`) via xray + socat relay for both aiogram bot and python-telegram-bot API client
+- **Bot:** `RuntimeError: no running event loop` — deferred `Bot` creation to async `_create_bot()` in `main()`; `AiohttpSession(proxy=...)` now configured inside event loop
+- **API:** `get_bot()` singleton uses `HTTPXRequest(proxy=...)` (verified working)
+- **Dependency:** `httpx` → `httpx[socks]` (adds `socksio` for SOCKS5 support)
+
+### S-29A: Hotfixes (v4.5 — April 2026)
+
+#### Fixed
+- **Hotfix:** `GET /api/channels` 500 — added missing `last_avg_views`, `last_post_frequency`, `price_per_post` columns to `telegram_chats` DB table; patched `0001_initial_schema.py` (`src/db/migrations/versions/0001_initial_schema.py`)
+- **D-02 (CRITICAL):** `PLAN_PRICES` key `'agency'` → `'business'` — prevents `KeyError` when accessing by `UserPlan.BUSINESS.value` (`src/constants/payments.py`)
+- **D-08:** `ai_included` in `/api/billing/balance` now uses `PLAN_LIMITS` — Pro: 5→20 AI/month, Business: 20→-1 (unlimited) (`src/api/routers/billing.py`)
+- **D-07:** Removed dead `GET /api/billing/invoice/{invoice_id}` endpoint (always returned 404) + `InvoiceStatusResponse` model (`src/api/routers/billing.py`)
+- **D-09:** Export `LegalProfileStates`, `ContractSigningStates`, `AdminFeedbackStates` from `src/bot/states/__init__.py`
+- **D-11:** Added `'background'` queue to `TASK_ROUTES` and `QUEUE_CONFIG` for ORD task routing (`src/tasks/celery_config.py`)
+- **D-06:** Removed `check_pending_invoices` from Celery Beat schedule, marked task as deprecated (`src/tasks/celery_app.py`, `src/tasks/billing_tasks.py`)
+
+#### Removed
+- **D-15:** `STARS_ENABLED=true` from `.env.example` (Telegram Stars removed in v4.2)
+- **D-16:** Legacy constants: `CURRENCIES`, `CRYPTO_CURRENCIES`, `PAYMENT_METHODS`, `YOOKASSA_PACKAGES` from `src/constants/payments.py` and re-exports from `src/constants/__init__.py`
+- Duplicate `CURRENCIES` constant from `src/api/routers/billing.py`
+
+#### Docs
+- Added `docs/AAA-11_PRODUCTION_FIX_PLAN.md` — deep-dive investigation of 22 discrepancies + 4-sprint fix plan
+
+### Added
+- **GlitchTip → Qwen → Telegram pipeline:** Automated error analysis — GlitchTip webhooks trigger Celery task → Qwen Code CLI subprocess analysis → formatted Telegram notification to admin with inline buttons (traceback/ack/ignore). Replaces file-based `/tmp/glitchtip_queue/` + `analyze_error.sh` cron (`src/api/routers/webhooks.py`, `src/core/services/qwen_service.py`, `src/tasks/monitoring_tasks.py`, `src/bot/handlers/admin/monitoring.py`)
+- `src/core/services/qwen_service.py`: Qwen Code error analysis service — async subprocess (`echo <prompt> | qwen`), structured response parsing (ROOT_CAUSE, SEVERITY, AFFECTED_FILES, FIX), 120s timeout, graceful degradation
+- `src/tasks/monitoring_tasks.py`: Celery task `monitoring:analyze_glitchtip_error` (queue: `worker_critical`, max_retries=2) — traceback extraction from GlitchTip JSON, Qwen analysis, `/tmp/gt_cache/` persistence, Telegram bot notification
+- `src/bot/handlers/admin/monitoring.py`: aiogram callback handlers — `gt:traceback:{id}`, `gt:ack:{id}`, `gt:ignore:{id}`
+- Discovery report: `reports/docs-architect/discovery/CHANGES_2026-04-10_glitchtip-qwen-telegram.md`
+
+### S-29B: Medium Priority (v4.5 — April 2026)
+
+#### Fixed
+- **D-12:** Implemented `COOLDOWN_HOURS` (24h) enforcement in `PayoutService.create_payout()` — prevents rapid payout abuse (`src/core/services/payout_service.py`)
+- **D-12:** Added `PayoutRepository.get_last_completed_for_owner()` — queries last `paid` payout for cooldown check (`src/db/repositories/payout_repo.py`)
+- **D-03:** Added `placement:check_escrow_stuck` Celery task — detects escrow placements with `scheduled_delete_at` >48h past, marks `meta_json` for admin alert (`src/tasks/placement_tasks.py`)
+- **D-03:** Added Beat schedule entry `placement-check-escrow-stuck` (every 30min) (`src/tasks/celery_config.py`)
+- **D-10:** Added async Redis client (`redis.asyncio.Redis`) in `placement_tasks.py` — sync client retained only for Celery dedup (runs in sync context)
+
+#### Docs
+- Updated `docs/AAA-11_PRODUCTION_FIX_PLAN.md` — verified D-06, D-07 existence, corrected severity assessments
+
+### S-29C: Quality Sprint (v4.5 — April 2026)
+
+#### Changed
+- **BREAKING:** `POST /webhooks/glitchtip-alert` response changed from `{"ok": true}` to `{"status": "queued"}` — file-based queue replaced by Celery `.delay()` (`src/api/routers/webhooks.py`)
+- **D-05:** Added explicit `queue=QUEUE_WORKER_CRITICAL` to all 10 placement task decorators — defense-in-depth beyond TASK_ROUTES (`src/tasks/placement_tasks.py`)
+- **D-22:** Updated QWEN.md admin endpoint count 9 → 11 (documentation accuracy)
+
+#### Verified
+- **TD-04/D-21:** Both `mini_app` and `web_portal` already on TypeScript 6.0.2 — no action needed
+
+### S-29D: Deferred Items (v4.5 — April 2026)
+
+#### Fixed
+- **D-01:** Fixed `legal_profiles.user_id` type `BigInteger` → `Integer` + migration `d01fix_user_id`
+- **D-14:** Created 8 missing repository classes: `CampaignRepository`, `BadgeRepository`, `YookassaPaymentRepository`, `ClickTrackingRepository`, `KudirRecordRepository`, `DocumentUploadRepository`, `MailingLogRepository`, `PlatformQuarterlyRevenueRepository`
+- **D-18:** Added `ON DELETE SET NULL` to self-referencing FKs (`users.referred_by_id`, `transactions.reverses_transaction_id`) + migration `d18cascade_selfref`
+
+### AAA P4-P5: Code Quality + Security (v4.5 — April 2026)
+
+#### Changed
+- **P4:** Fixed 10 nested ternary expressions across 9 TSX files — extracted lookup maps and helper functions
+- **P4:** Changed 3 `any` types to `unknown` in analytics components
+- **P5:** Added security headers middleware to FastAPI (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `HSTS`, `Cache-Control: no-store`)
+
 ### Fixed
-- **CRITICAL:** `camp_pay_balance` handler now schedules Celery publication task after payment — fixes stalled escrow placements that never got published (`src/bot/handlers/placement/placement.py`)
+- **CRITICAL:** Aligned worker queues with TASK_ROUTES — `worker_critical` now listens to `worker_critical` and `placement` queues, `worker_background` listens to `background` queue. Previously placement and ORD tasks had routing mismatches (`docker-compose.yml`)
+- **CRITICAL:** Bot startup now retries with exponential backoff (3→6→12→24→48s, max 5 attempts) instead of crashing on Telegram API timeout. Added explicit `bot.session.close()` in finally block to prevent aiohttp session leak (`src/bot/main.py`)
+- **CRITICAL:** Nginx no longer fails with `host not found in upstream "flower:5555"` during startup — added `flower` to nginx `depends_on` list (`docker-compose.yml`)
+- **HIGH:** Sentry SDK now has `shutdown_timeout=2` and `debug=False` — prevents blocking exit and verbose retry logging (`src/bot/main.py`)
+- **MEDIUM:** Changed bot `ParseMode.MARKDOWN` → `ParseMode.HTML` (per QWEN.md axioms)
 - **HIGH:** Added `placement:check_escrow_sla` Celery Beat task — detects and auto-refunds placements stuck in escrow past scheduled time (`src/tasks/placement_tasks.py`, `src/tasks/celery_config.py`)
 - **HIGH:** Channel owner now receives notification when placement is paid and scheduled (`src/bot/handlers/placement/placement.py`)
 - `placement:schedule_placement_publication` now handles NULL `scheduled_iso` parameter (defaults to now + 5 min)
@@ -20,6 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/tasks/celery_app.py`: Beat registration updated to use `placement:` prefix
 
 ### Removed
+- File-based GlitchTip queue (`/tmp/glitchtip_queue/`) — replaced by Celery `analyze_glitchtip_error.delay()` (`src/api/routers/webhooks.py`)
+- Unused imports from webhooks.py: `json`, `pathlib`, `aiofiles`
 - `src/tasks/publication_tasks.py` — merged into `placement_tasks.py`, no external imports existed
 
 ### Added

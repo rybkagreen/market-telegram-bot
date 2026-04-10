@@ -2,12 +2,11 @@
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.shared.contract import contract_sign_keyboard
 from src.core.services.contract_service import ContractService
-from src.db.models.contract import Contract
+from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.user_repo import UserRepository
 
 contract_signing_router = Router()
@@ -19,8 +18,7 @@ async def cb_contract_view(callback: CallbackQuery, session: AsyncSession) -> No
     if not isinstance(callback.message, Message):
         return
     contract_id = int((callback.data or "").split(":")[2])
-    result = await session.execute(select(Contract).where(Contract.id == contract_id))
-    contract = result.scalar_one_or_none()
+    contract = await ContractRepo(session).get_by_id(contract_id)
     if not contract:
         await callback.answer("Договор не найден", show_alert=True)
         return

@@ -7,8 +7,9 @@ import sentry_sdk
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.types import MenuButtonWebApp, WebAppInfo  # добавлено
+from aiogram.types import MenuButtonWebApp, WebAppInfo
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
 from src.bot.handlers import main_router
@@ -20,6 +21,9 @@ from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+BOT_STARTUP_MAX_RETRIES = 5
+BOT_STARTUP_BACKOFF = 3  # seconds: 3, 6, 12, 24, 48
+
 if settings.sentry_dsn:
     sentry_sdk.init(
         dsn=settings.sentry_dsn,
@@ -27,24 +31,18 @@ if settings.sentry_dsn:
         traces_sample_rate=0.05,
         integrations=[AsyncioIntegration()],
         send_default_pii=False,
+        shutdown_timeout=2,  # Don't block on exit
+        debug=False,  # Disable verbose retry logging in production
     )
 
 bot = Bot(
     token=settings.bot_token,
-    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
 
 
 async def main() -> None:
-    """Запуск бота."""
-
-    # Устанавливаем Menu Button для открытия Mini App
-    await bot.set_chat_menu_button(
-        menu_button=MenuButtonWebApp(
-            text="🚀 Открыть приложение", web_app=WebAppInfo(url="https://app.rekharbor.ru/")
-        )
-    )
-
+    """Запуск бота с retry логикой."""
     storage = RedisStorage.from_url(str(settings.redis_url))
     dp = Dispatcher(storage=storage)
 
@@ -55,9 +53,44 @@ async def main() -> None:
 
     dp.include_router(main_router)
 
-    logger.info("Starting bot @%s", (await bot.get_me()).username)
+    # ─── Startup with retry ───────────────────────────────────────
+    for attempt in range(1, BOT_STARTUP_MAX_RETRIES + 1):
+        try:
+            me = await bot.get_me()
+            logger.info("Bot authenticated: @%s", me.username)
+
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="🚀 Открыть приложение",
+                    web_app=WebAppInfo(url="https://app.rekharbor.ru/"),
+                )
+            )
+            logger.info("Menu button set")
+            break
+        except TelegramNetworkError as e:
+            if attempt == BOT_STARTUP_MAX_RETRIES:
+                logger.critical(
+                    "Failed to connect to Telegram API after %d attempts: %s",
+                    BOT_STARTUP_MAX_RETRIES,
+                    e,
+                )
+                raise
+            delay = BOT_STARTUP_BACKOFF * (2 ** (attempt - 1))
+            logger.warning(
+                "Telegram API unavailable (attempt %d/%d), retrying in %ds: %s",
+                attempt,
+                BOT_STARTUP_MAX_RETRIES,
+                delay,
+                e,
+            )
+            await asyncio.sleep(delay)
+
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
+    try:
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":

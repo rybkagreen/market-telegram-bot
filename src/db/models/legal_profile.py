@@ -20,7 +20,7 @@ class LegalProfile(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=False, unique=True
+        Integer, ForeignKey("users.id"), nullable=False, unique=True
     )
     legal_status: Mapped[str] = mapped_column(String(30), nullable=False)
     # INN — encrypted at rest; inn_hash for indexed search (HMAC-SHA256)

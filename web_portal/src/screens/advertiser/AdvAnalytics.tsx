@@ -5,6 +5,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 
+function getCtrColorClass(ctr: number): string {
+  if (ctr > 2) return 'text-success'
+  if (ctr > 1) return 'text-warning'
+  return 'text-danger'
+}
+
 export default function AdvAnalytics() {
   const { data: analytics, isLoading, isError, refetch } = useAdvertiserAnalytics()
   const topChannel = analytics?.top_channels[0]
@@ -85,8 +91,7 @@ export default function AdvAnalytics() {
                 width={70}
               />
               <Tooltip
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any) => [formatCurrency(Number(value)), 'Расходы']}
+              formatter={(value: unknown) => [formatCurrency(Number(value)), 'Расходы']}
                 contentStyle={{
                   background: 'var(--color-harbor-card, #1e293b)',
                   border: '1px solid var(--color-border, #334155)',
@@ -127,7 +132,7 @@ export default function AdvAnalytics() {
                       {formatCompact(ch.reach)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={ch.ctr > 2 ? 'text-success' : ch.ctr > 1 ? 'text-warning' : 'text-danger'}>
+                      <span className={getCtrColorClass(ch.ctr)}>
                         {(ch.ctr * 100).toFixed(1)}%
                       </span>
                     </td>
