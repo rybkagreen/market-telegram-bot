@@ -58,6 +58,12 @@ async def cmd_start(
 
     args = command.args
 
+    # --- Parse REF_ referral code from deep link ---
+    referral_code_from_start: str | None = None
+    if args and args.startswith("REF_"):
+        referral_code_from_start = args[4:]  # убираем "REF_"
+    # --- end REF_ parsing ---
+
     # --- Video upload deep link (S7 addition) ---
     if args and args.startswith("upload_video_"):
         import redis.asyncio as aioredis
@@ -78,7 +84,7 @@ async def cmd_start(
     telegram_id = message.from_user.id
     first_name = message.from_user.first_name or "User"
 
-    user, _ = await UserRepository(session).get_or_create(
+    user, is_new = await UserRepository(session).get_or_create(
         telegram_id,
         defaults={
             "username": message.from_user.username,
@@ -86,6 +92,13 @@ async def cmd_start(
             "referral_code": f"ref_{telegram_id}",
         },
     )
+
+    # Register referral if new user and REF_ code was provided
+    if is_new and referral_code_from_start:
+        referrer = await UserRepository(session).get_by_referral_code(referral_code_from_start)
+        if referrer and referrer.id != user.id:
+            user.referred_by_id = referrer.id
+            await session.flush()
 
     if user is None:
         return

@@ -170,7 +170,7 @@ class PublicationService:
 
             report_publication_task.delay(placement.id)
         except Exception:
-            pass
+            pass  # nosec B110 — ORD report enqueue failure must not block publishing
 
     async def publish_placement(
         self,

@@ -391,7 +391,7 @@ class ContractService:
             try:
                 return env.get_template(tpl_file).render(**ctx)
             except Exception:
-                pass
+                pass  # nosec B110 — fallback to next template
 
         # Fallback: plain HTML
         return (

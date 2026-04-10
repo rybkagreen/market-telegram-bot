@@ -398,6 +398,9 @@ async def notify_new_request(placement, _advertiser, owner, channel_name: str) -
     """Wrapper: уведомить владельца о новой заявке."""
     from src.bot.main import bot
 
+    if bot is None:
+        return
+
     await notify_owner_new_request(
         bot, owner.telegram_id, placement.id, placement=placement, channel_title=channel_name
     )
@@ -406,6 +409,9 @@ async def notify_new_request(placement, _advertiser, owner, channel_name: str) -
 async def notify_owner_accepted(placement, _advertiser, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя о принятии заявки."""
     from src.bot.main import bot
+
+    if bot is None:
+        return
 
     await notify_advertiser_accepted(
         bot,
@@ -426,6 +432,9 @@ async def notify_counter_offer(placement, advertiser, channel_name: str) -> None
     """Wrapper: уведомить рекламодателя о контр-предложении."""
     from src.bot.main import bot
 
+    if bot is None:
+        return
+
     await notify_advertiser_counter(
         bot,
         advertiser.telegram_id,
@@ -440,6 +449,9 @@ async def notify_counter_offer(placement, advertiser, channel_name: str) -> None
 async def notify_counter_accepted(placement, _advertiser, _owner, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя о принятии контр-предложения."""
     from src.bot.main import bot
+
+    if bot is None:
+        return
 
     await notify_advertiser_accepted(
         bot,
@@ -460,6 +472,9 @@ async def notify_rejected(placement, advertiser, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя об отклонении заявки."""
     from src.bot.main import bot
 
+    if bot is None:
+        return
+
     await notify_advertiser_rejected(bot, advertiser.telegram_id, placement.id, channel_name)
 
 
@@ -469,12 +484,18 @@ async def notify_cancelled(
     """Wrapper: уведомить рекламодателя об отмене заявки."""
     from src.bot.main import bot
 
+    if bot is None:
+        return
+
     await notify_advertiser_rejected(bot, _advertiser.telegram_id, placement.id, channel_name)
 
 
 async def notify_sla_expired(placement, _advertiser, owner, channel_name: str) -> None:
     """Wrapper: уведомить при истечении SLA."""
     from src.bot.main import bot
+
+    if bot is None:
+        return
 
     await notify_owner_new_request(
         bot, owner.telegram_id, placement.id, placement=placement, channel_title=channel_name

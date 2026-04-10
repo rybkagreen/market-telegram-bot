@@ -1,19 +1,15 @@
 """
 FastAPI router для webhook-уведомлений GlitchTip.
-S10: получает alert, сохраняет payload в очередь на хосте, сразу возвращает 200.
-analyze_error.sh запускается хостовым cron-демоном из /opt/market-telegram-bot/reports/monitoring/payloads/
+S10: принимает alert, ставит Celery-задачу анализа, возвращает 200 немедленно.
+Celery-задача: Qwen-анализ → уведомление админу в Telegram.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import secrets
-from pathlib import Path
 from typing import Annotated
 
-import aiofiles
-import aiofiles.os
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from src.config.settings import settings
@@ -22,19 +18,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
-# Директория очереди — примонтирована из хоста через docker-compose volume
-QUEUE_DIR = Path("/tmp/glitchtip_queue")
-
 
 @router.post("/glitchtip-alert")
 async def glitchtip_alert(
     request: Request,
     x_webhook_token: Annotated[str | None, Header(alias="X-Webhook-Token")] = None,
-) -> dict[str, bool]:
+) -> dict[str, str]:
     """
-    Принять alert от GlitchTip, сохранить payload в очередь.
+    Принять alert от GlitchTip, отправить на анализ через Celery.
 
-    analyze_error.sh запускается хостовым cron каждую минуту.
+    Celery-задача: analyze_glitchtip_error.delay(payload)
+    → Qwen анализ ошибки → отправка уведомления админу в Telegram
+    → inline-кнопки: трейсбек / принять / игнорировать
+
     Возвращает 200 немедленно.
     """
     if not settings.glitchtip_webhook_secret:
@@ -50,10 +46,9 @@ async def glitchtip_alert(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON") from exc
 
-    await aiofiles.os.makedirs(QUEUE_DIR, exist_ok=True)
-    file_path = QUEUE_DIR / f"glitchtip_{secrets.token_hex(8)}.json"
-    async with aiofiles.open(file_path, mode="w") as f:
-        await f.write(json.dumps(payload))
+    # Enqueue Celery task for analysis and notification
+    from src.tasks.monitoring_tasks import analyze_glitchtip_error
 
-    logger.info("GlitchTip alert queued: %s", file_path)
-    return {"ok": True}
+    analyze_glitchtip_error.delay(payload)
+    logger.info("GlitchTip alert enqueued for analysis")
+    return {"status": "queued"}
