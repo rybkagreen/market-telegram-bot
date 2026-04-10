@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **P5:** Added security headers middleware to FastAPI (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `HSTS`, `Cache-Control: no-store`)
 
 ### Fixed
+- **CRITICAL:** Aligned worker queues with TASK_ROUTES — `worker_critical` now listens to `worker_critical` and `placement` queues, `worker_background` listens to `background` queue. Previously placement and ORD tasks had routing mismatches (`docker-compose.yml`)
 - **CRITICAL:** Bot startup now retries with exponential backoff (3→6→12→24→48s, max 5 attempts) instead of crashing on Telegram API timeout. Added explicit `bot.session.close()` in finally block to prevent aiohttp session leak (`src/bot/main.py`)
 - **CRITICAL:** Nginx no longer fails with `host not found in upstream "flower:5555"` during startup — added `flower` to nginx `depends_on` list (`docker-compose.yml`)
 - **HIGH:** Sentry SDK now has `shutdown_timeout=2` and `debug=False` — prevents blocking exit and verbose retry logging (`src/bot/main.py`)
