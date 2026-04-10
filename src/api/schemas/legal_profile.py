@@ -51,7 +51,7 @@ class SignatureMethod(str, Enum):
 class OrdStatus(str, Enum):
     pending = "pending"
     registered = "registered"
-    token_received = "token_received"
+    token_received = "token_received"  # nosec B105 — enum value, not a password
     reported = "reported"
     failed = "failed"
 
