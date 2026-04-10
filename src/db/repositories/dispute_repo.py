@@ -75,3 +75,32 @@ class DisputeRepository(BaseRepository[PlacementDispute]):
         disputes = list(result.scalars().all())
 
         return disputes, total
+
+    async def get_all_paginated(
+        self,
+        status_filter: DisputeStatus | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[PlacementDispute], int]:
+        """
+        Получить все споры с пагинацией и опциональным фильтром по статусу (admin).
+
+        Returns:
+            (disputes, total_count)
+        """
+        base_query = select(PlacementDispute)
+
+        if status_filter is not None:
+            base_query = base_query.where(PlacementDispute.status == status_filter)
+
+        # Total count
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await self.session.execute(count_query)
+        total = count_result.scalar() or 0
+
+        # Paginated results
+        query = base_query.order_by(PlacementDispute.created_at.asc()).limit(limit).offset(offset)
+        result = await self.session.execute(query)
+        disputes = list(result.scalars().all())
+
+        return disputes, total

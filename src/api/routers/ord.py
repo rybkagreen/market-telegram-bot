@@ -3,14 +3,13 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
 from src.api.schemas.legal_profile import OrdRegistrationResponse, RegisterOrdRequest
 from src.core.services.ord_service import get_ord_service
-from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
+from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
 router = APIRouter(prefix="/api/ord", tags=["ord"])
 
@@ -43,10 +42,8 @@ async def register_creative(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> OrdRegistrationResponse:
     """Register an ad creative in ORD."""
-    result = await session.execute(
-        select(PlacementRequest).where(PlacementRequest.id == data.placement_request_id)
-    )
-    placement = result.scalar_one_or_none()
+    placement_repo = PlacementRequestRepository(session)
+    placement = await placement_repo.get_by_id(data.placement_request_id)
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
     if placement.advertiser_id != current_user.id:
