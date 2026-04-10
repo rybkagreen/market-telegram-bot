@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29E: Fix Channel Name Bug (v4.6 — April 2026)
+
+#### Fixed
+- **"@#1" on My Campaigns** — added `channel: ChannelRef | None` to `PlacementResponse` schema and `selectinload` in repository queries. Now channel username is returned by API. (`src/api/routers/placements.py`, `src/db/repositories/placement_request_repo.py`, `mini_app/src/lib/types.ts`)
+
 ### S-29D: Mini App Channels Layout Fix (v4.6 — April 2026)
 
 #### Changed
