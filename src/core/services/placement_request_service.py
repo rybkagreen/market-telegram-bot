@@ -107,6 +107,9 @@ async def _notify_payment_received(
         from src.bot.main import bot
         from src.constants.payments import OWNER_SHARE
 
+        if bot is None:
+            return
+
         earned_rub = (placement.final_price or placement.proposed_price) * OWNER_SHARE
         await notify_payment_received(
             bot, owner.telegram_id, earned_rub, channel.username or f"ID:{channel.id}"
