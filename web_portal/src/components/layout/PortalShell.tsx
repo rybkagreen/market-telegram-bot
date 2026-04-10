@@ -84,21 +84,25 @@ const breadcrumbMap: Record<string, string[]> = {
 }
 
 export function PortalShell() {
-  const { sidebarOpen, toggleSidebar, setSidebarOpen } = usePortalUiStore()
+  const { sidebarMode, toggleSidebar, openSidebar, closeSidebar } = usePortalUiStore()
   const isDesktop = useMediaQuery(breakpoints.md)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
 
-  // Sidebar открыт: на десктопе — по умолчанию открыт, на мобильном — по toggle
-  const showSidebar = sidebarOpen
+  const isCollapsed = sidebarMode === 'collapsed'
+  const isOpen = sidebarMode === 'open'
+  const isClosed = sidebarMode === 'closed'
 
   // На мобильном — закрыть sidebar при монтировании и при ресайзе
   useEffect(() => {
     if (!isDesktop) {
-      setSidebarOpen(false)
+      closeSidebar()
+    } else if (sidebarMode === 'closed') {
+      // When switching back to desktop from mobile, default to collapsed
+      openSidebar()
     }
-  }, [isDesktop, setSidebarOpen])
+  }, [isDesktop, closeSidebar, openSidebar, sidebarMode])
 
   const breadcrumbs = breadcrumbMap[location.pathname] || ['Главная']
 
@@ -107,14 +111,19 @@ export function PortalShell() {
     navigate('/login')
   }
 
+  const handleNavClick = (path: string) => {
+    navigate(path)
+    if (!isDesktop) closeSidebar()
+  }
+
   return (
     <div className="flex h-dvh overflow-hidden bg-harbor-bg">
       {/* Mobile overlay */}
-      {!isDesktop && showSidebar && (
+      {!isDesktop && isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSidebarOpen(false) }}
+          onClick={() => closeSidebar()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeSidebar() }}
           tabIndex={0}
           role="button"
         />
@@ -125,21 +134,25 @@ export function PortalShell() {
         className={`
           fixed md:relative z-50 md:z-0
           h-full bg-harbor-card border-r border-border
-          transition-all duration-300
-          ${showSidebar
-            ? 'w-60 translate-x-0 overflow-visible md:w-60 md:translate-x-0'
-            : 'w-0 -translate-x-full overflow-hidden pointer-events-none md:w-0 md:translate-x-0 md:overflow-hidden md:pointer-events-none'}
+          transition-all duration-300 overflow-hidden
+          ${isClosed
+            ? 'w-0 -translate-x-full md:w-16 md:translate-x-0'
+            : isCollapsed
+              ? 'w-16 translate-x-0 md:w-16 md:translate-x-0'
+              : 'w-60 translate-x-0 md:w-60 md:translate-x-0'}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className={`border-b border-border flex items-center ${isCollapsed ? 'justify-center px-2 py-4' : 'justify-between px-5 py-4'}`}>
             <div className="flex items-center gap-2">
               <span className="text-2xl">⚓</span>
-              <span className="font-display font-bold text-lg text-text-primary">RekHarbor</span>
+              {!isCollapsed && (
+                <span className="font-display font-bold text-lg text-text-primary whitespace-nowrap">RekHarbor</span>
+              )}
             </div>
-            {!isDesktop && showSidebar && (
-              <button onClick={() => setSidebarOpen(false)} className="text-text-secondary hover:text-text-primary">
+            {!isDesktop && isOpen && (
+              <button onClick={() => closeSidebar()} className="text-text-secondary hover:text-text-primary">
                 <X size={20} />
               </button>
             )}
@@ -150,39 +163,45 @@ export function PortalShell() {
             {navItems.map((item) => (
               <button
                 key={item.path}
-                onClick={() => { navigate(item.path); if (!isDesktop) setSidebarOpen(false) }}
+                onClick={() => handleNavClick(item.path)}
+                title={isCollapsed ? item.label : undefined}
                 className={`
-                  w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium
+                  w-full flex items-center gap-3 text-sm font-medium
                   transition-colors duration-fast
+                  ${isCollapsed ? 'justify-center px-2 py-3' : 'px-5 py-2.5'}
                   ${location.pathname === item.path || location.pathname.startsWith(item.path + '/')
                     ? 'bg-accent-muted text-accent border-r-2 border-accent'
                     : 'text-text-secondary hover:bg-harbor-elevated hover:text-text-primary'}
                 `}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
               </button>
             ))}
 
             {user?.is_admin && (
               <>
-                <div className="px-5 py-2 mt-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                  Администрирование
-                </div>
+                {!isCollapsed && (
+                  <div className="px-5 py-2 mt-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+                    Администрирование
+                  </div>
+                )}
                 {adminItems.map((item) => (
                   <button
                     key={item.path}
-                    onClick={() => { navigate(item.path); if (!isDesktop) setSidebarOpen(false) }}
+                    onClick={() => handleNavClick(item.path)}
+                    title={isCollapsed ? item.label : undefined}
                     className={`
-                      w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium
+                      w-full flex items-center gap-3 text-sm font-medium
                       transition-colors duration-fast
+                      ${isCollapsed ? 'justify-center px-2 py-3' : 'px-5 py-2.5'}
                       ${location.pathname === item.path || location.pathname.startsWith(item.path + '/')
                         ? 'bg-accent-muted text-accent border-r-2 border-accent'
                         : 'text-text-secondary hover:bg-harbor-elevated hover:text-text-primary'}
                     `}
                   >
                     {item.icon}
-                    <span>{item.label}</span>
+                    {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                   </button>
                 ))}
               </>
@@ -190,16 +209,25 @@ export function PortalShell() {
           </nav>
 
           {/* User info + logout */}
-          <div className="px-5 py-4 border-t border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent font-semibold text-sm">
+          <div className={`px-5 py-4 border-t border-border ${isCollapsed ? 'px-2' : ''}`}>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center gap-2' : 'gap-3'}`}>
+              <div
+                className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent font-semibold text-sm shrink-0"
+                title={isCollapsed ? `${user?.first_name || 'User'} (@${user?.username || 'unknown'})` : undefined}
+              >
                 {user?.first_name?.[0]?.toUpperCase() ?? 'U'}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary truncate">{user?.first_name || 'Пользователь'}</p>
-                <p className="text-xs text-text-tertiary truncate">@{user?.username || 'unknown'}</p>
-              </div>
-              <button onClick={handleLogout} className="text-text-tertiary hover:text-danger transition-colors" title="Выйти">
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text-primary truncate">{user?.first_name || 'Пользователь'}</p>
+                  <p className="text-xs text-text-tertiary truncate">@{user?.username || 'unknown'}</p>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                className="text-text-tertiary hover:text-danger transition-colors shrink-0"
+                title={isCollapsed ? 'Выйти' : undefined}
+              >
                 <LogOut size={16} />
               </button>
             </div>
@@ -211,12 +239,13 @@ export function PortalShell() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-16 bg-harbor-card border-b border-border flex items-center px-4 lg:px-6 gap-4 shrink-0">
-          {/* Hamburger */}
+          {/* Hamburger / expand button */}
           <button
-            onClick={toggleSidebar}
+            onClick={() => toggleSidebar(isDesktop)}
             className="text-text-secondary hover:text-text-primary transition-colors"
+            title={isDesktop ? (isOpen ? 'Свернуть иконки' : 'Развернуть меню') : 'Открыть меню'}
           >
-            <Menu size={20} />
+            {isDesktop && isOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
 
           {/* Breadcrumbs */}
