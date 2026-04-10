@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Notification, Skeleton, Button } from '@shared/ui'
+import { Card, Notification, Skeleton, Button, StatusPill } from '@shared/ui'
 import { useMyChannels, useUpdateChannelCategory } from '@/hooks/useChannelQueries'
 import { useDeleteChannel } from '@/hooks/useChannelSettings'
 import { CATEGORIES } from '@/lib/constants'
@@ -148,7 +148,7 @@ export default function OwnChannels() {
   const compareChannels = (channels ?? []).filter((ch) => compareIds.has(ch.id))
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -168,117 +168,125 @@ export default function OwnChannels() {
           <Button onClick={() => navigate('/own/channels/add')}>➕ Добавить первый канал</Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {channels?.map((channel) => (
-            <Card key={channel.id} className="p-5">
-              <div className="flex items-start gap-4">
-                {/* Avatar */}
-                <div className="w-12 h-12 rounded-full bg-accent-muted flex items-center justify-center text-xl shrink-0">
-                  {channel.title[0]?.toUpperCase() ?? '📺'}
+        <div className="space-y-4">
+          {channels?.map((channel) => {
+            const statusPill = channel.is_active
+              ? { status: 'success' as const, label: '✅ Активен' }
+              : { status: 'danger' as const, label: '⛔ Неактивен' }
+
+            const categoryLabel = channel.category
+              ? CATEGORY_OPTIONS.find((c) => c.key === channel.category)
+              : null
+
+            return (
+              <Card key={channel.id} className="p-4 hover:shadow-lg transition-shadow">
+                {/* Main row: Identity | Metrics | Actions */}
+                <div className="flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:items-center">
+                  {/* Zone A: Identity (col-span-5) */}
+                  <div className="sm:col-span-5 flex items-start gap-3 min-w-0">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-accent-muted flex items-center justify-center text-lg shrink-0">
+                      {channel.title[0]?.toUpperCase() ?? '📺'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-text-primary truncate">
+                          @{channel.username}
+                        </span>
+                        <StatusPill status={statusPill.status} size="sm">{statusPill.label}</StatusPill>
+                      </div>
+                      <p className="text-sm text-text-secondary truncate">{channel.title}</p>
+                      {categoryLabel ? (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-accent-muted text-accent">
+                          {categoryLabel.emoji} {categoryLabel.label}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-muted text-warning">
+                          ⚠️ Без категории
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Zone B: Metrics (col-span-3) */}
+                  <div className="sm:col-span-3 flex items-center gap-6 sm:justify-center py-1">
+                    <div className="text-center">
+                      <p className="text-lg font-semibold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
+                      <p className="text-xs text-text-tertiary">подписчики</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-semibold text-text-primary">{channel.rating.toFixed(1)}</p>
+                      <p className="text-xs text-text-tertiary">рейтинг</p>
+                    </div>
+                  </div>
+
+                  {/* Zone C: Actions (col-span-4) */}
+                  <div className="sm:col-span-4 flex items-center justify-end gap-2 flex-wrap">
+                    <button
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        compareIds.has(channel.id)
+                          ? 'bg-accent text-accent-text'
+                          : compareIds.size >= MAX_COMPARE
+                          ? 'text-text-tertiary cursor-not-allowed'
+                          : 'bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent'
+                      }`}
+                      title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+                      disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
+                      onClick={() => toggleCompare(channel.id)}
+                    >
+                      ⚖️
+                    </button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
+                    >
+                      ⚙️
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={deletingChannelId !== null}
+                      onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                    >
+                      {deletingChannelId === channel.id ? (
+                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        '🗑️'
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-text-primary truncate">{channel.title}</h3>
-                      <p className="text-sm text-text-tertiary">@{channel.username}</p>
-                    </div>
-
-                    {/* Icon action buttons */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* Compare toggle */}
-                      <button
-                        className={`w-9 h-9 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
-                          compareIds.has(channel.id)
-                            ? 'bg-accent text-accent-text'
-                            : compareIds.size >= MAX_COMPARE
-                            ? 'text-text-tertiary cursor-not-allowed'
-                            : 'text-text-secondary hover:bg-harbor-elevated hover:text-text-primary'
-                        }`}
-                        title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
-                        disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
-                        onClick={() => toggleCompare(channel.id)}
-                      >
-                        ⚖️
-                      </button>
-
-                      <button
-                        className="w-9 h-9 rounded-md flex items-center justify-center text-text-secondary hover:bg-harbor-elevated hover:text-text-primary transition-colors"
-                        title="Настройки"
-                        onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.507 6.507 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.753-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                        </svg>
-                      </button>
-                      <button
-                        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
-                          deletingChannelId === channel.id
-                            ? 'text-text-tertiary cursor-wait'
-                            : 'text-text-secondary hover:bg-danger-muted hover:text-danger'
-                        }`}
-                        title="Удалить"
-                        disabled={deletingChannelId !== null}
-                        onClick={() => handleDeleteChannel(channel.id, channel.title)}
-                      >
-                        {deletingChannelId === channel.id ? (
-                          <span className="w-4 h-4 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Stats row */}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
-                    <span className="text-text-secondary">👥 {channel.member_count.toLocaleString('ru-RU')}</span>
-                    <span className="text-text-secondary">⭐ {channel.rating.toFixed(1)}</span>
-                    <span className={channel.is_active ? 'text-success' : 'text-text-tertiary'}>
-                      {channel.is_active ? 'Активен' : 'Неактивен'}
-                    </span>
-                  </div>
-
-                  {/* Category */}
-                  <div className="mt-3">
-                    {!channel.category ? (
-                      <div className="bg-warning-muted rounded-md p-3">
-                        <p className="text-sm text-warning mb-2">⚠️ Выберите категорию — канал не виден рекламодателям</p>
-                        {editingCategoryFor === channel.id ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {CATEGORY_OPTIONS.map((cat) => (
-                              <button
-                                key={cat.key}
-                                className="px-2.5 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
-                                onClick={() => {
-                                  updateCategory.mutate({ id: channel.id, category: cat.key })
-                                  setEditingCategoryFor(null)
-                                }}
-                              >
-                                {cat.emoji} {cat.label}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <Button size="sm" variant="secondary" onClick={() => setEditingCategoryFor(channel.id)}>
-                            📂 Выбрать категорию
-                          </Button>
-                        )}
+                {/* Category inline picker (only when missing) */}
+                {!channel.category && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-xs text-warning mb-2">⚠️ Добавьте категорию — без неё канал не виден рекламодателям</p>
+                    {editingCategoryFor === channel.id ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CATEGORY_OPTIONS.map((cat) => (
+                          <button
+                            key={cat.key}
+                            className="px-2 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
+                            onClick={() => {
+                              updateCategory.mutate({ id: channel.id, category: cat.key })
+                              setEditingCategoryFor(null)
+                            }}
+                          >
+                            {cat.emoji} {cat.label}
+                          </button>
+                        ))}
                       </div>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-muted text-accent">
-                        {CATEGORY_OPTIONS.find((c) => c.key === channel.category)?.emoji}{' '}
-                        {CATEGORY_OPTIONS.find((c) => c.key === channel.category)?.label ?? channel.category}
-                      </span>
+                      <Button size="sm" variant="secondary" onClick={() => setEditingCategoryFor(channel.id)}>
+                        📂 Выбрать категорию
+                      </Button>
                     )}
                   </div>
-                </div>
-              </div>
-            </Card>
-          ))}
+                )}
+              </Card>
+            )
+          })}
         </div>
       )}
 
