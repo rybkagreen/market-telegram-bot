@@ -179,12 +179,21 @@ class PlacementCreateRequest(BaseModel):
     )
 
 
+class ChannelRef(BaseModel):
+    """Минимальная информация о канале для ответа."""
+
+    id: int
+    username: str
+    title: str
+
+
 class PlacementResponse(BaseModel):
     """Ответ с данными заявки."""
 
     id: int
     advertiser_id: int
     channel_id: int
+    channel: ChannelRef | None = None
     status: str
     publication_format: str
     proposed_price: Decimal

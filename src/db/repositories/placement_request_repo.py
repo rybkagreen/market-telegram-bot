@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm import selectinload
 
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.base import BaseRepository
@@ -87,11 +88,14 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         self, advertiser_id: int, statuses: list[PlacementStatus] | None = None
     ) -> list[PlacementRequest]:
         """Получить заявки рекламодателя."""
+        from src.db.models.telegram_chat import TelegramChat
+
         conditions = [PlacementRequest.advertiser_id == advertiser_id]
         if statuses:
             conditions.append(PlacementRequest.status.in_(statuses))
         result = await self.session.execute(
             select(PlacementRequest)
+            .options(selectinload(PlacementRequest.channel))
             .where(and_(*conditions))
             .order_by(PlacementRequest.created_at.desc())
         )
@@ -122,6 +126,7 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
             conditions.append(PlacementRequest.status.in_(statuses))
         result = await self.session.execute(
             select(PlacementRequest)
+            .options(selectinload(PlacementRequest.channel))
             .join(TelegramChat, PlacementRequest.channel_id == TelegramChat.id)
             .where(and_(*conditions))
         )
