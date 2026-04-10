@@ -179,106 +179,68 @@ export default function OwnChannels() {
               : null
 
             return (
-              <Card key={channel.id} className="py-1.5 sm:py-2 px-3 sm:px-4 hover:shadow-lg transition-shadow">
-                {/* Main row: Identity | Metrics | Actions */}
-                <div className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:items-center">
-                  {/* Zone A: Identity (col-span-5) */}
-                  <div className="sm:col-span-5 flex items-center gap-2 sm:gap-3 min-w-0 py-2">
-                    {/* Avatar */}
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-accent-muted flex items-center justify-center text-base sm:text-lg shrink-0">
-                      {channel.title[0]?.toUpperCase() ?? '📺'}
+              <Card key={channel.id} className="p-4">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-text-primary">
+                        #{channel.id} · @{channel.username}
+                      </span>
+                      <StatusPill status={statusPill.status}>{statusPill.label}</StatusPill>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-semibold text-text-primary truncate">
-                          @{channel.username}
-                        </span>
-                        <StatusPill status={statusPill.status} size="sm">{statusPill.label}</StatusPill>
-                      </div>
-                      {/* Badges in a row: title + category */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm text-text-secondary truncate">{channel.title}</span>
-                        {categoryLabel ? (
-                          <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-accent-muted text-accent">
-                            {categoryLabel.emoji} {categoryLabel.label}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warning-muted text-warning">
-                            ⚠️ Нет категории
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Zone B: Metrics (col-span-3) */}
-                  <div className="sm:col-span-3 sm:border-l sm:border-border sm:pl-4 flex items-center justify-center gap-4 py-2">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-text-primary">{channel.member_count.toLocaleString('ru-RU')}</p>
-                      <p className="text-xs text-text-tertiary">подписчики</p>
-                    </div>
-                    <div className="w-px h-10 bg-border" />
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-text-primary">{channel.rating.toFixed(1)}</p>
-                      <p className="text-xs text-text-tertiary">рейтинг</p>
-                    </div>
-                  </div>
-
-                  {/* Zone C: Actions (col-span-4) */}
-                  <div className="sm:col-span-4 sm:border-l sm:border-border sm:pl-4 flex items-center justify-end gap-2 py-2">
-                    <button
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1 min-w-[88px] ${
-                        compareIds.has(channel.id)
-                          ? 'bg-accent text-accent-text'
-                          : compareIds.size >= MAX_COMPARE
-                          ? 'text-text-tertiary cursor-not-allowed'
-                          : 'bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent'
-                      }`}
-                      title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
-                      disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
-                      onClick={() => toggleCompare(channel.id)}
-                    >
-                      <span>⚖️</span>
-                      <span>Сравнить</span>
-                    </button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="px-3 py-1.5 min-w-[88px]"
-                      onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
-                    >
-                      <span>⚙️</span>
-                      <span className="ml-1">Настр.</span>
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      className="px-3 py-1.5 min-w-[88px]"
-                      disabled={deletingChannelId !== null}
-                      onClick={() => handleDeleteChannel(channel.id, channel.title)}
-                    >
-                      {deletingChannelId === channel.id ? (
-                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <span>🗑️</span>
-                          <span className="ml-1">Удалить</span>
-                        </>
+                    <p className="text-sm text-text-secondary truncate">{channel.title}</p>
+                    <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
+                      <span>👥 {channel.member_count.toLocaleString('ru-RU')}</span>
+                      <span>⭐ {channel.rating.toFixed(1)}</span>
+                      {categoryLabel && (
+                        <span>{categoryLabel.emoji} {categoryLabel.label}</span>
                       )}
-                    </Button>
+                    </div>
                   </div>
+                </div>
+
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      compareIds.has(channel.id)
+                        ? 'bg-accent text-accent-text'
+                        : compareIds.size >= MAX_COMPARE
+                        ? 'text-text-tertiary cursor-not-allowed'
+                        : 'bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent'
+                    }`}
+                    title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+                    disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
+                    onClick={() => toggleCompare(channel.id)}
+                  >
+                    ⚖️ Сравнить
+                  </button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
+                  >
+                    ⚙️ Настройки
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingChannelId !== null}
+                    onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                  >
+                    {deletingChannelId === channel.id ? '⏳...' : '🗑️ Удалить'}
+                  </Button>
                 </div>
 
                 {/* Category inline picker (only when missing) */}
                 {!channel.category && (
-                  <div className="mt-2">
-                    <p className="text-xs text-warning mb-1.5">⚠️ Добавьте категорию — без неё канал не виден рекламодателям</p>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-sm text-warning mb-2">⚠️ Канал без категории — не виден рекламодателям. Добавьте категорию через кнопку ниже.</p>
                     {editingCategoryFor === channel.id ? (
                       <div className="flex flex-wrap gap-1.5">
                         {CATEGORY_OPTIONS.map((cat) => (
                           <button
                             key={cat.key}
-                            className="px-2 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
+                            className="px-2.5 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
                             onClick={() => {
                               updateCategory.mutate({ id: channel.id, category: cat.key })
                               setEditingCategoryFor(null)
