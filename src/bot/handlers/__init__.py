@@ -4,6 +4,7 @@
 from aiogram import Router
 
 from src.bot.handlers.admin.disputes import router as admin_disputes_router
+from src.bot.handlers.admin.monitoring import router as admin_monitoring_router
 from src.bot.handlers.admin.users import router as admin_router
 from src.bot.handlers.advertiser.analytics import router as advertiser_analytics_router
 from src.bot.handlers.advertiser.campaigns import router as campaigns_router
@@ -45,3 +46,4 @@ main_router.include_router(arbitration_router)
 main_router.include_router(dispute_router)
 main_router.include_router(admin_router)
 main_router.include_router(admin_disputes_router)
+main_router.include_router(admin_monitoring_router)

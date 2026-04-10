@@ -713,6 +713,29 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 
 ---
 
+### Стратегия миграций (до появления prod-пользователей)
+
+**ПРАВИЛО:** Новые миграционные файлы НЕ создаются.
+При изменении модели — перезаписать `src/db/migrations/versions/0001_initial_schema.py`.
+
+Workflow при изменении модели:
+1. Обнови `src/db/models/<model>.py`
+2. Обнови `src/db/migrations/versions/0001_initial_schema.py` в соответствии с изменением
+3. Выполни сброс БД:
+```bash
+   docker compose exec db psql -U postgres \
+     -c "DROP DATABASE market_bot_db; CREATE DATABASE market_bot_db;" \
+     && docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+```
+4. Проверь синхронизацию: `alembic check` → "No new upgrade operations detected."
+
+**Переход на инкрементальные миграции** — только при появлении первого реального
+пользователя. После этого `0001_initial_schema.py` становится иммутабельным.
+
+**ЗАПРЕЩЕНО:** создавать новые файлы в `src/db/migrations/versions/` в период разработки.
+
+---
+
 ## NEVER TOUCH
 
 ```
