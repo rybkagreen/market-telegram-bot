@@ -6,6 +6,7 @@ Post-MVP: интеграция с API ФНС (npchk.nalog.ru).
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -15,12 +16,12 @@ _INN_CHECKSUM_ERROR = "Неверная контрольная сумма ИНН
 _INN_LENGTH_ERROR = "ИНН должен быть 10 или 12 цифр"
 
 
+@dataclass(frozen=True)
 class FNSValidationError:
     """Ошибка валидации."""
 
-    def __init__(self, field: str, message: str):
-        self.field = field
-        self.message = message
+    field: str
+    message: str
 
 
 class FNSValidationResult:

@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29: Python 3.14 Runtime Upgrade (v4.5 — April 2026)
+
+#### Changed
+- **Python runtime** upgraded from 3.13.7 to **3.14.4** (deadsnakes PPA for host, `python:3.14-slim` for containers)
+- **aiogram** upgraded to **3.27.0** (Python 3.14 + pydantic 2.12 support)
+- **pydantic** upgraded to **2.12.5** with pydantic-core **2.41.5** (Python 3.14 PyO3 wheels)
+- **asyncpg** upgraded to **0.31.0** (Python 3.14 wheel available)
+- **pillow-heif** upgraded to **1.3.0** (prebuilt Python 3.14 wheels)
+- **ruff** upgraded to **0.12.0**, **mypy** to **1.17.0**, **pytest-asyncio** to **0.26.0**
+
+#### Fixed
+- **`asyncio.DefaultEventLoopPolicy` removed** — eliminated deprecated call in `parser_tasks.py`; Linux default is already correct
+- **Forward reference type annotations** — removed unnecessary quotes from 97+ type annotations (ruff UP037)
+- **Callback null-safety** — added `assert callback.data is not None` and `hasattr` guards in `monitoring.py`
+- **FNSValidationError** — converted to frozen dataclass (ruff B903, AAA-grade)
+- **Docker C-extension build** — added gcc, python3-dev, libpq-dev, pkg-config to builder stages for asyncpg/cryptography compilation
+
+#### Breaking
+- `python >=3.14,<3.15` — Python 3.13 no longer supported
+- aiogram pinned to 3.27.0 (caps at Python <3.15)
+
+#### Migration Notes
+- Recreate virtualenv: `poetry env use python3.14 && poetry install`
+- Rebuild all Docker images: `docker compose build --no-cache nginx && docker compose up -d --build bot api worker_critical worker_background worker_game`
+
+### S-29: Placement Counter-Offer Fix (v4.7 — April 2026)
+
+#### Fixed
+- **Counter-offer price not applied via API** — `advertiser_accept_counter()` now passes `final_price=placement.counter_price` to repository `accept()` method. API path now matches Telegram bot behavior. (`src/core/services/placement_request_service.py`)
+- **Missing counter-offer fields in API response** — `PlacementResponse` schema now includes `counter_price`, `counter_schedule`, `counter_comment`, `advertiser_counter_price`, `advertiser_counter_schedule`, `advertiser_counter_comment`. Frontend can now display full negotiation data. (`src/api/routers/placements.py`)
+- **Broken callback in counter-counter notification** — Owner notification button now uses correct `own:request:{id}` callback instead of non-existent `req:view:{id}`. (`src/bot/handlers/advertiser/campaigns.py`)
+- **Data collision in counter-offer price field** — Added separate `advertiser_counter_price`, `advertiser_counter_schedule`, `advertiser_counter_comment` fields to prevent advertiser's counter-counter from overwriting owner's counter-offer. (`src/db/models/placement_request.py`)
+
+#### Added
+- **Database migration** — `0002_add_advertiser_counter_fields.py` adds 3 new columns for advertiser's counter-offers. (`src/db/migrations/versions/`)
+- **Comprehensive test coverage** — 9 new tests covering counter-offer service logic, API responses, data integrity, and price resolution. (`tests/test_counter_offer_flow.py`)
+- **TypeScript type updates** — `PlacementRequest` interface updated in both mini_app and web_portal with advertiser counter-offer fields. (`mini_app/src/lib/types.ts`, `web_portal/src/lib/types.ts`)
+
+#### Migration Notes
+- Run `alembic upgrade head` to apply new migration
+- To rollback: `alembic downgrade -1`
+
+### S-32: Role Unification (v4.7 — April 2026)
+
+#### Removed
+- **`User.current_role`** — DB column removed from `users` table; no more role switching between "advertiser" and "owner"
+- **`role` field from API responses** — `GET /api/auth/me`, `GET /api/admin/users`, `PATCH /api/admin/users/{id}` no longer include `role`
+- **`role` query param** — `GET /api/placements/` no longer accepts `role`; now returns UNION of advertiser + owner placements
+- **Bot "Выбрать роль" button** — replaced with direct 📣 Рекламодатель / 📺 Владелец navigation buttons in main menu
+- **Mini App `/role` route** — RoleSelect screen deleted
+- **`UserResponse.role`** — removed from both Mini App and Web Portal auth types
+
+#### Changed
+- **Bot main menu** — direct navigation: [👤 Кабинет | 📣 Рекламодатель | 📺 Владелец | 💬 Помощь | ✉️ Обратная связь]
+- **Bot cabinet** — always shows both topup and payout buttons (payout gated by `earned_rub >= 1000` only)
+- **Bot middleware** — always checks BOTH advertiser and owner block status (no role gating)
+- **Placements API** — `list_placements()` unions `get_by_advertiser()` + `get_by_owner()` with dedup, sorted by `created_at DESC`
+- **Admin user table** — "Роль" column replaced with "Тариф"
+- **`UserRoleService`** — rewritten as minimal stub; removed all `current_role` references
+
+#### Added
+- **Context-based navigation** — route determines context (`/adv/*` = advertiser, `/own/*` = owner), not stored field
+
+#### Migration Notes
+- `current_role` column removed from `0001_initial_schema.py` in-place (pre-production strategy)
+- To apply: reset DB and run `alembic upgrade head`
+
 ### S-29E: Fix Channel Name Bug (v4.6 — April 2026)
 
 #### Fixed

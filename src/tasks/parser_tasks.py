@@ -1324,12 +1324,9 @@ def llm_reclassify_all_task(self, batch_size: int = CLASSIFY_BATCH_SIZE) -> dict
     Возвращает статистику: total, updated, failed, skipped.
     """
     import asyncio
-    import sys
 
-    # Python 3.13+ требует SelectorEventLoop для Celery prefork
-    if sys.platform != "win32":
-        # Linux/Mac используем SelectorEventLoop
-        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    # Python 3.14: Default on Linux is already UnixSelectorEventLoopPolicy — no setup needed
+    # (asyncio.DefaultEventLoopPolicy was removed in 3.14)
 
     # Создаём новый event loop для этой задачи
     loop = asyncio.new_event_loop()
