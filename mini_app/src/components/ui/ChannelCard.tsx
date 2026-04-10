@@ -60,15 +60,11 @@ export function ChannelCard({
           <span className={styles.avatarFallback}>{name.charAt(0).toUpperCase()}</span>
         )}
       </div>
+
       <div className={styles.info}>
         <div className={styles.nameRow}>
           <span className={styles.name}>{name}</span>
           {verified && <span className={styles.verified}>✓</span>}
-          {status && (
-            <StatusPill status={STATUS_MAP[status]} size="sm">
-              {STATUS_LABELS[status]}
-            </StatusPill>
-          )}
         </div>
         <div className={styles.meta}>
           <span className={styles.username}>@{username}</span>
@@ -80,7 +76,15 @@ export function ChannelCard({
           {price && <span className={styles.price}>{price}</span>}
         </div>
       </div>
-      {onClick && <span className={styles.chevron}>›</span>}
+
+      <div className={styles.actions}>
+        {status && (
+          <StatusPill status={STATUS_MAP[status]} size="sm">
+            {STATUS_LABELS[status]}
+          </StatusPill>
+        )}
+        {onClick && <span className={styles.chevron}>›</span>}
+      </div>
     </div>
   )
 }
