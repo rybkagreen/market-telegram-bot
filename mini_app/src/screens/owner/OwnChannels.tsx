@@ -23,79 +23,81 @@ export default function OwnChannels() {
 
   return (
     <ScreenLayout title="Мои каналы">
-      <button
-        className={styles.addButton}
-        onClick={() => navigate('/own/channels/add')}
-      >
-        ➕ Добавить канал
-      </button>
+      <div className={styles.container}>
+        <button
+          className={styles.addButton}
+          onClick={() => navigate('/own/channels/add')}
+        >
+          ➕ Добавить канал
+        </button>
 
-      {isLoading && (
-        <div className={styles.list}>
-          <Skeleton height={80} radius="lg" />
-          <Skeleton height={80} radius="lg" />
-          <Skeleton height={80} radius="lg" />
-        </div>
-      )}
-
-      {isError && (
-        <Notification type="danger">
-          <Text variant="sm">❌ Не удалось загрузить каналы</Text>
-        </Notification>
-      )}
-
-      {!isLoading && !isError && channels && (
-        <>
-          <button className={styles.refreshButton} onClick={() => refetch()}>
-            🔄 Обновить
-          </button>
-
+        {isLoading && (
           <div className={styles.list}>
-            {channels.map((channel) => (
-              <div key={channel.id} className={styles.channelItem}>
-                <ChannelCard
-                  name={channel.title}
-                  username={channel.username}
-                  subscribers={formatCompact(channel.member_count)}
-                  category={channel.category}
-                  status={channel.is_active ? 'active' : 'inactive'}
-                  onClick={() => navigate(`/own/channels/${channel.id}`)}
-                />
-
-                {!channel.category && (
-                  <div className={styles.categoryWarning}>
-                    <Notification type="warning">
-                      <Text variant="sm">
-                        ⚠️ Канал не виден рекламодателям -- выберите категорию
-                      </Text>
-                      <div className={styles.categoryActions}>
-                        {editingCategoryFor === channel.id ? (
-                          <CategoryGrid
-                            categories={categories.map((c) => ({
-                              id: c.key,
-                              label: c.name,
-                              icon: c.emoji,
-                            }))}
-                            selected={[]}
-                            onToggle={(key) => handleCategorySelect(channel.id, key)}
-                          />
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => setEditingCategoryFor(channel.id)}
-                          >
-                            📂 Выбрать категорию
-                          </Button>
-                        )}
-                      </div>
-                    </Notification>
-                  </div>
-                )}
-              </div>
-            ))}
+            <Skeleton height={80} radius="lg" />
+            <Skeleton height={80} radius="lg" />
+            <Skeleton height={80} radius="lg" />
           </div>
-        </>
-      )}
+        )}
+
+        {isError && (
+          <Notification type="danger">
+            <Text variant="sm">❌ Не удалось загрузить каналы</Text>
+          </Notification>
+        )}
+
+        {!isLoading && !isError && channels && (
+          <>
+            <button className={styles.refreshButton} onClick={() => refetch()}>
+              🔄 Обновить
+            </button>
+
+            <div className={styles.list}>
+              {channels.map((channel) => (
+                <div key={channel.id} className={styles.channelItem}>
+                  <ChannelCard
+                    name={channel.title}
+                    username={channel.username}
+                    subscribers={formatCompact(channel.member_count)}
+                    category={channel.category}
+                    status={channel.is_active ? 'active' : 'inactive'}
+                    onClick={() => navigate(`/own/channels/${channel.id}`)}
+                  />
+
+                  {!channel.category && (
+                    <div className={styles.categoryWarning}>
+                      <Notification type="warning">
+                        <Text variant="sm">
+                          ⚠️ Канал не виден рекламодателям — выберите категорию
+                        </Text>
+                        <div className={styles.categoryActions}>
+                          {editingCategoryFor === channel.id ? (
+                            <CategoryGrid
+                              categories={categories.map((c) => ({
+                                id: c.key,
+                                label: c.name,
+                                icon: c.emoji,
+                              }))}
+                              selected={[]}
+                              onToggle={(key) => handleCategorySelect(channel.id, key)}
+                            />
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => setEditingCategoryFor(channel.id)}
+                            >
+                              📂 Выбрать категорию
+                            </Button>
+                          )}
+                        </div>
+                      </Notification>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </ScreenLayout>
   )
 }
