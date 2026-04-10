@@ -15,6 +15,7 @@ from src.db.base import Base, TimestampMixin
 def _default_referral_code() -> str:
     return str(uuid.uuid4()).replace("-", "")[:16]
 
+
 CASCADE_ALL = "all, delete-orphan"
 
 
@@ -72,7 +73,7 @@ class User(Base, TimestampMixin):
         String(32), unique=True, nullable=False, default=_default_referral_code
     )
     referred_by_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id"), nullable=True
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     advertiser_xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     advertiser_level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")

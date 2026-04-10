@@ -13,12 +13,24 @@
           "mccabe": { "enabled": false },
           "pylint": { "enabled": false },
           "rope_rename": { "enabled": true },
-          "rope_autoimport": { "enabled": false },
-          "jedi_completion": { "enabled": true, "include_params": true },
+          "rope_autoimport": { 
+            "enabled": true,
+            "execute": false
+          },
+          "jedi_completion": { 
+            "enabled": true, 
+            "include_params": true,
+            "include_class_objects": true,
+            "include_function_objects": true
+          },
           "jedi_signature_help": { "enabled": true },
           "jedi_hover": { "enabled": true },
           "jedi_references": { "enabled": true },
-          "jedi_definition": { "enabled": true, "follow_imports": true },
+          "jedi_definition": { 
+            "enabled": true, 
+            "follow_imports": true,
+            "follow_builtin_imports": true
+          },
           "flake8_lint": { "enabled": false },
           "yapf": { "enabled": false },
           "autopep8": { "enabled": false }
@@ -27,6 +39,37 @@
     },
     "extensionToLanguage": {
       ".py": "python"
+    },
+    "startupTimeout": 30000
+  },
+  "typescript": {
+    "command": "typescript-language-server",
+    "args": ["--stdio"],
+    "settings": {
+      "typescript": {
+        "tsdk": "/opt/market-telegram-bot/web_portal/node_modules/typescript/lib",
+        "preferences": {
+          "includeCompletionsForModuleExports": true,
+          "includeCompletionsWithInsertText": true,
+          "includeAutomaticOptionalChainCompletions": true,
+          "includeCompletionsWithClassMemberSnippets": true,
+          "includeCompletionsWithObjectLiteralMethodSnippets": true,
+          "providePrefixAndSuffixTextForRename": true,
+          "allowRenameOfImportPath": true,
+          "displayPartsForDocumentation": true
+        }
+      },
+      "javascript": {
+        "preferences": {
+          "includeCompletionsForModuleExports": true
+        }
+      }
+    },
+    "extensionToLanguage": {
+      ".ts": "typescript",
+      ".tsx": "typescript",
+      ".js": "javascript",
+      ".jsx": "javascript"
     },
     "startupTimeout": 30000
   }

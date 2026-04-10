@@ -96,7 +96,7 @@ services:
     networks:
       - market_bot_network
     restart: unless-stopped
-    command: celery -A src.tasks.celery_app worker --loglevel=info -Q celery,mailing,notifications,billing -n critical@%h --concurrency=2 -E
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q worker_critical,mailing,notifications,billing,placement -n critical@%h --concurrency=2 -E
     healthcheck:
       test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d critical@$$HOSTNAME || exit 1"]
       interval: 30s
@@ -126,7 +126,7 @@ services:
     networks:
       - market_bot_network
     restart: unless-stopped
-    command: celery -A src.tasks.celery_app worker --loglevel=info -Q parser,cleanup,rating -n background@%h --concurrency=4 -E
+    command: celery -A src.tasks.celery_app worker --loglevel=info -Q parser,cleanup,rating,background -n background@%h --concurrency=4 -E
     healthcheck:
       test: ["CMD-SHELL", "celery -A src.tasks.celery_app inspect ping -d background@$$HOSTNAME || exit 1"]
       interval: 30s
@@ -246,8 +246,10 @@ services:
       - "127.0.0.1:8080:80"
       - "127.0.0.1:8443:443"
     depends_on:
-      - bot
+      - postgres
+      - redis
       - api
+      - flower
     networks:
       - market_bot_network
     restart: unless-stopped

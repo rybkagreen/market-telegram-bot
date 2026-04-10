@@ -2,6 +2,12 @@ import { Card, Notification, Skeleton, MenuButton } from '@shared/ui'
 import { formatCurrency, PLAN_INFO } from '@/lib/constants'
 import { useMe, useMyStats } from '@/hooks/queries'
 
+function getScoreColor(score: number): string {
+  if (score >= 4) return 'bg-success'
+  if (score >= 3) return 'bg-warning'
+  return 'bg-danger'
+}
+
 export default function Cabinet() {
   const { data: user, isLoading: userLoading, isError: userError } = useMe()
   const { data: stats, isLoading: statsLoading } = useMyStats()
@@ -76,9 +82,7 @@ export default function Cabinet() {
               </div>
               <div className="w-full h-2.5 bg-harbor-elevated rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-normal ${
-                    advertiserScore >= 4 ? 'bg-success' : advertiserScore >= 3 ? 'bg-warning' : 'bg-danger'
-                  }`}
+                  className={`h-full rounded-full transition-all duration-normal ${getScoreColor(advertiserScore)}`}
                   style={{ width: `${(advertiserScore / 5) * 100}%` }}
                 />
               </div>
@@ -93,9 +97,7 @@ export default function Cabinet() {
               </div>
               <div className="w-full h-2.5 bg-harbor-elevated rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-normal ${
-                    ownerScore >= 4 ? 'bg-success' : ownerScore >= 3 ? 'bg-warning' : 'bg-danger'
-                  }`}
+                  className={`h-full rounded-full transition-all duration-normal ${getScoreColor(ownerScore)}`}
                   style={{ width: `${(ownerScore / 5) * 100}%` }}
                 />
               </div>

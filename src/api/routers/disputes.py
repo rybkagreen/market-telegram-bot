@@ -17,7 +17,6 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +35,7 @@ from src.api.schemas.dispute import (
     DisputeUpdate,
 )
 from src.core.services.billing_service import billing_service
+from src.db.models.dispute import DisputeStatus as ModelDisputeStatus
 from src.db.models.dispute import PlacementDispute
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
@@ -467,29 +467,20 @@ async def get_all_disputes_admin(
     elif limit > 100:
         limit = 100
 
-    # Build query
-    query = select(PlacementDispute)
+    repo = DisputeRepository(session)
 
     # Apply status filter
+    status_enum: ModelDisputeStatus | None = None
     if status_filter != "all":
         try:
-            status_enum = DisputeStatus(status_filter.lower())
-            query = query.where(PlacementDispute.status == status_enum)
+            status_enum = ModelDisputeStatus(status_filter.lower())
         except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status: {status_filter}. Must be one of: open, owner_explained, resolved, all",
             ) from err
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await session.execute(count_query)
-    total = total_result.scalar() or 0
-
-    # Apply pagination
-    query = query.order_by(PlacementDispute.created_at.asc()).limit(limit).offset(offset)
-    result = await session.execute(query)
-    disputes = result.scalars().all()
+    disputes, total = await repo.get_all_paginated(status_enum, limit, offset)
 
     # Build response with usernames
     items = []

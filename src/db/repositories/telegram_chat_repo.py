@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 
 from src.db.models.telegram_chat import TelegramChat
 from src.db.repositories.base import BaseRepository
@@ -68,3 +68,12 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
         self.session.add(chat)
         await self.session.flush()
         return (chat, True)
+
+    async def count_active_by_owner(self, owner_id: int) -> int:
+        """Посчитать количество активных каналов владельца."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(TelegramChat)
+            .where(TelegramChat.owner_id == owner_id, TelegramChat.is_active.is_(True))
+        )
+        return result.scalar_one() or 0

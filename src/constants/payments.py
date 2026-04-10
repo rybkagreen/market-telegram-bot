@@ -61,7 +61,7 @@ PLAN_PRICES: dict[str, Decimal] = {
     "free": Decimal("0"),  # Бесплатный
     "starter": Decimal("490"),  # Стартовый
     "pro": Decimal("1490"),  # Профессиональный
-    "agency": Decimal("4990"),  # Агентский (UserPlan.business)
+    "business": Decimal("4990"),  # Агентский (UserPlan.business)
 }
 
 PLAN_LIMITS: dict[str, dict] = {
@@ -86,24 +86,6 @@ PLAN_LIMITS: dict[str, dict] = {
         "formats": ["post_24h", "post_48h", "post_7d", "pin_24h", "pin_48h"],
     },
 }
-
-# ══════════════════════════════════════════════════════════════
-# LEGACY КОНСТАНТЫ (для обратной совместимости — используются в __init__.py)
-# Не используются в новой финансовой модели v4.2
-# ══════════════════════════════════════════════════════════════
-CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
-CRYPTO_CURRENCIES: list[str] = ["USDT", "TON", "BTC", "ETH", "LTC"]
-PAYMENT_METHODS: list[str] = ["stars"]
-
-# Legacy пакеты ЮKassa (для обратной совместимости — используется в billing handler)
-YOOKASSA_PACKAGES: list[dict] = [
-    {"rub": 100, "label": "100 ₽"},
-    {"rub": 300, "label": "300 ₽"},
-    {"rub": 500, "label": "500 ₽"},
-    {"rub": 1000, "label": "1 000 ₽"},
-    {"rub": 3000, "label": "3 000 ₽"},
-    {"rub": 5000, "label": "5 000 ₽"},
-]
 
 
 # ══════════════════════════════════════════════════════════════

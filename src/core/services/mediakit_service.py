@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.telegram_chat import TelegramChat
+from src.db.repositories.channel_mediakit_repo import ChannelMediakitRepo
 
 
 @asynccontextmanager
@@ -33,16 +34,12 @@ class MediakitService:
     ) -> ChannelMediakit:
         """Найти или создать медиакит для канала."""
         async with _session_ctx(session) as s:
-            result = await s.execute(
-                select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id)
-            )
-            existing = result.scalar_one_or_none()
+            repo = ChannelMediakitRepo(s)
+            existing = await repo.get_by_channel_id(channel_id)
             if existing is not None:
                 return existing
 
-            chat_result = await s.execute(
-                select(TelegramChat).where(TelegramChat.id == channel_id)
-            )
+            chat_result = await s.execute(select(TelegramChat).where(TelegramChat.id == channel_id))
             chat = chat_result.scalar_one_or_none()
             owner_user_id = chat.owner_id if chat is not None else None
 
@@ -84,21 +81,22 @@ class MediakitService:
     ) -> dict[str, Any]:
         """Получить полные данные медиакита для канала."""
         async with _session_ctx(session) as s:
-            chat_result = await s.execute(
-                select(TelegramChat).where(TelegramChat.id == channel_id)
-            )
+            chat_result = await s.execute(select(TelegramChat).where(TelegramChat.id == channel_id))
             chat = chat_result.scalar_one_or_none()
 
-            mediakit_result = await s.execute(
-                select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id)
-            )
-            mediakit = mediakit_result.scalar_one_or_none()
+            repo = ChannelMediakitRepo(s)
+            mediakit = await repo.get_by_channel_id(channel_id)
 
             if mediakit is None:
                 mediakit = await self.get_or_create_mediakit(channel_id, session=s)
 
             channel_data: dict[str, Any] = {}
-            metrics: dict[str, Any] = {"subscribers": 0, "avg_views": 0, "er": 0.0, "post_frequency": 0.0}
+            metrics: dict[str, Any] = {
+                "subscribers": 0,
+                "avg_views": 0,
+                "er": 0.0,
+                "post_frequency": 0.0,
+            }
             price: dict[str, Any] = {"amount": 0, "currency": "кр"}
 
             if chat is not None:

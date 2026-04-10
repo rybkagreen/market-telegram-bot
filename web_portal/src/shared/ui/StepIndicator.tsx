@@ -4,12 +4,18 @@ interface StepIndicatorProps {
   labels?: string[]
 }
 
+function getStepState(i: number, current: number): 'done' | 'active' | 'pending' {
+  if (i < current) return 'done'
+  if (i === current - 1) return 'active'
+  return 'pending'
+}
+
 export function StepIndicator({ total, current, labels }: StepIndicatorProps) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-center gap-1 mb-2">
         {Array.from({ length: total }, (_, i) => {
-          const state = i < current ? 'done' : i === current - 1 ? 'active' : 'pending'
+          const state = getStepState(i, current)
           const dotColors: Record<string, string> = {
             done: 'bg-accent',
             active: 'bg-accent ring-4 ring-accent/20',

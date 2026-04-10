@@ -7,7 +7,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
@@ -61,8 +60,8 @@ async def get_act(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Получить акт по ID."""
-    result = await session.execute(select(Act).join(PlacementRequest).where(Act.id == act_id))
-    act = result.scalar_one_or_none()
+    repo = ActRepository(session)
+    act = await repo.get_by_id(act_id)
     if not act:
         raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 
@@ -84,8 +83,8 @@ async def sign_act(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Подписать акт (акцепт через интерфейс)."""
-    result = await session.execute(select(Act).join(PlacementRequest).where(Act.id == act_id))
-    act = result.scalar_one_or_none()
+    repo = ActRepository(session)
+    act = await repo.get_by_id(act_id)
     if not act:
         raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 
@@ -132,8 +131,8 @@ async def download_act_pdf(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FileResponse:
     """Скачать PDF акта."""
-    result = await session.execute(select(Act).where(Act.id == act_id))
-    act = result.scalar_one_or_none()
+    repo = ActRepository(session)
+    act = await repo.get_by_id(act_id)
     if not act:
         raise HTTPException(status_code=404, detail=_ACT_NOT_FOUND)
 

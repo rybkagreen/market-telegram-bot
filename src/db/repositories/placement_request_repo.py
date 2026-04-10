@@ -323,6 +323,30 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         )
         return result.scalar_one() or Decimal("0")
 
+    async def has_active_placements(self, channel_id: int) -> bool:
+        """Проверить, есть ли у канала активные размещения (escrow/published)."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(
+                PlacementRequest.channel_id == channel_id,
+                PlacementRequest.status.in_([PlacementStatus.escrow, PlacementStatus.published]),
+            )
+        )
+        return (result.scalar_one() or 0) > 0
+
+    async def count_published_by_channel(self, channel_id: int) -> int:
+        """Посчитать количество опубликованных размещений канала."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(PlacementRequest)
+            .where(
+                PlacementRequest.channel_id == channel_id,
+                PlacementRequest.status == PlacementStatus.published,
+            )
+        )
+        return result.scalar_one() or 0
+
 
 # Алиас для обратной совместимости
 PlacementRequestRepo = PlacementRequestRepository
