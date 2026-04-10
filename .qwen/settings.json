@@ -54,9 +54,9 @@
       "port": 5432,
       "name": "market_bot_db",
       "user": "market_bot",
-      "password": "change_me_in_production",
-      "asyncUrl": "postgresql+asyncpg://market_bot:change_me_in_production@localhost:5432/market_bot_db",
-      "syncUrl": "postgresql://market_bot:change_me_in_production@localhost:5432/market_bot_db"
+      "password": "market_bot_pass",
+      "asyncUrl": "postgresql+asyncpg://market_bot:market_bot_pass@localhost:5432/market_bot_db",
+      "syncUrl": "postgresql://market_bot:market_bot_pass@localhost:5432/market_bot_db"
     },
     "techStack": {
       "backend": {
