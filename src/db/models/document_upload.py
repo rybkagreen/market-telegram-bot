@@ -27,6 +27,11 @@ class DocumentUpload(Base):
     # Options: inn_certificate, ogrn_certificate, bank_details, passport, tax_registration,
     #          self_employed_certificate, other
 
+    # Passport page tracking (which pages this upload contains)
+    passport_page_group: Mapped[str | None] = mapped_column(
+        String(16), nullable=True
+    )  # "main_pages" (2-3), "registration" (propiska), None for non-passport
+
     # Image quality check results
     image_quality_score: Mapped[float | None] = mapped_column(
         Numeric(3, 2), nullable=True

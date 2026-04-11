@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
     bind=True,
     max_retries=2,
     default_retry_delay=60,
-    queue="default",
-    name="document_ocr.process_document",
+    queue="worker_critical",
+    name="document_ocr:process_document",
 )
 def process_document_ocr(self, upload_id: int) -> dict:  # NOSONAR: python:S3776
     """
