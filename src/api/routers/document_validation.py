@@ -35,6 +35,7 @@ class DocumentUploadResponse(BaseModel):
     status: str
     file_type: str
     document_type: str
+    passport_page_group: str | None = None
 
 
 class DocumentStatusResponse(BaseModel):
@@ -42,6 +43,7 @@ class DocumentStatusResponse(BaseModel):
     status: str
     file_type: str
     document_type: str
+    passport_page_group: str | None = None
     image_quality_score: float | None = None
     quality_issues: list[str] | None = None
     is_readable: bool = False
@@ -64,12 +66,15 @@ async def upload_document(
     current_user: Annotated[UserModel, Depends(get_current_user)],
     file: Annotated[UploadFile, File(...)],
     document_type: Annotated[str, Form(...)],
+    passport_page_group: Annotated[str | None, Form()] = None,
 ):
     """
     Upload a legal document for OCR validation.
 
     Supported formats: JPG, JPEG, PNG, WEBP, HEIC, PDF
     Max size: 10 MB
+
+    For passport documents, passport_page_group must be "main_pages" or "registration".
     """
     # Validate file type
     if not file.filename:
@@ -98,6 +103,14 @@ async def upload_document(
             detail=f"Недопустимый тип документа. Варианты: {', '.join(allowed_doc_types)}",
         )
 
+    # Validate passport_page_group for passport documents
+    if document_type == "passport":
+        if passport_page_group not in ("main_pages", "registration"):
+            raise HTTPException(
+                status_code=400,
+                detail="Для паспорта укажите страницу: main_pages (стр. 2-3) или registration (прописка)",
+            )
+
     # Read file content
     content = await file.read()
     file_size = len(content)
@@ -119,16 +132,15 @@ async def upload_document(
     # Create DB record
     async with async_session_factory() as session:
         repo = DocumentUploadRepository(session)
-        upload = await repo.create(
-            {
-                "user_id": current_user.id,
-                "original_filename": file.filename,
-                "stored_path": stored_path,
-                "file_type": file_type,
-                "file_size": actual_size,
-                "document_type": document_type,
-            }
-        )
+        upload = await repo.create({
+            "user_id": current_user.id,
+            "original_filename": file.filename,
+            "stored_path": stored_path,
+            "file_type": file_type,
+            "file_size": actual_size,
+            "document_type": document_type,
+            "passport_page_group": passport_page_group,
+        })
 
     # Trigger async OCR processing
     from src.tasks.document_ocr_tasks import process_document_ocr
@@ -145,6 +157,7 @@ async def upload_document(
         status="pending",
         file_type=file_type,
         document_type=document_type,
+        passport_page_group=passport_page_group,
     )
 
 
@@ -183,6 +196,7 @@ async def get_document_status(
             status=upload.validation_status,
             file_type=upload.file_type,
             document_type=upload.document_type,
+            passport_page_group=upload.passport_page_group,
             image_quality_score=float(upload.image_quality_score)
             if upload.image_quality_score
             else None,
@@ -225,6 +239,48 @@ async def list_documents(
                 }
                 for u in uploads
             ]
+        }
+
+
+# ─── Check Passport Completeness ───────────────────────────────────
+
+
+@router.get("/passport-completeness")
+async def check_passport_completeness(
+    current_user: Annotated[UserModel, Depends(get_current_user)],
+):
+    """Check if both passport photos are uploaded and validated."""
+    from sqlalchemy import select as sa_select
+
+    from src.db.models.document_upload import DocumentUpload
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            sa_select(DocumentUpload).where(
+                DocumentUpload.user_id == current_user.id,
+                DocumentUpload.document_type == "passport",
+                DocumentUpload.validation_status == "completed",
+                DocumentUpload.is_readable == True,
+            )
+        )
+        uploads = result.scalars().all()
+
+        has_main = any(u.passport_page_group == "main_pages" for u in uploads)
+        has_registration = any(u.passport_page_group == "registration" for u in uploads)
+
+        return {
+            "main_pages_uploaded": has_main,
+            "registration_uploaded": has_registration,
+            "is_complete": has_main and has_registration,
+            "uploads": [
+                {
+                    "id": u.id,
+                    "page_group": u.passport_page_group,
+                    "status": u.validation_status,
+                    "quality_score": float(u.image_quality_score) if u.image_quality_score else None,
+                }
+                for u in uploads
+            ],
         }
 
 
