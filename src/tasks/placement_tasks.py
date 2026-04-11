@@ -738,7 +738,13 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
                             from_chat_id=channel.telegram_id,
                             message_id=placement.message_id,
                         )
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning(
+                            "Placement audit: failed to forward message %d from channel %d: %s",
+                            placement.message_id,
+                            channel.telegram_id,
+                            exc,
+                        )
                         message_exists = False
 
                     if not message_exists:

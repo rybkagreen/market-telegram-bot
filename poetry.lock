@@ -3759,6 +3759,7 @@ files = [
 ]
 
 [package.dependencies]
+celery = {version = ">=3", optional = true, markers = "extra == \"celery\""}
 certifi = "*"
 fastapi = {version = ">=0.79.0", optional = true, markers = "extra == \"fastapi\""}
 sqlalchemy = {version = ">=1.2", optional = true, markers = "extra == \"sqlalchemy\""}
@@ -4884,4 +4885,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<3.15"
-content-hash = "30026747b6996b09917876297a11df92a125fa1ccc4dbd928c7d9b30f89fbedb"
+content-hash = "95af2915e236066e991d611b4701c712af2cf9f8110f110f5fe7c824e6f9e5e6"
