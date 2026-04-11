@@ -39,6 +39,7 @@ export default function AdminPlatformSettings() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!user?.is_admin) return
     setLoading(true)
@@ -58,6 +59,7 @@ export default function AdminPlatformSettings() {
       .catch(() => setError('Не удалось загрузить реквизиты'))
       .finally(() => setLoading(false))
   }, [user?.is_admin])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSave = () => {
     setSaving(true)

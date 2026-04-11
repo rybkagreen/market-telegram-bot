@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, StatusPill } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import { KepWarning } from '@/components/contracts/KepWarning'
 import { api } from '@shared/api/client'
@@ -36,6 +37,16 @@ const SUCCESS_MESSAGE: Record<string, string> = {
   legal_entity: '✅ Договор подписан. Для бухучёта рекомендуем запросить КЭП-версию.',
 }
 
+interface ContractData {
+  id: number
+  contract_type: string
+  status: string
+  signed_at: string | null
+  pdf_url: string | null
+  created_at: string
+  kep_requested?: boolean
+}
+
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -45,7 +56,7 @@ export default function ContractDetail() {
   const { data: profile } = useMyLegalProfile()
   const legalStatus = profile?.legal_status ?? 'individual'
 
-  const [contract, setContract] = useState<any>(null)
+  const [contract, setContract] = useState<ContractData | null>(null)
   const [loading, setLoading] = useState(true)
   const [signing, setSigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +65,7 @@ export default function ContractDetail() {
     if (!numId) return
     setLoading(true)
     api.get(`contracts/${numId}`)
-      .json<any>()
+      .json<ContractData>()
       .then((data) => setContract(data))
       .catch(() => setError('Договор не найден'))
       .finally(() => setLoading(false))
@@ -82,7 +93,7 @@ export default function ContractDetail() {
   const handleSign = () => {
     setSigning(true)
     api.post(`contracts/${contract.id}/sign`, { json: { method: 'button_accept' } })
-      .json<any>()
+      .json<ContractData>()
       .then((data) => {
         setContract(data)
         setSigned(true)
@@ -106,7 +117,7 @@ export default function ContractDetail() {
         </div>
         {contract.signed_at && (
           <p className="text-xs text-text-tertiary mb-3">
-            Подписан: {new Date(contract.signed_at).toLocaleDateString('ru-RU')}
+            Подписан: {formatDateMSK(contract.signed_at)}
           </p>
         )}
         <div className="flex gap-2">

@@ -36,8 +36,9 @@ function CompareModal({ channels, onClose }: { channels: ChannelData[]; onClose:
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    dialogRef.current?.showModal()
-    return () => dialogRef.current?.close()
+    const dialog = dialogRef.current
+    dialog?.showModal()
+    return () => dialog?.close()
   }, [])
 
   const metrics: { key: keyof ChannelData; label: string; format: (v: unknown) => string }[] = [

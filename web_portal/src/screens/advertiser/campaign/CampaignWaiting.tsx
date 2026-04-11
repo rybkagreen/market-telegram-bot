@@ -1,19 +1,11 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Notification, Card, Timeline, ArbitrationPanel, Button, Skeleton } from '@shared/ui'
-import { PUBLICATION_FORMATS } from '@/lib/constants'
-import { formatCurrency } from '@/lib/constants'
+import { PUBLICATION_FORMATS, formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacement, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
 function formatDateTime(dt: string | null | undefined): string {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeMSK(dt)
 }
 
 function getRedirectPath(id: number, status: string): string | null {
@@ -41,7 +33,7 @@ export default function CampaignWaiting() {
     if (isExpired && placement.status === 'pending_owner') {
       navigate('/adv/campaigns', { replace: true })
     }
-  }, [placement?.status, isExpired, navigate, numId])
+  }, [placement?.status, isExpired, navigate, numId, placement])
 
   if (isLoading) {
     return (
@@ -107,7 +99,9 @@ export default function CampaignWaiting() {
       id: 'published',
       icon: placement.status === 'published' ? '✅' : '📢',
       title: 'Публикация',
-      subtitle: placement.status === 'published' ? formatDateTime(placement.published_at) : 'Запланировано',
+      subtitle: placement.status === 'published'
+        ? formatDateTime(placement.published_at)
+        : formatDateTime(placement.final_schedule ?? placement.proposed_schedule) || 'Запланировано',
       variant: placement.status === 'published' ? 'success' as const : 'default' as const,
     },
   ]
@@ -151,11 +145,11 @@ export default function CampaignWaiting() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-text-secondary">💰 Цена</span>
-            <span className="text-text-primary font-semibold">{formatCurrency(placement.proposed_price)}</span>
+            <span className="text-text-primary font-semibold">{formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-text-secondary">📅 Дата</span>
-            <span className="text-text-primary">{formatDateTime(placement.proposed_schedule)}</span>
+            <span className="text-text-primary">{formatDateTime(placement.final_schedule ?? placement.proposed_schedule)}</span>
           </div>
         </div>
       </ArbitrationPanel>

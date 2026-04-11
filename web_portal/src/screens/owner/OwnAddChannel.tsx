@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Card, CategoryGrid, Notification, Toggle } from '@shared/ui'
 import { useCategories } from '@/hooks/useCampaignQueries'
@@ -17,6 +17,7 @@ export default function OwnAddChannel() {
   const { data: categories = [] } = useCategories()
 
   const checkResult = checkMutation.data ?? null
+  const canAdd = checkResult?.valid && !checkResult.is_already_added && !!selectedCategory
 
   const isChatId = inputValue.startsWith('-100')
   const channelIdentifier = isChatId
@@ -25,23 +26,31 @@ export default function OwnAddChannel() {
     ? inputValue.slice(1)
     : inputValue
 
+  // Auto-select AI-suggested category when check completes
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (checkResult?.category && checkResult.valid && !checkResult.is_already_added) {
+      setSelectedCategory(checkResult.category)
+    }
+  }, [checkResult?.category, checkResult?.valid, checkResult?.is_already_added])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const handleCheck = () => {
     setSelectedCategory(null)
     checkMutation.mutate(channelIdentifier)
   }
 
   const handleAdd = () => {
+    if (!selectedCategory) return
     addMutation.mutate(
       {
         username: channelIdentifier,
         is_test: isTest && user?.is_admin,
-        category: selectedCategory ?? undefined,
+        category: selectedCategory,
       },
       { onSuccess: () => navigate('/own/channels') },
     )
   }
-
-  const canAdd = checkResult?.valid && !checkResult.is_already_added
 
   return (
     <div className="space-y-6">
@@ -128,21 +137,31 @@ export default function OwnAddChannel() {
               </div>
               {checkResult.category && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Тематика</span>
-                  <span className="text-text-primary">📁 {checkResult.category}</span>
+                  <span className="text-text-secondary">AI тематика</span>
+                  <span className="text-text-primary">🤖 {checkResult.category}</span>
                 </div>
               )}
             </div>
           </Card>
 
-          {/* Category selection */}
+          {/* Category selection — REQUIRED before adding */}
           {canAdd && (
-            <Card title="📂 Выберите категорию">
+            <Card title="📂 Выберите категорию (обязательно)">
+              <p className="text-sm text-text-secondary mb-3">
+                Без категории канал не будет виден рекламодателям.
+                {checkResult.category && ' 🤖 AI уже предложил подходящую.'}
+              </p>
               <CategoryGrid
                 categories={categories.map((c) => ({ id: c.key, label: c.name, icon: c.emoji }))}
                 selected={selectedCategory ? [selectedCategory] : []}
                 onToggle={(id) => setSelectedCategory(id === selectedCategory ? null : id)}
               />
+              {selectedCategory && (
+                <div className="mt-3 px-3 py-2 rounded-md bg-success-muted text-success text-sm">
+                  ✅ Выбрана: {categories.find((c) => c.key === selectedCategory)?.emoji}{' '}
+                  {categories.find((c) => c.key === selectedCategory)?.name}
+                </div>
+              )}
             </Card>
           )}
 
@@ -162,7 +181,7 @@ export default function OwnAddChannel() {
             </Card>
           )}
 
-          {/* Add button */}
+          {/* Add button — requires category */}
           {checkResult.valid && (
             <Button
               variant="success"
@@ -171,7 +190,9 @@ export default function OwnAddChannel() {
               disabled={!canAdd}
               onClick={handleAdd}
             >
-              ➕ Добавить канал
+              {!selectedCategory
+                ? '⚠️ Сначала выберите категорию'
+                : '➕ Добавить канал'}
             </Button>
           )}
         </>

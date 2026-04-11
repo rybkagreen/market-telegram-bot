@@ -18,16 +18,16 @@ export function useAuth() {
       return
     }
 
+    let cancelled = false
     authenticateTelegram(initData)
       .then(({ access_token, user: authUser }) => {
-        setAuth(access_token, authUser)
+        if (!cancelled) setAuth(access_token, authUser)
       })
       .catch(() => {
-        logout()
+        if (!cancelled) logout()
       })
-  // run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return () => { cancelled = true }
+  }, [initData, setAuth, logout, setLoading])
 
   return { isAuthenticated, isLoading, user }
 }

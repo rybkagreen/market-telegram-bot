@@ -100,12 +100,11 @@ export default function MyCampaigns() {
                 id={placement.id}
                 channelName={placement.channel ? `@${placement.channel.username}` : `#${placement.channel_id}`}
                 adText={placement.ad_text}
-                price={formatCurrency(placement.final_price ?? placement.proposed_price)}
+                price={formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
                 date={formatDate(placement.created_at)}
                 status={placement.status === 'failed_permissions' ? 'failed' : placement.status}
                 onClick={() => {
                   if (filter === 'active') navigate(`/adv/campaigns/${placement.id}/waiting`)
-                  else alert(`Детали кампании #${placement.id} — Phase 8`)
                 }}
               />
               <div className={styles.actions}>
@@ -128,7 +127,7 @@ export default function MyCampaigns() {
                   </Button>
                 )}
                 {filter === 'completed' && (
-                  <Button variant="success" size="sm" onClick={() => alert(`Отзыв #${placement.id}`)}>
+                  <Button variant="success" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}>
                     ⭐ Отзыв
                   </Button>
                 )}

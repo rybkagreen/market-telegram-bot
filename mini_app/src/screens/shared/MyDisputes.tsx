@@ -5,7 +5,7 @@ import { Card, Skeleton, Text, Notification } from '@/components/ui'
 import { DISPUTE_REASON_LABELS } from '@/lib/constants'
 import { formatDate } from '@/lib/formatters'
 import { useMyDisputes } from '@/hooks/queries'
-import type { DisputeStatus } from '@/lib/types'
+import type { Dispute, DisputeStatus } from '@/lib/types'
 import { useHaptic } from '@/hooks/useHaptic'
 import styles from './MyDisputes.module.css'
 
@@ -63,7 +63,7 @@ export default function MyDisputes() {
     )
   }
 
-  const handleDisputeClick = (dispute: any) => {
+  const handleDisputeClick = (dispute: Dispute) => {
     haptic.tap()
     // Navigate to detail — advertiser or owner based on role
     // For simplicity, navigate to detail screen; the detail screen handles roles

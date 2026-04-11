@@ -99,7 +99,12 @@ export const useCampaignWizardStore = create<CampaignWizardState>()((set, get) =
   nextStep: () => set((state) => ({ step: Math.min(state.step + 1, 6) })),
   prevStep: () => set((state) => ({ step: Math.max(state.step - 1, 1) })),
 
-  reset: () => set(initialState),
+  reset: () => set({
+    step: 1, category: null, selectedChannels: [], format: null,
+    adText: '', proposedPrices: {}, proposedSchedules: {}, isTest: false,
+    mediaType: 'none', videoFileId: null, videoUrl: null,
+    videoDuration: null, videoThumbnailFileId: null,
+  }),
 
   getTotalPrice: () => {
     const { selectedChannels, proposedPrices } = get()

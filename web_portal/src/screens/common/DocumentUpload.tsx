@@ -22,6 +22,11 @@ interface UploadResult {
   document_type: string
 }
 
+interface ValidationFieldDetail {
+  match: boolean
+  reason?: string
+}
+
 interface StatusResult {
   upload_id: number
   status: string
@@ -35,7 +40,7 @@ interface StatusResult {
   extracted_kpp: string | null
   extracted_ogrn: string | null
   extracted_name: string | null
-  validation_details: Record<string, any> | null
+  validation_details: { fields?: Record<string, ValidationFieldDetail> } | null
   error_message: string | null
 }
 
@@ -329,7 +334,7 @@ export default function DocumentUpload() {
               <div>
                 <p className="text-sm font-medium text-text-primary mb-2">Сверка с профилем:</p>
                 <div className="space-y-1">
-                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, any]) => (
+                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, ValidationFieldDetail]) => (
                     <div key={field} className="flex items-center justify-between text-sm p-2 bg-harbor-elevated rounded">
                       <span className="text-text-secondary uppercase">{field}</span>
                       <span className={data.match ? 'text-success' : 'text-danger'}>

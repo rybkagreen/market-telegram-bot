@@ -69,6 +69,7 @@ export default function LegalProfileSetup() {
   }
 
   // Pre-fill from existing profile
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (existingProfile) {
       setStatus(existingProfile.legal_status)
@@ -90,6 +91,7 @@ export default function LegalProfileSetup() {
       setPassportIssuedAt(existingProfile.passport_issued_at ?? '')
     }
   }, [existingProfile])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleValidate = () => {
     if (!inn) {
