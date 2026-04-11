@@ -362,11 +362,11 @@ export default function LegalProfileSetup() {
             </div>
             <div>
               <label className="block text-sm text-text-secondary mb-1">Кем выдан *</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+              <Textarea
                 value={passportIssuedBy}
-                onChange={(e) => setPassportIssuedBy(e.target.value)}
+                onChange={setPassportIssuedBy}
                 placeholder="ОУФМС России по г. Москве"
+                rows={3}
               />
             </div>
             <div>

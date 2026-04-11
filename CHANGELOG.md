@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29: Campaign Lifecycle Tracking (v4.6 — April 2026)
+
+#### Added
+- **Full lifecycle timeline** — 8-stage campaign tracking: created → waiting owner → payment → escrow → waiting placement → published → deletion countdown → completed
+- **`completed` status** — new terminal `PlacementStatus` set after post deletion + escrow release (ESCROW-001 compliance)
+- **ERID status display** — marketing token status (assigned/pending) shown directly in timeline
+- **Deletion countdown** — real-time display of remaining time until auto-deletion based on `scheduled_delete_at`
+- **`RequestCard` completed support** — new STATUS_PILL mapping for completed status with "Завершено" label
+
+#### Changed
+- **`publication_service.delete_published_post()`** — now sets `placement.status = PlacementStatus.completed` after `release_escrow()` (previously left status as `published`)
+- **`CampaignWaiting.tsx`** — rewrote `buildTimelineEvents()` to show all 8 lifecycle stages with proper past/current/terminal state indicators
+- **`MyCampaigns.tsx`** — added `'completed'` to `COMPLETED_STATUSES` so completed campaigns appear in "Завершённые" tab
+- **`check_published_posts_health` Celery task** — now monitors both `published` and `completed` statuses for audit purposes
+
+#### Database
+- **Enum migration** — `ALTER TYPE placementstatus ADD VALUE 'completed'` (forward-only, cannot rollback)
+
+#### Fixed
+- **Missing state transition bug** — placements remained `published` after deletion, making it impossible to distinguish active vs completed campaigns
+- **Timeline gap** — previously showed only 4 stages; now shows all 8 including waiting placement and escrow release
+- **Legal profile "Кем выдан" field** — replaced single-line `<input>` with `<Textarea rows={3}>` to accommodate long issuing authority names (e.g. "ОУФМС России по г. Москве")
+
 ### S-29: Quality & Security Sprint (v4.6 — April 2026)
 
 #### Security Fixes (P0)

@@ -381,6 +381,9 @@ class PublicationService:
             channel.owner_id,
         )
 
+        # Переводим в completed после удаления + освобождения эскроу
+        placement.status = PlacementStatus.completed
+
         # Sprint A.2: автоматическая генерация акта выполненных работ
         try:
             from src.core.services.act_service import ActService
