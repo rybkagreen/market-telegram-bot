@@ -687,7 +687,10 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
             now = datetime.now(UTC)
             result = await session.execute(
                 select(PlacementRequest).where(
-                    PlacementRequest.status == PlacementStatus.published,
+                    PlacementRequest.status.in_([
+                        PlacementStatus.published,
+                        PlacementStatus.completed,
+                    ]),
                     PlacementRequest.scheduled_delete_at > now,
                     PlacementRequest.message_id.isnot(None),
                 )

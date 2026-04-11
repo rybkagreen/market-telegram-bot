@@ -10,7 +10,7 @@ import styles from './MyCampaigns.module.css'
 type Filter = 'active' | 'completed' | 'cancelled'
 
 const ACTIVE_STATUSES: PlacementStatus[] = ['pending_owner', 'counter_offer', 'pending_payment', 'escrow']
-const COMPLETED_STATUSES: PlacementStatus[] = ['published']
+const COMPLETED_STATUSES: PlacementStatus[] = ['published', 'completed']
 const CANCELLED_STATUSES: PlacementStatus[] = ['cancelled', 'refunded', 'failed', 'failed_permissions']
 
 function getFilter(status: PlacementStatus): Filter {
@@ -102,7 +102,13 @@ export default function MyCampaigns() {
                 adText={placement.ad_text}
                 price={formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
                 date={formatDate(placement.created_at)}
-                status={placement.status === 'failed_permissions' ? 'failed' : placement.status}
+                status={
+                  placement.status === 'failed_permissions'
+                    ? 'failed'
+                    : placement.status === 'completed'
+                      ? 'completed'
+                      : placement.status
+                }
                 onClick={() => {
                   if (filter === 'active') navigate(`/adv/campaigns/${placement.id}/waiting`)
                 }}

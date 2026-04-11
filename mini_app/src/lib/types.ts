@@ -13,6 +13,7 @@ export type PlacementStatus =
   | 'pending_payment'
   | 'escrow'
   | 'published'
+  | 'completed'
   | 'failed'
   | 'failed_permissions'
   | 'refunded'
@@ -169,6 +170,9 @@ export interface PlacementRequest {
   counter_price: string | null
   counter_schedule: string | null
   counter_comment: string | null
+  advertiser_counter_price: string | null
+  advertiser_counter_schedule: string | null
+  advertiser_counter_comment: string | null
   rejection_reason: string | null
   expires_at: string
   published_at: string | null
