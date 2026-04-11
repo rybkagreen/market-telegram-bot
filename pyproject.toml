@@ -51,7 +51,7 @@ httpx = {extras = ["socks"], version = "^0.28.1"}
 
 # Payments
 yookassa = "^3.2.0"
-sentry-sdk = {extras = ["asyncio", "fastapi", "sqlalchemy"], version = "^2.55.0"}
+sentry-sdk = {extras = ["asyncio", "fastapi", "sqlalchemy", "celery"], version = "^2.55.0"}
 
 # Server Monitoring
 psutil = "^6.1.0"

@@ -6,10 +6,12 @@ Celery приложение для асинхронных задач.
 import logging
 from typing import Any
 
+import sentry_sdk
 from celery import Celery, Task
 from celery.schedules import crontab
 
 from src.config.settings import settings
+from src.tasks.sentry_init import init_worker_sentry
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,6 @@ def create_celery_app() -> Celery:
             "src.tasks.ord_tasks",
             "src.tasks.document_ocr_tasks",
             "src.tasks.dispute_tasks",
-            "src.tasks.monitoring_tasks",
         ],
     )
 
@@ -99,6 +100,9 @@ def create_celery_app() -> Celery:
         "schedule": crontab(minute="*/5"),
         "options": {"queue": "worker_critical"},
     }
+
+    # Initialize Sentry for Celery workers
+    init_worker_sentry()
 
     return app
 
@@ -219,9 +223,9 @@ def register_task(name: str | None = None, **kwargs: Any) -> Any:
     return decorator
 
 
-# Base Task class с логированием
+# Base Task class с логированием и Sentry-интеграцией
 class BaseTask(Task):
-    """Базовый класс для задач с логированием."""
+    """Базовый класс для задач с логированием и Sentry-интеграцией."""
 
     abstract = True
 
@@ -233,22 +237,26 @@ class BaseTask(Task):
         kwargs: dict[str, Any],
         einfo: Any,
     ) -> None:
-        """Логирование ошибки задачи."""
+        """Логирование ошибки задачи + отправка в Sentry."""
         logger.error(
-            f"Task {self.name} failed: {exc}",
+            "Task %s failed: %s",
+            self.name,
+            exc,
             extra={
                 "task_id": task_id,
-                "task_args": args,  # Renamed to avoid conflict with logging internals
+                "task_args": args,
                 "task_kwargs": kwargs,
                 "traceback": einfo.traceback,
             },
         )
+        if settings.sentry_dsn:
+            sentry_sdk.capture_exception(exc)
 
     def on_success(
         self, retval: Any, task_id: str, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> None:
         """Логирование успеха задачи."""
-        logger.info(f"Task {self.name} completed successfully", extra={"task_id": task_id})
+        logger.info("Task %s completed successfully", self.name, extra={"task_id": task_id})
 
     def on_retry(
         self,
@@ -258,12 +266,21 @@ class BaseTask(Task):
         kwargs: dict[str, Any],
         einfo: Any,
     ) -> None:
-        """Логирование повторной попытки."""
+        """Логирование повторной попытки + Sentry breadcrumb."""
         logger.warning(
-            f"Task {self.name} retrying: {exc}",
+            "Task %s retrying: %s",
+            self.name,
+            exc,
             extra={
                 "task_id": task_id,
                 "task_args": args,
                 "task_kwargs": kwargs,
             },
         )
+        if settings.sentry_dsn:
+            sentry_sdk.add_breadcrumb(
+                level="warning",
+                category="celery_retry",
+                message=f"Task {self.name} retry: {exc}",
+                data={"task_id": task_id},
+            )

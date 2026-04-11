@@ -170,7 +170,13 @@ class PublicationService:
 
             report_publication_task.delay(placement.id)
         except Exception:
-            pass  # nosec B110 — ORD report enqueue failure must not block publishing
+            logger.exception(
+                "Failed to enqueue ORD publication report for placement %s",
+                placement.id,
+            )
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
 
     async def publish_placement(
         self,
