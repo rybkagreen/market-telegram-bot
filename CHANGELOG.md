@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29: Quality & Security Sprint (v4.6 — April 2026)
+
+#### Security Fixes (P0)
+- **XSS via dangerouslySetInnerHTML** — added DOMPurify sanitization in 4 files (mini_app + web_portal ContractList, AcceptRules) with strict allowlist (p, strong, em, ul, ol, li, h1-h3, br, a, b, i, u)
+- **Stale auth closure** — `useAuth` now includes `initData` in deps array with abort controller, preventing permanent unauthenticated state when Telegram SDK initializes asynchronously
+- **AuthGuard infinite loop** — added `useRef` to prevent re-verification after logout, eliminating flash-loading and redirect loops in web_portal
+- **401 redirect race condition** — added singleton lock in API client to prevent multiple simultaneous redirects
+
+#### Performance & Reliability (P1)
+- **useMe staleTime** — changed from 0 to 5 min (saves ~15 redundant API calls per session)
+- **Zustand reset()** — uses explicit clone instead of shared reference (prevents stale data across navigations)
+- **Placements parallel** — `Promise.all` replaces sequential `for...of` (5x faster for 5 channels)
+- **Modal accessibility** — Escape key handler, `aria-modal`, `role="dialog"`
+- **Type safety** — eliminated all `any` types: `DisputeResponse`, `ContractData`, `ValidationFieldDetail`
+- **StatusPill** — expanded type to include `info`/`neutral` statuses
+
+#### UX & Polish (P2-P3)
+- `formatCurrency` guards against NaN/Infinity
+- `navigate(-1 as unknown as string)` → `window.history.back()`
+- `useConsent` synchronous init (eliminates cookie banner flash)
+- Removed `alert()` calls in MyCampaigns
+- `TopUp` fee uses `Math.round()` instead of `toFixed(0)`
+
 ### S-29: Python 3.14 Runtime Upgrade (v4.5 — April 2026)
 
 #### Changed
