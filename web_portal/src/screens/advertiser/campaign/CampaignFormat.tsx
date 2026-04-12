@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { StepIndicator, FormatSelector, Notification, Button } from '@shared/ui'
-import { PUBLICATION_FORMATS, canUsePlan, calcFormatPrice } from '@/lib/constants'
+import { PUBLICATION_FORMATS, canUsePlan, calcFormatPrice, PLAN_INFO } from '@/lib/constants'
 import { formatCurrency } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
@@ -28,10 +28,11 @@ export default function CampaignFormat() {
     const price = calcFormatPrice(avgBasePrice, key as PublicationFormat)
     return {
       id: key,
-      label: fmt.name + (available ? '' : ' 🔒'),
-      description: fmt.description + (available ? '' : ' — недоступно на вашем тарифе'),
+      label: fmt.name,
+      description: available ? fmt.description : `Недоступно на тарифе ${PLAN_INFO[userPlan]?.displayName ?? userPlan}`,
       icon: fmt.icon,
       price: formatCurrency(price),
+      disabled: !available,
     }
   })
 

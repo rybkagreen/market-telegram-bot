@@ -264,7 +264,22 @@ class PlacementRequestService:
         if proposed_price < _MIN_PRICE:
             raise ValueError(f"Price must be >= {_MIN_PRICE}")
 
-        # Проверка 3: channel существует и активен
+        # Проверка 3: формат размещения доступен по тарифу рекламодателя
+        from src.constants.payments import PLAN_LIMITS
+        from src.db.models.user import User
+
+        advertiser = await self.session.get(User, advertiser_id)
+        if not advertiser:
+            raise ValueError("Advertiser not found")
+
+        allowed_formats = PLAN_LIMITS.get(advertiser.plan, {}).get("formats", [])
+        if publication_format and publication_format not in allowed_formats:
+            raise ValueError(
+                f"Формат '{publication_format}' недоступен на тарифе '{advertiser.plan}'. "
+                f"Доступные форматы: {', '.join(allowed_formats)}"
+            )
+
+        # Проверка 4: channel существует и активен
         channel = await self.session.get(TelegramChat, channel_id)
         if not channel or not channel.is_active:
             raise ValueError("Channel not found or inactive")
