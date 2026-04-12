@@ -9,6 +9,7 @@ import {
   updateChannelSettings,
   updateChannelCategory,
   deleteChannel,
+  activateChannel,
 } from '@/api/channels'
 import type { ChannelSettings } from '@/lib/types'
 import { useUiStore } from '@/stores/uiStore'
@@ -138,6 +139,22 @@ export const useDeleteChannel = () => {
     },
     onError: () => {
       addToast('error', 'Ошибка при удалении канала')
+    },
+  })
+}
+
+export const useActivateChannel = () => {
+  const queryClient = useQueryClient()
+  const addToast = useUiStore((s) => s.addToast)
+
+  return useMutation({
+    mutationFn: (id: number) => activateChannel(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels', 'my'] })
+      addToast('success', 'Канал восстановлен')
+    },
+    onError: () => {
+      addToast('error', 'Ошибка при восстановлении канала')
     },
   })
 }
