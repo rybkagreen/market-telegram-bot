@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { StepIndicator, CategoryGrid, Toggle, Skeleton } from '@shared/ui'
-import { CATEGORIES } from '@/lib/constants'
+import { CATEGORIES, PLAN_INFO } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
 import { useCategories } from '@/hooks/useCategoryQueries'
@@ -20,6 +20,10 @@ export default function CampaignCategory() {
 
   useEffect(() => {
     store.reset()
+    // Set allowed formats based on user plan
+    const plan = user?.plan ?? 'free'
+    const formats = PLAN_INFO[plan]?.formats ?? ['post_24h']
+    store.setPlanAllowedFormats(formats)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (catsLoading) {
