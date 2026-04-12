@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, StatusPill, Skeleton, EmptyState, Card } from '@shared/ui'
+import { Button, StatusPill, Skeleton, EmptyState, Card, MobileCard } from '@shared/ui'
 import { useMyChannels, useUpdateChannelCategory } from '@/hooks/useChannelQueries'
 import { useDeleteChannel } from '@/hooks/useChannelSettings'
 import { CATEGORIES } from '@/lib/constants'
@@ -393,89 +393,83 @@ export default function OwnChannels() {
                 : null
 
               return (
-                <Card key={channel.id} className="p-4">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-text-primary">
-                          #{channel.id} · @{channel.username}
-                        </span>
-                        <StatusPill status={statusPill.status}>{statusPill.label}</StatusPill>
-                      </div>
-                      <p className="text-sm text-text-secondary truncate">{channel.title}</p>
-                      <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
-                        <span>👥 {channel.member_count.toLocaleString('ru-RU')}</span>
-                        <span>⭐ {channel.rating.toFixed(1)}</span>
-                        {categoryLabel && (
-                          <span>{categoryLabel.emoji} {categoryLabel.label}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <>
+                <MobileCard
+                  key={channel.id}
+                  variant="channel"
+                  id={channel.id}
+                  title={channel.title}
+                  username={channel.username ?? ''}
+                  memberCount={channel.member_count.toLocaleString('ru-RU')}
+                  rating={channel.rating.toFixed(1)}
+                  category={categoryLabel ? `${categoryLabel.emoji} ${categoryLabel.label}` : undefined}
+                  statusPill={statusPill}
+                  actions={
+                    <>
+                      <button
+                        className={`flex items-center justify-center rounded-md border transition-colors min-h-[44px] min-w-[44px] ${
+                          compareIds.has(channel.id)
+                            ? 'bg-accent text-accent-text border-accent'
+                            : compareIds.size >= MAX_COMPARE
+                            ? 'text-text-tertiary cursor-not-allowed border-border'
+                            : 'bg-harbor-elevated text-text-secondary border-border hover:bg-accent-muted hover:text-accent'
+                        }`}
+                        title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+                        disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
+                        onClick={() => toggleCompare(channel.id)}
+                      >
+                        ⚖️
+                      </button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon
+                        onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
+                        title="Настройки"
+                      >
+                        ⚙️
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        icon
+                        disabled={deletingChannelId === channel.id}
+                        onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                        title="Удалить"
+                      >
+                        {deletingChannelId === channel.id ? '⏳' : '🗑️'}
+                      </Button>
+                    </>
+                  }
+                />
 
-                  <div className="flex gap-2">
-                    <button
-                      className={`flex items-center justify-center rounded-md border transition-colors min-h-[44px] min-w-[44px] ${
-                        compareIds.has(channel.id)
-                          ? 'bg-accent text-accent-text border-accent'
-                          : compareIds.size >= MAX_COMPARE
-                          ? 'text-text-tertiary cursor-not-allowed border-border'
-                          : 'bg-harbor-elevated text-text-secondary border-border hover:bg-accent-muted hover:text-accent'
-                      }`}
-                      title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
-                      disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
-                      onClick={() => toggleCompare(channel.id)}
-                    >
-                      ⚖️
-                    </button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon
-                      onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
-                      title="Настройки"
-                    >
-                      ⚙️
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      icon
-                      disabled={deletingChannelId === channel.id}
-                      onClick={() => handleDeleteChannel(channel.id, channel.title)}
-                      title="Удалить"
-                    >
-                      {deletingChannelId === channel.id ? '⏳' : '🗑️'}
-                    </Button>
+                {/* Category inline picker (only when missing) */}
+                {!channel.category && (
+                  <div className="p-4 bg-harbor-card border border-border rounded-lg -mt-2">
+                    <p className="text-sm text-warning mb-2">⚠️ Канал без категории — не виден рекламодателям. Добавьте категорию через кнопку ниже.</p>
+                    {editingCategoryFor === channel.id ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CATEGORY_OPTIONS.map((cat) => (
+                          <button
+                            key={cat.key}
+                            className="px-2.5 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
+                            onClick={() => {
+                              updateCategory.mutate({ id: channel.id, category: cat.key })
+                              setEditingCategoryFor(null)
+                            }}
+                          >
+                            {cat.emoji} {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={() => setEditingCategoryFor(channel.id)}>
+                        📂 Выбрать категорию
+                      </Button>
+                    )}
                   </div>
-
-                  {/* Category inline picker (only when missing) */}
-                  {!channel.category && (
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <p className="text-sm text-warning mb-2">⚠️ Канал без категории — не виден рекламодателям. Добавьте категорию через кнопку ниже.</p>
-                      {editingCategoryFor === channel.id ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {CATEGORY_OPTIONS.map((cat) => (
-                            <button
-                              key={cat.key}
-                              className="px-2.5 py-1 rounded-md text-xs bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
-                              onClick={() => {
-                                updateCategory.mutate({ id: channel.id, category: cat.key })
-                                setEditingCategoryFor(null)
-                              }}
-                            >
-                              {cat.emoji} {cat.label}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="secondary" onClick={() => setEditingCategoryFor(channel.id)}>
-                          📂 Выбрать категорию
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </Card>
+                )}
+                </>
               )
             })}
           </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, StatusPill, Skeleton, EmptyState, Card } from '@shared/ui'
+import { Button, StatusPill, Skeleton, EmptyState, Card, MobileCard } from '@shared/ui'
 import { formatCurrency, formatDateMSK, formatDateTimeMSK } from '@/lib/constants'
 import { useMyPlacements } from '@/hooks/useCampaignQueries'
 
@@ -253,55 +253,50 @@ export default function OwnRequests() {
             {paged.map((req) => {
               const pill = statusToPill(req.status)
               const isActionable = ['pending_owner', 'counter_offer'].includes(req.status)
+              const channelUsername = req.channel?.username ?? `#${req.channel_id}`
+              const dateStr = req.proposed_schedule
+                ? formatSchedule(req.proposed_schedule)
+                : formatDate(req.created_at)
+              const priceStr = formatCurrency(req.final_price ?? req.counter_price ?? req.proposed_price)
 
               return (
-                <Card key={req.id} className="p-4">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-text-primary">
-                          #{req.id} · @{req.channel?.username ?? `#${req.channel_id}`}
-                        </span>
-                        <StatusPill status={pill.status}>{pill.label}</StatusPill>
-                      </div>
-                      <p className="text-sm text-text-secondary truncate">
-                        {req.ad_text.substring(0, 80)}
-                        {req.ad_text.length > 80 ? '...' : ''}
-                      </p>
-                      <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
-                        <span>{formatCurrency(req.final_price ?? req.counter_price ?? req.proposed_price)}</span>
-                        <span title={req.proposed_schedule ? 'Запланировано' : 'Создана'}>
-                          {formatSchedule(req.proposed_schedule) || formatDate(req.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {isActionable && (
-                      <>
-                        <Button variant="success" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Принять">
-                          ✅
+                <MobileCard
+                  key={req.id}
+                  variant="request"
+                  id={req.id}
+                  channelUsername={channelUsername}
+                  adText={req.ad_text.substring(0, 60)}
+                  price={priceStr}
+                  date={dateStr}
+                  statusPill={pill}
+                  actions={
+                    <>
+                      {isActionable && (
+                        <>
+                          <Button variant="success" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Принять">
+                            ✅
+                          </Button>
+                          <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Контр-оферта">
+                            ✏️
+                          </Button>
+                          <Button variant="danger" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Отклонить">
+                            ❌
+                          </Button>
+                        </>
+                      )}
+                      {ACTIVE_STATUSES.includes(req.status) && !isActionable && (
+                        <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Детали">
+                          📊
                         </Button>
-                        <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Контр-оферта">
-                          ✏️
+                      )}
+                      {CANCELLED_STATUSES.includes(req.status) && (
+                        <Button variant="ghost" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Просмотр">
+                          👁️
                         </Button>
-                        <Button variant="danger" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Отклонить">
-                          ❌
-                        </Button>
-                      </>
-                    )}
-                    {ACTIVE_STATUSES.includes(req.status) && !isActionable && (
-                      <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Детали">
-                        📊
-                      </Button>
-                    )}
-                    {CANCELLED_STATUSES.includes(req.status) && (
-                      <Button variant="ghost" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Просмотр">
-                        👁️
-                      </Button>
-                    )}
-                  </div>
-                </Card>
+                      )}
+                    </>
+                  }
+                />
               )
             })}
           </div>
