@@ -7,7 +7,6 @@ interface User {
   first_name: string
   last_name: string | null
   plan: string
-  role: string
   balance_rub: string
   earned_rub: string
   is_admin: boolean

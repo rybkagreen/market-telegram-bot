@@ -468,6 +468,45 @@ async def notify_counter_accepted(placement, _advertiser, _owner, channel_name: 
     )
 
 
+async def notify_advertiser_counter_reply(placement, owner, channel_name: str) -> None:
+    """FIX #20: Notify owner about advertiser's counter-reply."""
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    from src.bot.main import bot
+
+    if bot is None:
+        return
+
+    price = placement.advertiser_counter_price or placement.proposed_price
+    comment = placement.advertiser_counter_comment
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👀 Посмотреть", callback_data=f"own:request:{placement.id}")
+    builder.adjust(1)
+
+    text = (
+        f"✏️ *Рекламодатель предложил встречную цену!*\n\n"
+        f"📺 Канал: {channel_name}\n"
+        f"💰 Ваша цена: {placement.counter_price or '—'} ₽\n"
+        f"💵 Цена рекламодателя: *{price:.0f} ₽*\n"
+        f"📅 Раунд: {placement.counter_offer_count}/3\n"
+    )
+    if comment:
+        text += f"💬 Комментарий: {comment}\n"
+
+    try:
+        await bot.send_message(
+            chat_id=owner.telegram_id,
+            text=text,
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        from src.bot.handlers.shared.notifications import logger
+
+        logger.warning("notify_advertiser_counter_reply failed: %s", e)
+
+
 async def notify_rejected(placement, advertiser, channel_name: str) -> None:
     """Wrapper: уведомить рекламодателя об отклонении заявки."""
     from src.bot.main import bot

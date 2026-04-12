@@ -93,11 +93,21 @@ export default function MainMenu() {
 
         <motion.div variants={itemVariants}>
           <MenuButton
-            icon="🔄"
+            icon="📣"
+            iconBg="var(--rh-accent-muted)"
+            title="Рекламодатель"
+            subtitle="Размещаю рекламу в каналах"
+            onClick={() => navigate('/adv')}
+          />
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <MenuButton
+            icon="📺"
             iconBg="var(--rh-accent-2-muted)"
-            title="Выбрать роль"
-            subtitle="Рекламодатель / Владелец"
-            onClick={() => navigate('/role')}
+            title="Владелец канала"
+            subtitle="Принимаю рекламу в своём канале"
+            onClick={() => navigate('/own')}
           />
         </motion.div>
 

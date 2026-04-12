@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button, Skeleton, Notification } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useAdminFeedback } from '@/hooks/useFeedbackQueries'
 
 type StatusFilter = 'all' | 'new' | 'in_progress' | 'resolved' | 'rejected'
@@ -90,7 +91,7 @@ export default function AdminFeedbackList() {
                   </div>
                   <p className="text-sm text-text-primary line-clamp-2">{feedback.text}</p>
                   <p className="text-xs text-text-tertiary mt-2">
-                    {new Date(feedback.created_at).toLocaleDateString('ru-RU')}
+                    {formatDateMSK(feedback.created_at)}
                   </p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/admin/feedback/${feedback.id}`)}>

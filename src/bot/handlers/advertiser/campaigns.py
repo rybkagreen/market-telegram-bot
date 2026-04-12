@@ -53,14 +53,26 @@ async def camp_detail(callback: CallbackQuery, session: AsyncSession) -> None:
     from src.db.models.telegram_chat import TelegramChat
     from src.db.repositories.user_repo import UserRepository
 
-    placement_id = int((callback.data or "").split(":")[-1])
+    callback_data = callback.data or ""
+    logger.info("camp_detail handler triggered: callback_data=%s", callback_data)
+
+    placement_id = int(callback_data.split(":")[-1])
     req = await session.get(PlacementRequest, placement_id)
+    logger.info("Placement %d found: %s", placement_id, req is not None)
+
     if not req:
+        logger.warning("Placement %d not found", placement_id)
         await callback.answer("❌ Кампания не найдена", show_alert=True)
         return
 
     # Verify ownership
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    logger.info(
+        "User: telegram_id=%s, db_user=%s, req.advertiser_id=%s",
+        callback.from_user.id,
+        user is not None,
+        req.advertiser_id,
+    )
     if not user or req.advertiser_id != user.id:
         await callback.answer("❌ У вас нет доступа к этой кампании", show_alert=True)
         return
@@ -156,6 +168,7 @@ async def camp_detail(callback: CallbackQuery, session: AsyncSession) -> None:
     builder.button(text="📋 Все кампании", callback_data="main:my_campaigns")
     builder.adjust(1)
 
+    logger.info("Sending campaign details for placement %d", req.id)
     await safe_callback_edit(
         callback, text, reply_markup=builder.as_markup(), parse_mode="Markdown"
     )

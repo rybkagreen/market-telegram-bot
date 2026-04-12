@@ -1,11 +1,11 @@
 import { api } from '@shared/api/client'
-import type { ChannelResponse, PlacementRequest } from '@/lib/types'
+import type { ChannelWithSettingsOut, PlacementRequest } from '@/lib/types'
 
 // ═══ Channels search (for campaign wizard) ═══
 export async function searchChannels(params: { category?: string }) {
   const search = new URLSearchParams()
   if (params.category) search.set('category', params.category)
-  return api.get(`channels/available?${search}`).json<ChannelResponse[]>()
+  return api.get(`channels/available?${search}`).json<ChannelWithSettingsOut[]>()
 }
 
 // ═══ Create placement (campaign wizard submit) ═══
@@ -20,11 +20,11 @@ export async function createPlacement(data: {
   return api.post('placements/', { json: data }).json<PlacementRequest>()
 }
 
-// ═══ List placements (advertiser or owner role) ═══
-export async function getMyPlacements(params?: { status?: string; role?: 'advertiser' | 'owner' }) {
+// ═══ List placements (unified — optional view filter) ═══
+export async function getMyPlacements(params?: { view?: 'advertiser' | 'owner'; status?: string }) {
   const search = new URLSearchParams()
+  if (params?.view) search.set('view', params.view)
   if (params?.status) search.set('status', params.status)
-  if (params?.role) search.set('role', params.role)
   search.set('page', '1')
   search.set('page_size', '100')
   return api.get(`placements/?${search}`).json<PlacementRequest[]>()

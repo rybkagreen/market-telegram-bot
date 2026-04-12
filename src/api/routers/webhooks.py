@@ -1,13 +1,20 @@
 """
 FastAPI router для webhook-уведомлений GlitchTip.
-S10: принимает alert, ставит Celery-задачу анализа, возвращает 200 немедленно.
-Celery-задача: Qwen-анализ → уведомление админу в Telegram.
+S10: сохраняет alert в /tmp/glitchtip_queue/ → host-side скрипт (qwen) анализирует → Telegram.
+
+Архитектура:
+  GlitchTip → POST /webhooks/glitchtip-alert → FastAPI сохраняет JSON в /tmp/glitchtip_queue/
+  → systemd timer / inotify на хосте → bash scripts/monitoring/analyze_error.sh <payload.json>
+  → qwen --channel CI анализирует файлы проекта → отчёт → Telegram notification
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import pathlib
 import secrets
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -18,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
+QUEUE_DIR = pathlib.Path("/tmp/glitchtip_queue")
+
 
 @router.post("/glitchtip-alert")
 async def glitchtip_alert(
@@ -25,11 +34,10 @@ async def glitchtip_alert(
     x_webhook_token: Annotated[str | None, Header(alias="X-Webhook-Token")] = None,
 ) -> dict[str, str]:
     """
-    Принять alert от GlitchTip, отправить на анализ через Celery.
+    Принять alert от GlitchTip, сохранить в файловую очередь.
 
-    Celery-задача: analyze_glitchtip_error.delay(payload)
-    → Qwen анализ ошибки → отправка уведомления админу в Telegram
-    → inline-кнопки: трейсбек / принять / игнорировать
+    Host-side скрипт (scripts/monitoring/analyze_error.sh) подхватит payload,
+    запустит qwen --channel CI для анализа, и отправит отчёт админу в Telegram.
 
     Возвращает 200 немедленно.
     """
@@ -46,9 +54,11 @@ async def glitchtip_alert(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON") from exc
 
-    # Enqueue Celery task for analysis and notification
-    from src.tasks.monitoring_tasks import analyze_glitchtip_error
+    # Save to file queue for host-side processing
+    QUEUE_DIR.mkdir(parents=True, exist_ok=True)
+    issue_id = payload.get("issue", {}).get("id", "unknown")
+    payload_file = QUEUE_DIR / f"{uuid.uuid4().hex}_{issue_id}.json"
+    payload_file.write_text(json.dumps(payload, ensure_ascii=False))
 
-    analyze_glitchtip_error.delay(payload)
-    logger.info("GlitchTip alert enqueued for analysis")
-    return {"status": "queued"}
+    logger.info("GlitchTip alert saved to queue: %s", payload_file.name)
+    return {"status": "queued", "file": payload_file.name}

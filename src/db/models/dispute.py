@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -87,16 +87,16 @@ class PlacementDispute(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship(
+    placement_request: Mapped[PlacementRequest] = relationship(
         "PlacementRequest", back_populates="disputes"
     )
-    advertiser: Mapped["User"] = relationship(
+    advertiser: Mapped[User] = relationship(
         "User", foreign_keys=[advertiser_id], back_populates="disputes_advertiser"
     )
-    owner: Mapped["User"] = relationship(
+    owner: Mapped[User] = relationship(
         "User", foreign_keys=[owner_id], back_populates="disputes_owner"
     )
-    admin: Mapped[Optional["User"]] = relationship("User", foreign_keys=[admin_id])
+    admin: Mapped[User | None] = relationship("User", foreign_keys=[admin_id])
 
     def __repr__(self) -> str:
         return f"<PlacementDispute(id={self.id}, placement_request_id={self.placement_request_id}, status={self.status.value})>"

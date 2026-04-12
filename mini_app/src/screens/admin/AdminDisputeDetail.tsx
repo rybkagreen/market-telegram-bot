@@ -12,6 +12,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useDisputeById, useResolveDispute } from '@/hooks/queries/admin/useAdminQueries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Notification, Skeleton, StatusPill } from '@/components/ui'
+import { formatDateTimeMSK } from '@/lib/constants'
 import AdminNav from '@/components/admin/AdminNav'
 import styles from './AdminDisputeDetail.module.css'
 
@@ -105,7 +106,7 @@ export default function AdminDisputeDetail() {
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Created:</span>
               <span className={styles.metaValue}>
-                {new Date(dispute.created_at).toLocaleString()}
+                {formatDateTimeMSK(dispute.created_at)}
               </span>
             </div>
           </div>
@@ -142,7 +143,7 @@ export default function AdminDisputeDetail() {
                 )}
                 <p><strong>Advertiser Refund:</strong> {dispute.advertiser_refund_pct}%</p>
                 <p><strong>Owner Payout:</strong> {dispute.owner_payout_pct}%</p>
-                <p><strong>Resolved at:</strong> {new Date(dispute.resolved_at!).toLocaleString()}</p>
+                <p><strong>Resolved at:</strong> {formatDateTimeMSK(dispute.resolved_at!)}</p>
               </div>
             </div>
           ) : (

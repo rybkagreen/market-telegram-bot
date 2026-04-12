@@ -1,17 +1,9 @@
 import { create } from 'zustand'
+import type { ChannelWithSettingsOut } from '@/lib/types'
 
 export type PublicationFormat = 'post_24h' | 'post_48h' | 'post_7d' | 'pin_24h' | 'pin_48h'
 
-export interface ChannelWithSettings {
-  id: number
-  title: string
-  username: string | null
-  member_count: number
-  category: string
-  settings: {
-    price_per_post: string
-  }
-}
+export type ChannelWithSettings = ChannelWithSettingsOut
 
 interface CampaignWizardState {
   step: number

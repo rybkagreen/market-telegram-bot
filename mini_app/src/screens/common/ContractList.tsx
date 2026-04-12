@@ -92,7 +92,7 @@ export default function ContractList() {
           role="button"
           tabIndex={0}
           onClick={() => setViewerOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || (e.key === ' ' && (e.preventDefault() || true))) setViewerOpen(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(false) } }}
         >
           <div
             className={styles.viewerContainer}

@@ -191,11 +191,20 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
         await callback.answer("❌ Невозможно принять", show_alert=True)
         return
 
+    # FIX #10: Save status before changing it, to detect counter_offer acceptance
+    was_counter_offer = req.status == PlacementStatus.counter_offer
+
     req.status = PlacementStatus.pending_payment
     if not req.final_price:
-        req.final_price = req.proposed_price
+        if was_counter_offer and req.counter_price:
+            req.final_price = req.counter_price
+        else:
+            req.final_price = req.proposed_price
     if not req.final_schedule:
-        req.final_schedule = req.proposed_schedule
+        if was_counter_offer and req.counter_schedule:
+            req.final_schedule = req.counter_schedule
+        else:
+            req.final_schedule = req.proposed_schedule
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
     await session.commit()
 

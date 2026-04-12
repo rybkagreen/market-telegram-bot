@@ -56,7 +56,7 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
         )
         return list(result.scalars().all())
 
-    async def get_or_create_chat(self, username: str) -> tuple["TelegramChat", bool]:
+    async def get_or_create_chat(self, username: str) -> tuple[TelegramChat, bool]:
         """Получить или создать чат по username. Возвращает (chat, is_new)."""
         result = await self.session.execute(
             select(TelegramChat).where(TelegramChat.username == username)

@@ -135,7 +135,7 @@ export default function ContractList() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={() => setViewerOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || (e.key === ' ' && (e.preventDefault() || true))) setViewerOpen(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(false) } }}
           tabIndex={0}
           role="button"
           aria-label="Закрыть просмотр правил"

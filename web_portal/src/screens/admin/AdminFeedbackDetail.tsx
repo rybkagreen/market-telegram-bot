@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, Select, Textarea } from '@shared/ui'
+import { formatDateTimeMSK } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { api } from '@shared/api/client'
 
@@ -112,7 +113,7 @@ export default function AdminFeedbackDetail() {
           <div className="flex justify-between">
             <span className="text-text-secondary">Создано</span>
             <span className="text-text-primary">
-              {new Date(feedback.created_at).toLocaleString('ru-RU')}
+              {formatDateTimeMSK(feedback.created_at)}
             </span>
           </div>
         </div>
@@ -127,7 +128,7 @@ export default function AdminFeedbackDetail() {
           <p className="text-text-secondary">{feedback.admin_response}</p>
           {feedback.responded_at && (
             <p className="text-xs text-text-tertiary mt-2">
-              Ответ отправлен: {new Date(feedback.responded_at).toLocaleString('ru-RU')}
+              Ответ отправлен: {formatDateTimeMSK(feedback.responded_at)}
             </p>
           )}
         </Card>

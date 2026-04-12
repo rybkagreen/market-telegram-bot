@@ -10,9 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.advertiser.adv_menu import adv_menu_kb
 from src.bot.keyboards.owner.own_menu import own_menu_kb
-from src.bot.keyboards.shared.legal_profile import first_start_legal_prompt_keyboard
-from src.bot.keyboards.shared.main_menu import main_menu_kb, role_select_kb, tos_kb
-from src.db.models.user import User
+from src.bot.keyboards.shared.main_menu import main_menu_kb, tos_kb
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -158,124 +156,6 @@ async def cb_main_menu(callback: CallbackQuery) -> None:
     if not isinstance(callback.message, Message):
         return
     await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu_kb())
-    await callback.answer()
-
-
-@router.callback_query(F.data == "main:change_role")
-async def cb_change_role(callback: CallbackQuery) -> None:
-    """Показать выбор роли."""
-    if not isinstance(callback.message, Message):
-        return
-    await callback.message.edit_text("Выберите роль:", reply_markup=role_select_kb())
-    await callback.answer()
-
-
-@router.callback_query(F.data == "role:advertiser")
-async def cb_role_advertiser(callback: CallbackQuery, session: AsyncSession) -> None:
-    """Установить роль рекламодателя и показать меню рекламодателя."""
-    if not isinstance(callback.message, Message):
-        return
-    repo = UserRepository(session)
-    user = await repo.get_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer(USER_NOT_FOUND, show_alert=True)
-        return
-    user.current_role = "advertiser"
-    # --- AcceptRules gate (S7 addition) ---
-    if user.platform_rules_accepted_at is None:
-        from src.bot.keyboards.shared.contract import accept_rules_keyboard
-
-        await callback.message.answer(
-            "📜 Для использования платформы необходимо принять Правила и Политику конфиденциальности.\n\n"
-            "Нажимая «Принимаю», вы соглашаетесь с условиями обработки персональных данных (152-ФЗ).",
-            reply_markup=accept_rules_keyboard(),
-        )
-        await callback.answer()
-        return
-    # --- end AcceptRules gate ---
-    # --- Legal profile prompt (S3 addition) ---
-    if user.legal_profile_prompted_at is None:
-        from sqlalchemy import update as sa_update
-
-        user.legal_profile_prompted_at = datetime.now(UTC)
-        await session.execute(
-            sa_update(User)
-            .where(User.id == user.id)
-            .values(legal_profile_prompted_at=user.legal_profile_prompted_at)
-        )
-        await session.commit()
-        await callback.message.answer(
-            "📋 Для работы с договорами, маркировкой рекламы и выплатами заполните юридический профиль.\n\n"
-            "Это займёт несколько минут и нужно для:\n"
-            "• Оформления договоров\n"
-            "• Расчёта налогов\n"
-            "• Маркировки рекламы (erid)",
-            reply_markup=first_start_legal_prompt_keyboard(),
-        )
-        await callback.answer()
-        return  # Role menu will be sent after user responds to prompt
-    # --- end legal profile prompt ---
-    plan_name = _PLAN_NAMES.get(user.plan, user.plan)
-    await callback.message.edit_text(
-        f"📣 *Меню рекламодателя*\n\n💳 Баланс: *{user.balance_rub} ₽* | ⭐ Тариф: *{plan_name}*",
-        reply_markup=adv_menu_kb(),
-        parse_mode="Markdown",
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "role:owner")
-async def cb_role_owner(callback: CallbackQuery, session: AsyncSession) -> None:
-    """Установить роль владельца и показать меню владельца."""
-    if not isinstance(callback.message, Message):
-        return
-    repo = UserRepository(session)
-    user = await repo.get_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer(USER_NOT_FOUND, show_alert=True)
-        return
-    user.current_role = "owner"
-    # --- AcceptRules gate (S7 addition) ---
-    if user.platform_rules_accepted_at is None:
-        from src.bot.keyboards.shared.contract import accept_rules_keyboard
-
-        await callback.message.answer(
-            "📜 Для использования платформы необходимо принять Правила и Политику конфиденциальности.\n\n"
-            "Нажимая «Принимаю», вы соглашаетесь с условиями обработки персональных данных (152-ФЗ).",
-            reply_markup=accept_rules_keyboard(),
-        )
-        await callback.answer()
-        return
-    # --- end AcceptRules gate ---
-    # --- Legal profile prompt (S3 addition) ---
-    if user.legal_profile_prompted_at is None:
-        from sqlalchemy import update as sa_update
-
-        user.legal_profile_prompted_at = datetime.now(UTC)
-        await session.execute(
-            sa_update(User)
-            .where(User.id == user.id)
-            .values(legal_profile_prompted_at=user.legal_profile_prompted_at)
-        )
-        await session.commit()
-        await callback.message.answer(
-            "📋 Для работы с договорами, маркировкой рекламы и выплатами заполните юридический профиль.\n\n"
-            "Это займёт несколько минут и нужно для:\n"
-            "• Оформления договоров\n"
-            "• Расчёта налогов\n"
-            "• Маркировки рекламы (erid)",
-            reply_markup=first_start_legal_prompt_keyboard(),
-        )
-        await callback.answer()
-        return  # Role menu will be sent after user responds to prompt
-    # --- end legal profile prompt ---
-    pending = await PlacementRequestRepository(session).get_pending_for_owner(user.id)
-    pending_count = len(pending)
-    await callback.message.edit_text(
-        "📺 *Меню владельца канала*",
-        reply_markup=own_menu_kb(pending_count=pending_count),
-        parse_mode="Markdown",
-    )
     await callback.answer()
 
 

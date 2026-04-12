@@ -59,10 +59,10 @@ export const useUpdatePlacement = () => {
       const previous = queryClient.getQueryData<PlacementRequest>(['placements', id])
       // Only optimistically update for non-action mutations (e.g., text edits)
       // Action mutations (pay/cancel) should NOT pollute cache with { action: '...' }
-      if (previous && !('action' in data)) {
+      if (previous && typeof data === 'object' && data !== null && !('action' in data)) {
         queryClient.setQueryData<PlacementRequest>(['placements', id], {
           ...previous,
-          ...data,
+          ...(data as Record<string, unknown>),
         })
       }
       return { previous, id }

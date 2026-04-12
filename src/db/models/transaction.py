@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -110,24 +110,24 @@ class Transaction(Base, TimestampMixin):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="transactions")
-    placement_request: Mapped[Optional["PlacementRequest"]] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="transactions")
+    placement_request: Mapped[PlacementRequest | None] = relationship(
         "PlacementRequest", back_populates="transactions", foreign_keys=[placement_request_id]
     )
-    payout_request: Mapped[Optional["PayoutRequest"]] = relationship(
+    payout_request: Mapped[PayoutRequest | None] = relationship(
         "PayoutRequest", back_populates="transactions"
     )
-    act: Mapped[Optional["Act"]] = relationship("Act")
-    invoice: Mapped[Optional["Invoice"]] = relationship("Invoice")
+    act: Mapped[Act | None] = relationship("Act")
+    invoice: Mapped[Invoice | None] = relationship("Invoice")
     # Self-referencing: transactions that reverse THIS transaction
-    reversed_transactions: Mapped[list["Transaction"]] = relationship(
+    reversed_transactions: Mapped[list[Transaction]] = relationship(
         "Transaction",
         foreign_keys=[reverses_transaction_id],
         back_populates="reverses_transaction",
         lazy="selectin",
     )
     # Self-referencing: THIS transaction reverses another
-    reverses_transaction: Mapped[Optional["Transaction"]] = relationship(
+    reverses_transaction: Mapped[Transaction | None] = relationship(
         "Transaction",
         foreign_keys=[reverses_transaction_id],
         remote_side=[id],

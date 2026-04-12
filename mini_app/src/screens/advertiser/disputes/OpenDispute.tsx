@@ -110,7 +110,7 @@ export default function OpenDispute() {
         </div>
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>Цена</span>
-          <span className={styles.infoValue}>{formatCurrency(placement.final_price ?? placement.proposed_price)}</span>
+          <span className={styles.infoValue}>{formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}</span>
         </div>
         {placement.published_at && (
           <div className={styles.infoRow}>

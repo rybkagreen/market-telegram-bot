@@ -7,7 +7,6 @@ import AdminGuard from '@/components/guards/AdminGuard'
 
 // ═══ Common ═══
 const MainMenu           = lazy(() => import('@/screens/common/MainMenu'))
-const RoleSelect         = lazy(() => import('@/screens/common/RoleSelect'))
 const Cabinet            = lazy(() => import('@/screens/common/Cabinet'))
 const Referral           = lazy(() => import('@/screens/common/Referral'))
 const TopUp              = lazy(() => import('@/screens/common/TopUp'))
@@ -43,6 +42,7 @@ const CampaignText       = lazy(() => import('@/screens/advertiser/campaign/Camp
 const CampaignArbitration = lazy(() => import('@/screens/advertiser/campaign/CampaignArbitration'))
 const CampaignWaiting    = lazy(() => import('@/screens/advertiser/campaign/CampaignWaiting'))
 const CampaignPayment    = lazy(() => import('@/screens/advertiser/campaign/CampaignPayment'))
+const CampaignCounterOffer = lazy(() => import('@/screens/advertiser/campaign/CampaignCounterOffer'))
 const CampaignPublished  = lazy(() => import('@/screens/advertiser/campaign/CampaignPublished'))
 
 // ═══ Advertiser / Disputes ═══
@@ -103,7 +103,6 @@ const router = createBrowserRouter([
         children: [
       // ── Common ──
       { index: true,                      element: <MainMenu /> },
-      { path: 'role',                     element: <RoleSelect /> },
       { path: 'cabinet',                  element: <Cabinet /> },
       { path: 'referral',                 element: <Referral /> },
       { path: 'topup',                    element: <TopUp /> },
@@ -134,6 +133,7 @@ const router = createBrowserRouter([
       { path: 'adv/campaigns/new/terms',                element: <CampaignArbitration /> },
       { path: 'adv/campaigns/:id/waiting',              element: <CampaignWaiting /> },
       { path: 'adv/campaigns/:id/payment',              element: <CampaignPayment /> },
+      { path: 'adv/campaigns/:id/counter-offer',        element: <CampaignCounterOffer /> },
       { path: 'adv/campaigns/:id/published',            element: <CampaignPublished /> },
       { path: 'adv/campaigns/:id/dispute',              element: <OpenDispute /> },
       { path: 'adv/disputes',                           element: <MyDisputes /> },

@@ -20,6 +20,7 @@
 | 8 | **Accessibility** | table без заголовков | **<thead> + <th scope>** | AdminDashboard.tsx |
 | 9 | **Keyboard navigation** | 9 divs без onKeyDown | **role=button, tabIndex** | 8 файлов web_portal |
 | 10 | **Unused params** | S1172 warnings (45) | **_ prefix + noqa** | notifications.py, stub_ord_provider.py |
+| 11 | **Deployment rules** | нет | **ОБЯЗАТЕЛЬНЫЙ rebuild nginx без кэша** | QWEN.md |
 
 ---
 
@@ -713,6 +714,33 @@ Target: Ruff 0, MyPy 0, Bandit High 0, Flake8 0.
 
 ---
 
+## 🔴 КРИТИЧЕСКОЕ ПРАВИЛО: DEPLOYMENT (ОБЯЗАТЕЛЬНО)
+
+**После ЛЮБОГО изменения фронтенда (mini_app, web_portal, landing) или nginx конфигов:**
+
+```bash
+cd /opt/market-telegram-bot
+docker compose build --no-cache nginx && docker compose up -d nginx
+```
+
+**Почему `--no-cache`:** Vite кэширует собранные файлы. Обычный `docker compose up -d nginx` использует закэшированные слои builder-стадий, и изменения НЕ применяются. Только `--no-cache` гарантирует пересборку всех фронтендов.
+
+**После изменения backend кода (src/):**
+```bash
+cd /opt/market-telegram-bot
+docker compose up -d --build api worker_critical worker_background worker_game
+```
+Для backend кэш НЕ проблема — Python файлы монтируются как volumes в dev-режиме.
+
+**После изменения моделей БД:**
+```bash
+docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+```
+
+**ПРАВИЛО:** Если изменил файл и НЕ выполнил соответствующую команду деплоя — изменения НЕ ПРИМЕНЯТСЯ. Это самая частая ошибка при работе с Qwen/Claude.
+
+---
+
 ### Стратегия миграций (до появления prod-пользователей)
 
 **ПРАВИЛО:** Новые миграционные файлы НЕ создаются.
@@ -990,3 +1018,4 @@ Architectural decisions locked: Tailwind v4 @theme, web_portal/src/shared/ separ
 S-28 checklist: audit constants.ts prices, implement /api/billing/plans if missing, update Plans.tsx with API prices, audit 3 undocumented screens, document MyCampaigns stub, smoke test production API.
 - S-27 Sprint closed 04.04.2026. Tech debts: TD-01 (HIGH) hardcoded plan prices → fix in S-28. TD-02 RESOLVED — Cabinet/Feedback/NotFoundScreen audited, all production-ready. TD-03 ACCEPTED — MyCampaigns intentional stub with UI notice. TD-04 LOW — mini_app TS 5.9.3→6.0 planned S-30. TD-05 LOW — queries.ts Variant B documented. S-28 checklist: fix hardcoded prices, smoke test production API.
 - S-28 AAA Quality Sprint completed 08.04.2026. All 6 critical security bugs fixed. All 11 SonarQube BUG issues fixed. ~70 code quality improvements applied. SonarQube scan covers all 3 projects (580 files). TD-01 RESOLVED — billing.py hardcoded prices replaced with settings values. Remaining AAA items (P4-P7) deferred to future sprint.
+- MANDATORY DEPLOYMENT RULE: After ANY code change to frontend (mini_app, web_portal, landing) or nginx config files, ALWAYS run: `cd /opt/market-telegram-bot && docker compose build --no-cache nginx && docker compose up -d nginx`. This rebuilds nginx container WITHOUT cache and restarts it to apply changes. Never skip this step - user has to ask repeatedly otherwise. For backend changes (api, workers), run: `docker compose up -d --build api worker_critical worker_background worker_game` (cache is fine for backend). For database migration changes, run: `docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head`.
