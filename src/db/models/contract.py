@@ -45,8 +45,8 @@ class Contract(Base, TimestampMixin):
     role: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'owner' | 'advertiser'
 
     # Relationships
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
-    placement_request: Mapped["PlacementRequest | None"] = relationship(
+    user: Mapped[User] = relationship("User", foreign_keys=[user_id])
+    placement_request: Mapped[PlacementRequest | None] = relationship(
         "PlacementRequest", foreign_keys=[placement_request_id]
     )
 

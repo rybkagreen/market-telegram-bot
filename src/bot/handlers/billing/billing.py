@@ -91,6 +91,9 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
         )
     except Exception as e:
         logger.error("YooKassa error for user %s: %s", user.id, e)
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
         from aiogram.utils.keyboard import InlineKeyboardBuilder
 
         builder = InlineKeyboardBuilder()
@@ -130,6 +133,9 @@ async def topup_check(callback: CallbackQuery, state: FSMContext, session: Async
             return
     except Exception as e:
         logger.error("YooKassa check error: %s", e)
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
         await callback.answer("❌ Ошибка проверки платежа.", show_alert=True)
         return
     await callback.answer()

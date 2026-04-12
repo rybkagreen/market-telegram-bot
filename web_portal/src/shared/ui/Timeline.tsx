@@ -3,7 +3,7 @@ interface TimelineEvent {
   icon: string
   title: string
   subtitle?: string
-  variant?: 'success' | 'warning' | 'default'
+  variant?: 'success' | 'warning' | 'danger' | 'default'
 }
 
 interface TimelineProps {

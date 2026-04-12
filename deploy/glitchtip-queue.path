@@ -1,0 +1,9 @@
+[Unit]
+Description=RekHarborBot — watch for new GlitchTip error payloads
+
+[Path]
+DirectoryNotEmpty=/tmp/glitchtip_queue
+Unit=glitchtip-queue.service
+
+[Install]
+WantedBy=multi-user.target

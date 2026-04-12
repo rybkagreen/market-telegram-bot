@@ -420,7 +420,11 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
             amount=price,
         )
     except Exception as e:
-        logging.getLogger(__name__).error(f"freeze_escrow error: {e}")
+        _logger = logging.getLogger(__name__)
+        _logger.error("freeze_escrow failed for placement %s: %s", request_id, e)
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
         await callback.answer("❌ Ошибка оплаты. Попробуйте позже.", show_alert=True)
         return
 
@@ -437,9 +441,11 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
             media_type=req.media_type or "none",
         )
     except Exception as _ord_exc:
-        logging.getLogger(__name__).warning(
-            f"ORD auto-trigger failed for placement {req.id}: {_ord_exc}"
-        )
+        _logger = logging.getLogger(__name__)
+        _logger.warning("ORD auto-trigger failed for placement %s: %s", req.id, _ord_exc)
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
         # Never block escrow transition
     # --- end ORD auto-trigger ---
 
@@ -596,7 +602,15 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
             scenario="after_escrow_before_confirmation",
         )
     except Exception as e:
-        logging.getLogger(__name__).error(f"refund_escrow error: {e}")
+        _logger = logging.getLogger(__name__)
+        _logger.error("refund_escrow failed for placement %s: %s", request_id, e)
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
+        await callback.answer(
+            "❌ Ошибка возврата средств. Обратитесь в поддержку.", show_alert=True
+        )
+        return
 
     req.status = PlacementStatus.cancelled
     await session.commit()

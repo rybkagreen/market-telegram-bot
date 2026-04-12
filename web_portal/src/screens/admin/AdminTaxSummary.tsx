@@ -1,8 +1,9 @@
 import { Card } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import TaxSummaryBase, { type KudirEntry } from '@components/admin/TaxSummaryBase'
 
 function formatDate(dt: string): string {
-  return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return formatDateMSK(dt)
 }
 
 function KudirTable({ entries }: { entries: KudirEntry[] }) {

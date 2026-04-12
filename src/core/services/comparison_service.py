@@ -27,17 +27,15 @@ class ComparisonService:
                 member_count = chat.member_count or 0
                 price_per_post = chat.price_per_post or 0
                 price_per_1k = price_per_post / (member_count / 1000) if member_count > 0 else 0.0
-                channels.append(
-                    {
-                        "channel_id": chat.id,
-                        "member_count": member_count,
-                        "avg_views": chat.last_avg_views or 0,
-                        "er": chat.last_er or 0.0,
-                        "post_frequency": chat.last_post_frequency or 0.0,
-                        "price_per_post": price_per_post,
-                        "price_per_1k_subscribers": price_per_1k,
-                    }
-                )
+                channels.append({
+                    "channel_id": chat.id,
+                    "member_count": member_count,
+                    "avg_views": chat.last_avg_views or 0,
+                    "er": chat.last_er or 0.0,
+                    "post_frequency": chat.last_post_frequency or 0.0,
+                    "price_per_post": price_per_post,
+                    "price_per_1k_subscribers": price_per_1k,
+                })
             return channels
 
     def calculate_comparison_metrics(self, channels: list[dict[str, Any]]) -> dict[str, Any]:

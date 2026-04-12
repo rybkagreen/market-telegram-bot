@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -56,13 +56,13 @@ class PayoutRequest(Base, TimestampMixin):
     )
 
     # Relationships
-    owner: Mapped["User"] = relationship(
+    owner: Mapped[User] = relationship(
         "User", foreign_keys=[owner_id], back_populates="payout_requests"
     )
-    transactions: Mapped[list["Transaction"]] = relationship(
+    transactions: Mapped[list[Transaction]] = relationship(
         "Transaction", back_populates="payout_request"
     )
-    admin: Mapped[Optional["User"]] = relationship("User", foreign_keys=[admin_id])
+    admin: Mapped[User | None] = relationship("User", foreign_keys=[admin_id])
 
     def __repr__(self) -> str:
         return f"<PayoutRequest(id={self.id}, owner_id={self.owner_id}, gross_amount={self.gross_amount}, status={self.status.value})>"

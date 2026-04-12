@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DOMPurify from 'dompurify'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Skeleton, EmptyState } from '@/components/ui'
 import { Text } from '@/components/ui/Text'
@@ -21,7 +22,7 @@ export default function ContractList() {
     setViewerLoading(true)
     try {
       const res = await api.get('contracts/platform-rules/text').json<{ html: string }>()
-      setViewerHtml(res.html)
+      setViewerHtml(DOMPurify.sanitize(res.html, { ALLOWED_TAGS: ['p','strong','em','ul','ol','li','h1','h2','h3','br','a','b','i','u'], ALLOWED_ATTR: ['href','class'] }))
     } catch (err) {
       Sentry.captureException(err)
       setViewerHtml('<p style="color:#e74c3c">Не удалось загрузить текст.</p>')
@@ -91,7 +92,7 @@ export default function ContractList() {
           role="button"
           tabIndex={0}
           onClick={() => setViewerOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewerOpen(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(false) } }}
         >
           <div
             className={styles.viewerContainer}

@@ -41,11 +41,11 @@ export function usePlacement(id: number | null | undefined, options?: { refetchI
   })
 }
 
-// ═══ My placements (advertiser or owner list) ═══
-export function useMyPlacements(status?: string, role?: 'advertiser' | 'owner') {
+// ═══ My placements (unified — optional view filter) ═══
+export function useMyPlacements(view?: 'advertiser' | 'owner', status?: string) {
   return useQuery({
-    queryKey: ['placements', status, role],
-    queryFn: () => getMyPlacements({ status, role }),
+    queryKey: ['placements', view, status],
+    queryFn: () => getMyPlacements({ view, status }),
     staleTime: 30_000,
   })
 }

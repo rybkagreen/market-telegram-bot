@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, StatusPill, Notification, Skeleton } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useMyDisputes } from '@/hooks/useDisputeQueries'
 
 const DISPUTE_REASON_LABELS: Record<string, string> = {
@@ -27,11 +28,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 }
 
 function formatDate(dt: string): string {
-  return new Date(dt).toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
+  return formatDateMSK(dt)
 }
 
 export default function MyDisputes() {
@@ -111,7 +108,7 @@ export default function MyDisputes() {
                     <span className="font-mono text-sm font-semibold text-text-primary">
                       #{d.id}
                     </span>
-                    <StatusPill status={cfg.color as any}>{cfg.label}</StatusPill>
+                    <StatusPill status={cfg.color as 'success' | 'warning' | 'danger' | 'default' | 'info' | 'neutral'}>{cfg.label}</StatusPill>
                   </div>
                   <p className="text-sm text-text-primary">{reasonLabel}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">

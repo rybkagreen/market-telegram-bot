@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -46,11 +46,11 @@ class Invoice(Base, TimestampMixin):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="invoices")
-    placement_request: Mapped[Optional["PlacementRequest"]] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="invoices")
+    placement_request: Mapped[PlacementRequest | None] = relationship(
         "PlacementRequest", foreign_keys=[placement_request_id]
     )
-    contract: Mapped[Optional["Contract"]] = relationship("Contract")
+    contract: Mapped[Contract | None] = relationship("Contract")
 
     def __repr__(self) -> str:
         return f"<Invoice(id={self.id}, number={self.invoice_number!r}, amount={self.amount_rub})>"

@@ -127,33 +127,32 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
         table_data.append(["Постов в день", f"{metrics.get('post_frequency', 0.0):.1f}"])
 
     if show_metrics.get("price", True):
-        table_data.append(
-            ["Цена за пост", f"{price.get('amount', 0)} {price.get('currency', 'кр')}"]
-        )
+        table_data.append([
+            "Цена за пост",
+            f"{price.get('amount', 0)} {price.get('currency', 'кр')}",
+        ])
 
     # Стиль таблицы
     table = Table(table_data, colWidths=[7 * cm, 7 * cm])
     table.setStyle(
-        TableStyle(
-            [
-                # Заголовок
-                ("BACKGROUND", (0, 0), (-1, 0), theme_color_obj),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 14),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                # Чётные строки
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-                ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 1), (-1, -1), 12),
-                ("TOPPADDING", (0, 1), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
-                # Границы
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
-            ]
-        )
+        TableStyle([
+            # Заголовок
+            ("BACKGROUND", (0, 0), (-1, 0), theme_color_obj),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 14),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+            # Чётные строки
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+            ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 12),
+            ("TOPPADDING", (0, 1), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+            # Границы
+            ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
+        ])
     )
 
     elements.append(table)

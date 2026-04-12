@@ -22,9 +22,10 @@ from src.db.repositories.legal_profile_repo import LegalProfileRepo
 
 logger = logging.getLogger(__name__)
 
-KEP_REQUIRED_STATUSES: frozenset[str] = frozenset(
-    {"legal_entity", "individual_entrepreneur"}
-)  # These legal statuses benefit from KEP for tax accounting purposes
+KEP_REQUIRED_STATUSES: frozenset[str] = frozenset({
+    "legal_entity",
+    "individual_entrepreneur",
+})  # These legal statuses benefit from KEP for tax accounting purposes
 
 # Detect optional dependencies
 try:
@@ -50,23 +51,21 @@ TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "contracts"
 
 # Explicit whitelist for legal_status_snapshot stored in contracts.
 # NEVER include passport data, bank account numbers, or document file IDs.
-_SNAPSHOT_WHITELIST = frozenset(
-    {
-        "legal_status",
-        "inn",
-        "kpp",
-        "ogrn",
-        "ogrnip",
-        "legal_name",
-        "address",
-        "tax_regime",
-        "bank_name",
-        "bank_bik",
-        "is_verified",
-        "created_at",
-        "updated_at",
-    }
-)
+_SNAPSHOT_WHITELIST = frozenset({
+    "legal_status",
+    "inn",
+    "kpp",
+    "ogrn",
+    "ogrnip",
+    "legal_name",
+    "address",
+    "tax_regime",
+    "bank_name",
+    "bank_bik",
+    "is_verified",
+    "created_at",
+    "updated_at",
+})
 PLATFORM_RULES_FILE = "platform_rules.html"
 
 CONTRACTS_OUTPUT_DIR = Path(_settings.contracts_storage_path)

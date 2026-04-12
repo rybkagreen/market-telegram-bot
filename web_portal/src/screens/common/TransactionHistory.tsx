@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button, Skeleton, Notification } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { useTransactionHistory } from '@/hooks/useBillingQueries'
 
 const TX_META: Record<string, { label: string; icon: string; incoming: boolean }> = {
@@ -23,9 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTimeMSK(iso)
 }
 
 function formatAmount(amount: number, incoming: boolean): string {

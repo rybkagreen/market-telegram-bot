@@ -94,27 +94,25 @@ def generate_campaign_report(
 
     table = Table(data, colWidths=[6 * cm, 6 * cm])
     table.setStyle(
-        TableStyle(
-            [
-                # Заголовок
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 14),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                # Чётные строки
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-                ("BACKGROUND", (0, 2), (-1, -1), colors.white),
-                ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 1), (-1, -1), 12),
-                ("TOPPADDING", (0, 1), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
-                # Границы
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
-            ]
-        )
+        TableStyle([
+            # Заголовок
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 14),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+            # Чётные строки
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+            ("BACKGROUND", (0, 2), (-1, -1), colors.white),
+            ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 12),
+            ("TOPPADDING", (0, 1), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+            # Границы
+            ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
+        ])
     )
 
     elements.append(table)
@@ -247,24 +245,22 @@ def generate_user_summary_report(
 
     table = Table(data, colWidths=[6 * cm, 6 * cm])
     table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 14),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-                ("BACKGROUND", (0, 2), (-1, -1), colors.white),
-                ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 1), (-1, -1), 12),
-                ("TOPPADDING", (0, 1), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
-            ]
-        )
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 14),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+            ("BACKGROUND", (0, 2), (-1, -1), colors.white),
+            ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#333333")),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 12),
+            ("TOPPADDING", (0, 1), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
+        ])
     )
 
     elements.append(table)

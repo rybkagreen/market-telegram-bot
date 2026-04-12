@@ -82,9 +82,24 @@ class ContentFilter:
         try:
             with open(path, encoding="utf-8") as f:
                 self._stopwords = json.load(f)
-            logger.info(f"Loaded {len(self._stopwords)} categories from {path}")
+            logger.info("Loaded %d categories from %s", len(self._stopwords), path)
+        except FileNotFoundError:
+            logger.critical("Stopwords file not found: %s — content filter DISABLED", path)
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
+            self._stopwords = {}
+        except json.JSONDecodeError as e:
+            logger.critical("Invalid JSON in stopwords file %s: %s", path, e)
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
+            self._stopwords = {}
         except Exception as e:
-            logger.error(f"Error loading stopwords: {e}")
+            logger.critical("Unexpected error loading stopwords: %s", e)
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
             self._stopwords = {}
 
     def _compile_patterns(self) -> None:
@@ -187,11 +202,18 @@ class ContentFilter:
                 )
             except TimeoutError:
                 logger.warning(
-                    f"Content filter L3 timeout ({settings.content_filter_l3_timeout}s), failing open"
+                    "Content filter L3 timeout (%ds), failing open for placement",
+                    settings.content_filter_l3_timeout,
                 )
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
                 # При таймауте — пропускаем (fail open)
             except Exception as e:
-                logger.error(f"Content filter L3 error: {e}")
+                logger.error("Content filter L3 error: %s", e)
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
                 # При ошибке — пропускаем (fail open)
 
         # Если L3 отключен или ошибка — используем только уровень 2

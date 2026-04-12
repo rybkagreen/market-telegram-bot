@@ -3,7 +3,7 @@
 import itertools
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
@@ -52,9 +52,6 @@ class TelegramChat(Base, TimestampMixin):
     member_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_er: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     avg_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    last_avg_views: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
-    last_post_frequency: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
-    price_per_post: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     rating: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     category: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -73,17 +70,17 @@ class TelegramChat(Base, TimestampMixin):
     topic = synonym("category")
 
     # Relationships
-    owner: Mapped["User"] = relationship("User", back_populates="telegram_chats")
-    channel_settings: Mapped[Optional["ChannelSettings"]] = relationship(
+    owner: Mapped[User] = relationship("User", back_populates="telegram_chats")
+    channel_settings: Mapped[ChannelSettings | None] = relationship(
         "ChannelSettings", back_populates="channel", uselist=False, cascade=CASCADE_ALL
     )
-    channel_mediakit: Mapped[Optional["ChannelMediakit"]] = relationship(
+    channel_mediakit: Mapped[ChannelMediakit | None] = relationship(
         "ChannelMediakit", back_populates="channel", uselist=False, cascade=CASCADE_ALL
     )
-    placement_requests: Mapped[list["PlacementRequest"]] = relationship(
+    placement_requests: Mapped[list[PlacementRequest]] = relationship(
         "PlacementRequest", back_populates="channel", cascade=CASCADE_ALL
     )
-    mailing_logs: Mapped[list["MailingLog"]] = relationship("MailingLog", back_populates="chat")
+    mailing_logs: Mapped[list[MailingLog]] = relationship("MailingLog", back_populates="chat")
 
     def __repr__(self) -> str:
         return f"<TelegramChat(id={self.id}, telegram_id={self.telegram_id}, username={self.username!r})>"

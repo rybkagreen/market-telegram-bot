@@ -137,13 +137,11 @@ class ReputationRepo(BaseRepository[ReputationScore]):
             select(func.count(ReputationHistory.id)).where(
                 ReputationHistory.user_id == owner_id,
                 ReputationHistory.role == "owner",
-                ReputationHistory.action.in_(
-                    [
-                        ReputationAction.reject_invalid_1,
-                        ReputationAction.reject_invalid_2,
-                        ReputationAction.reject_invalid_3,
-                    ]
-                ),
+                ReputationHistory.action.in_([
+                    ReputationAction.reject_invalid_1,
+                    ReputationAction.reject_invalid_2,
+                    ReputationAction.reject_invalid_3,
+                ]),
             )
         )
         return result.scalar() or 0

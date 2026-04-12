@@ -37,7 +37,7 @@ class ReputationScore(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="reputation_score")
+    user: Mapped[User] = relationship("User", back_populates="reputation_score")
 
     def __repr__(self) -> str:
         return f"<ReputationScore(user_id={self.user_id}, advertiser_score={self.advertiser_score}, owner_score={self.owner_score})>"

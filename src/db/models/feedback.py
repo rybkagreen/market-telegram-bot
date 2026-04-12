@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,8 +40,8 @@ class UserFeedback(Base, TimestampMixin):
     responded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship(foreign_keys=[user_id], back_populates="feedback_list")
-    responder: Mapped[Optional["User"]] = relationship(
+    user: Mapped[User] = relationship(foreign_keys=[user_id], back_populates="feedback_list")
+    responder: Mapped[User | None] = relationship(
         foreign_keys=[responded_by_id], back_populates="responded_feedback_list"
     )
 

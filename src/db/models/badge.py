@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -68,7 +68,7 @@ class BadgeAchievement(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     # Relationships
-    badge: Mapped["Badge"] = relationship("Badge")
+    badge: Mapped[Badge] = relationship("Badge")
 
     def __repr__(self) -> str:
         return f"<BadgeAchievement(id={self.id}, badge_id={self.badge_id}, threshold={self.threshold})>"
@@ -89,8 +89,8 @@ class UserBadge(Base, TimestampMixin):
     badge_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("badges.id"), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="badges")
-    badge: Mapped[Optional["Badge"]] = relationship("Badge")
+    user: Mapped[User] = relationship("User", back_populates="badges")
+    badge: Mapped[Badge | None] = relationship("Badge")
 
     def __repr__(self) -> str:
         return f"<UserBadge(id={self.id}, user_id={self.user_id}, badge_type={self.badge_type})>"

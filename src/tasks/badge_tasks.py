@@ -180,12 +180,10 @@ def monthly_top_advertisers(self) -> dict:
                 try:
                     award_result: dict = await badge_service.award_badge(user_id, badge.code)
                     if award_result.get("success"):
-                        awarded.append(
-                            {
-                                "user_id": user_id,
-                                "total_spent": float(total_spent),
-                            }
-                        )
+                        awarded.append({
+                            "user_id": user_id,
+                            "total_spent": float(total_spent),
+                        })
 
                         # Отправляем уведомление
                         notify_badge_earned.delay(

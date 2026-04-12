@@ -10,12 +10,10 @@ export async function getPlatformStats() {
 }
 
 export async function getUsersList(params: {
-  role?: string
   limit?: number
   offset?: number
 }) {
   const search = new URLSearchParams()
-  if (params.role) search.set('role', params.role)
   if (params.limit) search.set('limit', String(params.limit))
   if (params.offset) search.set('offset', String(params.offset))
   return api.get(`admin/users?${search}`).json<UserListAdminResponse>()
@@ -25,6 +23,6 @@ export async function getUserById(userId: number) {
   return api.get(`admin/users/${userId}`).json<UserAdminResponse>()
 }
 
-export async function updateAdminUser(userId: number, data: { role?: string; plan?: string }) {
+export async function updateAdminUser(userId: number, data: { plan?: string; is_admin?: boolean }) {
   return api.patch(`admin/users/${userId}`, { json: data }).json<UserAdminResponse>()
 }

@@ -104,17 +104,15 @@ class KudirExportService:
         writer = csv.writer(output, delimiter=";")
 
         # Заголовки
-        writer.writerow(
-            [
-                "№",
-                "Дата",
-                "Тип операции",
-                "Категория",
-                "Описание",
-                "Сумма дохода (₽)",
-                "Сумма расхода (₽)",
-            ]
-        )
+        writer.writerow([
+            "№",
+            "Дата",
+            "Тип операции",
+            "Категория",
+            "Описание",
+            "Сумма дохода (₽)",
+            "Сумма расхода (₽)",
+        ])
 
         # Секция: Доходы
         total_income = Decimal("0")
@@ -122,17 +120,15 @@ class KudirExportService:
             if r.operation_type != "income":
                 continue
             date_str = r.operation_date.strftime("%d.%m.%Y") if r.operation_date else ""
-            writer.writerow(
-                [
-                    r.entry_number,
-                    date_str,
-                    "Доход",
-                    "",
-                    r.description,
-                    str(r.income_amount),
-                    "",
-                ]
-            )
+            writer.writerow([
+                r.entry_number,
+                date_str,
+                "Доход",
+                "",
+                r.description,
+                str(r.income_amount),
+                "",
+            ])
             total_income += r.income_amount
 
         # Разделитель
@@ -144,17 +140,15 @@ class KudirExportService:
             if r.operation_type != "expense" or r.expense_amount is None:
                 continue
             date_str = r.operation_date.strftime("%d.%m.%Y") if r.operation_date else ""
-            writer.writerow(
-                [
-                    r.entry_number,
-                    date_str,
-                    "Расход",
-                    r.expense_category or "",
-                    r.description,
-                    "",
-                    str(r.expense_amount),
-                ]
-            )
+            writer.writerow([
+                r.entry_number,
+                date_str,
+                "Расход",
+                r.expense_category or "",
+                r.description,
+                "",
+                str(r.expense_amount),
+            ])
             total_expenses += r.expense_amount
 
         # Итого

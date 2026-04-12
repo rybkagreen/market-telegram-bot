@@ -373,7 +373,7 @@ async def get_placement_evidence(  # NOSONAR: python:S3776
         )
 
     # Access check: advertiser, channel owner, or admin
-    is_admin = current_user.role == "admin" if hasattr(current_user, "role") else False
+    is_admin = current_user.is_admin
     is_advertiser = placement.advertiser_id == current_user.id
     is_channel_owner = False
     if placement.channel_id:

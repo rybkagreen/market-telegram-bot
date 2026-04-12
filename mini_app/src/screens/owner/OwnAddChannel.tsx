@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Button, Card, CategoryGrid, Notification, Toggle, Text } from '@/components/ui'
@@ -23,6 +23,14 @@ export default function OwnAddChannel() {
   const addMutation = useAddChannel()
   const { data: categories = [] } = useCategories()
 
+  // Navigate to My Channels after successful addition
+  /* eslint-disable-next-line react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (addMutation.isSuccess) {
+      navigate('/own/channels', { replace: true })
+    }
+  }, [addMutation.isSuccess, navigate])
+
   const checkResult: ChannelCheckResponse | null = checkMutation.data ?? null
 
   // Determine if input is chat_id (starts with -100) or username
@@ -37,18 +45,11 @@ export default function OwnAddChannel() {
 
   const handleAdd = () => {
     haptic.success()
-    addMutation.mutate(
-      {
-        username: channelIdentifier,
-        is_test: isTest && user?.is_admin,
-        category: selectedCategory ?? undefined,
-      },
-      {
-        onSuccess: () => {
-          navigate('/own/channels')
-        },
-      },
-    )
+    addMutation.mutate({
+      username: channelIdentifier,
+      is_test: isTest && user?.is_admin,
+      category: selectedCategory ?? undefined,
+    })
   }
 
   // Check if channel is valid and can be added

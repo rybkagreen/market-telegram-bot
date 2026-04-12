@@ -90,7 +90,7 @@ export default function DisputeResponse() {
             )}
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Сумма</span>
-              <span className={styles.infoValue}>{formatCurrency(placement.final_price ?? placement.proposed_price)}</span>
+              <span className={styles.infoValue}>{formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}</span>
             </div>
           </>
         )}

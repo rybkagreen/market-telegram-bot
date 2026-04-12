@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, StatusPill, Textarea } from '@shared/ui'
+import { formatDateTimeMSK } from '@/lib/constants'
 import { api } from '@shared/api/client'
 
 interface DisputeDetail {
@@ -108,7 +109,7 @@ export default function AdminDisputeDetail() {
           </div>
           <div className="flex justify-between">
             <span className="text-text-secondary">Создан</span>
-            <span className="text-text-primary">{new Date(dispute.created_at).toLocaleString('ru-RU')}</span>
+            <span className="text-text-primary">{formatDateTimeMSK(dispute.created_at)}</span>
           </div>
         </div>
       </Card>

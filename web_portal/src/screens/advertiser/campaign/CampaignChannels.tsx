@@ -50,9 +50,9 @@ export default function CampaignChannels() {
               <ChannelCard
                 key={channel.id}
                 name={channel.title}
-                username={channel.username}
+                username={channel.username ?? null}
                 subscribers={channel.member_count.toLocaleString('ru-RU')}
-                category={channel.category}
+                category={channel.category ?? 'Без категории'}
                 price={formatCurrency(channel.settings.price_per_post)}
                 status="active"
                 isSelected={isSelected}

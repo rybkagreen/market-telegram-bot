@@ -110,7 +110,7 @@ export default function FAQ() {
           {FAQ_ITEMS.map(({ q, a }, idx) => {
             const isOpen = openIdx === idx
             return (
-              <div key={q}>
+              <div key={idx}>
                 <button
                   onClick={() => toggle(idx)}
                   aria-expanded={isOpen}
