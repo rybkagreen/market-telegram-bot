@@ -152,6 +152,7 @@ class ChannelResponse(BaseModel):
         rating: Рейтинг канала
         category: Категория канала
         is_active: Активен ли канал
+        created_at: Дата создания
     """
 
     id: int = Field(..., description="ID канала в БД")
@@ -165,5 +166,6 @@ class ChannelResponse(BaseModel):
     rating: float = Field(default=0.0, description="Рейтинг канала")
     category: str | None = Field(None, description="Категория канала")
     is_active: bool = Field(default=True, description="Активен ли канал")
+    created_at: str = Field(..., description="Дата создания (ISO 8601)")
 
     model_config = {"from_attributes": True}

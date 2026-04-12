@@ -47,7 +47,7 @@ router = APIRouter(tags=["channels"])
 NO_NAME = "Без названия"
 
 
-async def _resolve_chat(bot: "Bot", body: "ChannelCheckRequest"):  # type: ignore[return]
+async def _resolve_chat(bot: Bot, body: ChannelCheckRequest):  # type: ignore[return]
     """Resolve a Telegram chat object from username or chat_id.
 
     Raises HTTPException 400 if neither is provided or the chat cannot be found.
@@ -88,7 +88,7 @@ async def _resolve_chat(bot: "Bot", body: "ChannelCheckRequest"):  # type: ignor
         ) from e
 
 
-async def _get_bot_admin_member(bot: "Bot", chat_id: int, username: str):  # type: ignore[return]
+async def _get_bot_admin_member(bot: Bot, chat_id: int, username: str):  # type: ignore[return]
     """Fetch and validate that the bot is an admin in the given channel.
 
     Raises HTTPException 403 if the bot is not an admin or member info cannot be retrieved.
@@ -128,11 +128,11 @@ CACHE_TTL = 3600  # 1 час
 # ─── Мой канал ──────────────────────────────────────────────────────
 
 
-@router.get("/", response_model=None)
+@router.get("/", response_model=list[ChannelResponse])
 async def get_my_channels(
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> list[TelegramChat]:
+) -> list[ChannelResponse]:
     """
     Получить мои каналы.
 
@@ -141,12 +141,29 @@ async def get_my_channels(
         session: DB session
 
     Returns:
-        list[TelegramChat]: Список каналов пользователя
+        list[ChannelResponse]: Список каналов пользователя
     """
     result = await session.execute(
         select(TelegramChat).where(TelegramChat.owner_id == current_user.id)
     )
-    return list(result.scalars().all())
+    channels = result.scalars().all()
+    return [
+        ChannelResponse(
+            id=ch.id,
+            telegram_id=ch.telegram_id,
+            username=ch.username,
+            title=ch.title,
+            owner_id=ch.owner_id,
+            member_count=ch.member_count,
+            last_er=ch.last_er,
+            avg_views=ch.avg_views,
+            rating=ch.rating,
+            category=ch.category,
+            is_active=ch.is_active,
+            created_at=ch.created_at.isoformat(),
+        )
+        for ch in channels
+    ]
 
 
 # ─── Проверка и добавление канала ──────────────────────────────────
@@ -390,17 +407,15 @@ async def create_channel(
     # is_test может быть установлен только админом
     is_test = body.is_test and current_user.is_admin
 
-    new_channel = await repo.create(
-        {
-            "telegram_id": chat.id,
-            "username": username_clean,
-            "title": chat.title or NO_NAME,
-            "owner_id": current_user.id,
-            "member_count": member_count,
-            "is_test": is_test,
-            "category": channel_category,
-        }
-    )
+    new_channel = await repo.create({
+        "telegram_id": chat.id,
+        "username": username_clean,
+        "title": chat.title or NO_NAME,
+        "owner_id": current_user.id,
+        "member_count": member_count,
+        "is_test": is_test,
+        "category": channel_category,
+    })
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
     try:
@@ -443,7 +458,7 @@ async def delete_channel(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """
-    Удалить канал пользователя.
+    Удалить канал пользователя (soft-delete: is_active = False).
 
     Args:
         channel_id: ID канала
@@ -453,9 +468,10 @@ async def delete_channel(
     Raises:
         HTTPException 404: Канал не найден
         HTTPException 403: Канал принадлежит другому пользователю
+        HTTPException 409: Есть активные размещения — нельзя удалить
     """
     from src.db.models.telegram_chat import TelegramChat
-    from src.db.repositories.telegram_chat_repo import TelegramChatRepository
+    from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
     # Проверка что канал существует и принадлежит пользователю
     channel = await session.get(TelegramChat, channel_id)
@@ -465,16 +481,23 @@ async def delete_channel(
     if channel.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
 
-    # Удаляем канал (каскадно удалит settings, mediakit, placement_requests)
-    repo = TelegramChatRepository(session)
-    await repo.delete(channel_id)
+    # Проверка: нет ли активных размещений
+    has_active = await PlacementRequestRepository(session).has_active_placements(channel_id)
+    if has_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Невозможно удалить — есть активные размещения",
+        )
+
+    # Soft-delete
+    channel.is_active = False
     try:
         await session.commit()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Конфликт данных: запись уже существует или нарушено ограничение",
+            detail="Конфликт данных при удалении канала",
         ) from e
 
 

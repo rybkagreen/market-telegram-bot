@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { ScreenLayout } from '@/components/layout/ScreenLayout'
 import { Skeleton, EmptyState, Button, Icon, Text, Flex } from '@/components/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { api } from '@/api/client'
 import * as Sentry from '@sentry/react'
 import styles from './MyActsScreen.module.css'
@@ -133,7 +134,7 @@ export default function MyActsScreen() {
                   {TYPE_LABELS[act.act_type] || act.act_type} №{act.act_number}
                 </Text>
                 <Text variant="xs" color="muted">
-                  от {new Date(act.act_date).toLocaleDateString('ru-RU')}
+                  от {formatDateMSK(act.act_date)}
                 </Text>
               </div>
               <span className={`${styles.statusPill} ${styles[act.sign_status] || ''}`}>

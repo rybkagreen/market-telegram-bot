@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -55,7 +55,6 @@ class User(Base, TimestampMixin):
     first_name: Mapped[str] = mapped_column(String(256), nullable=False)
     last_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    current_role: Mapped[str] = mapped_column(String(16), default="new", server_default="new")
     plan: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     terms_accepted_at: Mapped[datetime | None] = mapped_column(
@@ -110,64 +109,62 @@ class User(Base, TimestampMixin):
     )
 
     # Relationships
-    referred_by: Mapped[Optional["User"]] = relationship(
-        "User", remote_side=[id], backref="referrals"
-    )
-    telegram_chats: Mapped[list["TelegramChat"]] = relationship(
+    referred_by: Mapped[User | None] = relationship("User", remote_side=[id], backref="referrals")
+    telegram_chats: Mapped[list[TelegramChat]] = relationship(
         "TelegramChat", back_populates="owner", cascade=CASCADE_ALL
     )
-    placement_requests_advertiser: Mapped[list["PlacementRequest"]] = relationship(
+    placement_requests_advertiser: Mapped[list[PlacementRequest]] = relationship(
         "PlacementRequest",
         foreign_keys="PlacementRequest.advertiser_id",
         back_populates="advertiser",
     )
-    placement_requests_owner: Mapped[list["PlacementRequest"]] = relationship(
+    placement_requests_owner: Mapped[list[PlacementRequest]] = relationship(
         "PlacementRequest", foreign_keys="PlacementRequest.owner_id", back_populates="owner"
     )
-    transactions: Mapped[list["Transaction"]] = relationship(
+    transactions: Mapped[list[Transaction]] = relationship(
         "Transaction", back_populates="user", cascade=CASCADE_ALL
     )
-    payout_requests: Mapped[list["PayoutRequest"]] = relationship(
+    payout_requests: Mapped[list[PayoutRequest]] = relationship(
         "PayoutRequest",
         foreign_keys="PayoutRequest.owner_id",
         back_populates="owner",
         cascade=CASCADE_ALL,
     )
-    reputation_score: Mapped[Optional["ReputationScore"]] = relationship(
+    reputation_score: Mapped[ReputationScore | None] = relationship(
         "ReputationScore", back_populates="user", uselist=False, cascade=CASCADE_ALL
     )
-    reputation_history: Mapped[list["ReputationHistory"]] = relationship(
+    reputation_history: Mapped[list[ReputationHistory]] = relationship(
         "ReputationHistory", back_populates="user", cascade=CASCADE_ALL
     )
-    disputes_advertiser: Mapped[list["PlacementDispute"]] = relationship(
+    disputes_advertiser: Mapped[list[PlacementDispute]] = relationship(
         "PlacementDispute",
         foreign_keys="PlacementDispute.advertiser_id",
         back_populates="advertiser",
     )
-    disputes_owner: Mapped[list["PlacementDispute"]] = relationship(
+    disputes_owner: Mapped[list[PlacementDispute]] = relationship(
         "PlacementDispute", foreign_keys="PlacementDispute.owner_id", back_populates="owner"
     )
-    reviews_given: Mapped[list["Review"]] = relationship(
+    reviews_given: Mapped[list[Review]] = relationship(
         "Review", foreign_keys="Review.reviewer_id", back_populates="reviewer"
     )
-    reviews_received: Mapped[list["Review"]] = relationship(
+    reviews_received: Mapped[list[Review]] = relationship(
         "Review", foreign_keys="Review.reviewed_id", back_populates="reviewed"
     )
-    badges: Mapped[list["UserBadge"]] = relationship(
+    badges: Mapped[list[UserBadge]] = relationship(
         "UserBadge", back_populates="user", cascade=CASCADE_ALL
     )
-    feedback_list: Mapped[list["UserFeedback"]] = relationship(
+    feedback_list: Mapped[list[UserFeedback]] = relationship(
         "UserFeedback", foreign_keys="UserFeedback.user_id", back_populates="user"
     )
-    responded_feedback_list: Mapped[list["UserFeedback"]] = relationship(
+    responded_feedback_list: Mapped[list[UserFeedback]] = relationship(
         "UserFeedback", foreign_keys="UserFeedback.responded_by_id", back_populates="responder"
     )
-    legal_profile: Mapped[Optional["LegalProfile"]] = relationship(
+    legal_profile: Mapped[LegalProfile | None] = relationship(
         "LegalProfile", back_populates="user", uselist=False, lazy="selectin"
     )
 
     # Sprint C.1: B2B invoices
-    invoices: Mapped[list["Invoice"]] = relationship(
+    invoices: Mapped[list[Invoice]] = relationship(
         "Invoice", back_populates="user", lazy="selectin"
     )
 

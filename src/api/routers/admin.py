@@ -111,9 +111,11 @@ async def _get_placement_stats(session: AsyncSession) -> dict:
     cancelled = (
         await session.execute(
             base.where(
-                PlacementRequest.status.in_(
-                    [PlacementStatus.cancelled, PlacementStatus.refunded, PlacementStatus.failed]
-                )
+                PlacementRequest.status.in_([
+                    PlacementStatus.cancelled,
+                    PlacementStatus.refunded,
+                    PlacementStatus.failed,
+                ])
             )
         )
     ).scalar() or 0
@@ -191,11 +193,10 @@ async def get_platform_stats(
     )
 
 
-@router.get("/users", responses={400: {"description": "Invalid role filter"}})
+@router.get("/users")
 async def get_all_users(
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    role: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> UserListAdminResponse:
@@ -203,7 +204,6 @@ async def get_all_users(
     Get list of users with pagination (admin only).
 
     Args:
-        role: Filter by role (advertiser, owner, both)
         limit: Max items to return (1-200)
         offset: Offset for pagination
         admin_user: Current admin user
@@ -220,15 +220,6 @@ async def get_all_users(
 
     # Build query
     query = select(User)
-
-    # Apply role filter
-    if role:
-        if role not in ["advertiser", "owner", "both"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {role}. Must be one of: advertiser, owner, both",
-            )
-        query = query.where(User.current_role == role)
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -287,7 +278,6 @@ async def get_all_users(
                 username=u.username,
                 first_name=u.first_name,
                 last_name=u.last_name,
-                role=u.current_role,
                 plan=u.plan,
                 plan_expires_at=u.plan_expires_at,
                 balance_rub=str(u.balance_rub),
@@ -637,7 +627,6 @@ async def get_user_details(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.current_role,
         plan=user.plan,
         plan_expires_at=user.plan_expires_at,
         balance_rub=str(user.balance_rub),
@@ -670,7 +659,7 @@ async def update_user(
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> UserAdminResponse:
-    """Partial update of user role, plan, or admin status (admin only)."""
+    """Partial update of user plan or admin status (admin only)."""
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
@@ -682,8 +671,6 @@ async def update_user(
         )
 
     update_data: dict[str, object] = {}
-    if body.role is not None:
-        update_data["current_role"] = body.role
     if body.plan is not None:
         update_data["plan"] = body.plan
     if body.is_admin is not None:
@@ -709,7 +696,6 @@ async def update_user(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.current_role,
         plan=user.plan,
         plan_expires_at=user.plan_expires_at,
         balance_rub=str(user.balance_rub),
@@ -775,7 +761,6 @@ async def topup_user_balance(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.current_role,
         plan=user.plan,
         plan_expires_at=user.plan_expires_at,
         balance_rub=str(user.balance_rub),

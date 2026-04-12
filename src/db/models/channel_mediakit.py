@@ -37,9 +37,7 @@ class ChannelMediakit(Base, TimestampMixin):
     is_public = synonym("is_published")
 
     # Relationships
-    channel: Mapped["TelegramChat"] = relationship(
-        "TelegramChat", back_populates="channel_mediakit"
-    )
+    channel: Mapped[TelegramChat] = relationship("TelegramChat", back_populates="channel_mediakit")
 
     def __repr__(self) -> str:
         return f"<ChannelMediakit(id={self.id}, channel_id={self.channel_id}, is_published={self.is_published})>"

@@ -10,7 +10,7 @@ import styles from './MyCampaigns.module.css'
 type Filter = 'active' | 'completed' | 'cancelled'
 
 const ACTIVE_STATUSES: PlacementStatus[] = ['pending_owner', 'counter_offer', 'pending_payment', 'escrow']
-const COMPLETED_STATUSES: PlacementStatus[] = ['published']
+const COMPLETED_STATUSES: PlacementStatus[] = ['published', 'completed']
 const CANCELLED_STATUSES: PlacementStatus[] = ['cancelled', 'refunded', 'failed', 'failed_permissions']
 
 function getFilter(status: PlacementStatus): Filter {
@@ -100,12 +100,17 @@ export default function MyCampaigns() {
                 id={placement.id}
                 channelName={placement.channel ? `@${placement.channel.username}` : `#${placement.channel_id}`}
                 adText={placement.ad_text}
-                price={formatCurrency(placement.final_price ?? placement.proposed_price)}
+                price={formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
                 date={formatDate(placement.created_at)}
-                status={placement.status === 'failed_permissions' ? 'failed' : placement.status}
+                status={
+                  placement.status === 'failed_permissions'
+                    ? 'failed'
+                    : placement.status === 'completed'
+                      ? 'completed'
+                      : placement.status
+                }
                 onClick={() => {
                   if (filter === 'active') navigate(`/adv/campaigns/${placement.id}/waiting`)
-                  else alert(`Детали кампании #${placement.id} — Phase 8`)
                 }}
               />
               <div className={styles.actions}>
@@ -128,7 +133,7 @@ export default function MyCampaigns() {
                   </Button>
                 )}
                 {filter === 'completed' && (
-                  <Button variant="success" size="sm" onClick={() => alert(`Отзыв #${placement.id}`)}>
+                  <Button variant="success" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}>
                     ⭐ Отзыв
                   </Button>
                 )}

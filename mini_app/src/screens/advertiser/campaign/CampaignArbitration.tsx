@@ -24,23 +24,24 @@ export default function CampaignArbitration() {
   const handleSubmit = async () => {
     if (!format || store.selectedChannels.length === 0) return
     haptic.success()
-    let firstId: number | null = null
-    for (const ch of store.selectedChannels) {
-      const schedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
-      const basePrice = parseFloat(ch.settings.price_per_post)
-      const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
-      const price = store.proposedPrices[ch.id] ?? ownerPrice
-      const result = await createPlacement({
-        channel_id: ch.id,
-        publication_format: format,
-        ad_text: store.adText,
-        proposed_price: price,
-        proposed_schedule: `${schedule}:00`,
-        is_test: store.isTest,
-      })
-      if (firstId === null) firstId = result.id
-    }
+    const results = await Promise.all(
+      store.selectedChannels.map((ch) => {
+        const schedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
+        const basePrice = parseFloat(ch.settings.price_per_post)
+        const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
+        const price = store.proposedPrices[ch.id] ?? ownerPrice
+        return createPlacement({
+          channel_id: ch.id,
+          publication_format: format,
+          ad_text: store.adText,
+          proposed_price: price,
+          proposed_schedule: `${schedule}:00+03:00`,
+          is_test: store.isTest,
+        })
+      }),
+    )
     store.reset()
+    const firstId = results[0]?.id ?? null
     navigate(`/adv/campaigns/${firstId}/waiting`)
   }
 
@@ -135,7 +136,7 @@ export default function CampaignArbitration() {
         <Button variant="primary" fullWidth onClick={() => void handleSubmit()} disabled={isPending}>
           {isPending ? '⏳ Отправка...' : '📤 Отправить заявку'}
         </Button>
-        <Button variant="secondary" fullWidth onClick={() => navigate(-1 as unknown as string)}>
+        <Button variant="secondary" fullWidth onClick={() => window.history.back()}>
           🔙 Назад
         </Button>
       </div>

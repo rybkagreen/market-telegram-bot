@@ -1,6 +1,8 @@
 import ky from 'ky'
 import * as Sentry from '@sentry/react'
 
+let redirecting = false
+
 export const api = ky.create({
   prefixUrl: '/api',
   timeout: 15_000,
@@ -17,7 +19,8 @@ export const api = ky.create({
       async (_request, _options, response) => {
         if (!response.ok) {
           Sentry.captureException(new Error(`[API] Error: ${response.status} ${response.url}`))
-          if (response.status === 401) {
+          if (response.status === 401 && !redirecting) {
+            redirecting = true
             localStorage.removeItem('rh_token')
             localStorage.removeItem('rh_user')
             window.location.href = '/login'

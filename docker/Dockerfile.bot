@@ -1,7 +1,15 @@
 # Multi-stage Dockerfile для Telegram бота + Celery Workers с OCR
-FROM python:3.13-slim as builder
+FROM python:3.14-slim as builder
 
 WORKDIR /app
+
+# Build dependencies for C-extensions (asyncpg, cryptography, PyMuPDF, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir poetry
@@ -14,7 +22,7 @@ RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-root --only main
 
 # Финальный образ
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -34,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем установленные пакеты из builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Устанавливаем psutil для мониторинга

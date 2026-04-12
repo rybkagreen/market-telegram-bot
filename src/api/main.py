@@ -203,7 +203,7 @@ app.include_router(reputation_router, prefix="/api/reputation", tags=["Reputatio
 app.include_router(reviews_router, prefix="/api/reviews", tags=["Reviews"])
 app.include_router(categories_router, prefix="/api/categories", tags=["Categories"])
 app.include_router(legal_profile_router)
-app.include_router(document_validation_router)
+app.include_router(document_validation_router, prefix="/api", tags=["Document Validation"])
 app.include_router(contracts_router)
 app.include_router(acts_router)
 app.include_router(ord_router)

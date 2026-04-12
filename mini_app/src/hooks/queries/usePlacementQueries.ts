@@ -57,10 +57,12 @@ export const useUpdatePlacement = () => {
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['placements', id] })
       const previous = queryClient.getQueryData<PlacementRequest>(['placements', id])
-      if (previous) {
+      // Only optimistically update for non-action mutations (e.g., text edits)
+      // Action mutations (pay/cancel) should NOT pollute cache with { action: '...' }
+      if (previous && typeof data === 'object' && data !== null && !('action' in data)) {
         queryClient.setQueryData<PlacementRequest>(['placements', id], {
           ...previous,
-          ...data,
+          ...(data as Record<string, unknown>),
         })
       }
       return { previous, id }

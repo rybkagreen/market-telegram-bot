@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Card, Button, EmptyState, Skeleton, Notification, StatusPill } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useReferralStats } from '@/hooks/useUserQueries'
 
 export default function Referral() {
@@ -89,7 +90,7 @@ export default function Referral() {
                     {ref.username ?? `User #${ref.telegram_id}`}
                   </p>
                   <p className="text-xs text-text-tertiary">
-                    {new Date(ref.created_at).toLocaleDateString('ru-RU')}
+                    {formatDateMSK(ref.created_at)}
                   </p>
                 </div>
                 <StatusPill status={ref.is_active ? 'success' : 'default'}>

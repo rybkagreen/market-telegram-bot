@@ -1,7 +1,7 @@
 """ReputationHistory model for reputation change tracking."""
 
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -54,8 +54,8 @@ class ReputationHistory(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="reputation_history")
-    placement_request: Mapped[Optional["PlacementRequest"]] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="reputation_history")
+    placement_request: Mapped[PlacementRequest | None] = relationship(
         "PlacementRequest", back_populates="reputation_history"
     )
 

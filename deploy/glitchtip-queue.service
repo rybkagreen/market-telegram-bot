@@ -1,0 +1,13 @@
+[Unit]
+Description=RekHarborBot — process GlitchTip error payload with Qwen Code
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/market-telegram-bot
+EnvironmentFile=/opt/market-telegram-bot/.env
+ExecStart=/bin/bash /opt/market-telegram-bot/scripts/monitoring/process_error_queue.sh
+User=root
+# Timeout: Qwen can take time for complex errors
+TimeoutStartSec=600

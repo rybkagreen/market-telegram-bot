@@ -58,7 +58,7 @@ class Act(Base, TimestampMixin):
     user_agent_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Relationships
-    placement: Mapped["PlacementRequest"] = relationship("PlacementRequest", back_populates="acts")
+    placement: Mapped[PlacementRequest] = relationship("PlacementRequest", back_populates="acts")
 
     __table_args__ = (
         Index("ix_acts_placement_request_id", "placement_request_id"),

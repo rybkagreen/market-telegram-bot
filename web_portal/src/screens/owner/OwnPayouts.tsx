@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button, StatusPill, EmptyState, Skeleton } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateMSK } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useMyPayouts } from '@/hooks/usePayoutQueries'
 
@@ -29,6 +29,7 @@ export default function OwnPayouts() {
 
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (payouts.length === 0) return
     const lastPayout = payouts.reduce((latest, p) =>
@@ -51,6 +52,7 @@ export default function OwnPayouts() {
       setCooldownRemaining(0)
     }
   }, [payouts])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const earnedRub = me?.earned_rub ?? '0'
   const isCooldownActive = cooldownRemaining > 0
@@ -102,9 +104,7 @@ export default function OwnPayouts() {
                   <StatusPill status={pill.variant}>{pill.label}</StatusPill>
                 </div>
                 <p className="text-xs text-text-tertiary mb-3">
-                  {new Date(payout.created_at).toLocaleDateString('ru-RU', {
-                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                  })}
+                  {formatDateMSK(payout.created_at)}
                 </p>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>

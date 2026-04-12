@@ -295,7 +295,7 @@ services:
       # Separate Redis DB to avoid read-only replica conflicts with main app (DB /0)
       VALKEY_URL: valkey://redis:6379/2
     ports:
-      - "8090:8080"
+      - "8090:8000"
     depends_on:
       postgres:
         condition: service_healthy

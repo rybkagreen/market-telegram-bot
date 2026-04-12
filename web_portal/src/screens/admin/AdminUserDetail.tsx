@@ -69,14 +69,11 @@ export default function AdminUserDetail() {
                 <p className="text-xs text-text-tertiary mt-1">TG ID: {user.telegram_id}</p>
               </div>
               <div className="flex gap-2">
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-harbor-elevated text-text-secondary">
-                  {user.role}
-                </span>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                   user.plan === 'business' ? 'bg-purple-500/10 text-purple-400' :
                   user.plan === 'pro' ? 'bg-accent-muted text-accent' :
                   user.plan === 'starter' ? 'bg-warning-muted text-warning' :
-                  'bg-harbor-elevated text-text-tertiary'
+                  'bg-harbor-elevated text-text-secondary'
                 }`}>
                   {user.plan}
                 </span>

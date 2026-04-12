@@ -7,7 +7,7 @@ export function useMe() {
   return useQuery<User>({
     queryKey: ['user', 'me'],
     queryFn: getMe,
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
