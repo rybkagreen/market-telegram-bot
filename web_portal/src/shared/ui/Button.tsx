@@ -1,6 +1,7 @@
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
+  icon?: boolean
   fullWidth?: boolean
   loading?: boolean
   disabled?: boolean
@@ -8,12 +9,19 @@ interface ButtonProps {
   onClick?: () => void
   className?: string
   type?: 'button' | 'submit'
+  title?: string
 }
 
 const sizeClasses: Record<string, string> = {
-  sm: 'px-3 py-1.5 text-sm min-h-[36px]',
+  sm: 'px-3 py-1.5 text-sm min-h-[44px]',
   md: 'px-4 py-2.5 text-base min-h-[44px]',
   lg: 'px-6 py-3 text-base min-h-[52px]',
+}
+
+const iconSizeClasses: Record<string, string> = {
+  sm: 'p-2.5 text-lg min-h-[44px] min-w-[44px]',
+  md: 'p-3 text-xl min-h-[48px] min-w-[48px]',
+  lg: 'p-3.5 text-2xl min-h-[52px] min-w-[52px]',
 }
 
 const variantClasses: Record<string, string> = {
@@ -27,6 +35,7 @@ const variantClasses: Record<string, string> = {
 export function Button({
   variant = 'primary',
   size = 'md',
+  icon = false,
   fullWidth = false,
   loading = false,
   disabled = false,
@@ -34,17 +43,19 @@ export function Button({
   onClick,
   className = '',
   type = 'button',
+  title,
 }: ButtonProps) {
   const handleClick = () => {
     if (loading || disabled) return
     onClick?.()
   }
 
+  const sizes = icon ? iconSizeClasses : sizeClasses
   const cn = [
-    'inline-flex items-center justify-center gap-2 rounded-md font-semibold',
+    'relative inline-flex items-center justify-center gap-2 rounded-md font-semibold',
     'border transition-all duration-fast select-none whitespace-nowrap',
     'cursor-pointer disabled:opacity-50 disabled:pointer-events-none',
-    sizeClasses[size],
+    sizes[size],
     variantClasses[variant],
     fullWidth ? 'w-full' : '',
     loading ? 'pointer-events-none' : '',
@@ -52,10 +63,12 @@ export function Button({
   ].filter(Boolean).join(' ')
 
   return (
-    <button type={type} className={cn} onClick={handleClick} disabled={disabled || loading}>
+    <button type={type} className={cn} onClick={handleClick} disabled={disabled || loading} title={title}>
       <span className={loading ? 'opacity-0' : undefined}>{children}</span>
       {loading && (
-        <span className="absolute w-4 h-4 border-2 border-border border-t-accent rounded-full animate-spin" aria-hidden="true" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-4 h-4 border-2 border-border border-t-accent rounded-full animate-spin" aria-hidden="true" />
+        </span>
       )}
     </button>
   )
