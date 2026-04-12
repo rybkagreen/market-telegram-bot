@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Auto-navigate after channel add** — `useEffect` on `addMutation.isSuccess` → `navigate('/own/channels', { replace: true })` in both mini_app and web_portal
 - **Mobile icon-only buttons** — replaced text buttons with emoji-only icon buttons (`min-h-[44px] min-w-[44px]`) across OwnChannels, MyCampaigns, OwnRequests. Eliminates horizontal overflow on 375px screens
 - **Button component** — added `icon` prop for square buttons, fixed `min-h-[36px]` → `min-h-[44px]` (WCAG/Apple HIG), added `relative` for spinner centering, added `title` prop for tooltips
+- **ChannelCard 3-zone layout (mini_app)** — refactored from flat flex-row to Header/Body/Footer structure. Name upgraded to `text-base` display font, stats use value/label pairs, chevron footer for clickable cards. Zero inline-styles.
 
 #### Files
 - `src/db/migrations/versions/0001_initial_schema.py` — category seed data
@@ -31,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `web_portal/src/screens/owner/OwnChannels.tsx` — icon-only buttons
 - `web_portal/src/screens/advertiser/MyCampaigns.tsx` — icon-only buttons
 - `web_portal/src/screens/owner/OwnRequests.tsx` — icon-only buttons
+- `mini_app/src/components/ui/ChannelCard.tsx` — 3-zone layout refactor
+- `mini_app/src/components/ui/ChannelCard.module.css` — complete rewrite
 
 ### S-29: Campaign Lifecycle Tracking (v4.6 — April 2026)
 
