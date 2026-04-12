@@ -31,13 +31,13 @@ class Review(Base, TimestampMixin):
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship(
+    placement_request: Mapped[PlacementRequest] = relationship(
         "PlacementRequest", back_populates="reviews"
     )
-    reviewer: Mapped["User"] = relationship(
+    reviewer: Mapped[User] = relationship(
         "User", foreign_keys=[reviewer_id], back_populates="reviews_given"
     )
-    reviewed: Mapped["User"] = relationship(
+    reviewed: Mapped[User] = relationship(
         "User", foreign_keys=[reviewed_id], back_populates="reviews_received"
     )
 

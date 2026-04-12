@@ -46,10 +46,10 @@ class OrdRegistration(Base, TimestampMixin):
     contract_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest"] = relationship(
+    placement_request: Mapped[PlacementRequest] = relationship(
         "PlacementRequest", foreign_keys=[placement_request_id]
     )
-    contract: Mapped["Contract | None"] = relationship("Contract", foreign_keys=[contract_id])
+    contract: Mapped[Contract | None] = relationship("Contract", foreign_keys=[contract_id])
 
     __table_args__ = (
         Index("ix_ord_registrations_placement_request_id", "placement_request_id", unique=True),

@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, Skeleton, Notification, Button, Text, Flex, Icon } from '@/components/ui'
+import { formatDateMSK } from '@/lib/constants'
 import AdminLayout from '@/components/admin/AdminLayout'
 import * as Sentry from '@sentry/react'
 import styles from './AdminTaxSummary.module.css'
@@ -190,7 +191,7 @@ export default function AdminTaxSummary() {
                       {summaryData.kudir_entries.map((entry) => (
                         <tr key={entry.entry_number}>
                           <td>{entry.entry_number}</td>
-                          <td>{new Date(entry.operation_date).toLocaleDateString('ru-RU')}</td>
+                          <td>{formatDateMSK(entry.operation_date)}</td>
                           <td>{entry.description}</td>
                           <td className={`${styles.right} ${styles.mono}`}>
                             {formatRub(entry.income_amount)}

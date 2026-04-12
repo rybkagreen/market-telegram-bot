@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
-import { PUBLICATION_FORMATS } from '@/lib/constants'
-import { formatCurrency } from '@/lib/constants'
+import { PUBLICATION_FORMATS, formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
 import { useCreateDispute } from '@/hooks/useDisputeQueries'
 
@@ -15,10 +14,7 @@ const DISPUTE_REASONS = [
 ]
 
 function formatDateTime(dt: string | null | undefined): string {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTimeMSK(dt)
 }
 
 export default function OpenDispute() {
@@ -105,7 +101,7 @@ export default function OpenDispute() {
           <div className="flex items-center justify-between">
             <span className="text-text-secondary">Цена</span>
             <span className="text-text-primary font-semibold">
-              {formatCurrency(placement.final_price ?? placement.proposed_price)}
+              {formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
             </span>
           </div>
           {placement.published_at && (

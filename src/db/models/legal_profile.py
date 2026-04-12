@@ -56,7 +56,7 @@ class LegalProfile(Base, TimestampMixin):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="legal_profile")
+    user: Mapped[User] = relationship("User", back_populates="legal_profile")
 
     __table_args__ = (
         Index("ix_legal_profiles_user_id", "user_id", unique=True),

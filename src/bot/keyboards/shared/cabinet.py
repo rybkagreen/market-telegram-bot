@@ -6,16 +6,15 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def cabinet_kb(role: str, earned_rub: Decimal) -> InlineKeyboardMarkup:
-    """Клавиатура кабинета."""
+def cabinet_kb(earned_rub: Decimal) -> InlineKeyboardMarkup:
+    """Клавиатура кабинета — без role gating."""
     builder = InlineKeyboardBuilder()
 
-    if role in ("advertiser", "both"):
-        builder.row(
-            InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start")
-        )
+    builder.row(
+        InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start")
+    )
 
-    if role in ("owner", "both") and earned_rub >= Decimal("1000"):
+    if earned_rub >= Decimal("1000"):
         builder.row(
             InlineKeyboardButton(text="💸 Запросить вывод", callback_data="payout:request_start")
         )

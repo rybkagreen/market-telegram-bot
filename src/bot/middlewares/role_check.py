@@ -58,27 +58,20 @@ class RoleCheckMiddleware(BaseMiddleware):
         if not score:
             return await handler(event, data)
 
-        role = user.current_role
         now = datetime.now(UTC)
         bot = data.get("bot")
 
-        advertiser_active = role in ("advertiser", "both")
+        # Always check advertiser block (no role gating)
         if (
-            advertiser_active
-            and score.is_advertiser_blocked
+            score.is_advertiser_blocked
             and score.advertiser_blocked_until
             and score.advertiser_blocked_until > now
         ):
             await _notify_blocked(bot, user_id, score.advertiser_blocked_until)
             return None
 
-        owner_active = role in ("owner", "both")
-        if (
-            owner_active
-            and score.is_owner_blocked
-            and score.owner_blocked_until
-            and score.owner_blocked_until > now
-        ):
+        # Always check owner block (no role gating)
+        if score.is_owner_blocked and score.owner_blocked_until and score.owner_blocked_until > now:
             await _notify_blocked(bot, user_id, score.owner_blocked_until)
             return None
 

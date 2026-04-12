@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Notification, FeeBreakdown, Button, Skeleton, Card, Text } from '@/components/ui'
-import { PUBLICATION_FORMATS } from '@/lib/constants'
+import { PUBLICATION_FORMATS, formatDateMSK } from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
 import { usePlacement, useUpdatePlacement } from '@/hooks/queries'
@@ -80,11 +80,12 @@ export default function CampaignPayment() {
   }
 
   const formatInfo = PUBLICATION_FORMATS[placement.publication_format]
-  const price = placement.final_price ?? placement.proposed_price
+  // FIX #11: When in counter_offer status, show counter_price (owner's price), not proposed_price
+  const price = placement.final_price ?? placement.counter_price ?? placement.proposed_price
   const originalPrice = placement.proposed_price
 
   const frameworkRef = frameworkContract
-    ? `рамочному договору №${frameworkContract.id} от ${new Date(frameworkContract.signed_at!).toLocaleDateString('ru-RU')}`
+    ? `рамочному договору №${frameworkContract.id} от ${formatDateMSK(frameworkContract.signed_at!)}`
     : 'рамочному договору'
 
   // Counter offer mode
@@ -174,27 +175,9 @@ export default function CampaignPayment() {
           <Button
             variant="secondary"
             fullWidth
-            disabled={isPending}
-            onClick={() => {
-              if (hasSubmitted.current) return
-              hasSubmitted.current = true
-              haptic.success()
-              updatePlacement(
-                { id: placement.id, data: { action: 'accept-counter' } },
-                {
-                  onSuccess: () => { navigate(`/adv/campaigns/${placement.id}/waiting`) },
-                  onError: (err) => {
-                    hasSubmitted.current = false
-                    if ((err as { response?: { status?: number } })?.response?.status === 409) {
-                      queryClient.invalidateQueries({ queryKey: ['placements', placement.id] })
-                      addToast('warning', 'Статус заявки изменился, страница обновлена')
-                    }
-                  },
-                },
-              )
-            }}
+            onClick={() => navigate(`/adv/campaigns/${placement.id}/counter-offer`)}
           >
-            {isPending ? '⏳ Принятие...' : '✏️ Принять контрпредложение'}
+            ✏️ Сделать встречное предложение
           </Button>
         )}
 
@@ -206,8 +189,10 @@ export default function CampaignPayment() {
             if (hasSubmitted.current) return
             hasSubmitted.current = true
             haptic.success()
+            // FIX: When in counter_offer, accept-counter first, then navigate to waiting
+            const action = isCounterOffer ? 'accept-counter' : 'pay'
             updatePlacement(
-              { id: placement.id, data: { action: 'pay' } },
+              { id: placement.id, data: { action } },
               {
                 onSuccess: () => { navigate(`/adv/campaigns/${placement.id}/waiting`) },
                 onError: (err) => {

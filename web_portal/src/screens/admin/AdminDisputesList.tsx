@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button, Skeleton, Notification, StatusBadge } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useAdminDisputes } from '@/hooks/useFeedbackQueries'
 
 type StatusFilter = 'all' | 'open' | 'owner_reply' | 'resolved'
@@ -91,7 +92,7 @@ export default function AdminDisputesList() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-text-tertiary">
-                      {new Date(dispute.created_at).toLocaleDateString('ru-RU')}
+                      {formatDateMSK(dispute.created_at)}
                     </p>
                     <Button size="sm" variant="secondary" className="mt-2">
                       {dispute.status === 'resolved' ? 'Просмотр' : 'Решить'}

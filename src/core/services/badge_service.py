@@ -69,15 +69,13 @@ class BadgeService:
                 if await self._check_badge_condition(session, user, badge):
                     # Выдаём значок
                     await self._award_badge_internal(session, user_id, badge.id)
-                    awarded_badges.append(
-                        {
-                            "badge_id": badge.id,
-                            "code": badge.code,
-                            "name": badge.name,
-                            "icon_emoji": badge.icon_emoji,
-                            "xp_reward": badge.xp_reward,
-                        }
-                    )
+                    awarded_badges.append({
+                        "badge_id": badge.id,
+                        "code": badge.code,
+                        "name": badge.name,
+                        "icon_emoji": badge.icon_emoji,
+                        "xp_reward": badge.xp_reward,
+                    })
 
             await session.commit()
 
@@ -153,7 +151,7 @@ class BadgeService:
         session,
         user_id: int,
         badge_id: int,
-    ) -> "dict[str, Any]":
+    ) -> dict[str, Any]:
         """
         Внутренний метод выдачи значка.
 
@@ -378,17 +376,15 @@ class BadgeService:
                     # Получаем информацию о значке
                     badge = await session.get(Badge, achievement.badge_id)
                     if badge:
-                        awarded_badges.append(
-                            {
-                                "badge_id": badge.id,
-                                "code": badge.code,
-                                "name": badge.name,
-                                "icon_emoji": badge.icon_emoji,
-                                "xp_reward": badge.xp_reward,
-                                "credits_reward": badge.credits_reward,
-                                "description": badge.description,
-                            }
-                        )
+                        awarded_badges.append({
+                            "badge_id": badge.id,
+                            "code": badge.code,
+                            "name": badge.name,
+                            "icon_emoji": badge.icon_emoji,
+                            "xp_reward": badge.xp_reward,
+                            "credits_reward": badge.credits_reward,
+                            "description": badge.description,
+                        })
 
             await session.commit()
 

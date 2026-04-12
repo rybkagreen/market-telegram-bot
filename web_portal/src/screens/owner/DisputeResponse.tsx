@@ -84,7 +84,7 @@ export default function DisputeResponse() {
               <div className="flex justify-between">
                 <span className="text-text-secondary">Сумма</span>
                 <span className="font-mono text-text-primary font-semibold">
-                  {formatCurrency(placement.final_price ?? placement.proposed_price)}
+                  {formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
                 </span>
               </div>
             </>

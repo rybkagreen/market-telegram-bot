@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Dispute, DisputeReason } from '@/lib/types'
+import type { Dispute, DisputeReason, DisputeStatus, ResolutionAction } from '@/lib/types'
 
 /** Backend dispute response shape (may differ from frontend Dispute) */
 interface DisputeResponse {
@@ -26,12 +26,12 @@ function mapDispute(raw: DisputeResponse): Dispute {
     placement: undefined, // nested placement not provided by API — fetched separately
     advertiser_id: raw.advertiser_id,
     owner_id: raw.owner_id,
-    status: raw.status,
-    reason: raw.reason,
+    status: raw.status as DisputeStatus,
+    reason: raw.reason as DisputeReason,
     advertiser_comment: raw.advertiser_comment ?? '',
     owner_comment: raw.owner_explanation ?? null,
     resolution: raw.resolution_comment ?? raw.resolution ?? null,
-    resolution_action: raw.resolution ?? null,
+    resolution_action: (raw.resolution ?? null) as ResolutionAction | null,
     created_at: raw.created_at,
     resolved_at: raw.resolved_at ?? null,
     expires_at: raw.expires_at ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),

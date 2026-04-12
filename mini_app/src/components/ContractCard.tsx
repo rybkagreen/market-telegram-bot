@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/Card'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { Button } from '@/components/ui/Button'
+import { formatDateMSK } from '@/lib/constants'
 import type { Contract, ContractStatus } from '@/lib/types'
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
@@ -61,7 +62,7 @@ export function ContractCard({ contract, onSign, onView, legalStatus }: Contract
       </div>
       {contract.signed_at && (
         <p style={{ margin: '0 0 8px', fontSize: 'var(--rh-text-xs, 12px)', color: 'var(--rh-text-muted)' }}>
-          Подписан: {new Date(contract.signed_at).toLocaleDateString('ru-RU')}
+          Подписан: {formatDateMSK(contract.signed_at)}
         </p>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

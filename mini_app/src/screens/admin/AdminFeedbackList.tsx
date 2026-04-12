@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { useFeedbackList } from '@/hooks/queries/admin/useAdminQueries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Skeleton, Notification, StatusPill } from '@/components/ui'
+import { formatDateMSK } from '@/lib/constants'
 import AdminNav from '@/components/admin/AdminNav'
 import styles from './AdminFeedbackList.module.css'
 
@@ -107,7 +108,7 @@ export default function AdminFeedbackList() {
                 <p className={styles.feedbackText}>{feedback.text}</p>
                 <div className={styles.feedbackFooter}>
                   <span className={styles.feedbackDate}>
-                    {new Date(feedback.created_at).toLocaleDateString()}
+                    {formatDateMSK(feedback.created_at)}
                   </span>
                   <Button size="sm" variant="secondary">View</Button>
                 </div>

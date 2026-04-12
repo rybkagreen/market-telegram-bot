@@ -183,8 +183,7 @@ export default function AdminUsersList() {
                     />
                   </th>
                   <th className="text-left px-4 py-3 text-text-secondary font-medium">Имя</th>
-                  <th className="text-left px-4 py-3 text-text-secondary font-medium hidden md:table-cell">Роль</th>
-                  <th className="text-left px-4 py-3 text-text-secondary font-medium hidden lg:table-cell">Тариф</th>
+                  <th className="text-left px-4 py-3 text-text-secondary font-medium hidden md:table-cell">Тариф</th>
                   <th className="text-right px-4 py-3 text-text-secondary font-medium hidden sm:table-cell">Баланс</th>
                   <th className="text-right px-4 py-3 text-text-secondary font-medium">Репутация</th>
                 </tr>
@@ -214,17 +213,7 @@ export default function AdminUsersList() {
                       {user.username && <p className="text-xs text-text-tertiary">@{user.username}</p>}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-text-secondary capitalize">{user.role}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        user.plan === 'business' ? 'bg-purple-500/10 text-purple-400' :
-                        user.plan === 'pro' ? 'bg-accent-muted text-accent' :
-                        user.plan === 'starter' ? 'bg-warning-muted text-warning' :
-                        'bg-harbor-elevated text-text-tertiary'
-                      }`}>
-                        {user.plan}
-                      </span>
+                      <span className="text-text-secondary capitalize">{user.plan}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-text-primary hidden sm:table-cell">
                       {formatCurrency(user.balance_rub)}

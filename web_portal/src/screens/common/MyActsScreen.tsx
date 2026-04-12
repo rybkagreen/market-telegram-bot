@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, Button, Skeleton, EmptyState, Notification } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { api } from '@shared/api/client'
 
 interface ActItem {
@@ -110,7 +111,7 @@ export default function MyActsScreen() {
                     {TYPE_LABELS[act.act_type] ?? act.act_type} №{act.act_number}
                   </p>
                   <p className="text-xs text-text-tertiary">
-                    от {new Date(act.act_date).toLocaleDateString('ru-RU')}
+                    от {formatDateMSK(act.act_date)}
                   </p>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${

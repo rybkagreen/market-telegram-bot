@@ -4,6 +4,7 @@ import { Card, Button, Notification, Skeleton, StatusPill } from '@shared/ui'
 import { formatDateMSK } from '@/lib/constants'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import { KepWarning } from '@/components/contracts/KepWarning'
+import type { Contract } from '@/lib/types'
 import { api } from '@shared/api/client'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -39,12 +40,14 @@ const SUCCESS_MESSAGE: Record<string, string> = {
 
 interface ContractData {
   id: number
+  user_id?: number
   contract_type: string
   status: string
   signed_at: string | null
   pdf_url: string | null
   created_at: string
   kep_requested?: boolean
+  kep_request_email?: string | null
 }
 
 export default function ContractDetail() {
@@ -127,7 +130,7 @@ export default function ContractDetail() {
             </Button>
           )}
           {contract.pdf_url && (
-            <Button variant="secondary" size="sm" onClick={() => window.open(contract.pdf_url, '_blank')}>
+            <Button variant="secondary" size="sm" onClick={() => window.open(contract.pdf_url!, '_blank')}>
               📥 Скачать PDF
             </Button>
           )}
@@ -137,12 +140,12 @@ export default function ContractDetail() {
       {signed ? (
         <>
           <Notification type="success">{successMsg}</Notification>
-          <KepWarning contract={contract} legalStatus={legalStatus} />
+          <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
         </>
       ) : canSign ? (
-        <KepWarning contract={contract} legalStatus={legalStatus} />
+        <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
       ) : (
-        contract.status === 'signed' && <KepWarning contract={contract} legalStatus={legalStatus} />
+        contract.status === 'signed' && <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
       )}
     </div>
   )
