@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { StatGrid, MenuButton, StatusPill, PriceRow, Button, Skeleton, Notification, Text } from '@/components/ui'
 import { formatCompact, formatPercent } from '@/lib/formatters'
-import { useMyChannels, useChannelSettings, useDeleteChannel } from '@/hooks/queries/useChannelQueries'
+import { useMyChannels, useChannelSettings, useDeleteChannel, useActivateChannel } from '@/hooks/queries/useChannelQueries'
 import { useHaptic } from '@/hooks/useHaptic'
 import styles from './OwnChannelDetail.module.css'
 
@@ -16,6 +16,7 @@ export default function OwnChannelDetail() {
   const { data: channels, isLoading: channelsLoading } = useMyChannels()
   const { data: settings, isLoading: settingsLoading } = useChannelSettings(numericId)
   const deleteMutation = useDeleteChannel()
+  const activateMutation = useActivateChannel()
 
   const channel = channels?.find((c) => c.id === numericId) ?? null
 
@@ -27,6 +28,12 @@ export default function OwnChannelDetail() {
     deleteMutation.mutate(numericId, {
       onSuccess: () => { navigate('/own/channels') },
     })
+  }
+
+  const handleActivate = () => {
+    haptic.success()
+    if (!numericId) return
+    activateMutation.mutate(numericId)
   }
 
   if (isLoading) {
@@ -59,7 +66,9 @@ export default function OwnChannelDetail() {
           <span className={styles.channelTitle}>{channel.title}</span>
           <span className={styles.channelHandle}>@{channel.username}</span>
         </div>
-        <StatusPill status="success">Активен</StatusPill>
+        <StatusPill status={channel.is_active ? 'success' : 'neutral'}>
+          {channel.is_active ? 'Активен' : 'Неактивен'}
+        </StatusPill>
       </div>
 
       <StatGrid
@@ -93,14 +102,25 @@ export default function OwnChannelDetail() {
         />
       )}
 
-      <Button
-        variant="danger"
-        fullWidth
-        onClick={handleDelete}
-        disabled={deleteMutation.isPending}
-      >
-        {deleteMutation.isPending ? '⏳ Удаление...' : '🗑 Удалить канал'}
-      </Button>
+      {channel.is_active ? (
+        <Button
+          variant="danger"
+          fullWidth
+          onClick={handleDelete}
+          disabled={deleteMutation.isPending}
+        >
+          {deleteMutation.isPending ? '⏳ Скрытие...' : '🗑 Скрыть канал'}
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          fullWidth
+          onClick={handleActivate}
+          disabled={activateMutation.isPending}
+        >
+          {activateMutation.isPending ? '⏳ Восстановление...' : '♻️ Восстановить канал'}
+        </Button>
+      )}
     </ScreenShell>
   )
 }

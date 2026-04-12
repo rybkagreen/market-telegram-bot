@@ -38,6 +38,21 @@ export async function deleteChannel(id: number): Promise<void> {
   await api.delete(`channels/${id}`).text()
 }
 
+// ═══ Activate channel ═══
+export async function activateChannel(id: number) {
+  return api.post(`channels/${id}/activate`).json<{
+    id: number
+    title: string
+    username: string | null
+    member_count: number
+    category: string | null
+    rating: number
+    last_er: number
+    avg_views: number
+    is_active: boolean
+  }>()
+}
+
 // ═══ Channel settings ═══
 export async function getChannelSettings(id: number) {
   return api.get('channel-settings/', { searchParams: { channel_id: id } }).json<{
