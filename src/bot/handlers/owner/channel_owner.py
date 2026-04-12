@@ -48,8 +48,41 @@ async def show_my_channels(callback: CallbackQuery, session: AsyncSession) -> No
 
     count = len(channels)
     body = "Выберите канал для управления:" if count else "У вас пока нет добавленных каналов."
+    builder.button(text="📦 Скрытые каналы", callback_data="own:inactive_channels")
+    builder.adjust(1)
     await callback.message.edit_text(
         f"📺 *Мои каналы* ({count})\n\n{body}",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "own:inactive_channels")
+async def show_inactive_channels(callback: CallbackQuery, session: AsyncSession) -> None:
+    """Показать скрытые (неактивные) каналы."""
+    if not isinstance(callback.message, Message):
+        return
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    channels = await TelegramChatRepository(session).get_inactive_by_owner(user.id)
+    builder = InlineKeyboardBuilder()
+    for ch in channels:
+        label = f"♻️ @{ch.username}" if ch.username else f"♻️ {ch.title or f'id{ch.telegram_id}'}"
+        builder.button(text=label, callback_data=f"own:restore_channel:{ch.id}")
+    builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
+    builder.adjust(1)
+
+    count = len(channels)
+    if count == 0:
+        body = "У вас нет скрытых каналов."
+    else:
+        body = "Нажмите на канал для восстановления:"
+    await callback.message.edit_text(
+        f"📦 *Скрытые каналы* ({count})\n\n{body}",
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )
@@ -88,7 +121,7 @@ async def show_channel_detail(callback: CallbackQuery, session: AsyncSession) ->
     builder.button(
         text=f"📋 Заявки ({pending})", callback_data=f"own:channel_requests:{channel_id}"
     )
-    builder.button(text="❌ Удалить канал", callback_data=f"own:delete_channel:{channel_id}")
+    builder.button(text="👻 Скрыть канал", callback_data=f"own:delete_channel:{channel_id}")
     builder.button(text="🔙 Мои каналы", callback_data=MY_CHANNELS_SCENE)
     builder.adjust(1)
 
@@ -379,7 +412,32 @@ async def delete_channel(callback: CallbackQuery, session: AsyncSession) -> None
     builder = InlineKeyboardBuilder()
     builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
     await callback.message.edit_text(
-        "✅ Канал удалён из платформы.\n\nИсторические данные сохранены.",
+        "✅ Канал скрыт из платформы.\n\nИсторические данные сохранены.",
         reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("own:restore_channel:"))
+async def restore_channel(callback: CallbackQuery, session: AsyncSession) -> None:
+    """Восстановить канал (reactivate)."""
+    if not isinstance(callback.message, Message):
+        return
+    channel_id = int((callback.data or "").split(":")[-1])
+
+    ch = await session.get(TelegramChat, channel_id)
+    if ch:
+        ch.is_active = True
+        await session.commit()
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⚙️ Настройки", callback_data=f"own:channel:{channel_id}")
+    builder.button(text="📦 Скрытые каналы", callback_data="own:inactive_channels")
+    builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
+    builder.adjust(1)
+    await callback.message.edit_text(
+        f"✅ Канал *{ch.username or ch.title}* восстановлен и снова виден рекламодателям.",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown",
     )
     await callback.answer()
