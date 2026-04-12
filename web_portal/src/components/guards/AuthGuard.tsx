@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@shared/api/client'
@@ -9,8 +9,12 @@ import { api } from '@shared/api/client'
  */
 export function AuthGuard() {
   const { isAuthenticated, isLoading, user, setAuth, setLoading, logout } = useAuthStore()
+  const verifiedRef = useRef(false)
 
   useEffect(() => {
+    // Prevent re-verification after initial attempt (avoids loop on logout redirect)
+    if (verifiedRef.current) return
+
     // Нет токена — снять loading, редиректить на /login
     if (!isAuthenticated) {
       setLoading(false)
@@ -19,6 +23,7 @@ export function AuthGuard() {
     // Есть токен и user уже загружен — ничего не делать
     if (user) {
       setLoading(false)
+      verifiedRef.current = true
       return
     }
     // Есть токен, нет user — проверить токен через API
@@ -30,14 +35,16 @@ export function AuthGuard() {
         const token = localStorage.getItem('rh_token')
         if (token) {
           setAuth(token, data as Parameters<typeof setAuth>[1])
+          verifiedRef.current = true
         } else {
           setLoading(false)
         }
       })
       .catch(() => {
         logout()
+        verifiedRef.current = true
       })
-  }, [isAuthenticated])
+  }, [isAuthenticated, user, setAuth, setLoading, logout])
 
   if (isLoading) {
     return (

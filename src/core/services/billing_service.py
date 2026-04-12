@@ -226,22 +226,20 @@ class BillingService:
 
             # Создаём транзакцию со статусом pending
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create(
-                {
-                    "user_id": user_id,
-                    "amount": gross_amount,
-                    "type": TransactionType.topup,
-                    "yookassa_payment_id": payment_id,
-                    "meta_json": {
-                        "status": "pending",
-                        "method": payment_method,
-                        "credits": credits_amount,
-                        "desired_balance": str(desired_balance),
-                        "fee_amount": str(fee_amount),
-                        "gross_amount": str(gross_amount),
-                    },
-                }
-            )
+            await transaction_repo.create({
+                "user_id": user_id,
+                "amount": gross_amount,
+                "type": TransactionType.topup,
+                "yookassa_payment_id": payment_id,
+                "meta_json": {
+                    "status": "pending",
+                    "method": payment_method,
+                    "credits": credits_amount,
+                    "desired_balance": str(desired_balance),
+                    "fee_amount": str(fee_amount),
+                    "gross_amount": str(gross_amount),
+                },
+            })
 
             logger.info(
                 f"Payment {payment_id} created for user {user_id}: "
@@ -352,14 +350,12 @@ class BillingService:
 
             # Создаём транзакцию
             transaction_repo = TransactionRepository(session)
-            await transaction_repo.create(
-                {
-                    "user_id": user_id,
-                    "amount": amount_rub,
-                    "type": TransactionType.spend,
-                    "meta_json": {"description": description},
-                }
-            )
+            await transaction_repo.create({
+                "user_id": user_id,
+                "amount": amount_rub,
+                "type": TransactionType.spend,
+                "meta_json": {"description": description},
+            })
 
             logger.info(f"Spent {amount_rub} ₽ from user {user_id}: {description}")
 
@@ -940,7 +936,7 @@ class BillingService:
         placement_id: int,
         advertiser_id: int,
         amount: Decimal,
-    ) -> "Transaction":
+    ) -> Transaction:
         """
         Заблокировать средства для PlacementRequest.
         1. Проверить balance_rub рекламодателя

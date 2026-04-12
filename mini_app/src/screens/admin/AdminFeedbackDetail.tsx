@@ -16,6 +16,7 @@ import {
 } from '@/hooks/queries/admin/useAdminQueries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Notification, Skeleton } from '@/components/ui'
+import { formatDateTimeMSK } from '@/lib/constants'
 import AdminNav from '@/components/admin/AdminNav'
 import styles from './AdminFeedbackDetail.module.css'
 
@@ -93,7 +94,7 @@ export default function AdminFeedbackDetail() {
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Created:</span>
               <span className={styles.metaValue}>
-                {new Date(feedback.created_at).toLocaleString()}
+                {formatDateTimeMSK(feedback.created_at)}
               </span>
             </div>
           </div>
@@ -110,7 +111,7 @@ export default function AdminFeedbackDetail() {
                 <p className={styles.responseText}>{feedback.admin_response}</p>
                 {feedback.responded_at && (
                   <p className={styles.respondedAt}>
-                    Responded: {new Date(feedback.responded_at).toLocaleString()}
+                    Responded: {formatDateTimeMSK(feedback.responded_at)}
                   </p>
                 )}
               </div>

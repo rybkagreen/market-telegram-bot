@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { StepIndicator, ArbitrationPanel, FeeBreakdown, Button } from '@shared/ui'
+import { StepIndicator, ArbitrationPanel, FeeBreakdown, Button, Notification } from '@shared/ui'
 import { PUBLICATION_FORMATS, calcFormatPrice } from '@/lib/constants'
 import { formatCurrency } from '@/lib/constants'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
@@ -9,6 +10,7 @@ export default function CampaignArbitration() {
   const navigate = useNavigate()
   const store = useCampaignWizardStore()
   const { mutateAsync: createPlacement, isPending } = useCreatePlacement()
+  const [error, setError] = useState<string | null>(null)
 
   const format = store.format
   const formatInfo = format ? PUBLICATION_FORMATS[format] : null
@@ -19,24 +21,37 @@ export default function CampaignArbitration() {
 
   const handleSubmit = async () => {
     if (!format || store.selectedChannels.length === 0) return
+    setError(null)
     let firstId: number | null = null
-    for (const ch of store.selectedChannels) {
-      const schedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
-      const basePrice = parseFloat(ch.settings.price_per_post)
-      const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
-      const price = store.proposedPrices[ch.id] ?? ownerPrice
-      const result = await createPlacement({
-        channel_id: ch.id,
-        publication_format: format,
-        ad_text: store.adText,
-        proposed_price: price,
-        proposed_schedule: `${schedule}:00`,
-        is_test: store.isTest,
-      })
-      if (firstId === null) firstId = result.id
+    try {
+      for (const ch of store.selectedChannels) {
+        const schedule = store.proposedSchedules[ch.id] ?? `${defaultDate}T14:00`
+        const basePrice = parseFloat(ch.settings.price_per_post)
+        const ownerPrice = Math.round(calcFormatPrice(basePrice, format))
+        const price = store.proposedPrices[ch.id] ?? ownerPrice
+        // FIX: Append MSK timezone offset (+03:00) so backend stores correct time
+        const result = await createPlacement({
+          channel_id: ch.id,
+          publication_format: format,
+          ad_text: store.adText,
+          proposed_price: price,
+          proposed_schedule: `${schedule}:00+03:00`,
+          is_test: store.isTest,
+        })
+        if (firstId === null) firstId = result.id
+      }
+      store.reset()
+      navigate(`/adv/campaigns/${firstId}/waiting`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Не удалось создать заявку'
+      // Extract detail from HTTP error response if available
+      let detail = message
+      try {
+        const body = JSON.parse(message)
+        if (body.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+      } catch { /* not JSON */ }
+      setError(detail)
     }
-    store.reset()
-    navigate(`/adv/campaigns/${firstId}/waiting`)
   }
 
   const feeRows = store.selectedChannels.map((ch) => ({
@@ -120,6 +135,12 @@ export default function CampaignArbitration() {
           rows={feeRows}
           total={{ label: 'Итого к оплате', value: formatCurrency(store.getTotalPrice()) }}
         />
+      )}
+
+      {error && (
+        <Notification type="danger">
+          <span className="text-sm">❌ {error}</span>
+        </Notification>
       )}
 
       <div className="flex flex-col gap-3">

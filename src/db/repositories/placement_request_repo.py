@@ -82,13 +82,14 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         self.session.add(placement)
         await self.session.flush()
         await self.session.refresh(placement)
+        # Explicitly set channel relationship so Pydantic can serialize PlacementResponse
+        placement.channel = channel
         return placement
 
     async def get_by_advertiser(
         self, advertiser_id: int, statuses: list[PlacementStatus] | None = None
     ) -> list[PlacementRequest]:
         """Получить заявки рекламодателя."""
-        from src.db.models.telegram_chat import TelegramChat
 
         conditions = [PlacementRequest.advertiser_id == advertiser_id]
         if statuses:
@@ -178,9 +179,10 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         """Получить просроченные заявки."""
         result = await self.session.execute(
             select(PlacementRequest).where(
-                PlacementRequest.status.in_(
-                    [PlacementStatus.pending_owner, PlacementStatus.pending_payment]
-                ),
+                PlacementRequest.status.in_([
+                    PlacementStatus.pending_owner,
+                    PlacementStatus.pending_payment,
+                ]),
                 PlacementRequest.expires_at < before,
             )
         )

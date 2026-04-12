@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, Notification, Button, Skeleton } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
 export default function OwnRequestDetail() {
@@ -190,7 +190,7 @@ export default function OwnRequestDetail() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-text-secondary">Опубликовано</span>
-              <span className="text-text-primary">{new Date(request.published_at).toLocaleString('ru-RU')}</span>
+              <span className="text-text-primary">{formatDateTimeMSK(request.published_at)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-secondary">Заработано</span>

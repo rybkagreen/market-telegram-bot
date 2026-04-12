@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card, Button, Skeleton, Notification, Select } from '@shared/ui'
 import { api } from '@shared/api/client'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export interface KudirEntry {
   entry_number: number
   operation_date: string
@@ -28,6 +29,7 @@ export interface TaxSummaryData {
   kudir_entries?: KudirEntry[]
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatRub(value: string): string {
   const num = parseFloat(value)
   return num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'

@@ -209,7 +209,7 @@ class ChatFullInfo:
     error: str | None = None
 
     @classmethod
-    def from_chat_info(cls, info: ChatInfo) -> "ChatFullInfo":
+    def from_chat_info(cls, info: ChatInfo) -> ChatFullInfo:
         """Конвертер из ChatInfo (для обратной совместимости)."""
         return cls(
             telegram_id=info.telegram_id,
@@ -223,7 +223,7 @@ class ChatFullInfo:
         )
 
     @classmethod
-    def from_chat_details(cls, details: ChatDetails) -> "ChatFullInfo":
+    def from_chat_details(cls, details: ChatDetails) -> ChatFullInfo:
         """Конвертер из ChatDetails (для обратной совместимости)."""
         return cls(
             telegram_id=details.telegram_id,
@@ -334,7 +334,7 @@ class TelegramParser:
             self._is_started = False
             logger.info("Telegram parser stopped")
 
-    async def __aenter__(self) -> "TelegramParser":
+    async def __aenter__(self) -> TelegramParser:
         """Async context manager entry."""
         await self.start()
         return self
@@ -983,12 +983,10 @@ class TelegramParser:
             async for message in self.client.iter_messages(entity, limit=limit):
                 if message.text and len(message.text.strip()) > 10:
                     post_date = message.date.strftime("%Y-%m-%d") if message.date else None
-                    posts.append(
-                        {
-                            "text": message.text.strip()[:500],  # Обрезаем длинные посты
-                            "date": post_date,
-                        }
-                    )
+                    posts.append({
+                        "text": message.text.strip()[:500],  # Обрезаем длинные посты
+                        "date": post_date,
+                    })
         except Exception as e:
             logger.debug(f"Не удалось получить посты для классификации: {e}")
 

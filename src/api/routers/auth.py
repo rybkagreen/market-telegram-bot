@@ -38,7 +38,6 @@ class UserResponse(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     plan: str
-    role: str
     balance_rub: str
     earned_rub: str
     is_admin: bool
@@ -122,7 +121,6 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             first_name=user.first_name,
             last_name=user.last_name,
             plan=plan_value,
-            role=user.current_role,
             balance_rub=str(user.balance_rub),
             earned_rub=str(user.earned_rub),
             is_admin=user.is_admin,
@@ -154,7 +152,6 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         plan=plan_value,
-        role=current_user.current_role,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
         is_admin=current_user.is_admin,

@@ -37,7 +37,7 @@ class YookassaPayment(Base, TimestampMixin):
     yookassa_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", backref="yookassa_payments")
+    user: Mapped[User] = relationship("User", backref="yookassa_payments")
 
     def __repr__(self) -> str:
         return (

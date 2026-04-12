@@ -36,9 +36,9 @@ web_portal/dist/
 .DS_Store
 Thumbs.db
 
-# Reports & docs (read only when explicitly needed)
-reports/**/*.md
-docs/**/*.md
+# Reports & docs — explicitly included when needed
+# reports/**/*.md  # REMOVED: needed for discovery reports
+# docs/**/*.md     # REMOVED: needed for architecture docs
 
 # Poetry lock (large file, rarely needed in context)
 poetry.lock

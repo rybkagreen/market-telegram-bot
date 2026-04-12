@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDisputesList } from '@/hooks/queries/admin/useAdminQueries'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, Skeleton, Notification, StatusPill } from '@/components/ui'
+import { formatDateMSK } from '@/lib/constants'
 import AdminNav from '@/components/admin/AdminNav'
 import styles from './AdminDisputesList.module.css'
 
@@ -119,7 +120,7 @@ export default function AdminDisputesList() {
                 </div>
                 <div className={styles.disputeFooter}>
                   <span className={styles.disputeDate}>
-                    {new Date(dispute.created_at).toLocaleDateString()}
+                    {formatDateMSK(dispute.created_at)}
                   </span>
                   <Button size="sm" variant={dispute.status === 'resolved' ? 'secondary' : 'primary'}>
                     {dispute.status === 'resolved' ? 'View' : 'Resolve'}

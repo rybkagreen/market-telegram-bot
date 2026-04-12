@@ -131,7 +131,6 @@ class UserAdminResponse(BaseModel):
     username: str | None = None
     first_name: str
     last_name: str | None = None
-    role: str  # "advertiser", "owner", "both"
     plan: str  # "free", "starter", "pro", "business"
     plan_expires_at: datetime | None = None
     balance_rub: str
@@ -162,15 +161,10 @@ class UserListAdminResponse(BaseModel):
 
 
 class AdminUserUpdateRequest(BaseModel):
-    """Schema for admin partial update of user role, plan, or admin status."""
+    """Schema for admin partial update of user plan or admin status."""
 
     model_config = ConfigDict(extra="forbid")
 
-    role: str | None = Field(
-        default=None,
-        pattern="^(new|advertiser|owner|both)$",
-        description="User role",
-    )
     plan: str | None = Field(
         default=None,
         pattern="^(free|starter|pro|business)$",

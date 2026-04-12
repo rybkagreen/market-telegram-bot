@@ -36,12 +36,6 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("first_name", sa.String(256), nullable=False),
         sa.Column("last_name", sa.String(256), nullable=True),
         sa.Column("is_admin", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column(
-            "current_role",
-            sa.String(16),
-            server_default=sa.text("'new'"),
-            nullable=False,
-        ),
         sa.Column("plan", sa.String(16), server_default=sa.text("'free'"), nullable=False),
         sa.Column("plan_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("terms_accepted_at", sa.DateTime(timezone=True), nullable=True),
@@ -156,6 +150,32 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_categories_slug", "categories", ["slug"], unique=True)
+
+    # ── Seed categories ──────────────────────────────────────────────
+    categories_table = sa.table(
+        "categories",
+        sa.column("slug", sa.String),
+        sa.column("name_ru", sa.String),
+        sa.column("emoji", sa.String),
+        sa.column("is_active", sa.Boolean),
+        sa.column("sort_order", sa.Integer),
+    )
+    op.bulk_insert(
+        categories_table,
+        [
+            {"slug": "business", "name_ru": "Бизнес", "emoji": "💼", "is_active": True, "sort_order": 1},
+            {"slug": "it", "name_ru": "IT и технологии", "emoji": "💻", "is_active": True, "sort_order": 2},
+            {"slug": "marketing", "name_ru": "Маркетинг", "emoji": "📢", "is_active": True, "sort_order": 3},
+            {"slug": "crypto", "name_ru": "Криптовалюта", "emoji": "₿", "is_active": True, "sort_order": 4},
+            {"slug": "psychology", "name_ru": "Психология", "emoji": "🧠", "is_active": True, "sort_order": 5},
+            {"slug": "health", "name_ru": "Здоровье", "emoji": "🏥", "is_active": True, "sort_order": 6},
+            {"slug": "entertainment", "name_ru": "Развлечения", "emoji": "🎭", "is_active": True, "sort_order": 7},
+            {"slug": "travel", "name_ru": "Путешествия", "emoji": "✈️", "is_active": True, "sort_order": 8},
+            {"slug": "food", "name_ru": "Еда", "emoji": "🍕", "is_active": True, "sort_order": 9},
+            {"slug": "fashion", "name_ru": "Мода и стиль", "emoji": "👗", "is_active": True, "sort_order": 10},
+            {"slug": "other", "name_ru": "Другое", "emoji": "🔹", "is_active": True, "sort_order": 11},
+        ],
+    )
 
     # ── Table 4: platform_account ─────────────────────────────────────────────
     op.create_table(
@@ -360,6 +380,7 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("file_type", sa.String(16), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=False),
         sa.Column("document_type", sa.String(32), nullable=False),
+        sa.Column("passport_page_group", sa.String(16), nullable=True),
         sa.Column("image_quality_score", sa.Numeric(3, 2), nullable=True),
         sa.Column("quality_issues", sa.Text(), nullable=True),
         sa.Column("is_readable", sa.Boolean(), server_default=sa.text("false"), nullable=False),

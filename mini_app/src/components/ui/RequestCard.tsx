@@ -8,6 +8,7 @@ type RequestStatus =
   | 'pending_payment'
   | 'escrow'
   | 'published'
+  | 'completed'
   | 'cancelled'
   | 'refunded'
   | 'failed'
@@ -29,6 +30,7 @@ const STATUS_PILL: Record<RequestStatus, { variant: 'success' | 'warning' | 'dan
   pending_payment: { variant: 'warning', label: 'Оплата' },
   escrow:          { variant: 'info',    label: 'Эскроу' },
   published:       { variant: 'success', label: 'Опубликовано' },
+  completed:       { variant: 'success', label: 'Завершено' },
   cancelled:       { variant: 'neutral', label: 'Отменено' },
   refunded:        { variant: 'neutral', label: 'Возврат' },
   failed:          { variant: 'danger',  label: 'Ошибка' },

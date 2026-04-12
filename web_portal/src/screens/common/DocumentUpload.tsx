@@ -6,10 +6,16 @@ const DOCUMENT_TYPES = [
   { value: 'inn_certificate', label: 'Свидетельство ИНН' },
   { value: 'ogrn_certificate', label: 'Свидетельство ОГРН/ОГРНИП' },
   { value: 'bank_details', label: 'Банковские реквизиты' },
-  { value: 'passport', label: 'Паспорт' },
+  { value: 'passport', label: 'Паспорт (требуется 2 фото)' },
   { value: 'tax_registration', label: 'Налоговая регистрация' },
   { value: 'self_employed_certificate', label: 'Справка о самозанятости' },
   { value: 'other', label: 'Другой документ' },
+]
+
+// Passport page groups
+const PASSPORT_PAGES = [
+  { value: 'main_pages', label: '📄 Страницы 2-3 (основная информация)' },
+  { value: 'registration', label: '📍 Страница с пропиской' },
 ]
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
@@ -20,6 +26,12 @@ interface UploadResult {
   status: string
   file_type: string
   document_type: string
+  passport_page_group?: string
+}
+
+interface ValidationFieldDetail {
+  match: boolean
+  reason?: string
 }
 
 interface StatusResult {
@@ -27,6 +39,7 @@ interface StatusResult {
   status: string
   file_type: string
   document_type: string
+  passport_page_group?: string
   image_quality_score: number | null
   quality_issues: string[] | null
   is_readable: boolean
@@ -35,19 +48,51 @@ interface StatusResult {
   extracted_kpp: string | null
   extracted_ogrn: string | null
   extracted_name: string | null
-  validation_details: Record<string, any> | null
+  validation_details: { fields?: Record<string, ValidationFieldDetail>; overall_confidence?: number } | null
   error_message: string | null
+}
+
+interface PassportCompleteness {
+  main_pages_uploaded: boolean
+  registration_uploaded: boolean
+  is_complete: boolean
+  uploads: Array<{
+    id: number
+    page_group: string
+    status: string
+    quality_score: number | null
+  }>
 }
 
 export default function DocumentUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState('inn_certificate')
+  const [passportPage, setPassportPage] = useState('main_pages')
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [statusResult, setStatusResult] = useState<StatusResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [polling, setPolling] = useState(false)
+  const [passportCompleteness, setPassportCompleteness] = useState<PassportCompleteness | null>(null)
+
+  // Fetch passport completeness on mount or when document type changes to passport
+  const fetchPassportCompleteness = useCallback(async () => {
+    try {
+      const data = await api.get('legal-profile/documents/passport-completeness').json<PassportCompleteness>()
+      setPassportCompleteness(data)
+    } catch {
+      // Ignore — user might not have uploaded yet
+    }
+  }, [])
+
+  // When switching to passport, check completeness
+  const handleDocumentTypeChange = (type: string) => {
+    setDocumentType(type)
+    if (type === 'passport') {
+      fetchPassportCompleteness()
+    }
+  }
 
   // Drag & drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -106,6 +151,9 @@ export default function DocumentUpload() {
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('document_type', documentType)
+      if (documentType === 'passport') {
+        formData.append('passport_page_group', passportPage)
+      }
 
       const response = await api.post('legal-profile/documents/upload', {
         body: formData,
@@ -114,6 +162,11 @@ export default function DocumentUpload() {
       setUploadResult(response)
       setPolling(true)
       pollStatus(response.upload_id)
+
+      // Refresh passport completeness after successful upload
+      if (documentType === 'passport') {
+        setTimeout(() => fetchPassportCompleteness(), 2000)
+      }
     } catch {
       setError('Ошибка загрузки. Попробуйте ещё раз.')
     } finally {
@@ -158,6 +211,7 @@ export default function DocumentUpload() {
     setPreview(null)
     setPolling(false)
     setError(null)
+    setPassportPage('main_pages')
   }
 
   return (
@@ -175,7 +229,7 @@ export default function DocumentUpload() {
               <label className="block text-sm text-text-secondary mb-1">Тип документа</label>
               <select
                 value={documentType}
-                onChange={(e) => setDocumentType(e.target.value)}
+                onChange={(e) => handleDocumentTypeChange(e.target.value)}
                 className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary text-sm focus:border-accent focus:outline-none"
               >
                 {DOCUMENT_TYPES.map((dt) => (
@@ -183,6 +237,68 @@ export default function DocumentUpload() {
                 ))}
               </select>
             </div>
+
+            {/* Passport page selector (only for passport) */}
+            {documentType === 'passport' && (
+              <>
+                {/* Completeness status */}
+                {passportCompleteness && (
+                  <div className="p-3 bg-harbor-elevated rounded-lg space-y-2">
+                    <p className="text-sm font-medium text-text-primary">📋 Статус загрузки паспорта:</p>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className={passportCompleteness.main_pages_uploaded ? 'text-success' : 'text-text-tertiary'}>
+                        {passportCompleteness.main_pages_uploaded ? '✅ Стр. 2-3' : '⬜ Стр. 2-3'}
+                      </span>
+                      <span className={passportCompleteness.registration_uploaded ? 'text-success' : 'text-text-tertiary'}>
+                        {passportCompleteness.registration_uploaded ? '✅ Прописка' : '⬜ Прописка'}
+                      </span>
+                    </div>
+                    {passportCompleteness.is_complete && (
+                      <p className="text-xs text-success font-medium">✅ Оба фото загружены</p>
+                    )}
+                    {!passportCompleteness.is_complete && (
+                      <p className="text-xs text-warning">Требуется загрузить оба фото</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Page selector */}
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Какая страница паспорта?</label>
+                  <div className="space-y-2">
+                    {PASSPORT_PAGES.map((page) => {
+                      const isUploaded = passportCompleteness?.uploads.some(
+                        (u) => u.page_group === page.value && u.status === 'completed'
+                      )
+                      return (
+                        <label
+                          key={page.value}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
+                            ${passportPage === page.value
+                              ? 'border-accent bg-accent-muted/10'
+                              : 'border-border hover:border-accent/50'}`}
+                        >
+                          <input
+                            type="radio"
+                            name="passportPage"
+                            value={page.value}
+                            checked={passportPage === page.value}
+                            onChange={(e) => setPassportPage(e.target.value)}
+                            className="sr-only"
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm text-text-primary">{page.label}</span>
+                            {isUploaded && (
+                              <span className="ml-2 text-xs text-success">(уже загружена ✅)</span>
+                            )}
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Drop zone */}
             <div
@@ -240,7 +356,11 @@ export default function DocumentUpload() {
 
       {/* Processing status */}
       {uploadResult && statusResult && (
-        <Card title={`📋 Результат проверки: ${DOCUMENT_TYPES.find((d) => d.value === uploadResult.document_type)?.label}`}>
+        <Card title={`📋 Результат проверки: ${
+          uploadResult.document_type === 'passport'
+            ? `Паспорт (${statusResult.passport_page_group === 'main_pages' ? 'стр. 2-3' : 'прописка'})`
+            : DOCUMENT_TYPES.find((d) => d.value === uploadResult.document_type)?.label
+        }`}>
           <div className="space-y-4">
             {/* Status badge */}
             <div className="flex items-center gap-3">
@@ -329,7 +449,7 @@ export default function DocumentUpload() {
               <div>
                 <p className="text-sm font-medium text-text-primary mb-2">Сверка с профилем:</p>
                 <div className="space-y-1">
-                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, any]) => (
+                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, ValidationFieldDetail]) => (
                     <div key={field} className="flex items-center justify-between text-sm p-2 bg-harbor-elevated rounded">
                       <span className="text-text-secondary uppercase">{field}</span>
                       <span className={data.match ? 'text-success' : 'text-danger'}>

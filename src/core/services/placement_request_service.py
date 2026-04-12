@@ -95,6 +95,22 @@ async def _notify_counter_accepted(
         logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
 
 
+async def _notify_advertiser_counter_reply(
+    placement: PlacementRequest,
+    owner: User,
+    channel: TelegramChat,
+) -> None:
+    """FIX #20: Notify owner about advertiser's counter-reply."""
+    try:
+        from src.bot.handlers.shared.notifications import notify_advertiser_counter_reply
+
+        await notify_advertiser_counter_reply(
+            placement, owner, channel.username or f"ID:{channel.id}"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send notification for placement {placement.id}: {e}")
+
+
 async def _notify_payment_received(
     placement: PlacementRequest,
     advertiser: User,
@@ -174,7 +190,7 @@ class PlacementRequestService:
         placement_repo: PlacementRequestRepository,
         channel_settings_repo: ChannelSettingsRepo,
         reputation_repo: ReputationRepo,
-        billing_service: "BillingService | None" = None,
+        billing_service: BillingService | None = None,
     ):
         """
         Инициализация сервиса.
@@ -324,11 +340,19 @@ class PlacementRequestService:
         if placement.expires_at and placement.expires_at < datetime.now(UTC):
             raise ValueError("Placement expired")
 
+        # FIX #10: Auto-resolve final_price from counter_price when owner accepts counter_offer
+        resolved_final_price = final_price
+        resolved_final_schedule = final_schedule
+        if resolved_final_price is None and placement.counter_price is not None:
+            resolved_final_price = placement.counter_price
+        if resolved_final_schedule is None and placement.counter_schedule is not None:
+            resolved_final_schedule = placement.counter_schedule
+
         # Принимаем
         result = await self.placement_repo.accept(
             placement_id=placement_id,
-            final_price=final_price,
-            final_schedule=final_schedule,
+            final_price=resolved_final_price,
+            final_schedule=resolved_final_schedule,
         )
 
         # Отправляем уведомление рекламодателю
@@ -512,7 +536,12 @@ class PlacementRequestService:
             raise ValueError(f"Invalid status: {placement.status}")
 
         # Принимаем контр-предложение → pending_payment
-        result = await self.placement_repo.accept(placement_id=placement_id)
+        # FIX #1: Pass counter_price and counter_schedule as final values
+        result = await self.placement_repo.accept(
+            placement_id=placement_id,
+            final_price=placement.counter_price,
+            final_schedule=placement.counter_schedule,
+        )
 
         # Отправляем уведомление владельцу
         channel = await self.session.get(TelegramChat, placement.channel_id)
@@ -524,6 +553,62 @@ class PlacementRequestService:
         if result is None:
             raise ValueError(PLACEMENT_NOT_FOUND)
         return result
+
+    async def advertiser_counter_offer(
+        self,
+        placement_id: int,
+        advertiser_id: int,
+        counter_price: Decimal,
+        comment: str | None = None,
+    ) -> PlacementRequest:
+        """
+        FIX #20: Рекламодатель делает встречное предложение на цену владельца.
+        Статус → pending_owner.
+
+        Args:
+            placement_id: ID заявки.
+            advertiser_id: ID рекламодателя.
+            counter_price: Цена рекламодателя.
+            comment: Комментарий к предложению.
+
+        Returns:
+            Обновленная заявка.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        placement = await self.placement_repo.get_by_id(placement_id)
+        if not placement:
+            raise ValueError(PLACEMENT_NOT_FOUND)
+
+        if placement.advertiser_id != advertiser_id:
+            raise ValueError(PLACEMENT_NOT_BELONG)
+
+        if placement.status != PlacementStatus.counter_offer:
+            raise ValueError(f"Invalid status: {placement.status}")
+
+        if placement.counter_offer_count >= 3:
+            raise ValueError("Достигнут лимит раундов переговоров (3/3)")
+
+        # Обновляем заявку
+        placement.advertiser_counter_price = counter_price
+        placement.advertiser_counter_comment = comment
+        placement.counter_offer_count += 1
+        placement.status = PlacementStatus.pending_owner
+        placement.expires_at = datetime.now(UTC) + timedelta(hours=24)
+
+        await self.session.flush()
+        await self.session.refresh(placement)
+
+        # Уведомляем владельца
+        channel = await self.session.get(TelegramChat, placement.channel_id)
+        owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
+        if owner and channel:
+            try:
+                await _notify_advertiser_counter_reply(placement, owner, channel)
+            except Exception as exc:
+                logger.warning("notify_advertiser_counter_reply failed: %s", exc)
+
+        return placement
 
     async def _refund_escrow_if_needed(
         self,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, Notification, Button, Skeleton } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK, formatDateMSK } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useContracts } from '@/hooks/queries'
 import { useToast } from '@/hooks/useToast'
@@ -33,13 +33,16 @@ export default function CampaignPayment() {
   const formatInfo = placement?.publication_format
     ? PUBLICATION_FORMATS[placement.publication_format]
     : { name: 'Неизвестно', multiplier: 1.0 }
-  const price = placement?.final_price ?? placement?.proposed_price ?? '0'
-  const platformCommission = placement?.final_price
-    ? (parseFloat(placement.final_price) * 0.15).toFixed(2)
-    : '—'
-  const ownerPayout = placement?.final_price
-    ? (parseFloat(placement.final_price) * 0.85).toFixed(2)
-    : '—'
+  const priceNum = (() => {
+    // FIX #12: When in counter_offer status, show counter_price (owner's price), not proposed_price
+    const raw = placement?.final_price ?? placement?.counter_price ?? placement?.proposed_price
+    if (raw == null) return 0
+    const n = parseFloat(String(raw))
+    return isNaN(n) ? 0 : n
+  })()
+  const price = priceNum
+  const platformCommission = priceNum * 0.15
+  const ownerPayout = priceNum * 0.85
 
   // Redirect based on status
   useEffect(() => {
@@ -56,7 +59,7 @@ export default function CampaignPayment() {
     if (isExpired && ['pending_payment', 'counter_offer'].includes(placement.status)) {
       navigate('/adv/campaigns', { replace: true })
     }
-  }, [placement?.status, isExpired])
+  }, [placement?.status, isExpired, navigate])
 
   // Check framework contract
   useEffect(() => {
@@ -88,7 +91,7 @@ export default function CampaignPayment() {
     (c) => c.contract_type === 'advertiser_framework' && c.contract_status === 'signed',
   )
   const frameworkRef = frameworkContract
-    ? `рамочному договору №${frameworkContract.id} от ${new Date(frameworkContract.signed_at!).toLocaleDateString('ru-RU')}`
+    ? `рамочному договору №${frameworkContract.id} от ${formatDateMSK(frameworkContract.signed_at!)}`
     : 'рамочному договору'
 
   const handleAction = (action: string) => {
@@ -186,7 +189,7 @@ export default function CampaignPayment() {
       {/* Expiry notice */}
       {placement.expires_at && (
         <Notification type="info">
-          ⏱ Действует до {new Date(placement.expires_at).toLocaleString('ru-RU')} (24 ч)
+          ⏱ Действует до {formatDateTimeMSK(placement.expires_at)} (24 ч)
         </Notification>
       )}
 
@@ -207,9 +210,9 @@ export default function CampaignPayment() {
             variant="secondary"
             fullWidth
             loading={isPending}
-            onClick={() => handleAction('accept-counter')}
+            onClick={() => navigate(`/adv/campaigns/${numId}/counter-offer`)}
           >
-            {isPending ? '⏳ Принятие...' : '✏️ Принять контрпредложение'}
+            ✏️ Сделать встречное предложение
           </Button>
         )}
 
@@ -217,9 +220,9 @@ export default function CampaignPayment() {
           variant="primary"
           fullWidth
           loading={isPending}
-          onClick={() => handleAction('pay')}
+          onClick={() => handleAction(isCounterOffer ? 'accept-counter' : 'pay')}
         >
-          {isPending ? '⏳ Оплата...' : '💳 Оплатить и запустить кампанию'}
+          {isPending ? '⏳ Оплата...' : isCounterOffer ? '💳 Оплатить (принять условия)' : '💳 Оплатить и запустить кампанию'}
         </Button>
 
         <Button

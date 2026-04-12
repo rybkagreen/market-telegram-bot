@@ -32,6 +32,7 @@ const DocumentUpload = lazy(() => import('@/screens/common/DocumentUpload'))
 // ═══ Advertiser screens ═══
 const AdvAnalytics = lazy(() => import('@/screens/advertiser/AdvAnalytics'))
 const CampaignPayment = lazy(() => import('@/screens/advertiser/CampaignPayment'))
+const CampaignCounterOffer = lazy(() => import('@/screens/advertiser/CampaignCounterOffer'))
 const MyCampaigns = lazy(() => import('@/screens/advertiser/MyCampaigns'))
 const CampaignVideo = lazy(() => import('@/screens/advertiser/CampaignVideo'))
 const OrdStatus = lazy(() => import('@/screens/advertiser/OrdStatus'))
@@ -151,6 +152,7 @@ const router = createBrowserRouter([
           // Campaign lifecycle
           { path: 'adv/campaigns/:id/waiting', element: <CampaignWaiting /> },
           { path: 'adv/campaigns/:id/payment', element: <CampaignPayment /> },
+          { path: 'adv/campaigns/:id/counter-offer', element: <CampaignCounterOffer /> },
           { path: 'adv/campaigns/:id/published', element: <CampaignPublished /> },
           { path: 'adv/campaigns/:id/dispute', element: <OpenDispute /> },
           { path: 'adv/disputes', element: <MyDisputes /> },

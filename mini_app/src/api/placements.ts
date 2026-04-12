@@ -12,7 +12,7 @@ export interface CreatePlacementData {
 }
 
 export interface UpdatePlacementData {
-  action: 'accept' | 'reject' | 'counter' | 'cancel' | 'pay' | 'accept-counter'
+  action: 'accept' | 'reject' | 'counter' | 'cancel' | 'pay' | 'accept-counter' | 'counter-reply'
   price?: number
   schedule?: string
   comment?: string

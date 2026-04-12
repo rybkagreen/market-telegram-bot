@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { Card, Notification, Button, Skeleton } from '@shared/ui'
-import { formatCompact, CATEGORIES } from '@/lib/constants'
+import { formatCompact, CATEGORIES, formatDateMSK } from '@/lib/constants'
 import { useMyChannels } from '@/hooks/useChannelQueries'
 import { useDeleteChannel } from '@/hooks/useChannelSettings'
 
@@ -80,7 +80,7 @@ export default function OwnChannelDetail() {
         <Card className="p-4 text-center">
           <p className="text-sm text-text-secondary">Создан</p>
           <p className="text-lg font-medium text-text-primary mt-1 tabular-nums">
-            {new Date(channel.created_at).toLocaleDateString('ru-RU')}
+            {formatDateMSK(channel.created_at)}
           </p>
         </Card>
       </div>
