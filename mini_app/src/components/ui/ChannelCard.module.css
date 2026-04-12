@@ -1,27 +1,42 @@
+/* ============================================================
+   ChannelCard — 3-zone layout (Header / Body / Footer)
+   Dark Harbor Design System
+   ============================================================ */
+
 .card {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: var(--rh-space-3);
-  padding: var(--rh-space-3);
+  padding: var(--rh-space-4);
   width: 100%;
   box-sizing: border-box;
   background: var(--rh-bg-card);
-  border-radius: var(--rh-radius-md);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-lg);
 }
 
 .card.clickable {
   cursor: pointer;
-  transition: background var(--rh-transition-fast), transform var(--rh-transition-fast);
+  transition: transform var(--rh-transition-fast), box-shadow var(--rh-transition-fast);
 }
 
 .card.clickable:active {
-  background: var(--rh-bg-elevated);
-  transform: scale(0.99);
+  transform: scale(0.985);
+  box-shadow: var(--rh-shadow-md);
+}
+
+/* ─── HEADER: Avatar + Title + Status ─── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--rh-space-3);
 }
 
 .avatar {
   width: 44px;
   height: 44px;
+  min-width: 44px;
   border-radius: var(--rh-radius-full);
   overflow: hidden;
   flex-shrink: 0;
@@ -43,28 +58,29 @@
   color: var(--rh-accent);
 }
 
-.info {
+.titleBlock {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--rh-space-1);
+  gap: 2px;
 }
 
 .nameRow {
   display: flex;
   align-items: center;
-  gap: var(--rh-space-2);
-  flex-wrap: wrap;
-  line-height: var(--rh-leading-normal);
+  gap: var(--rh-space-1);
+  min-width: 0;
 }
 
 .name {
   flex: 1;
   min-width: 0;
-  font-size: var(--rh-text-sm);
+  font-size: var(--rh-text-base);
   font-weight: var(--rh-weight-semibold);
+  font-family: var(--rh-font-display);
   color: var(--rh-text-primary);
+  line-height: var(--rh-leading-tight);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -72,34 +88,21 @@
 
 .verified {
   font-size: var(--rh-text-2xs);
+  font-weight: var(--rh-weight-bold);
   color: var(--rh-accent);
   background: var(--rh-accent-muted);
   border-radius: var(--rh-radius-full);
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  gap: var(--rh-space-1);
+  line-height: 1;
 }
 
 .username {
-  font-size: var(--rh-text-xs);
-  color: var(--rh-text-secondary);
-}
-
-.dot {
-  color: var(--rh-text-disabled);
-  font-size: var(--rh-text-xs);
-}
-
-.category {
   font-size: var(--rh-text-xs);
   color: var(--rh-text-secondary);
   white-space: nowrap;
@@ -107,36 +110,62 @@
   text-overflow: ellipsis;
 }
 
+/* ─── BODY: Stats Grid ─── */
+
 .stats {
   display: flex;
-  align-items: center;
   gap: var(--rh-space-3);
-  margin-top: var(--rh-space-2);
+  flex-wrap: wrap;
+  padding-top: var(--rh-space-3);
+  border-top: 1px solid var(--rh-border);
 }
 
-.stat {
-  font-size: var(--rh-text-xs);
-  color: var(--rh-text-secondary);
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.price {
-  font-family: var(--rh-font-mono);
-  font-size: var(--rh-text-xs);
+.statValue {
+  font-size: var(--rh-text-sm);
   font-weight: var(--rh-weight-semibold);
-  color: var(--rh-accent);
+  font-family: var(--rh-font-display);
+  color: var(--rh-text-primary);
+  line-height: var(--rh-leading-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.actions {
+.statLabel {
+  font-size: var(--rh-text-2xs);
+  font-weight: var(--rh-weight-regular);
+  color: var(--rh-text-tertiary);
+  line-height: 1;
+  text-transform: lowercase;
+}
+
+/* ─── FOOTER: Action hint ─── */
+
+.footer {
   display: flex;
   align-items: center;
-  gap: var(--rh-space-2);
-  flex-shrink: 0;
-  margin-left: auto;
+  justify-content: flex-end;
+  padding-top: var(--rh-space-1);
 }
 
 .chevron {
-  color: var(--rh-text-disabled);
-  font-size: var(--rh-text-xl);
-  flex-shrink: 0;
+  color: var(--rh-text-tertiary);
+  font-size: var(--rh-text-2xl);
   line-height: 1;
+  transition: color var(--rh-transition-fast);
+}
+
+.card.clickable:hover .chevron {
+  color: var(--rh-accent);
+}
+
+.card.clickable:active .chevron {
+  color: var(--rh-accent);
 }

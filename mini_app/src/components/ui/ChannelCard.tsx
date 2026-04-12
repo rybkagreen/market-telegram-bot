@@ -53,38 +53,59 @@ export function ChannelCard({
       onClick={onClick ? handleClick : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}
     >
-      <div className={styles.avatar}>
-        {avatar ? (
-          <img src={avatar} alt={name} className={styles.avatarImg} />
-        ) : (
-          <span className={styles.avatarFallback}>{name.charAt(0).toUpperCase()}</span>
-        )}
-      </div>
-
-      <div className={styles.info}>
-        <div className={styles.nameRow}>
-          <span className={styles.name}>{name}</span>
-          {verified && <span className={styles.verified}>✓</span>}
+      {/* ─── HEADER: Avatar + Title + Status ─── */}
+      <div className={styles.header}>
+        <div className={styles.avatar}>
+          {avatar ? (
+            <img src={avatar} alt={name} className={styles.avatarImg} />
+          ) : (
+            <span className={styles.avatarFallback}>{name.charAt(0).toUpperCase()}</span>
+          )}
         </div>
-        <div className={styles.meta}>
+
+        <div className={styles.titleBlock}>
+          <div className={styles.nameRow}>
+            <span className={styles.name}>{name}</span>
+            {verified && <span className={styles.verified}>✓</span>}
+          </div>
           <span className={styles.username}>@{username}</span>
-          {category && <span className={styles.dot}>·</span>}
-          {category && <span className={styles.category}>{category}</span>}
         </div>
-        <div className={styles.stats}>
-          <span className={styles.stat}>👥 {subscribers}</span>
-          {price && <span className={styles.price}>{price}</span>}
-        </div>
-      </div>
 
-      <div className={styles.actions}>
         {status && (
           <StatusPill status={STATUS_MAP[status]} size="sm">
             {STATUS_LABELS[status]}
           </StatusPill>
         )}
-        {onClick && <span className={styles.chevron}>›</span>}
       </div>
+
+      {/* ─── BODY: Stats ─── */}
+      <div className={styles.stats}>
+        <div className={styles.statItem}>
+          <span className={styles.statValue}>{subscribers}</span>
+          <span className={styles.statLabel}>подписчиков</span>
+        </div>
+
+        {category && (
+          <div className={styles.statItem}>
+            <span className={styles.statValue}>{category}</span>
+            <span className={styles.statLabel}>категория</span>
+          </div>
+        )}
+
+        {price && (
+          <div className={styles.statItem}>
+            <span className={styles.statValue}>{price}</span>
+            <span className={styles.statLabel}>за пост</span>
+          </div>
+        )}
+      </div>
+
+      {/* ─── FOOTER: Action hint ─── */}
+      {onClick && (
+        <div className={styles.footer}>
+          <span className={styles.chevron} aria-hidden="true">›</span>
+        </div>
+      )}
     </div>
   )
 }
