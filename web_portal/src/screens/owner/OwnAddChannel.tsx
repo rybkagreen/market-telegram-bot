@@ -17,7 +17,8 @@ export default function OwnAddChannel() {
   const { data: categories = [] } = useCategories()
 
   const checkResult = checkMutation.data ?? null
-  const canAdd = checkResult?.valid && !checkResult.is_already_added && !!selectedCategory
+  const showCategoryGrid = checkResult?.valid && !checkResult.is_already_added
+  const canAdd = showCategoryGrid && !!selectedCategory
 
   const isChatId = inputValue.startsWith('-100')
   const channelIdentifier = isChatId
@@ -25,6 +26,15 @@ export default function OwnAddChannel() {
     : inputValue.startsWith('@')
     ? inputValue.slice(1)
     : inputValue
+
+  // Navigate to My Channels after successful addition
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (addMutation.isSuccess) {
+      navigate('/own/channels', { replace: true })
+    }
+  }, [addMutation.isSuccess, navigate])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-select AI-suggested category when check completes
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -42,14 +52,11 @@ export default function OwnAddChannel() {
 
   const handleAdd = () => {
     if (!selectedCategory) return
-    addMutation.mutate(
-      {
-        username: channelIdentifier,
-        is_test: isTest && user?.is_admin,
-        category: selectedCategory,
-      },
-      { onSuccess: () => navigate('/own/channels') },
-    )
+    addMutation.mutate({
+      username: channelIdentifier,
+      is_test: isTest && user?.is_admin,
+      category: selectedCategory,
+    })
   }
 
   return (
@@ -144,8 +151,8 @@ export default function OwnAddChannel() {
             </div>
           </Card>
 
-          {/* Category selection — REQUIRED before adding */}
-          {canAdd && (
+          {/* Category selection — shown when channel is valid */}
+          {showCategoryGrid && (
             <Card title="📂 Выберите категорию (обязательно)">
               <p className="text-sm text-text-secondary mb-3">
                 Без категории канал не будет виден рекламодателям.
