@@ -22,6 +22,9 @@ export default function CampaignText() {
   const userPlan = me?.plan ?? 'free'
   const plan = PLAN_INFO[userPlan]
   const charCount = store.adText.length
+  const canUseAi = plan.aiGenerations === 0 ? false : true
+  const aiLimitReached = plan.aiGenerations > 0 && (me?.ai_generations_used ?? 0) >= plan.aiGenerations
+  const aiDisabled = !canUseAi || aiLimitReached
 
   const handleGenerate = () => {
     const channelNames = store.selectedChannels.map((ch) => ch.username).filter(Boolean) as string[]
@@ -54,6 +57,17 @@ export default function CampaignText() {
 
       {activeTab === 'ai' ? (
         <div className="space-y-4">
+          {aiDisabled ? (
+            <Notification type="warning">
+              <span className="text-sm">
+                AI-генерация недоступна на вашем тарифе.
+                {aiLimitReached
+                  ? ` Вы исчерпали лимит (${plan.aiGenerations} генераций/мес).`
+                  : ` Доступна на тарифах Starter и выше.`}
+              </span>
+            </Notification>
+          ) : (
+            <>
           <label className="block text-sm font-medium text-text-secondary">Опишите ваш продукт или услугу</label>
           <Textarea
             rows={3}
@@ -62,13 +76,14 @@ export default function CampaignText() {
             placeholder="Например: онлайн-курс по Python для начинающих..."
           />
 
-          <Button variant="primary" onClick={handleGenerate} loading={aiLoading}>
+          <Button variant="primary" onClick={handleGenerate} loading={aiLoading} disabled={aiDisabled}>
             {aiLoading ? 'Генерация...' : 'Сгенерировать 3 варианта'}
           </Button>
 
           <Notification type="info">
             <span className="text-sm">
               AI генерирует тексты через Mistral. Лимит: {plan.aiGenerations < 0 ? '∞' : plan.aiGenerations} генераций/мес
+              {plan.aiGenerations > 0 && ` (использовано: ${me?.ai_generations_used ?? 0}/${plan.aiGenerations})`}
             </span>
           </Notification>
 
@@ -91,6 +106,8 @@ export default function CampaignText() {
                 </Card>
               ))}
             </div>
+          )}
+            </>
           )}
         </div>
       ) : (

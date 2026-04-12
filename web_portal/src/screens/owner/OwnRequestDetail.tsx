@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Card, Notification, Button, Skeleton } from '@shared/ui'
+import { Card, Notification, Button, Skeleton, Timeline } from '@shared/ui'
 import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
@@ -42,6 +42,69 @@ export default function OwnRequestDetail() {
   }
   const fmtName = formatNames[request.publication_format] ?? request.publication_format
   const isExpired = request.expires_at ? new Date(request.expires_at) < new Date() : false
+  const isPaid = request.status === 'escrow' || request.status === 'published'
+  const isPublished = request.status === 'published'
+
+  // Timeline events
+  const timelineEvents = [
+    {
+      id: 'created',
+      icon: '✅',
+      title: 'Заявка создана',
+      subtitle: formatDateTimeMSK(request.created_at),
+      variant: 'success' as const,
+    },
+    (request.status === 'pending_owner'
+      ? {
+          id: 'waiting_owner',
+          icon: isExpired ? '⏰' : '⏳',
+          title: isExpired ? 'Срок ответа истёк' : 'Ожидает вашего решения',
+          subtitle: isExpired ? 'Заявка просрочена' : `Действует до ${formatDateTimeMSK(request.expires_at)}`,
+          variant: isExpired ? 'danger' as const : 'warning' as const,
+        }
+      : request.status === 'counter_offer'
+      ? {
+          id: 'counter_sent',
+          icon: '✏️',
+          title: 'Контр-предложение отправлено',
+          subtitle: `Ожидание ответа рекламодателя до ${formatDateTimeMSK(request.expires_at)}`,
+          variant: 'warning' as const,
+        }
+      : {
+          id: 'accepted',
+          icon: '✅',
+          title: 'Заявка принята',
+          subtitle: formatDateTimeMSK(request.created_at),
+          variant: 'success' as const,
+        }),
+    {
+      id: 'payment',
+      icon: isPaid ? '✅' : '💳',
+      title: isPaid ? 'Оплачено' : 'Оплата',
+      subtitle: isPaid ? 'Средства в эскроу' : 'После принятия заявки',
+      variant: isPaid ? 'success' as const : 'default' as const,
+    },
+    {
+      id: 'published',
+      icon: isPublished ? '✅' : '📢',
+      title: isPublished ? 'Опубликовано' : 'Публикация',
+      subtitle: request.published_at
+        ? formatDateTimeMSK(request.published_at)
+        : request.final_schedule
+        ? formatDateTimeMSK(request.final_schedule)
+        : 'Запланировано',
+      variant: isPublished ? 'success' as const : 'default' as const,
+    },
+    request.status === 'cancelled'
+      ? {
+          id: 'cancelled',
+          icon: '❌',
+          title: 'Отклонено',
+          subtitle: request.rejection_reason || 'Без причины',
+          variant: 'danger' as const,
+        }
+      : null,
+  ].filter((e): e is NonNullable<typeof e> => e !== null)
 
   const handleAccept = () => {
     updatePlacement({ id: request.id, data: { action: 'accept' } }, {
@@ -94,6 +157,9 @@ export default function OwnRequestDetail() {
       </div>
 
       {statusBanner()}
+
+      {/* Timeline */}
+      <Timeline events={timelineEvents} />
 
       {/* Request details */}
       <Card title="Детали заявки">

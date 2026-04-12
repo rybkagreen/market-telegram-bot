@@ -86,6 +86,25 @@ export default function OwnRequestDetail() {
   }
 
   const isExpired = request.expires_at ? new Date(request.expires_at) < new Date() : false
+  const isPaid = request.status === 'escrow' || request.status === 'published' || request.status === 'completed'
+  const isPublished = request.status === 'published' || request.status === 'completed'
+
+  // Timeline events
+  const timelineEvents = [
+    { icon: '✅', title: 'Заявка создана', subtitle: formatDateTime(request.created_at), done: true },
+    (() => {
+      if (request.status === 'pending_owner') {
+        return { icon: isExpired ? '⏰' : '⏳', title: isExpired ? 'Срок истёк' : 'Ожидает вашего решения', subtitle: `До ${formatDateTime(request.expires_at)}`, done: !isExpired }
+      }
+      if (request.status === 'counter_offer') {
+        return { icon: '✏️', title: 'Контр-предложение отправлено', subtitle: `До ${formatDateTime(request.expires_at)}`, done: false }
+      }
+      return { icon: '✅', title: 'Заявка принята', subtitle: formatDateTime(request.created_at), done: true }
+    })(),
+    { icon: isPaid ? '✅' : '💳', title: isPaid ? 'Оплачено' : 'Оплата', subtitle: isPaid ? 'Средства в эскроу' : 'После принятия', done: isPaid },
+    { icon: isPublished ? '✅' : '📢', title: isPublished ? 'Опубликовано' : 'Публикация', subtitle: request.published_at ? formatDateTime(request.published_at) : 'Запланировано', done: isPublished },
+    ...(request.status === 'cancelled' ? [{ icon: '❌', title: 'Отклонено', subtitle: request.rejection_reason || 'Без причины', done: false }] : []),
+  ]
 
   const statusBanner = () => {
     if (isExpired && request.status === 'pending_owner') {
@@ -106,6 +125,22 @@ export default function OwnRequestDetail() {
   return (
     <ScreenShell>
       {statusBanner()}
+
+      {/* Timeline */}
+      <Card>
+        <div className={styles.timeline}>
+          {timelineEvents.map((ev, i) => (
+            <div key={i} className={styles.timelineItem}>
+              <div className={styles.timelineIcon}>{ev.icon}</div>
+              <div className={styles.timelineContent}>
+                <span className={styles.timelineTitle}>{ev.title}</span>
+                <span className={styles.timelineSubtitle}>{ev.subtitle}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <ArbitrationPanel title={`Заявка #${request.id} · @${request.channel?.username ?? request.channel_id}`}>
         <div className={styles.infoRows}>
           <div className={styles.infoRow}>

@@ -416,8 +416,13 @@ async def get_placement(
     if not placement:
         raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
 
-    if placement.advertiser_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied — not your placement")
+    # Проверка: рекламодатель ИЛИ владелец канала
+    channel = placement.channel
+    is_owner = channel and channel.owner_id == current_user.id
+    is_advertiser = placement.advertiser_id == current_user.id
+
+    if not is_owner and not is_advertiser:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     return PlacementResponse.model_validate(placement)
 
