@@ -557,7 +557,7 @@ async def activate_channel(
 
     return ChannelResponse(
         id=channel.id,
-        chat_id=channel.chat_id,
+        telegram_id=channel.telegram_id,
         title=channel.title,
         username=channel.username,
         member_count=channel.member_count,
