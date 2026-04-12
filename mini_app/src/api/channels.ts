@@ -126,6 +126,13 @@ export async function deleteChannel(id: number): Promise<void> {
 }
 
 /**
+ * Восстановить канал (reactivate)
+ */
+export async function activateChannel(id: number): Promise<Channel> {
+  return api.post(`channels/${id}/activate`).json<Channel>()
+}
+
+/**
  * Получить настройки канала
  */
 export function getChannelSettings(id: number): Promise<ChannelSettings> {
