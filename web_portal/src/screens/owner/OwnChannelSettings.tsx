@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Toggle, Input, Skeleton, Notification } from '@shared/ui'
-import { PUBLICATION_FORMATS, calcFormatPrice, canUsePlan, MIN_PRICE_PER_POST } from '@/lib/constants'
+import { PUBLICATION_FORMATS, calcFormatPrice, MIN_PRICE_PER_POST } from '@/lib/constants'
 import { formatCurrency } from '@/lib/constants'
-import { useMe } from '@/hooks/queries'
 import { useMyChannels } from '@/hooks/useChannelQueries'
 import { useChannelSettings, useUpdateChannelSettings } from '@/hooks/useChannelSettings'
 import type { PublicationFormat } from '@/stores/campaignWizardStore'
@@ -37,7 +36,6 @@ export default function OwnChannelSettings() {
   const { data: channels } = useMyChannels()
   const { data: settings, isLoading, isError } = useChannelSettings(numericId)
   const updateMutation = useUpdateChannelSettings()
-  const { data: me } = useMe()
 
   const channel = channels?.find((c) => c.id === numericId) ?? null
 
@@ -70,7 +68,6 @@ export default function OwnChannelSettings() {
   const priceNum = parseFloat(price) || 0
   const isPriceValid = priceNum >= MIN_PRICE_PER_POST || price === ''
   const isMaxDayValid = parseInt(maxPerDay) <= 5 || maxPerDay === ''
-  const userPlan = me?.plan ?? 'free'
 
   const handleSave = () => {
     if (!isPriceValid) return
@@ -152,7 +149,6 @@ export default function OwnChannelSettings() {
         <div className="space-y-3">
           {FORMAT_KEYS.map((key) => {
             const fmt = PUBLICATION_FORMATS[key]
-            const available = canUsePlan(userPlan, fmt.minPlan)
             const fmtPrice = calcFormatPrice(priceNum, key)
             const isPin = key.startsWith('pin_')
             return (
@@ -165,16 +161,11 @@ export default function OwnChannelSettings() {
                   {isPin && (
                     <div className="text-xs text-warning mt-0.5">⚠️ Требует права закреплять</div>
                   )}
-                  {!available && (
-                    <div className="text-xs text-text-tertiary mt-0.5">Недоступно на тарифе {userPlan}</div>
-                  )}
                 </div>
-                {available && (
-                  <Toggle
-                    checked={formats[key]}
-                    onChange={() => setFormats((prev) => ({ ...prev, [key]: !prev[key] }))}
-                  />
-                )}
+                <Toggle
+                  checked={formats[key]}
+                  onChange={() => setFormats((prev) => ({ ...prev, [key]: !prev[key] }))}
+                />
               </div>
             )
           })}
