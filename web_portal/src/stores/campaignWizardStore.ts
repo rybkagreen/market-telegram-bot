@@ -10,6 +10,7 @@ interface CampaignWizardState {
   category: string | null
   selectedChannels: ChannelWithSettings[]
   format: PublicationFormat | null
+  planAllowedFormats: string[] | null
   adText: string
   proposedPrices: Record<number, number>
   proposedSchedules: Record<number, string>
@@ -20,6 +21,7 @@ interface CampaignWizardState {
   videoDuration: number | null
 
   setCategory: (cat: string | null) => void
+  setPlanAllowedFormats: (formats: string[] | null) => void
   toggleChannel: (ch: ChannelWithSettings) => void
   setFormat: (f: PublicationFormat) => void
   setAdText: (text: string) => void
@@ -39,6 +41,7 @@ const initialState = {
   category: null as string | null,
   selectedChannels: [] as ChannelWithSettings[],
   format: null as PublicationFormat | null,
+  planAllowedFormats: null as string[] | null,
   adText: '',
   proposedPrices: {} as Record<number, number>,
   proposedSchedules: {} as Record<number, string>,
@@ -54,6 +57,8 @@ export const useCampaignWizardStore = create<CampaignWizardState>()((set, get) =
 
   setCategory: (cat) => set({ category: cat, selectedChannels: [] }),
 
+  setPlanAllowedFormats: (formats) => set({ planAllowedFormats: formats }),
+
   toggleChannel: (ch) =>
     set((state) => ({
       selectedChannels: state.selectedChannels.some((c) => c.id === ch.id)
@@ -61,7 +66,11 @@ export const useCampaignWizardStore = create<CampaignWizardState>()((set, get) =
         : [...state.selectedChannels, ch],
     })),
 
-  setFormat: (f) => set({ format: f }),
+  setFormat: (f) => {
+    const state = get()
+    if (!state.planAllowedFormats?.includes(f)) return // guard: plan restriction
+    set({ format: f })
+  },
 
   setAdText: (text) => set({ adText: text }),
 
