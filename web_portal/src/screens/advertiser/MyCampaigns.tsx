@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, StatusPill, Skeleton, Notification, EmptyState, Card } from '@shared/ui'
+import { Button, StatusPill, Skeleton, Notification, EmptyState, Card, MobileCard } from '@shared/ui'
 import { formatCurrency, formatDateTimeMSK, formatDateMSK } from '@/lib/constants'
 import { useMyPlacements, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
@@ -278,68 +278,65 @@ export default function MyCampaigns() {
             {paged.map((placement) => {
               const pill = statusToPill(placement.status)
               const isCancellingThis = cancelling && (cancellingVars as { id?: number } | undefined)?.id === placement.id
+              const channelUsername = placement.channel?.username ?? `#${placement.channel_id}`
+              const dateStr = placement.proposed_schedule
+                ? formatSchedule(placement.proposed_schedule)
+                : formatDate(placement.created_at)
+              const priceStr = formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)
+
               return (
-                <Card key={placement.id} className="p-4">
+                <div key={placement.id}>
                   {isExpired(placement) && (
-                    <Notification type="warning">
-                      ⏰ Заявка #{placement.id} просрочена — ожидает автоотмены
+                    <Notification type="warning" className="mb-2">
+                      <span className="text-sm">⏰ Заявка #{placement.id} просрочена — ожидает автоотмены</span>
                     </Notification>
                   )}
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-text-primary">
-                          #{placement.id} · @{placement.channel?.username ?? `#${placement.channel_id}`}
-                        </span>
-                        <StatusPill status={pill.status}>{pill.label}</StatusPill>
-                      </div>
-                      <p className="text-sm text-text-secondary truncate">
-                        {placement.ad_text.substring(0, 80)}
-                        {placement.ad_text.length > 80 ? '...' : ''}
-                      </p>
-                      <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
-                        <span>{formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}</span>
-                        <span title={placement.proposed_schedule ? 'Запланировано' : 'Создана'}>
-                          {formatSchedule(placement.proposed_schedule) || formatDate(placement.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {filter === 'active' && (
+                  <MobileCard
+                    variant="campaign"
+                    id={placement.id}
+                    channelUsername={channelUsername}
+                    adText={placement.ad_text.substring(0, 60)}
+                    price={priceStr}
+                    date={dateStr}
+                    statusPill={pill}
+                    actions={
                       <>
-                        <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Детали">
-                          📊
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          icon
-                          disabled={isCancellingThis}
-                          onClick={() => {
-                            updatePlacement(
-                              { id: placement.id, data: { action: 'cancel' } },
-                              { onSuccess: () => void refetch() },
-                            )
-                          }}
-                          title="Отменить"
-                        >
-                          {isCancellingThis ? '⏳' : '❌'}
-                        </Button>
+                        {filter === 'active' && (
+                          <>
+                            <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Детали">
+                              📊
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              icon
+                              disabled={isCancellingThis}
+                              onClick={() => {
+                                updatePlacement(
+                                  { id: placement.id, data: { action: 'cancel' } },
+                                  { onSuccess: () => void refetch() },
+                                )
+                              }}
+                              title="Отменить"
+                            >
+                              {isCancellingThis ? '⏳' : '❌'}
+                            </Button>
+                          </>
+                        )}
+                        {filter === 'completed' && (
+                          <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/published`)} title="Результат">
+                            📊
+                          </Button>
+                        )}
+                        {filter === 'cancelled' && (
+                          <Button variant="ghost" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Просмотр">
+                            👁️
+                          </Button>
+                        )}
                       </>
-                    )}
-                    {filter === 'completed' && (
-                      <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/published`)} title="Результат">
-                        📊
-                      </Button>
-                    )}
-                    {filter === 'cancelled' && (
-                      <Button variant="ghost" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Просмотр">
-                        👁️
-                      </Button>
-                    )}
-                  </div>
-                </Card>
+                    }
+                  />
+                </div>
               )
             })}
           </div>
