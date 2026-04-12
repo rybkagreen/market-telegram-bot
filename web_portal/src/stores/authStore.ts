@@ -10,6 +10,7 @@ interface User {
   balance_rub: string
   earned_rub: string
   is_admin: boolean
+  ai_generations_used: number
 }
 
 interface AuthState {
