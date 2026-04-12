@@ -42,6 +42,7 @@ class PlacementStatus(str, Enum):
     pending_payment = "pending_payment"
     escrow = "escrow"
     published = "published"
+    completed = "completed"
     failed = "failed"
     failed_permissions = "failed_permissions"
     refunded = "refunded"
@@ -92,6 +93,12 @@ class PlacementRequest(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     counter_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # FIX #4: Separate field for advertiser's counter-offer (prevents data collision)
+    advertiser_counter_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    advertiser_counter_schedule: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    advertiser_counter_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
@@ -149,33 +156,33 @@ class PlacementRequest(Base, TimestampMixin):
     meta_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
 
     # Relationships
-    advertiser: Mapped["User"] = relationship(
+    advertiser: Mapped[User] = relationship(
         "User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser"
     )
-    owner: Mapped["User"] = relationship(
+    owner: Mapped[User] = relationship(
         "User", foreign_keys=[owner_id], back_populates="placement_requests_owner"
     )
-    channel: Mapped["TelegramChat"] = relationship(
+    channel: Mapped[TelegramChat] = relationship(
         "TelegramChat", back_populates="placement_requests"
     )
-    acts: Mapped[list["Act"]] = relationship(
+    acts: Mapped[list[Act]] = relationship(
         "Act", back_populates="placement", cascade=_CASCADE_ALL_DELETE
     )
-    transactions: Mapped[list["Transaction"]] = relationship(
+    transactions: Mapped[list[Transaction]] = relationship(
         "Transaction",
         back_populates="placement_request",
         foreign_keys="[Transaction.placement_request_id]",
     )
-    reviews: Mapped[list["Review"]] = relationship(
+    reviews: Mapped[list[Review]] = relationship(
         "Review", back_populates="placement_request", cascade=_CASCADE_ALL_DELETE
     )
-    disputes: Mapped[list["PlacementDispute"]] = relationship(
+    disputes: Mapped[list[PlacementDispute]] = relationship(
         "PlacementDispute", back_populates="placement_request", cascade=_CASCADE_ALL_DELETE
     )
-    reputation_history: Mapped[list["ReputationHistory"]] = relationship(
+    reputation_history: Mapped[list[ReputationHistory]] = relationship(
         "ReputationHistory", back_populates="placement_request"
     )
-    mailing_logs: Mapped[list["MailingLog"]] = relationship(
+    mailing_logs: Mapped[list[MailingLog]] = relationship(
         "MailingLog", back_populates="placement_request"
     )
 

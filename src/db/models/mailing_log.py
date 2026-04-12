@@ -67,12 +67,10 @@ class MailingLog(Base, TimestampMixin):
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    placement_request: Mapped["PlacementRequest | None"] = relationship(
+    placement_request: Mapped[PlacementRequest | None] = relationship(
         "PlacementRequest", back_populates="mailing_logs"
     )
-    chat: Mapped["TelegramChat | None"] = relationship(
-        "TelegramChat", back_populates="mailing_logs"
-    )
+    chat: Mapped[TelegramChat | None] = relationship("TelegramChat", back_populates="mailing_logs")
 
     __table_args__ = (
         UniqueConstraint("placement_request_id", "chat_id", name="uq_mailing_placement_chat"),

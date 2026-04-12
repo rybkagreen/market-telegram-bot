@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DOMPurify from 'dompurify'
 import { Card, Button, Skeleton, EmptyState } from '@shared/ui'
+import { formatDateMSK } from '@/lib/constants'
 import { useContracts } from '@/hooks/useContractQueries'
 import { api } from '@shared/api/client'
 import * as Sentry from '@sentry/react'
@@ -31,7 +33,7 @@ export default function ContractList() {
     setViewerLoading(true)
     try {
       const res = await api.get('contracts/platform-rules/text').json<{ html: string }>()
-      setViewerHtml(res.html)
+      setViewerHtml(DOMPurify.sanitize(res.html, { ALLOWED_TAGS: ['p','strong','em','ul','ol','li','h1','h2','h3','br','a','b','i','u'], ALLOWED_ATTR: ['href','class'] }))
     } catch (err) {
       Sentry.captureException(err)
       setViewerHtml('<p style="color:#e74c3c">Не удалось загрузить текст.</p>')
@@ -106,8 +108,8 @@ export default function ContractList() {
                   {kepBadge && <span className="ml-2 text-xs text-warning">{kepBadge}</span>}
                 </p>
                 <p className="text-xs text-text-tertiary mt-1">
-                  от {new Date(contract.created_at).toLocaleDateString('ru-RU')}
-                  {contract.signed_at && ` · подписан ${new Date(contract.signed_at).toLocaleDateString('ru-RU')}`}
+                  от {formatDateMSK(contract.created_at)}
+                  {contract.signed_at && ` · подписан ${formatDateMSK(contract.signed_at)}`}
                 </p>
               </div>
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${badge.className}`}>
@@ -133,7 +135,7 @@ export default function ContractList() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={() => setViewerOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewerOpen(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(false) } }}
           tabIndex={0}
           role="button"
           aria-label="Закрыть просмотр правил"

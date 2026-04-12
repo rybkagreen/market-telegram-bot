@@ -53,9 +53,7 @@ class ChannelSettings(Base):
     )
 
     # Relationships
-    channel: Mapped["TelegramChat"] = relationship(
-        "TelegramChat", back_populates="channel_settings"
-    )
+    channel: Mapped[TelegramChat] = relationship("TelegramChat", back_populates="channel_settings")
 
     def __repr__(self) -> str:
         return (

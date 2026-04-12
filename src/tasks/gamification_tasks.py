@@ -249,15 +249,13 @@ async def _award_return_bonus(user_id: int) -> None:
         from src.db.repositories.transaction_repo import TransactionRepository
 
         transaction_repo = TransactionRepository(session)
-        await transaction_repo.create(
-            {
-                "user_id": user_id,
-                "amount": Decimal(50),
-                "type": TransactionType.bonus,
-                "reference_type": "return_bonus",
-                "description": "Бонус за возвращение после недели неактивности",
-            }
-        )
+        await transaction_repo.create({
+            "user_id": user_id,
+            "amount": Decimal(50),
+            "type": TransactionType.bonus,
+            "reference_type": "return_bonus",
+            "description": "Бонус за возвращение после недели неактивности",
+        })
 
 
 @celery_app.task(bind=True, base=BaseTask, name="gamification:check_seasonal_events")
@@ -282,33 +280,27 @@ def check_seasonal_events(self) -> dict[str, Any]:
 
         # Новый год (20 декабря - 10 января)
         if (today.month == 12 and today.day >= 20) or (today.month == 1 and today.day <= 10):
-            events.append(
-                {
-                    "name": "new_year",
-                    "active": True,
-                    "bonus": "Праздничный значок + 100 XP",
-                }
-            )
+            events.append({
+                "name": "new_year",
+                "active": True,
+                "bonus": "Праздничный значок + 100 XP",
+            })
 
         # Чёрная пятница (последняя пятница ноября)
         if today.month == 11 and today.weekday() == 4:  # Пятница
-            events.append(
-                {
-                    "name": "black_friday",
-                    "active": True,
-                    "bonus": "Скидка 50% на все тарифы",
-                }
-            )
+            events.append({
+                "name": "black_friday",
+                "active": True,
+                "bonus": "Скидка 50% на все тарифы",
+            })
 
         # День святого Валентина (14 февраля)
         if today.month == 2 and today.day == 14:
-            events.append(
-                {
-                    "name": "valentines_day",
-                    "active": True,
-                    "bonus": "Двойные XP за рефералов",
-                }
-            )
+            events.append({
+                "name": "valentines_day",
+                "active": True,
+                "bonus": "Двойные XP за рефералов",
+            })
 
         return {
             "date": today.isoformat(),

@@ -108,13 +108,11 @@ async def create_placement_request(
         placement_repo = PlacementRequestRepository(session)
 
         # Создаём кампанию со статусом draft
-        placement_request = await placement_repo.create(
-            {
-                "advertiser_id": current_user.id,
-                "ad_text": placement_request_data.text,
-                "status": CampaignStatus.pending_owner,
-            }
-        )
+        placement_request = await placement_repo.create({
+            "advertiser_id": current_user.id,
+            "ad_text": placement_request_data.text,
+            "status": CampaignStatus.pending_owner,
+        })
 
         logger.info(f"Campaign {placement_request.id} created by user {current_user.id}")
 

@@ -115,3 +115,15 @@ src/utils/telegram/llm_classifier_prompt.py
 - MCP-серверы с доступом к БД: `trust: false`
 - `.env` файлы — только через `env_file` в docker-compose
 - Gitleaks проверяет коммиты автоматически
+
+---
+
+## 🔴 КРИТИЧЕСКОЕ: DEPLOYMENT (ОБЯЗАТЕЛЬНО после изменений)
+
+| Тип изменений | Команда | Почему |
+|--------------|---------|--------|
+| **Фронтенд** (mini_app, web_portal, landing) или **nginx конфиги** | `docker compose build --no-cache nginx && docker compose up -d nginx` | Vite кэширует билды, обычный `up -d` НЕ применит изменения |
+| **Backend** (src/) | `docker compose up -d --build api worker_critical worker_background worker_game` | Python файлы на volumes, кэш не проблема |
+| **Модели БД** | `docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head` | Применить миграции |
+
+**ЗАПОМНИ:** Изменил файл → выполнил команду → изменения применились. Иначе пользователь будет говорить одно и то же каждый раз.

@@ -1,30 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Notification, Card, Button, Skeleton, StatusPill } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK, formatTimeMSK } from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
 
 const PLATFORM_COMMISSION = 0.15
 
 function formatDateTime(dt: string | null | undefined): string {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeMSK(dt)
 }
 
 function formatTime(dt: string | null | undefined): string {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatTimeMSK(dt)
 }
 
 export default function CampaignPublished() {
@@ -52,7 +39,7 @@ export default function CampaignPublished() {
     return <Notification type="danger">Заявка не найдена</Notification>
   }
 
-  const price = parseFloat(String(placement.final_price ?? placement.proposed_price))
+  const price = parseFloat(String(placement.final_price ?? placement.counter_price ?? placement.proposed_price))
   const ownerShare = price * (1 - PLATFORM_COMMISSION)
   const platformShare = price * PLATFORM_COMMISSION
 

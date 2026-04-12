@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DOMPurify from 'dompurify'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
 import { api } from '@shared/api/client'
@@ -23,7 +24,7 @@ export default function AcceptRules() {
         html = html.replace(/<html[^>]*>/gi, '').replace(/<\/html>/gi, '')
         html = html.replace(/<head>[\s\S]*?<\/head>/gi, '')
         html = html.replace(/<body[^>]*>/gi, '').replace(/<\/body>/gi, '')
-        setViewerHtml(html)
+        setViewerHtml(DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p','strong','em','ul','ol','li','h1','h2','h3','br','a','b','i','u'], ALLOWED_ATTR: ['href','class'] }))
       })
       .catch((err) => {
         Sentry.captureException(err)

@@ -84,7 +84,7 @@ const breadcrumbMap: Record<string, string[]> = {
 }
 
 export function PortalShell() {
-  const { sidebarMode, toggleSidebar, openSidebar, closeSidebar } = usePortalUiStore()
+  const { sidebarMode, toggleSidebar, closeSidebar } = usePortalUiStore()
   const isDesktop = useMediaQuery(breakpoints.md)
   const location = useLocation()
   const navigate = useNavigate()
@@ -96,13 +96,11 @@ export function PortalShell() {
 
   // На мобильном — закрыть sidebar при монтировании и при ресайзе
   useEffect(() => {
-    if (!isDesktop) {
+    if (!isDesktop && sidebarMode !== 'closed') {
       closeSidebar()
-    } else if (sidebarMode === 'closed') {
-      // When switching back to desktop from mobile, default to collapsed
-      openSidebar()
     }
-  }, [isDesktop, closeSidebar, openSidebar, sidebarMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop])
 
   const breadcrumbs = breadcrumbMap[location.pathname] || ['Главная']
 
@@ -121,7 +119,7 @@ export function PortalShell() {
       {/* Mobile overlay */}
       {!isDesktop && isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40"
+          className="fixed inset-0 bg-black/50 z-[60]"
           onClick={() => closeSidebar()}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeSidebar() }}
           tabIndex={0}
@@ -132,7 +130,7 @@ export function PortalShell() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed md:relative z-50 md:z-0
+          fixed md:relative z-[70] md:z-0
           h-full bg-harbor-card border-r border-border
           transition-all duration-300 overflow-hidden
           ${isClosed
@@ -245,7 +243,7 @@ export function PortalShell() {
             className="text-text-secondary hover:text-text-primary transition-colors"
             title={isDesktop ? (isOpen ? 'Свернуть иконки' : 'Развернуть меню') : 'Открыть меню'}
           >
-            {isDesktop && isOpen ? <X size={20} /> : <Menu size={20} />}
+            {isOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
 
           {/* Breadcrumbs */}

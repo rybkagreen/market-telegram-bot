@@ -24,8 +24,8 @@ export default function TopUp() {
   }
 
   const isValid = amount >= 500 && amount <= 300_000
-  const yookassaFee = (amount * 0.035).toFixed(0)
-  const totalToPay = amount + parseInt(yookassaFee, 10)
+  const yookassaFee = Math.round(amount * 0.035)
+  const totalToPay = amount + yookassaFee
 
   const handleTopUp = () => {
     topup.mutate(amount, {

@@ -59,13 +59,11 @@ def _get_upcoming_tax_deadlines(days_ahead: int = 14) -> list[dict]:
             deadline_date = date(deadline_year + 1, month, day)
 
         if today <= deadline_date <= cutoff:
-            deadlines.append(
-                {
-                    "deadline_date": deadline_date,
-                    "description": desc,
-                    "tax_type": "USN",
-                }
-            )
+            deadlines.append({
+                "deadline_date": deadline_date,
+                "description": desc,
+                "tax_type": "USN",
+            })
 
     # НДФЛ ежемесячный (28 число)
     ndfl_deadline_month = today.month
@@ -78,13 +76,11 @@ def _get_upcoming_tax_deadlines(days_ahead: int = 14) -> list[dict]:
         ndfl_date = date(current_year + 1, ndfl_deadline_month, ndfl_day)
 
     if today <= ndfl_date <= cutoff:
-        deadlines.append(
-            {
-                "deadline_date": ndfl_date,
-                "description": f"НДФЛ за {ndfl_deadline_month - 1 if ndfl_deadline_month > 1 else 12}-й месяц",
-                "tax_type": "NDFL",
-            }
-        )
+        deadlines.append({
+            "deadline_date": ndfl_date,
+            "description": f"НДФЛ за {ndfl_deadline_month - 1 if ndfl_deadline_month > 1 else 12}-й месяц",
+            "tax_type": "NDFL",
+        })
 
     # Сортируем по дате
     deadlines.sort(key=lambda d: d["deadline_date"])

@@ -52,6 +52,7 @@ export default function OwnChannelSettings() {
   const [maxPerDay, setMaxPerDay] = useState('3')
   const [autoAccept, setAutoAccept] = useState(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settings) {
       setPrice(settings.price_per_post)
@@ -64,6 +65,7 @@ export default function OwnChannelSettings() {
       setAutoAccept(settings.auto_accept_enabled)
     }
   }, [settings])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const priceNum = parseFloat(price) || 0
   const isPriceValid = priceNum >= MIN_PRICE_PER_POST || price === ''

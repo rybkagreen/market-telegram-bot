@@ -41,7 +41,7 @@ async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
     plan_name = _PLAN_NAMES.get(user.plan, user.plan)
 
     tax_block = ""
-    if user.earned_rub > 0 and user.current_role in ("owner", "both"):
+    if user.earned_rub > 0:
         month = datetime.now().strftime("%B %Y")
         tax_block = (
             f"\n\n💡 Заработок за {month}: *{user.earned_rub} ₽*\n"
@@ -63,7 +63,7 @@ async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
 
     await callback.message.edit_text(
         text,
-        reply_markup=cabinet_kb(user.current_role, user.earned_rub),
+        reply_markup=cabinet_kb(user.earned_rub),
         parse_mode="Markdown",
     )
     await callback.answer()

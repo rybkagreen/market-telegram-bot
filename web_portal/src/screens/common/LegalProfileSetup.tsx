@@ -69,6 +69,7 @@ export default function LegalProfileSetup() {
   }
 
   // Pre-fill from existing profile
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (existingProfile) {
       setStatus(existingProfile.legal_status)
@@ -90,6 +91,7 @@ export default function LegalProfileSetup() {
       setPassportIssuedAt(existingProfile.passport_issued_at ?? '')
     }
   }, [existingProfile])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleValidate = () => {
     if (!inn) {
@@ -360,11 +362,11 @@ export default function LegalProfileSetup() {
             </div>
             <div>
               <label className="block text-sm text-text-secondary mb-1">Кем выдан *</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+              <Textarea
                 value={passportIssuedBy}
-                onChange={(e) => setPassportIssuedBy(e.target.value)}
+                onChange={setPassportIssuedBy}
                 placeholder="ОУФМС России по г. Москве"
+                rows={3}
               />
             </div>
             <div>

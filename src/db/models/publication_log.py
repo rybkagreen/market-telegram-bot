@@ -13,19 +13,17 @@ from sqlalchemy.sql import func
 from src.db.base import Base
 
 # Valid event types
-PUBLICATION_EVENT_TYPES = frozenset(
-    {
-        "published",
-        "monitoring_ok",
-        "monitoring_missing",
-        "deleted_by_bot",
-        "deleted_early",
-        "erid_missing",
-        "erid_ok",
-        "bot_removed",
-        "publish_failed",
-    }
-)
+PUBLICATION_EVENT_TYPES = frozenset({
+    "published",
+    "monitoring_ok",
+    "monitoring_missing",
+    "deleted_by_bot",
+    "deleted_early",
+    "erid_missing",
+    "erid_ok",
+    "bot_removed",
+    "publish_failed",
+})
 
 
 class PublicationLog(Base):

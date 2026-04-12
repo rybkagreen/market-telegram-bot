@@ -48,10 +48,10 @@ function TelegramLoginWidget({ botName, onAuth }: TelegramLoginWidgetProps) {
     containerRef.current?.appendChild(script)
 
     return () => {
-      // Don't remove the function from window — widget may cache and call it later
-      // Just clean up the script element
-      if (containerRef.current?.contains(script)) {
-        containerRef.current.removeChild(script)
+      delete (window as unknown as Record<string, unknown>).onTelegramAuth
+      const container = containerRef.current
+      if (container?.contains(script)) {
+        container.removeChild(script)
       }
     }
   }, [botName])

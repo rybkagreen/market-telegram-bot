@@ -43,7 +43,7 @@ export default function CampaignPublished() {
     )
   }
 
-  const price = parseFloat(placement.final_price ?? placement.proposed_price)
+  const price = parseFloat(placement.final_price ?? placement.counter_price ?? placement.proposed_price)
   const ownerShare = price * (1 - PLATFORM_COMMISSION)
   const platformShare = price * PLATFORM_COMMISSION
 

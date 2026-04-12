@@ -13,22 +13,20 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-SENSITIVE_FIELD_NAMES = frozenset(
-    {
-        "passport_series",
-        "passport_number",
-        "passport_issued_by",
-        "bank_account",
-        "bank_corr_account",
-        "yoomoney_wallet",
-        "inn_scan_file_id",
-        "passport_scan_file_id",
-        "self_employed_cert_file_id",
-        "company_doc_file_id",
-        "file_id",
-        "signature_ip",
-    }
-)
+SENSITIVE_FIELD_NAMES = frozenset({
+    "passport_series",
+    "passport_number",
+    "passport_issued_by",
+    "bank_account",
+    "bank_corr_account",
+    "yoomoney_wallet",
+    "inn_scan_file_id",
+    "passport_scan_file_id",
+    "self_employed_cert_file_id",
+    "company_doc_file_id",
+    "file_id",
+    "signature_ip",
+})
 
 
 def sanitize_dict(data: Any) -> Any:

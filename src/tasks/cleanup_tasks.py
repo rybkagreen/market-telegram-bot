@@ -63,14 +63,12 @@ async def _delete_old_logs_async(days: int = 90) -> dict[str, Any]:
         # Удалить старые завершённые/отменённые заявки
         r1 = await session.execute(
             delete(PlacementRequest).where(
-                PlacementRequest.status.in_(
-                    [
-                        PlacementStatus.cancelled,
-                        PlacementStatus.refunded,
-                        PlacementStatus.failed,
-                        PlacementStatus.failed_permissions,
-                    ]
-                ),
+                PlacementRequest.status.in_([
+                    PlacementStatus.cancelled,
+                    PlacementStatus.refunded,
+                    PlacementStatus.failed,
+                    PlacementStatus.failed_permissions,
+                ]),
                 PlacementRequest.created_at < cutoff_placements,
             )
         )
@@ -147,9 +145,11 @@ async def _archive_old_campaigns_async(months: int = 12) -> dict[str, Any]:
             update(PlacementRequest)
             .where(
                 PlacementRequest.created_at < cutoff_date,
-                PlacementRequest.status.in_(
-                    [PlacementStatus.failed, PlacementStatus.cancelled, PlacementStatus.refunded]
-                ),
+                PlacementRequest.status.in_([
+                    PlacementStatus.failed,
+                    PlacementStatus.cancelled,
+                    PlacementStatus.refunded,
+                ]),
             )
             .values(status=PlacementStatus.failed)
         )

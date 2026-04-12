@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import styles from './Modal.module.css'
 
@@ -11,6 +12,13 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open, onClose])
+
   return (
     <AnimatePresence>
       {open && (
@@ -29,6 +37,9 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
           >
             <div className={styles.handle} />
             {title && (

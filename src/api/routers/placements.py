@@ -10,11 +10,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import CurrentUser, get_db_session
 from src.core.services.placement_request_service import PlacementRequestService
-from src.db.models.placement_request import PlacementStatus
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepository
@@ -35,11 +37,11 @@ router = APIRouter(tags=["placements"])
 
 
 async def _action_accept(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_owner: bool,
-) -> "PlacementResponse":
+) -> PlacementResponse:
     if not is_owner:
         raise HTTPException(status_code=403, detail="Only owner can accept placement")
     result = await service.owner_accept(placement_id, user_id)
@@ -47,12 +49,12 @@ async def _action_accept(
 
 
 async def _action_reject(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_owner: bool,
-    update_data: "PlacementUpdateRequest",
-) -> "PlacementResponse":
+    update_data: PlacementUpdateRequest,
+) -> PlacementResponse:
     if not is_owner:
         raise HTTPException(status_code=403, detail="Only owner can reject placement")
     reason_text = update_data.reason_text or update_data.reason_code or "rejected"
@@ -61,12 +63,12 @@ async def _action_reject(
 
 
 async def _action_counter(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_owner: bool,
-    update_data: "PlacementUpdateRequest",
-) -> "PlacementResponse":
+    update_data: PlacementUpdateRequest,
+) -> PlacementResponse:
     if not is_owner:
         raise HTTPException(status_code=403, detail="Only owner can make counter offer")
     if update_data.price is None:
@@ -78,12 +80,12 @@ async def _action_counter(
 
 
 async def _action_pay(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_advertiser: bool,
     placement_status: PlacementStatus,
-) -> "PlacementResponse":
+) -> PlacementResponse:
     if not is_advertiser:
         raise HTTPException(status_code=403, detail="Only advertiser can pay placement")
     if placement_status != PlacementStatus.pending_payment:
@@ -93,11 +95,11 @@ async def _action_pay(
 
 
 async def _action_cancel(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_advertiser: bool,
-) -> "PlacementResponse":
+) -> PlacementResponse:
     if not is_advertiser:
         raise HTTPException(status_code=403, detail="Only advertiser can cancel placement")
     result = await service.advertiser_cancel(placement_id, user_id)
@@ -105,17 +107,35 @@ async def _action_cancel(
 
 
 async def _action_accept_counter(
-    service: "PlacementRequestService",
+    service: PlacementRequestService,
     placement_id: int,
     user_id: int,
     is_advertiser: bool,
     placement_status: PlacementStatus,
-) -> "PlacementResponse":
+) -> PlacementResponse:
     if not is_advertiser:
         raise HTTPException(status_code=403, detail="Only advertiser can accept counter offer")
     if placement_status != PlacementStatus.counter_offer:
         raise HTTPException(status_code=409, detail="Placement not in counter_offer status")
     result = await service.advertiser_accept_counter(placement_id, user_id)
+    return PlacementResponse.model_validate(result)
+
+
+async def _action_counter_reply(
+    service: PlacementRequestService,
+    placement_id: int,
+    user_id: int,
+    is_advertiser: bool,
+    update_data: PlacementUpdateRequest,
+) -> PlacementResponse:
+    """FIX #20: Advertiser makes counter-offer to owner's counter-offer."""
+    if not is_advertiser:
+        raise HTTPException(status_code=403, detail="Only advertiser can reply to counter offer")
+    if update_data.price is None:
+        raise HTTPException(status_code=400, detail="price required for counter-reply action")
+    result = await service.advertiser_counter_offer(
+        placement_id, user_id, Decimal(str(update_data.price)), update_data.comment
+    )
     return PlacementResponse.model_validate(result)
 
 
@@ -133,6 +153,7 @@ class PlacementAction(str, Enum):
     pay = "pay"
     cancel = "cancel"
     accept_counter = "accept-counter"
+    counter_reply = "counter-reply"  # FIX #20: Advertiser counter-offer to owner's counter
 
 
 class PlacementUpdateRequest(BaseModel):
@@ -183,8 +204,10 @@ class ChannelRef(BaseModel):
     """Минимальная информация о канале для ответа."""
 
     id: int
-    username: str
+    username: str | None = None
     title: str
+
+    model_config = {"from_attributes": True}
 
 
 class PlacementResponse(BaseModel):
@@ -203,6 +226,12 @@ class PlacementResponse(BaseModel):
     published_at: datetime | None = None
     expires_at: datetime | None = None
     counter_offer_count: int
+    counter_price: Decimal | None = None  # FIX #2: Owner's counter-offer price
+    counter_schedule: datetime | None = None  # FIX #2: Owner's counter-offer schedule
+    counter_comment: str | None = None  # FIX #2: Owner's counter-offer comment
+    advertiser_counter_price: Decimal | None = None  # FIX #7: Advertiser's counter-offer price
+    advertiser_counter_schedule: datetime | None = None  # FIX #7: Advertiser's counter schedule
+    advertiser_counter_comment: str | None = None  # FIX #7: Advertiser's counter comment
     is_test: bool = False
     test_label: str | None = None
     media_type: str = "none"
@@ -246,7 +275,7 @@ class RejectRequest(BaseModel):
 async def list_placements(
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    role: Annotated[str, Query(description="Роль: advertiser или owner")] = "advertiser",
+    view: Annotated[str | None, Query(description="Контекст: advertiser или owner")] = None,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     channel_id: Annotated[int | None, Query(description="Фильтр по ID канала")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -256,35 +285,41 @@ async def list_placements(
     Список заявок текущего пользователя.
 
     Args:
-        current_user: Текущий пользователь.
-        session: Асинхронная сессия БД.
-        role: Роль (advertiser или owner).
+        view: Контекст — "advertiser" (заявки пользователя как рекламодателя)
+              или "owner" (заявки на каналах пользователя).
+              Без view — UNION обоих.
         status_filter: Фильтр по статусу.
-        channel_id: Фильтр по ID канала (опционально).
+        channel_id: Фильтр по ID канала.
         limit: Лимит записей.
         offset: Смещение.
-
-    Returns:
-        list[PlacementResponse]: Список заявок.
     """
-    if role not in ("advertiser", "owner"):
-        raise HTTPException(status_code=400, detail="Invalid role value")
+    if view not in (None, "advertiser", "owner"):
+        raise HTTPException(status_code=400, detail="Invalid view value")
 
     repo = PlacementRequestRepository(session)
 
-    if role == "advertiser":
+    if view == "advertiser":
         status_enum = PlacementStatus(status_filter) if status_filter else None
         placements = await repo.get_by_advertiser(
             current_user.id, statuses=[status_enum] if status_enum else None
         )
-        # Apply pagination manually
-        placements = placements[offset : offset + limit] if limit else placements[offset:]
-    else:
+    elif view == "owner":
         placements = await repo.get_by_owner(current_user.id, statuses=None)
-        # Apply pagination manually
-        placements = placements[offset : offset + limit] if limit else placements[offset:]
+    else:
+        # UNION
+        adv_placements = await repo.get_by_advertiser(current_user.id, statuses=None)
+        own_placements = await repo.get_by_owner(current_user.id, statuses=None)
+        seen: dict[int, PlacementRequest] = {}
+        for p in adv_placements + own_placements:
+            if p.id not in seen:
+                seen[p.id] = p
+        placements = list(seen.values())
+        placements.sort(key=lambda p: p.created_at, reverse=True)
 
-    # Фильтр по channel_id если указан
+    # Apply pagination
+    placements = placements[offset : offset + limit] if limit else placements[offset:]
+
+    # Filter by channel_id if specified
     if channel_id is not None:
         placements = [p for p in placements if p.channel_id == channel_id]
 
@@ -371,8 +406,12 @@ async def get_placement(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PlacementResponse:
     """Получить заявку по ID."""
-    repo = PlacementRequestRepository(session)
-    placement = await repo.get_by_id(placement_id)
+    result = await session.execute(
+        select(PlacementRequest)
+        .options(selectinload(PlacementRequest.channel))
+        .where(PlacementRequest.id == placement_id)
+    )
+    placement = result.scalar_one_or_none()
 
     if not placement:
         raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
@@ -702,6 +741,9 @@ async def update_placement(
         ),
         PlacementAction.accept_counter: lambda: _action_accept_counter(
             service, placement_id, current_user.id, is_advertiser, placement.status
+        ),
+        PlacementAction.counter_reply: lambda: _action_counter_reply(
+            service, placement_id, current_user.id, is_advertiser, update_data
         ),
     }
     handler = _action_dispatch.get(update_data.action)

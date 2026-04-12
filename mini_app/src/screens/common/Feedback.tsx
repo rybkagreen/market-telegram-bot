@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Notification } from '@/components/ui/Notification'
 import { Text } from '@/components/ui/Text'
+import { formatDateMSK } from '@/lib/constants'
 import { useHaptic } from '@/hooks/useHaptic'
 import { useCreateFeedback, useMyFeedback } from '@/hooks/queries/useFeedbackQueries'
 import styles from './Feedback.module.css'
@@ -59,7 +60,7 @@ export default function Feedback() {
               <div className={styles.feedbackHeader}>
                 <span className={styles.statusBadge} data-status={feedback.status}>{feedback.status}</span>
                 <span className={styles.feedbackDate}>
-                  {new Date(feedback.created_at).toLocaleDateString()}
+                  {formatDateMSK(feedback.created_at)}
                 </span>
               </div>
               <p className={styles.feedbackText}>{feedback.text}</p>
