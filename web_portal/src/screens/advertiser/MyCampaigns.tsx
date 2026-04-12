@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, StatusPill, Skeleton, Notification, EmptyState, Card } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK, formatDateMSK } from '@/lib/constants'
 import { useMyPlacements, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
 type Filter = 'active' | 'completed' | 'cancelled'
@@ -27,8 +27,11 @@ const EMPTY_SUBTITLE: Record<Filter, string> = {
 }
 
 function formatDate(dt: string | null | undefined): string {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return formatDateMSK(dt)
+}
+
+function formatSchedule(dt: string | null | undefined): string {
+  return formatDateTimeMSK(dt)
 }
 
 function statusToPill(status: string): { status: 'success' | 'warning' | 'danger' | 'default'; label: string } {
@@ -57,7 +60,8 @@ export default function MyCampaigns() {
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(0)
-  const { data: placements = [], isLoading, refetch } = useMyPlacements()
+  // Always query as advertiser — this is the advertiser campaigns page
+  const { data: placements = [], isLoading, refetch } = useMyPlacements('advertiser')
   const { mutate: updatePlacement, isPending: cancelling, variables: cancellingVars } = useUpdatePlacement()
 
   const now = new Date()
@@ -72,12 +76,15 @@ export default function MyCampaigns() {
 
   const sorted = [...filtered].sort((a, b) => {
     if (sortKey === 'price') {
-      const aP = parseFloat(String(a.final_price ?? a.proposed_price ?? '0'))
-      const bP = parseFloat(String(b.final_price ?? b.proposed_price ?? '0'))
+      const aP = parseFloat(String(a.final_price ?? a.counter_price ?? a.proposed_price ?? '0'))
+      const bP = parseFloat(String(b.final_price ?? b.counter_price ?? b.proposed_price ?? '0'))
       return sortDir === 'asc' ? aP - bP : bP - aP
     }
-    const aD = a.created_at ? new Date(a.created_at).getTime() : 0
-    const bD = b.created_at ? new Date(b.created_at).getTime() : 0
+    // Sort by proposed_schedule (preferred) or created_at as fallback
+    const aD = a.proposed_schedule ? new Date(a.proposed_schedule).getTime()
+          : a.created_at ? new Date(a.created_at).getTime() : 0
+    const bD = b.proposed_schedule ? new Date(b.proposed_schedule).getTime()
+          : b.created_at ? new Date(b.created_at).getTime() : 0
     return sortDir === 'asc' ? aD - bD : bD - aD
   })
 
@@ -176,7 +183,7 @@ export default function MyCampaigns() {
                   <thead className="bg-harbor-elevated">
                     <tr>
                       <th className="text-left px-4 py-3 text-text-secondary font-medium">Канал</th>
-                      <th className="text-left px-4 py-3 text-text-secondary font-medium hidden lg:table-cell">Текст</th>
+                      <th className="text-left px-4 py-3 text-text-secondary font-medium hidden xl:table-cell">Текст</th>
                       <th
                         className="text-right px-4 py-3 text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary"
                         onClick={() => toggleSort('price')}
@@ -187,8 +194,9 @@ export default function MyCampaigns() {
                       <th
                         className="text-right px-4 py-3 text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary"
                         onClick={() => toggleSort('date')}
+                        title="Запланированная дата публикации"
                       >
-                        Дата <SortIcon active={sortKey === 'date'} dir={sortDir} />
+                        Запланировано <SortIcon active={sortKey === 'date'} dir={sortDir} />
                       </th>
                       <th className="text-right px-4 py-3 text-text-secondary font-medium">Действия</th>
                     </tr>
@@ -213,13 +221,14 @@ export default function MyCampaigns() {
                             </p>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-text-primary">
-                            {formatCurrency(placement.final_price ?? placement.proposed_price)}
+                            {formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}
                           </td>
                           <td className="px-4 py-3">
                             <StatusPill status={pill.status}>{pill.label}</StatusPill>
                           </td>
-                          <td className="px-4 py-3 text-right text-text-tertiary text-xs">
-                            {formatDate(placement.created_at)}
+                          <td className="px-4 py-3 text-right text-text-tertiary text-xs whitespace-nowrap"
+                              title={placement.proposed_schedule ? 'Запланированное время' : 'Дата создания'}>
+                            {formatSchedule(placement.proposed_schedule) || formatDate(placement.created_at)}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex gap-1.5 justify-end">
@@ -289,20 +298,23 @@ export default function MyCampaigns() {
                         {placement.ad_text.length > 80 ? '...' : ''}
                       </p>
                       <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
-                        <span>{formatCurrency(placement.final_price ?? placement.proposed_price)}</span>
-                        <span>{formatDate(placement.created_at)}</span>
+                        <span>{formatCurrency(placement.final_price ?? placement.counter_price ?? placement.proposed_price)}</span>
+                        <span title={placement.proposed_schedule ? 'Запланировано' : 'Создана'}>
+                          {formatSchedule(placement.proposed_schedule) || formatDate(placement.created_at)}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2">
                     {filter === 'active' && (
                       <>
-                        <Button variant="secondary" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}>
-                          📊 Детали
+                        <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Детали">
+                          📊
                         </Button>
                         <Button
                           variant="danger"
                           size="sm"
+                          icon
                           disabled={isCancellingThis}
                           onClick={() => {
                             updatePlacement(
@@ -310,19 +322,20 @@ export default function MyCampaigns() {
                               { onSuccess: () => void refetch() },
                             )
                           }}
+                          title="Отменить"
                         >
-                          {isCancellingThis ? '⏳...' : '❌ Отменить'}
+                          {isCancellingThis ? '⏳' : '❌'}
                         </Button>
                       </>
                     )}
                     {filter === 'completed' && (
-                      <Button variant="secondary" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/published`)}>
-                        📊 Результат
+                      <Button variant="secondary" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/published`)} title="Результат">
+                        📊
                       </Button>
                     )}
                     {filter === 'cancelled' && (
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}>
-                        👁️ Просмотр
+                      <Button variant="ghost" size="sm" icon onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)} title="Просмотр">
+                        👁️
                       </Button>
                     )}
                   </div>

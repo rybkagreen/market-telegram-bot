@@ -70,8 +70,8 @@ export default function OwnRequests() {
 
   const sorted = [...filtered].sort((a, b) => {
     if (sortKey === 'price') {
-      const aP = parseFloat(String(a.final_price ?? a.proposed_price ?? '0'))
-      const bP = parseFloat(String(b.final_price ?? b.proposed_price ?? '0'))
+      const aP = parseFloat(String(a.final_price ?? a.counter_price ?? a.proposed_price ?? '0'))
+      const bP = parseFloat(String(b.final_price ?? b.counter_price ?? b.proposed_price ?? '0'))
       return sortDir === 'asc' ? aP - bP : bP - aP
     }
     const aD = a.proposed_schedule ? new Date(a.proposed_schedule).getTime()
@@ -203,7 +203,7 @@ export default function OwnRequests() {
                             </p>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-text-primary">
-                            {formatCurrency(req.final_price ?? req.proposed_price)}
+                            {formatCurrency(req.final_price ?? req.counter_price ?? req.proposed_price)}
                           </td>
                           <td className="px-4 py-3">
                             <StatusPill status={pill.status}>{pill.label}</StatusPill>
@@ -269,35 +269,35 @@ export default function OwnRequests() {
                         {req.ad_text.length > 80 ? '...' : ''}
                       </p>
                       <div className="flex gap-4 mt-2 text-xs text-text-tertiary">
-                        <span>{formatCurrency(req.final_price ?? req.proposed_price)}</span>
+                        <span>{formatCurrency(req.final_price ?? req.counter_price ?? req.proposed_price)}</span>
                         <span title={req.proposed_schedule ? 'Запланировано' : 'Создана'}>
                           {formatSchedule(req.proposed_schedule) || formatDate(req.created_at)}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2">
                     {isActionable && (
                       <>
-                        <Button variant="success" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                          ✅ Принять
+                        <Button variant="success" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Принять">
+                          ✅
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                          ✏️ Контр-оферта
+                        <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Контр-оферта">
+                          ✏️
                         </Button>
-                        <Button variant="danger" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                          ❌ Отклонить
+                        <Button variant="danger" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Отклонить">
+                          ❌
                         </Button>
                       </>
                     )}
-                    {ACTIVE_STATUSES.includes(req.status) && (
-                      <Button variant="secondary" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                        📊 Детали
+                    {ACTIVE_STATUSES.includes(req.status) && !isActionable && (
+                      <Button variant="secondary" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Детали">
+                        📊
                       </Button>
                     )}
                     {CANCELLED_STATUSES.includes(req.status) && (
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/own/requests/${req.id}`)}>
-                        👁️ Просмотр
+                      <Button variant="ghost" size="sm" icon onClick={() => navigate(`/own/requests/${req.id}`)} title="Просмотр">
+                        👁️
                       </Button>
                     )}
                   </div>

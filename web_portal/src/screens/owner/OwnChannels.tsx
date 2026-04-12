@@ -27,9 +27,8 @@ interface ChannelData {
   rating: number
   is_active: boolean
   category?: string | null
-  avg_post_views?: number | null
+  avg_views?: number | null
   last_er?: number | null
-  price_per_post?: number | null
 }
 
 function CompareModal({ channels, onClose }: { channels: ChannelData[]; onClose: () => void }) {
@@ -43,10 +42,9 @@ function CompareModal({ channels, onClose }: { channels: ChannelData[]; onClose:
 
   const metrics: { key: keyof ChannelData; label: string; format: (v: unknown) => string }[] = [
     { key: 'member_count', label: 'Подписчики', format: (v) => Number(v).toLocaleString('ru-RU') },
-    { key: 'avg_post_views', label: 'Avg views', format: (v) => v != null ? Number(v).toLocaleString('ru-RU') : '—' },
+    { key: 'avg_views', label: 'Avg views', format: (v) => v != null ? Number(v).toLocaleString('ru-RU') : '—' },
     { key: 'last_er', label: 'ER%', format: (v) => v != null ? `${(Number(v) * 100).toFixed(1)}%` : '—' },
     { key: 'rating', label: 'Рейтинг', format: (v) => `${Number(v).toFixed(1)} ⭐` },
-    { key: 'price_per_post', label: 'Цена за пост', format: (v) => v != null ? `${Number(v).toLocaleString('ru-RU')} ₽` : '—' },
     { key: 'category', label: 'Категория', format: (v) => {
       if (!v) return '—'
       const cat = CATEGORY_OPTIONS.find((c) => c.key === String(v))
@@ -415,35 +413,39 @@ export default function OwnChannels() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2">
                     <button
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center justify-center rounded-md border transition-colors min-h-[44px] min-w-[44px] ${
                         compareIds.has(channel.id)
-                          ? 'bg-accent text-accent-text'
+                          ? 'bg-accent text-accent-text border-accent'
                           : compareIds.size >= MAX_COMPARE
-                          ? 'text-text-tertiary cursor-not-allowed'
-                          : 'bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent'
+                          ? 'text-text-tertiary cursor-not-allowed border-border'
+                          : 'bg-harbor-elevated text-text-secondary border-border hover:bg-accent-muted hover:text-accent'
                       }`}
                       title={compareIds.has(channel.id) ? 'Убрать из сравнения' : 'Добавить к сравнению'}
                       disabled={!compareIds.has(channel.id) && compareIds.size >= MAX_COMPARE}
                       onClick={() => toggleCompare(channel.id)}
                     >
-                      ⚖️ Сравнить
+                      ⚖️
                     </button>
                     <Button
                       variant="secondary"
                       size="sm"
+                      icon
                       onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
+                      title="Настройки"
                     >
-                      ⚙️ Настройки
+                      ⚙️
                     </Button>
                     <Button
                       variant="danger"
                       size="sm"
-                      disabled={deletingChannelId !== null}
+                      icon
+                      disabled={deletingChannelId === channel.id}
                       onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                      title="Удалить"
                     >
-                      {deletingChannelId === channel.id ? '⏳...' : '🗑️ Удалить'}
+                      {deletingChannelId === channel.id ? '⏳' : '🗑️'}
                     </Button>
                   </div>
 
