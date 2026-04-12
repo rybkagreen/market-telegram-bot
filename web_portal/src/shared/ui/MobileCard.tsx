@@ -77,19 +77,19 @@ export function MobileCard(props: MobileCardProps) {
       </div>
 
       {/* ─── BODY: Stats ─── */}
-      <div className="flex flex-wrap gap-x-4 gap-y-2 pt-3 border-t border-border">
+      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
         {isChannel ? (
           <>
             <Stat value={props.memberCount} label="подписчиков" />
             <Stat value={props.rating} label="рейтинг" />
-            {props.category && <Stat value={props.category} label="категория" />}
+            <Stat value={props.category ?? '—'} label="категория" />
             {props.statsExtra}
           </>
         ) : (
           <>
             <Stat value={props.price} label="цена" />
             <Stat value={props.date} label="дата" />
-            {props.statsExtra}
+            {props.statsExtra ?? <Stat value="—" label="—" />}
           </>
         )}
       </div>
@@ -106,7 +106,7 @@ export function MobileCard(props: MobileCardProps) {
 
 function Stat({ value, label }: StatItem) {
   return (
-    <div className="flex flex-col gap-0.5 min-w-0">
+    <div className="flex flex-col items-center gap-0.5 min-w-0 text-center">
       <span className="text-sm font-semibold text-text-primary truncate font-display">{value}</span>
       <span className="text-[10px] text-text-tertiary leading-none lowercase">{label}</span>
     </div>
