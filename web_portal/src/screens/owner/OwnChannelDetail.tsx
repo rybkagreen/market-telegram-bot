@@ -2,7 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Card, Notification, Button, Skeleton } from '@shared/ui'
 import { formatCompact, CATEGORIES, formatDateMSK } from '@/lib/constants'
 import { useMyChannels } from '@/hooks/useChannelQueries'
-import { useDeleteChannel } from '@/hooks/useChannelSettings'
+import { useDeleteChannel, useActivateChannel } from '@/hooks/useChannelSettings'
 
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c.key, label: c.name, emoji: c.emoji }))
 
@@ -12,6 +12,7 @@ export default function OwnChannelDetail() {
   const numId = id ? parseInt(id, 10) : null
   const { data: channels, isLoading } = useMyChannels()
   const deleteChannel = useDeleteChannel()
+  const activateChannel = useActivateChannel()
 
   const channel = channels?.find((c) => c.id === numId) ?? null
 
@@ -30,13 +31,23 @@ export default function OwnChannelDetail() {
   }
 
   const handleDeleteChannel = () => {
-    if (confirm(`Удалить канал "${channel.title}"? Это действие нельзя отменить.`)) {
+    if (confirm(`Скрыть канал "${channel.title}" от рекламодателей?`)) {
       deleteChannel.mutate(channel.id, {
         onSuccess: () => {
           navigate('/own/channels')
         },
         onError: () => {
-          alert('Не удалось удалить канал. Попробуйте позже.')
+          alert('Не удалось скрыть канал. Попробуйте позже.')
+        },
+      })
+    }
+  }
+
+  const handleActivateChannel = () => {
+    if (confirm(`Восстановить канал "${channel.title}"? Он снова станет виден рекламодателям.`)) {
+      activateChannel.mutate(channel.id, {
+        onError: () => {
+          alert('Не удалось восстановить канал. Попробуйте позже.')
         },
       })
     }
@@ -116,29 +127,54 @@ export default function OwnChannelDetail() {
         </Card>
       </div>
 
-      {/* Danger zone */}
-      <Card className="p-5 border border-danger/30">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-danger-muted flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-            </svg>
+      {/* Danger / Restore zone */}
+      {channel.is_active ? (
+        <Card className="p-5 border border-danger/30">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-danger-muted flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-danger">Опасная зона</p>
+              <p className="text-sm text-text-tertiary mt-1 mb-3">Канал будет скрыт от рекламодателей. Данные сохранятся.</p>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={deleteChannel.isPending}
+                disabled={deleteChannel.isPending}
+                onClick={handleDeleteChannel}
+              >
+                🗑️ Скрыть канал
+              </Button>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="font-semibold text-danger">Опасная зона</p>
-            <p className="text-sm text-text-tertiary mt-1 mb-3">Удаление канала необратимо. Все заявки и данные будут потеряны.</p>
-            <Button
-              variant="danger"
-              size="sm"
-              loading={deleteChannel.isPending}
-              disabled={deleteChannel.isPending}
-              onClick={handleDeleteChannel}
-            >
-              🗑️ Удалить канал
-            </Button>
+        </Card>
+      ) : (
+        <Card className="p-5 border border-success/30">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-success-muted flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 26L15.99 22H8.01l-.033 4H4.007A2.007 2.007 0 0 1 2 20.007V4.007C2 2.9 2.9 2 4.007 2h15.986C21.1 2 22 2.9 22 4.007v15.986C22 21.1 21.1 22 19.993 22h-3.97Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-success">Канал неактивен</p>
+              <p className="text-sm text-text-tertiary mt-1 mb-3">Канал скрыт от рекламодателей. Восстановите, чтобы он снова стал виден.</p>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={activateChannel.isPending}
+                disabled={activateChannel.isPending}
+                onClick={handleActivateChannel}
+              >
+                ♻️ Восстановить канал
+              </Button>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Warning if no category */}
       {!channel.category && (
