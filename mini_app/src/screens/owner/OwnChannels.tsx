@@ -3,15 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { ScreenLayout } from '@/components/layout/ScreenLayout'
 import { Button, CategoryGrid, ChannelCard, Notification, Skeleton, Text } from '@/components/ui'
 import { formatCompact } from '@/lib/formatters'
-import { useMyChannels, useUpdateChannelCategory } from '@/hooks/queries/useChannelQueries'
+import { useMyChannels, useUpdateChannelCategory, useDeleteChannel, useActivateChannel } from '@/hooks/queries/useChannelQueries'
 import { useCategories } from '@/hooks/queries/useCategoryQueries'
+import { useHaptic } from '@/hooks/useHaptic'
 import styles from './OwnChannels.module.css'
 
 export default function OwnChannels() {
   const navigate = useNavigate()
+  const haptic = useHaptic()
   const { data: channels, isLoading, isError, refetch } = useMyChannels()
   const { data: categories = [] } = useCategories()
   const updateCategory = useUpdateChannelCategory()
+  const deleteMutation = useDeleteChannel()
+  const activateMutation = useActivateChannel()
   const [editingCategoryFor, setEditingCategoryFor] = useState<number | null>(null)
 
   const handleCategorySelect = (channelId: number, categoryKey: string) => {
@@ -19,6 +23,16 @@ export default function OwnChannels() {
       { id: channelId, category: categoryKey },
       { onSuccess: () => setEditingCategoryFor(null) },
     )
+  }
+
+  const handleDelete = (channelId: number) => {
+    haptic.warning()
+    deleteMutation.mutate(channelId)
+  }
+
+  const handleActivate = (channelId: number) => {
+    haptic.success()
+    activateMutation.mutate(channelId)
   }
 
   return (
@@ -62,6 +76,29 @@ export default function OwnChannels() {
                     status={channel.is_active ? 'active' : 'inactive'}
                     onClick={() => navigate(`/own/channels/${channel.id}`)}
                   />
+
+                  {/* Action buttons */}
+                  <div className={styles.channelActions}>
+                    {channel.is_active ? (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDelete(channel.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        👻 Скрыть
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleActivate(channel.id)}
+                        disabled={activateMutation.isPending}
+                      >
+                        ♻️ Восстановить
+                      </Button>
+                    )}
+                  </div>
 
                   {!channel.category && (
                     <div className={styles.categoryWarning}>
