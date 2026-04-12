@@ -501,6 +501,74 @@ async def delete_channel(
         ) from e
 
 
+@router.post(
+    "/{channel_id}/activate",
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+        409: {"description": "Conflict"},
+    },
+)
+async def activate_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """
+    Восстановить канал (reactivate: is_active = True).
+
+    Args:
+        channel_id: ID канала
+        current_user: Текущий пользователь
+        session: DB session
+
+    Raises:
+        HTTPException 404: Канал не найден
+        HTTPException 403: Канал принадлежит другому пользователю
+        HTTPException 409: Канал уже активен
+    """
+    from src.db.models.telegram_chat import TelegramChat
+
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    if channel.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Канал уже активен",
+        )
+
+    channel.is_active = True
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных при активации канала",
+        ) from e
+
+    # Refresh to get updated values
+    await session.refresh(channel)
+
+    return ChannelResponse(
+        id=channel.id,
+        chat_id=channel.chat_id,
+        title=channel.title,
+        username=channel.username,
+        member_count=channel.member_count,
+        category=channel.category,
+        rating=channel.rating,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        is_active=channel.is_active,
+    )
+
+
 @router.patch(
     "/{channel_id}/category",
     responses={
