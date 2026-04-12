@@ -77,3 +77,13 @@ class TelegramChatRepository(BaseRepository[TelegramChat]):
             .where(TelegramChat.owner_id == owner_id, TelegramChat.is_active.is_(True))
         )
         return result.scalar_one() or 0
+
+    async def get_inactive_by_owner(self, owner_id: int) -> list[TelegramChat]:
+        """Получить все неактивные каналы владельца."""
+        result = await self.session.execute(
+            select(TelegramChat).where(
+                TelegramChat.owner_id == owner_id,
+                TelegramChat.is_active.is_(False),
+            )
+        )
+        return list(result.scalars().all())
