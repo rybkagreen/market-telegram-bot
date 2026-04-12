@@ -121,8 +121,8 @@ export function updateChannelCategory(channelId: number, category: string): Prom
 /**
  * Удалить канал
  */
-export function deleteChannel(id: number): Promise<void> {
-  return api.delete(`channels/${id}`).json<void>()
+export async function deleteChannel(id: number): Promise<void> {
+  await api.delete(`channels/${id}`).text()
 }
 
 /**

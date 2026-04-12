@@ -34,8 +34,8 @@ export async function addChannel(data: { username: string; is_test?: boolean; ca
 }
 
 // ═══ Delete channel ═══
-export async function deleteChannel(id: number) {
-  return api.delete(`channels/${id}`).json<void>()
+export async function deleteChannel(id: number): Promise<void> {
+  await api.delete(`channels/${id}`).text()
 }
 
 // ═══ Channel settings ═══
