@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-29: Mobile UX & Channel Management (v4.6 — April 2026)
+
+#### Fixed
+- **Empty categories table** — seeded 11 categories from `categories_seed.py`, added `op.bulk_insert()` to `0001_initial_schema.py` so categories auto-populate on fresh deploys
+- **Category grid chicken-and-egg (web_portal)** — `canAdd` required `selectedCategory` but `CategoryGrid` only rendered when `canAdd` was true. Split into `showCategoryGrid` (visibility) and `canAdd` (submit guard)
+- **Channel delete silently fails** — backend returns `204 No Content` but frontend called `.json<void>()` which throws on empty body. Changed to `.text()` in both `mini_app` and `web_portal` API clients
+- **Hard-delete inconsistency** — API used `session.delete()` losing channel history. Changed to `channel.is_active = False` (soft-delete) matching bot behavior, with active placements check
+
+#### Changed
+- **Auto-navigate after channel add** — `useEffect` on `addMutation.isSuccess` → `navigate('/own/channels', { replace: true })` in both mini_app and web_portal
+- **Mobile icon-only buttons** — replaced text buttons with emoji-only icon buttons (`min-h-[44px] min-w-[44px]`) across OwnChannels, MyCampaigns, OwnRequests. Eliminates horizontal overflow on 375px screens
+- **Button component** — added `icon` prop for square buttons, fixed `min-h-[36px]` → `min-h-[44px]` (WCAG/Apple HIG), added `relative` for spinner centering, added `title` prop for tooltips
+
+#### Files
+- `src/db/migrations/versions/0001_initial_schema.py` — category seed data
+- `src/api/routers/channels.py` — soft-delete, active placements check
+- `mini_app/src/api/channels.ts` — `.text()` for delete
+- `mini_app/src/screens/owner/OwnAddChannel.tsx` — auto-navigate
+- `web_portal/src/api/channels.ts` — `.text()` for delete
+- `web_portal/src/screens/owner/OwnAddChannel.tsx` — category grid fix + auto-navigate
+- `web_portal/src/shared/ui/Button.tsx` — icon prop, 44px min-height, spinner fix
+- `web_portal/src/screens/owner/OwnChannels.tsx` — icon-only buttons
+- `web_portal/src/screens/advertiser/MyCampaigns.tsx` — icon-only buttons
+- `web_portal/src/screens/owner/OwnRequests.tsx` — icon-only buttons
+
 ### S-29: Campaign Lifecycle Tracking (v4.6 — April 2026)
 
 #### Added
