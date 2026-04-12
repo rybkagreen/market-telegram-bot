@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, StatusPill, Skeleton, EmptyState, Card, MobileCard } from '@shared/ui'
 import { useMyChannels, useUpdateChannelCategory } from '@/hooks/useChannelQueries'
-import { useDeleteChannel } from '@/hooks/useChannelSettings'
+import { useDeleteChannel, useActivateChannel } from '@/hooks/useChannelSettings'
 import { CATEGORIES } from '@/lib/constants'
 
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c.key, label: c.name, emoji: c.emoji }))
@@ -117,6 +117,7 @@ export default function OwnChannels() {
   const { data: channels, isLoading, isError, refetch } = useMyChannels()
   const updateCategory = useUpdateChannelCategory()
   const deleteChannel = useDeleteChannel()
+  const activateChannel = useActivateChannel()
   const [filter, setFilter] = useState<Filter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -127,13 +128,23 @@ export default function OwnChannels() {
   const [showCompare, setShowCompare] = useState(false)
 
   const handleDeleteChannel = (channelId: number, channelTitle: string) => {
-    if (confirm(`Удалить канал "${channelTitle}"? Это действие нельзя отменить.`)) {
+    if (confirm(`Скрыть канал "${channelTitle}" от рекламодателей?`)) {
       setDeletingChannelId(channelId)
       deleteChannel.mutate(channelId, {
         onSuccess: () => setDeletingChannelId(null),
         onError: () => {
           setDeletingChannelId(null)
-          alert('Не удалось удалить канал. Попробуйте позже.')
+          alert('Не удалось скрыть канал. Попробуйте позже.')
+        },
+      })
+    }
+  }
+
+  const handleActivateChannel = (channelId: number, channelTitle: string) => {
+    if (confirm(`Восстановить канал "${channelTitle}"? Он снова станет виден рекламодателям.`)) {
+      activateChannel.mutate(channelId, {
+        onError: () => {
+          alert('Не удалось восстановить канал. Попробуйте позже.')
         },
       })
     }
@@ -316,7 +327,6 @@ export default function OwnChannels() {
                       const categoryLabel = channel.category
                         ? CATEGORY_OPTIONS.find((c) => c.key === channel.category)
                         : null
-                      const isDeletingThis = deletingChannelId === channel.id
 
                       return (
                         <tr key={channel.id} className="hover:bg-harbor-elevated/50 transition-colors">
@@ -363,14 +373,26 @@ export default function OwnChannels() {
                               <Button variant="secondary" size="sm" onClick={() => navigate(`/own/channels/${channel.id}/settings`)}>
                                 ⚙️
                               </Button>
-                              <Button
-                                variant="danger"
-                                size="sm"
-                                disabled={deletingChannelId !== null}
-                                onClick={() => handleDeleteChannel(channel.id, channel.title)}
-                              >
-                                {isDeletingThis ? '⏳' : '🗑️'}
-                              </Button>
+                              {channel.is_active ? (
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  disabled={deletingChannelId !== null}
+                                  onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                                  title="Скрыть"
+                                >
+                                  {deletingChannelId === channel.id ? '⏳' : '👻'}
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleActivateChannel(channel.id, channel.title)}
+                                  title="Восстановить"
+                                >
+                                  ♻️
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -429,16 +451,28 @@ export default function OwnChannels() {
                       >
                         ⚙️
                       </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        icon
-                        disabled={deletingChannelId === channel.id}
-                        onClick={() => handleDeleteChannel(channel.id, channel.title)}
-                        title="Удалить"
-                      >
-                        {deletingChannelId === channel.id ? '⏳' : '🗑️'}
-                      </Button>
+                      {channel.is_active ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon
+                          disabled={deletingChannelId === channel.id}
+                          onClick={() => handleDeleteChannel(channel.id, channel.title)}
+                          title="Скрыть"
+                        >
+                          {deletingChannelId === channel.id ? '⏳' : '👻'}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon
+                          onClick={() => handleActivateChannel(channel.id, channel.title)}
+                          title="Восстановить"
+                        >
+                          ♻️
+                        </Button>
+                      )}
                     </>
                   }
                 />
