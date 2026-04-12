@@ -61,6 +61,12 @@
   width: 100%;
 }
 
+/* Action buttons row beneath channel card */
+.channelActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* Category warning banner — stretches to full card width */
 .categoryWarning {
   width: 100%;
