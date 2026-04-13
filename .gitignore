@@ -1,6 +1,7 @@
 # Python
 .venv/
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -12,6 +13,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!mini_app/src/lib/
+!web_portal/src/lib/
 lib64/
 parts/
 sdist/
@@ -117,7 +120,6 @@ coverage.xml
 
 # Alembic
 src/db/migrations/versions/*.pyc
-src/db/migrations/__pycache__/
 
 # Static files (production)
 src/static/mini_app/
@@ -191,8 +193,4 @@ scripts/
 docs/project_context_update/
 
 # Python cache in new directories
-src/tasks/__pycache__/
-src/api/middleware/__pycache__/
-src/core/security/__pycache__/
-src/db/seeds/__pycache__/
 ssl_certs/
