@@ -117,3 +117,12 @@ class ContractRepo(BaseRepository[Contract]):
             .values(kep_requested=True, kep_request_email=email)
         )
         await self.session.flush()
+
+    async def list_by_placement(self, placement_request_id: int) -> list[Contract]:
+        """Получить список договоров по placement_request_id."""
+        result = await self.session.execute(
+            select(Contract)
+            .where(Contract.placement_request_id == placement_request_id)
+            .order_by(Contract.created_at.asc())
+        )
+        return list(result.scalars().all())
