@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user, get_db_session, require_verified_legal_profile
+from src.api.schemas.act import ActListResponse, act_to_response
 from src.db.models.act import Act
+from src.db.models.legal_profile import LegalProfile
 from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
 from src.db.repositories.act_repo import ActRepository
@@ -155,3 +157,31 @@ async def download_act_pdf(
         media_type="application/pdf",
         filename=f"{act.act_number}.pdf",
     )
+
+
+@router.get("/by-placement/{placement_request_id}", response_model=ActListResponse)
+async def get_acts_by_placement(
+    placement_request_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    _legal_profile: Annotated[LegalProfile, Depends(require_verified_legal_profile)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ActListResponse:
+    """Получить все акты для заявки на размещение.
+
+    Требует заполненный и верифицированный юридический профиль.
+    Доступ только для участников размещения (рекламодатель или владелец).
+    """
+    placement = await session.get(PlacementRequest, placement_request_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail=_PLACEMENT_NOT_FOUND)
+
+    if current_user.id not in {placement.advertiser_id, placement.owner_id}:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "not_participant", "message": "Доступ запрещён"},
+        )
+
+    repo = ActRepository(session)
+    acts = await repo.list_by_placement_request(placement_request_id)
+    items = [act_to_response(a) for a in acts]
+    return ActListResponse(items=items, total=len(items))

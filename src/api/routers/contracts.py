@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user, get_db_session, require_verified_legal_profile
 from src.api.schemas.legal_profile import (
     AcceptRulesRequest,
     ContractListResponse,
@@ -22,6 +22,8 @@ from src.api.schemas.legal_profile import (
 )
 from src.core.services.contract_service import ContractService
 from src.db.models.contract import Contract
+from src.db.models.legal_profile import LegalProfile
+from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
 
@@ -238,3 +240,31 @@ async def get_platform_rules_text(
     svc = ContractService(session)
     html = await svc.render_platform_rules()
     return {"html": html}
+
+
+@router.get("/by-placement/{placement_request_id}", response_model=ContractListResponse)
+async def get_contracts_by_placement(
+    placement_request_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    _legal_profile: Annotated[LegalProfile, Depends(require_verified_legal_profile)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ContractListResponse:
+    """Получить все договоры для заявки на размещение.
+
+    Требует заполненный и верифицированный юридический профиль.
+    Доступ только для участников размещения (рекламодатель или владелец).
+    """
+    placement = await session.get(PlacementRequest, placement_request_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+
+    if current_user.id not in {placement.advertiser_id, placement.owner_id}:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "not_participant", "message": "Доступ запрещён"},
+        )
+
+    repo = ContractRepo(session)
+    contracts = await repo.list_by_placement(placement_request_id)
+    items = [_contract_to_response(c) for c in contracts]
+    return ContractListResponse(items=items, total=len(items))
