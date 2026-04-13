@@ -10,11 +10,13 @@ import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from telegram import Bot
 
 from src.api.auth_utils import decode_jwt_token
 from src.config.settings import settings
+from src.db.models.legal_profile import LegalProfile
 from src.db.models.user import User
 from src.db.session import async_session_factory
 
@@ -194,3 +196,53 @@ async def close_bot() -> None:
     if _bot_instance is not None:
         await _bot_instance.shutdown()
         _bot_instance = None
+
+
+# ─── Legal Profile Verification ────────────────────────────────
+
+async def require_verified_legal_profile(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> LegalProfile:
+    """3-level check: exists → is_completed → is_verified.
+
+    Participant check (advertiser_id/owner_id) happens separately
+    in each router AFTER this dependency fires.
+    """
+    # Lazy import inside function body to avoid circular dependency
+    from src.db.repositories.legal_profile_repo import LegalProfileRepo
+
+    repo = LegalProfileRepo(session)
+    profile = await repo.get_by_user_id(current_user.id)
+
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "legal_profile_missing",
+                "message": "Необходимо заполнить юридический профиль",
+                "redirect": "/legal-profile",
+            },
+        )
+
+    if not profile.is_completed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "legal_profile_incomplete",
+                "message": "Юридический профиль заполнен не полностью",
+                "redirect": "/legal-profile",
+            },
+        )
+
+    if not profile.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "legal_profile_not_verified",
+                "message": "Юридический профиль ожидает верификации администратором",
+                "redirect": "/legal-profile/view",
+            },
+        )
+
+    return profile
