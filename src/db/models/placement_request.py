@@ -47,6 +47,7 @@ class PlacementStatus(str, Enum):
     failed_permissions = "failed_permissions"
     refunded = "refunded"
     cancelled = "cancelled"
+    ord_blocked = "ord_blocked"
 
 
 class PublicationFormat(str, Enum):
