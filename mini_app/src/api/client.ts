@@ -42,6 +42,24 @@ export const api = ky.create({
             }
           }
         }
+        // 403 structured error for legal_profile_* codes
+        if (response.status === 403) {
+          try {
+            const body = await response.clone().json() as {
+              detail?: { code?: string; message?: string; redirect?: string }
+            }
+            if (body?.detail?.code?.startsWith('legal_profile_')) {
+              const err = new Error(body.detail.code) as Error & {
+                detail: typeof body.detail
+              }
+              err.detail = body.detail
+              throw err
+            }
+          } catch (parseErr) {
+            if ((parseErr as Error)?.detail) throw parseErr
+            // SyntaxError on JSON parse — ignore, let caller handle generic 403
+          }
+        }
         return response
       },
     ],
