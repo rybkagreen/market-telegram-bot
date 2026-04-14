@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-31: Legal Compliance Timeline (v4.7 — April 2026)
+
+#### Added
+- **`require_verified_legal_profile` dependency** — 3-level check (exists → `is_completed` → `is_verified`) before compliance-sensitive endpoints. Returns 403 with `{code, message, redirect}` structured detail
+- **`GET /api/acts/by-placement/{id}`** — list all acts for a placement (requires verified legal profile + participant check)
+- **`GET /api/contracts/by-placement/{id}`** — list all contracts for a placement (same guards)
+- **`ContractRepo.list_by_placement(placement_request_id)`** — returns all contracts for a placement regardless of user
+- **ERID-before-publication guard (ФЗ-38)** — `publish_placement()` checks `OrdRegistration` status before publishing. If ERID not obtained → sets `status = 'ord_blocked'` and notifies all admins via bot
+- **`PlacementStatus.ord_blocked`** — new enum value for ERID-blocked publications
+- **TimelineEvent types** — shared TypeScript types for ORD/Act/Contract chronological timeline (`5 statuses × 4 types`)
+- **Acts API client** — `getMyActs`, `getActsByPlacement`, `getActById`, `signAct`, `getActPdfUrl` (web_portal)
+- **Contracts API client** — `getContractsByPlacement` (web_portal)
+- **403 structured error interceptor** — both web_portal and mini_app ky clients throw `Error` with `.detail` property for `legal_profile_*` codes (hook limitation: cannot call `useToast` in ky client)
+
+#### Fixed
+- **OrdStatus screen hardcoded data** — replaced with `useOrdStatus` hook. All 5 `ord_status` values now handled: `pending`, `registered` (was missing!), `token_received`, `reported`, `failed`
+- **OrdStatus info text** — changed "после публикации" to "до публикации" (legally correct per ФЗ-38: ERID must be obtained BEFORE publication)
+- **`.gitignore` negation rules** — added `!mini_app/src/lib/` and `!web_portal/src/lib/` to allow source type directories
+
+#### Security
+- ERID (`ord_token`) displayed in UI but NEVER logged to `console.log`
+- Admin notifications include ERID value for manual intervention on blocked publications
+
+#### Files
+- `src/api/dependencies.py` — `require_verified_legal_profile` dependency
+- `src/api/schemas/act.py` — **new**: `ActResponse`, `ActListResponse`
+- `src/api/routers/acts.py` — `GET /api/acts/by-placement/{id}`
+- `src/api/routers/contracts.py` — `GET /api/contracts/by-placement/{id}`
+- `src/db/models/placement_request.py` — `ord_blocked` enum value
+- `src/db/repositories/contract_repo.py` — `list_by_placement` method
+- `src/tasks/placement_tasks.py` — ERID guard + admin notification
+- `web_portal/src/lib/timeline.types.ts` — **new**: `TimelineEvent` types
+- `web_portal/src/lib/timeline.ts` — **pre-existing**: derive helpers (`deriveOrdTimelineEvents`, `deriveActTimelineEvents`, `deriveContractTimelineEvents`, `mergeAndSortTimelineEvents`)
+- `web_portal/src/api/acts.ts` — **new**: Acts API client
+- `web_portal/src/api/contracts.ts` — **new**: Contracts API client
+- `web_portal/src/screens/advertiser/campaign/CampaignWaiting.tsx` — **pre-existing**: compliance timeline JSX
+- `web_portal/src/screens/owner/OwnRequestDetail.tsx` — **pre-existing**: compliance timeline JSX
+- `web_portal/src/screens/advertiser/OrdStatus.tsx` — replaced hardcode with hook
+- `web_portal/src/shared/api/client.ts` — **pre-existing**: 403 interceptor
+- `mini_app/src/lib/timeline.types.ts` — **new**: identical timeline types
+- `mini_app/src/api/client.ts` — 403 structured error interceptor
+
 ### S-29: Mobile UX & Channel Management (v4.6 — April 2026)
 
 #### Fixed
