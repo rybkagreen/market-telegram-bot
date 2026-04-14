@@ -502,6 +502,72 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = "Already being processed"
             return result
 
+        # ─── CRITICAL: ERID check before publication (ФЗ-38) ────────────────
+        # По закону реклама должен содержать ERID ДО публикации.
+        # Если ERID не получен — блокируем и уведомляем админов.
+        from sqlalchemy import select as _select
+
+        from src.db.models.ord_registration import OrdRegistration as OrdRegModel
+
+        ord_stmt = _select(OrdRegModel).where(
+            OrdRegModel.placement_request_id == placement_id
+        )
+        ord_result = await session.execute(ord_stmt)
+        ord_record: OrdRegModel | None = ord_result.scalar_one_or_none()
+
+        if not ord_record or ord_record.status not in (
+            "token_received",
+            "registered",
+            "reported",
+            "erir_confirmed",
+        ):
+            logger.error(
+                "ERID NOT OBTAINED for placement %s (ord_status=%s). "
+                "Publication BLOCKED per ФЗ-38.",
+                placement_id,
+                ord_record.status if ord_record else "no_record",
+            )
+
+            # Block publication
+            placement.status = "ord_blocked"
+            await session.flush()
+
+            # Notify admins
+            from aiogram import Bot as _Bot
+
+            from src.config.settings import settings as _settings
+
+            admin_ids = _settings.admin_ids
+            if isinstance(admin_ids, str):
+                admin_ids = [int(x.strip()) for x in admin_ids.split(",") if x.strip()]
+
+            if admin_ids:
+                _bot = _Bot(token=_settings.bot_token)
+                try:
+                    for admin_id in admin_ids:
+                        await _bot.send_message(
+                            chat_id=admin_id,
+                            text=(
+                                f"🚨 <b>ERID не получен — публикация заблокирована</b>\n\n"
+                                f"Placement #{placement_id}\n"
+                                f"Advertiser ID: {placement.advertiser_id}\n"
+                                f"Owner ID: {placement.owner_id}\n"
+                                f"ORD status: <code>{ord_record.status if ord_record else 'no_record'}</code>\n"
+                                f"ERID: <code>{ord_record.erid if ord_record else 'None'}</code>\n\n"
+                                f"По ФЗ-38 реклама должна содержать ERID до публикации.\n"
+                                f"Требуется ручное вмешательство."
+                            ),
+                            parse_mode="HTML",
+                        )
+                finally:
+                    await _bot.session.close()
+
+            result["status"] = "ord_blocked"
+            result["message"] = "ERID not obtained — publication blocked per ФЗ-38"
+            result["ord_status"] = ord_record.status if ord_record else "no_record"
+            return result
+        # ─── end ERID check ─────────────────────────────────────────────────
+
         bot = Bot(token=settings.bot_token)
         pub_service = PublicationService()
 
