@@ -12,9 +12,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-!mini_app/src/lib/
-!web_portal/src/lib/
 lib64/
 parts/
 sdist/
@@ -23,6 +20,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Python lib dirs (NOT src/lib/ — those are tracked)
+# Use explicit patterns instead of broad "lib/" which blocks nested dirs
+python-libs/
+vendor/lib/
 
 # Environment
 .env
@@ -52,8 +54,8 @@ dmypy.json
 *.log
 logs/
 
-# Alembic (auto-generated migrations directory)
-alembic/
+# Alembic config (migrations are tracked)
+alembic.ini
 
 # Docker
 *.pid
@@ -187,7 +189,7 @@ src/core/middleware/
 .env.sonar
 
 # Development scripts (utility scripts, not production code)
-scripts/
+# scripts/ — now tracked for deployment and reference
 
 # Working documentation (drafts, checklists, not final docs)
 docs/project_context_update/
