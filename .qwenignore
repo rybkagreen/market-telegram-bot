@@ -44,7 +44,7 @@ Thumbs.db
 poetry.lock
 
 # Alembic versions (read-only per QWEN.md rules)
-src/db/migrations/versions/*.py
+# REMOVED: needed for migration audits and schema checks
 
 # Test coverage
 htmlcov/
