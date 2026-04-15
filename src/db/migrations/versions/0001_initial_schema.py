@@ -988,6 +988,7 @@ def upgrade() -> None:  # noqa: PLR0915
                 "failed_permissions",
                 "refunded",
                 "cancelled",
+                "ord_blocked",
                 name="placementstatus",
             ),
             nullable=False,
