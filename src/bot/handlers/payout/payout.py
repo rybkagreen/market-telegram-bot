@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.payout import PayoutStates
 from src.constants.payments import PAYOUT_FEE_RATE
-from src.db.models.payout import PayoutRequest, PayoutStatus
+from src.core.exceptions import VelocityCheckError
+from src.core.services.payout_service import PayoutService
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -297,8 +298,6 @@ async def payout_requisites_input(
 
     data = await state.get_data()
     gross = Decimal(data["gross_amount"])
-    fee = Decimal(data["fee_amount"])
-    net = Decimal(data["net_amount"])
 
     if message.from_user is None:
         await state.clear()
@@ -309,28 +308,40 @@ async def payout_requisites_input(
         await state.clear()
         return
 
-    if user.earned_rub < gross:
-        await message.answer("❌ Недостаточно средств на балансе")
+    try:
+        payout_svc = PayoutService()
+        payout = await payout_svc.create_payout(session, user.id, gross)
+        # Override hardcoded requisites with user-provided value
+        payout.requisites = requisites
+        await session.flush()
+        await session.refresh(payout)
+        logger.info(f"PayoutRequest created: gross={gross} net={payout.net_amount} user={user.id}")
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"payout validation error for user {user.id}: {error_msg}")
+        if "Минимальная сумма" in error_msg:
+            await message.answer("❌ Минимум 1 000 ₽")
+        elif "активная заявка" in error_msg:
+            await message.answer("❌ У вас уже есть активная заявка на выплату.")
+        elif "Подождите" in error_msg:
+            await message.answer(f"⏳ {error_msg}")
+        else:
+            await message.answer("❌ Ошибка при создании заявки. Попробуйте позже.")
         await state.clear()
         return
-
-    try:
-        payout = PayoutRequest(
-            owner_id=user.id,
-            gross_amount=gross,
-            fee_amount=fee,
-            net_amount=net,
-            status=PayoutStatus.pending,
-            requisites=requisites,
-        )
-        user.earned_rub -= gross
-        session.add(payout)
-        await session.commit()
-        logger.info(f"PayoutRequest created: gross={gross} net={net} user={user.id}")
+    except VelocityCheckError as e:
+        logger.error(f"payout velocity error for user {user.id}: {e}")
+        await message.answer(f"❌ {str(e)}")
+        await state.clear()
+        return
     except Exception as e:
-        logger.error(f"payout create error for user {user.id}: {e}")
-        await session.rollback()
-        await message.answer("❌ Ошибка создания заявки. Попробуйте позже.")
+        error_msg = str(e)
+        logger.error(f"payout create error for user {user.id}: {error_msg}")
+        # Check if it's insufficient funds error
+        if "Insufficient" in error_msg or "недостаточно" in error_msg.lower():
+            await message.answer("❌ Недостаточно средств для выплаты.")
+        else:
+            await message.answer("❌ Ошибка создания заявки. Попробуйте позже.")
         await state.clear()
         return
 
@@ -342,8 +353,8 @@ async def payout_requisites_input(
 
     await message.answer(
         f"✅ *Заявка на вывод создана!*\n\n"
-        f"К получению: *{net:.2f} ₽*\n"
-        f"Комиссия: *{fee:.2f} ₽*\n"
+        f"К получению: *{payout.net_amount:.2f} ₽*\n"
+        f"Комиссия: *{payout.fee_amount:.2f} ₽*\n"
         f"Реквизиты: `{requisites}`\n\n"
         f"⏱ Обработка до 24 часов (09:00–22:00 МСК).",
         reply_markup=builder.as_markup(),
