@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-32: Payout Flow Hardening (Complete)
+
+#### Added
+- **Admin payout management endpoints** — `/api/admin/payouts`:
+  - `GET /api/admin/payouts` — pending payouts list with pagination and status filtering
+  - `PATCH /api/admin/payouts/{id}/approve` — approve with owner notification dispatch
+  - `PATCH /api/admin/payouts/{id}/reject` — reject with reason storage
+- **Admin Payouts Web Portal screen** — `/admin/payouts` route with pending list, approve/reject actions, status filters, pagination
+- **Payout service enforced at all creation points** — both API and Bot FSM routes through `PayoutService.create_payout()` guaranteeing:
+  - Cooldown validation (24-hour minimum between payouts)
+  - Velocity limits (earned ≤ 80% of 30-day average)
+  - NDFL tax calculation (13% withheld if applicable)
+- **Admin notification on new payout** — `notify_admin_new_payout()` Celery task dispatches formatted summary to all admin IDs
+- **Enhanced Payout schema** — added `ndfl_withheld`, `npd_status`, `npd_receipt_number` fields to `PayoutResponse`
+- **Field name standardization** — frontend Payout interfaces updated: `amount`→`gross_amount`, `payment_details`→`requisites`, `fee`→`fee_amount`
+
+#### Fixed
+- **API router payout creation** — POST `/api/payouts/` now routes through `PayoutService.create_payout()` (was: inline `PayoutRequest` creation, bypassing service guarantees)
+- **Bot FSM payout handler** — now routes through `PayoutService.create_payout()` (was: manual `PlacementRequest` instantiation)
+- **Frontend field name alignment** — all Payout interfaces and API clients updated to match backend schema
+- **Status guard validation** — admin approve/reject endpoints return 409 Conflict if payout.status ≠ pending
+
+#### Business Impact
+- **Payout creation cannot be bypassed** — all code paths converge on `PayoutService.create_payout()`
+- **Admin workflow enabled** — admins can view, approve, and reject pending payouts via Web Portal
+- **Compliance guarantees** — cooldown, velocity, and tax calculations are guaranteed at service layer
+
 ### S-32: Payout Flow (Step 3 — April 2026)
 
 #### Added
