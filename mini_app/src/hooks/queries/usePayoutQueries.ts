@@ -14,7 +14,7 @@ export const useCreatePayout = () => {
   const addToast = useUiStore((s) => s.addToast)
 
   return useMutation({
-    mutationFn: (data: { amount: number; payment_details: string }) => createPayout(data),
+    mutationFn: (data: { gross_amount: number; requisites: string }) => createPayout(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payouts'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })

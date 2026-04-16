@@ -6,8 +6,8 @@ export function getPayouts(): Promise<Payout[]> {
 }
 
 export function createPayout(data: {
-  amount: number
-  payment_details: string
+  gross_amount: number
+  requisites: string
 }): Promise<Payout> {
   return api.post('payouts/', { json: data }).json<Payout>()
 }

@@ -25,8 +25,8 @@ class PayoutStatus(str, Enum):
 class PayoutCreate(BaseModel):
     """Схема создания заявки на выплату."""
 
-    amount: Decimal = Field(..., gt=0, description="Сумма выплаты (gross)")
-    payment_details: str = Field(
+    gross_amount: Decimal = Field(..., gt=0, description="Сумма выплаты (gross)")
+    requisites: str = Field(
         ..., min_length=5, max_length=512, description="Реквизиты для выплаты"
     )
 

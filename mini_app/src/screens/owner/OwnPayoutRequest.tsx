@@ -48,7 +48,7 @@ export default function OwnPayoutRequest() {
   const handleSubmit = () => {
     haptic.success()
     createPayout(
-      { amount, payment_details: paymentDetails },
+      { gross_amount: amount, requisites: paymentDetails },
       { onSuccess: () => { navigate('/own/payouts') } },
     )
   }
