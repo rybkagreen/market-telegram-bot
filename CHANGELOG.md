@@ -49,6 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mini_app/src/lib/timeline.types.ts` — **new**: identical timeline types
 - `mini_app/src/api/client.ts` — 403 structured error interceptor
 
+### S-32: Payout Flow (v4.7 — April 2026)
+
+#### Fixed
+- **POST /api/payouts/ delegation** — replaced inline PayoutRequest creation with PayoutService.create_payout() call to enforce all validation logic: MIN_PAYOUT, active request check, earned_rub availability, 24h cooldown, 80% velocity limit (`src/api/routers/payouts.py`)
+- **NDFL/NPD exposure** — PayoutResponse schema now includes `ndfl_withheld`, `npd_status`, `npd_receipt_number` fields to expose tax withholding data from database (`src/api/schemas/payout.py`)
+- **Error mapping** — POST /api/payouts/ now returns structured error responses with `{code, message}` detail for cooldown, velocity, insufficient_funds, and active_payout_exists cases
+
+#### Files
+- `src/api/routers/payouts.py` — PayoutService integration + error mapping
+- `src/api/schemas/payout.py` — NDFL/NPD fields in PayoutResponse
+
 ### S-29: Mobile UX & Channel Management (v4.6 — April 2026)
 
 #### Fixed
