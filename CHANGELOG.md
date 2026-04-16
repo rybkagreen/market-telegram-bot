@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-32: Payout Flow (Step 2 — April 2026)
+
+#### Fixed
+- **Payout creation in bot handler** — replaced inline `PayoutRequest()` instantiation with `PayoutService.create_payout()` call. Now properly enforces:
+  - Cooldown validation (24-hour minimum interval between payouts)
+  - Velocity limit checks (80% withdrawal-to-topup ratio over 30 days)
+  - NDFL tax withholding calculation (13% for individuals, 0% for legal entities/self-employed)
+  - Platform account accounting (payout_reserved + gross_amount, profit_accumulated + fee_amount)
+  - Transaction logging (refund_full, payout_fee, ndfl_withholding transactions)
+
+#### Files
+- `src/bot/handlers/payout/payout.py` — delegated to `PayoutService.create_payout()` with comprehensive error handling
+
 ### S-31: Legal Compliance Timeline (v4.7 — April 2026)
 
 #### Added
