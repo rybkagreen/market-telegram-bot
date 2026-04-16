@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-32: Payout Flow (Step 3 — April 2026)
+
+#### Added
+- **Admin payout management endpoints** — 3 new endpoints under `/api/admin/payouts`:
+  - `GET /api/admin/payouts` — list all pending payouts for review
+  - `PATCH /api/admin/payouts/{id}/approve` — approve and trigger payment (calls `complete_payout`, dispatches owner notification via Celery)
+  - `PATCH /api/admin/payouts/{id}/reject` — reject with reason (calls `reject_payout`, stores reason in `rejection_reason` field)
+- **Admin notification on payout creation** — new `notify_admin_new_payout()` function sends formatted Telegram message to all admin IDs with payout summary (ID, owner, amounts, requisites)
+- **Celery task for admin notifications** — `payouts:notify_admin_new_payout_task` dispatched asynchronously when user creates payout
+- **`RejectPayoutRequest` schema** — validates rejection reason (1-512 chars)
+
+#### Fixed
+- **Status guard validation** — both approve/reject endpoints return 409 Conflict if payout.status != pending (enforces workflow)
+- **Cross-container notification** — admin notifications dispatched via Celery task instead of direct bot call from API context (prevents container coupling)
+
+#### Files
+- `src/api/routers/admin.py` — 3 new endpoints with admin auth, status checks, service delegation
+- `src/api/schemas/payout.py` — `RejectPayoutRequest` schema
+- `src/api/routers/payouts.py` — integration: dispatch notification task after payout creation
+- `src/bot/handlers/shared/notifications.py` — `notify_admin_new_payout()` async function
+- `src/tasks/notification_tasks.py` — `notify_admin_new_payout_task` Celery task
+
 ### S-32: Payout Flow (Step 2 — April 2026)
 
 #### Fixed
