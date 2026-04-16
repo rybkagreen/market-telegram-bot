@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Admin notification on payout creation** — new `notify_admin_new_payout()` function sends formatted Telegram message to all admin IDs with payout summary (ID, owner, amounts, requisites)
 - **Celery task for admin notifications** — `payouts:notify_admin_new_payout_task` dispatched asynchronously when user creates payout
 - **`RejectPayoutRequest` schema** — validates rejection reason (1-512 chars)
+- **Web Portal AdminPayouts screen** — new `/admin/payouts` route with:
+  - Paginated list of pending payouts (20 per page)
+  - Status filters (all, pending, processing, paid, rejected)
+  - Approve/reject actions with inline reason input
+  - Success notifications and query invalidation on action completion
 
 #### Fixed
 - **Status guard validation** — both approve/reject endpoints return 409 Conflict if payout.status != pending (enforces workflow)
@@ -28,6 +33,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/api/routers/payouts.py` — integration: dispatch notification task after payout creation
 - `src/bot/handlers/shared/notifications.py` — `notify_admin_new_payout()` async function
 - `src/tasks/notification_tasks.py` — `notify_admin_new_payout_task` Celery task
+- **Web Portal:**
+  - `web_portal/src/screens/admin/AdminPayouts.tsx` — payout list screen with approve/reject
+  - `web_portal/src/api/admin.ts` — 3 API client functions (getAdminPayouts, approve, reject)
+  - `web_portal/src/hooks/useAdminQueries.ts` — 3 React Query hooks with cache invalidation
+  - `web_portal/src/lib/types/billing.ts` — AdminPayout and PayoutListAdminResponse types
+  - `web_portal/src/App.tsx` — route registration
+
+### S-32: Payout Flow (Step 5 — April 2026)
+
+#### Fixed
+- **Payout field name alignment** — standardized field names across backend and frontend to match API response schema:
+  - Backend `PayoutCreate` schema: `amount` → `gross_amount`, `payment_details` → `requisites`
+  - Frontend `Payout` interfaces: same field renames, added `owner_id`, `admin_id`, `rejection_reason`, `ndfl_withheld`, `npd_status`
+  - All screens and API clients updated to use new field names
+  - Mini App validators updated for new field names
+
+#### Files
+- **Backend:** `src/api/schemas/payout.py`, `src/api/routers/payouts.py`
+- **Web Portal:** `web_portal/src/lib/types/billing.ts`, `web_portal/src/api/payouts.ts`, owner screens
+- **Mini App:** `mini_app/src/lib/types.ts`, `mini_app/src/lib/validators.ts`, `mini_app/src/api/payouts.ts`, owner screens, query hooks
 
 ### S-32: Payout Flow (Step 2 — April 2026)
 
