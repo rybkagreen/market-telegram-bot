@@ -28,7 +28,7 @@ export default function OwnPayoutRequest() {
 
   const handleSubmit = () => {
     createPayout(
-      { amount, payment_details: paymentDetails },
+      { gross_amount: amount, requisites: paymentDetails },
       { onSuccess: () => navigate('/own/payouts') },
     )
   }

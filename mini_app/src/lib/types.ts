@@ -196,13 +196,19 @@ export interface PlacementRequest {
 
 export interface Payout {
   id: number
-  amount: string
-  fee: string
+  owner_id: number
+  gross_amount: string
+  fee_amount: string
   net_amount: string
   status: PayoutStatus
-  payment_details: string
-  created_at: string
+  requisites: string
+  admin_id: number | null
   processed_at: string | null
+  rejection_reason: string | null
+  ndfl_withheld: string | null
+  npd_status: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Dispute {

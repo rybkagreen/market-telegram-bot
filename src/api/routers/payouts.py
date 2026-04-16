@@ -143,7 +143,7 @@ async def create_payout(
     payout_service = PayoutService()
     try:
         payout = await payout_service.create_payout(
-            session, current_user.id, payout_data.amount
+            session, current_user.id, payout_data.gross_amount
         )
     except ValueError as e:
         error_msg = str(e)
@@ -174,7 +174,7 @@ async def create_payout(
             ) from e
 
     # Set requisites from request (service creates with placeholder "payout_request")
-    payout.requisites = payout_data.payment_details
+    payout.requisites = payout_data.requisites
     await session.flush()
     await session.refresh(payout)
 

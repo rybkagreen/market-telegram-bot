@@ -109,7 +109,7 @@ export default function OwnPayouts() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-text-tertiary">Запрошено</span>
-                    <p className="font-mono text-text-primary">{formatCurrency(payout.amount)}</p>
+                    <p className="font-mono text-text-primary">{formatCurrency(payout.gross_amount)}</p>
                   </div>
                   <div>
                     <span className="text-text-tertiary">Получено</span>
