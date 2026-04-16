@@ -8,19 +8,16 @@ Endpoints:
 """
 
 import logging
-from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
-from src.api.schemas.payout import PayoutCreate, PayoutResponse, PayoutStatus
-from src.constants.payments import MIN_PAYOUT, PAYOUT_FEE_RATE
+from src.api.schemas.payout import PayoutCreate, PayoutResponse
+from src.core.services.payout_service import PayoutService
 from src.db.models.payout import PayoutRequest
 from src.db.repositories.payout_repo import PayoutRepository
-from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -143,60 +140,42 @@ async def create_payout(
         HTTPException 400: Сумма меньше минимальной или недостаточно средств.
         HTTPException 409: Уже есть активная заявка (pending/processing).
     """
-    # Проверка минимальной суммы
-    if payout_data.amount < MIN_PAYOUT:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Minimum payout amount is {MIN_PAYOUT} RUB",
-        )
-
-    # Проверка что у пользователя нет активной заявки
-    payout_repo = PayoutRepository(session)
-    existing_payout = await payout_repo.get_active_for_owner(current_user.id)
-    if existing_payout:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Active payout request exists (status: {existing_payout.status.value})",
-        )
-
-    # Проверка баланса пользователя
-    user_repo = UserRepository(session)
-    user = await user_repo.get_by_id(current_user.id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    if user.earned_rub < payout_data.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Insufficient funds. Available: {user.earned_rub} RUB, Requested: {payout_data.amount} RUB",
-        )
-
-    # Расчёт комиссии и итоговой суммы
-    fee_amount = (payout_data.amount * PAYOUT_FEE_RATE).quantize(Decimal("0.01"))
-    net_amount = payout_data.amount - fee_amount
-
-    # Создаём заявку
-    payout = PayoutRequest(
-        owner_id=current_user.id,
-        gross_amount=payout_data.amount,
-        fee_amount=fee_amount,
-        net_amount=net_amount,
-        requisites=payout_data.payment_details,
-        status=PayoutStatus.pending,
-    )
-
-    session.add(payout)
+    payout_service = PayoutService()
     try:
-        await session.commit()
-    except IntegrityError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Конфликт данных: запись уже существует или нарушено ограничение",
-        ) from e
+        payout = await payout_service.create_payout(
+            session, current_user.id, payout_data.amount
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "Подождите" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "payout_cooldown", "message": error_msg},
+            ) from e
+        elif "velocity" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "velocity_exceeded", "message": error_msg},
+            ) from e
+        elif "Insufficient" in error_msg or "earned_rub" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "insufficient_funds", "message": error_msg},
+            ) from e
+        elif "активная" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "active_payout_exists", "message": error_msg},
+            ) from e
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            ) from e
+
+    # Set requisites from request (service creates with placeholder "payout_request")
+    payout.requisites = payout_data.payment_details
+    await session.flush()
     await session.refresh(payout)
 
     logger.info(f"Payout request {payout.id} created by user {current_user.id}")

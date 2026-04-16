@@ -44,6 +44,9 @@ class PayoutResponse(BaseModel):
     admin_id: int | None = None
     processed_at: datetime | None = None
     rejection_reason: str | None = None
+    ndfl_withheld: Decimal | None = None
+    npd_status: str | None = None
+    npd_receipt_number: str | None = None
     created_at: datetime
     updated_at: datetime
 
