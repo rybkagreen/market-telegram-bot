@@ -279,6 +279,31 @@ async def notify_owner_payout_done(
         )
 
 
+async def notify_admin_new_payout(
+    bot: Bot,
+    admin_telegram_ids: list[int],
+    payout_id: int,
+    owner_telegram_id: int,
+    gross_amount: Decimal,
+    net_amount: Decimal,
+    requisites: str,
+) -> None:
+    """Администраторам: новая заявка на выплату."""
+    for admin_id in admin_telegram_ids:
+        with contextlib.suppress(Exception):
+            await bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"💰 *Новая заявка на выплату #{payout_id}*\n\n"
+                    f"Владелец: {owner_telegram_id}\n"
+                    f"Сумма: {gross_amount:.2f} ₽\n"
+                    f"К выплате: {net_amount:.2f} ₽\n"
+                    f"Реквизиты: {requisites}"
+                ),
+                parse_mode="Markdown",
+            )
+
+
 async def notify_admin_new_dispute(
     bot: Bot,
     admin_telegram_id: int,

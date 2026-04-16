@@ -26,6 +26,7 @@ from src.api.schemas.admin import (
     UserAdminResponse,
     UserListAdminResponse,
 )
+from src.api.schemas.payout import RejectPayoutRequest
 from src.db.models.contract import Contract
 from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
@@ -1046,3 +1047,114 @@ async def list_all_contracts(
         total,
     )
     return AdminContractListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+# ─── Admin Payouts ────────────────────────────────────────────────────
+
+
+@router.get("/payouts")
+async def list_pending_payouts(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list:
+    """List all pending payout requests (admin only)."""
+    from src.api.schemas.payout import PayoutResponse
+    from src.db.repositories.payout_repo import PayoutRepository
+
+    repo = PayoutRepository(session)
+    payouts = await repo.get_pending()
+    return [PayoutResponse.model_validate(p) for p in payouts]
+
+
+@router.patch("/payouts/{payout_id}/approve", status_code=200)
+async def approve_payout(
+    payout_id: int,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Approve a pending payout request and notify the owner."""
+    from src.api.schemas.payout import PayoutResponse
+    from src.core.services.payout_service import PayoutService
+    from src.db.models.payout import PayoutStatus
+    from src.db.repositories.payout_repo import PayoutRepository
+    from src.db.repositories.user_repo import UserRepository
+
+    repo = PayoutRepository(session)
+    payout = await repo.get_by_id(payout_id)
+
+    if not payout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout not found")
+
+    if payout.status != PayoutStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "wrong_status", "message": f"Payout status is {payout.status}"},
+        )
+
+    payout_service = PayoutService()
+    await payout_service.complete_payout(session, payout_id)
+
+    # Refresh payout after update
+    await session.refresh(payout)
+
+    # Get owner user to find telegram_id for notification
+    user_repo = UserRepository(session)
+    owner = await user_repo.get(payout.owner_id)
+
+    if owner and owner.telegram_id:
+        # Schedule notification via Celery task
+        from src.tasks.celery_app import celery_app
+
+        celery_app.send_task(
+            "notifications:notify_payout_paid",
+            args=(payout_id,),
+            queue="notifications",
+        )
+
+    logger.info(f"Admin {admin_user.id} approved payout {payout_id}")
+
+    return {
+        "status": "approved",
+        "payout_id": payout_id,
+        "payout": PayoutResponse.model_validate(payout),
+    }
+
+
+@router.patch("/payouts/{payout_id}/reject", status_code=200)
+async def reject_payout(
+    payout_id: int,
+    body: RejectPayoutRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Reject a pending payout request with a reason."""
+    from src.api.schemas.payout import PayoutResponse
+    from src.core.services.payout_service import PayoutService
+    from src.db.models.payout import PayoutStatus
+    from src.db.repositories.payout_repo import PayoutRepository
+
+    repo = PayoutRepository(session)
+    payout = await repo.get_by_id(payout_id)
+
+    if not payout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout not found")
+
+    if payout.status != PayoutStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "wrong_status", "message": f"Payout status is {payout.status}"},
+        )
+
+    payout_service = PayoutService()
+    await payout_service.reject_payout(session, payout_id, body.reason)
+
+    # Refresh payout after update
+    await session.refresh(payout)
+
+    logger.info(f"Admin {admin_user.id} rejected payout {payout_id}: {body.reason}")
+
+    return {
+        "status": "rejected",
+        "payout_id": payout_id,
+        "payout": PayoutResponse.model_validate(payout),
+    }

@@ -180,4 +180,15 @@ async def create_payout(
 
     logger.info(f"Payout request {payout.id} created by user {current_user.id}")
 
+    # Schedule admin notification via Celery task
+    from src.tasks.notification_tasks import notify_admin_new_payout_task
+
+    notify_admin_new_payout_task.delay(
+        payout.id,
+        current_user.id,
+        float(payout.gross_amount),
+        float(payout.net_amount),
+        payout.requisites,
+    )
+
     return PayoutResponse.model_validate(payout)

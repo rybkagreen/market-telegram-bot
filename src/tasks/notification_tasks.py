@@ -536,6 +536,53 @@ def notify_payout_paid_task(payout_id: int) -> bool:
         return False
 
 
+@celery_app.task(name="payouts:notify_admin_new_payout", queue="background")
+def notify_admin_new_payout_task(
+    payout_id: int, owner_id: int, gross_amount: float, net_amount: float, requisites: str
+) -> bool:
+    """
+    Уведомляет администраторов о новой заявке на выплату.
+    """
+    import asyncio
+    from decimal import Decimal
+
+    async def _notify_async() -> bool:
+        from aiogram import Bot
+
+        from src.bot.handlers.shared.notifications import notify_admin_new_payout
+        from src.config.settings import settings
+
+        admin_ids = settings.admin_ids
+        if not admin_ids:
+            logger.warning("No admin IDs configured")
+            return False
+
+        if not settings.bot_token:
+            logger.warning("No bot token configured")
+            return False
+
+        bot = Bot(token=settings.bot_token)
+        try:
+            await notify_admin_new_payout(
+                bot,
+                admin_ids,
+                payout_id,
+                owner_id,
+                Decimal(str(gross_amount)),
+                Decimal(str(net_amount)),
+                requisites,
+            )
+            return True
+        finally:
+            await bot.session.close()
+
+    try:
+        return asyncio.run(_notify_async())
+    except Exception as e:
+        logger.error(f"Error notifying admins of new payout {payout_id}: {e}")
+        return False
+
+
 # ─────────────────────────────────────────────
 # Уведомления для рекламодателей (Спринт 5)
 # ─────────────────────────────────────────────

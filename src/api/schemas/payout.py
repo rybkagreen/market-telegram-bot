@@ -51,3 +51,9 @@ class PayoutResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RejectPayoutRequest(BaseModel):
+    """Запрос на отклонение выплаты."""
+
+    reason: str = Field(..., min_length=1, max_length=512, description="Причина отклонения")
