@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Audit: S-40 Tech debt audit — D-06 `check_pending_invoices` confirmed no-op (safe delete); D-07 `/billing/invoice/{id}` never implemented (docstring-only ghost); D-10 Redis sync client confirmed partially unfixed (async client declared unused, sync client blocks event loop at 8 call sites); D-20 one empty dir (`reports/monitoring/payloads`); PlaceholderScreen `/settings` — no replacement screen exists; ORD stub flagged as pre-launch blocker (set `ORD_BLOCK_WITHOUT_ERID=true`). Report: `reports/docs-architect/discovery/S40_tech_debt_research_2026-04-17.md`
+- Audit: S-39 Type drift audit (mini_app vs web_portal) — 6 shared types compared; Contract has semantic `status`/`contract_status` dual-field issue in web_portal; LegalProfile `passport_issued_at` name mismatch vs backend `passport_issue_date`; PlacementRequest missing 3 `advertiser_counter_*` fields in web_portal; Payout best-aligned; recommended Option B (OpenAPI codegen) pending backend schema completeness. Report: `reports/docs-architect/discovery/S39_shared_types_research_2026-04-17.md`
+- Audit: S-36 Celery routing audit — 69 tasks mapped; 6 SLA tasks missing from active Beat schedule; 13 tasks on default `celery` queue; `celery_config.py` BEAT_SCHEDULE/TASK_ROUTES identified as dead code; `tax:calendar_reminder` unimplemented. Report: `reports/docs-architect/discovery/S36_celery_routing_research_2026-04-17.md`
+- Audit: S-34 Pydantic/model schema audit — 2 STOP conditions (CampaignResponse.title/text crash all 4 CRUD endpoints; ChannelResponse missing owner_id/created_at in activate_channel); 5 field-name mismatches; 2 type mismatches (int vs Decimal); 2 nullable-wider-than-model fields. Report: `reports/docs-architect/discovery/S34_schema_mismatches_research_2026-04-17.md`
+- Audit: S-33 migration drift research completed — 20 enum values missing from 0001_initial_schema (placementstatus/completed, transactiontype×3, disputereason×5, disputestatus/closed, disputeresolution×4); 3 columns absent from channel_mediakits migration (owner_user_id, logo_file_id, theme_color); 1 orphaned column in migration (document_uploads.extracted_ogrnip); 2 self-ref FKs missing ON DELETE SET NULL; 6 FK columns without indexes. Report: `reports/docs-architect/discovery/S33_migration_drift_research_2026-04-17.md`
+- Audit: Full cross-layer audit completed (10 phases, 51 findings: 7 critical, 12 high, 18 medium, 11 low, 3 stubs). Report: `reports/docs-architect/discovery/CHANGES_2026-04-16_cross-layer-audit.md`
+- Audit: 14+ enum values missing from 0001_initial_schema.py (PlacementStatus.completed, TransactionType storno/admin_credit/gamification_bonus, DisputeStatus.closed, DisputeReason x5, DisputeResolution x4) — CRITICAL
+- Audit: 4 frontend API calls hit non-existent endpoints (billing/credits, channels/compare, legal-profile/scan, contracts/mine) — HIGH
+- Audit: CampaignResponse.title and filters_json reference non-existent model fields — HIGH
+- Audit: 12 notification tasks skip notifications_enabled check — MEDIUM
+- Audit: gamification/badge tasks run on default queue (no explicit queue=) — HIGH
+- Audit: Known issues status: 11 FIXED, 3 PARTIAL, 12 OPEN (of 22 from AAA-10)
+- Breaking: Added explicit Git Branch Rule to CLAUDE.md and QWEN.md; first command of each sprint must be branch creation. Direct work on develop or continuing previous feature branch is a violation. (CLAUDE.md, QWEN.md)
+- Known Issue: S-31 and S-32 commits are interleaved in feature/s-31-legal-compliance-timeline; feature/s-32-payout-flow was not created before work began. Both sprints merged as one commit into develop/main. Mitigation: new branch rule in CLAUDE.md. (CHANGES_S32-06_branch-confusion.md)
+- Fixed: Refactored passport_page_group validation to single if (SIM102) (src/api/routers/document_validation.py)
+- Fixed: Replaced is_readable == True with direct check (E712, unsafe fix) (src/api/routers/document_validation.py)
+- Fixed: Used ternary operator for body assignment (SIM108, unsafe fix) (src/bot/handlers/owner/channel_owner.py)
 
 ### S-32: Payout Flow Hardening (Complete)
 
