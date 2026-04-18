@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-34: Pydantic Schema ↔ SQLAlchemy Model Mismatches (April 2026)
+
+#### Fixed
+- **STOP-1: CampaignResponse crash** — rewrote schema to match `PlacementRequest` fields: deleted ghost `title`, renamed `text → ad_text`, `filters_json → meta_json`, `scheduled_at → proposed_schedule`; changed `created_at`/`updated_at` from `str` to `datetime`. Fixes 100% crash rate on POST/GET/PATCH `/api/campaigns` (`campaigns.py`)
+- **STOP-1: Silent meta_json data loss** — `CampaignUpdate` renamed `filters_json → meta_json`; `model_dump()` now returns keys matching `PlacementRequest` attrs, so `repo.update()` correctly persists changes (`campaigns.py`)
+- **STOP-2: activate_channel crash** — added missing `owner_id=channel.owner_id` and `created_at=channel.created_at.isoformat()` to `ChannelResponse(...)` constructor (`channels.py:558`)
+- **STOP-2 expanded: add_channel crash** — added missing `created_at` to `ChannelResponse(...)` constructor in `add_channel` endpoint (`channels.py:431`)
+- **STOP-2 expanded: update_channel_category crash** — added missing `created_at` to `ChannelResponse(...)` constructor in `update_channel_category` endpoint (`channels.py:601`)
+- **UserResponse.first_name misleading contract** — tightened `str | None → str`; `User.first_name` is `NOT NULL` in DB (`users.py`)
+
+#### Changed
+- **DuplicateResponse** — `title → ad_text`; fixed docstring listing copied fields (`campaigns.py`)
+- **PlacementCreateRequest.proposed_price** — `int → Decimal`; removed manual `Decimal(str(...))` cast at call site (`placements.py`)
+- **ChannelSettingsUpdateRequest.price_per_post** — `int → Decimal`; removed manual `Decimal(str(...))` cast in `_build_update_data` (`channel_settings.py`)
+
+#### Removed
+- **ChannelSettingsResponse.from_attributes=True** — schema is always constructed manually, never via `model_validate(orm_obj)`; flag was a future-crash trap (`channel_settings.py`)
+
+#### Added
+- **19 schema regression tests** — verify STOP-1/STOP-2 field names, types, required fields, ORM round-trip; no DB required (`tests/unit/test_s34_schema_regression.py`)
+
+#### P2.2 (ActResponse) — Skipped
+- Research referenced `schemas/act.py:22` (ActResponse Pydantic class) — does not exist. `acts.py` uses `_act_to_dict()` plain dict. No action required.
+
+---
+
 ### S-33: Migration Drift Fix — 0001 schema snapshot (April 2026)
 
 #### Fixed

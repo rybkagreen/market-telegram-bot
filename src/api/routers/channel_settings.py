@@ -51,13 +51,11 @@ class ChannelSettingsResponse(BaseModel):
     auto_accept_enabled: bool
     updated_at: str
 
-    model_config = {"from_attributes": True}
-
 
 class ChannelSettingsUpdateRequest(BaseModel):
     """Запрос на частичное обновление настроек."""
 
-    price_per_post: int | None = Field(None, ge=100, description="Цена >= 100")
+    price_per_post: Decimal | None = Field(None, ge=100, description="Цена >= 100")
     publish_start_time: str | None = Field(None, description="HH:MM формат")
     publish_end_time: str | None = Field(None, description="HH:MM формат")
     break_start_time: str | None = Field(None, description="HH:MM или null")
@@ -160,7 +158,7 @@ def _build_update_data(request: ChannelSettingsUpdateRequest) -> dict:
     """Build a dict of only the fields present in the partial-update request."""
     update_data: dict = {}
     if request.price_per_post is not None:
-        update_data["price_per_post"] = Decimal(str(request.price_per_post))
+        update_data["price_per_post"] = request.price_per_post
     if request.publish_start_time is not None:
         update_data["publish_start_time"] = time.fromisoformat(request.publish_start_time)
     if request.publish_end_time is not None:
