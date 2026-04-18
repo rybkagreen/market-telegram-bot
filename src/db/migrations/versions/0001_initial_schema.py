@@ -338,12 +338,6 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("expense_amount", sa.Numeric(12, 2), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_kudir_records_operation_type", "kudir_records", ["operation_type"])
-    op.create_index(
-        "ix_kudir_records_quarter_entry",
-        "kudir_records",
-        ["quarter", "entry_number"],
-    )
 
     # ── Table 8: audit_logs ───────────────────────────────────────────────────
     op.create_table(
@@ -536,8 +530,11 @@ def upgrade() -> None:  # noqa: PLR0915
         "channel_mediakits",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("channel_id", sa.Integer(), nullable=False),
+        sa.Column("owner_user_id", sa.Integer(), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("audience_description", sa.Text(), nullable=True),
+        sa.Column("logo_file_id", sa.String(256), nullable=True),
+        sa.Column("theme_color", sa.String(7), nullable=True),
         sa.Column("avg_post_reach", sa.Integer(), nullable=False),
         sa.Column("views_count", sa.Integer(), nullable=False),
         sa.Column("downloads_count", sa.Integer(), nullable=False),
@@ -563,6 +560,11 @@ def upgrade() -> None:  # noqa: PLR0915
             ["channel_id"],
             ["telegram_chats.id"],
             name="channel_mediakits_channel_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["owner_user_id"],
+            ["users.id"],
+            name="channel_mediakits_owner_user_id_fkey",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("channel_id", name="channel_mediakits_channel_id_key"),
@@ -752,6 +754,7 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_user_badges_user_id", "user_badges", ["user_id"])
+    op.create_index("ix_user_badges_badge_id", "user_badges", ["badge_id"])
 
     # ── Table 17: badge_achievements ──────────────────────────────────────────
     op.create_table(
@@ -779,6 +782,7 @@ def upgrade() -> None:  # noqa: PLR0915
         ),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("ix_badge_achievements_badge_id", "badge_achievements", ["badge_id"])
 
     # ── Table 18: user_feedback ───────────────────────────────────────────────
     op.create_table(
@@ -891,6 +895,9 @@ def upgrade() -> None:  # noqa: PLR0915
                 "commission",
                 "refund",
                 "ndfl_withholding",
+                "storno",
+                "admin_credit",
+                "gamification_bonus",
                 name="transactiontype",
             ),
             nullable=False,
@@ -953,7 +960,6 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="transactions_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_transactions_contract_id", "transactions", ["contract_id"])
     op.create_index(
         "ix_transactions_placement_request_id",
         "transactions",
@@ -961,13 +967,8 @@ def upgrade() -> None:  # noqa: PLR0915
     )
     op.create_index("ix_transactions_type", "transactions", ["type"])
     op.create_index("ix_transactions_user_id", "transactions", ["user_id"])
-    op.create_index("ix_txn_act_id", "transactions", ["act_id"])
-    op.create_index("ix_txn_invoice_id", "transactions", ["invoice_id"])
-    op.create_index(
-        "ix_txn_reverses_transaction_id",
-        "transactions",
-        ["reverses_transaction_id"],
-    )
+    op.create_index("ix_transactions_act_id", "transactions", ["act_id"])
+    op.create_index("ix_transactions_invoice_id", "transactions", ["invoice_id"])
 
     # ── Table 21: placement_requests (escrow FK added after transactions) ──────
     op.create_table(
@@ -984,10 +985,12 @@ def upgrade() -> None:  # noqa: PLR0915
                 "pending_payment",
                 "escrow",
                 "published",
+                "completed",
                 "failed",
                 "failed_permissions",
                 "refunded",
                 "cancelled",
+                "ord_blocked",
                 name="placementstatus",
             ),
             nullable=False,
@@ -1018,6 +1021,9 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("counter_price", sa.Numeric(10, 2), nullable=True),
         sa.Column("counter_schedule", sa.DateTime(timezone=True), nullable=True),
         sa.Column("counter_comment", sa.Text(), nullable=True),
+        sa.Column("advertiser_counter_price", sa.Numeric(10, 2), nullable=True),
+        sa.Column("advertiser_counter_schedule", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("advertiser_counter_comment", sa.Text(), nullable=True),
         sa.Column("rejection_reason", sa.Text(), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("message_id", sa.BigInteger(), nullable=True),
@@ -1050,12 +1056,13 @@ def upgrade() -> None:  # noqa: PLR0915
             sa.String(10),
             server_default=sa.text("'none'"),
             nullable=False,
+            comment="MediaType: none/photo/video",
         ),
         sa.Column("video_file_id", sa.String(200), nullable=True),
         sa.Column("video_url", sa.String(500), nullable=True),
         sa.Column("video_thumbnail_file_id", sa.String(200), nullable=True),
-        sa.Column("video_duration", sa.Integer(), nullable=True),
-        sa.Column("erid", sa.String(100), nullable=True),
+        sa.Column("video_duration", sa.Integer(), nullable=True, comment="seconds"),
+        sa.Column("erid", sa.String(100), nullable=True, comment="ad marking token from ORD"),
         sa.Column("escrow_transaction_id", sa.Integer(), nullable=True),
         sa.Column("meta_json", postgresql.JSONB(), nullable=True),
         sa.ForeignKeyConstraint(
@@ -1513,6 +1520,11 @@ def upgrade() -> None:  # noqa: PLR0915
                 "post_removed_early",
                 "bot_kicked",
                 "advertiser_complaint",
+                "not_published",
+                "wrong_time",
+                "wrong_text",
+                "early_deletion",
+                "other",
                 name="disputereason",
             ),
             nullable=False,
@@ -1523,6 +1535,7 @@ def upgrade() -> None:  # noqa: PLR0915
                 "open",
                 "owner_explained",
                 "resolved",
+                "closed",
                 name="disputestatus",
             ),
             nullable=False,
@@ -1536,6 +1549,10 @@ def upgrade() -> None:  # noqa: PLR0915
                 "advertiser_fault",
                 "technical",
                 "partial",
+                "full_refund",
+                "partial_refund",
+                "no_refund",
+                "warning",
                 name="disputeresolution",
             ),
             nullable=True,
@@ -1584,6 +1601,9 @@ def upgrade() -> None:  # noqa: PLR0915
         ["placement_request_id"],
     )
     op.create_index("ix_placement_disputes_status", "placement_disputes", ["status"])
+    op.create_index("ix_placement_disputes_advertiser_id", "placement_disputes", ["advertiser_id"])
+    op.create_index("ix_placement_disputes_owner_id", "placement_disputes", ["owner_id"])
+    op.create_index("ix_placement_disputes_admin_id", "placement_disputes", ["admin_id"])
 
     # ── Table 30: publication_logs ────────────────────────────────────────────
     op.create_table(
@@ -1648,7 +1668,7 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.UniqueConstraint(
             "placement_request_id",
             "reviewer_id",
-            name="uq_reviews_placement_reviewer",
+            name="uq_review_placement_reviewer",
         ),
     )
     op.create_index("ix_reviews_reviewed_id", "reviews", ["reviewed_id"])
@@ -1709,11 +1729,19 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_reputation_history_user_id", "reputation_history", ["user_id"])
+    op.create_index(
+        "ix_reputation_history_placement_request_id",
+        "reputation_history",
+        ["placement_request_id"],
+    )
 
     # ── Deferred FK constraints (circular / self-referential) ─────────────────
 
     # users self-reference
-    op.create_foreign_key("users_referred_by_id_fkey", "users", "users", ["referred_by_id"], ["id"])
+    op.create_foreign_key(
+        "users_referred_by_id_fkey", "users", "users", ["referred_by_id"], ["id"],
+        ondelete="SET NULL",
+    )
 
     # transactions → placement_requests
     op.create_foreign_key(
@@ -1760,6 +1788,7 @@ def upgrade() -> None:  # noqa: PLR0915
         "transactions",
         ["reverses_transaction_id"],
         ["id"],
+        ondelete="SET NULL",
     )
 
     # placement_requests → transactions (escrow freeze link)
