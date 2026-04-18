@@ -72,15 +72,21 @@ class PlacementDispute(Base, TimestampMixin):
     placement_request_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("placement_requests.id"), nullable=False, index=True
     )
-    advertiser_id: Mapped[int] = mapped_column(Integer, ForeignKey(_USERS_FK), nullable=False)
-    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey(_USERS_FK), nullable=False)
+    advertiser_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey(_USERS_FK), nullable=False, index=True
+    )
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey(_USERS_FK), nullable=False, index=True
+    )
     reason: Mapped[DisputeReason] = mapped_column(nullable=False)
     status: Mapped[DisputeStatus] = mapped_column(default=DisputeStatus.open, index=True)
     owner_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     advertiser_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolution: Mapped[DisputeResolution | None] = mapped_column(nullable=True)
     resolution_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    admin_id: Mapped[int | None] = mapped_column(Integer, ForeignKey(_USERS_FK), nullable=True)
+    admin_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey(_USERS_FK), nullable=True, index=True
+    )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     advertiser_refund_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     owner_payout_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
