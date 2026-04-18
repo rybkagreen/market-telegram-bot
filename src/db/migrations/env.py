@@ -15,6 +15,30 @@ from src.db.models import *  # noqa: F401,F403,S2208
 
 logger = logging.getLogger(__name__)
 
+
+def _compare_type(
+    ctx: object,
+    inspected_column: object,
+    metadata_column: object,
+    inspected_type: object,
+    metadata_type: object,
+) -> bool | None:
+    """Skip type-drift detection for ORM-level encrypted columns.
+
+    EncryptedString / HashableEncryptedString are stored as plain TEXT/VARCHAR
+    in PostgreSQL — the encryption is handled at the ORM layer, not at the DB
+    type level.  Alembic would otherwise always report them as needing an ALTER.
+    """
+    try:
+        from src.core.security.field_encryption import EncryptedString, HashableEncryptedString
+
+        if isinstance(metadata_type, (EncryptedString, HashableEncryptedString)):
+            return False  # no change needed
+    except ImportError:
+        pass
+    return None  # fall through to default comparison
+
+
 # Alembic Config object
 config = context.config
 
@@ -37,8 +61,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        compare_type=True,
+        compare_type=_compare_type,
         compare_server_default=True,
+        compare_comment=False,
     )
 
     with context.begin_transaction():
@@ -56,8 +81,9 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True,
+            compare_type=_compare_type,
             compare_server_default=True,
+            compare_comment=False,
             include_schemas=True,
         )
 
