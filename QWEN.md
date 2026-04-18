@@ -515,6 +515,30 @@ class PlanLimitError(PermissionError): pass
 
 **Rule:** Every new task MUST have explicit `queue=` in decorator + matching `task_routes` pattern in `celery_app.py`. Queue constants: `QUEUE_WORKER_CRITICAL`, `QUEUE_MAILING`, etc. all in `celery_app.py`.
 
+**task_routes uses colon-patterns** (`mailing:*`, `notifications:*`, etc.). Celery does `fnmatch` against task names. Dot-patterns (`mailing.*`) do NOT match colon-prefixed names. Never revert to dot-patterns.
+
+### Bot Instance Lifecycle (S-37)
+
+One `aiogram.Bot` per worker process — never instantiate `Bot(token=...)` inside a task or service.
+
+```python
+from src.tasks._bot_factory import get_bot
+bot = get_bot()  # singleton, initialized at worker_process_init
+```
+
+`_bot_factory.py` exports: `init_bot()`, `get_bot()`, `close_bot()`.  
+`celery_app.py` wires these to `worker_process_init` / `worker_process_shutdown` signals.
+
+### Notification Helpers (S-37)
+
+| Helper | Purpose |
+|--------|---------|
+| `_notify_user_async(telegram_id, msg, parse_mode, reply_markup)` | Low-level send via `get_bot()`. No preference check — for admin/system alerts. |
+| `_notify_user_checked(user_id, msg, parse_mode, reply_markup) → bool` | DB lookup by `user.id`, checks `notifications_enabled`, returns `False` if disabled/not-found/Forbidden. |
+| `mailing:notify_user` | Public task entry-point, looks up by `telegram_id`, checks `notifications_enabled`. |
+
+**Architectural rule:** `Bot()` is never created in `core/services/`. Payment success and all user-facing notifications are dispatched as Celery tasks from the service layer.
+
 ### MistralAIService
 
 ```python
