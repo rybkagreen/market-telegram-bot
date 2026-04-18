@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-33: Migration Drift Fix — 0001 schema snapshot (April 2026)
+
+#### Fixed
+- **5 enum drift** — added 20 missing values across `placementstatus` (+completed, +ord_blocked), `transactiontype` (+storno, +admin_credit, +gamification_bonus), `disputereason` (+5 frontend values), `disputestatus` (+closed), `disputeresolution` (+4 frontend values) (`0001_initial_schema.py`)
+- **channel_mediakits columns** — added `owner_user_id` (FK→users), `logo_file_id`, `theme_color` missing from migration (`0001_initial_schema.py`)
+- **reviews unique constraint name** — `uq_reviews_…` → `uq_review_…` matching model definition (`0001_initial_schema.py`)
+- **self-referencing FK cascade** — added `ON DELETE SET NULL` to `users.referred_by_id` and `transactions.reverses_transaction_id` (`0001_initial_schema.py`)
+- **FK ondelete alignment** — added `ondelete="SET NULL"` to `acts.contract_id`, `invoices.placement_request_id/contract_id`, `transactions.act_id/invoice_id` in ORM models (`act.py`, `invoice.py`, `transaction.py`)
+- **acts.act_number** — removed duplicate `UniqueConstraint` from ORM (uniqueness already enforced by named `Index` in `__table_args__`) (`act.py`)
+- **alembic check noise** — suppressed `EncryptedString`/`HashableEncryptedString` type drift and column-comment drift via `env.py` (`env.py`)
+
+#### Added
+- **extracted_ogrnip** to `DocumentUpload` ORM model — syncs model with pre-existing DB column (`document_upload.py`)
+- **6 FK indexes** — `placement_disputes.(advertiser_id, owner_id, admin_id)`, `reputation_history.placement_request_id`, `user_badges.badge_id`, `badge_achievements.badge_id` — eliminates full-table scans (`0001_initial_schema.py`, `dispute.py`, `badge.py`, `reputation_history.py`)
+
+#### Removed
+- **0002_add_advertiser_counter_fields.py** — absorbed `advertiser_counter_price/schedule/comment` columns into 0001 snapshot; file deleted
+
+#### Migration Notes
+- `alembic check` → `No new upgrade operations detected.` (zero drift)
+- Single revision `0001_initial_schema (head)` — 0002 removed
+- DB reset required on pre-production instances: `DROP DATABASE / CREATE DATABASE / alembic upgrade head`
+
 ### S-29: Mobile UX & Channel Management (v4.6 — April 2026)
 
 #### Fixed
