@@ -51,6 +51,7 @@ class DocumentUpload(Base):
     extracted_inn: Mapped[str | None] = mapped_column(String(20), nullable=True)
     extracted_kpp: Mapped[str | None] = mapped_column(String(20), nullable=True)
     extracted_ogrn: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    extracted_ogrnip: Mapped[str | None] = mapped_column(String(20), nullable=True)
     extracted_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Validation against user-entered data
