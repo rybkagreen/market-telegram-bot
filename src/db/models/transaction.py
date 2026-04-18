@@ -95,10 +95,10 @@ class Transaction(Base, TimestampMixin):
 
     # Sprint E.1: links to primary documents
     act_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("acts.id"), nullable=True, index=True
+        Integer, ForeignKey("acts.id", ondelete="SET NULL"), nullable=True, index=True
     )
     invoice_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("invoices.id"), nullable=True, index=True
+        Integer, ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # Sprint D.2: storno/reversal support
