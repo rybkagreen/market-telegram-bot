@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlatformStats, getUsersList, getUserById, updateAdminUser } from '@/api/admin'
+import {
+  getPlatformStats,
+  getUsersList,
+  getUserById,
+  updateAdminUser,
+  getAdminPayouts,
+  approveAdminPayout,
+  rejectAdminPayout,
+} from '@/api/admin'
 
 export function usePlatformStats() {
   return useQuery({
@@ -36,6 +44,39 @@ export function useUpdateAdminUser() {
       updateAdminUser(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
+  })
+}
+
+export function useAdminPayouts(params: {
+  status?: string
+  limit?: number
+  offset?: number
+}) {
+  return useQuery({
+    queryKey: ['admin', 'payouts', params],
+    queryFn: () => getAdminPayouts(params),
+    staleTime: 30_000,
+  })
+}
+
+export function useApproveAdminPayout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payoutId: number) => approveAdminPayout(payoutId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
+    },
+  })
+}
+
+export function useRejectAdminPayout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ payoutId, reason }: { payoutId: number; reason: string }) =>
+      rejectAdminPayout(payoutId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
     },
   })
 }

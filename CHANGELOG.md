@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-38: Escrow Recovery — 4 P0 Fixes + Idempotency (April 2026)
+
+#### Fixed
+- **P0-1: `publish_placement` freezes escrow on failure** — On any publish exception, `BillingService.refund_escrow(..., scenario="after_escrow_before_confirmation")` is called in a separate session; status set to `failed`; advertiser notified with refund amount (`src/tasks/placement_tasks.py`)
+- **P0-2: `check_escrow_sla` bypasses BillingService** — Replaced `advertiser.balance_rub +=` direct mutation with `BillingService.refund_escrow()`; per-item commit with rollback on error; `platform_account.escrow_reserved` now stays consistent (`src/tasks/placement_tasks.py`)
+- **P0-3: `check_escrow_stuck` was a silent no-op** — Group A (message posted): dispatches `delete_published_post.apply_async`; Group B (pre-post): calls `BillingService.refund_escrow`; per-item commit; admin alert sent; `meta_json["escrow_stuck_detected"]` set for auditability (`src/tasks/placement_tasks.py`)
+- **P0-4: `delete_published_post` fails silently** — Added `autoretry_for=(Exception,)`, `max_retries=5`, `retry_backoff=True`, `retry_backoff_max=600`; async helper now raises on error for Celery retry (`src/tasks/placement_tasks.py`)
+- **nginx Docker build failure** — Created missing TypeScript type files (`timeline.types.ts`, `lib/types/billing.ts`, `api/acts.ts`) that `timeline.ts` imports; fixed type predicate error in `deriveActTimelineEvents` (`web_portal/src/lib/`)
+
+#### Added
+- **Idempotency guard on `refund_escrow`** — Before opening a transaction, SELECT checks for existing `Transaction` with matching `placement_request_id + type=refund_full + user_id`; if found → log and return. `Transaction.placement_request_id` now populated on refund rows as the FK anchor (`src/core/services/billing_service.py`)
+- **Admin payout API functions** — `getAdminPayouts`, `approveAdminPayout`, `rejectAdminPayout` in `web_portal/src/api/admin.ts`; corresponding hooks in `useAdminQueries.ts`
+- **36 regression tests** — Source-inspection + mock-based tests for all 4 P0 fixes and idempotency guard (`tests/tasks/test_placement_escrow.py`, `tests/test_billing_service_idempotency.py`)
+
+---
+
 ### S-37: Notification Infrastructure Fixes (April 2026)
 
 #### Fixed
