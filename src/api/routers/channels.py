@@ -440,6 +440,7 @@ async def create_channel(
         rating=new_channel.rating,
         category=new_channel.category,
         is_active=new_channel.is_active,
+        created_at=new_channel.created_at.isoformat(),
     )
 
 
@@ -566,6 +567,8 @@ async def activate_channel(
         last_er=channel.last_er,
         avg_views=channel.avg_views,
         is_active=channel.is_active,
+        owner_id=channel.owner_id,
+        created_at=channel.created_at.isoformat(),
     )
 
 
@@ -610,6 +613,7 @@ async def update_channel_category(
         rating=channel.rating,
         category=channel.category,
         is_active=channel.is_active,
+        created_at=channel.created_at.isoformat(),
     )
 
 

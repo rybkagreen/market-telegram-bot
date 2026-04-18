@@ -35,7 +35,7 @@ class UserResponse(BaseModel):
     id: int
     telegram_id: int
     username: str | None = None
-    first_name: str | None = None
+    first_name: str
     plan: str
     balance_rub: str
     earned_rub: str
