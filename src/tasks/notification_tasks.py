@@ -217,20 +217,34 @@ def notify_user(
     # Установить блокировку на 5 минут
     asyncio.run(redis_client.setex(dedup_key, 300, "1"))
 
-    try:
-        asyncio.run(_notify_user_async(telegram_id, message, parse_mode))
-        return True
-    except Exception as e:
-        # Игнорируем ожидаемые ошибки (пользователь заблокировал бота)
-        error_str = str(e).lower()
-        if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
-            logger.warning(
-                f"User {telegram_id} blocked the bot or chat is inaccessible, "
-                f"skipping notification: {e}"
+    async def _send() -> bool:
+        # Check notifications_enabled via DB lookup
+        async with async_session_factory() as session:
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(telegram_id)
+
+        if user is not None and not user.notifications_enabled:
+            logger.info(
+                "mailing:notify_user: notifications disabled for telegram_id=%s, skipping",
+                telegram_id,
             )
             return False
-        logger.error(f"Error notifying user {telegram_id}: {e}")
-        return False
+
+        try:
+            await _notify_user_async(telegram_id, message, parse_mode)
+            return True
+        except Exception as e:
+            error_str = str(e).lower()
+            if CHAT_NOT_FOUND in error_str or "blocked" in error_str:
+                logger.warning(
+                    f"User {telegram_id} blocked the bot or chat is inaccessible, "
+                    f"skipping notification: {e}"
+                )
+                return False
+            logger.error(f"Error notifying user {telegram_id}: {e}")
+            return False
+
+    return asyncio.run(_send())
 
 
 async def _notify_user_async(
@@ -269,6 +283,52 @@ async def _notify_user_async(
         else:
             logger.error(f"Error sending notification to {telegram_id}: {e}")
         raise
+
+
+async def _notify_user_checked(
+    user_id: int,
+    message: str,
+    parse_mode: str = "HTML",
+    reply_markup: Any = None,
+) -> bool:
+    """Send notification only if user.notifications_enabled is True.
+
+    Args:
+        user_id: Internal DB user.id (NOT telegram_id).
+        message: Message text.
+        parse_mode: Parse mode.
+        reply_markup: Optional InlineKeyboardMarkup.
+
+    Returns:
+        True if message was sent, False if skipped or user not found.
+    """
+    from aiogram.exceptions import TelegramForbiddenError
+
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_id(user_id)
+
+    if user is None:
+        logger.warning("_notify_user_checked: user_id=%s not found, skipping", user_id)
+        return False
+
+    if not user.notifications_enabled:
+        logger.info("_notify_user_checked: notifications disabled for user_id=%s, skipping", user_id)
+        return False
+
+    try:
+        await _notify_user_async(user.telegram_id, message, parse_mode, reply_markup)
+        return True
+    except TelegramForbiddenError:
+        logger.warning(
+            "_notify_user_checked: user %s (tg=%s) blocked the bot",
+            user_id,
+            user.telegram_id,
+        )
+        return False
+    except Exception as e:
+        logger.error("_notify_user_checked: failed for user_id=%s: %s", user_id, e)
+        return False
 
 
 # ─────────────────────────────────────────────
@@ -551,7 +611,7 @@ def notify_post_published(
             f"✅ <b>Пост опубликован в @{channel_username}</b>.\n\n"
             f"Ожидаемый охват: ~{expected_views:,} просмотров."
         )
-        await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_checked(advertiser_id, text)
         return True
 
     try:
@@ -585,8 +645,6 @@ def notify_campaign_finished(
     async def _notify() -> bool:
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-        from src.tasks._bot_factory import get_bot
-
         text = (
             f"📊 <b>Кампания '{campaign_title}' завершена</b>.\n\n"
             f"Опубликовано: {published_count}/{total_count}\n"
@@ -605,13 +663,7 @@ def notify_campaign_finished(
             ]
         )
 
-        bot = get_bot()
-        await bot.send_message(
-            advertiser_id,
-            text,
-            parse_mode="HTML",
-            reply_markup=keyboard,
-        )
+        await _notify_user_checked(advertiser_id, text, reply_markup=keyboard)
         return True
 
     try:
@@ -655,7 +707,7 @@ def notify_placement_rejected(
             f"Причина: {reason}\n"
             f"Средства {refund_amount} кр вернулись на ваш баланс."
         )
-        await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_checked(advertiser_id, text)
         return True
 
     try:
@@ -687,7 +739,7 @@ def notify_changes_requested(
             f"Канал: @{channel_username}\n\n"
             f"Отредактируйте текст кампании и отправьте заявку повторно."
         )
-        await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_checked(advertiser_id, text)
         return True
 
     try:
@@ -717,8 +769,6 @@ def notify_low_balance_enhanced(
     async def _notify() -> bool:
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-        from src.tasks._bot_factory import get_bot
-
         deficit = campaign_cost - current_balance
 
         text = (
@@ -734,13 +784,7 @@ def notify_low_balance_enhanced(
             ]
         )
 
-        bot = get_bot()
-        await bot.send_message(
-            advertiser_id,
-            text,
-            parse_mode="HTML",
-            reply_markup=keyboard,
-        )
+        await _notify_user_checked(advertiser_id, text, reply_markup=keyboard)
         return True
 
     try:
@@ -775,7 +819,7 @@ def notify_plan_expiring(
             f"Продление: {renewal_cost} кр\n"
             f"Баланс сейчас: {current_balance} кр"
         )
-        await _notify_user_async(advertiser_id, text, "HTML")
+        await _notify_user_checked(advertiser_id, text)
         return True
 
     try:
@@ -813,7 +857,7 @@ def notify_badge_earned(
             f"+{xp_bonus} XP.\n"
             f"Осталось до уровня {remaining_to_next_level} XP."
         )
-        await _notify_user_async(user_id, text, "HTML")
+        await _notify_user_checked(user_id, text)
         return True
 
     try:
@@ -872,7 +916,7 @@ def notify_level_up(
                 f"Это максимальный уровень. Поздравляем!"
             )
 
-        await _notify_user_async(user_id, text, "HTML")
+        await _notify_user_checked(user_id, text)
         return True
 
     try:
@@ -909,7 +953,7 @@ def notify_channel_top10(
             f"Метка 🏆 теперь отображается в карточке канала.\n"
             f"Ожидайте больше заявок от рекламодателей."
         )
-        await _notify_user_async(owner_id, text, "HTML")
+        await _notify_user_checked(owner_id, text)
         return True
 
     try:
@@ -939,7 +983,7 @@ def notify_referral_bonus(
             f"💰 <b>Ваш реферал {referred_name} пополнил баланс!</b>\n\n"
             f"Ваш бонус: +{bonus_amount} кр на баланс."
         )
-        await _notify_user_async(referrer_id, text, "HTML")
+        await _notify_user_checked(referrer_id, text)
         return True
 
     try:
