@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, Notification } from '@shared/ui'
-import { api } from '@shared/api/client'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
+import { requestKep as apiRequestKep } from '@/api/legal'
 import type { Contract } from '@/lib/types'
 
 interface KepWarningProps {
@@ -21,7 +21,7 @@ export function KepWarning({ contract, legalStatus, onKepRequested }: KepWarning
 
   const requestKep = useMutation({
     mutationFn: ({ contractId, email }: { contractId: number; email: string }) =>
-      api.post(`contracts/${contractId}/request-kep`, { json: { email } }).json(),
+      apiRequestKep(contractId, email),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contracts'] })
     },
