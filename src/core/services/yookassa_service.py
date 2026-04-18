@@ -216,28 +216,14 @@ class YooKassaService:
                 session.add(transaction)
                 await session.commit()
 
-                new_balance = float(user.balance_rub)
+                new_balance = float(user.balance_rub)  # noqa: F841 — passed to task below
 
-            # Отправить уведомление
-            from aiogram import Bot
-
-            from src.bot.handlers.shared.notifications import (
-                format_yookassa_payment_success,
-            )
-
-            # Создать бота для отправки уведомления
-            bot = Bot(token=settings.bot_token)
-
+            # Dispatch notification via Celery — keeps webhook response non-blocking
             if user:
-                try:
-                    text = format_yookassa_payment_success(
-                        amount_rub=amount_rub,
-                        new_balance=new_balance,
-                    )
-                    await bot.send_message(chat_id=user.telegram_id, text=text, parse_mode="HTML")
-                    self.logger.info("Уведомление об оплате отправлено user_id=%s", user_id)
-                finally:
-                    await bot.session.close()
+                from src.tasks.billing_tasks import notify_payment_success
+
+                notify_payment_success.delay(user_id, float(amount_rub), payment_id)
+                self.logger.info("Уведомление об оплате поставлено в очередь user_id=%s", user_id)
 
         except Exception as e:
             self.logger.error("Ошибка отправки уведомления user_id=%s: %s", user_id, e)
