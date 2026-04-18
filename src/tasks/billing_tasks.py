@@ -151,6 +151,64 @@ async def _check_plan_renewals() -> dict:
     return {"renewed": renewed, "downgraded": downgraded}
 
 
+@celery_app.task(name="notifications:notify_payment_success", queue="notifications")
+def notify_payment_success(user_id: int, amount_rub: float, payment_id: str) -> bool:
+    """
+    Send payment success notification to user via notifications queue.
+
+    Dispatched by yookassa_service._credit_user — keeps service layer
+    free of Bot() instantiation and makes webhook response non-blocking.
+
+    Args:
+        user_id: Internal DB user.id.
+        amount_rub: Credited amount in rubles (float for JSON serializability).
+        payment_id: YooKassa payment UUID (for logging).
+    """
+
+    async def _notify() -> bool:
+        from sqlalchemy import select
+
+        from src.bot.handlers.shared.notifications import format_yookassa_payment_success
+        from src.tasks.notification_tasks import _notify_user_checked
+
+        async with async_session_factory() as session:
+            result = await session.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+
+        if not user:
+            logger.warning(
+                "notify_payment_success: user_id=%s not found (payment_id=%s)",
+                user_id,
+                payment_id,
+            )
+            return False
+
+        new_balance = float(user.balance_rub)
+        text = format_yookassa_payment_success(
+            amount_rub=Decimal(str(amount_rub)),
+            new_balance=new_balance,
+        )
+        sent = await _notify_user_checked(user_id, text)
+        if sent:
+            logger.info(
+                "notify_payment_success: notification sent user_id=%s payment_id=%s",
+                user_id,
+                payment_id,
+            )
+        return sent
+
+    try:
+        return asyncio.run(_notify())
+    except Exception as e:
+        logger.error(
+            "notify_payment_success: error for user_id=%s payment_id=%s: %s",
+            user_id,
+            payment_id,
+            e,
+        )
+        return False
+
+
 @celery_app.task(name="billing:check_pending_invoices", queue="billing")
 def check_pending_invoices() -> dict:
     """DEPRECATED: Removed in v4.5. No-op — safe to delete."""
