@@ -58,11 +58,15 @@ export async function getContractById(id: number) {
 }
 
 export async function signContract(id: number, method: string) {
-  return api.post(`contracts/${id}/sign`, { json: { method } }).json<Contract>()
+  return api.post(`contracts/${id}/sign`, { json: { signature_method: method } }).json<Contract>()
 }
 
 export async function acceptRules() {
-  return api.post('contracts/accept-rules').json()
+  return api
+    .post('contracts/accept-rules', {
+      json: { accept_platform_rules: true, accept_privacy_policy: true },
+    })
+    .json()
 }
 
 export async function generateContract(contractType: ContractType, placementRequestId?: number) {
@@ -72,7 +76,9 @@ export async function generateContract(contractType: ContractType, placementRequ
 }
 
 export async function requestKep(contractId: number, email: string) {
-  return api.post(`contracts/${contractId}/request-kep`, { json: { email } }).json<Contract>()
+  return api
+    .post('contracts/request-kep', { json: { contract_id: contractId, email } })
+    .json<Contract>()
 }
 
 export function getPdfUrl(id: number): string {
