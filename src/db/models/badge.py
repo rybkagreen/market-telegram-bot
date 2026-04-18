@@ -61,7 +61,7 @@ class BadgeAchievement(Base, TimestampMixin):
     __tablename__ = "badge_achievements"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    badge_id: Mapped[int] = mapped_column(Integer, ForeignKey("badges.id"), nullable=False)
+    badge_id: Mapped[int] = mapped_column(Integer, ForeignKey("badges.id"), nullable=False, index=True)
     achievement_type: Mapped[str] = mapped_column(String(64), nullable=False)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -86,7 +86,7 @@ class UserBadge(Base, TimestampMixin):
     badge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    badge_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("badges.id"), nullable=True)
+    badge_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("badges.id"), nullable=True, index=True)
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="badges")
