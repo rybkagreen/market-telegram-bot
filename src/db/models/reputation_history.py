@@ -49,7 +49,7 @@ class ReputationHistory(Base, TimestampMixin):
     score_before: Mapped[float] = mapped_column(Float, nullable=False)
     score_after: Mapped[float] = mapped_column(Float, nullable=False)
     placement_request_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("placement_requests.id"), nullable=True
+        Integer, ForeignKey("placement_requests.id"), nullable=True, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
