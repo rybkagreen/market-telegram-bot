@@ -1,0 +1,62 @@
+# Build artifacts & caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Node modules & frontend builds
+mini_app/node_modules/
+mini_app/dist/
+web_portal/node_modules/
+web_portal/dist/
+
+# Python virtual environment
+.venv/
+
+# Docker
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reports & docs — explicitly included when needed
+# reports/**/*.md  # REMOVED: needed for discovery reports
+# docs/**/*.md     # REMOVED: needed for architecture docs
+
+# Poetry lock (large file, rarely needed in context)
+poetry.lock
+
+# Alembic versions (read-only per QWEN.md rules)
+# REMOVED: needed for migration audits and schema checks
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# GlitchTip queue
+reports/monitoring/payloads/
+
+# SonarQube
+.sonar/
+.sonarqube/
+
+# Gitleaks
+.gitleaks-report.json
