@@ -173,7 +173,7 @@ class PlacementCreateRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
     channel_id: int = Field(..., description="ID канала")
-    proposed_price: int = Field(..., ge=100, description="Предложенная цена >= 100")
+    proposed_price: Decimal = Field(..., ge=100, description="Предложенная цена >= 100")
     post_text: str = Field(
         ...,
         min_length=10,
@@ -384,7 +384,7 @@ async def create_placement(
         placement = await service.create_request(
             advertiser_id=current_user.id,
             channel_id=request.channel_id,
-            proposed_price=Decimal(str(request.proposed_price)),
+            proposed_price=request.proposed_price,
             final_text=request.post_text,
             proposed_schedule=request.scheduled_at,
             is_test=is_test,
