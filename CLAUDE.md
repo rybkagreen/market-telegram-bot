@@ -115,7 +115,22 @@ Any state → `cancelled` / `refunded` / `failed` / `failed_permissions`
 **Notes:**
 - Dead queue `rating` in `worker_background` — historical artifact (`rating_tasks.py` deleted in v4.3). Listener kept for in-flight safety; remove at next docker-compose cleanup.
 - 4 periodic notification tasks (`auto_approve_placements`, `notify_pending_placement_reminders`, `notify_expiring_plans`, `notify_expired_plans`) intentionally use `queue=mailing` in their decorator despite the `notifications:*` prefix. Decorator overrides `task_routes`. This is correct: `mailing` is for scheduled batch sends, `notifications` is for event-driven.
-- `mailing:check_low_balance` and `mailing:notify_user` in `notification_tasks.py` currently land on default queue due to colon-vs-dot prefix mismatch in routes — tracked as S-37.
+- **task_routes uses colon-patterns** (`mailing:*`, `parser:*`, etc.) — Celery does fnmatch against task names. Dot-patterns (`mailing.*`) do NOT match colon-prefixed names. Never revert to dot-patterns.
+
+### Bot Instance Lifecycle (S-37)
+
+- `Bot()` is created **once per worker process** via `worker_process_init` hook in `celery_app.py`.
+- All tasks obtain the instance via `get_bot()` from `src/tasks/_bot_factory.py`.
+- Session stays alive for the worker's lifetime; closed only in `worker_process_shutdown`.
+- **Rule: `Bot()` must NEVER be instantiated outside `_bot_factory.py`.**
+- `bot.session.close()` must NEVER be called in task code — session lifecycle is managed by factory.
+
+### Notification Helpers (S-37)
+
+- `_notify_user_async(telegram_id, message, parse_mode, reply_markup)` — low-level send, no `notifications_enabled` check. Use for admin alerts and system messages.
+- `_notify_user_checked(user_id, message, ...) -> bool` — checks `user.notifications_enabled` via DB lookup (by internal user.id). Returns `False` if skipped, not found, or blocked. **All new user-facing notification tasks must use this helper.**
+- `mailing:notify_user(telegram_id, ...)` — public entry point; checks `notifications_enabled` via `get_by_telegram_id`. If user not found, sends anyway (system/auth flows).
+- **Architectural rule**: `Bot()` is never created in `core/services/`. If a service needs to send a message, dispatch a Celery task (e.g., `notify_payment_success.delay(...)`).
 
 ### Celery Queue Assignment (legacy summary)
 
