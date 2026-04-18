@@ -3,12 +3,14 @@ Celery приложение для асинхронных задач.
 Настройка broker, backend, очередей и маршрутизации.
 """
 
+import asyncio
 import logging
 from typing import Any
 
 import sentry_sdk
 from celery import Celery, Task
 from celery.schedules import crontab
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from src.config.settings import settings
 from src.tasks.sentry_init import init_worker_sentry
@@ -263,6 +265,23 @@ celery_app = create_celery_app()
 
 # Алиас для совместимости
 app = celery_app
+
+
+# ─── Worker lifecycle: one Bot instance per process ───────────────────────────
+
+
+@worker_process_init.connect
+def on_worker_process_init(**kwargs: Any) -> None:
+    """Initialize shared Bot on worker fork."""
+    from src.tasks._bot_factory import init_bot
+    init_bot()
+
+
+@worker_process_shutdown.connect
+def on_worker_process_shutdown(**kwargs: Any) -> None:
+    """Close Bot session on worker exit."""
+    from src.tasks._bot_factory import close_bot
+    asyncio.run(close_bot())
 
 
 # Decorator для регистрации задач
