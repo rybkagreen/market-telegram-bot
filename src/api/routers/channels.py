@@ -1039,13 +1039,15 @@ class ComparisonChannelItem(BaseModel):
     id: int
     username: str | None = None
     title: str | None = None
-    member_count: int
+    subscribers: int
     avg_views: int
-    er: float
+    last_er: float
     post_frequency: float
     price_per_post: float
     price_per_1k_subscribers: float
-    is_best: dict[str, bool]
+    is_best: dict[str, bool] = {}
+    topic: str | None = None
+    rating: float | None = None
 
 
 class ComparisonRecommendation(BaseModel):
