@@ -56,7 +56,7 @@ INTEGRITY_CHECKS: list[tuple[str, str, str]] = [
 ]
 
 
-@celery_app.task(base=BaseTask, name="integrity:check_data_integrity")
+@celery_app.task(base=BaseTask, name="integrity:check_data_integrity", queue="cleanup")
 def check_data_integrity() -> dict[str, Any]:
     """
     Проверить целостность данных.
