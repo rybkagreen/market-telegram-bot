@@ -1,9 +1,11 @@
 """ComparisonService — сравнение метрик Telegram-каналов."""
 
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.services.mediakit_service import _session_ctx
 from src.db.models.telegram_chat import TelegramChat
@@ -19,22 +21,35 @@ class ComparisonService:
     ) -> list[dict[str, Any]]:
         """Получить данные каналов для сравнения по списку id."""
         async with _session_ctx(session) as s:
-            result = await s.execute(select(TelegramChat).where(TelegramChat.id.in_(channel_ids)))
+            result = await s.execute(
+                select(TelegramChat)
+                .where(TelegramChat.id.in_(channel_ids))
+                .options(selectinload(TelegramChat.channel_settings))
+            )
             chats = result.scalars().all()
 
             channels: list[dict[str, Any]] = []
             for chat in chats:
-                member_count = chat.member_count or 0
-                price_per_post = chat.price_per_post or 0
-                price_per_1k = price_per_post / (member_count / 1000) if member_count > 0 else 0.0
+                subscribers = chat.member_count or 0
+                price_per_post: float = float(
+                    chat.channel_settings.price_per_post
+                    if chat.channel_settings
+                    else Decimal(0)
+                )
+                price_per_1k = price_per_post / (subscribers / 1000) if subscribers > 0 else 0.0
                 channels.append({
-                    "channel_id": chat.id,
-                    "member_count": member_count,
-                    "avg_views": chat.last_avg_views or 0,
-                    "er": chat.last_er or 0.0,
-                    "post_frequency": chat.last_post_frequency or 0.0,
+                    "id": chat.id,
+                    "username": chat.username,
+                    "title": chat.title,
+                    "subscribers": subscribers,
+                    "avg_views": chat.avg_views or 0,
+                    "last_er": chat.last_er or 0.0,
+                    "post_frequency": 0.0,
                     "price_per_post": price_per_post,
                     "price_per_1k_subscribers": price_per_1k,
+                    "is_best": {},
+                    "topic": chat.category,
+                    "rating": chat.rating or 0.0,
                 })
             return channels
 
@@ -43,20 +58,20 @@ class ComparisonService:
         if not channels:
             return {"channels": [], "best_values": {}, "recommendation": {}}
 
-        best_member_count = max(ch["member_count"] for ch in channels)
+        best_subscribers = max(ch["subscribers"] for ch in channels)
         best_avg_views = max(ch["avg_views"] for ch in channels)
-        best_er = max(ch["er"] for ch in channels)
+        best_er = max(ch["last_er"] for ch in channels)
 
-        best_channel = max(channels, key=lambda ch: ch["er"])
+        best_channel = max(channels, key=lambda ch: ch["last_er"])
 
         return {
             "channels": channels,
             "best_values": {
-                "member_count": best_member_count,
+                "subscribers": best_subscribers,
                 "avg_views": best_avg_views,
-                "er": best_er,
+                "last_er": best_er,
             },
-            "recommendation": {"channel_id": best_channel["channel_id"]},
+            "recommendation": {"channel_id": best_channel["id"]},
         }
 
 
