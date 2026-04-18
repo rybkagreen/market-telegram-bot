@@ -3,6 +3,7 @@ Campaigns router для управления рекламными кампани
 """
 
 import logging
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -54,26 +55,23 @@ class CampaignCreate(BaseModel):
 class CampaignUpdate(BaseModel):
     """Обновление кампании."""
 
-    title: str | None = Field(None, min_length=1, max_length=255)
-    text: str | None = Field(None, min_length=1, max_length=5000)
-    filters_json: dict[str, Any] | None = None
-    scheduled_at: str | None = None
+    ad_text: str | None = Field(None, min_length=1, max_length=5000)
+    meta_json: dict[str, Any] | None = None
+    proposed_schedule: datetime | None = None
 
 
 class CampaignResponse(BaseModel):
     """Ответ с данными кампании."""
 
     id: int
-    title: str
-    text: str
+    ad_text: str
     status: str
-    filters_json: dict[str, Any] | None = None
-    scheduled_at: str | None = None
-    created_at: str
-    updated_at: str
+    meta_json: dict[str, Any] | None = None
+    proposed_schedule: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class CampaignListResponse(BaseModel):
@@ -534,7 +532,7 @@ async def get_placement_request_stats(
 
 class DuplicateResponse(BaseModel):
     id: int
-    title: str
+    ad_text: str
 
 
 @router.post("/{placement_request_id}/duplicate", responses={404: {"description": "Not found"}})
@@ -543,9 +541,9 @@ async def duplicate_placement_request(
     current_user: CurrentUser,
 ) -> DuplicateResponse:
     """
-    Создать копию кампании в статусе 'draft'.
-    Копируется: title, text, filters_json.
-    Не копируется: статус, логи, scheduled_at.
+    Создать копию кампании в статусе 'pending_owner'.
+    Копируется: ad_text.
+    Не копируется: статус, логи, meta_json, proposed_schedule.
     """
     async with async_session_factory() as session:
         result = await session.execute(
@@ -581,5 +579,5 @@ async def duplicate_placement_request(
         await session.refresh(new_placement_request)
 
     return DuplicateResponse(
-        id=new_placement_request.id, title=new_ad_text[:50] if new_ad_text else ""
+        id=new_placement_request.id, ad_text=new_ad_text or ""
     )
