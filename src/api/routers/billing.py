@@ -6,7 +6,6 @@ Endpoints:
   GET  /api/billing/history          — история платежей с пагинацией
   POST /api/billing/topup            — создать ЮKassa платёж
   POST /webhooks/yookassa            — webhook от ЮKassa
-  GET  /api/billing/invoice/{id}     — проверить статус инвойса
 """
 
 import logging
