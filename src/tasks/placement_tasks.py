@@ -27,8 +27,7 @@ from src.db.models.user import User
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepo
 from src.db.session import celery_async_session_factory as async_session_factory
-from src.tasks.celery_app import BaseTask, celery_app
-from src.tasks.celery_config import QUEUE_WORKER_CRITICAL
+from src.tasks.celery_app import QUEUE_WORKER_CRITICAL, BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
 

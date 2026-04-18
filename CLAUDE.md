@@ -82,7 +82,42 @@ Aiogram Bot (polling)     FastAPI (port 8001)
 `pending_owner` → `counter_offer` ↔ `pending_payment` → `escrow` → `published` → (done)
 Any state → `cancelled` / `refunded` / `failed` / `failed_permissions`
 
-### Celery Queue Assignment
+### Celery Infrastructure Map (S-36)
+
+| Worker | Listens to queues | Concurrency |
+|--------|-------------------|-------------|
+| `worker_critical` | `worker_critical`, `mailing`, `notifications`, `billing`, `placement` | 2 |
+| `worker_background` | `parser`, `cleanup`, `background`, `rating` (dead — historical) | 4 |
+| `worker_game` | `gamification`, `badges` | 2 |
+
+### Task Prefix → Queue Convention
+
+| Task prefix | Queue | Worker |
+|-------------|-------|--------|
+| `mailing:*` | `mailing` | worker_critical |
+| `parser:*` | `parser` | worker_background |
+| `cleanup:*` | `cleanup` | worker_background |
+| `notifications:*` | `notifications` | worker_critical |
+| `placement:*` | `worker_critical` | worker_critical |
+| `billing:*` | `billing` | worker_critical |
+| `ord:*` | `background` | worker_background |
+| `badges:*` | `badges` | worker_game |
+| `gamification:*` | `gamification` | worker_game |
+| `integrity:*` | `cleanup` | worker_background |
+| `dispute:*` | `worker_critical` | worker_critical |
+| `document_ocr:*` | `worker_critical` | worker_critical |
+| `payouts:*` | `background` | worker_background |
+
+**Rules for new tasks:**
+- Every new Celery task MUST have explicit `queue=` in its `@celery_app.task(...)` decorator AND a matching pattern in `task_routes` in `celery_app.py`.
+- Queue constants live in `src/tasks/celery_app.py` (e.g. `QUEUE_WORKER_CRITICAL`). `celery_config.py` was deleted in S-36.
+
+**Notes:**
+- Dead queue `rating` in `worker_background` — historical artifact (`rating_tasks.py` deleted in v4.3). Listener kept for in-flight safety; remove at next docker-compose cleanup.
+- 4 periodic notification tasks (`auto_approve_placements`, `notify_pending_placement_reminders`, `notify_expiring_plans`, `notify_expired_plans`) intentionally use `queue=mailing` in their decorator despite the `notifications:*` prefix. Decorator overrides `task_routes`. This is correct: `mailing` is for scheduled batch sends, `notifications` is for event-driven.
+- `mailing:check_low_balance` and `mailing:notify_user` in `notification_tasks.py` currently land on default queue due to colon-vs-dot prefix mismatch in routes — tracked as S-37.
+
+### Celery Queue Assignment (legacy summary)
 
 - **critical**: billing, notifications, mailing (concurrency 2)
 - **background**: parser, cleanup, rating (concurrency 4)
