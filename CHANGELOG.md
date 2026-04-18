@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-37: Notification Infrastructure Fixes (April 2026)
+
+#### Fixed
+- **task_routes dot/colon mismatch** — All 13 Celery `task_routes` patterns changed from `prefix.*` to `prefix:*`; `fnmatch` requires colon-patterns to match colon-prefixed task names. `mailing:check_low_balance` and `mailing:notify_user` now route correctly to `mailing` queue (`src/tasks/celery_app.py`)
+- **18 per-call `Bot()` instantiations** — Replaced every `Bot(token=...)` in tasks with `get_bot()` singleton from `_bot_factory.py`; one `aiohttp.ClientSession` per worker process (`src/tasks/notification_tasks.py`, `placement_tasks.py`, `integrity_tasks.py`, `gamification_tasks.py`)
+- **12 tasks skipped `notifications_enabled`** — All user-facing notification tasks now check `user.notifications_enabled` via `_notify_user_checked()` helper before sending (`src/tasks/notification_tasks.py`, `placement_tasks.py`)
+- **`yookassa_service` layering violation** — `core/services/yookassa_service.py` no longer creates `Bot()` directly; payment success notification delegated to `notify_payment_success.delay()` Celery task (`src/core/services/yookassa_service.py`)
+
+#### Added
+- **`src/tasks/_bot_factory.py`** — Per-process Bot singleton: `init_bot()`, `get_bot()`, `close_bot()`; wired to `worker_process_init` / `worker_process_shutdown` signals in `celery_app.py`
+- **`_notify_user_checked(user_id, msg, ...) → bool`** — DB-aware notification helper: looks up by `user.id`, checks `notifications_enabled`, handles `TelegramForbiddenError`
+- **`notifications:notify_payment_success`** — New Celery task on `notifications` queue for YooKassa payment success notifications
+- **11 regression tests** — `tests/tasks/test_bot_factory.py` (4 tests), `tests/tasks/test_notifications_enabled.py` (7 tests)
+
+---
+
 ### S-35: API Contract Alignment — Legal Flow + Compare Endpoint (April 2026)
 
 #### Fixed

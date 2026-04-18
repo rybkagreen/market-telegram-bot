@@ -111,9 +111,8 @@ async def _check_data_integrity_async() -> dict[str, Any]:
 
 async def _notify_admin_failures(failures: list[str]) -> None:
     """Отправить администратору сообщение о нарушениях целостности."""
-    from aiogram import Bot
-
     from src.config.settings import settings
+    from src.tasks._bot_factory import get_bot
 
     admin_ids = settings.admin_ids
     if not admin_ids:
@@ -123,17 +122,14 @@ async def _notify_admin_failures(failures: list[str]) -> None:
     text = "🔍 <b>Проверка целостности данных — обнаружены нарушения:</b>\n\n"
     text += "\n".join(f"• {f}" for f in failures)
 
-    bot = Bot(token=settings.bot_token)
-    try:
-        for admin_id in admin_ids:
-            try:
-                await bot.send_message(
-                    chat_id=admin_id,
-                    text=text,
-                    parse_mode="HTML",
-                )
-            except Exception as e:
-                logger.error(f"Failed to send integrity alert to admin {admin_id}: {e}")
-        logger.info(f"Integrity alert sent to {len(admin_ids)} admin(s)")
-    finally:
-        await bot.session.close()
+    bot = get_bot()
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(
+                chat_id=admin_id,
+                text=text,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error(f"Failed to send integrity alert to admin {admin_id}: {e}")
+    logger.info(f"Integrity alert sent to {len(admin_ids)} admin(s)")

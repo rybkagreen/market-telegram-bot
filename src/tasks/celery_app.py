@@ -3,12 +3,14 @@ Celery приложение для асинхронных задач.
 Настройка broker, backend, очередей и маршрутизации.
 """
 
+import asyncio
 import logging
 from typing import Any
 
 import sentry_sdk
 from celery import Celery, Task
 from celery.schedules import crontab
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from src.config.settings import settings
 from src.tasks.sentry_init import init_worker_sentry
@@ -64,19 +66,19 @@ def create_celery_app() -> Celery:
         enable_utc=True,
         # Очереди
         task_routes={
-            "mailing.*": {"queue": QUEUE_MAILING},
-            "parser.*": {"queue": QUEUE_PARSER},
-            "cleanup.*": {"queue": QUEUE_CLEANUP},
-            "notifications.*": {"queue": QUEUE_NOTIFICATIONS},
-            "placement.*": {"queue": QUEUE_WORKER_CRITICAL},
-            "billing.*": {"queue": QUEUE_BILLING},
-            "ord.*": {"queue": QUEUE_BACKGROUND},
-            "badges.*": {"queue": QUEUE_BADGES},
-            "gamification.*": {"queue": QUEUE_GAMIFICATION},
-            "integrity.*": {"queue": QUEUE_CLEANUP},
-            "dispute.*": {"queue": QUEUE_WORKER_CRITICAL},
-            "document_ocr.*": {"queue": QUEUE_WORKER_CRITICAL},
-            "payouts.*": {"queue": QUEUE_BACKGROUND},
+            "mailing:*": {"queue": QUEUE_MAILING},
+            "parser:*": {"queue": QUEUE_PARSER},
+            "cleanup:*": {"queue": QUEUE_CLEANUP},
+            "notifications:*": {"queue": QUEUE_NOTIFICATIONS},
+            "placement:*": {"queue": QUEUE_WORKER_CRITICAL},
+            "billing:*": {"queue": QUEUE_BILLING},
+            "ord:*": {"queue": QUEUE_BACKGROUND},
+            "badges:*": {"queue": QUEUE_BADGES},
+            "gamification:*": {"queue": QUEUE_GAMIFICATION},
+            "integrity:*": {"queue": QUEUE_CLEANUP},
+            "dispute:*": {"queue": QUEUE_WORKER_CRITICAL},
+            "document_ocr:*": {"queue": QUEUE_WORKER_CRITICAL},
+            "payouts:*": {"queue": QUEUE_BACKGROUND},
         },
         # Приоритеты задач (Redis broker)
         broker_transport_options={
@@ -263,6 +265,23 @@ celery_app = create_celery_app()
 
 # Алиас для совместимости
 app = celery_app
+
+
+# ─── Worker lifecycle: one Bot instance per process ───────────────────────────
+
+
+@worker_process_init.connect
+def on_worker_process_init(**kwargs: Any) -> None:
+    """Initialize shared Bot on worker fork."""
+    from src.tasks._bot_factory import init_bot
+    init_bot()
+
+
+@worker_process_shutdown.connect
+def on_worker_process_shutdown(**kwargs: Any) -> None:
+    """Close Bot session on worker exit."""
+    from src.tasks._bot_factory import close_bot
+    asyncio.run(close_bot())
 
 
 # Decorator для регистрации задач
