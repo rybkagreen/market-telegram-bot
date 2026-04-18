@@ -13,7 +13,7 @@ from src.tasks.celery_app import BaseTask, celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, base=BaseTask, name="badges:check_user_achievements")
+@celery_app.task(bind=True, base=BaseTask, name="badges:check_user_achievements", queue="badges")
 def check_user_achievements(self, user_id: int) -> dict:
     """
     Проверить достижения конкретного пользователя.
@@ -59,7 +59,7 @@ def check_user_achievements(self, user_id: int) -> dict:
         return {"error": str(e), "awarded_badges": []}
 
 
-@celery_app.task(bind=True, base=BaseTask, name="badges:daily_badge_check")
+@celery_app.task(bind=True, base=BaseTask, name="badges:daily_badge_check", queue="badges")
 def daily_badge_check(self) -> dict:
     """
     Ежедневная проверка достижений всех активных пользователей.
@@ -119,7 +119,7 @@ def daily_badge_check(self) -> dict:
         return {"error": str(e), "checked_users": 0, "awarded_badges": 0}
 
 
-@celery_app.task(bind=True, base=BaseTask, name="badges:monthly_top_advertisers")
+@celery_app.task(bind=True, base=BaseTask, name="badges:monthly_top_advertisers", queue="badges")
 def monthly_top_advertisers(self) -> dict:
     """
     Проверка топ рекламодателей месяца.
@@ -210,7 +210,7 @@ def monthly_top_advertisers(self) -> dict:
         return {"error": str(e), "top_advertisers": []}
 
 
-@celery_app.task(name="badges:notify_badge_earned")
+@celery_app.task(name="badges:notify_badge_earned", queue="badges")
 def notify_badge_earned(
     user_id: int,
     badge_name: str,
@@ -263,7 +263,7 @@ def notify_badge_earned(
 # ─────────────────────────────────────────────
 
 
-@celery_app.task(name="badges:trigger_after_campaign_launch")
+@celery_app.task(name="badges:trigger_after_campaign_launch", queue="badges")
 def trigger_after_campaign_launch(user_id: int) -> dict:
     """
     Триггер проверки достижений после запуска кампании.
@@ -274,7 +274,7 @@ def trigger_after_campaign_launch(user_id: int) -> dict:
     return check_user_achievements.delay(user_id)
 
 
-@celery_app.task(name="badges:trigger_after_campaign_complete")
+@celery_app.task(name="badges:trigger_after_campaign_complete", queue="badges")
 def trigger_after_campaign_complete(user_id: int) -> dict:
     """
     Триггер проверки достижений после завершения кампании.
@@ -285,7 +285,7 @@ def trigger_after_campaign_complete(user_id: int) -> dict:
     return check_user_achievements.delay(user_id)
 
 
-@celery_app.task(name="badges:trigger_after_streak_update")
+@celery_app.task(name="badges:trigger_after_streak_update", queue="badges")
 def trigger_after_streak_update(user_id: int, new_streak: int) -> dict:
     """
     Триггер проверки достижений после обновления стрика.

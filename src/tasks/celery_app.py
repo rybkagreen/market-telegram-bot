@@ -15,6 +15,17 @@ from src.tasks.sentry_init import init_worker_sentry
 
 logger = logging.getLogger(__name__)
 
+# Queue name constants (single source of truth)
+QUEUE_WORKER_CRITICAL = "worker_critical"
+QUEUE_MAILING = "mailing"
+QUEUE_PARSER = "parser"
+QUEUE_CLEANUP = "cleanup"
+QUEUE_GAMIFICATION = "gamification"
+QUEUE_BADGES = "badges"
+QUEUE_BILLING = "billing"
+QUEUE_BACKGROUND = "background"
+QUEUE_NOTIFICATIONS = "notifications"
+
 
 def create_celery_app() -> Celery:
     """
@@ -29,14 +40,17 @@ def create_celery_app() -> Celery:
         broker=settings.celery_broker_url,
         backend=settings.celery_result_backend,
         include=[
-            "src.tasks.parser_tasks",
-            "src.tasks.cleanup_tasks",
-            "src.tasks.notification_tasks",
+            "src.tasks.badge_tasks",
             "src.tasks.billing_tasks",
-            "src.tasks.placement_tasks",
-            "src.tasks.ord_tasks",
-            "src.tasks.document_ocr_tasks",
+            "src.tasks.cleanup_tasks",
             "src.tasks.dispute_tasks",
+            "src.tasks.document_ocr_tasks",
+            "src.tasks.gamification_tasks",
+            "src.tasks.integrity_tasks",
+            "src.tasks.notification_tasks",
+            "src.tasks.ord_tasks",
+            "src.tasks.parser_tasks",
+            "src.tasks.placement_tasks",
         ],
     )
 
@@ -50,10 +64,19 @@ def create_celery_app() -> Celery:
         enable_utc=True,
         # Очереди
         task_routes={
-            "mailing.*": {"queue": "mailing"},
-            "parser.*": {"queue": "parser"},
-            "cleanup.*": {"queue": "cleanup"},
-            "publication.*": {"queue": "critical"},
+            "mailing.*": {"queue": QUEUE_MAILING},
+            "parser.*": {"queue": QUEUE_PARSER},
+            "cleanup.*": {"queue": QUEUE_CLEANUP},
+            "notifications.*": {"queue": QUEUE_NOTIFICATIONS},
+            "placement.*": {"queue": QUEUE_WORKER_CRITICAL},
+            "billing.*": {"queue": QUEUE_BILLING},
+            "ord.*": {"queue": QUEUE_BACKGROUND},
+            "badges.*": {"queue": QUEUE_BADGES},
+            "gamification.*": {"queue": QUEUE_GAMIFICATION},
+            "integrity.*": {"queue": QUEUE_CLEANUP},
+            "dispute.*": {"queue": QUEUE_WORKER_CRITICAL},
+            "document_ocr.*": {"queue": QUEUE_WORKER_CRITICAL},
+            "payouts.*": {"queue": QUEUE_BACKGROUND},
         },
         # Приоритеты задач (Redis broker)
         broker_transport_options={
@@ -93,13 +116,6 @@ def create_celery_app() -> Celery:
         ],
         force=True,
     )
-
-    # Регистрация периодических задач для publication (consolidated into placement:)
-    app.conf.beat_schedule["placement-check-scheduled-deletions"] = {
-        "task": "placement:check_scheduled_deletions",
-        "schedule": crontab(minute="*/5"),
-        "options": {"queue": "worker_critical"},
-    }
 
     # Initialize Sentry for Celery workers
     init_worker_sentry()
@@ -193,7 +209,51 @@ def get_beat_schedule() -> dict[str, Any]:
         "check-plan-renewals": {
             "task": "billing:check_plan_renewals",
             "schedule": crontab(hour=settings.plan_renewal_check_hour, minute=0),
-            "options": {"queue": "billing", "priority": 9},
+            "options": {"queue": QUEUE_BILLING, "priority": 9},
+        },
+        # ========== PLACEMENT SLA CHECKS (каждые 5 минут) ==========
+        "placement-check-owner-sla": {
+            "task": "placement:check_owner_response_sla",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+        },
+        "placement-check-payment-sla": {
+            "task": "placement:check_payment_sla",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+        },
+        "placement-check-counter-sla": {
+            "task": "placement:check_counter_offer_sla",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+        },
+        "placement-check-escrow-sla": {
+            "task": "placement:check_escrow_sla",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
+        },
+        "placement-check-escrow-stuck": {
+            "task": "placement:check_escrow_stuck",
+            "schedule": crontab(minute="*/30"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 120},
+        },
+        # ========== PUBLISHED POSTS HEALTH (каждые 6 часов) ==========
+        "check-published-posts-health": {
+            "task": "placement:check_published_posts_health",
+            "schedule": crontab(hour="*/6", minute=30),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 300},
+        },
+        # ========== DATA INTEGRITY (каждые 6 часов) ==========
+        "data-integrity-check": {
+            "task": "integrity:check_data_integrity",
+            "schedule": crontab(hour="*/6", minute=0),
+            "options": {"queue": QUEUE_CLEANUP},
+        },
+        # ========== SCHEDULED DELETIONS (каждые 5 минут) ==========
+        "placement-check-scheduled-deletions": {
+            "task": "placement:check_scheduled_deletions",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": QUEUE_WORKER_CRITICAL, "expires": 60},
         },
     }
 
