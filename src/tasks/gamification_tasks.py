@@ -194,38 +194,32 @@ async def _send_digest_to_user(user) -> bool:
     Returns:
         True если успешно.
     """
-    from aiogram import Bot
+    from src.tasks._bot_factory import get_bot
 
-    from src.config.settings import settings
+    bot = get_bot()
 
-    bot = Bot(token=settings.bot_token)
+    text = (
+        f"👋 <b>Мы скучаем, {user.first_name or user.username or 'друг'}!</b>\n\n"
+        f"Вы не заходили в бота уже неделю.\n\n"
+        f"🎁 <b>Бонус за возвращение:</b>\n"
+        f"+50 кредитов на баланс!\n\n"
+        f"📊 <b>Что вы пропустили:</b>\n"
+        f"• Новые B2B-пакеты со скидками\n"
+        f"• Улучшенная система рейтингов\n"
+        f"• Геймификация с уровнями и значками\n\n"
+        f"Нажмите /start чтобы вернуться!"
+    )
 
-    try:
-        text = (
-            f"👋 <b>Мы скучаем, {user.first_name or user.username or 'друг'}!</b>\n\n"
-            f"Вы не заходили в бота уже неделю.\n\n"
-            f"🎁 <b>Бонус за возвращение:</b>\n"
-            f"+50 кредитов на баланс!\n\n"
-            f"📊 <b>Что вы пропустили:</b>\n"
-            f"• Новые B2B-пакеты со скидками\n"
-            f"• Улучшенная система рейтингов\n"
-            f"• Геймификация с уровнями и значками\n\n"
-            f"Нажмите /start чтобы вернуться!"
-        )
+    await bot.send_message(
+        chat_id=user.telegram_id,
+        text=text,
+        parse_mode="HTML",
+    )
 
-        await bot.send_message(
-            chat_id=user.telegram_id,
-            text=text,
-            parse_mode="HTML",
-        )
+    # Начисляем бонус за возвращение
+    await _award_return_bonus(user.id)
 
-        # Начисляем бонус за возвращение
-        await _award_return_bonus(user.id)
-
-        return True
-
-    finally:
-        await bot.session.close()
+    return True
 
 
 async def _award_return_bonus(user_id: int) -> None:

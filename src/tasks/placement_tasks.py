@@ -71,28 +71,30 @@ async def _notify_user(user_id: int, text: str) -> None:
         user_id: ID пользователя в БД.
         text: Текст сообщения.
     """
-    from aiogram import Bot
-
     from src.db.repositories.user_repo import UserRepository
-
-    bot = Bot(token=settings.bot_token)
+    from src.tasks._bot_factory import get_bot
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_id(user_id)
 
-        if user and user.telegram_id:
-            try:
-                await bot.send_message(
-                    chat_id=user.telegram_id,
-                    text=text,
-                    parse_mode="HTML",
-                )
-                logger.info(f"Notification sent to user {user_id}")
-            except Exception as e:
-                logger.error(f"Failed to send notification to user {user_id}: {e}")
-            finally:
-                await bot.session.close()
+        if not user or not user.telegram_id:
+            return
+
+        if not user.notifications_enabled:
+            logger.debug(f"Notifications disabled for user_id={user_id}, skipping")
+            return
+
+        try:
+            bot = get_bot()
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text=text,
+                parse_mode="HTML",
+            )
+            logger.info(f"Notification sent to user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to send notification to user {user_id}: {e}")
 
 
 def _check_dedup(task_name: str, placement_id: int) -> bool:
@@ -467,9 +469,8 @@ def publish_placement(self, placement_id: int) -> dict[str, Any]:
 
 async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация публикации через PublicationService."""
-    from aiogram import Bot
-
     from src.core.services.publication_service import PublicationService
+    from src.tasks._bot_factory import get_bot
 
     result: dict[str, Any] = {"success": False, "status": "failed", "message": ""}
 
@@ -501,7 +502,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = "Already being processed"
             return result
 
-        bot = Bot(token=settings.bot_token)
+        bot = get_bot()
         pub_service = PublicationService()
 
         try:
@@ -548,9 +549,6 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                 f"❌ Ошибка публикации. Возврат {REFUND_AFTER_ESCROW_PCT}%.",
             )
             result["message"] = str(e)
-
-        finally:
-            await bot.session.close()
 
     return result
 
@@ -663,12 +661,12 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
     """Асинхронная реализация проверки здоровья опубликованных постов."""
     from datetime import UTC, datetime
 
-    from aiogram import Bot
     from sqlalchemy import select
 
     from src.db.models.placement_request import PlacementStatus
     from src.db.models.telegram_chat import TelegramChat
     from src.db.repositories.publication_log_repo import PublicationLogRepo
+    from src.tasks._bot_factory import get_bot
 
     stats: dict[str, Any] = {
         "checked": 0,
@@ -678,109 +676,105 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
         "errors": 0,
     }
 
-    bot = Bot(token=settings.bot_token)
-    try:
-        async with async_session_factory() as session:
-            from src.db.models.placement_request import PlacementRequest
+    bot = get_bot()
+    async with async_session_factory() as session:
+        from src.db.models.placement_request import PlacementRequest
 
-            now = datetime.now(UTC)
-            result = await session.execute(
-                select(PlacementRequest).where(
-                    PlacementRequest.status.in_([
-                        PlacementStatus.published,
-                        PlacementStatus.completed,
-                    ]),
-                    PlacementRequest.scheduled_delete_at > now,
-                    PlacementRequest.message_id.isnot(None),
-                )
+        now = datetime.now(UTC)
+        result = await session.execute(
+            select(PlacementRequest).where(
+                PlacementRequest.status.in_([
+                    PlacementStatus.published,
+                    PlacementStatus.completed,
+                ]),
+                PlacementRequest.scheduled_delete_at > now,
+                PlacementRequest.message_id.isnot(None),
             )
-            placements = list(result.scalars().all())
-            stats["checked"] = len(placements)
+        )
+        placements = list(result.scalars().all())
+        stats["checked"] = len(placements)
 
-            for placement in placements:
+        for placement in placements:
+            try:
+                pub_log_repo = PublicationLogRepo(session)
+                channel = await session.get(TelegramChat, placement.channel_id)
+                if not channel or not channel.telegram_id:
+                    continue
+
+                # Check bot is still admin
                 try:
-                    pub_log_repo = PublicationLogRepo(session)
-                    channel = await session.get(TelegramChat, placement.channel_id)
-                    if not channel or not channel.telegram_id:
-                        continue
-
-                    # Check bot is still admin
-                    try:
-                        member = await bot.get_chat_member(channel.telegram_id, bot.id)
-                        if member.status not in ("administrator", "creator"):
-                            await pub_log_repo.log_event(
-                                placement_id=placement.id,
-                                channel_id=channel.telegram_id,
-                                event_type="bot_removed",
-                                message_id=placement.message_id,
-                                extra={"member_status": member.status},
-                            )
-                            await session.commit()
-                            stats["bot_removed"] += 1
-                            continue
-                    except Exception as e:
+                    member = await bot.get_chat_member(channel.telegram_id, bot.id)
+                    if member.status not in ("administrator", "creator"):
                         await pub_log_repo.log_event(
                             placement_id=placement.id,
                             channel_id=channel.telegram_id,
                             event_type="bot_removed",
                             message_id=placement.message_id,
-                            extra={"error": str(e)},
+                            extra={"member_status": member.status},
                         )
                         await session.commit()
                         stats["bot_removed"] += 1
                         continue
-
-                    # Check message still exists by trying to forward it
-                    message_exists = True
-                    if placement.message_id is None:
-                        continue
-                    try:
-                        await bot.forward_message(
-                            chat_id=bot.id,
-                            from_chat_id=channel.telegram_id,
-                            message_id=placement.message_id,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "Placement audit: failed to forward message %d from channel %d: %s",
-                            placement.message_id,
-                            channel.telegram_id,
-                            exc,
-                        )
-                        message_exists = False
-
-                    if not message_exists:
-                        await pub_log_repo.log_event(
-                            placement_id=placement.id,
-                            channel_id=channel.telegram_id,
-                            event_type="deleted_early",
-                            message_id=placement.message_id,
-                            extra={
-                                "scheduled_end": (
-                                    placement.scheduled_delete_at.isoformat()
-                                    if placement.scheduled_delete_at
-                                    else None
-                                )
-                            },
-                        )
-                        stats["deleted_early"] += 1
-                    else:
-                        await pub_log_repo.log_event(
-                            placement_id=placement.id,
-                            channel_id=channel.telegram_id,
-                            event_type="monitoring_ok",
-                            message_id=placement.message_id,
-                        )
-                        stats["monitoring_ok"] += 1
-
-                    await session.commit()
-
                 except Exception as e:
-                    logger.error(f"Error checking health for placement {placement.id}: {e}")
-                    stats["errors"] += 1
+                    await pub_log_repo.log_event(
+                        placement_id=placement.id,
+                        channel_id=channel.telegram_id,
+                        event_type="bot_removed",
+                        message_id=placement.message_id,
+                        extra={"error": str(e)},
+                    )
+                    await session.commit()
+                    stats["bot_removed"] += 1
+                    continue
 
-    finally:
-        await bot.session.close()
+                # Check message still exists by trying to forward it
+                message_exists = True
+                if placement.message_id is None:
+                    continue
+                try:
+                    await bot.forward_message(
+                        chat_id=bot.id,
+                        from_chat_id=channel.telegram_id,
+                        message_id=placement.message_id,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Placement audit: failed to forward message %d from channel %d: %s",
+                        placement.message_id,
+                        channel.telegram_id,
+                        exc,
+                    )
+                    message_exists = False
+
+                if not message_exists:
+                    await pub_log_repo.log_event(
+                        placement_id=placement.id,
+                        channel_id=channel.telegram_id,
+                        event_type="deleted_early",
+                        message_id=placement.message_id,
+                        extra={
+                            "scheduled_end": (
+                                placement.scheduled_delete_at.isoformat()
+                                if placement.scheduled_delete_at
+                                else None
+                            )
+                        },
+                    )
+                    stats["deleted_early"] += 1
+                else:
+                    await pub_log_repo.log_event(
+                        placement_id=placement.id,
+                        channel_id=channel.telegram_id,
+                        event_type="monitoring_ok",
+                        message_id=placement.message_id,
+                    )
+                    stats["monitoring_ok"] += 1
+
+                await session.commit()
+
+            except Exception as e:
+                logger.error(f"Error checking health for placement {placement.id}: {e}")
+                stats["errors"] += 1
 
     return stats
 
@@ -1002,14 +996,13 @@ def delete_published_post(self, placement_id: int) -> dict[str, Any]:
 
 async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация удаления опубликованного поста."""
-    from aiogram import Bot
-
     from src.core.services.publication_service import PublicationService
+    from src.tasks._bot_factory import get_bot
 
     result: dict[str, Any] = {"success": False, "message": ""}
 
     async with async_session_factory() as session:
-        bot = Bot(token=settings.bot_token)
+        bot = get_bot()
         pub_service = PublicationService()
 
         try:
@@ -1024,9 +1017,6 @@ async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
             logger.error(f"Error deleting placement {placement_id}: {e}")
             await session.rollback()
             result["message"] = str(e)
-
-        finally:
-            await bot.session.close()
 
     return result
 
