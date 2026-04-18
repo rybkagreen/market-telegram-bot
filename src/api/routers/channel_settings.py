@@ -51,8 +51,6 @@ class ChannelSettingsResponse(BaseModel):
     auto_accept_enabled: bool
     updated_at: str
 
-    model_config = {"from_attributes": True}
-
 
 class ChannelSettingsUpdateRequest(BaseModel):
     """Запрос на частичное обновление настроек."""
