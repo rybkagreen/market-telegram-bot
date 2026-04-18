@@ -488,28 +488,32 @@ class InsufficientPermissionsError(PermissionError): pass
 class PlanLimitError(PermissionError): pass
 ```
 
-### Celery (`src/tasks/publication_tasks.py`) — НОВЫЙ
+### Celery Infrastructure (S-36)
 
-```python
-@celery_app.task(queue="critical", max_retries=3)
-async def publish_placement(placement_id): ...
-    # check_bot_permissions → send_message → optional pin
-    # release_escrow → schedule delete/unpin ETA
-    # retry(countdown=3600) при ошибке
+`celery_config.py` удалён в S-36. Все настройки в `src/tasks/celery_app.py`.
 
-@celery_app.task(queue="critical")
-async def delete_published_post(placement_id): ...
-    # unpin → delete → except TelegramBadRequest: pass → status=COMPLETED
-    # ESCROW-001: release_escrow() вызывается ТОЛЬКО здесь (после удаления)
+| Worker | Queues | Concurrency |
+|--------|--------|-------------|
+| `worker_critical` | `worker_critical`, `mailing`, `notifications`, `billing`, `placement` | 2 |
+| `worker_background` | `parser`, `cleanup`, `background`, `rating`(dead) | 4 |
+| `worker_game` | `gamification`, `badges` | 2 |
 
-@celery_app.task(queue="critical")
-async def unpin_and_delete_post(placement_id): ...
-    # unpin → delete → except TelegramBadRequest: pass
+**Task prefix → queue routing:**
 
-@celery_app.task(queue="monitoring", max_retries=1)
-async def check_placement_sla(): ...
-    # Beat task каждые 5 мин → проверка SLA → dispute при нарушении
-```
+| Prefix | Queue | Worker |
+|--------|-------|--------|
+| `placement:*` | `worker_critical` | worker_critical |
+| `billing:*` | `billing` | worker_critical |
+| `dispute:*` | `worker_critical` | worker_critical |
+| `document_ocr:*` | `worker_critical` | worker_critical |
+| `gamification:*` | `gamification` | worker_game |
+| `badges:*` | `badges` | worker_game |
+| `integrity:*` | `cleanup` | worker_background |
+| `parser:*` | `parser` | worker_background |
+| `cleanup:*` | `cleanup` | worker_background |
+| `ord:*` | `background` | worker_background |
+
+**Rule:** Every new task MUST have explicit `queue=` in decorator + matching `task_routes` pattern in `celery_app.py`. Queue constants: `QUEUE_WORKER_CRITICAL`, `QUEUE_MAILING`, etc. all in `celery_app.py`.
 
 ### MistralAIService
 

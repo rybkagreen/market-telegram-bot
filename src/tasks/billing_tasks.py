@@ -89,7 +89,6 @@ async def _check_plan_renewals() -> dict:
 
                     # Отправляем уведомление об успешном продлении
                     try:
-                        from src.db.models.notification import NotificationType
                         from src.tasks.notification_tasks import notify_user
 
                         plan_name = plan_key.upper()
@@ -105,7 +104,6 @@ async def _check_plan_renewals() -> dict:
                         notify_user.delay(
                             telegram_id=user.telegram_id,
                             message=message,
-                            notification_type=NotificationType.PLAN_RENEWED.value,
                             parse_mode="HTML",
                         )
                     except Exception as notify_err:
@@ -131,7 +129,6 @@ async def _check_plan_renewals() -> dict:
 
                 # Отправляем уведомление о истечении тарифа
                 try:
-                    from src.db.models.notification import NotificationType
                     from src.tasks.notification_tasks import notify_user
 
                     plan_name = plan_key.upper()
@@ -146,7 +143,6 @@ async def _check_plan_renewals() -> dict:
                     notify_user.delay(
                         telegram_id=user.telegram_id,
                         message=message,
-                        notification_type=NotificationType.PLAN_EXPIRED.value,
                         parse_mode="HTML",
                     )
                 except Exception as notify_err:
