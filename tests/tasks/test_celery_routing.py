@@ -30,8 +30,9 @@ def _effective_queue(task_name: str) -> str | None:
         return task.queue
     routes = celery_app.conf.task_routes or {}
     for pattern, route in routes.items():
-        if pattern.endswith(".*"):
-            prefix = pattern[:-1]
+        if pattern.endswith(":*"):
+            # Colon-prefix pattern: "mailing:*" matches "mailing:anything"
+            prefix = pattern[:-1]  # e.g. "mailing:"
             if task_name.startswith(prefix):
                 return route.get("queue")
         elif task_name == pattern:
@@ -94,18 +95,18 @@ def test_beat_task_names_valid():
 
 
 REQUIRED_ROUTE_PREFIXES = [
-    "mailing.*",
-    "parser.*",
-    "cleanup.*",
-    "notifications.*",
-    "placement.*",
-    "billing.*",
-    "ord.*",
-    "badges.*",
-    "gamification.*",
-    "integrity.*",
-    "dispute.*",
-    "document_ocr.*",
+    "mailing:*",
+    "parser:*",
+    "cleanup:*",
+    "notifications:*",
+    "placement:*",
+    "billing:*",
+    "ord:*",
+    "badges:*",
+    "gamification:*",
+    "integrity:*",
+    "dispute:*",
+    "document_ocr:*",
 ]
 
 
@@ -164,26 +165,55 @@ def test_dispute_task_routed_to_worker_critical():
 
 
 def test_no_task_on_default_celery_queue():
-    """No registered task should land on the default 'celery' queue.
-
-    S-37 note: mailing:check_low_balance and mailing:notify_user in
-    notification_tasks.py use colon-prefix names while task_routes only has
-    mailing.* (dot) pattern. Those two tasks are excluded here and will be
-    fixed in S-37 when notification_tasks.py is refactored.
-    """
-    S37_KNOWN_ISSUES = {
-        "mailing:check_low_balance",
-        "mailing:notify_user",
-    }
+    """No registered task should land on the default 'celery' queue."""
     offenders = []
     for task_name in celery_app.tasks:
         if task_name.startswith("celery."):  # Built-in celery tasks — skip
-            continue
-        if task_name in S37_KNOWN_ISSUES:
             continue
         q = _effective_queue(task_name)
         if q is None or q == "celery":
             offenders.append(task_name)
     assert not offenders, (
         f"Tasks without explicit queue (would land on default 'celery'): {offenders}"
+    )
+
+
+# ─── P6: colon patterns match real task names (S-37) ───────────────────────────
+
+
+@pytest.mark.parametrize("task_name,expected_queue", [
+    ("mailing:check_low_balance", "mailing"),
+    ("mailing:notify_user", "mailing"),
+    ("notifications:notify_badge_earned", "notifications"),
+    ("notifications:notify_level_up", "notifications"),
+    ("billing:check_plan_renewals", "billing"),
+    ("placement:publish_placement", "worker_critical"),
+    ("integrity:check_data_integrity", "cleanup"),
+])
+def test_task_routes_colon_patterns_match_real_names(task_name, expected_queue):
+    """Colon-prefixed task names must resolve via task_routes (not fall to default)."""
+    routes = celery_app.conf.task_routes or {}
+    matched_queue = None
+    for pattern, route in routes.items():
+        if pattern.endswith(":*"):
+            prefix = pattern[:-1]
+            if task_name.startswith(prefix):
+                matched_queue = route.get("queue")
+                break
+        elif task_name == pattern:
+            matched_queue = route.get("queue")
+            break
+    assert matched_queue == expected_queue, (
+        f"{task_name!r}: expected queue {expected_queue!r}, got {matched_queue!r} from task_routes"
+    )
+
+
+def test_dot_patterns_do_not_match_colon_names():
+    """Prove that old dot-patterns would NOT have matched real colon task names."""
+    from fnmatch import fnmatch
+    assert not fnmatch("mailing:check_low_balance", "mailing.*"), (
+        "dot-pattern 'mailing.*' must NOT match 'mailing:check_low_balance'"
+    )
+    assert fnmatch("mailing:check_low_balance", "mailing:*"), (
+        "colon-pattern 'mailing:*' MUST match 'mailing:check_low_balance'"
     )
