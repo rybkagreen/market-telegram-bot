@@ -15,7 +15,7 @@ from src.tasks.celery_app import BaseTask, celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, base=BaseTask, name="dispute:resolve_financial")
+@celery_app.task(bind=True, base=BaseTask, name="dispute:resolve_financial", queue="worker_critical")
 def resolve_dispute_financial(
     self: Any,
     dispute_id: int,
