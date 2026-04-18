@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-35: API Contract Alignment — Legal Flow + Compare Endpoint (April 2026)
+
+#### Fixed
+- **P0 N-08: acceptRules always 422** — `web_portal/src/api/legal.ts` now sends `{accept_platform_rules: true, accept_privacy_policy: true}` body required by `AcceptRulesRequest` (`web_portal/src/api/legal.ts`)
+- **P0 Extra-1: signContract always 422** — `web_portal/src/api/legal.ts` sends `{signature_method}` instead of `{method}` matching `ContractSignRequest` (`web_portal/src/api/legal.ts`)
+- **P0 Extra-2: requestKep always 404** — corrected path `contracts/${id}/request-kep → contracts/request-kep` and body `{email} → {contract_id, email}` in `legal.ts` and `KepWarning.tsx` (`web_portal/src/api/legal.ts`, `web_portal/src/components/contracts/KepWarning.tsx`)
+- **N-05: ComparisonChannelItem field mismatch** — renamed `member_count→subscribers`, `er→last_er`; added `topic`, `rating` to backend schema and service output (`src/api/routers/channels.py`, `src/core/services/comparison_service.py`)
+- **ComparisonService AttributeError** — fixed broken attribute access (`last_avg_views→avg_views`), added `selectinload(channel_settings)` for `price_per_post`, fixed `channel_id→id` key (`src/core/services/comparison_service.py`)
+
+#### Removed
+- **Extra-3: Stale docstring** — removed non-existent `GET /api/billing/invoice/{id}` reference from billing router module docstring (`src/api/routers/billing.py`)
+
+#### Added
+- **12 regression tests** — cover N-08/Extra-1 body schemas, N-05 schema field names, ComparisonService metric keys (`tests/unit/test_s35_api_contract_regression.py`)
+
+---
+
 ### S-34: Pydantic Schema ↔ SQLAlchemy Model Mismatches (April 2026)
 
 #### Fixed
