@@ -30,7 +30,7 @@ class Act(Base, TimestampMixin):
     placement_request_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("placement_requests.id"), nullable=False, index=True
     )
-    act_number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    act_number: Mapped[str] = mapped_column(String(20), nullable=False)
     act_type: Mapped[str] = mapped_column(
         String(10), nullable=False, default="income", server_default="income"
     )
@@ -45,7 +45,7 @@ class Act(Base, TimestampMixin):
 
     # Sprint E.1: link to contract
     contract_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("contracts.id"), nullable=True, index=True
+        Integer, ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # Sprint F.1: signing fields
