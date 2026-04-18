@@ -1338,7 +1338,25 @@ class BillingService:
             before_escrow: advertiser +100%, owner 0%, platform 0%
             after_escrow_before_confirmation: advertiser +100%, owner 0%, platform 0%, reputation -5
             after_confirmation: advertiser +50%, owner +42.5%, platform +7.5%, reputation -20
+
+        Idempotent: повторный вызов для того же placement_id — no-op (проверяет Transaction.placement_request_id).
         """
+        from sqlalchemy import select
+
+        # Idempotency guard: если уже есть транзакция возврата для этого placement — пропустить
+        existing = await session.execute(
+            select(Transaction).where(
+                Transaction.placement_request_id == placement_id,
+                Transaction.type == TransactionType.refund_full,
+                Transaction.user_id == advertiser_id,
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            logger.info(
+                f"refund_escrow: already refunded for placement {placement_id}, skipping (idempotency)"
+            )
+            return
+
         async with session.begin():
             if scenario == "before_escrow" or scenario == "after_escrow_before_confirmation":
                 # advertiser +100%, owner 0%, platform 0%
@@ -1386,6 +1404,7 @@ class BillingService:
                     user_id=advertiser_id,
                     amount=advertiser_refund,
                     type=TransactionType.refund_full,
+                    placement_request_id=placement_id,
                     yookassa_payment_id=None,
                     meta_json={
                         "type": "refund",
