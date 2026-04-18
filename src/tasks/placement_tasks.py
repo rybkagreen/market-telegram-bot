@@ -542,11 +542,34 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
         except Exception as e:
             logger.error(f"Error publishing placement {placement_id}: {e}")
             await session.rollback()
+
+            # Возврат средств — публикация не состоялась, возвращаем 100%
+            final_price = placement.final_price or placement.proposed_price
+            try:
+                from src.core.services.billing_service import BillingService
+
+                billing_svc = BillingService()
+                async with async_session_factory() as refund_session:
+                    await billing_svc.refund_escrow(
+                        refund_session,
+                        placement_id=placement_id,
+                        final_price=final_price,
+                        advertiser_id=placement.advertiser_id,
+                        owner_id=placement.owner_id,
+                        scenario="after_escrow_before_confirmation",
+                    )
+            except Exception as refund_err:
+                logger.critical(
+                    f"CRITICAL: Failed to refund escrow for placement {placement_id} "
+                    f"after publish failure: {refund_err}"
+                )
+
             await repo.update_status(placement_id, PlacementStatus.failed)
             await session.commit()
             await _notify_user(
                 placement.advertiser_id,
-                f"❌ Ошибка публикации. Возврат {REFUND_AFTER_ESCROW_PCT}%.",
+                f"❌ Ошибка публикации размещения #{placement_id}.\n"
+                f"Средства {final_price:.0f} ₽ возвращены на баланс.",
             )
             result["message"] = str(e)
 
@@ -816,8 +839,7 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 
     from sqlalchemy import select
 
-    from src.db.models.transaction import Transaction, TransactionType
-    from src.db.models.user import User
+    from src.core.services.billing_service import BillingService
 
     stats: dict[str, Any] = {
         "total_checked": 0,
@@ -844,6 +866,8 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 
         stats["total_checked"] = len(stalled_placements)
 
+        billing_svc = BillingService()
+
         for placement in stalled_placements:
             try:
                 # Дедупликация
@@ -851,32 +875,28 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Mark as failed
+                final_price = placement.final_price or placement.proposed_price
+
+                # Refund через BillingService — обновляет platform_account.escrow_reserved
+                # Используем отдельную сессию: refund_escrow управляет своей транзакцией
+                async with async_session_factory() as refund_session:
+                    await billing_svc.refund_escrow(
+                        refund_session,
+                        placement_id=placement.id,
+                        final_price=final_price,
+                        advertiser_id=placement.advertiser_id,
+                        owner_id=placement.owner_id,
+                        scenario="after_escrow_before_confirmation",
+                    )
+
+                # Mark as failed (per-item commit)
                 placement.status = PlacementStatus.failed
                 if placement.meta_json is None:
                     placement.meta_json = {}
                 placement.meta_json["sla_error"] = (
                     "Publication SLA violated: scheduled time passed without publication"
                 )
-
-                # Refund advertiser
-                final_price = placement.final_price or placement.proposed_price
-
-                advertiser = await session.get(User, placement.advertiser_id)
-                if advertiser:
-                    advertiser.balance_rub += final_price
-                    await session.flush()
-                    await session.refresh(advertiser)
-
-                    # Log refund transaction
-                    txn = Transaction(
-                        user_id=placement.advertiser_id,
-                        type=TransactionType.refund,
-                        amount=final_price,
-                        description=f"Refund for placement #{placement.id} — SLA violation",
-                        placement_request_id=placement.id,
-                    )
-                    session.add(txn)
+                await session.commit()
 
                 stats["stalled"] += 1
                 stats["refunded"] += 1
@@ -890,18 +910,15 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 
                 channel = placement.channel
                 if channel:
-                    owner = await session.get(User, channel.owner_id)
-                    if owner:
-                        await _notify_user(
-                            channel.owner_id,
-                            f"⚠️ Размещение #{placement.id} не было опубликовано в срок и отменено.",
-                        )
+                    await _notify_user(
+                        channel.owner_id,
+                        f"⚠️ Размещение #{placement.id} не было опубликовано в срок и отменено.",
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing stalled placement {placement.id}: {e}")
+                await session.rollback()
                 stats["errors"] += 1
-
-        await session.commit()
 
     return stats
 
@@ -970,55 +987,48 @@ def schedule_placement_publication(
 
 
 @celery_app.task(
-    bind=True, base=BaseTask, name="placement:delete_published_post", queue=QUEUE_WORKER_CRITICAL
+    bind=True,
+    base=BaseTask,
+    name="placement:delete_published_post",
+    queue=QUEUE_WORKER_CRITICAL,
+    autoretry_for=(Exception,),
+    max_retries=5,
+    retry_backoff=True,
+    retry_backoff_max=600,
 )
 def delete_published_post(self, placement_id: int) -> dict[str, Any]:
     """
-    Удалить опубликованный пост.
+    Удалить опубликованный пост и освободить эскроу.
 
     Args:
         placement_id: ID заявки.
 
     Returns:
         Результат удаления.
+
+    Autoretry: 5 попыток с экспоненциальным backoff до 10 мин.
+    Идемпотентность обеспечена BillingService.release_escrow.
     """
     logger.info(f"Deleting placement post {placement_id}")
-
-    try:
-        result = asyncio.run(_delete_published_post_async(placement_id))
-        logger.info(f"Placement {placement_id} deletion: {result}")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error deleting placement {placement_id}: {e}")
-        return {"error": str(e)}
+    result = asyncio.run(_delete_published_post_async(placement_id))
+    logger.info(f"Placement {placement_id} deletion: {result}")
+    return result
 
 
 async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация удаления опубликованного поста."""
+    """Асинхронная реализация удаления опубликованного поста. Бросает исключение при ошибке."""
     from src.core.services.publication_service import PublicationService
     from src.tasks._bot_factory import get_bot
-
-    result: dict[str, Any] = {"success": False, "message": ""}
 
     async with async_session_factory() as session:
         bot = get_bot()
         pub_service = PublicationService()
+        await pub_service.delete_published_post(
+            bot=bot, session=session, placement_id=placement_id
+        )
+        await session.commit()
 
-        try:
-            await pub_service.delete_published_post(
-                bot=bot, session=session, placement_id=placement_id
-            )
-            await session.commit()
-            result["success"] = True
-            result["message"] = "Success"
-
-        except Exception as e:
-            logger.error(f"Error deleting placement {placement_id}: {e}")
-            await session.rollback()
-            result["message"] = str(e)
-
-    return result
+    return {"success": True, "message": "Success"}
 
 
 # =============================================================================
@@ -1127,16 +1137,28 @@ def check_escrow_stuck(self) -> dict[str, Any]:
 
 
 async def _check_escrow_stuck_async() -> dict[str, Any]:
-    """Async implementation of escrow stuck detection."""
+    """Async implementation of escrow stuck detection with recovery actions."""
 
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
+    from src.config.settings import settings
+    from src.core.services.billing_service import BillingService
     from src.db.models.placement_request import PlacementRequest, PlacementStatus
+    from src.tasks._bot_factory import get_bot
 
-    stats: dict[str, Any] = {"total_checked": 0, "stuck": 0, "alerted": 0, "errors": 0}
+    stats: dict[str, Any] = {
+        "total_checked": 0,
+        "stuck": 0,
+        "group_a_dispatched": 0,
+        "group_b_refunded": 0,
+        "alerted": 0,
+        "errors": 0,
+    }
 
     threshold = datetime.now(UTC) - timedelta(hours=48)
+    billing_svc = BillingService()
+    bot = get_bot()
 
     async with async_session_factory() as session:
         stmt = (
@@ -1156,21 +1178,59 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
         for placement in stuck_placements:
             try:
                 stats["stuck"] += 1
+                group = "A" if placement.message_id else "B"
+                channel_name = placement.channel.username if placement.channel else "unknown"
+
                 logger.critical(
-                    f"STUCK ESCROW: placement #{placement.id}, "
+                    f"STUCK ESCROW: placement #{placement.id}, group={group}, "
                     f"scheduled_delete_at={placement.scheduled_delete_at}, "
-                    f"channel={placement.channel.username if placement.channel else 'unknown'}"
+                    f"channel={channel_name}"
                 )
 
-                # Mark in meta
                 if placement.meta_json is None:
                     placement.meta_json = {}
                 placement.meta_json["escrow_stuck_detected"] = datetime.now(UTC).isoformat()
+                placement.meta_json["escrow_stuck_group"] = group
 
-                stats["alerted"] += 1
+                if group == "A":
+                    # Пост существует в Telegram — dispatch delete task (которая сделает release_escrow)
+                    delete_published_post.apply_async(args=[placement.id])
+                    stats["group_a_dispatched"] += 1
+                else:
+                    # Публикации не было — прямой возврат через BillingService
+                    final_price = placement.final_price or placement.proposed_price
+                    async with async_session_factory() as refund_session:
+                        await billing_svc.refund_escrow(
+                            refund_session,
+                            placement_id=placement.id,
+                            final_price=final_price,
+                            advertiser_id=placement.advertiser_id,
+                            owner_id=placement.owner_id,
+                            scenario="after_escrow_before_confirmation",
+                        )
+                    placement.status = PlacementStatus.failed
+                    stats["group_b_refunded"] += 1
+
+                # Commit per-item
+                await session.commit()
+
+                # Admin alert
+                alert_text = (
+                    f"🚨 STUCK ESCROW action\n"
+                    f"placement_id={placement.id}, group={group}\n"
+                    f"channel={channel_name}\n"
+                    f"action={'dispatch delete_published_post' if group == 'A' else 'refund executed'}"
+                )
+                for admin_id in settings.admin_ids:
+                    try:
+                        await bot.send_message(chat_id=admin_id, text=alert_text)
+                        stats["alerted"] += 1
+                    except Exception as alert_err:
+                        logger.warning(f"Failed to alert admin {admin_id}: {alert_err}")
 
             except Exception as e:
                 logger.error(f"Failed to process stuck escrow #{placement.id}: {e}")
+                await session.rollback()
                 stats["errors"] += 1
 
     return stats
