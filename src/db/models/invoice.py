@@ -39,10 +39,10 @@ class Invoice(Base, TimestampMixin):
 
     # Sprint E.1: links to placement and contract
     placement_request_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("placement_requests.id"), nullable=True, index=True
+        Integer, ForeignKey("placement_requests.id", ondelete="SET NULL"), nullable=True, index=True
     )
     contract_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("contracts.id"), nullable=True, index=True
+        Integer, ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # Relationships
