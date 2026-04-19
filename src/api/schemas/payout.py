@@ -48,3 +48,25 @@ class PayoutResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminPayoutResponse(PayoutResponse):
+    """Ответ для админки — обогащён данными владельца."""
+
+    owner_username: str | None = None
+    owner_telegram_id: int | None = None
+
+
+class AdminPayoutListResponse(BaseModel):
+    """Список выплат для админ-панели (пагинация)."""
+
+    items: list[AdminPayoutResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminPayoutRejectRequest(BaseModel):
+    """Body для отклонения выплаты админом."""
+
+    reason: str = Field(..., min_length=1, max_length=500)

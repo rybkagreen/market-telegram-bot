@@ -71,6 +71,7 @@ const AdminUserDetail = lazy(() => import('@/screens/admin/AdminUserDetail'))
 const AdminAccounting = lazy(() => import('@/screens/admin/AdminAccounting'))
 const AdminTaxSummary = lazy(() => import('@/screens/admin/AdminTaxSummary'))
 const AdminPlatformSettings = lazy(() => import('@/screens/admin/AdminPlatformSettings'))
+const AdminPayouts = lazy(() => import('@/screens/admin/AdminPayouts'))
 
 // ═══ Shared screens ═══
 const DisputeDetail = lazy(() => import('@/screens/shared/DisputeDetail'))
@@ -190,6 +191,7 @@ const router = createBrowserRouter([
           { path: 'admin/feedback/:id', element: <AdminFeedbackDetail /> },
           { path: 'admin/disputes', element: <AdminDisputesList /> },
           { path: 'admin/disputes/:id', element: <AdminDisputeDetail /> },
+          { path: 'admin/payouts', element: <AdminPayouts /> },
 
           // Admin guarded
           {
