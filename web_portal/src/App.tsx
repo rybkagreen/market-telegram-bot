@@ -28,6 +28,7 @@ const LegalProfileView = lazy(() => import('@/screens/common/LegalProfileView'))
 const ContractList = lazy(() => import('@/screens/common/ContractList'))
 const ContractDetail = lazy(() => import('@/screens/common/ContractDetail'))
 const DocumentUpload = lazy(() => import('@/screens/common/DocumentUpload'))
+const ReputationHistory = lazy(() => import('@/screens/common/ReputationHistory'))
 
 // ═══ Advertiser screens ═══
 const AdvAnalytics = lazy(() => import('@/screens/advertiser/AdvAnalytics'))
@@ -130,6 +131,7 @@ const router = createBrowserRouter([
           { path: 'referral', element: <Referral /> },
           { path: 'help', element: <Help /> },
           { path: 'billing/history', element: <TransactionHistory /> },
+          { path: 'profile/reputation', element: <ReputationHistory /> },
           { path: 'acts', element: <MyActsScreen /> },
           { path: 'legal-profile/view', element: <LegalProfileView /> },
           { path: 'legal-profile/documents', element: <DocumentUpload /> },
