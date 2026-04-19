@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import type { User, UserStats } from '@/lib/types'
 import type { ReferralStats } from '@/lib/types/misc'
-import { getMe, getMyStats, getReferralStats, checkNeedsAcceptRules } from '@/api/users'
+import {
+  getMe,
+  getMyStats,
+  getReferralStats,
+  checkNeedsAcceptRules,
+  getAttentionFeed,
+  type AttentionFeedResponse,
+} from '@/api/users'
 
 export function useMe() {
   return useQuery<User>({
@@ -32,5 +39,13 @@ export function useNeedsAcceptRules() {
     queryKey: ['user', 'needs-accept-rules'],
     queryFn: checkNeedsAcceptRules,
     staleTime: 5 * 60_000,
+  })
+}
+
+export function useAttentionFeed() {
+  return useQuery<AttentionFeedResponse>({
+    queryKey: ['user', 'attention'],
+    queryFn: getAttentionFeed,
+    staleTime: 60_000,
   })
 }
