@@ -1,6 +1,8 @@
 import { api } from '@shared/api/client'
-import type { ReputationHistory } from '@/lib/types/analytics'
+import type { ReputationHistoryItem } from '@/lib/types/analytics'
 
-export async function getReputationHistory(page = 1, limit = 20) {
-  return api.get('reputation/history', { searchParams: { page, limit } }).json<ReputationHistory>()
+export async function getReputationHistory(limit = 20, offset = 0) {
+  return api
+    .get('reputation/me/history', { searchParams: { limit, offset } })
+    .json<ReputationHistoryItem[]>()
 }
