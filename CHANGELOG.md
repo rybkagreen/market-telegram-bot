@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-44 Stage 3: Missing frontend↔backend integration (P1) — fix plan Stage 3 of 6 (2026-04-19)
+
+#### Added
+- **TopUpConfirm polling** — `useTopupStatus(paymentId)` hook (`web_portal/src/hooks/useBillingQueries.ts`) опрашивает `GET /billing/topup/{payment_id}/status` каждые 3 сек до 120 сек; при `succeeded` инвалидирует `billing.balance`/`billing.history`/`user.me`, показывает соответствующий success/error/timeout UI в `TopUpConfirm.tsx`.
+- **AdminPayouts в сайдбаре.** «Выплаты» (иконка `Banknote`) добавлен в `PortalShell.tsx` admin-секцию + breadcrumb `/admin/payouts`.
+- **Accept-rules warning banner.** `useNeedsAcceptRules()` хук + orange Notification в `PortalShell` поверх контента (исключая `/accept-rules`) → кнопка «Принять» ведёт на `/accept-rules`. Fallback-слой рядом с `RulesGuard`.
+- **Evidence в OpenDispute.** `useDisputeEvidence(placementId)` + карточка «Что мы знаем о публикации» (published_at, deleted_at + тип удаления, total_duration_minutes, ERID-флаг, раскрывающийся лог событий с ссылками на пост).
+- **Admin manual credits** — в `AdminUserDetail.tsx` добавлены две карточки:
+  - «Зачислить из доходов платформы» → `POST /admin/credits/platform-credit`.
+  - «Геймификационный бонус» → `POST /admin/credits/gamification-bonus` (RUB + XP).
+  Оба mutation'а инвалидируют `admin.user.{id}` и `admin.platform-stats`.
+
+#### Fixed
+- **KUDiR download 401 в AdminAccounting.** Режим `downloadMode='simple'` в `TaxSummaryBase` вызывал `window.open` без Bearer-токена → `/admin/tax/kudir/*/pdf|csv` отвечал 401. Переключено на `auth` (fetch+blob). Мёртвая `simple`-ветка удалена.
+- **ContractData.status → contract_status** (`ContractDetail.tsx`) — Stage 2 carry-over, всплыл при `tsc`: локальный интерфейс использовал `status`, а роутер возвращает `contract_status` (см. S-43).
+- **Phantom re-exports Payout/AdminPayout/PayoutListAdminResponse** из `lib/types/index.ts` — они уже были удалены из `types/billing.ts` в S-43, но барельный export об этом не знал.
+
+#### Known follow-ups (deferred)
+- **§3.3 CampaignVideo uploads** — требует или Redis-поллинг + deep-link в бота (новый `src/bot/handlers/upload_video.py`), или новый POST multipart endpoint. Вынесено в отдельное обсуждение.
+- **§3.5 PRO/BUSINESS analytics** (`/analytics/summary|activity|top-chats|topics|ai-insights`) — зависит от бизнес-решения по продвижению PRO-тарифа.
+- **§3.6 Channel preview в wizard** — low business value; кандидат на удаление в Stage 4.
+- **§3.8 прочие admin-экраны** — LegalProfiles verify-UI, AuditLog screen, AdminContracts screen — заведены в бэклог как отдельные эпики.
+
 ### S-43 Stage 2: Contract drift alignment (P0) — fix plan Stage 2 of 6 (2026-04-19)
 
 #### Added
