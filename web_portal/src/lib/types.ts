@@ -210,7 +210,15 @@ export interface OwnerAnalyticsResponse {
 
 // ═══ Disputes ═══
 export type DisputeStatus = 'open' | 'owner_explained' | 'resolved' | 'closed'
-export type DisputeReason = 'not_published' | 'wrong_time' | 'wrong_text' | 'early_deletion' | 'other'
+export type DisputeReason =
+  | 'post_removed_early'
+  | 'bot_kicked'
+  | 'advertiser_complaint'
+  | 'not_published'
+  | 'wrong_time'
+  | 'wrong_text'
+  | 'early_deletion'
+  | 'other'
 
 export interface DisputeDetailResponse {
   id: number
