@@ -7,7 +7,6 @@ export type {
   ResolutionAction,
   DisputeDetailResponse,
   DisputeListResponse,
-  Dispute,
 } from './dispute'
 export type { PayoutStatus, OrdStatus, Payout, TopUpRequest, TopUpResponse, PlanInfo, AdminPayout, PayoutListAdminResponse } from './billing'
 export type {
