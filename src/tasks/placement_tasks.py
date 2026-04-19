@@ -16,7 +16,6 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from redis import Redis as RedisSync
 from redis.asyncio import Redis
 from sqlalchemy.orm import selectinload
 
@@ -31,10 +30,8 @@ from src.tasks.celery_app import QUEUE_WORKER_CRITICAL, BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
 
-# Async Redis для дедупликации задач (D-10 fix)
+# Async Redis for task deduplication — D-10 fully resolved in S-40
 redis_client = Redis.from_url(settings.celery_broker_url, decode_responses=True)
-# Sync Redis only for Celery task dedup (runs in sync context)
-redis_sync_client = RedisSync.from_url(settings.celery_broker_url, decode_responses=True)
 
 # =============================================================================
 # SLA КОНСТАНТЫ
@@ -97,13 +94,9 @@ async def _notify_user(user_id: int, text: str) -> None:
             logger.error(f"Failed to send notification to user {user_id}: {e}")
 
 
-def _check_dedup(task_name: str, placement_id: int) -> bool:
+async def _check_dedup_async(task_name: str, placement_id: int) -> bool:
     """
-    Проверить дедупликацию задачи.
-
-    Args:
-        task_name: Имя задачи.
-        placement_id: ID заявки.
+    Проверить дедупликацию задачи (async, non-blocking).
 
     Returns:
         True если задача уже выполняется, False иначе.
@@ -111,10 +104,10 @@ def _check_dedup(task_name: str, placement_id: int) -> bool:
     task_key = f"placement_task:{task_name}:{placement_id}"
     ttl = DEDUP_TTL.get(task_name, 3600)
 
-    if redis_sync_client.exists(task_key):
+    if await redis_client.exists(task_key):
         return True
 
-    redis_sync_client.setex(task_key, ttl, task_key)
+    await redis_client.setex(task_key, ttl, task_key)
     return False
 
 
@@ -177,7 +170,7 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
         for placement in expired_placements:
             try:
                 # Дедупликация
-                if _check_dedup("check_owner_response_sla", placement.id):
+                if await _check_dedup_async("check_owner_response_sla", placement.id):
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
@@ -279,7 +272,7 @@ async def _check_payment_sla_async() -> dict[str, Any]:
         for placement in expired_placements:
             try:
                 # Дедупликация
-                if _check_dedup("check_payment_sla", placement.id):
+                if await _check_dedup_async("check_payment_sla", placement.id):
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
@@ -384,7 +377,7 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
         for placement in expired_placements:
             try:
                 # Дедупликация
-                if _check_dedup("check_counter_offer_sla", placement.id):
+                if await _check_dedup_async("check_counter_offer_sla", placement.id):
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
@@ -498,7 +491,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = f"Already published, message_id={placement.message_id}"
             return result
 
-        if _check_dedup("publish_placement", placement_id):
+        if await _check_dedup_async("publish_placement", placement_id):
             result["message"] = "Already being processed"
             return result
 
@@ -871,7 +864,7 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
         for placement in stalled_placements:
             try:
                 # Дедупликация
-                if _check_dedup("check_escrow_sla", placement.id):
+                if await _check_dedup_async("check_escrow_sla", placement.id):
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
@@ -1092,7 +1085,7 @@ async def _check_scheduled_deletions_async() -> dict[str, Any]:
 
         for placement in placements:
             try:
-                if _check_dedup("check_scheduled_deletions", placement.id):
+                if await _check_dedup_async("check_scheduled_deletions", placement.id):
                     logger.info(f"Placement {placement.id} deletion already scheduled, skipping")
                     continue
 

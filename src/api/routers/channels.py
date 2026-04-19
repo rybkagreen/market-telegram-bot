@@ -160,6 +160,7 @@ async def get_my_channels(
             rating=ch.rating,
             category=ch.category,
             is_active=ch.is_active,
+            is_test=ch.is_test,
             created_at=ch.created_at.isoformat(),
         )
         for ch in channels
@@ -440,7 +441,48 @@ async def create_channel(
         rating=new_channel.rating,
         category=new_channel.category,
         is_active=new_channel.is_active,
+        is_test=new_channel.is_test,
         created_at=new_channel.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/{channel_id}",
+    response_model=ChannelResponse,
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def get_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """
+    Получить канал по ID. Доступ: владелец канала или администратор.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        username=channel.username,
+        title=channel.title,
+        owner_id=channel.owner_id,
+        member_count=channel.member_count,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        rating=channel.rating,
+        category=channel.category,
+        is_active=channel.is_active,
+        is_test=channel.is_test,
+        created_at=channel.created_at.isoformat(),
     )
 
 
@@ -567,6 +609,7 @@ async def activate_channel(
         last_er=channel.last_er,
         avg_views=channel.avg_views,
         is_active=channel.is_active,
+        is_test=channel.is_test,
         owner_id=channel.owner_id,
         created_at=channel.created_at.isoformat(),
     )
@@ -613,6 +656,7 @@ async def update_channel_category(
         rating=channel.rating,
         category=channel.category,
         is_active=channel.is_active,
+        is_test=channel.is_test,
         created_at=channel.created_at.isoformat(),
     )
 

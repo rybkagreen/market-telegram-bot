@@ -16,7 +16,7 @@ export default function OrdStatus() {
       <AppNotification type="info">
         <span className="text-sm">
           Регистрация в ОРД (Оператор рекламных данных) — обязательный шаг для маркировки рекламы.
-          Автоматическая регистрация происходит после публикации.
+          Маркировка происходит до публикации рекламы.
         </span>
       </AppNotification>
 

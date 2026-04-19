@@ -3,8 +3,6 @@
 // Phase 3
 // ============================================================
 
-export type UserRole = 'new' | 'advertiser' | 'owner' | 'both'
-
 export type Plan = 'free' | 'starter' | 'pro' | 'business'
 
 export type PlacementStatus =
@@ -60,7 +58,6 @@ export interface User {
   username: string | null
   first_name: string
   last_name: string | null
-  current_role: UserRole
   plan: Plan
   plan_expires_at: string | null
   balance_rub: string
@@ -72,6 +69,7 @@ export interface User {
   owner_level: number
   referral_code: string
   is_admin: boolean
+  ai_generations_used: number
   legal_status_completed: boolean
   legal_profile_prompted_at: string | null
   legal_profile_skipped_at: string | null
@@ -196,11 +194,11 @@ export interface PlacementRequest {
 
 export interface Payout {
   id: number
-  amount: string
-  fee: string
+  gross_amount: string
+  fee_amount: string
   net_amount: string
   status: PayoutStatus
-  payment_details: string
+  requisites: string
   created_at: string
   processed_at: string | null
 }

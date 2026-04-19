@@ -60,26 +60,36 @@ class ActRepository(BaseRepository[Act]):
         )
         return list(result.scalars().all())
 
-    async def list_by_user(self, user_id: int, limit: int = 50) -> list[Act]:
+    async def list_by_user(
+        self,
+        user_id: int,
+        limit: int = 50,
+        placement_request_id: int | None = None,
+    ) -> list[Act]:
         """Получить акты пользователя (как рекламодатель или владелец).
 
         Args:
             user_id: ID пользователя.
             limit: Максимальное количество.
+            placement_request_id: Опциональный фильтр по ID размещения.
 
         Returns:
             Список актов.
         """
         from src.db.models.placement_request import PlacementRequest
 
-        result = await self.session.execute(
+        query = (
             select(Act)
             .join(PlacementRequest, Act.placement_request_id == PlacementRequest.id)
             .where(
                 (PlacementRequest.advertiser_id == user_id) | (PlacementRequest.owner_id == user_id)
             )
-            .order_by(Act.created_at.desc())
-            .limit(limit)
+        )
+        if placement_request_id is not None:
+            query = query.where(Act.placement_request_id == placement_request_id)
+
+        result = await self.session.execute(
+            query.order_by(Act.created_at.desc()).limit(limit)
         )
         return list(result.scalars().all())
 

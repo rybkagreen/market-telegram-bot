@@ -21,12 +21,17 @@ export async function createPlacement(data: {
 }
 
 // ═══ List placements (unified — optional view filter) ═══
-export async function getMyPlacements(params?: { view?: 'advertiser' | 'owner'; status?: string }) {
+export async function getMyPlacements(params?: {
+  view?: 'advertiser' | 'owner'
+  status?: string
+  limit?: number
+  offset?: number
+}) {
   const search = new URLSearchParams()
   if (params?.view) search.set('view', params.view)
   if (params?.status) search.set('status', params.status)
-  search.set('page', '1')
-  search.set('page_size', '100')
+  search.set('limit', String(params?.limit ?? 100))
+  search.set('offset', String(params?.offset ?? 0))
   return api.get(`placements/?${search}`).json<PlacementRequest[]>()
 }
 
@@ -52,15 +57,15 @@ export async function updatePlacementRequest(id: number, data: Record<string, un
 
 // ═══ Start campaign ═══
 export async function startCampaign(id: number) {
-  return api.post(`placements/${id}/start`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/start`).json<PlacementRequest>()
 }
 
 // ═══ Cancel campaign ═══
 export async function cancelCampaign(id: number) {
-  return api.post(`placements/${id}/cancel`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/cancel`).json<PlacementRequest>()
 }
 
 // ═══ Duplicate campaign ═══
 export async function duplicateCampaign(id: number) {
-  return api.post(`placements/${id}/duplicate`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/duplicate`).json<PlacementRequest>()
 }
