@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Diagnostic: Deep audit web_portal ↔ backend (2026-04-19)
+
+#### Added
+- **Углублённый аудит web_portal ↔ backend** — `reports/20260419_diagnostics/web_portal_vs_backend_deep.md`. Перепроверяет предыдущую поверхностную диагностику и фиксирует: 8 phantom-calls (фронт дёргает несуществующие URL), 7 групп контрактного дрейфа (Payout × 3 определения, Contract.status, LegalProfile паспортные поля, PlacementResponse.advertiser_counter_*, User.referral_code, Channel.category, Dispute legacy дубль-тип), ~40 orphan-эндпоинтов, 2 мёртвых сервиса (`link_tracking_service`, `invoice_service`), 1 orphan screen (`AdminPayouts.tsx`), 22 прямых `api.*`-вызова в обход хуков. Код не менялся — это диагностический документ с P0/P1/P2 action-листом.
+- **План устранения проблем аудита** — 6 этапных файлов в `reports/20260419_diagnostics/FIX_PLAN_*.md` + `FIX_PLAN_00_index.md`. Каждый этап содержит feature-ветку, задачи с file:line ссылками, критерии Definition of Done и оценку трудозатрат (всего 46–62 ч). Этапы: 1) Phantom calls (P0), 2) Contract drift (P0), 3) Missing integration (P1), 4) Backend cleanup (P1), 5) Arch debt (P2), 6) Tests + guards (P2).
+
 ### S-38 follow-up: ORD Yandex provider skeleton + auto-init (April 2026)
 
 #### Added
