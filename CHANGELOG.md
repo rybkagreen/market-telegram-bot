@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-48: Grep-guards for regression patterns (2026-04-20)
+
+#### Added
+- **`scripts/check_forbidden_patterns.sh`** — bash `set -euo pipefail`
+  script that scans the repo with GNU-grep PCRE and fails with a
+  non-zero exit on any of seven regression patterns: direct
+  `import { api }` in `web_portal/src/screens/**`, legacy
+  `reject_reason` field name in `web_portal/src/**`, and five
+  phantom API paths removed in earlier sprints
+  (`acts/?placement_request_id`, `reviews/placement/`,
+  `placements/${…}/start`, `reputation/history`, and raw
+  `channels/${…}` outside `web_portal/src/api/**`). Cheap second net
+  over the S-46 ESLint `no-restricted-imports` rule and the S-47
+  snapshot test.
+- **`Makefile`** — new `check-forbidden` target; `make ci` now
+  depends on it in addition to `lint`, `format`, `typecheck`.
+
+#### Developer Workflow
+- Local: `make check-forbidden` or `bash scripts/check_forbidden_patterns.sh`.
+- Script is already wired into `make ci`, so any `ci` invocation
+  (local or future CI workflow) exercises it.
+- To prove the script still catches regressions ("test-the-test"), add
+  one offending line, run the script, observe `[FAIL]`, revert. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-20_s48-grep-guards.md`
+  for a recorded run.
+
+#### Breaking
+- None. Tooling only; no runtime, behaviour, or schema change.
+
 ### S-47: Contract-drift guard (2026-04-20)
 
 #### Added
