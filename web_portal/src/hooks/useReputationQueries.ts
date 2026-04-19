@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { getReputationHistory } from '@/api/reputation'
 
-export function useReputationHistory(page = 1, limit = 20) {
+export function useReputationHistory(limit = 20, offset = 0) {
   return useQuery({
-    queryKey: ['reputation', 'history', page],
-    queryFn: () => getReputationHistory(page, limit),
+    queryKey: ['reputation', 'history', limit, offset],
+    queryFn: () => getReputationHistory(limit, offset),
     staleTime: 30_000,
   })
 }
