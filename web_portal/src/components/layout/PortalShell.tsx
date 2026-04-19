@@ -5,7 +5,7 @@ import { useMediaQuery, breakpoints } from '@shared/hooks/useMediaQuery'
 import { useAuthStore } from '@/stores/authStore'
 import { usePortalUiStore } from '@/stores/portalUiStore'
 import { useNeedsAcceptRules } from '@/hooks/useUserQueries'
-import { Notification, Button } from '@shared/ui'
+import { Notification, Button, IconSpriteLoader } from '@shared/ui'
 import {
   LayoutDashboard,
   Users,
@@ -126,6 +126,7 @@ export function PortalShell() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-harbor-bg">
+      <IconSpriteLoader />
       {/* Mobile overlay */}
       {!isDesktop && isOpen && (
         <div
