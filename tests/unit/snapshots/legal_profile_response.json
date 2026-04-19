@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "LegalStatus": {
+      "enum": [
+        "legal_entity",
+        "individual_entrepreneur",
+        "self_employed",
+        "individual"
+      ],
+      "title": "LegalStatus",
+      "type": "string"
+    },
+    "TaxRegime": {
+      "enum": [
+        "osno",
+        "usn",
+        "usn_d",
+        "usn_dr",
+        "patent",
+        "npd",
+        "ndfl"
+      ],
+      "title": "TaxRegime",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "address": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Address"
+    },
+    "bank_account": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bank Account"
+    },
+    "bank_bik": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bank Bik"
+    },
+    "bank_corr_account": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bank Corr Account"
+    },
+    "bank_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bank Name"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "has_company_doc": {
+      "default": false,
+      "title": "Has Company Doc",
+      "type": "boolean"
+    },
+    "has_inn_scan": {
+      "default": false,
+      "title": "Has Inn Scan",
+      "type": "boolean"
+    },
+    "has_passport_data": {
+      "default": false,
+      "title": "Has Passport Data",
+      "type": "boolean"
+    },
+    "has_passport_scan": {
+      "default": false,
+      "title": "Has Passport Scan",
+      "type": "boolean"
+    },
+    "has_self_employed_cert": {
+      "default": false,
+      "title": "Has Self Employed Cert",
+      "type": "boolean"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "inn": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Inn"
+    },
+    "is_complete": {
+      "default": false,
+      "title": "Is Complete",
+      "type": "boolean"
+    },
+    "is_verified": {
+      "title": "Is Verified",
+      "type": "boolean"
+    },
+    "kpp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kpp"
+    },
+    "legal_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Legal Name"
+    },
+    "legal_status": {
+      "$ref": "#/$defs/LegalStatus"
+    },
+    "ogrn": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ogrn"
+    },
+    "ogrnip": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ogrnip"
+    },
+    "tax_regime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaxRegime"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "user_id": {
+      "title": "User Id",
+      "type": "integer"
+    },
+    "yoomoney_wallet": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Yoomoney Wallet"
+    }
+  },
+  "required": [
+    "id",
+    "user_id",
+    "legal_status",
+    "is_verified",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "LegalProfileResponse",
+  "type": "object"
+}
