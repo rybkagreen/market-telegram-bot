@@ -23,8 +23,8 @@ from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
 from src.core.services.ord_provider import OrdProvider
-from src.core.services.stub_ord_provider import StubOrdProvider
 from src.core.services.ord_yandex_provider import YandexOrdProvider
+from src.core.services.stub_ord_provider import StubOrdProvider
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.ord_registration import OrdRegistration
 from src.db.models.placement_request import PlacementRequest
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Module-level global provider (injected at startup) ────────
 
+
 def _init_ord_provider_from_settings() -> OrdProvider:
     from src.config.settings import settings
     if settings.ord_provider == "yandex":
@@ -41,6 +42,7 @@ def _init_ord_provider_from_settings() -> OrdProvider:
             raise RuntimeError("ORD_PROVIDER=yandex, but ORD_API_KEY or ORD_API_URL not set")
         return YandexOrdProvider(settings.ord_api_key, settings.ord_api_url)
     return StubOrdProvider()
+
 
 _global_provider: OrdProvider = _init_ord_provider_from_settings()
 

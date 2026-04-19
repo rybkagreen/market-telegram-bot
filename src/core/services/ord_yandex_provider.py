@@ -4,8 +4,8 @@ Yandex ORD Provider implementation for production use.
 
 import logging
 from datetime import datetime
-import httpx
-from src.core.services.ord_provider import OrdProvider, OrdRegistrationResult
+
+from src.core.services.ord_provider import OrdProvider
 
 logger = logging.getLogger(__name__)
 
