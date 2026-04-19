@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: Contract-drift guard (2026-04-20)
+
+#### Added
+- **`tests/unit/test_contract_schemas.py`** — parametrized pytest snapshot
+  test for 8 critical backend response schemas. Captures
+  `model_json_schema()` to stable JSON on disk. Any change to schema shape
+  (added/removed/renamed field, type change) fails the test with a readable
+  unified diff and forces an explicit snapshot regeneration, surfacing the
+  contract change in code review.
+- **`tests/unit/snapshots/*.json`** — 8 snapshot files locking in the current
+  shape of `UserResponse`, `UserAdminResponse`, `PlacementResponse`,
+  `PayoutResponse`, `ContractResponse`, `DisputeResponse`,
+  `LegalProfileResponse`, `ChannelResponse`. 164 fields covered in total.
+
+#### Developer Workflow
+- Intentional schema change: run
+  `UPDATE_SNAPSHOTS=1 poetry run pytest tests/unit/test_contract_schemas.py`
+  and commit the regenerated JSON alongside the schema change.
+- Full CHANGES: `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-contract-guards.md`.
+
+#### Breaking
+- None. Test-only addition; no runtime change.
+
 ### S-46: API module consolidation (2026-04-20)
 
 #### Changed
