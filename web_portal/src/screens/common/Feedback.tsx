@@ -1,28 +1,23 @@
 import { useState } from 'react'
 import { Card, Button, Notification } from '@shared/ui'
-import { api } from '@shared/api/client'
+import { useCreateFeedback } from '@/hooks/useFeedbackQueries'
 
 export default function Feedback() {
   const [text, setText] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const createFeedback = useCreateFeedback()
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!text.trim()) {
       setError('Введите текст обращения')
       return
     }
-    setLoading(true)
     setError(null)
-    try {
-      await api.post('feedback', { json: { text } })
-      setSubmitted(true)
-    } catch {
-      setError('Не удалось отправить обращение. Попробуйте позже.')
-    } finally {
-      setLoading(false)
-    }
+    createFeedback.mutate(text, {
+      onSuccess: () => setSubmitted(true),
+      onError: () => setError('Не удалось отправить обращение. Попробуйте позже.'),
+    })
   }
 
   if (submitted) {
@@ -55,7 +50,7 @@ export default function Feedback() {
             placeholder="Подробно опишите ваш вопрос..."
           />
         </div>
-        <Button onClick={handleSubmit} loading={loading} disabled={!text.trim()}>
+        <Button onClick={handleSubmit} loading={createFeedback.isPending} disabled={!text.trim() || createFeedback.isPending}>
           Отправить
         </Button>
       </div>

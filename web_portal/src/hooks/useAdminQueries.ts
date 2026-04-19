@@ -4,12 +4,18 @@ import {
   getUsersList,
   getUserById,
   updateAdminUser,
+  topupUserBalance,
   getAdminPayouts,
   approveAdminPayout,
   rejectAdminPayout,
   createPlatformCredit,
   createGamificationBonus,
+  getPlatformSettings,
+  updatePlatformSettings,
+  getTaxSummary,
+  getKudirBlob,
 } from '@/api/admin'
+import type { PlatformSettingsPayload } from '@/lib/types/platform'
 
 export function usePlatformStats() {
   return useQuery({
@@ -45,6 +51,18 @@ export function useUpdateAdminUser() {
     mutationFn: ({ userId, data }: { userId: number; data: { role?: string; plan?: string } }) =>
       updateAdminUser(userId, data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
+  })
+}
+
+export function useTopupUserBalance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, amount, note }: { userId: number; amount: number; note?: string }) =>
+      topupUserBalance(userId, { amount, note }),
+    onSuccess: (_data, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'user', userId] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
     },
   })
@@ -93,6 +111,46 @@ export function useCreatePlatformCredit() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'platform-stats'] })
     },
   })
+}
+
+export function usePlatformSettings(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['admin', 'platform-settings'],
+    queryFn: getPlatformSettings,
+    staleTime: 60_000,
+    enabled,
+  })
+}
+
+export function useUpdatePlatformSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: PlatformSettingsPayload) => updatePlatformSettings(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'platform-settings'] })
+    },
+  })
+}
+
+export function useTaxSummary(year: number, quarter: number, enabled: boolean = false) {
+  return useQuery({
+    queryKey: ['admin', 'tax-summary', year, quarter],
+    queryFn: () => getTaxSummary(year, quarter),
+    enabled,
+    staleTime: 60_000,
+  })
+}
+
+export async function downloadKudir(year: number, quarter: number, format: 'pdf' | 'csv') {
+  const blob = await getKudirBlob(year, quarter, format)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `kudir_${year}_Q${quarter}.${format}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export function useCreateGamificationBonus() {

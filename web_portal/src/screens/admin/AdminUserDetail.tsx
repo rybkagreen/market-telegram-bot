@@ -6,8 +6,8 @@ import {
   useUserById,
   useCreatePlatformCredit,
   useCreateGamificationBonus,
+  useTopupUserBalance,
 } from '@/hooks/useAdminQueries'
-import { api } from '@shared/api/client'
 
 export default function AdminUserDetail() {
   const { id } = useParams<{ id: string }>()
@@ -20,7 +20,7 @@ export default function AdminUserDetail() {
   const [note, setNote] = useState('')
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
-  const [toppingUp, setToppingUp] = useState(false)
+  const topupBalance = useTopupUserBalance()
 
   const [creditAmount, setCreditAmount] = useState('')
   const [creditComment, setCreditComment] = useState('')
@@ -41,18 +41,17 @@ export default function AdminUserDetail() {
     }
     setError('')
     setSuccess(false)
-    setToppingUp(true)
-    api.post(`admin/users/${userId}/balance`, {
-      json: { amount: parsed, note },
-    })
-      .json()
-      .then(() => {
-        setSuccess(true)
-        setAmount('')
-        setNote('')
-      })
-      .catch(() => setError('Ошибка при зачислении'))
-      .finally(() => setToppingUp(false))
+    topupBalance.mutate(
+      { userId, amount: parsed, note },
+      {
+        onSuccess: () => {
+          setSuccess(true)
+          setAmount('')
+          setNote('')
+        },
+        onError: () => setError('Ошибка при зачислении'),
+      },
+    )
   }
 
   const handlePlatformCredit = () => {
@@ -205,8 +204,8 @@ export default function AdminUserDetail() {
                   </button>
                 ))}
               </div>
-              <Button variant="primary" fullWidth loading={toppingUp} disabled={!amount} onClick={handleTopUp}>
-                {toppingUp ? 'Зачисление...' : 'Зачислить'}
+              <Button variant="primary" fullWidth loading={topupBalance.isPending} disabled={!amount || topupBalance.isPending} onClick={handleTopUp}>
+                {topupBalance.isPending ? 'Зачисление...' : 'Зачислить'}
               </Button>
             </div>
           </Card>

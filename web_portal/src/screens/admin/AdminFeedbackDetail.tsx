@@ -1,65 +1,53 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, Select, Textarea } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
-import { api } from '@shared/api/client'
-
-interface FeedbackDetail {
-  id: number
-  user_id: number
-  username: string | null
-  text: string
-  status: string
-  created_at: string
-  admin_response: string | null
-  responded_at: string | null
-}
+import {
+  useAdminFeedbackById,
+  useRespondToFeedback,
+  useUpdateFeedbackStatus,
+} from '@/hooks/useFeedbackQueries'
+import type { FeedbackStatusUpdatePayload } from '@/lib/types'
 
 export default function AdminFeedbackDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: user } = useMe()
+  const feedbackId = Number(id)
 
-  const [feedback, setFeedback] = useState<FeedbackDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const {
+    data: feedback,
+    isLoading: loading,
+    isError,
+  } = useAdminFeedbackById(user?.is_admin ? feedbackId : 0)
+  const respond = useRespondToFeedback()
+  const updateStatus = useUpdateFeedbackStatus()
+
   const [responseText, setResponseText] = useState('')
   const [responseStatus, setResponseStatus] = useState<'in_progress' | 'resolved' | 'rejected'>('resolved')
-  const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  React.useEffect(() => {
-    if (!id || !user?.is_admin) return
-    setLoading(true)
-    api.get(`feedback/admin/${id}`)
-      .json<FeedbackDetail>()
-      .then((data) => setFeedback(data))
-      .catch(() => setError('Не удалось загрузить обращение'))
-      .finally(() => setLoading(false))
-  }, [id, user?.is_admin])
-
   const handleRespond = () => {
-    if (!id || responseText.length < 10) return
-    setSending(true)
-    api.post(`feedback/admin/${id}/respond`, {
-      json: { response_text: responseText, status: responseStatus },
-    })
-      .json<FeedbackDetail>()
-      .then((data) => {
-        setFeedback(data)
-        setResponseText('')
-        navigate('/admin/feedback')
-      })
-      .catch(() => setError('Ошибка при отправке'))
-      .finally(() => setSending(false))
+    if (!feedbackId || responseText.length < 10) return
+    respond.mutate(
+      { feedbackId, payload: { response_text: responseText, status: responseStatus } },
+      {
+        onSuccess: () => {
+          setResponseText('')
+          navigate('/admin/feedback')
+        },
+        onError: () => setError('Ошибка при отправке'),
+      },
+    )
   }
 
-  const handleStatusChange = (status: string) => {
-    if (!id) return
-    api.patch(`feedback/admin/${id}/status`, { json: { status } })
-      .json<FeedbackDetail>()
-      .then((data) => setFeedback(data))
-      .catch(() => setError('Ошибка при смене статуса'))
+  const handleStatusChange = (status: FeedbackStatusUpdatePayload['status']) => {
+    if (!feedbackId) return
+    updateStatus.mutate(
+      { feedbackId, payload: { status } },
+      { onError: () => setError('Ошибка при смене статуса') },
+    )
   }
 
   if (loading) {
@@ -71,8 +59,8 @@ export default function AdminFeedbackDetail() {
     )
   }
 
-  if (error || !feedback) {
-    return <Notification type="danger">Обращение не найдено</Notification>
+  if (isError || !feedback) {
+    return <Notification type="danger">{error ?? 'Обращение не найдено'}</Notification>
   }
 
   const statusColors: Record<string, string> = {
@@ -155,11 +143,11 @@ export default function AdminFeedbackDetail() {
               />
               <Button
                 variant="primary"
-                loading={sending}
-                disabled={responseText.length < 10}
+                loading={respond.isPending}
+                disabled={responseText.length < 10 || respond.isPending}
                 onClick={handleRespond}
               >
-                {sending ? 'Отправка...' : 'Отправить'}
+                {respond.isPending ? 'Отправка...' : 'Отправить'}
               </Button>
             </div>
           </div>
