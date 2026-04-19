@@ -1,4 +1,4 @@
-.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci
+.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci check-forbidden
 
 # Default target
 help:
@@ -14,7 +14,8 @@ help:
 	@echo "  make shell             - Open Python shell with DB session"
 	@echo "  make clean             - Clean temporary files"
 	@echo "  make protect-branches  - Apply branch protection rules (requires gh CLI)"
-	@echo "  make ci                - Run all CI checks locally (lint + format + typecheck)"
+	@echo "  make check-forbidden   - Run grep-guards against regression patterns (S-48)"
+	@echo "  make ci                - Run all CI checks locally (lint + format + typecheck + check-forbidden)"
 	@echo ""
 
 # Installation
@@ -49,8 +50,12 @@ lint-fix:
 typecheck:
 	poetry run mypy src/
 
+# Grep-guards: regression patterns banned by S-48
+check-forbidden:
+	@bash scripts/check_forbidden_patterns.sh
+
 # CI checks (run all checks locally before pushing)
-ci: lint format typecheck
+ci: lint format typecheck check-forbidden
 	@echo ""
 	@echo "✓ All CI checks passed locally!"
 	@echo ""
