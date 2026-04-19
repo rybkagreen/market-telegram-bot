@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from src.api.auth_utils import create_jwt_token, validate_telegram_init_data
 from src.api.dependencies import CurrentUser
+from src.api.schemas.user import UserResponse
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -27,26 +28,6 @@ class LoginRequest(BaseModel):
     """Запрос на авторизацию через Telegram initData."""
 
     init_data: str
-
-
-class UserResponse(BaseModel):
-    """Данные текущего пользователя (Mini App + Web Portal)."""
-
-    id: int
-    telegram_id: int
-    username: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    plan: str
-    balance_rub: str
-    earned_rub: str
-    is_admin: bool
-    ai_generations_used: int
-    platform_rules_accepted_at: str | None = None
-    privacy_policy_accepted_at: str | None = None
-    legal_profile_prompted_at: str | None = None
-
-    model_config = {"from_attributes": True}
 
 
 class LoginResponse(BaseModel):
@@ -121,10 +102,23 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             first_name=user.first_name,
             last_name=user.last_name,
             plan=plan_value,
+            plan_expires_at=user.plan_expires_at,
             balance_rub=str(user.balance_rub),
             earned_rub=str(user.earned_rub),
+            credits=user.credits,
+            advertiser_xp=user.advertiser_xp,
+            advertiser_level=user.advertiser_level,
+            owner_xp=user.owner_xp,
+            owner_level=user.owner_level,
+            referral_code=user.referral_code,
             is_admin=user.is_admin,
             ai_generations_used=user.ai_uses_count,
+            legal_status_completed=user.legal_status_completed,
+            legal_profile_prompted_at=user.legal_profile_prompted_at,
+            legal_profile_skipped_at=user.legal_profile_skipped_at,
+            platform_rules_accepted_at=user.platform_rules_accepted_at,
+            privacy_policy_accepted_at=user.privacy_policy_accepted_at,
+            has_legal_profile=user.legal_profile is not None,
         ),
     )
 
@@ -152,18 +146,21 @@ async def get_me(current_user: CurrentUser) -> UserResponse:
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         plan=plan_value,
+        plan_expires_at=current_user.plan_expires_at,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
+        credits=current_user.credits,
+        advertiser_xp=current_user.advertiser_xp,
+        advertiser_level=current_user.advertiser_level,
+        owner_xp=current_user.owner_xp,
+        owner_level=current_user.owner_level,
+        referral_code=current_user.referral_code,
         is_admin=current_user.is_admin,
         ai_generations_used=current_user.ai_uses_count,
-        platform_rules_accepted_at=str(current_user.platform_rules_accepted_at)
-        if current_user.platform_rules_accepted_at
-        else None,
-        privacy_policy_accepted_at=str(current_user.privacy_policy_accepted_at)
-        if current_user.privacy_policy_accepted_at
-        else None,
-        legal_profile_prompted_at=str(current_user.legal_profile_prompted_at)
-        if hasattr(current_user, "legal_profile_prompted_at")
-        and current_user.legal_profile_prompted_at
-        else None,
+        legal_status_completed=current_user.legal_status_completed,
+        legal_profile_prompted_at=current_user.legal_profile_prompted_at,
+        legal_profile_skipped_at=current_user.legal_profile_skipped_at,
+        platform_rules_accepted_at=current_user.platform_rules_accepted_at,
+        privacy_policy_accepted_at=current_user.privacy_policy_accepted_at,
+        has_legal_profile=current_user.legal_profile is not None,
     )
