@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-45: Backend cleanup (2026-04-20)
+
+#### Removed
+- **Legacy placement action endpoints.** `POST /api/placements/{id}/accept`,
+  `/reject`, `/counter`, `/accept-counter`, `/pay` and `DELETE /api/placements/{id}`
+  have been dead code since S-35 when the unified `PATCH /api/placements/{id}`
+  action-dispatch endpoint shipped. Audit of `mini_app/`, `web_portal/` and
+  `src/bot/handlers/` confirmed no live callers remained. Alongside the endpoints,
+  removed the `RejectRequest` / `CounterOfferRequest` schemas, the `field_validator`
+  import, and the `NOT_CHANNEL_OWNER` / `NOT_PLACEMENT_ADVERTISER` constants
+  (all only consumed by the removed handlers). `placements.py`: −259 lines.
+- **Dead `rating` queue** listener from `worker_background` command in
+  `docker-compose.yml`. `rating_tasks.py` was deleted in v4.3 and the
+  `task_routes` entry was removed in S-36; the docker-compose listener was
+  kept for in-flight safety only. Sufficient release cycles have elapsed.
+- **Unused `DisputeRepository.get_by_user`** — all dispute listings use
+  `get_by_user_paginated`. 11 lines removed from `src/db/repositories/dispute_repo.py`.
+
+#### Breaking
+- None. Public HTTP surface narrows to the unified PATCH endpoint that has
+  been the sole client path since S-35.
+
+#### Migration Notes
+- No DB migrations. No deployment prerequisite beyond a normal worker
+  rebuild so the updated docker-compose command takes effect:
+  `docker compose up -d --build worker_background`.
+
 ### S-48: Prod smoke-test blockers hotfix (2026-04-19)
 
 #### Fixed
