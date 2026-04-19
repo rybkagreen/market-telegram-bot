@@ -1,0 +1,201 @@
+{
+  "$defs": {
+    "DisputeReason": {
+      "description": "Причины споров.\n\nОбъединены значения из Telegram-бота (legacy) и фронтенда (mini_app/web_portal).",
+      "enum": [
+        "post_removed_early",
+        "bot_kicked",
+        "advertiser_complaint",
+        "not_published",
+        "wrong_time",
+        "wrong_text",
+        "early_deletion",
+        "other"
+      ],
+      "title": "DisputeReason",
+      "type": "string"
+    },
+    "DisputeResolution": {
+      "description": "Резолюции споров.\n\nОбъединены значения из Telegram-бота (financial) и фронтенда (display).",
+      "enum": [
+        "owner_fault",
+        "advertiser_fault",
+        "technical",
+        "partial",
+        "full_refund",
+        "partial_refund",
+        "no_refund",
+        "warning"
+      ],
+      "title": "DisputeResolution",
+      "type": "string"
+    },
+    "DisputeStatus": {
+      "description": "Статусы споров.",
+      "enum": [
+        "open",
+        "owner_explained",
+        "resolved",
+        "closed"
+      ],
+      "title": "DisputeStatus",
+      "type": "string"
+    }
+  },
+  "description": "Ответ с данными диспута.",
+  "properties": {
+    "admin_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Admin Id"
+    },
+    "advertiser_comment": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Advertiser Comment"
+    },
+    "advertiser_id": {
+      "title": "Advertiser Id",
+      "type": "integer"
+    },
+    "advertiser_refund_pct": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Advertiser Refund Pct"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "owner_explanation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Owner Explanation"
+    },
+    "owner_id": {
+      "title": "Owner Id",
+      "type": "integer"
+    },
+    "owner_payout_pct": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Owner Payout Pct"
+    },
+    "placement_request_id": {
+      "title": "Placement Request Id",
+      "type": "integer"
+    },
+    "reason": {
+      "$ref": "#/$defs/DisputeReason"
+    },
+    "resolution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DisputeResolution"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "resolution_comment": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolution Comment"
+    },
+    "resolved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved At"
+    },
+    "status": {
+      "$ref": "#/$defs/DisputeStatus"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "placement_request_id",
+    "advertiser_id",
+    "owner_id",
+    "reason",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "DisputeResponse",
+  "type": "object"
+}
