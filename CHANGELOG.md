@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-38 follow-up: ORD Yandex provider skeleton + auto-init (April 2026)
+
+#### Added
+- **`YandexOrdProvider` skeleton** — `src/core/services/ord_yandex_provider.py`, class implementing `OrdProvider` protocol; all methods raise `NotImplementedError("Yandex ORD integration required")`. Placeholder for Яндекс ОРД API v7 contract.
+- **`.env.ord.sample`** — reference env file documenting `ORD_PROVIDER`, `ORD_API_KEY`, `ORD_API_URL`, `ORD_BLOCK_WITHOUT_ERID`, `ORD_REKHARBOR_ORG_ID`, `ORD_REKHARBOR_INN` for production setup.
+
+#### Changed
+- **ORD provider auto-init from settings** — `ord_service.py` now selects provider at import time via `_init_ord_provider_from_settings()`: `ORD_PROVIDER=yandex` returns `YandexOrdProvider` (fails fast if `ORD_API_KEY`/`ORD_API_URL` missing); otherwise `StubOrdProvider`. Deployments no longer require code changes to switch providers.
+- **CLAUDE.md — Pre-Launch Blockers** — step 4 reworded: "Real provider is auto-selected by `ORD_PROVIDER` in settings (no code change needed)".
+- **`OrdService.report_publication` signature** — unused `channel_id` and `post_url` params commented out (half-step; call-site cleanup deferred).
+
 ### S-41: Web Portal Fixes (April 2026)
 
 #### Fixed

@@ -234,9 +234,12 @@ These tasks MUST be completed before deploying with real payments and publicatio
 
 **Required before launch:**
 1. Contract with one of the ОРД providers (Яндекс ОРД API v7, VK Реклама, Ozon)
-2. Obtain API credentials, add to `.env`: `ORD_PROVIDER=yandex`, `ORD_API_KEY=...`, `ORD_API_URL=...`
+2. Obtain API credentials, add to `.env`:
+   - `ORD_PROVIDER=yandex`
+   - `ORD_API_KEY=...`
+   - `ORD_API_URL=...`
 3. Set `ORD_BLOCK_WITHOUT_ERID=true` in production `.env`
-4. Replace `StubOrdProvider` with real provider implementation (see ORD Integration section above)
+4. Real provider is auto-selected by `ORD_PROVIDER` in settings (no code change needed)
 5. E2E test: placement with real ERID passes, without it — blocked
 
 ### FNS Validation (optional hardening, not a legal blocker)
