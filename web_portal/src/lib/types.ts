@@ -148,8 +148,7 @@ export interface Contract {
   id: number
   user_id: number
   contract_type: ContractType
-  status: ContractStatus
-  contract_status?: ContractStatus
+  contract_status: ContractStatus
   created_at: string
   signed_at: string | null
   pdf_url: string | null
@@ -211,7 +210,15 @@ export interface OwnerAnalyticsResponse {
 
 // ═══ Disputes ═══
 export type DisputeStatus = 'open' | 'owner_explained' | 'resolved' | 'closed'
-export type DisputeReason = 'not_published' | 'wrong_time' | 'wrong_text' | 'early_deletion' | 'other'
+export type DisputeReason =
+  | 'post_removed_early'
+  | 'bot_kicked'
+  | 'advertiser_complaint'
+  | 'not_published'
+  | 'wrong_time'
+  | 'wrong_text'
+  | 'early_deletion'
+  | 'other'
 
 export interface DisputeDetailResponse {
   id: number
@@ -254,9 +261,6 @@ export interface FeedbackListResponse {
   items: UserFeedback[]
   total: number
 }
-
-// ═══ Payouts ═══
-export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'rejected'
 
 // ═══ Admin ═══
 export interface PlatformStatsResponse {

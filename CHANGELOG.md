@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-43 Stage 2: Contract drift alignment (P0) — fix plan Stage 2 of 6 (2026-04-19)
+
+#### Added
+- **Канонический TS-тип Payout** — `web_portal/src/lib/types/payout.ts` с `PayoutResponse`, `AdminPayoutResponse`, `AdminPayoutListResponse`, `PayoutStatus`, `PayoutCreateRequest`; поля точно соответствуют `src/api/schemas/payout.py`.
+- **`CampaignActionResponse`, `CampaignDuplicateResponse`** — типы для ответов `campaigns/{id}/start|cancel|duplicate`.
+- **PlacementRequest поля (TS)** — `advertiser_counter_price`, `advertiser_counter_schedule`, `advertiser_counter_comment`, `updated_at`.
+- **ChannelResponse поля (TS)** — `last_er`, `avg_views`, `is_test`.
+- **ReputationHistoryItem поля (TS)** — `user_id`, `role`, `comment`.
+- **`.gitignore`** — исключение `!web_portal/src/lib/` для Python-правила `lib/`, которое скрывало 11 type/constant/timeline файлов из VCS.
+
+#### Changed
+- **User.referral_code** — `string` → `string | null` (соответствует `UserResponse.referral_code: str | None`).
+- **PlacementRequest.expires_at / proposed_schedule** — → nullable.
+- **Channel.category** — `string` → `string | null`.
+- **ReputationHistoryItem.reason** → `comment` (под бэкенд `ReputationHistoryEntry.comment`).
+- **DisputeReason (TS)** — добавлены bot-legacy значения `post_removed_early`, `bot_kicked`, `advertiser_complaint`.
+- **OwnPayouts status pill map** — `completed` → `paid`, добавлен `cancelled`.
+
+#### Fixed
+- **Payout field drift** (3 определения → 1 канонический): `amount/fee/payment_details/completed` → `gross_amount/fee_amount/net_amount/paid`; `reject_reason` → `rejection_reason`.
+- **`contract.status` was always undefined** — TS Contract декларировал не существующий на бэке `status`. Удалён; `contract_status` теперь required. Миграция потребителей в `ContractList.tsx`, `ContractDetail.tsx`, `lib/timeline.ts`.
+- **LegalProfile PII utechka (mock)** — 4 паспортных поля удалены из response-типа (бэк их не возвращает); в `LegalProfileSetup.tsx` удалены pre-fill чтения из ответа, submit-поле переименовано `passport_issued_at` → `passport_issue_date`.
+- **Dispute legacy тип** — удалён `interface Dispute` (placement_id/owner_comment/resolution_action); потребители переходят на `DisputeDetailResponse`.
+- **`startCampaign/cancelCampaign/duplicateCampaign` response типы** — ранее декларировались как `PlacementRequest`; теперь соответствуют реальному ответу бэка.
+- **PayoutStatus enum в `lib/types.ts`** — был `'completed'` вместо `'paid'` и без `'cancelled'`; удалён. Единый источник — `types/payout.ts`.
+
+#### Removed
+- `Payout/AdminPayout/PayoutListAdminResponse` как собственные интерфейсы в `lib/types/billing.ts` — теперь re-export из `types/payout.ts`.
+- `Dispute` (legacy) interface из `lib/types/dispute.ts` и barrel-export.
+
 ### S-42 Stage 1: Phantom calls (P0) — fix plan Stage 1 of 6 (2026-04-19)
 
 #### Added
