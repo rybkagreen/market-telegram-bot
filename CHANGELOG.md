@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Phases 1–4 (2026-04-20)
+
+#### Added
+- **Icon sprite system (Phase 1, §§7.1–7.2):**
+  - `web_portal/public/icons/rh-sprite.svg` (132 symbols, 10 groups, stroke 1.5)
+  - `web_portal/src/shared/ui/{Icon,IconSpriteLoader,icon-names}.{tsx,ts}` —
+    typed `<Icon name>` component with literal-union `IconName`, and one-time
+    inline sprite loader mounted inside `PortalShell`.
+  - `.rh-stroke` / `.rh-fill` component rules and `ui-spin` / `ui-skeleton`
+    keyframes in `web_portal/src/styles/globals.css`.
+  - `Sparkline` shared primitive.
+- **Backend Cabinet-widget endpoints (Phase 3, §7.21):**
+  - `GET /api/billing/frozen` — escrow+pending_payment summary.
+  - `GET /api/analytics/cashflow?days=7|30|90` — daily income/expense points.
+  - `GET /api/users/me/attention` — danger>warning>info>success feed.
+  - `GET /api/channels/recommended` — topic-matched top-ER list with fallback.
+  - New service `src/core/services/user_attention_service.py`.
+  - New repo method `PlacementRequestRepository.get_frozen_for_advertiser`.
+  - All four respect FastAPI static-path-before-`/{int_id}` ordering
+    (see `project_fastapi_route_ordering.md`).
+- **TS clients + React Query hooks** for the four endpoints
+  (`useFrozenBalance`, `useCashflow(days)`, `useAttentionFeed`,
+  `useRecommendedChannels`).
+- **Cabinet redesign (Phase 4, §§7.5–7.12):**
+  - 7 new widgets under `web_portal/src/screens/common/cabinet/`:
+    `BalanceHero`, `PerformanceChart`, `QuickActions`, `NotificationsCard`,
+    `ProfileCompleteness`, `RecommendedChannels`, `RecentActivity`.
+  - Cabinet shell rewritten with DS v2 greeting + 1.6fr/1fr grid + footer
+    waterline; uses all new backend endpoints via hooks.
+- **PortalShell v2 (Phase 2, §7.3):**
+  - Split into `Sidebar.tsx` + `Topbar.tsx` + thin `PortalShell.tsx`.
+  - Sidebar: 6 grouped nav sections, count chips bound to live hooks,
+    gradient-anchor logo, waterline divider, collapsed-mode.
+  - Topbar: sidebar toggle, breadcrumb map (~30 routes), search-stub
+    button with ⌘K visual, bell with red-dot from attention feed.
+
+#### Changed
+- `web_portal/src/components/layout/PortalShell.tsx` — now composition-only.
+- `web_portal/src/screens/common/Cabinet.tsx` — complete rewrite under DS v2.
+
+#### Deferred (next sessions)
+- Phase 5 — 13 handoff-designed screens (Plans, TopUp, TopUpConfirm,
+  TransactionHistory, ReputationHistory, MyActs, Referral, Help, Feedback,
+  LegalProfileSetup, ContractList, DocumentUpload, AcceptRules).
+- Phase 6 — ~25 design-from-tokens screens (advertiser wizard, owner,
+  admin).
+- Phase 7 — Role switcher, density toggle, a11y audit, perf-check.
+- Phase 8 — `lucide-react` → `<Icon>` migration lock (ESLint error-level).
+- §7.21.5: Redis 60s TTL cache for `/users/me/attention` with write-action
+  invalidation hooks.
+
+#### Migration Notes
+- No Alembic migration — all four new endpoints use existing tables.
+- Frontend `IconSpriteLoader` fetches `/icons/rh-sprite.svg` once at shell
+  mount; after that `<use href="#rh-foo"/>` resolves inline, no per-icon
+  fetches.
+
 ### S-48: Grep-guards for regression patterns (2026-04-20)
 
 #### Added
