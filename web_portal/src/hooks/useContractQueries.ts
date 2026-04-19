@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMyContracts, getContractById, signContract, acceptRules } from '@/api/legal'
+import {
+  getMyContracts,
+  getContractById,
+  signContract,
+  acceptRules,
+  getPlatformRulesText,
+} from '@/api/legal'
 
 // ═══ My Contracts ═══
 export function useContracts(type?: string) {
@@ -36,5 +42,14 @@ export function useSignContract() {
 export function useAcceptRules() {
   return useMutation({
     mutationFn: acceptRules,
+  })
+}
+
+// ═══ Platform Rules Text ═══
+export function usePlatformRules() {
+  return useQuery({
+    queryKey: ['contracts', 'platform-rules', 'text'],
+    queryFn: getPlatformRulesText,
+    staleTime: 5 * 60_000,
   })
 }

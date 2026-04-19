@@ -1,6 +1,15 @@
 import { useState, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, Button, Notification } from '@shared/ui'
-import { api } from '@shared/api/client'
+import {
+  usePassportCompleteness,
+  useUploadDocument,
+  useUploadStatus,
+} from '@/hooks/useDocumentQueries'
+import type {
+  DocumentUploadResponse,
+  DocumentValidationFieldDetail,
+} from '@/lib/types/documents'
 
 const DOCUMENT_TYPES = [
   { value: 'inn_certificate', label: 'Свидетельство ИНН' },
@@ -21,96 +30,32 @@ const PASSPORT_PAGES = [
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
-interface UploadResult {
-  upload_id: number
-  status: string
-  file_type: string
-  document_type: string
-  passport_page_group?: string
-}
-
-interface ValidationFieldDetail {
-  match: boolean
-  reason?: string
-}
-
-interface StatusResult {
-  upload_id: number
-  status: string
-  file_type: string
-  document_type: string
-  passport_page_group?: string
-  image_quality_score: number | null
-  quality_issues: string[] | null
-  is_readable: boolean
-  ocr_confidence: number | null
-  extracted_inn: string | null
-  extracted_kpp: string | null
-  extracted_ogrn: string | null
-  extracted_name: string | null
-  validation_details: { fields?: Record<string, ValidationFieldDetail>; overall_confidence?: number } | null
-  error_message: string | null
-}
-
-interface PassportCompleteness {
-  main_pages_uploaded: boolean
-  registration_uploaded: boolean
-  is_complete: boolean
-  uploads: Array<{
-    id: number
-    page_group: string
-    status: string
-    quality_score: number | null
-  }>
-}
-
 export default function DocumentUpload() {
+  const queryClient = useQueryClient()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState('inn_certificate')
   const [passportPage, setPassportPage] = useState('main_pages')
-  const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
-  const [statusResult, setStatusResult] = useState<StatusResult | null>(null)
+  const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
-  const [polling, setPolling] = useState(false)
-  const [passportCompleteness, setPassportCompleteness] = useState<PassportCompleteness | null>(null)
 
-  // Fetch passport completeness on mount or when document type changes to passport
-  const fetchPassportCompleteness = useCallback(async () => {
-    try {
-      const data = await api.get('legal-profile/documents/passport-completeness').json<PassportCompleteness>()
-      setPassportCompleteness(data)
-    } catch {
-      // Ignore — user might not have uploaded yet
-    }
-  }, [])
+  const uploadMutation = useUploadDocument()
+  const { data: passportCompleteness } = usePassportCompleteness(documentType === 'passport')
+  const { data: statusResult } = useUploadStatus(uploadResult?.upload_id ?? null)
 
-  // When switching to passport, check completeness
+  const polling =
+    !!statusResult &&
+    statusResult.status !== 'completed' &&
+    statusResult.status !== 'failed' &&
+    statusResult.status !== 'unreadable'
+
   const handleDocumentTypeChange = (type: string) => {
     setDocumentType(type)
-    if (type === 'passport') {
-      fetchPassportCompleteness()
-    }
   }
 
-  // Drag & drop handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const files = e.dataTransfer.files
-    if (files.length > 0) handleFileSelect(files[0])
-  }, [])
-
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = useCallback((file: File) => {
     setError(null)
     setUploadResult(null)
-    setStatusResult(null)
 
     // Validate type
     if (!ALLOWED_TYPES.includes(file.type) && !file.name.toLowerCase().endsWith('.heic')) {
@@ -134,82 +79,53 @@ export default function DocumentUpload() {
     } else if (file.type === 'application/pdf') {
       setPreview(null) // Can't preview PDF easily
     }
-  }
+  }, [])
 
-  const handleUpload = async () => {
+  // Drag & drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const files = e.dataTransfer.files
+    if (files.length > 0) handleFileSelect(files[0])
+  }, [handleFileSelect])
+
+  const handleUpload = () => {
     if (!selectedFile) {
       setError('Выберите файл')
       return
     }
 
-    setUploading(true)
     setError(null)
     setUploadResult(null)
-    setStatusResult(null)
-
-    try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('document_type', documentType)
-      if (documentType === 'passport') {
-        formData.append('passport_page_group', passportPage)
-      }
-
-      const response = await api.post('legal-profile/documents/upload', {
-        body: formData,
-      }).json<UploadResult>()
-
-      setUploadResult(response)
-      setPolling(true)
-      pollStatus(response.upload_id)
-
-      // Refresh passport completeness after successful upload
-      if (documentType === 'passport') {
-        setTimeout(() => fetchPassportCompleteness(), 2000)
-      }
-    } catch {
-      setError('Ошибка загрузки. Попробуйте ещё раз.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const pollStatus = async (uploadId: number) => {
-    let attempts = 0
-    const maxAttempts = 60 // 5 minutes at 5s interval
-
-    const poll = async () => {
-      if (attempts >= maxAttempts) {
-        setPolling(false)
-        setError('Обработка заняла слишком много времени. Попробуйте позже.')
-        return
-      }
-
-      try {
-        const result = await api.get(`legal-profile/documents/${uploadId}/status`).json<StatusResult>()
-        setStatusResult(result)
-
-        if (result.status === 'completed' || result.status === 'failed' || result.status === 'unreadable') {
-          setPolling(false)
-        } else {
-          attempts++
-          setTimeout(poll, 5000)
-        }
-      } catch {
-        attempts++
-        setTimeout(poll, 5000)
-      }
-    }
-
-    poll()
+    uploadMutation.mutate(
+      {
+        file: selectedFile,
+        documentType,
+        passportPageGroup: documentType === 'passport' ? passportPage : undefined,
+      },
+      {
+        onSuccess: (response) => {
+          setUploadResult(response)
+          if (documentType === 'passport') {
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['documents', 'passport-completeness'] })
+            }, 2000)
+          }
+        },
+        onError: () => setError('Ошибка загрузки. Попробуйте ещё раз.'),
+      },
+    )
   }
 
   const handleReset = () => {
     setSelectedFile(null)
     setUploadResult(null)
-    setStatusResult(null)
     setPreview(null)
-    setPolling(false)
     setError(null)
     setPassportPage('main_pages')
   }
@@ -344,11 +260,11 @@ export default function DocumentUpload() {
               variant="primary"
               fullWidth
               size="lg"
-              loading={uploading}
-              disabled={!selectedFile}
+              loading={uploadMutation.isPending}
+              disabled={!selectedFile || uploadMutation.isPending}
               onClick={handleUpload}
             >
-              {uploading ? '⏳ Загрузка...' : '📤 Загрузить и проверить'}
+              {uploadMutation.isPending ? '⏳ Загрузка...' : '📤 Загрузить и проверить'}
             </Button>
           </div>
         </Card>
@@ -449,7 +365,7 @@ export default function DocumentUpload() {
               <div>
                 <p className="text-sm font-medium text-text-primary mb-2">Сверка с профилем:</p>
                 <div className="space-y-1">
-                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, ValidationFieldDetail]) => (
+                  {Object.entries(statusResult.validation_details.fields || {}).map(([field, data]: [string, DocumentValidationFieldDetail]) => (
                     <div key={field} className="flex items-center justify-between text-sm p-2 bg-harbor-elevated rounded">
                       <span className="text-text-secondary uppercase">{field}</span>
                       <span className={data.match ? 'text-success' : 'text-danger'}>
