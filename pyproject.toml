@@ -53,6 +53,9 @@ httpx = {extras = ["socks"], version = "^0.28.1"}
 yookassa = "^3.2.0"
 sentry-sdk = {extras = ["asyncio", "fastapi", "sqlalchemy", "celery"], version = "^2.55.0"}
 
+# GitHub Integration
+PyGithub = "^2.1.1"
+
 # Server Monitoring
 psutil = "^6.1.0"
 jinja2 = "^3.1.6"
