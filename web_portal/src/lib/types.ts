@@ -255,9 +255,6 @@ export interface FeedbackListResponse {
   total: number
 }
 
-// ═══ Payouts ═══
-export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'rejected'
-
 // ═══ Admin ═══
 export interface PlatformStatsResponse {
   users: { total: number; active: number; admins: number }

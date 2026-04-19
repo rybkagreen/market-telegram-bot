@@ -8,10 +8,11 @@ import { useMyPayouts } from '@/hooks/usePayoutQueries'
 const COOLDOWN_HOURS = 24
 
 const PAYOUT_STATUS_PILL: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
-  completed: { variant: 'success', label: 'Выплачено' },
+  paid: { variant: 'success', label: 'Выплачено' },
   processing: { variant: 'warning', label: 'В обработке' },
   pending: { variant: 'warning', label: 'Ожидает' },
   rejected: { variant: 'danger', label: 'Отклонено' },
+  cancelled: { variant: 'default', label: 'Отменено' },
 }
 
 function formatCountdown(ms: number): string {
@@ -109,7 +110,7 @@ export default function OwnPayouts() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-text-tertiary">Запрошено</span>
-                    <p className="font-mono text-text-primary">{formatCurrency(payout.amount)}</p>
+                    <p className="font-mono text-text-primary">{formatCurrency(payout.gross_amount)}</p>
                   </div>
                   <div>
                     <span className="text-text-tertiary">Получено</span>
