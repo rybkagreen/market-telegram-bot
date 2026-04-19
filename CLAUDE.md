@@ -38,6 +38,42 @@ docker compose restart api   # Restart specific service
 docker compose logs api --tail=20
 ```
 
+## LSP — Code Navigation
+
+**Claude Code has a native `LSP` tool available in every session** (requires `ENABLE_LSP_TOOL=1`, already set globally).
+
+Active language servers:
+- **Python** — `pyright-langserver` via `pyrightconfig.json` at repo root (venv: `.venv` → poetry virtualenv, Python 3.14, 322 deps resolved)
+- **TypeScript / TSX** — `typescript-language-server` picks up each `tsconfig.json` in `mini_app/`, `web_portal/`, `landing/` automatically
+
+### Tool operations
+`goToDefinition`, `findReferences`, `hover`, `documentSymbol`, `workspaceSymbol`, `goToImplementation`, `prepareCallHierarchy`, `incomingCalls`, `outgoingCalls`.
+Parameters: `operation`, `filePath`, `line` (1-based), `character` (1-based).
+
+### Usage policy
+
+**Use LSP first** for *semantic* questions about a specific symbol:
+- "where is `PlacementRequestService` defined?" → `goToDefinition`
+- "who calls `freeze_escrow_for_payment`?" → `findReferences` / `incomingCalls`
+- "what methods does `ReputationRepo` expose?" → `documentSymbol`
+- "find the class whose name contains `Payout`" → `workspaceSymbol`
+- type of a variable, signature of a function → `hover`
+
+**Use Grep / Read** (not LSP) for:
+- text search in strings, comments, TODO markers, logs
+- regex across non-code files (`*.md`, `*.yaml`, `*.sql`, `alembic/versions/*`)
+- counting occurrences
+- when LSP returns empty (fall back to Grep as a last resort, and say so explicitly)
+
+**Rule of thumb:** "navigating by symbol" = LSP; "searching for text" = Grep. Never silently use Grep for goto-definition when LSP would answer.
+
+### Fallback signals
+
+If `LSP goToDefinition` returns `[]` or errors:
+1. Verify the file is under `include` in `pyrightconfig.json` (Python) or covered by a `tsconfig.json` (TS)
+2. For Python — check `.venv` symlink still points at a valid poetry venv (`ls -la .venv`)
+3. Only then fall back to Grep, and report the LSP failure to the user
+
 ## Architecture
 
 ```
