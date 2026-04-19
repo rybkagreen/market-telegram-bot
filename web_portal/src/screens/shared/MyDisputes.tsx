@@ -113,7 +113,7 @@ export default function MyDisputes() {
                   <p className="text-sm text-text-primary">{reasonLabel}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">
                     <span>Дата: {formatDate(d.created_at)}</span>
-                    {d.owner_comment && <span>· Ответ: ✅</span>}
+                    {d.owner_explanation && <span>· Ответ: ✅</span>}
                     {d.resolution && <span>· Решение: {d.resolution}</span>}
                   </div>
                 </div>

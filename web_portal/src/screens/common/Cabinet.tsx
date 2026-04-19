@@ -102,6 +102,14 @@ export default function Cabinet() {
                 />
               </div>
             </div>
+            <div className="pt-2 text-right">
+              <a
+                href="/profile/reputation"
+                className="text-xs text-accent hover:underline"
+              >
+                История изменений →
+              </a>
+            </div>
           </div>
         )}
       </Card>
