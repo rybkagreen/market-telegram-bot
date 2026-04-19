@@ -11,7 +11,7 @@ Endpoints:
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -126,6 +126,26 @@ class PlanResponse(BaseModel):
     plan: str
     balance_rub_remaining: Decimal
     message: str
+
+
+class FrozenPlacementItem(BaseModel):
+    """Элемент заморозки — PlacementRequest в escrow/pending_payment."""
+
+    placement_id: int
+    channel_title: str
+    amount: Decimal
+    status: Literal["escrow", "pending_payment"]
+    scheduled_at: datetime | None = None
+    created_at: datetime
+
+
+class FrozenBalanceResponse(BaseModel):
+    """Сводка заморозок средств для BalanceHero виджета."""
+
+    total_frozen: Decimal
+    escrow_count: int
+    pending_payment_count: int
+    items: list[FrozenPlacementItem]
 
 
 # ─── Endpoints ──────────────────────────────────────────────────
@@ -343,6 +363,58 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
         ai_included=ai_included,
         plan_costs=PLAN_COSTS,
     )
+
+
+@router.get("/frozen")
+async def get_frozen_balance(current_user: CurrentUser) -> FrozenBalanceResponse:
+    """
+    Заморозка средств рекламодателя — placements в escrow/pending_payment.
+
+    Используется в BalanceHero (§7.6) для строки «Заморожено» и в
+    NotificationsCard (§7.9) для агрегата «N кампаний в ожидании».
+
+    ВАЖНО: Этот эндпоинт должен быть объявлен ДО `/history` и других
+    статик-path GET'ов с int-параметрами (см. project_fastapi_route_ordering.md).
+    """
+    from src.db.repositories.placement_request_repo import PlacementRequestRepository
+
+    async with async_session_factory() as session:
+        repo = PlacementRequestRepository(session)
+        placements = await repo.get_frozen_for_advertiser(advertiser_id=current_user.id)
+
+        items: list[FrozenPlacementItem] = []
+        total_frozen = Decimal("0")
+        escrow_count = 0
+        pending_payment_count = 0
+
+        for p in placements:
+            amount = p.final_price if p.final_price is not None else p.proposed_price
+            total_frozen += amount
+
+            status_value = p.status.value if hasattr(p.status, "value") else str(p.status)
+            if status_value == "escrow":
+                escrow_count += 1
+            elif status_value == "pending_payment":
+                pending_payment_count += 1
+
+            channel_title = p.channel.title if p.channel else f"Channel #{p.channel_id}"
+            items.append(
+                FrozenPlacementItem(
+                    placement_id=p.id,
+                    channel_title=channel_title,
+                    amount=amount,
+                    status=status_value,  # type: ignore[arg-type]
+                    scheduled_at=p.final_schedule or p.proposed_schedule,
+                    created_at=p.created_at,
+                )
+            )
+
+        return FrozenBalanceResponse(
+            total_frozen=total_frozen,
+            escrow_count=escrow_count,
+            pending_payment_count=pending_payment_count,
+            items=items,
+        )
 
 
 # Типы транзакций, видимые пользователю в истории.

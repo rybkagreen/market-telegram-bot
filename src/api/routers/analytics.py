@@ -10,9 +10,9 @@ Endpoints:
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -72,6 +72,24 @@ class TopChatItem(BaseModel):
 
 class TopChatsResponse(BaseModel):
     chats: list[TopChatItem]
+
+
+class CashflowDataPoint(BaseModel):
+    """Точка графика cashflow — один день."""
+
+    date: date
+    income: Decimal
+    expense: Decimal
+
+
+class CashflowResponse(BaseModel):
+    """Dual-line income/expense cashflow для PerformanceChart (§7.7)."""
+
+    period_days: int
+    total_income: Decimal
+    total_expense: Decimal
+    net: Decimal
+    points: list[CashflowDataPoint]
 
 
 # ─── Mini App Analytics Schemas ─────────────────────────────────
@@ -221,6 +239,101 @@ async def get_activity(
         points=points,
         total_sent=total_sent,
         period_days=days,
+    )
+
+
+# Типы транзакций — направление движения средств по балансу пользователя.
+# amount всегда положителен; знак определяется типом.
+_INCOME_TX_TYPES = {
+    "topup",
+    "bonus",
+    "admin_credit",
+    "escrow_release",
+    "refund_full",
+    "refund_partial",
+    "refund",
+    "owner_cancel_compensation",
+    "failed_permissions_refund",
+    "gamification_bonus",
+}
+_EXPENSE_TX_TYPES = {
+    "spend",
+    "escrow_freeze",
+    "payout",
+    "payout_fee",
+    "platform_fee",
+    "cancel_penalty",
+    "commission",
+    "ndfl_withholding",
+}
+
+
+@router.get("/cashflow")
+async def get_cashflow(
+    current_user: CurrentUser,
+    days: Annotated[Literal[7, 30, 90], Query(description="Период: 7/30/90 дней")] = 30,
+) -> CashflowResponse:
+    """
+    Dual-line income/expense cashflow для PerformanceChart (§7.7).
+
+    Группирует Transactions пользователя по дате и классифицирует по типу:
+    income (topup/refund/bonus/...) vs expense (spend/escrow_freeze/payout/...).
+
+    Zero-fill: пропущенные дни заполнены (0, 0), чтобы длина points == days
+    и ось X графика оставалась равномерной.
+    """
+    from src.db.models.transaction import Transaction, TransactionType
+
+    since_dt = datetime.now(UTC) - timedelta(days=days)
+    since_date = since_dt.date()
+
+    income_types = [TransactionType(t) for t in _INCOME_TX_TYPES]
+    expense_types = [TransactionType(t) for t in _EXPENSE_TX_TYPES]
+
+    day_col = func.date(Transaction.created_at).label("day")
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(day_col, Transaction.type, func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == current_user.id,
+                Transaction.created_at >= since_dt,
+                Transaction.is_reversed.is_(False),
+            )
+            .group_by(day_col, Transaction.type)
+            .order_by(day_col)
+        )
+        rows = result.all()
+
+    by_day: dict[date, tuple[Decimal, Decimal]] = {}
+    for day, tx_type, total in rows:
+        if day is None:
+            continue
+        day_date = day if isinstance(day, date) else date.fromisoformat(str(day))
+        income, expense = by_day.get(day_date, (Decimal("0"), Decimal("0")))
+        amount = Decimal(str(total or 0))
+        if tx_type in income_types:
+            income += amount
+        elif tx_type in expense_types:
+            expense += amount
+        by_day[day_date] = (income, expense)
+
+    points: list[CashflowDataPoint] = []
+    total_income = Decimal("0")
+    total_expense = Decimal("0")
+    for i in range(days):
+        d = since_date + timedelta(days=i + 1)  # first point = since+1 day
+        income, expense = by_day.get(d, (Decimal("0"), Decimal("0")))
+        points.append(CashflowDataPoint(date=d, income=income, expense=expense))
+        total_income += income
+        total_expense += expense
+
+    return CashflowResponse(
+        period_days=days,
+        total_income=total_income,
+        total_expense=total_expense,
+        net=total_income - total_expense,
+        points=points,
     )
 
 
