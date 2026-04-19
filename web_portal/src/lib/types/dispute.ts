@@ -46,25 +46,3 @@ export interface DisputeListResponse {
   limit: number
   offset: number
 }
-
-export interface Dispute {
-  id: number
-  placement_id: number
-  placement?: {
-    id: number
-    ad_text: string
-    proposed_price: string
-    channel?: { username: string }
-  }
-  advertiser_id: number
-  owner_id: number
-  status: DisputeStatus
-  reason: DisputeReason
-  advertiser_comment: string
-  owner_comment: string | null
-  resolution: string | null
-  resolution_action: ResolutionAction | null
-  created_at: string
-  resolved_at: string | null
-  expires_at: string
-}
