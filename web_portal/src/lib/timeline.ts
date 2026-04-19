@@ -128,7 +128,7 @@ export function deriveContractTimelineEvents(
   return contracts
     .filter(
       (c) =>
-        (c.status === 'signed' || c.contract_status === 'signed') &&
+        c.contract_status === 'signed' &&
         c.signed_at !== null,
     )
     .map((contract) => ({

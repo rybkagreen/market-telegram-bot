@@ -16,8 +16,7 @@ export interface Contract {
   id: number
   user_id: number
   contract_type: ContractType
-  status: ContractStatus
-  contract_status?: ContractStatus
+  contract_status: ContractStatus
   placement_request_id: number | null
   template_version: string
   signature_method: SignatureMethod | null
