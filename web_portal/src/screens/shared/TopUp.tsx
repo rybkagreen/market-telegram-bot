@@ -33,7 +33,7 @@ export default function TopUp() {
         // Redirect to YooKassa payment page
         window.open(data.payment_url, '_blank')
         navigate(`/topup/confirm?payment_id=${data.payment_id}`, {
-          state: { amount, paymentUrl: data.payment_url },
+          state: { amount, paymentUrl: data.payment_url, paymentId: data.payment_id },
         })
       },
     })
