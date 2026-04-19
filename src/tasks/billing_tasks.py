@@ -207,14 +207,3 @@ def notify_payment_success(user_id: int, amount_rub: float, payment_id: str) -> 
             e,
         )
         return False
-
-
-@celery_app.task(name="billing:check_pending_invoices", queue="billing")
-def check_pending_invoices() -> dict:
-    """DEPRECATED: Removed in v4.5. No-op — safe to delete."""
-    return {"deprecated": True, "removed_in": "v4.5"}
-
-
-async def _check_pending_invoices() -> dict:
-    """DEPRECATED: Removed in v4.5."""
-    return {"deprecated": True, "removed_in": "v4.5"}
