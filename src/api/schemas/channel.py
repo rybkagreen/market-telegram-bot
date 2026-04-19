@@ -166,6 +166,7 @@ class ChannelResponse(BaseModel):
     rating: float = Field(default=0.0, description="Рейтинг канала")
     category: str | None = Field(None, description="Категория канала")
     is_active: bool = Field(default=True, description="Активен ли канал")
+    is_test: bool = Field(default=False, description="Тестовый канал (только для админов)")
     created_at: str = Field(..., description="Дата создания (ISO 8601)")
 
     model_config = {"from_attributes": True}
