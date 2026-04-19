@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-42 Stage 1: Phantom calls (P0) — fix plan Stage 1 of 6 (2026-04-19)
+
+#### Added
+- **`GET /api/channels/{channel_id}`** → `ChannelResponse`. Владелец или админ (404 если чужой канал). Перед `DELETE /{channel_id}`; int-типизация не перекрывает `/available`, `/stats`, `/preview`, `/compare/preview`.
+- **`GET /api/acts/mine?placement_request_id={int}`** — новый опциональный query-фильтр по размещению (пробрасывается в `ActRepository.list_by_user`).
+- **Admin Payouts API:**
+  - `GET /api/admin/payouts?status=&limit=&offset=` → `AdminPayoutListResponse` (обогащён `owner_username`, `owner_telegram_id`).
+  - `POST /api/admin/payouts/{id}/approve` → `paid`, фиксирует `admin_id`.
+  - `POST /api/admin/payouts/{id}/reject` (body `{reason}`) → `rejected`, возвращает `gross_amount` на `earned_rub`, фиксирует `admin_id` и `rejection_reason`.
+- **`PayoutService.approve_request(payout_id, admin_id)` / `reject_request(payout_id, admin_id, reason)`** — admin-обёртки над существующими `complete_payout` / `reject_payout`.
+- **Pydantic:** `AdminPayoutResponse`, `AdminPayoutListResponse`, `AdminPayoutRejectRequest` в `src/api/schemas/payout.py`.
+- **Frontend:** маршрут `/admin/payouts` в `web_portal/src/App.tsx` (подключение существующего orphan screen `AdminPayouts.tsx`).
+
+#### Fixed
+- **Phantom URL `reviews/placement/{id}`** → `reviews/{id}` (бэк без `/placement/` префикса). Экран отзывов размещения теперь работает.
+- **Phantom URL `reputation/history`** → `reputation/me/history`; параметры выровнены на `limit`/`offset`.
+- **Phantom URLs `placements/{id}/start|cancel|duplicate`** → `campaigns/{id}/start|cancel|duplicate`. Эндпоинты существуют только на `/api/campaigns/*`, не на `/placements/*`.
+- **Placement list pagination** — `page`/`page_size` → `limit`/`offset` (на бэке последнее).
+- **Phantom URL `acts/?placement_request_id=X`** → `acts/mine?placement_request_id=X`; response-тип выровнен на `ActListResponse` (бэк отдаёт объект, не массив).
+- **`AdminPayouts.tsx` orphan screen** — теперь подключён к роутингу.
+- **Семантическое разделение `rejected` vs `cancelled`** — отклонение админом теперь ставит `rejected` (ранее `reject_payout` ошибочно ставил `cancelled`, что смешивалось с отменой пользователем).
+
+#### Known follow-ups (Stage 2 scope)
+- Type drift: `AdminPayout.reject_reason` vs backend `rejection_reason`; `ReputationHistoryItem.reason` vs backend `comment`; `PlacementRequest` ↔ `CampaignResponse` в start/cancel/duplicate. Будет устранено в `fix/s-43-contract-alignment`.
+
 ### Diagnostic: Deep audit web_portal ↔ backend (2026-04-19)
 
 #### Added
