@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +26,18 @@ from src.api.schemas.admin import (
     UserAdminResponse,
     UserListAdminResponse,
 )
+from src.api.schemas.payout import (
+    AdminPayoutListResponse,
+    AdminPayoutRejectRequest,
+    AdminPayoutResponse,
+)
+from src.api.schemas.payout import (
+    PayoutStatus as PayoutStatusSchema,
+)
 from src.db.models.contract import Contract
 from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
+from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
@@ -1046,3 +1055,126 @@ async def list_all_contracts(
         total,
     )
     return AdminContractListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+# ─── Admin Payouts (S-42) ────────────────────────────────────────────
+
+_PAYOUT_NOT_FOUND = "PayoutRequest not found"
+
+
+def _payout_to_admin_response(
+    payout: PayoutRequest, owner: User | None
+) -> AdminPayoutResponse:
+    """Build AdminPayoutResponse from ORM row + owner eager-loaded."""
+    return AdminPayoutResponse(
+        id=payout.id,
+        owner_id=payout.owner_id,
+        gross_amount=payout.gross_amount,
+        fee_amount=payout.fee_amount,
+        net_amount=payout.net_amount,
+        status=PayoutStatusSchema(payout.status.value),
+        requisites=payout.requisites,
+        admin_id=payout.admin_id,
+        processed_at=payout.processed_at,
+        rejection_reason=payout.rejection_reason,
+        created_at=payout.created_at,
+        updated_at=payout.updated_at,
+        owner_username=owner.username if owner else None,
+        owner_telegram_id=owner.telegram_id if owner else None,
+    )
+
+
+@router.get("/payouts")
+async def list_admin_payouts(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    status_filter: Annotated[PayoutStatusSchema | None, Query(alias="status")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminPayoutListResponse:
+    """Список всех выплат для админ-панели (с ownerданными, пагинация)."""
+    base = select(PayoutRequest)
+    if status_filter:
+        base = base.where(PayoutRequest.status == PayoutStatus(status_filter.value))
+
+    count_q = select(func.count()).select_from(PayoutRequest)
+    if status_filter:
+        count_q = count_q.where(PayoutRequest.status == PayoutStatus(status_filter.value))
+    total = (await session.execute(count_q)).scalar() or 0
+
+    result = await session.execute(
+        base.order_by(PayoutRequest.created_at.desc()).offset(offset).limit(limit)
+    )
+    payouts = list(result.scalars().all())
+
+    # Загружаем владельцев одним запросом
+    owner_ids = {p.owner_id for p in payouts}
+    owners: dict[int, User] = {}
+    if owner_ids:
+        owner_rows = await session.execute(select(User).where(User.id.in_(owner_ids)))
+        owners = {u.id: u for u in owner_rows.scalars().all()}
+
+    items = [_payout_to_admin_response(p, owners.get(p.owner_id)) for p in payouts]
+
+    logger.info(
+        "Admin %s listed payouts: limit=%d, offset=%d, status=%s, total=%d",
+        admin_user.id,
+        limit,
+        offset,
+        status_filter.value if status_filter else None,
+        total,
+    )
+    return AdminPayoutListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.post(
+    "/payouts/{payout_id}/approve",
+    responses={404: {"description": _PAYOUT_NOT_FOUND}, 400: {"description": "Bad request"}},
+)
+async def approve_admin_payout(
+    payout_id: int,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AdminPayoutResponse:
+    """Админ одобрил выплату: pending/processing → paid."""
+    from src.core.services.payout_service import payout_service
+
+    try:
+        payout = await payout_service.approve_request(payout_id, admin_user.id)
+    except ValueError as e:
+        msg = str(e)
+        status_code = (
+            status.HTTP_404_NOT_FOUND if "not found" in msg else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=msg) from e
+
+    owner = await session.get(User, payout.owner_id)
+    logger.info(f"Admin {admin_user.id} approved payout {payout_id}")
+    return _payout_to_admin_response(payout, owner)
+
+
+@router.post(
+    "/payouts/{payout_id}/reject",
+    responses={404: {"description": _PAYOUT_NOT_FOUND}, 400: {"description": "Bad request"}},
+)
+async def reject_admin_payout(
+    payout_id: int,
+    body: AdminPayoutRejectRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AdminPayoutResponse:
+    """Админ отклонил выплату: возвращает средства на earned_rub, status=rejected."""
+    from src.core.services.payout_service import payout_service
+
+    try:
+        payout = await payout_service.reject_request(payout_id, admin_user.id, body.reason)
+    except ValueError as e:
+        msg = str(e)
+        status_code = (
+            status.HTTP_404_NOT_FOUND if "not found" in msg else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=msg) from e
+
+    owner = await session.get(User, payout.owner_id)
+    logger.info(f"Admin {admin_user.id} rejected payout {payout_id}: {body.reason}")
+    return _payout_to_admin_response(payout, owner)

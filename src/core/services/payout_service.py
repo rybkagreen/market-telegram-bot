@@ -730,6 +730,101 @@ class PayoutService:
                 f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽"
             )
 
+    # ══════════════════════════════════════════════════════════════
+    # Admin panel — approve / reject payout requests (S-42)
+    # ══════════════════════════════════════════════════════════════
+
+    async def approve_request(
+        self,
+        payout_id: int,
+        admin_id: int,
+    ) -> PayoutRequest:
+        """
+        Админ одобрил выплату: pending/processing → paid.
+
+        Выполняет финансовые операции через `complete_payout`
+        (обновление `platform_account`, запись расхода USN), после чего
+        фиксирует `admin_id` в записи.
+
+        Args:
+            payout_id: ID заявки.
+            admin_id: ID админа (User.id), выполнившего действие.
+
+        Returns:
+            Обновлённая `PayoutRequest`.
+
+        Raises:
+            ValueError: Если заявка не найдена или уже в финальном статусе.
+        """
+        async with async_session_factory() as session:
+            payout = await session.get(PayoutRequest, payout_id)
+            if not payout:
+                raise ValueError(f"PayoutRequest {payout_id} not found")
+            if payout.status in (PayoutStatus.paid, PayoutStatus.rejected, PayoutStatus.cancelled):
+                raise ValueError(
+                    f"PayoutRequest {payout_id} already finalized (status={payout.status.value})"
+                )
+
+        async with async_session_factory() as session:
+            await self.complete_payout(session, payout_id)
+
+        async with async_session_factory() as session:
+            payout = await session.get(PayoutRequest, payout_id)
+            if payout is None:
+                raise ValueError(f"PayoutRequest {payout_id} disappeared after complete_payout")
+            payout.admin_id = admin_id
+            await session.commit()
+            await session.refresh(payout)
+            logger.info(f"PayoutRequest {payout_id} approved by admin {admin_id}")
+            return payout
+
+    async def reject_request(
+        self,
+        payout_id: int,
+        admin_id: int,
+        reason: str,
+    ) -> PayoutRequest:
+        """
+        Админ отклонил выплату: возвращает деньги на `earned_rub`
+        и ставит статус `rejected` (не `cancelled` — cancelled — это отмена
+        пользователем).
+
+        Args:
+            payout_id: ID заявки.
+            admin_id: ID админа.
+            reason: Причина отклонения.
+
+        Returns:
+            Обновлённая `PayoutRequest`.
+
+        Raises:
+            ValueError: Если заявка не найдена или уже в финальном статусе.
+        """
+        async with async_session_factory() as session:
+            payout = await session.get(PayoutRequest, payout_id)
+            if not payout:
+                raise ValueError(f"PayoutRequest {payout_id} not found")
+            if payout.status in (PayoutStatus.paid, PayoutStatus.rejected, PayoutStatus.cancelled):
+                raise ValueError(
+                    f"PayoutRequest {payout_id} already finalized (status={payout.status.value})"
+                )
+
+        # Использует существующую финансовую логику (возврат на earned_rub),
+        # затем правит статус `cancelled` → `rejected` и фиксирует admin_id.
+        async with async_session_factory() as session:
+            await self.reject_payout(session, payout_id, reason)
+
+        async with async_session_factory() as session:
+            payout = await session.get(PayoutRequest, payout_id)
+            if payout is None:
+                raise ValueError(f"PayoutRequest {payout_id} disappeared after reject_payout")
+            payout.status = PayoutStatus.rejected
+            payout.admin_id = admin_id
+            await session.commit()
+            await session.refresh(payout)
+            logger.info(f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}")
+            return payout
+
     async def calculate_payout_with_tax(self, user_id: int, gross_amount: Decimal) -> dict:
         """
         Рассчитать выплату с учётом налоговой нагрузки на основе юридического профиля.
