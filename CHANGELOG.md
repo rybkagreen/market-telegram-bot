@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-40: Tech Debt Cleanup (April 2026)
+
+#### Fixed
+- **D-10 async Redis (P0)** — `_check_dedup` was a sync function using `redis_sync_client` inside async Celery tasks, blocking the event loop on every placement SLA check. Replaced with `_check_dedup_async` using the existing async `redis_client`; all 6 call sites updated to `await` (`src/tasks/placement_tasks.py`)
+
+#### Removed
+- **D-06: Dead `check_pending_invoices` task** — DEPRECATED no-op task and its helper `_check_pending_invoices` removed from `billing_tasks.py`; never called anywhere in the codebase (`src/tasks/billing_tasks.py`)
+
+#### Added
+- **D-20: `.gitkeep` for `reports/monitoring/payloads/`** — empty directory now tracked by git (`reports/monitoring/payloads/.gitkeep`)
+- **Pre-Launch Blockers section in CLAUDE.md** — documents ORD stub (legal blocker under ФЗ-38) and FNS validation stub as required actions before production launch with real payments
+
+---
+
 ### S-39a: Backend Schema Completeness (April 2026)
 
 #### Added
