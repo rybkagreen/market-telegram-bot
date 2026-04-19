@@ -1,28 +1,8 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, StatusPill, Textarea } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
-import { api } from '@shared/api/client'
-
-interface DisputeDetail {
-  id: number
-  placement_id: number
-  advertiser_id: number
-  owner_id: number
-  reason: string
-  comment: string
-  status: string
-  advertiser_username?: string | null
-  owner_username?: string | null
-  advertiser_comment?: string | null
-  owner_explanation?: string | null
-  resolution?: string | null
-  resolution_comment?: string | null
-  advertiser_refund_pct?: number | null
-  owner_payout_pct?: number | null
-  resolved_at?: string | null
-  created_at: string
-}
+import { useDisputeById, useResolveDispute } from '@/hooks/useDisputeQueries'
 
 type Resolution = 'owner_fault' | 'advertiser_fault' | 'technical' | 'partial'
 
@@ -36,39 +16,30 @@ const RESOLUTION_DESC: Record<Resolution, string> = {
 export default function AdminDisputeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const disputeId = id ? Number(id) : null
 
-  const [dispute, setDispute] = useState<DisputeDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: dispute, isLoading: loading, isError } = useDisputeById(disputeId)
+  const resolveMutation = useResolveDispute()
+
   const [resolution, setResolution] = useState<Resolution | null>(null)
   const [adminComment, setAdminComment] = useState('')
   const [customSplit, setCustomSplit] = useState(50)
-  const [resolving, setResolving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  React.useEffect(() => {
-    if (!id) return
-    setLoading(true)
-    api.get(`disputes/${id}`)
-      .json<DisputeDetail>()
-      .then((data) => setDispute(data))
-      .catch(() => setError('Спор не найден'))
-      .finally(() => setLoading(false))
-  }, [id])
-
   const handleResolve = () => {
-    if (!id || !resolution) return
-    setResolving(true)
-    api.post(`disputes/admin/disputes/${id}/resolve`, {
-      json: {
+    if (!disputeId || !resolution) return
+    resolveMutation.mutate(
+      {
+        id: disputeId,
         resolution,
-        admin_comment: adminComment || undefined,
-        custom_split_percent: resolution === 'partial' ? customSplit : undefined,
+        adminComment: adminComment || undefined,
+        customSplitPercent: resolution === 'partial' ? customSplit : undefined,
       },
-    })
-      .json<DisputeDetail>()
-      .then(() => navigate('/admin/disputes'))
-      .catch(() => setError('Ошибка при разрешении спора'))
-      .finally(() => setResolving(false))
+      {
+        onSuccess: () => navigate('/admin/disputes'),
+        onError: () => setError('Ошибка при разрешении спора'),
+      },
+    )
   }
 
   if (loading) {
@@ -80,14 +51,15 @@ export default function AdminDisputeDetail() {
     )
   }
 
-  if (error || !dispute) {
-    return <Notification type="danger">Спор не найден</Notification>
+  if (isError || !dispute) {
+    return <Notification type="danger">{error ?? 'Спор не найден'}</Notification>
   }
 
   const statusColor: Record<string, 'success' | 'warning' | 'danger' | 'default'> = {
     open: 'danger',
-    owner_reply: 'warning',
+    owner_explained: 'warning',
     resolved: 'success',
+    closed: 'default',
   }
 
   return (
@@ -117,17 +89,13 @@ export default function AdminDisputeDetail() {
       {/* Parties */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card title="Рекламодатель">
-          <p className="text-sm font-medium text-text-primary">
-            {dispute.advertiser_username ?? `User #${dispute.advertiser_id}`}
-          </p>
+          <p className="text-sm font-medium text-text-primary">User #{dispute.advertiser_id}</p>
           {dispute.advertiser_comment && (
             <p className="text-sm text-text-secondary mt-2">{dispute.advertiser_comment}</p>
           )}
         </Card>
         <Card title="Владелец">
-          <p className="text-sm font-medium text-text-primary">
-            {dispute.owner_username ?? `User #${dispute.owner_id}`}
-          </p>
+          <p className="text-sm font-medium text-text-primary">User #{dispute.owner_id}</p>
           {dispute.owner_explanation && (
             <p className="text-sm text-text-secondary mt-2">{dispute.owner_explanation}</p>
           )}
@@ -208,11 +176,11 @@ export default function AdminDisputeDetail() {
               <Button
                 variant="primary"
                 fullWidth
-                loading={resolving}
-                disabled={!resolution || resolving}
+                loading={resolveMutation.isPending}
+                disabled={!resolution || resolveMutation.isPending}
                 onClick={handleResolve}
               >
-                {resolving ? 'Разрешение...' : 'Разрешить спор'}
+                {resolveMutation.isPending ? 'Разрешение...' : 'Разрешить спор'}
               </Button>
             </div>
           </Card>
