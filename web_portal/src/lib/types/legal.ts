@@ -22,10 +22,6 @@ export interface LegalProfile {
   bank_bik: string | null
   bank_corr_account: string | null
   yoomoney_wallet: string | null
-  passport_series: string | null
-  passport_number: string | null
-  passport_issued_by: string | null
-  passport_issued_at: string | null
   has_passport_data: boolean
   has_inn_scan: boolean
   has_passport_scan: boolean
