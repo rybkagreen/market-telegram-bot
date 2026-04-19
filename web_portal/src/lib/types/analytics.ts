@@ -10,14 +10,18 @@ export interface ReputationScore {
 
 export interface ReputationHistoryItem {
   id: number
+  user_id: number
   action: string
   delta: number
   score_before: number
   score_after: number
-  reason: string | null
+  role: string
+  comment: string | null
   created_at: string
 }
 
+/** Backend GET /reputation/me/history returns a list directly; this
+ *  interface is kept for optional admin paginated responses. */
 export interface ReputationHistory {
   items: ReputationHistoryItem[]
   total: number
