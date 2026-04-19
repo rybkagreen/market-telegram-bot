@@ -30,8 +30,17 @@ export async function createDispute(data: { placement_id: number; reason: string
   return api.post('disputes', { json: data }).json<DisputeDetailResponse>()
 }
 
-export async function getMyDisputes() {
-  return api.get('disputes').json<DisputeListResponse>()
+export async function getMyDisputes(params?: {
+  statusFilter?: string
+  limit?: number
+  offset?: number
+}) {
+  const search = new URLSearchParams()
+  if (params?.statusFilter) search.set('status_filter', params.statusFilter)
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  const qs = search.toString()
+  return api.get(qs ? `disputes?${qs}` : 'disputes').json<DisputeListResponse>()
 }
 
 export async function getDisputeById(id: number) {

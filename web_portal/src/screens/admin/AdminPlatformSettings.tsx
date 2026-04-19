@@ -1,19 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
 import { useMe } from '@/hooks/queries'
-import { api } from '@shared/api/client'
-
-interface PlatformSettings {
-  legal_name: string | null
-  inn: string | null
-  kpp: string | null
-  ogrn: string | null
-  address: string | null
-  bank_name: string | null
-  bank_account: string | null
-  bank_bik: string | null
-  bank_corr_account: string | null
-}
+import { usePlatformSettings, useUpdatePlatformSettings } from '@/hooks/useAdminQueries'
+import type { PlatformSettings } from '@/lib/types/platform'
 
 const FIELDS: { key: keyof PlatformSettings; label: string; placeholder: string }[] = [
   { key: 'legal_name', label: 'Юридическое наименование', placeholder: 'ООО «РекХарбор»' },
@@ -29,50 +18,45 @@ const FIELDS: { key: keyof PlatformSettings; label: string; placeholder: string 
 
 export default function AdminPlatformSettings() {
   const { data: user, isLoading: userLoading } = useMe()
+  const { data: settings, isLoading: settingsLoading, isError } = usePlatformSettings(!!user?.is_admin)
+  const saveMutation = useUpdatePlatformSettings()
 
   const [form, setForm] = useState<PlatformSettings>({
     legal_name: '', inn: '', kpp: '', ogrn: '', address: '',
     bank_name: '', bank_account: '', bank_bik: '', bank_corr_account: '',
   })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!user?.is_admin) return
-    setLoading(true)
-    api.get('admin/platform-settings')
-      .json<PlatformSettings>()
-      .then((data) => setForm({
-        legal_name: data.legal_name ?? '',
-        inn: data.inn ?? '',
-        kpp: data.kpp ?? '',
-        ogrn: data.ogrn ?? '',
-        address: data.address ?? '',
-        bank_name: data.bank_name ?? '',
-        bank_account: data.bank_account ?? '',
-        bank_bik: data.bank_bik ?? '',
-        bank_corr_account: data.bank_corr_account ?? '',
-      }))
-      .catch(() => setError('Не удалось загрузить реквизиты'))
-      .finally(() => setLoading(false))
-  }, [user?.is_admin])
+    if (!settings) return
+    setForm({
+      legal_name: settings.legal_name ?? '',
+      inn: settings.inn ?? '',
+      kpp: settings.kpp ?? '',
+      ogrn: settings.ogrn ?? '',
+      address: settings.address ?? '',
+      bank_name: settings.bank_name ?? '',
+      bank_account: settings.bank_account ?? '',
+      bank_bik: settings.bank_bik ?? '',
+      bank_corr_account: settings.bank_corr_account ?? '',
+    })
+  }, [settings])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const error = saveError ?? (isError ? 'Не удалось загрузить реквизиты' : null)
+
   const handleSave = () => {
-    setSaving(true)
-    setError(null)
+    setSaveError(null)
     setSuccess(false)
-    api.put('admin/platform-settings', { json: form })
-      .json()
-      .then(() => setSuccess(true))
-      .catch(() => setError('Не удалось сохранить реквизиты'))
-      .finally(() => setSaving(false))
+    saveMutation.mutate(form, {
+      onSuccess: () => setSuccess(true),
+      onError: () => setSaveError('Не удалось сохранить реквизиты'),
+    })
   }
 
-  if (userLoading || loading) {
+  if (userLoading || settingsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-20" />
@@ -111,8 +95,8 @@ export default function AdminPlatformSettings() {
         </div>
       </Card>
 
-      <Button variant="primary" fullWidth loading={saving} onClick={handleSave}>
-        {saving ? 'Сохранение...' : '💾 Сохранить'}
+      <Button variant="primary" fullWidth loading={saveMutation.isPending} onClick={handleSave}>
+        {saveMutation.isPending ? 'Сохранение...' : '💾 Сохранить'}
       </Button>
     </div>
   )

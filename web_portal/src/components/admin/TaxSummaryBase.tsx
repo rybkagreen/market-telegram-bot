@@ -1,33 +1,9 @@
 import { useState } from 'react'
 import { Card, Button, Skeleton, Notification, Select } from '@shared/ui'
-import { api } from '@shared/api/client'
+import { useTaxSummary, downloadKudir } from '@/hooks/useAdminQueries'
+import type { TaxSummaryData } from '@/api/admin'
 
-// eslint-disable-next-line react-refresh/only-export-components
-export interface KudirEntry {
-  entry_number: number
-  operation_date: string
-  description: string
-  income_amount: string
-  expense_amount: string | null
-  operation_type: string
-}
-
-export interface TaxSummaryData {
-  year: number
-  quarter: number
-  usn_revenue: string
-  total_expenses: string
-  tax_base_15: string
-  calculated_tax_15: string
-  min_tax_1: string
-  tax_due: string
-  applicable_rate: string | null
-  vat_accumulated: string
-  ndfl_withheld: string
-  total_income?: string
-  tax_6percent?: string
-  kudir_entries?: KudirEntry[]
-}
+export type { KudirEntry, TaxSummaryData } from '@/api/admin'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function formatRub(value: string): string {
@@ -63,39 +39,30 @@ export default function TaxSummaryBase({
 
   const [year, setYear] = useState(currentYear)
   const [quarter, setQuarter] = useState(currentQuarter)
-  const [summaryData, setSummaryData] = useState<TaxSummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [enabled, setEnabled] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const {
+    data: summaryData,
+    isFetching: loading,
+    error: queryError,
+    refetch,
+  } = useTaxSummary(year, quarter, enabled)
+
   const fetchSummary = () => {
-    setLoading(true)
     setError(null)
-    api.get(`admin/tax/summary?year=${year}&quarter=${quarter}`)
-      .json<TaxSummaryData>()
-      .then((data) => setSummaryData(data))
-      .catch((err: { message?: string }) => {
-        setError(err.message ?? 'Не удалось загрузить налоговую сводку')
-        setSummaryData(null)
-      })
-      .finally(() => setLoading(false))
+    if (!enabled) {
+      setEnabled(true)
+    } else {
+      void refetch()
+    }
   }
 
+  const displayError = error ?? (queryError ? (queryError as Error).message : null)
+
   const handleDownload = async (format: 'pdf' | 'csv') => {
-    const endpoint = `/api/admin/tax/kudir/${year}/${quarter}/${format}`
     try {
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('rh_token')}` },
-      })
-      if (!response.ok) throw new Error('Download failed')
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `kudir_${year}_Q${quarter}.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      await downloadKudir(year, quarter, format)
     } catch {
       setError('Ошибка при скачивании файла')
     }
@@ -145,9 +112,9 @@ export default function TaxSummaryBase({
         </div>
       )}
 
-      {error && <Notification type="danger">{error}</Notification>}
+      {displayError && <Notification type="danger">{displayError}</Notification>}
 
-      {showEmptyHint && !summaryData && !loading && !error && (
+      {showEmptyHint && !summaryData && !loading && !displayError && (
         <Notification type="info">
           <span className="text-sm">Выберите период и нажмите «Обновить» для загрузки сводки</span>
         </Notification>
