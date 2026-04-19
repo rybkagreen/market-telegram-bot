@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-42 Stage 1: Phantom calls (P0) — fix plan Stage 1 of 6 (2026-04-19)
+
+#### Added
+- **`GET /api/channels/{channel_id}`** → `ChannelResponse`. Владелец или админ (404 если чужой канал). Перед `DELETE /{channel_id}`; int-типизация не перекрывает `/available`, `/stats`, `/preview`, `/compare/preview`.
+- **`GET /api/acts/mine?placement_request_id={int}`** — новый опциональный query-фильтр по размещению (пробрасывается в `ActRepository.list_by_user`).
+- **Admin Payouts API:**
+  - `GET /api/admin/payouts?status=&limit=&offset=` → `AdminPayoutListResponse` (обогащён `owner_username`, `owner_telegram_id`).
+  - `POST /api/admin/payouts/{id}/approve` → `paid`, фиксирует `admin_id`.
+  - `POST /api/admin/payouts/{id}/reject` (body `{reason}`) → `rejected`, возвращает `gross_amount` на `earned_rub`, фиксирует `admin_id` и `rejection_reason`.
+- **`PayoutService.approve_request(payout_id, admin_id)` / `reject_request(payout_id, admin_id, reason)`** — admin-обёртки над существующими `complete_payout` / `reject_payout`.
+- **Pydantic:** `AdminPayoutResponse`, `AdminPayoutListResponse`, `AdminPayoutRejectRequest` в `src/api/schemas/payout.py`.
+- **Frontend:** маршрут `/admin/payouts` в `web_portal/src/App.tsx` (подключение существующего orphan screen `AdminPayouts.tsx`).
+
+#### Fixed
+- **Phantom URL `reviews/placement/{id}`** → `reviews/{id}` (бэк без `/placement/` префикса). Экран отзывов размещения теперь работает.
+- **Phantom URL `reputation/history`** → `reputation/me/history`; параметры выровнены на `limit`/`offset`.
+- **Phantom URLs `placements/{id}/start|cancel|duplicate`** → `campaigns/{id}/start|cancel|duplicate`. Эндпоинты существуют только на `/api/campaigns/*`, не на `/placements/*`.
+- **Placement list pagination** — `page`/`page_size` → `limit`/`offset` (на бэке последнее).
+- **Phantom URL `acts/?placement_request_id=X`** → `acts/mine?placement_request_id=X`; response-тип выровнен на `ActListResponse` (бэк отдаёт объект, не массив).
+- **`AdminPayouts.tsx` orphan screen** — теперь подключён к роутингу.
+- **Семантическое разделение `rejected` vs `cancelled`** — отклонение админом теперь ставит `rejected` (ранее `reject_payout` ошибочно ставил `cancelled`, что смешивалось с отменой пользователем).
+
+#### Known follow-ups (Stage 2 scope)
+- Type drift: `AdminPayout.reject_reason` vs backend `rejection_reason`; `ReputationHistoryItem.reason` vs backend `comment`; `PlacementRequest` ↔ `CampaignResponse` в start/cancel/duplicate. Будет устранено в `fix/s-43-contract-alignment`.
+
+### Diagnostic: Deep audit web_portal ↔ backend (2026-04-19)
+
+#### Added
+- **Углублённый аудит web_portal ↔ backend** — `reports/20260419_diagnostics/web_portal_vs_backend_deep.md`. Перепроверяет предыдущую поверхностную диагностику и фиксирует: 8 phantom-calls (фронт дёргает несуществующие URL), 7 групп контрактного дрейфа (Payout × 3 определения, Contract.status, LegalProfile паспортные поля, PlacementResponse.advertiser_counter_*, User.referral_code, Channel.category, Dispute legacy дубль-тип), ~40 orphan-эндпоинтов, 2 мёртвых сервиса (`link_tracking_service`, `invoice_service`), 1 orphan screen (`AdminPayouts.tsx`), 22 прямых `api.*`-вызова в обход хуков. Код не менялся — это диагностический документ с P0/P1/P2 action-листом.
+- **План устранения проблем аудита** — 6 этапных файлов в `reports/20260419_diagnostics/FIX_PLAN_*.md` + `FIX_PLAN_00_index.md`. Каждый этап содержит feature-ветку, задачи с file:line ссылками, критерии Definition of Done и оценку трудозатрат (всего 46–62 ч). Этапы: 1) Phantom calls (P0), 2) Contract drift (P0), 3) Missing integration (P1), 4) Backend cleanup (P1), 5) Arch debt (P2), 6) Tests + guards (P2).
+
+### S-38 follow-up: ORD Yandex provider skeleton + auto-init (April 2026)
+
+#### Added
+- **`YandexOrdProvider` skeleton** — `src/core/services/ord_yandex_provider.py`, class implementing `OrdProvider` protocol; all methods raise `NotImplementedError("Yandex ORD integration required")`. Placeholder for Яндекс ОРД API v7 contract.
+- **`.env.ord.sample`** — reference env file documenting `ORD_PROVIDER`, `ORD_API_KEY`, `ORD_API_URL`, `ORD_BLOCK_WITHOUT_ERID`, `ORD_REKHARBOR_ORG_ID`, `ORD_REKHARBOR_INN` for production setup.
+
+#### Changed
+- **ORD provider auto-init from settings** — `ord_service.py` now selects provider at import time via `_init_ord_provider_from_settings()`: `ORD_PROVIDER=yandex` returns `YandexOrdProvider` (fails fast if `ORD_API_KEY`/`ORD_API_URL` missing); otherwise `StubOrdProvider`. Deployments no longer require code changes to switch providers.
+- **CLAUDE.md — Pre-Launch Blockers** — step 4 reworded: "Real provider is auto-selected by `ORD_PROVIDER` in settings (no code change needed)".
+- **`OrdService.report_publication` signature** — unused `channel_id` and `post_url` params commented out (half-step; call-site cleanup deferred).
+
+### S-41: Web Portal Fixes (April 2026)
+
+#### Fixed
+- **ORD message** — Fixed incorrect text "после публикации" → "до публикации рекламы" in OrdStatus screen (`web_portal/src/screens/advertiser/OrdStatus.tsx`)
+- **Tariff payment** — Fixed API endpoint from `billing/purchase-plan` to `billing/plan` (`web_portal/src/api/billing.ts`)
+- **Disputes navigation** — Added "Споры" menu item for regular users and breadcrumb entries (`web_portal/src/components/layout/PortalShell.tsx`)
+
+### S-40: Tech Debt Cleanup (April 2026)
+
+#### Fixed
+- **D-10 async Redis (P0)** — `_check_dedup` was a sync function using `redis_sync_client` inside async Celery tasks, blocking the event loop on every placement SLA check. Replaced with `_check_dedup_async` using the existing async `redis_client`; all 6 call sites updated to `await` (`src/tasks/placement_tasks.py`)
+
+#### Removed
+- **D-06: Dead `check_pending_invoices` task** — DEPRECATED no-op task and its helper `_check_pending_invoices` removed from `billing_tasks.py`; never called anywhere in the codebase (`src/tasks/billing_tasks.py`)
+
+#### Added
+- **D-20: `.gitkeep` for `reports/monitoring/payloads/`** — empty directory now tracked by git (`reports/monitoring/payloads/.gitkeep`)
+- **Pre-Launch Blockers section in CLAUDE.md** — documents ORD stub (legal blocker under ФЗ-38) and FNS validation stub as required actions before production launch with real payments
+
+---
+
+### S-39a: Backend Schema Completeness (April 2026)
+
+#### Added
+- **Canonical `UserResponse` schema** — `src/api/schemas/user.py` is now single source of truth with 19 fields (XP, referral, credits, plan_expires_at, ai_generations_used, legal fields). Replaces two divergent inline classes in `auth.py` (13 fields) and `users.py` (15 fields) (`src/api/schemas/user.py`, `src/api/routers/auth.py`, `src/api/routers/users.py`)
+- **`PlacementResponse` +11 fields** — owner_id, final_schedule, rejection_reason, scheduled_delete_at, deleted_at, clicks_count, published_reach, tracking_short_code, has_dispute, dispute_status, erid. `has_dispute` / `dispute_status` populated via ORM properties that safely check eager-loaded `disputes` relationship (`src/api/routers/placements.py`, `src/db/models/placement_request.py`)
+- **`ChannelResponse.is_test`** — test flag now surfaced in all 4 channel endpoints (list, create, activate, update_category) (`src/api/schemas/channel.py`, `src/api/routers/channels.py`)
+- **`User.ai_generations_used`** in mini_app `types.ts` — symmetry with canonical backend UserResponse (`mini_app/src/lib/types.ts`)
+
+#### Fixed
+- **`counter_schedule` type** — was `Decimal | None` (bug), corrected to `datetime | None` in `PlacementResponse` (`src/api/routers/placements.py`)
+- **`OwnPayouts.tsx` field names** — aligned with S-32 backend rename: `gross_amount`, `fee_amount`, `requisites` (`mini_app/src/screens/owner/OwnPayouts.tsx`)
+
+#### Removed
+- **Dead `UserRole` type and `current_role` field** from mini_app `types.ts` — backend never returned `current_role`; was TypeScript-silent `undefined` at runtime (`mini_app/src/lib/types.ts`)
+
+---
+
 ### S-38: Escrow Recovery — 4 P0 Fixes + Idempotency (April 2026)
 
 #### Fixed

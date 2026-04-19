@@ -16,7 +16,9 @@ export interface ActListResponse {
 }
 
 export async function getPlacementActs(placementId: number) {
-  return api.get(`acts/?placement_request_id=${placementId}`).json<Act[]>()
+  return api
+    .get(`acts/mine?placement_request_id=${placementId}`)
+    .json<ActListResponse>()
 }
 
 export async function signAct(actId: number) {

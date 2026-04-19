@@ -12,11 +12,12 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_current_user, get_db_session
+from src.api.schemas.user import UserResponse
 from src.db.models.user import User
 from src.db.repositories.reputation_repo import ReputationRepository
 from src.db.repositories.user_repo import UserRepository
@@ -24,40 +25,6 @@ from src.db.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Users"])
-
-
-# ─── Response Models ────────────────────────────────────────────
-
-
-class UserResponse(BaseModel):
-    """Данные пользователя для Mini App."""
-
-    id: int
-    telegram_id: int
-    username: str | None = None
-    first_name: str
-    plan: str
-    balance_rub: str
-    earned_rub: str
-    is_admin: bool
-    legal_status_completed: bool = False
-    legal_profile_prompted_at: datetime | None = None
-    legal_profile_skipped_at: datetime | None = None
-    platform_rules_accepted_at: datetime | None = None
-    privacy_policy_accepted_at: datetime | None = None
-    has_legal_profile: bool = False
-
-    model_config = {"from_attributes": True}
-
-    @field_validator("balance_rub", "earned_rub", mode="before")
-    @classmethod
-    def convert_decimal(cls, v):
-        """Convert Decimal to string for JSON serialization."""
-        from decimal import Decimal
-
-        if isinstance(v, Decimal):
-            return str(v)
-        return v
 
 
 class ReputationScoreResponse(BaseModel):
@@ -130,10 +97,19 @@ async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
         telegram_id=current_user.telegram_id,
         username=current_user.username,
         first_name=current_user.first_name,
+        last_name=current_user.last_name,
         plan=plan_value,
+        plan_expires_at=current_user.plan_expires_at,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
+        credits=current_user.credits,
+        advertiser_xp=current_user.advertiser_xp,
+        advertiser_level=current_user.advertiser_level,
+        owner_xp=current_user.owner_xp,
+        owner_level=current_user.owner_level,
+        referral_code=current_user.referral_code,
         is_admin=current_user.is_admin,
+        ai_generations_used=current_user.ai_uses_count,
         legal_status_completed=current_user.legal_status_completed,
         legal_profile_prompted_at=current_user.legal_profile_prompted_at,
         legal_profile_skipped_at=current_user.legal_profile_skipped_at,

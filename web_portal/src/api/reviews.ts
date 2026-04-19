@@ -6,5 +6,5 @@ export async function createReview(payload: CreateReviewPayload) {
 }
 
 export async function getPlacementReviews(placementRequestId: number) {
-  return api.get(`reviews/placement/${placementRequestId}`).json<PlacementReviewsResponse>()
+  return api.get(`reviews/${placementRequestId}`).json<PlacementReviewsResponse>()
 }

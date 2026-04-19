@@ -215,23 +215,34 @@ class PlacementResponse(BaseModel):
 
     id: int
     advertiser_id: int
+    owner_id: int
     channel_id: int
     channel: ChannelRef | None = None
     status: str
     publication_format: str
     proposed_price: Decimal
     final_price: Decimal | None = None
+    final_schedule: datetime | None = None
     ad_text: str
     proposed_schedule: datetime | None = None
     published_at: datetime | None = None
     expires_at: datetime | None = None
+    scheduled_delete_at: datetime | None = None
+    deleted_at: datetime | None = None
     counter_offer_count: int
-    counter_price: Decimal | None = None  # FIX #2: Owner's counter-offer price
-    counter_schedule: datetime | None = None  # FIX #2: Owner's counter-offer schedule
-    counter_comment: str | None = None  # FIX #2: Owner's counter-offer comment
-    advertiser_counter_price: Decimal | None = None  # FIX #7: Advertiser's counter-offer price
-    advertiser_counter_schedule: datetime | None = None  # FIX #7: Advertiser's counter schedule
-    advertiser_counter_comment: str | None = None  # FIX #7: Advertiser's counter comment
+    counter_price: Decimal | None = None
+    counter_schedule: datetime | None = None
+    counter_comment: str | None = None
+    advertiser_counter_price: Decimal | None = None
+    advertiser_counter_schedule: datetime | None = None
+    advertiser_counter_comment: str | None = None
+    rejection_reason: str | None = None
+    clicks_count: int = 0
+    published_reach: int | None = None
+    tracking_short_code: str | None = None
+    has_dispute: bool = False
+    dispute_status: str | None = None
+    erid: str | None = None
     is_test: bool = False
     test_label: str | None = None
     media_type: str = "none"
@@ -408,7 +419,10 @@ async def get_placement(
     """Получить заявку по ID."""
     result = await session.execute(
         select(PlacementRequest)
-        .options(selectinload(PlacementRequest.channel))
+        .options(
+            selectinload(PlacementRequest.channel),
+            selectinload(PlacementRequest.disputes),
+        )
         .where(PlacementRequest.id == placement_id)
     )
     placement = result.scalar_one_or_none()
