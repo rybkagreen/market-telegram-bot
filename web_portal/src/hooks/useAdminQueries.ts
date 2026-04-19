@@ -7,6 +7,8 @@ import {
   getAdminPayouts,
   approveAdminPayout,
   rejectAdminPayout,
+  createPlatformCredit,
+  createGamificationBonus,
 } from '@/api/admin'
 
 export function usePlatformStats() {
@@ -77,6 +79,34 @@ export function useRejectAdminPayout() {
       rejectAdminPayout(payoutId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
+    },
+  })
+}
+
+export function useCreatePlatformCredit() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { user_id: number; amount: number; comment?: string }) =>
+      createPlatformCredit(payload),
+    onSuccess: (_data, { user_id }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'user', user_id] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'platform-stats'] })
+    },
+  })
+}
+
+export function useCreateGamificationBonus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      user_id: number
+      amount?: number
+      xp_amount?: number
+      comment?: string
+    }) => createGamificationBonus(payload),
+    onSuccess: (_data, { user_id }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'user', user_id] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'platform-stats'] })
     },
   })
 }

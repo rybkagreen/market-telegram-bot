@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
 import { formatCurrency } from '@/lib/constants'
-import { useUserById } from '@/hooks/useAdminQueries'
+import {
+  useUserById,
+  useCreatePlatformCredit,
+  useCreateGamificationBonus,
+} from '@/hooks/useAdminQueries'
 import { api } from '@shared/api/client'
 
 export default function AdminUserDetail() {
@@ -17,6 +21,17 @@ export default function AdminUserDetail() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [toppingUp, setToppingUp] = useState(false)
+
+  const [creditAmount, setCreditAmount] = useState('')
+  const [creditComment, setCreditComment] = useState('')
+  const [creditFeedback, setCreditFeedback] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
+  const platformCredit = useCreatePlatformCredit()
+
+  const [bonusAmount, setBonusAmount] = useState('')
+  const [bonusXp, setBonusXp] = useState('')
+  const [bonusComment, setBonusComment] = useState('')
+  const [bonusFeedback, setBonusFeedback] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
+  const gamificationBonus = useCreateGamificationBonus()
 
   const handleTopUp = () => {
     const parsed = parseFloat(amount)
@@ -38,6 +53,60 @@ export default function AdminUserDetail() {
       })
       .catch(() => setError('Ошибка при зачислении'))
       .finally(() => setToppingUp(false))
+  }
+
+  const handlePlatformCredit = () => {
+    const parsed = parseFloat(creditAmount)
+    if (!parsed || parsed <= 0) {
+      setCreditFeedback({ type: 'danger', text: 'Введите корректную сумму' })
+      return
+    }
+    setCreditFeedback(null)
+    platformCredit.mutate(
+      { user_id: userId, amount: parsed, comment: creditComment },
+      {
+        onSuccess: (data) => {
+          setCreditFeedback({
+            type: 'success',
+            text: `Начислено ${parsed} ₽. Новый баланс пользователя: ${data.new_user_balance} ₽`,
+          })
+          setCreditAmount('')
+          setCreditComment('')
+        },
+        onError: (e: unknown) => {
+          const message = e instanceof Error ? e.message : 'Ошибка зачисления'
+          setCreditFeedback({ type: 'danger', text: message })
+        },
+      },
+    )
+  }
+
+  const handleGamificationBonus = () => {
+    const parsedAmount = bonusAmount ? parseFloat(bonusAmount) : 0
+    const parsedXp = bonusXp ? parseInt(bonusXp, 10) : 0
+    if (!parsedAmount && !parsedXp) {
+      setBonusFeedback({ type: 'danger', text: 'Укажите сумму или XP' })
+      return
+    }
+    setBonusFeedback(null)
+    gamificationBonus.mutate(
+      { user_id: userId, amount: parsedAmount, xp_amount: parsedXp, comment: bonusComment },
+      {
+        onSuccess: (data) => {
+          setBonusFeedback({
+            type: 'success',
+            text: `Бонус начислен. Баланс: ${data.new_user_balance} ₽, XP: ${data.new_user_xp}`,
+          })
+          setBonusAmount('')
+          setBonusXp('')
+          setBonusComment('')
+        },
+        onError: (e: unknown) => {
+          const message = e instanceof Error ? e.message : 'Ошибка начисления бонуса'
+          setBonusFeedback({ type: 'danger', text: message })
+        },
+      },
+    )
   }
 
   return (
@@ -138,6 +207,82 @@ export default function AdminUserDetail() {
               </div>
               <Button variant="primary" fullWidth loading={toppingUp} disabled={!amount} onClick={handleTopUp}>
                 {toppingUp ? 'Зачисление...' : 'Зачислить'}
+              </Button>
+            </div>
+          </Card>
+
+          {/* Platform credit (из profit_accumulated) */}
+          <Card title="Зачислить из доходов платформы">
+            {creditFeedback && (
+              <Notification type={creditFeedback.type}>{creditFeedback.text}</Notification>
+            )}
+            <div className="space-y-3 mt-3">
+              <input
+                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+                type="number"
+                placeholder="Сумма (₽)"
+                value={creditAmount}
+                min={1}
+                onChange={(e) => setCreditAmount(e.target.value)}
+              />
+              <input
+                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+                type="text"
+                placeholder="Комментарий (причина, тикет)"
+                value={creditComment}
+                maxLength={500}
+                onChange={(e) => setCreditComment(e.target.value)}
+              />
+              <Button
+                variant="primary"
+                fullWidth
+                loading={platformCredit.isPending}
+                disabled={!creditAmount || platformCredit.isPending}
+                onClick={handlePlatformCredit}
+              >
+                {platformCredit.isPending ? 'Зачисление...' : 'Выдать кредиты'}
+              </Button>
+            </div>
+          </Card>
+
+          {/* Gamification bonus */}
+          <Card title="Геймификационный бонус">
+            {bonusFeedback && <Notification type={bonusFeedback.type}>{bonusFeedback.text}</Notification>}
+            <div className="space-y-3 mt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  className="px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+                  type="number"
+                  placeholder="Деньги (₽)"
+                  value={bonusAmount}
+                  min={0}
+                  onChange={(e) => setBonusAmount(e.target.value)}
+                />
+                <input
+                  className="px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+                  type="number"
+                  placeholder="XP"
+                  value={bonusXp}
+                  min={0}
+                  onChange={(e) => setBonusXp(e.target.value)}
+                />
+              </div>
+              <input
+                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+                type="text"
+                placeholder="Комментарий (событие, акция)"
+                value={bonusComment}
+                maxLength={500}
+                onChange={(e) => setBonusComment(e.target.value)}
+              />
+              <Button
+                variant="primary"
+                fullWidth
+                loading={gamificationBonus.isPending}
+                disabled={(!bonusAmount && !bonusXp) || gamificationBonus.isPending}
+                onClick={handleGamificationBonus}
+              >
+                {gamificationBonus.isPending ? 'Начисление...' : 'Зачислить bonus'}
               </Button>
             </div>
           </Card>
