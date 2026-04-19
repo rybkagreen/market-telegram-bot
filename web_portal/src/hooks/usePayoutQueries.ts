@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMyPayouts, createPayout, type Payout } from '@/api/payouts'
+import { getMyPayouts, createPayout, type PayoutResponse } from '@/api/payouts'
 
 // ═══ My payouts ═══
 export function useMyPayouts() {
-  return useQuery<Payout[]>({
+  return useQuery<PayoutResponse[]>({
     queryKey: ['payouts', 'my'],
     queryFn: getMyPayouts,
     staleTime: 30_000,
