@@ -130,3 +130,88 @@ Source of truth: `reports/20260419_diagnostics/FIX_PLAN_07_ui_redesign_ds_v2.md`
   когда cache будет включён.
 
 🔍 Verified against: feat/s-47-ui-redesign-ds-v2 | 📅 Updated: 2026-04-20T02:50:00Z
+
+## Phase 4 — Cabinet widgets (§§7.5–7.12) — completed 2026-04-20
+
+### New widgets (`web_portal/src/screens/common/cabinet/`)
+- **BalanceHero.tsx** — split info/success tiles, period toggle (7д/30д),
+  sparkline, delta chip, secondary metrics (frozen + count), CTA.
+  Feeds from `useMe` + `useFrozenBalance` + `useTransactionHistory` and computes
+  running balance spark client-side.
+- **PerformanceChart.tsx** — dual-line SVG (600×200) income/expense with gradient
+  areas, grid + X/Y ticks + end dots, 7|30|90-day toggle backed by `useCashflow`.
+- **QuickActions.tsx** — 6-tile grid, advertiser + owner variants (role prop),
+  iconed tiles with tone-colored icon pill + chevron.
+- **NotificationsCard.tsx** — attention feed rows with severity-colored square
+  icon, relative timestamp, click-through `item.url`. Uses `useAttentionFeed`.
+- **ProfileCompleteness.tsx** — SVG ring (R=26, 5-step), checklist with
+  strike-through on done; steps derived from `useMe` + `useMyLegalProfile` +
+  `useContracts('advertiser_framework')`.
+- **RecommendedChannels.tsx** — horizontal 5-card grid, avatar OKLCH hue by
+  channel id, tier badges (Premium / Verified), subs+ER breakdown.
+  Uses `useRecommendedChannels(5)`.
+- **RecentActivity.tsx** — tabs Транзакции / Кампании with live counts.
+  TX rows: tone icon + amount (+/−/frozen), campaign rows: status pill + price.
+
+### `Sparkline` shared primitive (`web_portal/src/shared/ui/Sparkline.tsx`)
+- Inline SVG area + line, per-instance gradient id (no DOM collision),
+  defaults `color=currentColor`.
+
+### Cabinet shell (`web_portal/src/screens/common/Cabinet.tsx`) — rewrite
+- Role caps + wave icon + greeting h1 + subtitle.
+- Two CTAs (secondary Отчёт → `/adv/analytics`; primary Создать кампанию).
+- BalanceHero as first grid block.
+- Two-column 1.6fr/1fr grid: chart + actions left, attention + profile right.
+- RecommendedChannels row, RecentActivity full-width, compass footer waterline.
+
+### Verification
+- `npx tsc --noEmit -p tsconfig.app.json` → 0 errors.
+- All widgets tolerate loading/error/empty states.
+
+## Phase 2 — PortalShell v2 (§7.3) — completed 2026-04-20
+
+### New files
+- **Sidebar.tsx** (`web_portal/src/components/layout/`) — 6 grouped nav
+  sections (Финансы / Реклама / Каналы / Юридический / Прочее / Админ),
+  live count chips from `useMyChannels` + `useMyPlacements('active')`,
+  badges (plan label), gradient-anchor logo, waterline divider,
+  collapsed-mode via `portalUiStore.sidebarMode`.
+- **Topbar.tsx** — sidebar toggle, breadcrumb map (~30 routes), search-stub
+  button with ⌘K mono-font tail, bell with red-dot driven by
+  `useAttentionFeed().total`.
+
+### `PortalShell.tsx` — rewrite
+- Thin composition: `IconSpriteLoader` + mobile overlay + Sidebar + Topbar
+  + `<Outlet/>` + optional AcceptRules notification.
+- No lucide-react imports (migrated to DS v2 sprite).
+
+### Verification
+- `npx tsc --noEmit -p tsconfig.app.json` → 0 errors.
+- `docker compose up -d --build nginx api` → containers rebuilt, nginx healthy,
+  api up. All 4 new endpoints register (verified via `/api/openapi.json`):
+  `/api/billing/frozen`, `/api/analytics/cashflow`, `/api/users/me/attention`,
+  `/api/channels/recommended` — each returns 401 without JWT (route matches).
+
+## Deferred to next sessions (not in S-47 base branch yet)
+
+These are the explicit out-of-scope items for this session — follow-ups in
+next S-47 chunk(s) before merge to develop:
+
+- **Phase 5 (§7.5a)** — 13 pre-designed handoff screens: Plans, TopUp,
+  TopUpConfirm, TransactionHistory, ReputationHistory, MyActs, Referral,
+  Help, Feedback, LegalProfileSetup, ContractList, DocumentUpload, AcceptRules.
+- **Phase 6 (§7.17)** — ~25 screens without handoff mockups
+  (advertiser wizard + owner + admin) with design-from-tokens interpretation.
+- **Phase 7 (§§7.13, 7.15, 7.18, 7.19)** — role switcher store + Topbar pill,
+  density toggle, a11y pass (`:focus-visible`, ARIA landmarks, reduced-motion),
+  perf/bundle measurement.
+- **Phase 8 (§§7.2, 7.17 aftermath)** — flip `no-restricted-imports` from
+  `warn` to `error` for `lucide-react` after all call-sites migrated; assert
+  `grep -rn "from 'lucide-react'"` → 0 in `web_portal/src`.
+- **Backlog** — §7.14 (⌘K Command Palette full), §7.20 (Storybook).
+
+Shell/Cabinet/Backend base is sufficient to land standalone without breaking
+the portal — the legacy screens continue to work under the DS v2 tokens
+that were already in place.
+
+🔍 Verified against: feat/s-47-ui-redesign-ds-v2 (post `09d91d4`) | 📅 Updated: 2026-04-20T03:00:00Z
