@@ -13,3 +13,7 @@ export async function getMyStats() {
 export async function getReferralStats() {
   return api.get('users/me/referrals').json<ReferralStats>()
 }
+
+export async function checkNeedsAcceptRules() {
+  return api.get('users/needs-accept-rules').json<{ needs_accept: boolean }>()
+}

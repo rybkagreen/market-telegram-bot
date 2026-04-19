@@ -42,7 +42,7 @@ interface ContractData {
   id: number
   user_id?: number
   contract_type: string
-  status: string
+  contract_status: string
   signed_at: string | null
   pdf_url: string | null
   created_at: string

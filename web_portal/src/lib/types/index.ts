@@ -8,7 +8,7 @@ export type {
   DisputeDetailResponse,
   DisputeListResponse,
 } from './dispute'
-export type { PayoutStatus, OrdStatus, Payout, TopUpRequest, TopUpResponse, PlanInfo, AdminPayout, PayoutListAdminResponse } from './billing'
+export type { PayoutStatus, OrdStatus, TopUpRequest, TopUpResponse, PlanInfo } from './billing'
 export type {
   ContractType,
   ContractRole,
