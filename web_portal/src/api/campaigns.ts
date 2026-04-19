@@ -55,17 +55,27 @@ export async function updatePlacementRequest(id: number, data: Record<string, un
   return api.patch(`placements/${id}`, { json: data }).json<PlacementRequest>()
 }
 
+export interface CampaignActionResponse {
+  status: string
+  placement_request_id: number
+}
+
+export interface CampaignDuplicateResponse {
+  id: number
+  ad_text: string
+}
+
 // ═══ Start campaign ═══
 export async function startCampaign(id: number) {
-  return api.post(`campaigns/${id}/start`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/start`).json<CampaignActionResponse>()
 }
 
 // ═══ Cancel campaign ═══
 export async function cancelCampaign(id: number) {
-  return api.post(`campaigns/${id}/cancel`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/cancel`).json<CampaignActionResponse>()
 }
 
 // ═══ Duplicate campaign ═══
 export async function duplicateCampaign(id: number) {
-  return api.post(`campaigns/${id}/duplicate`).json<PlacementRequest>()
+  return api.post(`campaigns/${id}/duplicate`).json<CampaignDuplicateResponse>()
 }

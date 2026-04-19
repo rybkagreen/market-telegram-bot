@@ -85,10 +85,9 @@ export default function LegalProfileSetup() {
       setBankBik(existingProfile.bank_bik ?? '')
       setBankCorrAccount(existingProfile.bank_corr_account ?? '')
       setYoomoneyWallet(existingProfile.yoomoney_wallet ?? '')
-      setPassportSeries(existingProfile.passport_series ?? '')
-      setPassportNumber(existingProfile.passport_number ?? '')
-      setPassportIssuedBy(existingProfile.passport_issued_by ?? '')
-      setPassportIssuedAt(existingProfile.passport_issued_at ?? '')
+      // Passport data is not returned by backend (PII). Form starts blank
+      // for existing profiles — the has_passport_data flag indicates whether
+      // passport is already on file.
     }
   }, [existingProfile])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -161,7 +160,7 @@ export default function LegalProfileSetup() {
       data.passport_series = passportSeries
       data.passport_number = passportNumber
       data.passport_issued_by = passportIssuedBy
-      data.passport_issued_at = passportIssuedAt
+      data.passport_issue_date = passportIssuedAt
     }
 
     if (existingProfile) {
