@@ -66,10 +66,10 @@ export default function DisputeDetail() {
             <p className="text-sm text-text-secondary mb-1">Комментарий рекламодателя</p>
             <p className="text-text-primary">{dispute.advertiser_comment}</p>
           </div>
-          {dispute.owner_comment && (
+          {dispute.owner_explanation && (
             <div>
               <p className="text-sm text-text-secondary mb-1">Ваш ответ</p>
-              <p className="text-text-primary">{dispute.owner_comment}</p>
+              <p className="text-text-primary">{dispute.owner_explanation}</p>
             </div>
           )}
           {dispute.resolution && (
