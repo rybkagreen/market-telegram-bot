@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### GitHub Integration (2026-04-19)
+
+#### Added
+- **GitHub API integration** via `GitHubService` (`src/core/services/github_service.py`) with methods for issue/PR management.
+- **Async GitHub operations** via Celery tasks (`src/tasks/github_tasks.py`): `github:create_issue`, `github:create_pr`, `github:add_comment`, `github:close_issue`.
+- **GitHub configuration** — settings fields: `GITHUB_TOKEN`, `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`.
+- **Celery routing** — `github:*` tasks routed to `background` queue (worker_background).
+
+#### Dependencies
+- PyGithub required (not yet in `pyproject.toml`); add via `poetry add PyGithub`.
+
 ### S-44 Stage 3: Missing frontend↔backend integration (P1) — fix plan Stage 3 of 6 (2026-04-19)
 
 #### Added

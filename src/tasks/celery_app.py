@@ -48,6 +48,7 @@ def create_celery_app() -> Celery:
             "src.tasks.dispute_tasks",
             "src.tasks.document_ocr_tasks",
             "src.tasks.gamification_tasks",
+            "src.tasks.github_tasks",
             "src.tasks.integrity_tasks",
             "src.tasks.notification_tasks",
             "src.tasks.ord_tasks",
@@ -79,6 +80,7 @@ def create_celery_app() -> Celery:
             "dispute:*": {"queue": QUEUE_WORKER_CRITICAL},
             "document_ocr:*": {"queue": QUEUE_WORKER_CRITICAL},
             "payouts:*": {"queue": QUEUE_BACKGROUND},
+            "github:*": {"queue": QUEUE_BACKGROUND},
         },
         # Приоритеты задач (Redis broker)
         broker_transport_options={
