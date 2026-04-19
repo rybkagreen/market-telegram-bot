@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   createDispute,
   getDisputeById,
+  getDisputeEvidence,
   replyToDispute,
   resolveDispute,
 } from '@/api/disputes'
 import { api } from '@shared/api/client'
 import type { DisputeDetailResponse, DisputeListResponse } from '@/lib/types'
+import type { DisputeEvidenceResponse } from '@/api/disputes'
 
 export function useMyDisputes(statusFilter = 'all', limit = 50, offset = 0) {
   return useQuery<DisputeListResponse>({
@@ -22,6 +24,15 @@ export function useDisputeById(id: number | null) {
     queryKey: ['disputes', id],
     queryFn: () => getDisputeById(id!),
     enabled: !!id,
+  })
+}
+
+export function useDisputeEvidence(placementId: number | null) {
+  return useQuery<DisputeEvidenceResponse>({
+    queryKey: ['disputes', 'evidence', placementId],
+    queryFn: () => getDisputeEvidence(placementId!),
+    enabled: !!placementId,
+    staleTime: 30_000,
   })
 }
 
