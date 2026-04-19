@@ -6,7 +6,7 @@ export default function AdminAccounting() {
       title="📊 Бухгалтерия"
       coloredKpis={false}
       showEmptyHint
-      downloadMode="simple"
+      downloadMode="auth"
     />
   )
 }

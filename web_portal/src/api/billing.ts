@@ -35,6 +35,12 @@ export async function initiateTopup(desiredAmount: number) {
     .json<TopupInitiateResponse>()
 }
 
+export type TopupStatus = 'pending' | 'succeeded' | 'canceled'
+
+export async function getTopupStatus(paymentId: string) {
+  return api.get(`billing/topup/${paymentId}/status`).json<{ status: TopupStatus }>()
+}
+
 export async function getBalance() {
   return api.get('billing/balance').json<{
     balance_rub: string

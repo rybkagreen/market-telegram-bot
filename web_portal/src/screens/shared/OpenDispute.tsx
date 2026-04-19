@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
 import { PUBLICATION_FORMATS, formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
-import { useCreateDispute } from '@/hooks/useDisputeQueries'
+import { useCreateDispute, useDisputeEvidence } from '@/hooks/useDisputeQueries'
 
 const MIN_DISPUTE_COMMENT = 20
 
@@ -23,6 +23,7 @@ export default function OpenDispute() {
 
   const numId = id ? parseInt(id, 10) : null
   const { data: placement, isLoading } = usePlacement(numId)
+  const { data: evidence } = useDisputeEvidence(numId)
   const { mutate: createDispute, isPending: submitting, isError: submitError } = useCreateDispute()
 
   const [selectedReason, setSelectedReason] = useState<string | null>(null)
@@ -112,6 +113,69 @@ export default function OpenDispute() {
           )}
         </div>
       </Card>
+
+      {evidence && (
+        <Card title="Что мы знаем о публикации">
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-text-secondary">Опубликовано</span>
+              <span className="text-text-primary">
+                {evidence.summary.published_at
+                  ? formatDateTime(evidence.summary.published_at)
+                  : '—'}
+              </span>
+            </div>
+            {evidence.summary.deleted_at && (
+              <div className="flex items-center justify-between">
+                <span className="text-text-secondary">
+                  Удалено{' '}
+                  {evidence.summary.deletion_type === 'early_by_owner'
+                    ? '(досрочно владельцем)'
+                    : '(ботом)'}
+                </span>
+                <span className="text-text-primary">{formatDateTime(evidence.summary.deleted_at)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-text-secondary">Длительность поста</span>
+              <span className="text-text-primary">
+                {evidence.summary.total_duration_minutes} мин
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-text-secondary">ERID</span>
+              <span className="text-text-primary">
+                {evidence.summary.erid_present ? '✅ присутствует' : '❌ отсутствует'}
+              </span>
+            </div>
+            {evidence.events.length > 0 && (
+              <details className="pt-2 border-t border-border">
+                <summary className="cursor-pointer text-text-secondary text-xs">
+                  Лог событий ({evidence.events.length})
+                </summary>
+                <ul className="mt-2 space-y-1 text-xs text-text-tertiary">
+                  {evidence.events.map((ev) => (
+                    <li key={ev.id} className="flex items-start gap-2">
+                      <span className="font-mono">{formatDateTime(ev.detected_at)}</span>
+                      <span className="flex-1">{ev.event_type}</span>
+                      {ev.post_url && (
+                        <a
+                          href={ev.post_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent hover:underline"
+                        >
+                          пост
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Reason selection */}
       <div>
