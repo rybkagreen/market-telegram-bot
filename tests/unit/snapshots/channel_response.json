@@ -1,0 +1,94 @@
+{
+  "description": "Ответ с информацией о канале.\n\nAttributes:\n    id: ID канала в БД\n    telegram_id: Telegram chat ID\n    username: Username канала\n    title: Название канала\n    owner_id: ID владельца\n    member_count: Количество подписчиков\n    last_er: ER (Engagement Rate)\n    avg_views: Среднее количество просмотров\n    rating: Рейтинг канала\n    category: Категория канала\n    is_active: Активен ли канал\n    created_at: Дата создания",
+  "properties": {
+    "avg_views": {
+      "default": 0,
+      "description": "Среднее количество просмотров",
+      "title": "Avg Views",
+      "type": "integer"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Категория канала",
+      "title": "Category"
+    },
+    "created_at": {
+      "description": "Дата создания (ISO 8601)",
+      "title": "Created At",
+      "type": "string"
+    },
+    "id": {
+      "description": "ID канала в БД",
+      "title": "Id",
+      "type": "integer"
+    },
+    "is_active": {
+      "default": true,
+      "description": "Активен ли канал",
+      "title": "Is Active",
+      "type": "boolean"
+    },
+    "is_test": {
+      "default": false,
+      "description": "Тестовый канал (только для админов)",
+      "title": "Is Test",
+      "type": "boolean"
+    },
+    "last_er": {
+      "default": 0.0,
+      "description": "ER (Engagement Rate)",
+      "title": "Last Er",
+      "type": "number"
+    },
+    "member_count": {
+      "default": 0,
+      "description": "Количество подписчиков",
+      "title": "Member Count",
+      "type": "integer"
+    },
+    "owner_id": {
+      "description": "ID владельца",
+      "title": "Owner Id",
+      "type": "integer"
+    },
+    "rating": {
+      "default": 0.0,
+      "description": "Рейтинг канала",
+      "title": "Rating",
+      "type": "number"
+    },
+    "telegram_id": {
+      "description": "Telegram chat ID",
+      "title": "Telegram Id",
+      "type": "integer"
+    },
+    "title": {
+      "description": "Название канала",
+      "title": "Title",
+      "type": "string"
+    },
+    "username": {
+      "description": "Username канала",
+      "title": "Username",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "telegram_id",
+    "username",
+    "title",
+    "owner_id",
+    "created_at"
+  ],
+  "title": "ChannelResponse",
+  "type": "object"
+}
