@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-48: Prod smoke-test blockers hotfix (2026-04-19)
+
+#### Fixed
+- **A1 — `/api/channels/available` 422 (P0)** — `GET /{channel_id}` was declared
+  before `GET /available`/`/stats`/`/preview` in `src/api/routers/channels.py`,
+  so FastAPI tried to parse `"available"` as `int` → `int_parsing` 422. Moved all
+  four `/{channel_id}*` routes to the end of the router, after the static-path
+  GETs. Wizard "Создать кампанию" end-to-end unblocked. Side-effect: `/stats`
+  and `/preview` (also broken) now resolve correctly too.
+- **F1 — 500 on `/api/disputes/admin/disputes` (P0)** — `DisputeRepository.get_all_paginated`
+  did not eager-load `PlacementDispute.advertiser` / `.owner`, so router access
+  to `d.advertiser.username` triggered async lazy-load → `MissingGreenlet` →
+  500. Added `selectinload` for both relationships. Also added `Query(alias="status")`
+  on the admin router so the frontend's `?status=…` query param takes effect
+  (previously silently ignored in favour of the default `"open"`).
+- **D1 — passport field drift & badge (P0/P2)** — source already sends
+  `passport_issue_date` (S-43 §2.5, commit `9c8d54a`); prod was on a stale
+  bundle. Also added a `📇 Паспорт добавлен` pill to `LegalProfileView.tsx`
+  (renders when `profile.has_passport_data === true`) so Individual/Self-employed
+  users can confirm PII is on file without exposing values.
+- **S-43 drift leftovers on dispute read side** — `DisputeDetailResponse.owner_comment`
+  → `owner_explanation` in `web_portal/src/lib/types.ts`; corresponding reads
+  in `MyDisputes.tsx` and `DisputeDetail.tsx`. PATCH body keeps `owner_comment`
+  name (matches backend `DisputeUpdate` input schema).
+
+#### Added
+- **A7 — `/profile/reputation` SPA route (P1)** — new
+  `web_portal/src/screens/common/ReputationHistory.tsx` screen consuming
+  `useReputationHistory(50, 0)`. Registered at `profile/reputation` in
+  `App.tsx` (inside RulesGuard). "История изменений →" link added to the
+  Reputation card in Cabinet.
+
+#### Investigated — no code change
+- **E1 — AdminPayouts missing from prod bundle (P1)** — file, lazy import, and
+  route are all present in source (`commit 366aafe` + `bcb56f6`). 404 was
+  caused by a stale prod bundle. Fix is `docker compose up -d --build nginx`.
+  Same applies to the `page_size` / `gross_amount` / `has_passport_data` "0
+  occurrences" findings from the smoke report — all are present in source.
+
+#### Deploy requirement
+- `docker compose up -d --build nginx api` is **mandatory** after merge so
+  Vite rebuilds `dist/` inside the nginx image. Without the `--build`, D1
+  Part A, E1, and the stale-bundle parts of S-43 drift do not take effect.
+
+#### Not in scope (deferred to next sprint)
+- A2 (`useMyPlacements` page_size — already clean in source, bundle only).
+- A3 (counter-offer wiring verification — needs a second account).
+- B1/B2 (surface `last_er` / `avg_views` in channel UI).
+- C1 (`GET /api/contracts/me` 422 — fallback works but still noisy).
+- F1 user side (`/disputes` route not mounted; chunk exists).
+- Stage 4–7 items from `FIX_PLAN_00_index.md`.
+
 ### S-47 Stage 7 planning — UI/UX redesign per DS v2 (2026-04-19)
 
 #### Documentation

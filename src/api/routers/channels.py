@@ -446,221 +446,6 @@ async def create_channel(
     )
 
 
-@router.get(
-    "/{channel_id}",
-    response_model=ChannelResponse,
-    responses={
-        403: {"description": "Forbidden"},
-        404: {"description": "Not found"},
-    },
-)
-async def get_channel(
-    channel_id: int,
-    current_user: CurrentUser,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> ChannelResponse:
-    """
-    Получить канал по ID. Доступ: владелец канала или администратор.
-    """
-    channel = await session.get(TelegramChat, channel_id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
-
-    if channel.owner_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
-
-    return ChannelResponse(
-        id=channel.id,
-        telegram_id=channel.telegram_id,
-        username=channel.username,
-        title=channel.title,
-        owner_id=channel.owner_id,
-        member_count=channel.member_count,
-        last_er=channel.last_er,
-        avg_views=channel.avg_views,
-        rating=channel.rating,
-        category=channel.category,
-        is_active=channel.is_active,
-        is_test=channel.is_test,
-        created_at=channel.created_at.isoformat(),
-    )
-
-
-@router.delete(
-    "/{channel_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        403: {"description": "Forbidden"},
-        404: {"description": "Not found"},
-        409: {"description": "Conflict"},
-    },
-)
-async def delete_channel(
-    channel_id: int,
-    current_user: CurrentUser,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> None:
-    """
-    Удалить канал пользователя (soft-delete: is_active = False).
-
-    Args:
-        channel_id: ID канала
-        current_user: Текущий пользователь
-        session: DB session
-
-    Raises:
-        HTTPException 404: Канал не найден
-        HTTPException 403: Канал принадлежит другому пользователю
-        HTTPException 409: Есть активные размещения — нельзя удалить
-    """
-    from src.db.models.telegram_chat import TelegramChat
-    from src.db.repositories.placement_request_repo import PlacementRequestRepository
-
-    # Проверка что канал существует и принадлежит пользователю
-    channel = await session.get(TelegramChat, channel_id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
-
-    if channel.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
-
-    # Проверка: нет ли активных размещений
-    has_active = await PlacementRequestRepository(session).has_active_placements(channel_id)
-    if has_active:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Невозможно удалить — есть активные размещения",
-        )
-
-    # Soft-delete
-    channel.is_active = False
-    try:
-        await session.commit()
-    except IntegrityError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Конфликт данных при удалении канала",
-        ) from e
-
-
-@router.post(
-    "/{channel_id}/activate",
-    responses={
-        403: {"description": "Forbidden"},
-        404: {"description": "Not found"},
-        409: {"description": "Conflict"},
-    },
-)
-async def activate_channel(
-    channel_id: int,
-    current_user: CurrentUser,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> ChannelResponse:
-    """
-    Восстановить канал (reactivate: is_active = True).
-
-    Args:
-        channel_id: ID канала
-        current_user: Текущий пользователь
-        session: DB session
-
-    Raises:
-        HTTPException 404: Канал не найден
-        HTTPException 403: Канал принадлежит другому пользователю
-        HTTPException 409: Канал уже активен
-    """
-    from src.db.models.telegram_chat import TelegramChat
-
-    channel = await session.get(TelegramChat, channel_id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
-
-    if channel.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
-
-    if channel.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Канал уже активен",
-        )
-
-    channel.is_active = True
-    try:
-        await session.commit()
-    except IntegrityError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Конфликт данных при активации канала",
-        ) from e
-
-    # Refresh to get updated values
-    await session.refresh(channel)
-
-    return ChannelResponse(
-        id=channel.id,
-        telegram_id=channel.telegram_id,
-        title=channel.title,
-        username=channel.username,
-        member_count=channel.member_count,
-        category=channel.category,
-        rating=channel.rating,
-        last_er=channel.last_er,
-        avg_views=channel.avg_views,
-        is_active=channel.is_active,
-        is_test=channel.is_test,
-        owner_id=channel.owner_id,
-        created_at=channel.created_at.isoformat(),
-    )
-
-
-@router.patch(
-    "/{channel_id}/category",
-    responses={
-        400: {"description": "Bad request"},
-        403: {"description": "Forbidden"},
-        404: {"description": "Not found"},
-    },
-)
-async def update_channel_category(
-    channel_id: int,
-    body: ChannelCategoryUpdateRequest,
-    current_user: CurrentUser,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> ChannelResponse:
-    """Обновить категорию канала."""
-    channel = await session.get(TelegramChat, channel_id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
-    if channel.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
-
-    cat = await CategoryRepo(session).get_by_slug(body.category)
-    if not cat:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная категория")
-
-    channel.category = cat.slug
-    await session.commit()
-    await session.refresh(channel)
-
-    return ChannelResponse(
-        id=channel.id,
-        telegram_id=channel.telegram_id,
-        username=channel.username,
-        title=channel.title,
-        owner_id=channel.owner_id,
-        member_count=channel.member_count,
-        last_er=channel.last_er,
-        avg_views=channel.avg_views,
-        rating=channel.rating,
-        category=channel.category,
-        is_active=channel.is_active,
-        is_test=channel.is_test,
-        created_at=channel.created_at.isoformat(),
-    )
-
-
 # ─── Доступные каналы для wizard рекламодателя ──────────────────
 
 
@@ -1149,4 +934,224 @@ async def compare_channels_preview(
     return await compare_channels(
         ChannelIdsRequest(channel_ids=channel_ids),
         current_user,
+    )
+
+
+# ─── Dynamic-path endpoints (/{channel_id}/*) — must stay LAST ─────
+# Declared after static-path GETs (/available, /stats, /preview) so FastAPI
+# does not try to parse "available" etc. as int channel_id → 422 int_parsing.
+
+
+@router.get(
+    "/{channel_id}",
+    response_model=ChannelResponse,
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def get_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """
+    Получить канал по ID. Доступ: владелец канала или администратор.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        username=channel.username,
+        title=channel.title,
+        owner_id=channel.owner_id,
+        member_count=channel.member_count,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        rating=channel.rating,
+        category=channel.category,
+        is_active=channel.is_active,
+        is_test=channel.is_test,
+        created_at=channel.created_at.isoformat(),
+    )
+
+
+@router.delete(
+    "/{channel_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+        409: {"description": "Conflict"},
+    },
+)
+async def delete_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    """
+    Удалить канал пользователя (soft-delete: is_active = False).
+
+    Args:
+        channel_id: ID канала
+        current_user: Текущий пользователь
+        session: DB session
+
+    Raises:
+        HTTPException 404: Канал не найден
+        HTTPException 403: Канал принадлежит другому пользователю
+        HTTPException 409: Есть активные размещения — нельзя удалить
+    """
+    from src.db.models.telegram_chat import TelegramChat
+    from src.db.repositories.placement_request_repo import PlacementRequestRepository
+
+    # Проверка что канал существует и принадлежит пользователю
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    # Проверка: нет ли активных размещений
+    has_active = await PlacementRequestRepository(session).has_active_placements(channel_id)
+    if has_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Невозможно удалить — есть активные размещения",
+        )
+
+    # Soft-delete
+    channel.is_active = False
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных при удалении канала",
+        ) from e
+
+
+@router.post(
+    "/{channel_id}/activate",
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+        409: {"description": "Conflict"},
+    },
+)
+async def activate_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """
+    Восстановить канал (reactivate: is_active = True).
+
+    Args:
+        channel_id: ID канала
+        current_user: Текущий пользователь
+        session: DB session
+
+    Raises:
+        HTTPException 404: Канал не найден
+        HTTPException 403: Канал принадлежит другому пользователю
+        HTTPException 409: Канал уже активен
+    """
+    from src.db.models.telegram_chat import TelegramChat
+
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    if channel.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Канал уже активен",
+        )
+
+    channel.is_active = True
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Конфликт данных при активации канала",
+        ) from e
+
+    # Refresh to get updated values
+    await session.refresh(channel)
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        title=channel.title,
+        username=channel.username,
+        member_count=channel.member_count,
+        category=channel.category,
+        rating=channel.rating,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        is_active=channel.is_active,
+        is_test=channel.is_test,
+        owner_id=channel.owner_id,
+        created_at=channel.created_at.isoformat(),
+    )
+
+
+@router.patch(
+    "/{channel_id}/category",
+    responses={
+        400: {"description": "Bad request"},
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def update_channel_category(
+    channel_id: int,
+    body: ChannelCategoryUpdateRequest,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """Обновить категорию канала."""
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    cat = await CategoryRepo(session).get_by_slug(body.category)
+    if not cat:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная категория")
+
+    channel.category = cat.slug
+    await session.commit()
+    await session.refresh(channel)
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        username=channel.username,
+        title=channel.title,
+        owner_id=channel.owner_id,
+        member_count=channel.member_count,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        rating=channel.rating,
+        category=channel.category,
+        is_active=channel.is_active,
+        is_test=channel.is_test,
+        created_at=channel.created_at.isoformat(),
     )
