@@ -149,6 +149,13 @@ class Settings(BaseSettings):
     )
 
     # ══════════════════════════════════════════════════════════════
+    # GitHub Integration
+    # ══════════════════════════════════════════════════════════════
+    github_token: str | None = Field(None, alias="GITHUB_TOKEN", description="GitHub PAT токен")
+    github_repo_owner: str = Field("", alias="GITHUB_REPO_OWNER", description="GitHub репо владелец")
+    github_repo_name: str = Field("", alias="GITHUB_REPO_NAME", description="GitHub репо название")
+
+    # ══════════════════════════════════════════════════════════════
     # V4.3 — Диспуты и мониторинг постов
     # ══════════════════════════════════════════════════════════════
     dispute_check_interval_minutes: int = Field(
