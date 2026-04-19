@@ -41,8 +41,8 @@ interface TaxSummaryBaseProps {
   coloredKpis?: boolean
   /** Show empty state hint before first load */
   showEmptyHint?: boolean
-  /** 'simple' = window.open, 'auth' = fetch with Authorization header */
-  downloadMode?: 'simple' | 'auth'
+  /** Kept for backward compatibility — always fetches with Bearer auth */
+  downloadMode?: 'auth'
   /** Extra content rendered below the KPI grid, receives current data + helpers */
   children?: (
     data: TaxSummaryData,
@@ -56,7 +56,6 @@ export default function TaxSummaryBase({
   title,
   coloredKpis = false,
   showEmptyHint = false,
-  downloadMode = 'simple',
   children,
 }: TaxSummaryBaseProps) {
   const currentYear = new Date().getFullYear()
@@ -83,10 +82,6 @@ export default function TaxSummaryBase({
 
   const handleDownload = async (format: 'pdf' | 'csv') => {
     const endpoint = `/api/admin/tax/kudir/${year}/${quarter}/${format}`
-    if (downloadMode === 'simple') {
-      window.open(endpoint, '_blank')
-      return
-    }
     try {
       const response = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${localStorage.getItem('rh_token')}` },

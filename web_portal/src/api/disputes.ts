@@ -1,6 +1,31 @@
 import { api } from '@shared/api/client'
 import type { DisputeDetailResponse, DisputeListResponse } from '@/lib/types'
 
+export interface PublicationEvidenceEvent {
+  id: number
+  event_type: string
+  message_id: number | null
+  post_url: string | null
+  erid: string | null
+  detected_at: string
+  extra: Record<string, unknown> | null
+}
+
+export interface DisputeEvidenceSummary {
+  published_at: string | null
+  deleted_at: string | null
+  deletion_type: 'by_bot' | 'early_by_owner' | null
+  erid_present: boolean
+  total_duration_minutes: number
+}
+
+export interface DisputeEvidenceResponse {
+  placement_id: number
+  channel_id: number | null
+  events: PublicationEvidenceEvent[]
+  summary: DisputeEvidenceSummary
+}
+
 export async function createDispute(data: { placement_id: number; reason: string; comment: string }) {
   return api.post('disputes', { json: data }).json<DisputeDetailResponse>()
 }
@@ -15,6 +40,10 @@ export async function getDisputeById(id: number) {
 
 export async function replyToDispute(id: number, comment: string) {
   return api.patch(`disputes/${id}`, { json: { owner_comment: comment } }).json<DisputeDetailResponse>()
+}
+
+export async function getDisputeEvidence(placementId: number) {
+  return api.get(`disputes/evidence/${placementId}`).json<DisputeEvidenceResponse>()
 }
 
 export async function resolveDispute(
