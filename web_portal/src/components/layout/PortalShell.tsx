@@ -4,6 +4,8 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMediaQuery, breakpoints } from '@shared/hooks/useMediaQuery'
 import { useAuthStore } from '@/stores/authStore'
 import { usePortalUiStore } from '@/stores/portalUiStore'
+import { useNeedsAcceptRules } from '@/hooks/useUserQueries'
+import { Notification, Button } from '@shared/ui'
 import {
   LayoutDashboard,
   Users,
@@ -108,6 +110,9 @@ export function PortalShell() {
   }, [isDesktop])
 
   const breadcrumbs = breadcrumbMap[location.pathname] || ['Главная']
+  const { data: acceptRules } = useNeedsAcceptRules()
+  const showAcceptRulesBanner =
+    acceptRules?.needs_accept === true && !location.pathname.startsWith('/accept-rules')
 
   const handleLogout = () => {
     logout()
@@ -276,7 +281,19 @@ export function PortalShell() {
 
         {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto scrollbar-thin bg-harbor-bg">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+            {showAcceptRulesBanner && (
+              <Notification type="warning">
+                <div className="flex items-center justify-between gap-3 w-full">
+                  <span className="text-sm">
+                    Примите правила платформы и политику конфиденциальности, чтобы продолжить работу.
+                  </span>
+                  <Button size="sm" variant="primary" onClick={() => navigate('/accept-rules')}>
+                    Принять
+                  </Button>
+                </div>
+              </Notification>
+            )}
             <Outlet />
           </div>
         </main>
