@@ -148,8 +148,7 @@ export interface Contract {
   id: number
   user_id: number
   contract_type: ContractType
-  status: ContractStatus
-  contract_status?: ContractStatus
+  contract_status: ContractStatus
   created_at: string
   signed_at: string | null
   pdf_url: string | null

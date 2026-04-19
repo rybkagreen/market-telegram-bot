@@ -94,7 +94,7 @@ export default function ContractList() {
       )}
 
       {otherContracts.map((contract) => {
-        const badge = STATUS_BADGE[contract.status] ?? STATUS_BADGE.draft
+        const badge = STATUS_BADGE[contract.contract_status] ?? STATUS_BADGE.draft
         const typeLabel = TYPE_LABELS[contract.contract_type] ?? contract.contract_type
         const kepBadge = contract.kep_requested
           ? '🔏 КЭП запрошена'
@@ -118,7 +118,7 @@ export default function ContractList() {
             </div>
             <div className="flex gap-2 mt-3">
               <Button variant="secondary" size="sm" onClick={() => navigate(`/contracts/${contract.id}`)}>
-                {contract.status === 'signed' ? '👁️ Просмотр' : '✍️ Подписать'}
+                {contract.contract_status === 'signed' ? '👁️ Просмотр' : '✍️ Подписать'}
               </Button>
               {contract.pdf_url && (
                 <Button variant="ghost" size="sm" onClick={() => window.open(contract.pdf_url!, '_blank')}>
