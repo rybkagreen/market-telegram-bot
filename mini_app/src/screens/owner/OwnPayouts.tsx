@@ -109,7 +109,7 @@ export default function OwnPayouts() {
                 <div className={styles.payoutDetails}>
                   <div className={styles.detailCell}>
                     <span className={styles.detailLabel}>Запрошено</span>
-                    <span className={styles.detailValue}>{formatCurrency(payout.amount)}</span>
+                    <span className={styles.detailValue}>{formatCurrency(payout.gross_amount)}</span>
                   </div>
                   <div className={styles.detailCell}>
                     <span className={styles.detailLabel}>Получено</span>
