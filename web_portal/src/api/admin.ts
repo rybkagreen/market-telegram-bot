@@ -5,6 +5,33 @@ import type {
   UserAdminResponse,
 } from '@/lib/types'
 import type { AdminPayoutResponse, AdminPayoutListResponse } from '@/lib/types/payout'
+import type { PlatformSettings, PlatformSettingsPayload } from '@/lib/types/platform'
+
+export interface KudirEntry {
+  entry_number: number
+  operation_date: string
+  description: string
+  income_amount: string
+  expense_amount: string | null
+  operation_type: string
+}
+
+export interface TaxSummaryData {
+  year: number
+  quarter: number
+  usn_revenue: string
+  total_expenses: string
+  tax_base_15: string
+  calculated_tax_15: string
+  min_tax_1: string
+  tax_due: string
+  applicable_rate: string | null
+  vat_accumulated: string
+  ndfl_withheld: string
+  total_income?: string
+  tax_6percent?: string
+  kudir_entries?: KudirEntry[]
+}
 
 export async function getPlatformStats() {
   return api.get('admin/stats').json<PlatformStatsResponse>()
@@ -26,6 +53,10 @@ export async function getUserById(userId: number) {
 
 export async function updateAdminUser(userId: number, data: { plan?: string; is_admin?: boolean }) {
   return api.patch(`admin/users/${userId}`, { json: data }).json<UserAdminResponse>()
+}
+
+export async function topupUserBalance(userId: number, payload: { amount: number; note?: string }) {
+  return api.post(`admin/users/${userId}/balance`, { json: payload }).json<UserAdminResponse>()
 }
 
 export async function getAdminPayouts(params: {
@@ -76,4 +107,20 @@ export async function createGamificationBonus(payload: {
   return api
     .post('admin/credits/gamification-bonus', { json: payload })
     .json<GamificationBonusResponse>()
+}
+
+export async function getPlatformSettings() {
+  return api.get('admin/platform-settings').json<PlatformSettings>()
+}
+
+export async function updatePlatformSettings(payload: PlatformSettingsPayload) {
+  return api.put('admin/platform-settings', { json: payload }).json<{ success: boolean }>()
+}
+
+export async function getTaxSummary(year: number, quarter: number) {
+  return api.get(`admin/tax/summary?year=${year}&quarter=${quarter}`).json<TaxSummaryData>()
+}
+
+export async function getKudirBlob(year: number, quarter: number, format: 'pdf' | 'csv') {
+  return api.get(`admin/tax/kudir/${year}/${quarter}/${format}`, { timeout: 60_000 }).blob()
 }

@@ -223,43 +223,66 @@ export type DisputeReason =
 export interface DisputeDetailResponse {
   id: number
   placement_request_id: number
+  advertiser_id: number
+  owner_id: number
   reason: DisputeReason
-  comment: string
   status: DisputeStatus
-  created_at: string
-  resolved_at: string | null
+  owner_explanation: string | null
+  advertiser_comment: string | null
   resolution: string | null
-  placement?: {
-    channel: { username: string | null } | null
-    ad_text: string
-    proposed_price: number
-  }
-  advertiser_id?: number
-  owner_id?: number
-  advertiser_comment?: string
-  owner_explanation?: string | null
+  resolution_comment: string | null
+  admin_id: number | null
+  resolved_at: string | null
+  advertiser_refund_pct: number | null
+  owner_payout_pct: number | null
+  expires_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface DisputeListResponse {
   items: DisputeDetailResponse[]
   total: number
+  limit: number
+  offset: number
 }
 
 // ═══ Feedback ═══
 export interface UserFeedback {
   id: number
   user_id: number
-  username?: string
+  username: string | null
   text: string
-  status: string
+  status: 'new' | 'in_progress' | 'resolved' | 'rejected'
+  admin_response: string | null
   created_at: string
-  response_text: string | null
   responded_at: string | null
 }
 
 export interface FeedbackListResponse {
   items: UserFeedback[]
   total: number
+}
+
+export interface FeedbackAdminResponse extends UserFeedback {
+  responder_username: string | null
+  responder_id: number | null
+}
+
+export interface FeedbackAdminListResponse {
+  items: FeedbackAdminResponse[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface FeedbackRespondPayload {
+  response_text: string
+  status: 'in_progress' | 'resolved' | 'rejected'
+}
+
+export interface FeedbackStatusUpdatePayload {
+  status: 'new' | 'in_progress' | 'resolved' | 'rejected'
 }
 
 // ═══ Admin ═══

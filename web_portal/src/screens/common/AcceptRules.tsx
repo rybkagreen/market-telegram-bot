@@ -1,54 +1,44 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, Button, Notification, Skeleton } from '@shared/ui'
-import { api } from '@shared/api/client'
-import * as Sentry from '@sentry/react'
+import { usePlatformRules, useAcceptRules } from '@/hooks/useContractQueries'
 
 export default function AcceptRules() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [accepted, setAccepted] = useState(false)
-  const [accepting, setAccepting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [viewerHtml, setViewerHtml] = useState('')
-  const [viewerLoading, setViewerLoading] = useState(true)
+  const { data: rulesData, isLoading: viewerLoading, isError: rulesError } = usePlatformRules()
+  const acceptRulesMutation = useAcceptRules()
 
-  useEffect(() => {
-    api.get('contracts/platform-rules/text')
-      .json<{ html: string }>()
-      .then((data) => {
-        let html = data.html
-        html = html.replace(/<html[^>]*>/gi, '').replace(/<\/html>/gi, '')
-        html = html.replace(/<head>[\s\S]*?<\/head>/gi, '')
-        html = html.replace(/<body[^>]*>/gi, '').replace(/<\/body>/gi, '')
-        setViewerHtml(DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p','strong','em','ul','ol','li','h1','h2','h3','br','a','b','i','u'], ALLOWED_ATTR: ['href','class'] }))
-      })
-      .catch((err) => {
-        Sentry.captureException(err)
-        setViewerHtml('<p style="color:#e74c3c">Не удалось загрузить текст правил. Попробуйте позже.</p>')
-      })
-      .finally(() => setViewerLoading(false))
-  }, [])
-
-  const handleAccept = async () => {
-    setAccepting(true)
-    setError(null)
-    try {
-      await api.post('contracts/accept-rules', {
-        json: { accept_platform_rules: true, accept_privacy_policy: true },
-      }).json()
-      // Invalidate user cache and wait for refetch so RulesGuard sees updated flags
-      await qc.invalidateQueries({ queryKey: ['user', 'me'] })
-      await qc.refetchQueries({ queryKey: ['user', 'me'] })
-      navigate('/cabinet', { replace: true })
-    } catch {
-      setError('Ошибка при принятии правил')
-    } finally {
-      setAccepting(false)
+  const viewerHtml = useMemo(() => {
+    if (rulesError) {
+      return '<p style="color:#e74c3c">Не удалось загрузить текст правил. Попробуйте позже.</p>'
     }
+    if (!rulesData) return ''
+    let html = rulesData.html
+    html = html.replace(/<html[^>]*>/gi, '').replace(/<\/html>/gi, '')
+    html = html.replace(/<head>[\s\S]*?<\/head>/gi, '')
+    html = html.replace(/<body[^>]*>/gi, '').replace(/<\/body>/gi, '')
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'a', 'b', 'i', 'u'],
+      ALLOWED_ATTR: ['href', 'class'],
+    })
+  }, [rulesData, rulesError])
+
+  const handleAccept = () => {
+    setError(null)
+    acceptRulesMutation.mutate(undefined, {
+      onSuccess: async () => {
+        await qc.invalidateQueries({ queryKey: ['user', 'me'] })
+        await qc.refetchQueries({ queryKey: ['user', 'me'] })
+        navigate('/cabinet', { replace: true })
+      },
+      onError: () => setError('Ошибка при принятии правил'),
+    })
   }
 
   return (
@@ -110,11 +100,11 @@ export default function AcceptRules() {
         variant="primary"
         fullWidth
         size="lg"
-        loading={accepting}
-        disabled={!accepted}
+        loading={acceptRulesMutation.isPending}
+        disabled={!accepted || acceptRulesMutation.isPending}
         onClick={handleAccept}
       >
-        {accepting ? '⏳ Принятие...' : '✅ Принять правила'}
+        {acceptRulesMutation.isPending ? '⏳ Принятие...' : '✅ Принять правила'}
       </Button>
     </div>
   )

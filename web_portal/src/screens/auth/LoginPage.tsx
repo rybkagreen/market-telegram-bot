@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { useAuthStore } from '@/stores/authStore'
-import { api } from '@shared/api/client'
+import { loginWidget, loginByCode } from '@/api/auth'
 import { Card, Notification, Button } from '@shared/ui'
 
 // ═══ Telegram Login Widget ═══
@@ -73,10 +73,7 @@ export default function LoginPage() {
   const handleWidgetAuth = async (data: Record<string, unknown>) => {
     setError(null)
     try {
-      const response = await api
-        .post('auth/telegram-login-widget', { json: data })
-        .json<{ access_token: string; user: Record<string, unknown> }>()
-
+      const response = await loginWidget(data)
       setAuth(response.access_token, response.user as unknown as Parameters<typeof setAuth>[1])
       navigate('/')
     } catch (err) {
@@ -98,10 +95,7 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const response = await api
-        .post('auth/login-code', { json: { code: code.trim() } })
-        .json<{ access_token: string; user: Record<string, unknown> }>()
-
+      const response = await loginByCode(code.trim())
       setAuth(response.access_token, response.user as unknown as Parameters<typeof setAuth>[1])
       navigate('/')
     } catch (err) {
