@@ -54,5 +54,5 @@ export async function getPlans() {
 }
 
 export async function purchasePlan(plan: string) {
-  return api.post('billing/purchase-plan', { json: { plan } }).json<{ success: boolean }>()
+  return api.post('billing/plan', { json: { plan } }).json<{ success: boolean }>()
 }
