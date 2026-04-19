@@ -1,0 +1,22 @@
+{
+  "include": ["src", "tests", "scripts", "conftest.py"],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    ".venv",
+    "venv",
+    "htmlcov",
+    "mini_app",
+    "web_portal",
+    "landing",
+    "logs",
+    "data",
+    "tmp"
+  ],
+  "pythonVersion": "3.14",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none",
+  "useLibraryCodeForTypes": true
+}
