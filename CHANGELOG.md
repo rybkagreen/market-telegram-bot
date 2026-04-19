@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47 Stage 7 planning — UI/UX redesign per DS v2 (2026-04-19)
+
+#### Documentation
+- **New fix-plan chapter** — `reports/20260419_diagnostics/FIX_PLAN_07_ui_redesign_ds_v2.md` (40–56 h, P1) covering Design System v2 tokens migration, PortalShell v2 (Sidebar + Topbar), full Cabinet redesign (BalanceHero × 3 variants, PerformanceChart, QuickActions, NotificationsCard, ProfileCompleteness, RecommendedChannels, RecentActivity), 30+ screens redesign checklist, A11y pass, performance audit.
+- **Fix-plan index bumped** — `FIX_PLAN_00_index.md` totals 86–118 h across 7 stages (was 46–62 h / 6 stages).
+- **Handoff deliverable logged** — `CHANGES_2026-04-19_s47-ui-redesign-plan-stage7.md`.
+
 ### GitHub Integration (2026-04-19)
 
 #### Added
