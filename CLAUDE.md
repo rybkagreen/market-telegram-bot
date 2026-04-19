@@ -222,6 +222,29 @@ Mini App breakdown: common (9), advertiser (13), owner (11), admin (6).
 - **tracking_short_code** generated automatically at escrow transition (`_freeze_escrow_for_payment`)
 - **Celery tasks**: `ord:register_creative`, `ord:report_publication` (queue=background)
 
+## Pre-Launch Blockers
+
+These tasks MUST be completed before deploying with real payments and publications.
+
+### ORD Integration (legal requirement — ФЗ-38)
+
+- `src/core/services/stub_ord_provider.py` issues synthetic ERID
+- `ORD_BLOCK_WITHOUT_ERID=false` in current `.env` — publications pass with stub ERID
+- Legal exposure: under ФЗ-38 every ad must have a real ERID from an official ОРД operator
+
+**Required before launch:**
+1. Contract with one of the ОРД providers (Яндекс ОРД API v7, VK Реклама, Ozon)
+2. Obtain API credentials, add to `.env`: `ORD_PROVIDER=yandex`, `ORD_API_KEY=...`, `ORD_API_URL=...`
+3. Set `ORD_BLOCK_WITHOUT_ERID=true` in production `.env`
+4. Replace `StubOrdProvider` with real provider implementation (see ORD Integration section above)
+5. E2E test: placement with real ERID passes, without it — blocked
+
+### FNS Validation (optional hardening, not a legal blocker)
+
+- `src/core/services/fns_validation_service.py` validates checksum only
+- For post-launch adversarial protection — integrate `npchk.nalog.ru`
+- Does not block launch (checksum is sufficient against typos)
+
 ## Known Issues (2026-03-22)
 
 - **mypy**: 529 errors in 41 files — long-standing, pre-existing, not blocking deployment. Key example: `placements.py:534` returns `PlacementRequest` where `PlacementResponse` expected.
