@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-39a: Backend Schema Completeness (April 2026)
+
+#### Added
+- **Canonical `UserResponse` schema** — `src/api/schemas/user.py` is now single source of truth with 19 fields (XP, referral, credits, plan_expires_at, ai_generations_used, legal fields). Replaces two divergent inline classes in `auth.py` (13 fields) and `users.py` (15 fields) (`src/api/schemas/user.py`, `src/api/routers/auth.py`, `src/api/routers/users.py`)
+- **`PlacementResponse` +11 fields** — owner_id, final_schedule, rejection_reason, scheduled_delete_at, deleted_at, clicks_count, published_reach, tracking_short_code, has_dispute, dispute_status, erid. `has_dispute` / `dispute_status` populated via ORM properties that safely check eager-loaded `disputes` relationship (`src/api/routers/placements.py`, `src/db/models/placement_request.py`)
+- **`ChannelResponse.is_test`** — test flag now surfaced in all 4 channel endpoints (list, create, activate, update_category) (`src/api/schemas/channel.py`, `src/api/routers/channels.py`)
+- **`User.ai_generations_used`** in mini_app `types.ts` — symmetry with canonical backend UserResponse (`mini_app/src/lib/types.ts`)
+
+#### Fixed
+- **`counter_schedule` type** — was `Decimal | None` (bug), corrected to `datetime | None` in `PlacementResponse` (`src/api/routers/placements.py`)
+- **`OwnPayouts.tsx` field names** — aligned with S-32 backend rename: `gross_amount`, `fee_amount`, `requisites` (`mini_app/src/screens/owner/OwnPayouts.tsx`)
+
+#### Removed
+- **Dead `UserRole` type and `current_role` field** from mini_app `types.ts` — backend never returned `current_role`; was TypeScript-silent `undefined` at runtime (`mini_app/src/lib/types.ts`)
+
+---
+
 ### S-38: Escrow Recovery — 4 P0 Fixes + Idempotency (April 2026)
 
 #### Fixed
