@@ -1,11 +1,10 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Notification, Skeleton, StatusPill } from '@shared/ui'
 import { formatDateMSK } from '@/lib/constants'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import { KepWarning } from '@/components/contracts/KepWarning'
-import type { Contract } from '@/lib/types'
-import { api } from '@shared/api/client'
+import { useContract, useSignContract } from '@/hooks/useContractQueries'
 
 const TYPE_LABELS: Record<string, string> = {
   owner_service: '📋 Договор оказания услуг',
@@ -38,41 +37,18 @@ const SUCCESS_MESSAGE: Record<string, string> = {
   legal_entity: '✅ Договор подписан. Для бухучёта рекомендуем запросить КЭП-версию.',
 }
 
-interface ContractData {
-  id: number
-  user_id?: number
-  contract_type: string
-  contract_status: string
-  signed_at: string | null
-  pdf_url: string | null
-  created_at: string
-  kep_requested?: boolean
-  kep_request_email?: string | null
-}
-
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const numId = id ? parseInt(id, 10) : 0
   const [signed, setSigned] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const { data: profile } = useMyLegalProfile()
   const legalStatus = profile?.legal_status ?? 'individual'
 
-  const [contract, setContract] = useState<ContractData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [signing, setSigning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  React.useEffect(() => {
-    if (!numId) return
-    setLoading(true)
-    api.get(`contracts/${numId}`)
-      .json<ContractData>()
-      .then((data) => setContract(data))
-      .catch(() => setError('Договор не найден'))
-      .finally(() => setLoading(false))
-  }, [numId])
+  const { data: contract, isLoading: loading, isError } = useContract(numId)
+  const signMutation = useSignContract()
 
   if (loading) {
     return (
@@ -83,8 +59,8 @@ export default function ContractDetail() {
     )
   }
 
-  if (error || !contract) {
-    return <Notification type="danger">Договор не найден</Notification>
+  if (isError || !contract) {
+    return <Notification type="danger">{error ?? 'Договор не найден'}</Notification>
   }
 
   const canSign = contract.contract_status === 'pending' || contract.contract_status === 'draft'
@@ -94,15 +70,13 @@ export default function ContractDetail() {
   const typeLabel = TYPE_LABELS[contract.contract_type] ?? contract.contract_type
 
   const handleSign = () => {
-    setSigning(true)
-    api.post(`contracts/${contract.id}/sign`, { json: { method: 'button_accept' } })
-      .json<ContractData>()
-      .then((data) => {
-        setContract(data)
-        setSigned(true)
-      })
-      .catch(() => setError('Ошибка при подписании'))
-      .finally(() => setSigning(false))
+    signMutation.mutate(
+      { id: contract.id, method: 'button_accept' },
+      {
+        onSuccess: () => setSigned(true),
+        onError: () => setError('Ошибка при подписании'),
+      },
+    )
   }
 
   return (
@@ -125,8 +99,8 @@ export default function ContractDetail() {
         )}
         <div className="flex gap-2">
           {canSign && (
-            <Button variant="primary" size="sm" loading={signing} onClick={handleSign}>
-              {signing ? '⏳ Подписание...' : signLabel}
+            <Button variant="primary" size="sm" loading={signMutation.isPending} onClick={handleSign}>
+              {signMutation.isPending ? '⏳ Подписание...' : signLabel}
             </Button>
           )}
           {contract.pdf_url && (
@@ -140,12 +114,12 @@ export default function ContractDetail() {
       {signed ? (
         <>
           <Notification type="success">{successMsg}</Notification>
-          <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
+          <KepWarning contract={contract} legalStatus={legalStatus} />
         </>
       ) : canSign ? (
-        <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
+        <KepWarning contract={contract} legalStatus={legalStatus} />
       ) : (
-        contract.contract_status === 'signed' && <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
+        contract.contract_status === 'signed' && <KepWarning contract={contract} legalStatus={legalStatus} />
       )}
     </div>
   )

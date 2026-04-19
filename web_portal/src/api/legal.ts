@@ -69,6 +69,10 @@ export async function acceptRules() {
     .json()
 }
 
+export async function getPlatformRulesText() {
+  return api.get('contracts/platform-rules/text').json<{ html: string }>()
+}
+
 export async function generateContract(contractType: ContractType, placementRequestId?: number) {
   return api
     .post('contracts/generate', { json: { contract_type: contractType, placement_request_id: placementRequestId } })

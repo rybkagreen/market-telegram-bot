@@ -1,11 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { Card, Button, Skeleton, EmptyState } from '@shared/ui'
 import { formatDateMSK } from '@/lib/constants'
-import { useContracts } from '@/hooks/useContractQueries'
-import { api } from '@shared/api/client'
-import * as Sentry from '@sentry/react'
+import { useContracts, usePlatformRules } from '@/hooks/useContractQueries'
 
 const TYPE_LABELS: Record<string, string> = {
   owner_service: '📋 Договор оказания услуг (владелец)',
@@ -25,22 +23,22 @@ export default function ContractList() {
   const navigate = useNavigate()
   const { data, isLoading } = useContracts()
   const [viewerOpen, setViewerOpen] = useState(false)
-  const [viewerHtml, setViewerHtml] = useState('')
-  const [viewerLoading, setViewerLoading] = useState(false)
+  const {
+    data: rulesData,
+    isLoading: viewerLoading,
+    isError: rulesError,
+  } = usePlatformRules()
 
-  const openRulesViewer = async () => {
-    setViewerOpen(true)
-    setViewerLoading(true)
-    try {
-      const res = await api.get('contracts/platform-rules/text').json<{ html: string }>()
-      setViewerHtml(DOMPurify.sanitize(res.html, { ALLOWED_TAGS: ['p','strong','em','ul','ol','li','h1','h2','h3','br','a','b','i','u'], ALLOWED_ATTR: ['href','class'] }))
-    } catch (err) {
-      Sentry.captureException(err)
-      setViewerHtml('<p style="color:#e74c3c">Не удалось загрузить текст.</p>')
-    } finally {
-      setViewerLoading(false)
-    }
-  }
+  const viewerHtml = useMemo(() => {
+    if (rulesError) return '<p style="color:#e74c3c">Не удалось загрузить текст.</p>'
+    if (!rulesData) return ''
+    return DOMPurify.sanitize(rulesData.html, {
+      ALLOWED_TAGS: ['p', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'a', 'b', 'i', 'u'],
+      ALLOWED_ATTR: ['href', 'class'],
+    })
+  }, [rulesData, rulesError])
+
+  const openRulesViewer = () => setViewerOpen(true)
 
   if (isLoading) {
     return (

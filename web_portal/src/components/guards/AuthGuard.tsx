@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { api } from '@shared/api/client'
+import { getMe } from '@/api/auth'
 
 /**
  * AuthGuard — проверяет наличие JWT и валидность через /api/auth/me.
@@ -28,9 +28,7 @@ export function AuthGuard() {
     }
     // Есть токен, нет user — проверить токен через API
     setLoading(true)
-    api
-      .get('auth/me')
-      .json()
+    getMe()
       .then((data) => {
         const token = localStorage.getItem('rh_token')
         if (token) {
