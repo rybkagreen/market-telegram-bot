@@ -446,6 +446,46 @@ async def create_channel(
     )
 
 
+@router.get(
+    "/{channel_id}",
+    response_model=ChannelResponse,
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def get_channel(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelResponse:
+    """
+    Получить канал по ID. Доступ: владелец канала или администратор.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    return ChannelResponse(
+        id=channel.id,
+        telegram_id=channel.telegram_id,
+        username=channel.username,
+        title=channel.title,
+        owner_id=channel.owner_id,
+        member_count=channel.member_count,
+        last_er=channel.last_er,
+        avg_views=channel.avg_views,
+        rating=channel.rating,
+        category=channel.category,
+        is_active=channel.is_active,
+        is_test=channel.is_test,
+        created_at=channel.created_at.isoformat(),
+    )
+
+
 @router.delete(
     "/{channel_id}",
     status_code=status.HTTP_204_NO_CONTENT,

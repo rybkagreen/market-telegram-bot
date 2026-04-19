@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,10 +45,17 @@ async def list_my_acts(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     limit: int = 50,
+    placement_request_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> dict:
-    """Получить список актов текущего пользователя."""
+    """Получить список актов текущего пользователя.
+
+    Опциональный фильтр `placement_request_id` сужает выборку до актов
+    конкретного размещения.
+    """
     repo = ActRepository(session)
-    acts = await repo.list_by_user(current_user.id, limit)
+    acts = await repo.list_by_user(
+        current_user.id, limit, placement_request_id=placement_request_id
+    )
     items = [_act_to_dict(a) for a in acts]
     return {"items": items, "total": len(items)}
 
