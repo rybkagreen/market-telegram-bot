@@ -15,7 +15,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -441,7 +441,7 @@ async def get_placement_evidence(  # NOSONAR: python:S3776
 
 @router.get("/admin/disputes", responses={400: {"description": "Bad request"}})
 async def get_all_disputes_admin(
-    status_filter: str = "open",
+    status_filter: Annotated[str, Query(alias="status")] = "open",
     limit: int = 20,
     offset: int = 0,
     *,

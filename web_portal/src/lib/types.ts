@@ -237,7 +237,7 @@ export interface DisputeDetailResponse {
   advertiser_id?: number
   owner_id?: number
   advertiser_comment?: string
-  owner_comment?: string
+  owner_explanation?: string | null
 }
 
 export interface DisputeListResponse {
