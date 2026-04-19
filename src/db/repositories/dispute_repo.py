@@ -1,6 +1,7 @@
 """DisputeRepository for PlacementDispute model operations."""
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import selectinload
 
 from src.db.models.dispute import DisputeStatus, PlacementDispute
 from src.db.repositories.base import BaseRepository
@@ -93,13 +94,23 @@ class DisputeRepository(BaseRepository[PlacementDispute]):
         if status_filter is not None:
             base_query = base_query.where(PlacementDispute.status == status_filter)
 
-        # Total count
+        # Total count — count on the unloaded query (no eager joins)
         count_query = select(func.count()).select_from(base_query.subquery())
         count_result = await self.session.execute(count_query)
         total = count_result.scalar() or 0
 
-        # Paginated results
-        query = base_query.order_by(PlacementDispute.created_at.asc()).limit(limit).offset(offset)
+        # Paginated results with eager-load of advertiser/owner to avoid
+        # async lazy-load (MissingGreenlet → 500) when router accesses
+        # d.advertiser.username / d.owner.username.
+        query = (
+            base_query.options(
+                selectinload(PlacementDispute.advertiser),
+                selectinload(PlacementDispute.owner),
+            )
+            .order_by(PlacementDispute.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self.session.execute(query)
         disputes = list(result.scalars().all())
 

@@ -61,9 +61,14 @@ export default function LegalProfileView() {
     <div className="space-y-6">
       <h1 className="text-2xl font-display font-bold text-text-primary">Юридический профиль</h1>
 
-      {profile.is_verified && (
-        <StatusPill status="success">✅ Верифицирован</StatusPill>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {profile.is_verified && (
+          <StatusPill status="success">✅ Верифицирован</StatusPill>
+        )}
+        {profile.has_passport_data && (
+          <StatusPill status="info">📇 Паспорт добавлен</StatusPill>
+        )}
+      </div>
 
       <Card title="Основные данные">
         <div className="divide-y divide-border">
