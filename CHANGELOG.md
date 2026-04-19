@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-41: Web Portal Fixes (April 2026)
+
+#### Fixed
+- **ORD message** — Fixed incorrect text "после публикации" → "до публикации рекламы" in OrdStatus screen (`web_portal/src/screens/advertiser/OrdStatus.tsx`)
+- **Tariff payment** — Fixed API endpoint from `billing/purchase-plan` to `billing/plan` (`web_portal/src/api/billing.ts`)
+- **Disputes navigation** — Added "Споры" menu item for regular users and breadcrumb entries (`web_portal/src/components/layout/PortalShell.tsx`)
+
 ### S-40: Tech Debt Cleanup (April 2026)
 
 #### Fixed
