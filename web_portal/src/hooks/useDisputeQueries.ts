@@ -3,18 +3,17 @@ import {
   createDispute,
   getDisputeById,
   getDisputeEvidence,
+  getMyDisputes,
   replyToDispute,
   resolveDispute,
 } from '@/api/disputes'
-import { api } from '@shared/api/client'
 import type { DisputeDetailResponse, DisputeListResponse } from '@/lib/types'
 import type { DisputeEvidenceResponse } from '@/api/disputes'
 
 export function useMyDisputes(statusFilter = 'all', limit = 50, offset = 0) {
   return useQuery<DisputeListResponse>({
     queryKey: ['disputes', 'my', statusFilter, limit, offset],
-    queryFn: () =>
-      api.get(`disputes?status_filter=${statusFilter}&limit=${limit}&offset=${offset}`).json<DisputeListResponse>(),
+    queryFn: () => getMyDisputes({ statusFilter, limit, offset }),
     staleTime: 30_000,
   })
 }
