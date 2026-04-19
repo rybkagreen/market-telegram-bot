@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-46: API module consolidation (2026-04-20)
+
+#### Changed
+- **14 direct `api.*` call sites** in `web_portal/src/screens/**`, `src/components/**`
+  and `src/hooks/**` consolidated behind typed functions in `src/api/*` modules
+  and React Query hooks in `src/hooks/*`. Unified architecture: `screen → hook →
+  api-module → backend`. Files touched: `AdminUserDetail`, `AdminFeedbackDetail`,
+  `AdminPlatformSettings`, `AdminDisputeDetail`, `AcceptRules`, `ContractDetail`,
+  `ContractList`, `DocumentUpload`, `MyActsScreen`, `Feedback`, `LoginPage`,
+  `AuthGuard`, `TaxSummaryBase`, `useDisputeQueries`. No behaviour change.
+- **Type drift repairs**: `DisputeDetailResponse` in `web_portal/src/lib/types.ts`
+  aligned with backend `DisputeResponse` schema (required `advertiser_id`/`owner_id`,
+  added `resolution_comment`/`advertiser_refund_pct`/`owner_payout_pct`/`admin_id`/
+  `expires_at`/`updated_at`; removed phantom embedded `placement` that backend
+  never returned). `UserFeedback` renamed `response_text` → `admin_response`.
+  `Act` type updated to match `acts.py:_act_to_dict`.
+
+#### Added
+- **`web_portal/src/api/auth.ts`** — `loginWidget`, `loginByCode`, `getMe`.
+- **`web_portal/src/api/documents.ts`** — `uploadDocument` (multipart),
+  `getUploadStatus`, `getPassportCompleteness`.
+- **`web_portal/src/hooks/useActQueries.ts`** — `useMyActs`, `useSignAct`,
+  `downloadActPdf` helper.
+- **`web_portal/src/hooks/useDocumentQueries.ts`** — `usePassportCompleteness`,
+  `useUploadDocument`, `useUploadStatus` (polls via React Query
+  `refetchInterval` instead of bespoke `setTimeout`).
+- **`web_portal/src/lib/types/documents.ts`** and **`platform.ts`** — typed
+  responses for the new modules.
+- **ESLint guard** (`web_portal/eslint.config.js`): `no-restricted-imports`
+  pattern forbidding `api` from `@shared/api/client` / `@/lib/api` in
+  `src/screens/**`, `src/components/**`, `src/hooks/**`. Prevents regression.
+
+#### Fixed
+- **`screens/shared/DisputeDetail.tsx`** — removed dead references to
+  `dispute.placement.*` (backend never returned the embedded subobject;
+  display was always silently empty). Replaced with `Размещение
+  #{placement_request_id}`.
+- **`ContractDetail` sign request body** — was `{method: 'button_accept'}`,
+  backend expects `{signature_method: ...}`. Now routes through the existing
+  `signContract()` function in `api/legal.ts` which uses the correct field.
+
+#### Breaking
+- None. Web portal only; no backend change.
+
+#### Migration Notes
+- Frontend rebuild required so the bundle picks up the refactored modules:
+  `docker compose up -d --build nginx api`.
+
 ### S-45: Backend cleanup (2026-04-20)
 
 #### Removed
