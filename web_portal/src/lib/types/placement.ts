@@ -26,14 +26,17 @@ export interface PlacementRequest {
   ad_text: string
   proposed_price: string
   final_price: string | null
-  proposed_schedule: string
+  proposed_schedule: string | null
   final_schedule: string | null
   counter_offer_count: number
   counter_price: string | null
   counter_schedule: string | null
   counter_comment: string | null
+  advertiser_counter_price: string | null
+  advertiser_counter_schedule: string | null
+  advertiser_counter_comment: string | null
   rejection_reason: string | null
-  expires_at: string
+  expires_at: string | null
   published_at: string | null
   scheduled_delete_at: string | null
   deleted_at: string | null
@@ -51,4 +54,5 @@ export interface PlacementRequest {
   video_duration: number | null
   erid: string | null
   created_at: string
+  updated_at: string
 }
