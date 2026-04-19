@@ -1,18 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, Button, Skeleton, EmptyState, Notification } from '@shared/ui'
 import { formatDateMSK } from '@/lib/constants'
-import { api } from '@shared/api/client'
-
-interface ActItem {
-  id: number
-  act_number: string
-  act_type: string
-  act_date: string
-  sign_status: string
-  signed_at: string | null
-  pdf_url: string | null
-  placement_request_id: number
-}
+import { useMyActs, useSignAct, downloadActPdf } from '@/hooks/useActQueries'
 
 const TYPE_LABELS: Record<string, string> = {
   income: '📤 Акт-ИСХ',
@@ -27,54 +16,31 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function MyActsScreen() {
-  const [acts, setActs] = useState<ActItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, isLoading, isError, refetch } = useMyActs({ limit: 50 })
+  const signMutation = useSignAct()
   const [error, setError] = useState<string | null>(null)
-  const [signingId, setSigningId] = useState<number | null>(null)
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
 
-  const fetchActs = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.get('acts/mine', { searchParams: { limit: 50 } }).json<{ items: ActItem[] }>()
-      setActs(data.items)
-    } catch {
-      setError('Не удалось загрузить акты')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const acts = data?.items ?? []
 
-  useEffect(() => { fetchActs() }, [])
-
-  const handleSign = async (actId: number) => {
-    setSigningId(actId)
-    try {
-      await api.post(`acts/${actId}/sign`).json()
-      setActs((prev) => prev.map((a) => (a.id === actId ? { ...a, sign_status: 'signed' } : a)))
-    } catch {
-      setError('Ошибка при подписании акта')
-    } finally {
-      setSigningId(null)
-    }
+  const handleSign = (actId: number) => {
+    signMutation.mutate(actId, {
+      onError: () => setError('Ошибка при подписании акта'),
+    })
   }
 
   const handleDownload = async (actId: number) => {
+    setDownloadingId(actId)
     try {
-      const response = await api.get(`acts/${actId}/pdf`, { timeout: 30_000 })
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `act_${actId}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadActPdf(actId)
     } catch {
       setError('Ошибка при скачивании PDF')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-20" />
@@ -83,11 +49,11 @@ export default function MyActsScreen() {
     )
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="space-y-4">
-        <Notification type="danger">{error}</Notification>
-        <Button variant="secondary" fullWidth onClick={fetchActs}>Повторить</Button>
+        <Notification type="danger">{error ?? 'Не удалось загрузить акты'}</Notification>
+        <Button variant="secondary" fullWidth onClick={() => refetch()}>Повторить</Button>
       </div>
     )
   }
@@ -131,14 +97,19 @@ export default function MyActsScreen() {
                     <Button
                       variant="success"
                       size="sm"
-                      loading={signingId === act.id}
+                      loading={signMutation.isPending && signMutation.variables === act.id}
                       onClick={() => handleSign(act.id)}
                     >
-                      {signingId === act.id ? 'Подписание...' : 'Подписать'}
+                      {signMutation.isPending && signMutation.variables === act.id ? 'Подписание...' : 'Подписать'}
                     </Button>
                   )}
                   {act.pdf_url && (
-                    <Button variant="secondary" size="sm" onClick={() => handleDownload(act.id)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={downloadingId === act.id}
+                      onClick={() => handleDownload(act.id)}
+                    >
                       📥 Скачать PDF
                     </Button>
                   )}
