@@ -30,17 +30,6 @@ class DisputeRepository(BaseRepository[PlacementDispute]):
         )
         return result.scalar_one_or_none()
 
-    async def get_by_user(self, user_id: int) -> list[PlacementDispute]:
-        """Получить споры пользователя (как рекламодателя или владельца)."""
-        result = await self.session.execute(
-            select(PlacementDispute)
-            .where(
-                or_(PlacementDispute.advertiser_id == user_id, PlacementDispute.owner_id == user_id)
-            )
-            .order_by(PlacementDispute.created_at.desc())
-        )
-        return list(result.scalars().all())
-
     async def get_by_user_paginated(
         self,
         user_id: int,
