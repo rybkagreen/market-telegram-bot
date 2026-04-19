@@ -188,5 +188,20 @@ class PlacementRequest(Base, TimestampMixin):
 
     __table_args__ = (Index("ix_placement_requests_status_expires", "status", "expires_at"),)
 
+    @property
+    def has_dispute(self) -> bool:
+        """True if any disputes are loaded and present (requires eager load)."""
+        disputes = self.__dict__.get("disputes")
+        return bool(disputes)
+
+    @property
+    def dispute_status(self) -> str | None:
+        """Status string of first loaded dispute, or None."""
+        disputes = self.__dict__.get("disputes")
+        if not disputes:
+            return None
+        first = disputes[0]
+        return first.status.value if hasattr(first.status, "value") else str(first.status)
+
     def __repr__(self) -> str:
         return f"<PlacementRequest(id={self.id}, advertiser_id={self.advertiser_id}, status={self.status.value})>"

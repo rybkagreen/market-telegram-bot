@@ -202,14 +202,14 @@ class TestUserResponseP23:
 
     def test_user_response_first_name_required(self):
         """UserResponse.first_name must be str (not Optional[str])."""
-        from src.api.routers.users import UserResponse
+        from src.api.schemas.user import UserResponse
 
         field = UserResponse.model_fields["first_name"]
         assert field.is_required(), "first_name must be required — model User.first_name is NOT NULL"
 
     def test_user_response_first_name_annotation(self):
         """UserResponse.first_name annotation must be str, not str | None."""
-        from src.api.routers.users import UserResponse
+        from src.api.schemas.user import UserResponse
 
         annotation = UserResponse.model_fields["first_name"].annotation
         assert annotation is str, f"Expected str, got {annotation}"
