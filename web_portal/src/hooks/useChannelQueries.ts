@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMyChannels, getChannelById, updateChannelCategory } from '@/api/channels'
+import {
+  getMyChannels,
+  getChannelById,
+  updateChannelCategory,
+  getRecommendedChannels,
+  type RecommendedChannelsResponse,
+} from '@/api/channels'
 import type { ChannelResponse } from '@/lib/types'
 
 export function useMyChannels() {
@@ -15,6 +21,14 @@ export function useChannelById(id: number | null) {
     queryKey: ['channels', id],
     queryFn: () => getChannelById(id!),
     enabled: !!id,
+  })
+}
+
+export function useRecommendedChannels(limit = 5, category?: string) {
+  return useQuery<RecommendedChannelsResponse>({
+    queryKey: ['channels', 'recommended', limit, category ?? null],
+    queryFn: () => getRecommendedChannels(limit, category),
+    staleTime: 60_000,
   })
 }
 

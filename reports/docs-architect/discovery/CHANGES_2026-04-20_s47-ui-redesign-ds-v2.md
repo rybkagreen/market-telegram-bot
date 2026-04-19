@@ -60,3 +60,73 @@ Source of truth: `reports/20260419_diagnostics/FIX_PLAN_07_ui_redesign_ds_v2.md`
 ---
 
 🔍 Verified against: feat/s-47-ui-redesign-ds-v2 (post `5d7451d`) | 📅 Updated: 2026-04-20T02:30:00Z
+
+## Phase 3 — Backend endpoints (§7.21) — completed 2026-04-20
+
+### `GET /api/billing/frozen` (§7.21.1)
+- Schema `FrozenPlacementItem` + `FrozenBalanceResponse` в `src/api/routers/billing.py`.
+- Repo-метод `PlacementRequestRepository.get_frozen_for_advertiser(advertiser_id, limit)` —
+  eager-load channel для title без N+1.
+- Handler `get_frozen_balance(CurrentUser)` суммирует escrow + pending_payment,
+  разбивает counts и items. Объявлен ПЕРЕД `/history` (static-path-before-`{int}`-rule).
+- Суммы в рублях (Decimal), `amount = final_price ?? proposed_price`.
+
+### `GET /api/analytics/cashflow?days=7|30|90` (§7.21.2)
+- Schema `CashflowDataPoint` (ISO date) + `CashflowResponse` (total_income, total_expense,
+  net, period_days, points[days]).
+- Классификатор `_INCOME_TX_TYPES` / `_EXPENSE_TX_TYPES` по `TransactionType` enum
+  (amount всегда положителен; направление инферится по type).
+- Запрос `SELECT DATE(created_at), type, SUM(amount) GROUP BY` отфильтрован по
+  `is_reversed=false`.
+- Handler zero-fills пропущенные дни, возвращая exactly `days` точек — ось X
+  графика равномерна.
+- `days: Literal[7, 30, 90]` — строгая Pydantic-валидация.
+
+### `GET /api/users/me/attention` (§7.21.3)
+- Новый service `src/core/services/user_attention_service.py`:
+  `build_attention_feed(user, session)` — агрегат 3 сигналов: legal_profile_incomplete
+  (danger), placement_pending_approval (warning, >24h), new_topup_success (success, <48h).
+- `AttentionFeedItem` — `@dataclass(slots=True)` (ruff B903).
+- Pydantic schemas `AttentionItem` / `AttentionFeedResponse` + `count_attention_dots`
+  для red-dot в Topbar.
+- Handler объявлен ПЕРЕД `/me/referrals`.
+- Redis-кэш — в бэклог; сейчас прямой DB-запрос.
+
+### `GET /api/channels/recommended?limit=5&category=...` (§7.21.4)
+- Schema `RecommendedChannelsResponse { items: ChannelResponse[]; algorithm: str }`.
+- Алгоритм: topics из успешных placement'ов → каналы в тех категориях по last_er desc;
+  fallback — top-ER overall. Query-параметр `category` перегружает.
+- Объявлен в блоке static-path-GET'ов ПЕРЕД `/{channel_id}` (route-ordering rule).
+- Исключает каналы, принадлежащие самому пользователю.
+
+### TS API clients + React Query hooks (§7.21.5)
+- `web_portal/src/api/billing.ts` → `getFrozenBalance()` + `FrozenBalanceResponse`.
+- `web_portal/src/api/analytics.ts` → `getCashflow(days)` + `CashflowResponse`,
+  `CashflowDays` union literal.
+- `web_portal/src/api/users.ts` → `getAttentionFeed()` + `AttentionFeedResponse`,
+  `AttentionSeverity`/`AttentionType` unions.
+- `web_portal/src/api/channels.ts` → `getRecommendedChannels(limit, category?)`.
+- Hooks: `useFrozenBalance`, `useCashflow(days)`, `useAttentionFeed`,
+  `useRecommendedChannels(limit, category?)` с `staleTime: 60_000`.
+
+### Verification
+- `poetry run ruff check src/...` → clean.
+- `cd web_portal && npx tsc --noEmit -p tsconfig.app.json` → 0 errors.
+- Pyright import-not-resolved diagnostics are pre-existing venv-wiring issue — not S-47.
+
+### Files touched (Phase 3)
+- `src/api/routers/billing.py` — +1 endpoint, +2 schemas, +1 import (Literal).
+- `src/api/routers/analytics.py` — +1 endpoint, +2 schemas, +1 date import, classifier sets.
+- `src/api/routers/users.py` — +1 endpoint, +3 schemas, +1 Literal import.
+- `src/api/routers/channels.py` — +1 endpoint, +1 schema.
+- `src/db/repositories/placement_request_repo.py` — +1 repo method (get_frozen_for_advertiser).
+- `src/core/services/user_attention_service.py` — new file (147 lines).
+- `web_portal/src/api/{billing,analytics,users,channels}.ts` — +4 client fns, +4 type groups.
+- `web_portal/src/hooks/use{Billing,Analytics,User,Channel}Queries.ts` — +4 hooks.
+
+### Deferred
+- Redis 60s TTL кэш по `attention:{user_id}` — пока прямой DB-запрос.
+- Invalidation хуки на write-actions (payout/placement/legal updates) — ожидается
+  когда cache будет включён.
+
+🔍 Verified against: feat/s-47-ui-redesign-ds-v2 | 📅 Updated: 2026-04-20T02:50:00Z
