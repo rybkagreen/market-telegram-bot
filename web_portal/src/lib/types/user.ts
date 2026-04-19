@@ -15,7 +15,7 @@ export interface User {
   advertiser_level: number
   owner_xp: number
   owner_level: number
-  referral_code: string
+  referral_code: string | null
   is_admin: boolean
   ai_generations_used: number
   legal_status_completed: boolean

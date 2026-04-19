@@ -87,10 +87,10 @@ export default function ContractDetail() {
     return <Notification type="danger">Договор не найден</Notification>
   }
 
-  const canSign = contract.status === 'pending' || contract.status === 'draft'
+  const canSign = contract.contract_status === 'pending' || contract.contract_status === 'draft'
   const signLabel = SIGN_BUTTON_LABEL[legalStatus] ?? '✅ Подписать'
   const successMsg = SUCCESS_MESSAGE[legalStatus] ?? '✅ Договор подписан.'
-  const badge = STATUS_BADGE[contract.status] ?? STATUS_BADGE.draft
+  const badge = STATUS_BADGE[contract.contract_status] ?? STATUS_BADGE.draft
   const typeLabel = TYPE_LABELS[contract.contract_type] ?? contract.contract_type
 
   const handleSign = () => {
@@ -145,7 +145,7 @@ export default function ContractDetail() {
       ) : canSign ? (
         <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
       ) : (
-        contract.status === 'signed' && <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
+        contract.contract_status === 'signed' && <KepWarning contract={contract as Contract} legalStatus={legalStatus} />
       )}
     </div>
   )

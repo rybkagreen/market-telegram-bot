@@ -4,7 +4,7 @@ import type {
   UserListAdminResponse,
   UserAdminResponse,
 } from '@/lib/types'
-import type { AdminPayout, PayoutListAdminResponse } from '@/lib/types/billing'
+import type { AdminPayoutResponse, AdminPayoutListResponse } from '@/lib/types/payout'
 
 export async function getPlatformStats() {
   return api.get('admin/stats').json<PlatformStatsResponse>()
@@ -37,13 +37,13 @@ export async function getAdminPayouts(params: {
   if (params.status) search.set('status', params.status)
   if (params.limit != null) search.set('limit', String(params.limit))
   if (params.offset != null) search.set('offset', String(params.offset))
-  return api.get(`admin/payouts?${search}`).json<PayoutListAdminResponse>()
+  return api.get(`admin/payouts?${search}`).json<AdminPayoutListResponse>()
 }
 
 export async function approveAdminPayout(payoutId: number) {
-  return api.post(`admin/payouts/${payoutId}/approve`).json<AdminPayout>()
+  return api.post(`admin/payouts/${payoutId}/approve`).json<AdminPayoutResponse>()
 }
 
 export async function rejectAdminPayout(payoutId: number, reason: string) {
-  return api.post(`admin/payouts/${payoutId}/reject`, { json: { reason } }).json<AdminPayout>()
+  return api.post(`admin/payouts/${payoutId}/reject`, { json: { reason } }).json<AdminPayoutResponse>()
 }

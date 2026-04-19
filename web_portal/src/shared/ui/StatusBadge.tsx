@@ -1,4 +1,5 @@
-import type { PlacementStatus, DisputeStatus, PayoutStatus, ContractStatus, OrdStatus } from '@/lib/types'
+import type { PlacementStatus, DisputeStatus, ContractStatus } from '@/lib/types'
+import type { PayoutStatus, OrdStatus } from '@/lib/types/billing'
 
 interface StatusBadgeProps {
   status: PlacementStatus | DisputeStatus | PayoutStatus | ContractStatus | OrdStatus | string
