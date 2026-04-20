@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Mobile fixes (2026-04-20)
+
+Hotfix after Phase 7 mobile visual review, before Phase 8 merge. Two
+production-blocking defects on https://portal.rekharbor.ru/. See
+`reports/docs-architect/discovery/CHANGES_2026-04-20_s47-mobile-fixes.md`.
+
+#### Fixed — Icon sprite on mobile
+- Icons were blank on iOS Safari / some mobile Chrome builds due to
+  external-file `<use href="/icons/rh-sprite.svg#…">` references, which
+  those engines do not resolve reliably. The previous runtime
+  `IconSpriteLoader` fix could not help already-mounted `<Icon>`s.
+- Switched to **build-time inlining**: a Vite `transformIndexHtml` plugin
+  (`web_portal/vite-plugins/inline-sprite.ts`) injects the sprite at the
+  top of `<body>` in `index.html`. Every `<Icon>` now references a local
+  fragment (`#rh-foo`), which works in every browser.
+- `Icon.tsx` simplified; `IconSpriteLoader.tsx` deleted along with its
+  export and its `PortalShell` mount point.
+
+#### Fixed — Breadcrumbs
+- Detail pages (`/own/channels/:id`, `/adv/campaigns/:id/payment`,
+  `/admin/users/:id`, `/disputes/:id`, `/contracts/:id`, …) fell back to
+  «Главная» because `BREADCRUMB_MAP` was keyed by exact `location.pathname`.
+- `Topbar.tsx` now normalises pathname (`/\d+/` → `/:id`) before lookup,
+  and the map was extended with every dynamic route mounted in `App.tsx`.
+- On narrow viewports the nav is `min-w-0 flex-1 overflow-hidden`, middle
+  crumbs in 3+ chains are `hidden md:flex` (so mobile shows first › last,
+  desktop shows the full chain), each crumb is `truncate`.
+
+#### Not changed
+- Sprite contents (`public/icons/rh-sprite.svg`) — untouched.
+- Icon public API (`<Icon name … size … variant …/>`) — untouched.
+- Route definitions in `App.tsx` — untouched.
+- Backend, DB, Celery, business logic, FSM.
+
 ### S-47: UI redesign per Design System v2 — Phase 7 (2026-04-20)
 
 Accessibility, performance, contract-sync, and routing pass before merge
