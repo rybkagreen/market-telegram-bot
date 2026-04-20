@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Deduplicate breadcrumbs (2026-04-20)
+
+#### Fixed
+- Breadcrumbs rendered twice on every screen — once in the Topbar
+  (introduced during the current pre-merge pass) and once inside the
+  page body via `ScreenHeader`'s `crumbs` prop. Chose the Topbar chain
+  as the single source (it supports dynamic-route normalisation,
+  mobile collapse, and clickable parent links) and removed the
+  in-screen duplicate across 50 screens plus `ScreenHeader`,
+  `TaxSummaryBase`, and the dead `breadcrumbs` slice on
+  `portalUiStore`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-dedupe-breadcrumbs.md`.
+
 ### S-47: UI redesign per Design System v2 — Cashflow query validation (2026-04-20)
 
 #### Fixed
