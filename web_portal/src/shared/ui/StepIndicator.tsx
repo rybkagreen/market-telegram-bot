@@ -1,39 +1,53 @@
+import { Icon } from './Icon'
+
 interface StepIndicatorProps {
   total: number
   current: number
   labels?: string[]
+  className?: string
 }
 
-function getStepState(i: number, current: number): 'done' | 'active' | 'pending' {
-  if (i < current) return 'done'
-  if (i === current - 1) return 'active'
-  return 'pending'
-}
-
-export function StepIndicator({ total, current, labels }: StepIndicatorProps) {
+export function StepIndicator({ total, current, labels, className = '' }: StepIndicatorProps) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-center gap-1 mb-2">
-        {Array.from({ length: total }, (_, i) => {
-          const state = getStepState(i, current)
-          const dotColors: Record<string, string> = {
-            done: 'bg-accent',
-            active: 'bg-accent ring-4 ring-accent/20',
-            pending: 'bg-border',
-          }
-          return (
-            <div key={i} className="flex items-center">
-              <div className={`w-3 h-3 rounded-full transition-all duration-fast ${dotColors[state]}`} />
-              {i < total - 1 && (
-                <div className={`w-6 h-0.5 mx-1 transition-all duration-fast ${i < current ? 'bg-accent' : 'bg-border'}`} />
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      {Array.from({ length: total }).map((_, i) => {
+        const idx = i + 1
+        const done = idx < current
+        const active = idx === current
+        const label = labels?.[i]
+
+        const circleClass = done
+          ? 'bg-success text-white border-success'
+          : active
+            ? 'bg-accent text-white border-accent ring-[3px] ring-accent-muted'
+            : 'bg-harbor-elevated text-text-tertiary border-border'
+
+        const labelClass = active
+          ? 'text-text-primary font-semibold'
+          : done
+            ? 'text-text-secondary font-medium'
+            : 'text-text-tertiary font-medium'
+
+        return (
+          <div key={i} className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="flex items-center gap-2.5 flex-shrink-0">
+              <div
+                className={`w-[26px] h-[26px] rounded-full grid place-items-center text-xs font-display font-bold border transition-all duration-fast ${circleClass}`}
+              >
+                {done ? <Icon name="check" size={13} strokeWidth={2.5} /> : idx}
+              </div>
+              {label && (
+                <span className={`text-[12.5px] whitespace-nowrap ${labelClass}`}>{label}</span>
               )}
             </div>
-          )
-        })}
-      </div>
-      {labels && labels[current] && (
-        <div className="text-center text-sm text-text-secondary">{labels[current]}</div>
-      )}
+            {i < total - 1 && (
+              <div
+                className={`flex-1 h-[1.5px] min-w-[20px] rounded-sm transition-colors ${done ? 'bg-success' : 'bg-border'}`}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

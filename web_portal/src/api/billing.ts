@@ -62,3 +62,23 @@ export async function getPlans() {
 export async function purchasePlan(plan: string) {
   return api.post('billing/plan', { json: { plan } }).json<{ success: boolean }>()
 }
+
+export interface FrozenPlacementItem {
+  placement_id: number
+  channel_title: string
+  amount: string
+  status: 'escrow' | 'pending_payment'
+  scheduled_at: string | null
+  created_at: string
+}
+
+export interface FrozenBalanceResponse {
+  total_frozen: string
+  escrow_count: number
+  pending_payment_count: number
+  items: FrozenPlacementItem[]
+}
+
+export async function getFrozenBalance() {
+  return api.get('billing/frozen').json<FrozenBalanceResponse>()
+}
