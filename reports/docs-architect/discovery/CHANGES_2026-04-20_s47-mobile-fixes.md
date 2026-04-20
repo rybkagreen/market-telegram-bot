@@ -142,3 +142,83 @@ the icon-sprite bug above made the chain look like concatenated plain text.
 
 🔍 Verified against: `e303a9b` (feat/s-47-ui-redesign-ds-v2 HEAD before fix) |
 📅 Updated: 2026-04-20
+
+---
+
+## Addendum (2026-04-20, same day) — iOS Safari shadow-tree fix
+
+### Symptom
+
+After the sprite-inlining and cache-clear, icons were still blank on the
+user's iPhone. The HTML carried all 163 `<symbol>` elements and the
+bundled CSS contained `.rh-icon .rh-stroke { stroke: currentColor … }`
+as expected. Desktop Chrome/Firefox rendered correctly.
+
+### Root cause
+
+`<use href="#rh-foo" />` creates a **shadow tree** for the cloned
+symbol. Per SVG spec, only *inherited properties* (e.g. `currentColor`)
+reliably cross that shadow boundary; *selector-based* application of
+outer stylesheets is implementation-defined.
+
+- Chrome, Firefox, and desktop Safari apply `.rh-icon .rh-stroke`
+  (descendant selector) across the boundary.
+- **iOS Safari follows the spec strictly and does not.** So the
+  `<g class="rh-stroke">` nodes rendered with zero `fill` / `stroke`,
+  i.e. invisible on any background. The icons were there — they just
+  had no paint.
+
+This behaviour predates the current sprite refactor (iOS Safari would
+have been broken the same way under the previous `IconSpriteLoader`
+setup too), but the issue only surfaced now because mobile review was
+run for the first time as part of the Phase 8 pre-merge checklist.
+
+### Fix
+
+The Vite `inline-sprite` plugin now injects the icon styling **inside
+the sprite's `<defs>`** — co-located with the symbols they style.
+Styles declared inside an SVG travel with the shadow tree a `<use>`
+element creates from it, so `.rh-stroke` / `.rh-fill` apply reliably
+on every engine including iOS Safari.
+
+```
+<defs>
+  <style>
+    .rh-stroke { fill: none; stroke: currentColor; stroke-width: var(--rh-stroke-w, 1.5); stroke-linecap: round; stroke-linejoin: round; }
+    .rh-fill   { fill: currentColor; }
+  </style>
+</defs>
+```
+
+`currentColor` continues to resolve from the `<use>`'s parent via
+normal CSS inheritance (always works across shadow boundaries),
+driven by Tailwind text-colour classes on the outer `<svg class=
+"rh-icon">`. The custom property `--rh-stroke-w` set via `Icon.tsx`
+`style` attribute likewise crosses the boundary fine.
+
+### Files
+
+- `web_portal/vite-plugins/inline-sprite.ts` — `readAndDecorate()`
+  strips the XML declaration and inserts the `<style>` block after
+  `<defs>` (or injects `<defs>…</defs>` if the sprite ships without
+  one).
+
+### Not removed
+
+- The matching `.rh-icon .rh-stroke` / `.rh-icon .rh-fill` rules in
+  `src/styles/globals.css` are kept as a second layer. They are a
+  no-op on browsers that already receive the in-sprite styles, and
+  act as a safety net for any future icon usage outside the sprite
+  (e.g. a one-off inline SVG in a static asset).
+
+### Verification
+
+```
+curl -sk https://portal.rekharbor.ru/ | wc -c     # → 38755 (+190 B for <style>)
+curl -sk https://portal.rekharbor.ru/ | grep '.rh-stroke {'
+curl -sk https://portal.rekharbor.ru/ | grep '.rh-fill   {'
+```
+
+Visual confirmation on iPhone requested from the user.
+
+🔍 Verified against: `dd5ae04` | 📅 Updated: 2026-04-20

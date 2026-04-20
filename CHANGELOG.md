@@ -13,17 +13,27 @@ Hotfix after Phase 7 mobile visual review, before Phase 8 merge. Two
 production-blocking defects on https://portal.rekharbor.ru/. See
 `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-mobile-fixes.md`.
 
-#### Fixed — Icon sprite on mobile
-- Icons were blank on iOS Safari / some mobile Chrome builds due to
-  external-file `<use href="/icons/rh-sprite.svg#…">` references, which
-  those engines do not resolve reliably. The previous runtime
-  `IconSpriteLoader` fix could not help already-mounted `<Icon>`s.
-- Switched to **build-time inlining**: a Vite `transformIndexHtml` plugin
-  (`web_portal/vite-plugins/inline-sprite.ts`) injects the sprite at the
-  top of `<body>` in `index.html`. Every `<Icon>` now references a local
-  fragment (`#rh-foo`), which works in every browser.
-- `Icon.tsx` simplified; `IconSpriteLoader.tsx` deleted along with its
-  export and its `PortalShell` mount point.
+#### Fixed — Icon sprite on mobile (two-pass fix)
+- **Pass 1 — external `<use>` references.** Icons were blank on iOS
+  Safari / some mobile Chrome builds due to external-file
+  `<use href="/icons/rh-sprite.svg#…">` references, which those engines
+  do not resolve reliably. The previous runtime `IconSpriteLoader` fix
+  could not help already-mounted `<Icon>`s. Switched to **build-time
+  inlining**: a Vite `transformIndexHtml` plugin
+  (`web_portal/vite-plugins/inline-sprite.ts`) injects the sprite at
+  the top of `<body>` in `index.html`; every `<Icon>` now references
+  a local fragment (`#rh-foo`). `Icon.tsx` simplified;
+  `IconSpriteLoader.tsx` deleted along with its export and its
+  `PortalShell` mount point.
+- **Pass 2 — shadow-tree stylesheet boundary.** Even with inlined
+  symbols, iOS Safari rendered icons invisible because `<use>` creates
+  a shadow tree and iOS Safari does not apply descendant selectors
+  (`.rh-icon .rh-stroke`) from the outer document across that boundary.
+  Fix: the plugin now **colocates the styling inside the sprite's
+  `<defs>`** as a `<style>` block with the `.rh-stroke` / `.rh-fill`
+  rules; styles declared inside an SVG travel with the shadow tree a
+  `<use>` clones from it. `currentColor` and `--rh-stroke-w` continue
+  to flow in via normal CSS inheritance.
 
 #### Fixed — Breadcrumbs
 - Detail pages (`/own/channels/:id`, `/adv/campaigns/:id/payment`,
