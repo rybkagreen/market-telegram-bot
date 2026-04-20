@@ -1,77 +1,223 @@
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Icon } from '@shared/ui'
 import { usePortalUiStore } from '@/stores/portalUiStore'
 import { useMediaQuery, breakpoints } from '@shared/hooks/useMediaQuery'
 import { useAttentionFeed } from '@/hooks/useUserQueries'
 
-const BREADCRUMB_MAP: Record<string, string[]> = {
-  '/': ['Главная'],
-  '/cabinet': ['Кабинет'],
-  '/plans': ['Тариф'],
-  '/topup': ['Пополнить баланс'],
-  '/topup/confirm': ['Пополнить баланс', 'Подтверждение'],
-  '/referral': ['Реферальная программа'],
-  '/help': ['Центр помощи'],
-  '/feedback': ['Обратная связь'],
-  '/billing/history': ['Финансы', 'История транзакций'],
-  '/profile/reputation': ['Профиль', 'Репутация'],
-  '/acts': ['Мои акты'],
-  '/contracts': ['Документы', 'Договоры'],
-  '/contracts/:id': ['Документы', 'Договор'],
-  '/contracts/framework': ['Документы', 'Рамочный договор'],
-  '/legal-profile/view': ['Юридический профиль'],
-  '/legal-profile/documents': ['Юридический профиль', 'Документы'],
-  '/legal-profile': ['Юридический профиль'],
-  '/accept-rules': ['Принять правила'],
+interface Crumb {
+  label: string
+  path?: string
+}
+
+const BREADCRUMB_MAP: Record<string, Crumb[]> = {
+  '/': [{ label: 'Главная' }],
+  '/cabinet': [{ label: 'Кабинет' }],
+  '/plans': [{ label: 'Тариф' }],
+  '/topup': [{ label: 'Пополнить баланс' }],
+  '/topup/confirm': [
+    { label: 'Пополнить баланс', path: '/topup' },
+    { label: 'Подтверждение' },
+  ],
+  '/referral': [{ label: 'Реферальная программа' }],
+  '/help': [{ label: 'Центр помощи' }],
+  '/feedback': [{ label: 'Обратная связь' }],
+  '/billing/history': [{ label: 'Финансы' }, { label: 'История транзакций' }],
+  '/profile/reputation': [{ label: 'Профиль' }, { label: 'Репутация' }],
+  '/acts': [{ label: 'Мои акты' }],
+  '/contracts': [
+    { label: 'Документы', path: '/contracts' },
+    { label: 'Договоры' },
+  ],
+  '/contracts/:id': [
+    { label: 'Документы', path: '/contracts' },
+    { label: 'Договор' },
+  ],
+  '/contracts/framework': [
+    { label: 'Документы', path: '/contracts' },
+    { label: 'Рамочный договор' },
+  ],
+  '/legal-profile/view': [{ label: 'Юридический профиль' }],
+  '/legal-profile/documents': [
+    { label: 'Юридический профиль', path: '/legal-profile/view' },
+    { label: 'Документы' },
+  ],
+  '/legal-profile': [{ label: 'Юридический профиль' }],
+  '/accept-rules': [{ label: 'Принять правила' }],
 
   // ── Advertiser ──
-  '/adv/campaigns': ['Реклама', 'Мои кампании'],
-  '/adv/campaigns/new/category': ['Реклама', 'Новая кампания', 'Категория'],
-  '/adv/campaigns/new/channels': ['Реклама', 'Новая кампания', 'Каналы'],
-  '/adv/campaigns/new/format': ['Реклама', 'Новая кампания', 'Формат'],
-  '/adv/campaigns/new/text': ['Реклама', 'Новая кампания', 'Текст'],
-  '/adv/campaigns/new/terms': ['Реклама', 'Новая кампания', 'Условия'],
-  '/adv/campaigns/:id/waiting': ['Реклама', 'Кампания', 'Ожидание'],
-  '/adv/campaigns/:id/payment': ['Реклама', 'Кампания', 'Оплата'],
-  '/adv/campaigns/:id/counter-offer': ['Реклама', 'Кампания', 'Встречное предложение'],
-  '/adv/campaigns/:id/published': ['Реклама', 'Кампания', 'Опубликовано'],
-  '/adv/campaigns/:id/dispute': ['Реклама', 'Кампания', 'Спор'],
-  '/adv/analytics': ['Реклама', 'Аналитика'],
-  '/adv/disputes': ['Реклама', 'Споры'],
-  '/campaign/:id/ord': ['Реклама', 'Кампания', 'ОРД'],
-  '/campaign/video': ['Реклама', 'Видео-креатив'],
+  '/adv/campaigns': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Мои кампании' },
+  ],
+  '/adv/campaigns/new/category': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Новая кампания' },
+    { label: 'Категория' },
+  ],
+  '/adv/campaigns/new/channels': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Новая кампания' },
+    { label: 'Каналы' },
+  ],
+  '/adv/campaigns/new/format': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Новая кампания' },
+    { label: 'Формат' },
+  ],
+  '/adv/campaigns/new/text': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Новая кампания' },
+    { label: 'Текст' },
+  ],
+  '/adv/campaigns/new/terms': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Новая кампания' },
+    { label: 'Условия' },
+  ],
+  '/adv/campaigns/:id/waiting': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'Ожидание' },
+  ],
+  '/adv/campaigns/:id/payment': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'Оплата' },
+  ],
+  '/adv/campaigns/:id/counter-offer': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'Встречное предложение' },
+  ],
+  '/adv/campaigns/:id/published': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'Опубликовано' },
+  ],
+  '/adv/campaigns/:id/dispute': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'Спор' },
+  ],
+  '/adv/analytics': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Аналитика' },
+  ],
+  '/adv/disputes': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Споры' },
+  ],
+  '/campaign/:id/ord': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Кампания' },
+    { label: 'ОРД' },
+  ],
+  '/campaign/video': [
+    { label: 'Реклама', path: '/adv/campaigns' },
+    { label: 'Видео-креатив' },
+  ],
 
   // ── Owner ──
-  '/own/channels': ['Каналы', 'Мои каналы'],
-  '/own/channels/add': ['Каналы', 'Добавить канал'],
-  '/own/channels/:id': ['Каналы', 'Канал'],
-  '/own/channels/:id/settings': ['Каналы', 'Канал', 'Настройки'],
-  '/own/requests': ['Каналы', 'Размещения'],
-  '/own/requests/:id': ['Каналы', 'Размещения', 'Детали'],
-  '/own/payouts': ['Каналы', 'Выплаты'],
-  '/own/payouts/request': ['Каналы', 'Запрос выплаты'],
-  '/own/disputes': ['Каналы', 'Споры'],
-  '/own/disputes/:id': ['Каналы', 'Споры', 'Детали'],
-  '/own/analytics': ['Каналы', 'Аналитика'],
+  '/own/channels': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Мои каналы' },
+  ],
+  '/own/channels/add': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Добавить канал' },
+  ],
+  '/own/channels/:id': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Канал' },
+  ],
+  '/own/channels/:id/settings': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Канал' },
+    { label: 'Настройки' },
+  ],
+  '/own/requests': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Размещения' },
+  ],
+  '/own/requests/:id': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Размещения', path: '/own/requests' },
+    { label: 'Детали' },
+  ],
+  '/own/payouts': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Выплаты' },
+  ],
+  '/own/payouts/request': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Выплаты', path: '/own/payouts' },
+    { label: 'Запрос выплаты' },
+  ],
+  '/own/disputes': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Споры' },
+  ],
+  '/own/disputes/:id': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Споры', path: '/own/disputes' },
+    { label: 'Детали' },
+  ],
+  '/own/analytics': [
+    { label: 'Каналы', path: '/own/channels' },
+    { label: 'Аналитика' },
+  ],
 
   // ── Shared disputes ──
-  '/disputes/:id': ['Споры', 'Детали'],
+  '/disputes/:id': [{ label: 'Споры' }, { label: 'Детали' }],
 
   // ── Admin ──
-  '/admin': ['Админ-панель'],
-  '/admin/users': ['Админ', 'Пользователи'],
-  '/admin/users/:id': ['Админ', 'Пользователи', 'Детали'],
-  '/admin/disputes': ['Админ', 'Споры'],
-  '/admin/disputes/:id': ['Админ', 'Споры', 'Детали'],
-  '/admin/feedback': ['Админ', 'Обращения'],
-  '/admin/feedback/:id': ['Админ', 'Обращения', 'Детали'],
-  '/admin/payouts': ['Админ', 'Выплаты'],
-  '/admin/accounting': ['Админ', 'Бухгалтерия'],
-  '/admin/tax-summary': ['Админ', 'Налоги'],
-  '/admin/settings': ['Админ', 'Настройки платформы'],
+  '/admin': [{ label: 'Админ-панель' }],
+  '/admin/users': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Пользователи' },
+  ],
+  '/admin/users/:id': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Пользователи', path: '/admin/users' },
+    { label: 'Детали' },
+  ],
+  '/admin/disputes': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Споры' },
+  ],
+  '/admin/disputes/:id': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Споры', path: '/admin/disputes' },
+    { label: 'Детали' },
+  ],
+  '/admin/feedback': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Обращения' },
+  ],
+  '/admin/feedback/:id': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Обращения', path: '/admin/feedback' },
+    { label: 'Детали' },
+  ],
+  '/admin/payouts': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Выплаты' },
+  ],
+  '/admin/accounting': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Бухгалтерия' },
+  ],
+  '/admin/tax-summary': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Налоги' },
+  ],
+  '/admin/settings': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Настройки платформы' },
+  ],
 
   // ── Dev ──
-  '/dev/icons': ['Dev', 'Icons'],
+  '/dev/icons': [{ label: 'Dev' }, { label: 'Icons' }],
 }
 
 function normalizePathname(pathname: string): string {
@@ -87,7 +233,7 @@ export function Topbar() {
   const { data: attention } = useAttentionFeed()
 
   const normalized = normalizePathname(location.pathname)
-  const breadcrumbs = BREADCRUMB_MAP[normalized] ?? ['Главная']
+  const breadcrumbs: Crumb[] = BREADCRUMB_MAP[normalized] ?? [{ label: 'Главная' }]
   const isSidebarOpen = sidebarMode === 'open'
   const bellDot = (attention?.total ?? 0) > 0
 
@@ -104,7 +250,8 @@ export function Topbar() {
         <Icon name={isSidebarOpen ? 'close' : 'more-h'} size={20} />
       </button>
 
-      {/* Breadcrumbs — on mobile shows first + last, intermediate hidden; on md+ shows full chain */}
+      {/* Breadcrumbs — intermediate crumbs with path are clickable Links.
+          On mobile (3+ chain), middle crumbs collapse to show First › Last only. */}
       <nav
         aria-label="Хлебные крошки"
         className="flex items-center gap-1 text-sm text-text-secondary min-w-0 flex-1 md:flex-initial overflow-hidden"
@@ -113,19 +260,33 @@ export function Topbar() {
           const isLast = i === breadcrumbs.length - 1
           const isFirst = i === 0
           const hideOnMobile = !isLast && !isFirst && breadcrumbs.length > 2
+          const isClickable = !isLast && !!crumb.path
           return (
             <span
-              key={`${crumb}-${i}`}
+              key={`${crumb.label}-${i}`}
               className={`flex items-center gap-1 min-w-0 ${hideOnMobile ? 'hidden md:flex' : ''}`}
             >
               {i > 0 && (
-                <Icon name="chevron-right" size={11} className="text-text-tertiary flex-shrink-0" />
+                <Icon
+                  name="chevron-right"
+                  size={11}
+                  className="text-text-tertiary flex-shrink-0"
+                />
               )}
-              <span
-                className={`truncate ${isLast ? 'text-text-primary font-medium' : ''}`}
-              >
-                {crumb}
-              </span>
+              {isClickable ? (
+                <Link
+                  to={crumb.path!}
+                  className="truncate rounded-sm hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-harbor-bg transition-colors cursor-pointer"
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span
+                  className={`truncate ${isLast ? 'text-text-primary font-medium' : ''}`}
+                >
+                  {crumb.label}
+                </span>
+              )}
             </span>
           )
         })}
