@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Cashflow query validation (2026-04-20)
+
+#### Fixed
+- `GET /api/analytics/cashflow` returned 422 for every request because
+  the `days` query parameter was declared as
+  `Annotated[Literal[7, 30, 90], Query(...)]`, and Pydantic 2 in strict
+  mode does not coerce the raw query-string `"30"` to the integer
+  literal `30`. The Cabinet's «Финансовая активность» widget
+  (`PerformanceChart`) therefore always fell into its `isError` branch.
+- Replaced the `Literal` with an `IntEnum` (`CashflowPeriod`), which is
+  FastAPI's recommended pattern for enum-like integer query params and
+  which coerces query strings natively. Request/response shapes and the
+  TS client contract are unchanged; the TS side continues to send
+  `?days=7|30|90`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-cashflow-validation.md`.
+
 ### S-47: UI redesign per Design System v2 — Mobile fixes (2026-04-20)
 
 Hotfix after Phase 7 mobile visual review, before Phase 8 merge. Two
