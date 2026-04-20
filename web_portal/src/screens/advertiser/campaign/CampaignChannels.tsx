@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import { StepIndicator, ChannelCard, Button, StatusPill, Skeleton, EmptyState } from '@shared/ui'
+import { ChannelCard, Button, StatusPill, Skeleton, EmptyState, Icon } from '@shared/ui'
 import { useAvailableChannels } from '@/hooks/useCampaignQueries'
 import { formatCurrency } from '@/lib/constants'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
+import { CampaignWizardShell } from './_shell'
 
 export default function CampaignChannels() {
   const navigate = useNavigate()
@@ -21,14 +22,40 @@ export default function CampaignChannels() {
     store.toggleChannel(channel)
   }
 
-  return (
-    <div className="space-y-6">
-      <StepIndicator
-        total={6}
-        current={2}
-        labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']}
-      />
+  const disabled = store.selectedChannels.length === 0
 
+  return (
+    <CampaignWizardShell
+      step={2}
+      title="Выберите каналы"
+      subtitle={`Отмечено: ${store.selectedChannels.length} · базовая цена за пост 24ч: ${formatCurrency(totalBase)}`}
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            iconLeft="arrow-left"
+            onClick={() => navigate('/adv/campaigns/new/category')}
+          >
+            Назад
+          </Button>
+          <div className="flex-1 hidden sm:flex items-center justify-center gap-2 text-[12.5px] text-text-tertiary">
+            <Icon name="channels" size={13} />
+            {store.selectedChannels.length} каналов · {formatCurrency(totalBase)}
+          </div>
+          <Button
+            variant="primary"
+            iconRight="arrow-right"
+            disabled={disabled}
+            onClick={() => {
+              store.nextStep()
+              navigate('/adv/campaigns/new/format')
+            }}
+          >
+            Далее — формат
+          </Button>
+        </>
+      }
+    >
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-24" />
@@ -37,15 +64,18 @@ export default function CampaignChannels() {
         </div>
       ) : channels.length === 0 ? (
         <EmptyState
-          icon="📭"
+          icon="channels"
           title="Каналы не найдены"
-          description="В выбранной категории пока нет доступных каналов"
+          description="В выбранной категории пока нет доступных каналов. Вернитесь к шагу «Тематика» и попробуйте «Все каналы»."
+          action={{
+            label: 'Изменить тематику',
+            onClick: () => navigate('/adv/campaigns/new/category'),
+          }}
         />
       ) : (
         <div className="space-y-3">
           {channels.map((channel) => {
             const isSelected = store.selectedChannels.some((c) => c.id === channel.id)
-
             return (
               <ChannelCard
                 key={channel.id}
@@ -58,38 +88,19 @@ export default function CampaignChannels() {
                 isSelected={isSelected}
                 onClick={() => handleToggle(channel.id)}
                 action={
-                  isSelected
-                    ? <StatusPill status="success">✓</StatusPill>
-                    : <Button variant="success" size="sm">Выбрать</Button>
+                  isSelected ? (
+                    <StatusPill status="success">В списке</StatusPill>
+                  ) : (
+                    <Button variant="secondary" size="sm" iconLeft="plus">
+                      Выбрать
+                    </Button>
+                  )
                 }
               />
             )
           })}
         </div>
       )}
-
-      {/* Summary bar */}
-      <div className="sticky bottom-0 bg-harbor-card border-t border-border -mx-4 px-4 py-4 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-text-secondary">
-            Выбрано каналов: {store.selectedChannels.length}
-          </span>
-          <span className="text-lg font-bold text-text-primary">
-            Итого (пост 24ч): {formatCurrency(totalBase)}
-          </span>
-        </div>
-        <Button
-          variant="primary"
-          fullWidth
-          disabled={store.selectedChannels.length === 0}
-          onClick={() => {
-            store.nextStep()
-            navigate('/adv/campaigns/new/format')
-          }}
-        >
-          Далее →
-        </Button>
-      </div>
-    </div>
+    </CampaignWizardShell>
   )
 }

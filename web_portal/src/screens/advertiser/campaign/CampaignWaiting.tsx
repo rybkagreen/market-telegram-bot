@@ -1,18 +1,12 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Notification, Card, Timeline, ArbitrationPanel, Button, Skeleton } from '@shared/ui'
+import { Notification, Timeline, Button, Skeleton, Icon, ScreenHeader } from '@shared/ui'
 import { PUBLICATION_FORMATS, formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacement, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 
-function formatDateTime(dt: string | null | undefined): string {
-  return formatDateTimeMSK(dt)
-}
-
-/** Redirect only for transitions to fundamentally different screens (payment, published). */
 function getRedirectPath(id: number, status: string): string | null {
   if (status === 'pending_payment' || status === 'counter_offer') return `/adv/campaigns/${id}/payment`
   if (status === 'published') return `/adv/campaigns/${id}/published`
-  // Terminal states (cancelled/failed/refunded) should stay here — this screen shows their details
   return null
 }
 
@@ -25,10 +19,10 @@ export default function CampaignWaiting() {
   const { mutate: updatePlacement, isPending: cancelling } = useUpdatePlacement()
 
   const isExpired = placement?.expires_at ? new Date(placement.expires_at) < new Date() : false
-  const isTerminal = placement ? ['cancelled', 'failed', 'refunded', 'failed_permissions'].includes(placement.status) : false
+  const isTerminal = placement
+    ? ['cancelled', 'failed', 'refunded', 'failed_permissions'].includes(placement.status)
+    : false
 
-  // Redirect only for active status transitions (payment, published)
-  // Terminal states should stay on this screen to show details
   useEffect(() => {
     if (!placement) return
     const path = getRedirectPath(numId ?? 0, placement.status)
@@ -37,87 +31,84 @@ export default function CampaignWaiting() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="max-w-[900px] mx-auto space-y-4">
         <Skeleton className="h-20" />
-        <Skeleton className="h-40" />
-        <Skeleton className="h-20" />
+        <Skeleton className="h-56" />
+        <Skeleton className="h-28" />
       </div>
     )
   }
 
   if (!placement) {
-    return <Notification type="danger">Заявка не найдена</Notification>
+    return (
+      <div className="max-w-[900px] mx-auto">
+        <Notification type="danger">Заявка не найдена</Notification>
+      </div>
+    )
   }
 
-  // At this point, placement is guaranteed to be defined
   const p = placement
-
   const formatInfo = PUBLICATION_FORMATS[p.publication_format]
   const isPaid = p.status === 'escrow' || p.status === 'published'
 
-  function getWaitingIcon(): string {
-    if (p.status === 'cancelled') return '🚫'
-    if (p.status === 'failed' || p.status === 'failed_permissions') return '⚠️'
-    if (p.status === 'refunded') return '💸'
-    if (isPaid) return '✅'
-    if (isExpired) return '⏰'
-    return '⏳'
-  }
-  function getWaitingTitle(): string {
+  const waitingTitle = (() => {
     if (p.status === 'cancelled') return 'Отменено'
     if (p.status === 'failed' || p.status === 'failed_permissions') return 'Ошибка публикации'
     if (p.status === 'refunded') return 'Возврат средств'
     if (isPaid) return 'Владелец принял'
     if (isExpired) return 'Срок ответа истёк'
     return 'Ожидает ответа владельца'
-  }
-  function getWaitingSubtitle(): string {
+  })()
+
+  const waitingSubtitle = (() => {
     if (p.status === 'cancelled' && p.rejection_reason) return p.rejection_reason
     if (p.status === 'failed' && p.rejection_reason) return p.rejection_reason
     if (p.status === 'refunded') return 'Средства возвращены на баланс'
     if (isPaid) return ''
-    if (!isExpired) return `До ${formatDateTime(p.expires_at)} (24 ч)`
+    if (!isExpired) return `До ${formatDateTimeMSK(p.expires_at)} (24 ч)`
     return ''
-  }
-  function getWaitingVariant(): 'success' | 'default' | 'warning' | 'danger' {
+  })()
+
+  const waitingVariant: 'success' | 'default' | 'warning' | 'danger' = (() => {
     if (p.status === 'cancelled') return 'danger'
     if (p.status === 'failed' || p.status === 'failed_permissions') return 'danger'
     if (p.status === 'refunded') return 'warning'
     if (isPaid) return 'success'
     if (isExpired) return 'default'
     return 'warning'
-  }
+  })()
 
   const timelineEvents = [
     {
       id: 'created',
-      icon: '✅',
+      icon: '',
       title: 'Заявка создана',
-      subtitle: formatDateTime(p.created_at),
+      subtitle: formatDateTimeMSK(p.created_at),
       variant: 'success' as const,
     },
     {
       id: 'waiting',
-      icon: getWaitingIcon(),
-      title: getWaitingTitle(),
-      subtitle: getWaitingSubtitle(),
-      variant: getWaitingVariant(),
+      icon: '',
+      title: waitingTitle,
+      subtitle: waitingSubtitle,
+      variant: waitingVariant,
     },
     {
       id: 'payment',
-      icon: isPaid ? '✅' : '💳',
+      icon: '',
       title: isPaid ? 'Оплачено' : 'Оплата',
-      subtitle: isPaid ? 'Средства в эскроу' : 'После подтверждения',
-      variant: isPaid ? 'success' as const : 'default' as const,
+      subtitle: isPaid ? 'Средства в эскроу' : 'После подтверждения владельца',
+      variant: isPaid ? ('success' as const) : ('default' as const),
     },
     {
       id: 'published',
-      icon: p.status === 'published' ? '✅' : '📢',
+      icon: '',
       title: 'Публикация',
-      subtitle: p.status === 'published'
-        ? formatDateTime(p.published_at)
-        : formatDateTime(p.final_schedule ?? p.proposed_schedule) || 'Запланировано',
-      variant: p.status === 'published' ? 'success' as const : 'default' as const,
+      subtitle:
+        p.status === 'published'
+          ? formatDateTimeMSK(p.published_at)
+          : formatDateTimeMSK(p.final_schedule ?? p.proposed_schedule) || 'Запланировано',
+      variant: p.status === 'published' ? ('success' as const) : ('default' as const),
     },
   ]
 
@@ -129,64 +120,115 @@ export default function CampaignWaiting() {
   }
 
   return (
-    <div className="space-y-6">
-      {isTerminal ? (
-        <Notification type="danger">
-          {p.status === 'cancelled' && '❌ Кампания отменена'}
-          {p.status === 'failed' && '⚠️ Ошибка публикации'}
-          {p.status === 'failed_permissions' && '⚠️ Нет прав у бота для публикации'}
-          {p.status === 'refunded' && '💸 Средства возвращены на баланс'}
-          {p.rejection_reason && <span className="block mt-1 text-sm opacity-80">{p.rejection_reason}</span>}
-        </Notification>
-      ) : isExpired && p.status === 'pending_owner' ? (
-        <Notification type="danger">
-          ⏰ Срок ответа владельца истёк. Заявка #{p.id} будет автоматически отменена.
-        </Notification>
-      ) : (
-        <Notification type={isPaid ? 'success' : 'info'}>
-          {isPaid
-            ? `✅ Оплата получена — ожидаем публикации заявки #${p.id}`
-            : `⏳ Заявка #${p.id} отправлена владельцу канала`}
-        </Notification>
-      )}
-
-      <Card title="Статус заявки">
-        <Timeline events={timelineEvents} />
-      </Card>
-
-      <ArbitrationPanel title={`Детали заявки #${p.id}`}>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">📺 Канал</span>
-            <span className="text-text-primary font-medium">
-              @{p.channel?.username ?? `#${p.channel_id}`}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">📄 Формат</span>
-            <span className="text-text-primary">{formatInfo?.name ?? p.publication_format}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">💰 Цена</span>
-            <span className="text-text-primary font-semibold">{formatCurrency(p.final_price ?? p.counter_price ?? p.proposed_price)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">📅 Дата</span>
-            <span className="text-text-primary">{formatDateTime(p.final_schedule ?? p.proposed_schedule)}</span>
-          </div>
-        </div>
-      </ArbitrationPanel>
-
-      <div className="flex flex-col gap-3">
-        <Button variant="secondary" fullWidth onClick={() => navigate('/adv/campaigns')}>
-          ← Мои кампании
-        </Button>
-        {!isTerminal && (
-          <Button variant="danger" fullWidth loading={cancelling} onClick={handleCancel}>
-            {cancelling ? '⏳ Отмена...' : '❌ Отменить заявку'}
+    <div className="max-w-[900px] mx-auto">
+      <ScreenHeader
+        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${p.id}`]}
+        title={`Заявка #${p.id}`}
+        subtitle={`@${p.channel?.username ?? `#${p.channel_id}`} · ${formatInfo?.name ?? p.publication_format}`}
+        action={
+          <Button
+            variant="secondary"
+            iconLeft="arrow-left"
+            onClick={() => navigate('/adv/campaigns')}
+          >
+            К списку
           </Button>
+        }
+      />
+
+      <div className="mb-5">
+        {isTerminal ? (
+          <Notification type="danger">
+            {p.status === 'cancelled' && 'Кампания отменена.'}
+            {p.status === 'failed' && 'Ошибка публикации.'}
+            {p.status === 'failed_permissions' && 'У бота нет прав на публикацию в канале.'}
+            {p.status === 'refunded' && 'Средства возвращены на баланс.'}
+            {p.rejection_reason && (
+              <span className="block mt-1 text-sm opacity-80">{p.rejection_reason}</span>
+            )}
+          </Notification>
+        ) : isExpired && p.status === 'pending_owner' ? (
+          <Notification type="danger">
+            Срок ответа владельца истёк. Заявка #{p.id} будет автоматически отменена.
+          </Notification>
+        ) : (
+          <Notification type={isPaid ? 'success' : 'info'}>
+            {isPaid
+              ? `Оплата получена — ожидаем публикации заявки #${p.id}.`
+              : `Заявка #${p.id} отправлена владельцу канала.`}
+          </Notification>
         )}
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="bg-harbor-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display text-[15px] font-semibold text-text-primary">
+              Статус заявки
+            </h3>
+            <span className="text-[11px] text-text-tertiary">Обновляется автоматически</span>
+          </div>
+          <Timeline events={timelineEvents} />
+        </div>
+
+        <div className="bg-harbor-card border border-border rounded-xl p-5 h-fit">
+          <div className="font-display text-[15px] font-semibold text-text-primary mb-3">
+            Детали
+          </div>
+          <dl className="space-y-2.5 text-[13px]">
+            <DetailRow icon="channels" label="Канал">
+              @{p.channel?.username ?? `#${p.channel_id}`}
+            </DetailRow>
+            <DetailRow icon="docs" label="Формат">
+              {formatInfo?.name ?? p.publication_format}
+            </DetailRow>
+            <DetailRow icon="ruble" label="Цена">
+              <span className="font-mono font-semibold tabular-nums text-text-primary">
+                {formatCurrency(p.final_price ?? p.counter_price ?? p.proposed_price)}
+              </span>
+            </DetailRow>
+            <DetailRow icon="calendar" label="Дата">
+              <span className="tabular-nums">
+                {formatDateTimeMSK(p.final_schedule ?? p.proposed_schedule)}
+              </span>
+            </DetailRow>
+          </dl>
+
+          {!isTerminal && (
+            <div className="mt-5 border-t border-border pt-4">
+              <Button
+                variant="danger"
+                fullWidth
+                loading={cancelling}
+                iconLeft="close"
+                onClick={handleCancel}
+              >
+                Отменить заявку
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: 'channels' | 'docs' | 'ruble' | 'calendar'
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="flex items-center gap-2 text-text-secondary">
+        <Icon name={icon} size={13} className="text-text-tertiary" />
+        {label}
+      </span>
+      <span className="text-text-primary text-right truncate">{children}</span>
     </div>
   )
 }

@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom'
-import { StepIndicator, FormatSelector, Notification, Button } from '@shared/ui'
+import { FormatSelector, Notification, Button } from '@shared/ui'
 import { PUBLICATION_FORMATS, canUsePlan, calcFormatPrice, PLAN_INFO } from '@/lib/constants'
 import { formatCurrency } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useCampaignWizardStore } from '@/stores/campaignWizardStore'
 import type { PublicationFormat } from '@/stores/campaignWizardStore'
+import { CampaignWizardShell } from './_shell'
 
 export default function CampaignFormat() {
   const navigate = useNavigate()
@@ -29,7 +30,9 @@ export default function CampaignFormat() {
     return {
       id: key,
       label: fmt.name,
-      description: available ? fmt.description : `Недоступно на тарифе ${PLAN_INFO[userPlan]?.displayName ?? userPlan}`,
+      description: available
+        ? fmt.description
+        : `Недоступно на тарифе ${PLAN_INFO[userPlan]?.displayName ?? userPlan}`,
       icon: fmt.icon,
       price: formatCurrency(price),
       disabled: !available,
@@ -46,15 +49,34 @@ export default function CampaignFormat() {
   }
 
   return (
-    <div className="space-y-6">
-      <StepIndicator total={6} current={3} labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']} />
-
-      <Notification type="info">
-        <span className="text-sm">
-          Базовая цена: {formatCurrency(Math.round(avgBasePrice))} ₽ · Множитель зависит от формата
-        </span>
-      </Notification>
-
+    <CampaignWizardShell
+      step={3}
+      title="Выберите формат публикации"
+      subtitle={`Базовая цена: ${formatCurrency(Math.round(avgBasePrice))} · множитель зависит от формата.`}
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            iconLeft="arrow-left"
+            onClick={() => navigate('/adv/campaigns/new/channels')}
+          >
+            Назад
+          </Button>
+          <div className="flex-1" />
+          <Button
+            variant="primary"
+            iconRight="arrow-right"
+            disabled={store.format === null}
+            onClick={() => {
+              store.nextStep()
+              navigate('/adv/campaigns/new/text')
+            }}
+          >
+            Далее — текст
+          </Button>
+        </>
+      }
+    >
       <FormatSelector
         formats={formats}
         selected={store.format ?? undefined}
@@ -63,21 +85,9 @@ export default function CampaignFormat() {
 
       {hasUnavailable && (
         <Notification type="warning">
-          <span className="text-xs">Некоторые форматы доступны на тарифах Pro и Agency</span>
+          Некоторые форматы доступны только на тарифах Pro и Agency.
         </Notification>
       )}
-
-      <Button
-        variant="primary"
-        fullWidth
-        disabled={store.format === null}
-        onClick={() => {
-          store.nextStep()
-          navigate('/adv/campaigns/new/text')
-        }}
-      >
-        Далее →
-      </Button>
-    </div>
+    </CampaignWizardShell>
   )
 }
