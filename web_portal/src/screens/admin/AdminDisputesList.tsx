@@ -1,10 +1,41 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Button, Skeleton, Notification, StatusBadge } from '@shared/ui'
-import { formatDateMSK } from '@/lib/constants'
+import {
+  Button,
+  Skeleton,
+  Notification,
+  Icon,
+  ScreenHeader,
+  EmptyState,
+} from '@shared/ui'
+import type { IconName } from '@shared/ui'
+import { formatDateTimeMSK } from '@/lib/constants'
 import { useAdminDisputes } from '@/hooks/useFeedbackQueries'
 
 type StatusFilter = 'all' | 'open' | 'owner_reply' | 'resolved'
+
+const FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'open', label: 'Открытые' },
+  { key: 'owner_reply', label: 'Ответ владельца' },
+  { key: 'resolved', label: 'Решённые' },
+  { key: 'all', label: 'Все' },
+]
+
+type Tone = 'danger' | 'warning' | 'success' | 'neutral'
+
+const STATUS_META: Record<string, { label: string; tone: Tone; icon: IconName }> = {
+  open: { label: 'Открыт', tone: 'danger', icon: 'warning' },
+  owner_explained: { label: 'Ответ владельца', tone: 'warning', icon: 'hourglass' },
+  resolved: { label: 'Решён', tone: 'success', icon: 'verified' },
+  closed: { label: 'Закрыт', tone: 'neutral', icon: 'archive' },
+}
+
+const toneClasses: Record<Tone, string> = {
+  danger: 'bg-danger-muted text-danger',
+  warning: 'bg-warning-muted text-warning',
+  success: 'bg-success-muted text-success',
+  neutral: 'bg-harbor-elevated text-text-tertiary',
+}
 
 export default function AdminDisputesList() {
   const navigate = useNavigate()
@@ -20,102 +51,138 @@ export default function AdminDisputesList() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-12" />
+      <div className="max-w-[1280px] mx-auto space-y-4">
+        <Skeleton className="h-16" />
         <Skeleton className="h-96" />
       </div>
     )
   }
 
   if (error || !data) {
-    return <Notification type="danger">Не удалось загрузить список споров.</Notification>
-  }
-
-  const statusLabels: Record<StatusFilter, string> = {
-    all: 'Все',
-    open: 'Открытые',
-    owner_reply: 'Ответ владельца',
-    resolved: 'Решённые',
+    return (
+      <div className="max-w-[1280px] mx-auto">
+        <Notification type="danger">Не удалось загрузить список споров.</Notification>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-display font-bold text-text-primary">Споры</h1>
-        <p className="text-text-secondary mt-1">Всего: {data.total}</p>
-      </div>
+    <div className="max-w-[1280px] mx-auto">
+      <ScreenHeader
+        crumbs={['Администратор', 'Споры']}
+        title="Споры"
+        subtitle={`Всего: ${data.total} · приоритет — открытые споры`}
+      />
 
-      {/* Filter buttons */}
-      <div className="flex gap-2 flex-wrap">
-        {(['all', 'open', 'owner_reply', 'resolved'] as StatusFilter[]).map((status) => (
-          <button
-            key={status}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              statusFilter === status
-                ? 'bg-accent text-accent-text'
-                : 'bg-harbor-elevated text-text-secondary hover:text-text-primary'
-            }`}
-            onClick={() => { setStatusFilter(status); setPage(0) }}
-          >
-            {statusLabels[status]}
-          </button>
-        ))}
-      </div>
-
-      {/* Disputes list */}
-      <Card className="p-0 overflow-hidden">
-        {data.items.length === 0 ? (
-          <div className="px-5 py-8 text-center text-text-secondary">Споры не найдены</div>
-        ) : (
-          <div className="divide-y divide-border">
-            {data.items.map((dispute) => (
-              <div
-                key={dispute.id}
-                className="px-5 py-4 hover:bg-harbor-elevated/50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/disputes/${dispute.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/disputes/${dispute.id}`) }}
-                tabIndex={0}
-                role="button"
+      <div className="bg-harbor-card border border-border rounded-xl p-3.5 mb-3.5 flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTERS.map((f) => {
+            const on = statusFilter === f.key
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => {
+                  setStatusFilter(f.key)
+                  setPage(0)
+                }}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-2xl border transition-all ${
+                  on
+                    ? 'border-accent bg-accent-muted text-accent'
+                    : 'border-border bg-transparent text-text-secondary hover:border-border-active'
+                }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-mono text-text-tertiary">#{dispute.id}</span>
-                      <StatusBadge status={dispute.status} />
-                    </div>
-                    <p className="text-sm text-text-primary truncate">{dispute.reason}</p>
-                    <div className="flex gap-4 mt-1 text-xs text-text-tertiary">
-                      <span>Рекламодатель: #{dispute.advertiser_id}</span>
-                      <span>Владелец: #{dispute.owner_id}</span>
-                    </div>
+                {f.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {data.items.length === 0 ? (
+        <EmptyState
+          icon="disputes"
+          title="Споры не найдены"
+          description="Нет записей с выбранным фильтром."
+        />
+      ) : (
+        <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
+          {data.items.map((dispute, i) => {
+            const meta =
+              STATUS_META[dispute.status] ??
+              { label: dispute.status, tone: 'neutral' as Tone, icon: 'info' as IconName }
+            const isLast = i === data.items.length - 1
+            return (
+              <button
+                key={dispute.id}
+                type="button"
+                onClick={() => navigate(`/disputes/${dispute.id}`)}
+                className={`w-full text-left flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${isLast ? '' : 'border-b border-border'}`}
+              >
+                <span className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}>
+                  <Icon name={meta.icon} size={16} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2.5 flex-wrap">
+                    <span className="text-[13.5px] font-semibold text-text-primary truncate max-w-[360px]">
+                      {dispute.reason.replace(/_/g, ' ')}
+                    </span>
+                    <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated">
+                      #{dispute.id}
+                    </span>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-text-tertiary">
-                      {formatDateMSK(dispute.created_at)}
-                    </p>
-                    <Button size="sm" variant="secondary" className="mt-2">
-                      {dispute.status === 'resolved' ? 'Просмотр' : 'Решить'}
-                    </Button>
+                  <div className="text-[11.5px] text-text-tertiary mt-0.5 flex items-center gap-3 flex-wrap">
+                    <span>Рекламодатель #{dispute.advertiser_id}</span>
+                    <span>Владелец #{dispute.owner_id}</span>
+                    <span className="tabular-nums">{formatDateTimeMSK(dispute.created_at)} МСК</span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+                <span className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[meta.tone]}`}>
+                  {meta.label}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  iconRight="arrow-right"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/disputes/${dispute.id}`)
+                  }}
+                >
+                  {dispute.status === 'resolved' ? 'Просмотр' : 'Решить'}
+                </Button>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-      {/* Pagination */}
       {data.total > limit && (
-        <div className="flex items-center justify-between">
-          <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
-            ← Назад
+        <div className="flex items-center justify-between mt-5 py-3.5 px-[18px] rounded-[10px] border border-border bg-harbor-card">
+          <Button
+            size="sm"
+            variant="ghost"
+            iconLeft="arrow-left"
+            disabled={page === 0}
+            onClick={() => setPage(page - 1)}
+          >
+            Назад
           </Button>
-          <span className="text-sm text-text-secondary">
-            Страница {page + 1} из {Math.ceil(data.total / limit)}
-          </span>
-          <Button size="sm" variant="secondary" disabled={(page + 1) * limit >= data.total} onClick={() => setPage(page + 1)}>
-            Далее →
+          <div className="flex items-center gap-2.5 text-[12.5px] text-text-secondary">
+            <span>Страница</span>
+            <span className="font-mono font-semibold text-text-primary py-0.5 px-2.5 rounded-md bg-harbor-elevated border border-border">
+              {page + 1}
+            </span>
+            <span>из {Math.ceil(data.total / limit)}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            iconRight="arrow-right"
+            disabled={(page + 1) * limit >= data.total}
+            onClick={() => setPage(page + 1)}
+          >
+            Вперёд
           </Button>
         </div>
       )}

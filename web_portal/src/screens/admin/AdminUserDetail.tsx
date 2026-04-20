@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Button, Notification, Skeleton } from '@shared/ui'
+import {
+  Button,
+  Notification,
+  Skeleton,
+  Icon,
+  ScreenHeader,
+} from '@shared/ui'
+import type { IconName } from '@shared/ui'
 import { formatCurrency } from '@/lib/constants'
 import {
   useUserById,
@@ -8,6 +15,8 @@ import {
   useCreateGamificationBonus,
   useTopupUserBalance,
 } from '@/hooks/useAdminQueries'
+
+const BALANCE_PRESETS = [100, 500, 1000, 5000]
 
 export default function AdminUserDetail() {
   const { id } = useParams<{ id: string }>()
@@ -24,13 +33,17 @@ export default function AdminUserDetail() {
 
   const [creditAmount, setCreditAmount] = useState('')
   const [creditComment, setCreditComment] = useState('')
-  const [creditFeedback, setCreditFeedback] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
+  const [creditFeedback, setCreditFeedback] = useState<
+    { type: 'success' | 'danger'; text: string } | null
+  >(null)
   const platformCredit = useCreatePlatformCredit()
 
   const [bonusAmount, setBonusAmount] = useState('')
   const [bonusXp, setBonusXp] = useState('')
   const [bonusComment, setBonusComment] = useState('')
-  const [bonusFeedback, setBonusFeedback] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
+  const [bonusFeedback, setBonusFeedback] = useState<
+    { type: 'success' | 'danger'; text: string } | null
+  >(null)
   const gamificationBonus = useCreateGamificationBonus()
 
   const handleTopUp = () => {
@@ -109,16 +122,30 @@ export default function AdminUserDetail() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-display font-bold text-text-primary">Пользователь</h1>
-        <Button variant="secondary" size="sm" onClick={() => navigate('/admin/users')}>← Назад</Button>
-      </div>
+    <div className="max-w-[1080px] mx-auto">
+      <ScreenHeader
+        crumbs={['Администратор', 'Пользователи', `#${userId}`]}
+        title="Профиль пользователя"
+        subtitle={
+          user
+            ? `${user.first_name} ${user.last_name ?? ''}${user.username ? ` · @${user.username}` : ''}`
+            : undefined
+        }
+        action={
+          <Button
+            variant="secondary"
+            iconLeft="arrow-left"
+            onClick={() => navigate('/admin/users')}
+          >
+            К списку
+          </Button>
+        }
+      />
 
       {isLoading && (
         <div className="space-y-4">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-32" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-40" />
         </div>
       )}
 
@@ -126,167 +153,251 @@ export default function AdminUserDetail() {
 
       {user && (
         <>
-          {/* Profile */}
-          <Card>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-lg font-semibold text-text-primary">
-                  {user.first_name} {user.last_name ?? ''}
-                </p>
-                {user.username && <p className="text-sm text-text-tertiary">@{user.username}</p>}
-                <p className="text-xs text-text-tertiary mt-1">TG ID: {user.telegram_id}</p>
-              </div>
-              <div className="flex gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                  user.plan === 'business' ? 'bg-purple-500/10 text-purple-400' :
-                  user.plan === 'pro' ? 'bg-accent-muted text-accent' :
-                  user.plan === 'starter' ? 'bg-warning-muted text-warning' :
-                  'bg-harbor-elevated text-text-secondary'
-                }`}>
-                  {user.plan}
-                </span>
-                {user.is_admin && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-danger-muted text-danger">Admin</span>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="text-center p-3 bg-accent-muted rounded-lg">
-                <p className="text-xl font-bold text-accent">{formatCurrency(user.balance_rub)}</p>
-                <p className="text-xs text-text-tertiary mt-1">Баланс</p>
-              </div>
-              <div className="text-center p-3 bg-success-muted rounded-lg">
-                <p className="text-xl font-bold text-success">{formatCurrency(user.earned_rub)}</p>
-                <p className="text-xs text-text-tertiary mt-1">Заработано</p>
-              </div>
-              <div className="text-center p-3 bg-harbor-elevated rounded-lg">
-                <p className="text-xl font-bold text-text-primary">{user.balance_rub}</p>
-                <p className="text-xs text-text-tertiary mt-1">Баланс ₽</p>
-              </div>
-              <div className="text-center p-3 bg-harbor-elevated rounded-lg">
-                <p className="text-xl font-bold text-text-primary">{user.reputation_score?.toFixed(1) ?? '—'}</p>
-                <p className="text-xs text-text-tertiary mt-1">Репутация</p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Top-up */}
-          <Card title="Зачислить баланс">
-            {success && <Notification type="success">Баланс зачислён</Notification>}
-            {error && <Notification type="danger">{error}</Notification>}
-
-            <div className="space-y-3 mt-3">
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                type="number"
-                placeholder="Сумма (₽)"
-                value={amount}
-                min={1}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                type="text"
-                placeholder="Примечание (необязательно)"
-                value={note}
-                maxLength={500}
-                onChange={(e) => setNote(e.target.value)}
-              />
-              <div className="flex gap-2">
-                {[100, 500, 1000, 5000].map((preset) => (
-                  <button
-                    key={preset}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium border border-border bg-harbor-elevated text-text-secondary hover:border-accent hover:text-accent transition-all"
-                    onClick={() => setAmount(String(preset))}
+          <div className="bg-harbor-card border border-border rounded-xl p-5 mb-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-accent to-accent-2" />
+            <div className="flex items-start gap-4 flex-wrap">
+              <span className="grid place-items-center w-14 h-14 rounded-[14px] bg-accent-muted text-accent font-display text-[22px] font-bold flex-shrink-0">
+                {user.first_name[0]?.toUpperCase() ?? '#'}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-display text-[18px] font-semibold text-text-primary">
+                    {user.first_name} {user.last_name ?? ''}
+                  </span>
+                  <span
+                    className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded ${
+                      user.plan === 'business'
+                        ? 'bg-accent-2-muted text-accent-2'
+                        : user.plan === 'pro'
+                          ? 'bg-accent-muted text-accent'
+                          : user.plan === 'starter'
+                            ? 'bg-warning-muted text-warning'
+                            : 'bg-harbor-elevated text-text-tertiary'
+                    }`}
                   >
-                    +{preset} ₽
-                  </button>
-                ))}
+                    {user.plan}
+                  </span>
+                  {user.is_admin && (
+                    <span className="text-[10.5px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded bg-danger-muted text-danger">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <div className="text-[12.5px] text-text-tertiary mt-0.5">
+                  {user.username ? `@${user.username} · ` : ''}TG ID {user.telegram_id}
+                </div>
               </div>
-              <Button variant="primary" fullWidth loading={topupBalance.isPending} disabled={!amount || topupBalance.isPending} onClick={handleTopUp}>
-                {topupBalance.isPending ? 'Зачисление...' : 'Зачислить'}
-              </Button>
             </div>
-          </Card>
 
-          {/* Platform credit (из profit_accumulated) */}
-          <Card title="Зачислить из доходов платформы">
-            {creditFeedback && (
-              <Notification type={creditFeedback.type}>{creditFeedback.text}</Notification>
-            )}
-            <div className="space-y-3 mt-3">
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                type="number"
-                placeholder="Сумма (₽)"
-                value={creditAmount}
-                min={1}
-                onChange={(e) => setCreditAmount(e.target.value)}
+            <div
+              className="grid gap-3 mt-4"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
+            >
+              <StatTile
+                icon="wallet"
+                tone="accent"
+                label="Баланс"
+                value={formatCurrency(user.balance_rub)}
               />
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                type="text"
-                placeholder="Комментарий (причина, тикет)"
-                value={creditComment}
-                maxLength={500}
-                onChange={(e) => setCreditComment(e.target.value)}
+              <StatTile
+                icon="deposit"
+                tone="success"
+                label="Заработано"
+                value={formatCurrency(user.earned_rub)}
               />
-              <Button
-                variant="primary"
-                fullWidth
-                loading={platformCredit.isPending}
-                disabled={!creditAmount || platformCredit.isPending}
-                onClick={handlePlatformCredit}
-              >
-                {platformCredit.isPending ? 'Зачисление...' : 'Выдать кредиты'}
-              </Button>
+              <StatTile
+                icon="star"
+                tone="warning"
+                label="Репутация"
+                value={user.reputation_score?.toFixed(1) ?? '—'}
+              />
             </div>
-          </Card>
+          </div>
 
-          {/* Gamification bonus */}
-          <Card title="Геймификационный бонус">
-            {bonusFeedback && <Notification type={bonusFeedback.type}>{bonusFeedback.text}</Notification>}
-            <div className="space-y-3 mt-3">
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  className="px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+          <div className="grid gap-4 lg:grid-cols-3">
+            <SectionCard icon="deposit" title="Зачислить баланс">
+              {success && <Notification type="success">Баланс зачислён</Notification>}
+              {error && <Notification type="danger">{error}</Notification>}
+              <div className="space-y-3 mt-3">
+                <AdminInput
                   type="number"
-                  placeholder="Деньги (₽)"
-                  value={bonusAmount}
-                  min={0}
-                  onChange={(e) => setBonusAmount(e.target.value)}
+                  placeholder="Сумма (₽)"
+                  value={amount}
+                  onChange={setAmount}
                 />
-                <input
-                  className="px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                  type="number"
-                  placeholder="XP"
-                  value={bonusXp}
-                  min={0}
-                  onChange={(e) => setBonusXp(e.target.value)}
+                <AdminInput
+                  placeholder="Примечание (необязательно)"
+                  value={note}
+                  onChange={setNote}
+                  maxLength={500}
                 />
+                <div className="flex gap-1.5 flex-wrap">
+                  {BALANCE_PRESETS.map((p) => (
+                    <button
+                      key={p}
+                      className="px-2.5 py-1 rounded-full text-[11.5px] font-semibold border border-border bg-harbor-elevated text-text-secondary hover:border-accent hover:text-accent transition-all"
+                      onClick={() => setAmount(String(p))}
+                    >
+                      +{p} ₽
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  iconLeft="deposit"
+                  loading={topupBalance.isPending}
+                  disabled={!amount || topupBalance.isPending}
+                  onClick={handleTopUp}
+                >
+                  Зачислить
+                </Button>
               </div>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                type="text"
-                placeholder="Комментарий (событие, акция)"
-                value={bonusComment}
-                maxLength={500}
-                onChange={(e) => setBonusComment(e.target.value)}
-              />
-              <Button
-                variant="primary"
-                fullWidth
-                loading={gamificationBonus.isPending}
-                disabled={(!bonusAmount && !bonusXp) || gamificationBonus.isPending}
-                onClick={handleGamificationBonus}
-              >
-                {gamificationBonus.isPending ? 'Начисление...' : 'Зачислить bonus'}
-              </Button>
-            </div>
-          </Card>
+            </SectionCard>
+
+            <SectionCard icon="coin" title="Кредит из доходов">
+              {creditFeedback && <Notification type={creditFeedback.type}>{creditFeedback.text}</Notification>}
+              <div className="space-y-3 mt-3">
+                <AdminInput
+                  type="number"
+                  placeholder="Сумма (₽)"
+                  value={creditAmount}
+                  onChange={setCreditAmount}
+                />
+                <AdminInput
+                  placeholder="Комментарий (причина, тикет)"
+                  value={creditComment}
+                  onChange={setCreditComment}
+                  maxLength={500}
+                />
+                <Button
+                  variant="primary"
+                  fullWidth
+                  iconLeft="coin"
+                  loading={platformCredit.isPending}
+                  disabled={!creditAmount || platformCredit.isPending}
+                  onClick={handlePlatformCredit}
+                >
+                  Выдать кредиты
+                </Button>
+              </div>
+            </SectionCard>
+
+            <SectionCard icon="star" title="Геймификация">
+              {bonusFeedback && <Notification type={bonusFeedback.type}>{bonusFeedback.text}</Notification>}
+              <div className="space-y-3 mt-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <AdminInput
+                    type="number"
+                    placeholder="₽"
+                    value={bonusAmount}
+                    onChange={setBonusAmount}
+                  />
+                  <AdminInput
+                    type="number"
+                    placeholder="XP"
+                    value={bonusXp}
+                    onChange={setBonusXp}
+                  />
+                </div>
+                <AdminInput
+                  placeholder="Комментарий (событие, акция)"
+                  value={bonusComment}
+                  onChange={setBonusComment}
+                  maxLength={500}
+                />
+                <Button
+                  variant="primary"
+                  fullWidth
+                  iconLeft="zap"
+                  loading={gamificationBonus.isPending}
+                  disabled={(!bonusAmount && !bonusXp) || gamificationBonus.isPending}
+                  onClick={handleGamificationBonus}
+                >
+                  Зачислить бонус
+                </Button>
+              </div>
+            </SectionCard>
+          </div>
         </>
       )}
     </div>
+  )
+}
+
+const toneIconBg: Record<'success' | 'warning' | 'accent', string> = {
+  success: 'bg-success-muted text-success',
+  warning: 'bg-warning-muted text-warning',
+  accent: 'bg-accent-muted text-accent',
+}
+
+function StatTile({
+  icon,
+  tone,
+  label,
+  value,
+}: {
+  icon: IconName
+  tone: 'success' | 'warning' | 'accent'
+  label: string
+  value: string
+}) {
+  return (
+    <div className="bg-harbor-secondary border border-border rounded-[10px] p-3 flex gap-3 items-center">
+      <span className={`grid place-items-center w-9 h-9 rounded-md flex-shrink-0 ${toneIconBg[tone]}`}>
+        <Icon name={icon} size={15} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary">{label}</div>
+        <div className="font-mono tabular-nums font-semibold text-text-primary text-[14px] truncate">
+          {value}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SectionCard({
+  icon,
+  title,
+  children,
+}: {
+  icon: IconName
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+        <Icon name={icon} size={14} className="text-text-tertiary" />
+        <span className="font-display text-[14px] font-semibold text-text-primary">{title}</span>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  )
+}
+
+function AdminInput({
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  maxLength,
+}: {
+  type?: 'text' | 'number'
+  placeholder: string
+  value: string
+  onChange: (v: string) => void
+  maxLength?: number
+}) {
+  return (
+    <input
+      className="w-full px-3 py-2 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
+      type={type}
+      placeholder={placeholder}
+      value={value}
+      maxLength={maxLength}
+      onChange={(e) => onChange(e.target.value)}
+    />
   )
 }
