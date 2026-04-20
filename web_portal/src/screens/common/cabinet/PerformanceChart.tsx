@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useCashflow } from '@/hooks/useAnalyticsQueries'
 import type { CashflowDays } from '@/api/analytics'
 
@@ -8,7 +8,7 @@ function formatRub(value: number): string {
   return `${value < 0 ? '−' : ''}${formatted} ₽`
 }
 
-export function PerformanceChart() {
+function PerformanceChartInner() {
   const [days, setDays] = useState<CashflowDays>(30)
   const { data, isLoading, isError } = useCashflow(days)
 
@@ -206,3 +206,5 @@ export function PerformanceChart() {
     </section>
   )
 }
+
+export const PerformanceChart = memo(PerformanceChartInner)
