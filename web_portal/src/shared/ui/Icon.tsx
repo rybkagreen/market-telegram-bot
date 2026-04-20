@@ -1,12 +1,6 @@
 import type { CSSProperties } from 'react'
 import { FILLED_AVAILABLE, type IconName } from './icon-names'
 
-declare global {
-  interface Window {
-    __RH_ICON_SPRITE?: string
-  }
-}
-
 interface IconProps {
   name: IconName
   size?: number
@@ -15,13 +9,6 @@ interface IconProps {
   strokeWidth?: number
   style?: CSSProperties
   title?: string
-}
-
-function getSpriteUrl() {
-  if (typeof window === 'undefined') return '/icons/rh-sprite.svg'
-  const override = window.__RH_ICON_SPRITE
-  if (override === undefined) return '/icons/rh-sprite.svg'
-  return override
 }
 
 export function Icon({
@@ -35,7 +22,6 @@ export function Icon({
 }: IconProps) {
   const useFill = variant === 'fill' && FILLED_AVAILABLE.has(name)
   const symbolId = useFill ? `rh-${name}-fill` : `rh-${name}`
-  const spriteUrl = getSpriteUrl()
 
   const strokeStyle = strokeWidth != null
     ? ({ ['--rh-stroke-w' as string]: String(strokeWidth) } as CSSProperties)
@@ -61,7 +47,7 @@ export function Icon({
       style={svgStyle}
     >
       {title && <title>{title}</title>}
-      <use href={`${spriteUrl}#${symbolId}`} />
+      <use href={`#${symbolId}`} />
     </svg>
   )
 }
