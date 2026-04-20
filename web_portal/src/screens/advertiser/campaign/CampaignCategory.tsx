@@ -29,7 +29,7 @@ export default function CampaignCategory() {
   if (catsLoading) {
     return (
       <div className="space-y-6">
-        <StepIndicator total={6} current={1} labels={['', 'Шаг 1 — Выберите тематику']} />
+        <StepIndicator total={6} current={1} labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']} />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-20" />)}
         </div>

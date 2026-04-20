@@ -19,7 +19,7 @@ export default function CampaignVideo() {
 
   return (
     <div className="space-y-6">
-      <StepIndicator total={6} current={4} labels={['', '', '', '', 'Шаг 4б — Добавить видео']} />
+      <StepIndicator total={6} current={4} labels={['Тематика', 'Каналы', 'Формат', 'Видео', 'Условия', 'Оплата']} />
 
       <Notification type="info">
         <span className="text-sm">Загрузите видео для рекламного поста. Поддерживаемые форматы: MP4, MOV (до 50 МБ)</span>

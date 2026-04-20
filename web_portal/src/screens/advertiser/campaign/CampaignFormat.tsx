@@ -47,7 +47,7 @@ export default function CampaignFormat() {
 
   return (
     <div className="space-y-6">
-      <StepIndicator total={6} current={3} labels={['', '', '', 'Шаг 3 — Формат публикации']} />
+      <StepIndicator total={6} current={3} labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']} />
 
       <Notification type="info">
         <span className="text-sm">
