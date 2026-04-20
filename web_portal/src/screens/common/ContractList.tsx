@@ -145,7 +145,6 @@ export default function ContractList() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Договоры']}
         title="Договоры"
         subtitle="Оферты, B2B-договоры с подрядчиками, агентские и налоговые — в одном месте"
         action={

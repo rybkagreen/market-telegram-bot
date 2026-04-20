@@ -156,7 +156,6 @@ export default function MyActsScreen() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Мои акты']}
         title="Мои акты"
         subtitle="Первичные документы по каждому размещению и выплате — подписывайте онлайн или скачивайте PDF"
         action={

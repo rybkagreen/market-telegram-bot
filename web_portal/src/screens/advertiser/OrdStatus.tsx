@@ -68,7 +68,6 @@ export default function OrdStatus() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${id}`, 'Маркировка ОРД']}
         title="Статус маркировки (ОРД)"
         subtitle="Регистрация у оператора рекламных данных (ФЗ-38). Обязательна для публикации рекламы."
         action={

@@ -142,7 +142,6 @@ export default function MyCampaigns() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Мои кампании']}
         title="Мои кампании"
         subtitle="Запросы на размещение, модерация, эскроу и публикации"
         action={

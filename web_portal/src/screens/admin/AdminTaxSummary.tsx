@@ -57,7 +57,6 @@ export default function AdminTaxSummary() {
     <TaxSummaryBase
       title="Налоговая отчётность"
       subtitle="КУДиР и ключевые налоговые показатели за выбранный квартал"
-      crumbs={['Администратор', 'Налоги']}
       coloredKpis
       showEmptyHint={false}
       downloadMode="auth"

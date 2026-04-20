@@ -42,7 +42,6 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Обзор']}
         title="Панель администратора"
         subtitle="Общая статистика платформы RekHarbor — пользователи, размещения, споры, финансы"
       />

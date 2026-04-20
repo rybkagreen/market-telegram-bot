@@ -168,7 +168,6 @@ export default function OwnRequestDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Заявки', `#${request.id}`]}
         title={`Заявка #${request.id}`}
         subtitle={`@${request.channel?.username ?? `#${request.channel_id}`} · ${fmtName}`}
         action={

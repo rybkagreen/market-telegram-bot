@@ -103,7 +103,6 @@ export default function DisputeDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Споры', `#${dispute.id}`]}
         title={`Спор #${dispute.id}`}
         subtitle={`Размещение #${dispute.placement_request_id}`}
         action={

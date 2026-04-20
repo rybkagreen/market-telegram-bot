@@ -5,7 +5,6 @@ export default function AdminAccounting() {
     <TaxSummaryBase
       title="Бухгалтерия"
       subtitle="КУДиР, УСН-15%, НДС и НДФЛ платформы за выбранный квартал"
-      crumbs={['Администратор', 'Бухгалтерия']}
       coloredKpis={false}
       showEmptyHint
       downloadMode="auth"

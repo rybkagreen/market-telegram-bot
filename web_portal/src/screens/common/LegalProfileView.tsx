@@ -58,7 +58,6 @@ export default function LegalProfileView() {
     return (
       <div className="max-w-[1000px] mx-auto">
         <ScreenHeader
-          crumbs={['Главная', 'Юридический профиль']}
           title="Юридический профиль"
         />
         <EmptyState
@@ -77,7 +76,6 @@ export default function LegalProfileView() {
   return (
     <div className="max-w-[1000px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Юридический профиль']}
         title="Юридический профиль"
         subtitle={STATUS_LABELS[profile.legal_status] ?? profile.legal_status}
         action={

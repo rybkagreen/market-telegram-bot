@@ -174,7 +174,6 @@ export default function TransactionHistory() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Финансы', 'История операций']}
         title="История операций"
         subtitle="Все движения по балансу: пополнения, эскроу, выплаты и корректировки"
         action={

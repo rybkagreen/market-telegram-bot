@@ -120,7 +120,6 @@ export default function OwnRequests() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Заявки']}
         title="Входящие заявки"
         subtitle="Рассматривайте, принимайте или делайте контр-оферту на новые запросы размещений"
         action={

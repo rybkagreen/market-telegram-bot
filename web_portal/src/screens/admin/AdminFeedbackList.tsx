@@ -71,7 +71,6 @@ export default function AdminFeedbackList() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Обращения']}
         title="Обращения пользователей"
         subtitle={`Всего: ${data.total} · ответьте на новые в течение 48 часов`}
       />

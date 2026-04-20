@@ -137,7 +137,6 @@ export default function Plans() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Финансы', 'Тариф']}
         title="Тарифы"
         subtitle={
           <>

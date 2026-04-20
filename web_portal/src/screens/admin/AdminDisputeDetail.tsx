@@ -134,7 +134,6 @@ export default function AdminDisputeDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Споры', `#${dispute.id}`]}
         title={`Спор #${dispute.id}`}
         subtitle={dispute.reason.replace(/_/g, ' ')}
         action={

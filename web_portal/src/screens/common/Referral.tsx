@@ -105,7 +105,6 @@ export default function Referral() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Профиль', 'Реферальная программа']}
         title="Реферальная программа"
         subtitle="Приглашайте друзей — получайте бонусные кредиты с каждой оплаты"
         action={

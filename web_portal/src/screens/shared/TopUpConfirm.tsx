@@ -122,7 +122,6 @@ export default function TopUpConfirm() {
   return (
     <div className="max-w-[820px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Финансы', 'Пополнение', 'Подтверждение']}
         title="Подтверждение пополнения"
       />
 

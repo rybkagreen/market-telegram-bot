@@ -80,7 +80,6 @@ export default function OwnPayouts() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Выплаты']}
         title="Выплаты"
         subtitle="Доступные средства, лимиты и история выводов"
         action={

@@ -122,7 +122,6 @@ export default function CampaignWaiting() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${p.id}`]}
         title={`Заявка #${p.id}`}
         subtitle={`@${p.channel?.username ?? `#${p.channel_id}`} · ${formatInfo?.name ?? p.publication_format}`}
         action={

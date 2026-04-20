@@ -136,7 +136,6 @@ export default function OwnChannelSettings() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Каналы', `@${channelUsername}`, 'Настройки']}
         title="Настройки канала"
         subtitle={channel ? `${channelTitle} · @${channelUsername}` : 'Параметры публикаций и расписания'}
         action={
