@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Mobile layout (2026-04-20)
+
+#### Fixed
+- `ScreenHeader` stacked title above action on mobile. Action's
+  `flex-shrink-0` was overflowing the viewport on narrow screens
+  (iPhone SE, 320–375px) when screens passed two buttons in the
+  slot. Outer layout is now `flex-col` until `sm`, then switches to
+  the original horizontal layout; title scales to `text-[22px]` on
+  mobile and gains `break-words`.
+- `MyCampaigns` list row was a fixed five-column flex strip that
+  overflowed below ~400px. On mobile the status pill and the
+  separate price column are now hidden; price reappears inline in
+  the meta line next to the date (`justify-between`). Description
+  `max-w-[420px]` clamp is `sm+`-only. Desktop layout unchanged.
+- Other list-heavy screens (`OwnChannels`, `OwnRequests`,
+  `TransactionHistory`, `AdminUsersList`, …) retain their original
+  rows but already benefit from the ScreenHeader stack fix; full
+  per-screen row-responsiveness is tracked as a Phase 8.1 follow-up.
+- See `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-mobile-layout-my-campaigns.md`.
+
 ### S-47: UI redesign per Design System v2 — Deduplicate breadcrumbs (2026-04-20)
 
 #### Fixed
