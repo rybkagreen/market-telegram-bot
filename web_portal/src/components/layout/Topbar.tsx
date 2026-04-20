@@ -91,6 +91,7 @@ export function Topbar() {
           }}
           className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md bg-harbor-secondary border border-border text-sm text-text-tertiary hover:border-border-active transition-colors cursor-pointer"
           title="Глобальный поиск (в разработке)"
+          aria-label="Открыть глобальный поиск"
         >
           <Icon name="search" size={14} />
           <span className="flex-1 text-left">Поиск кампаний, каналов, транзакций…</span>
@@ -105,11 +106,14 @@ export function Topbar() {
         type="button"
         onClick={() => navigate('/feedback')}
         className="relative p-1.5 rounded-md text-text-secondary hover:text-text-primary hover:bg-harbor-secondary transition-colors cursor-pointer"
-        aria-label="Уведомления"
+        aria-label={bellDot ? `Уведомления (есть ${attention?.total ?? 0} новых)` : 'Уведомления'}
       >
         <Icon name="bell" size={18} />
         {bellDot && (
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger ring-2 ring-harbor-bg" />
+          <span
+            aria-hidden="true"
+            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger ring-2 ring-harbor-bg"
+          />
         )}
       </button>
     </header>

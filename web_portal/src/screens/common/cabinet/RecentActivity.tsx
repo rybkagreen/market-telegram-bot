@@ -106,33 +106,38 @@ export function RecentActivity() {
     <section className="rounded-xl bg-harbor-card border border-border overflow-hidden">
       <header className="flex items-center gap-1 px-5 py-3 border-b border-border">
         <h3 className="font-display text-sm font-semibold text-text-primary mr-4">Активность</h3>
-        {(
-          [
-            { id: 'transactions' as Tab, label: 'Транзакции', count: txs.length },
-            { id: 'campaigns' as Tab, label: 'Кампании', count: recentCampaigns.length },
-          ] as const
-        ).map((t) => {
-          const on = tab === t.id
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-md transition-colors inline-flex items-center gap-1.5 ${
-                on ? 'bg-harbor-secondary text-text-primary' : 'text-text-secondary hover:text-text-primary cursor-pointer'
-              }`}
-            >
-              {t.label}
-              <span
-                className={`text-[10px] font-mono px-1.5 rounded-full ${
-                  on ? 'bg-harbor-elevated text-text-tertiary' : 'bg-harbor-secondary text-text-tertiary'
+        <div role="tablist" aria-label="Переключить тип активности" className="contents">
+          {(
+            [
+              { id: 'transactions' as Tab, label: 'Транзакции', count: txs.length },
+              { id: 'campaigns' as Tab, label: 'Кампании', count: recentCampaigns.length },
+            ] as const
+          ).map((t) => {
+            const on = tab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                tabIndex={on ? 0 : -1}
+                onClick={() => setTab(t.id)}
+                className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-md transition-colors inline-flex items-center gap-1.5 ${
+                  on ? 'bg-harbor-secondary text-text-primary' : 'text-text-secondary hover:text-text-primary cursor-pointer'
                 }`}
               >
-                {t.count}
-              </span>
-            </button>
-          )
-        })}
+                {t.label}
+                <span
+                  className={`text-[10px] font-mono px-1.5 rounded-full ${
+                    on ? 'bg-harbor-elevated text-text-tertiary' : 'bg-harbor-secondary text-text-tertiary'
+                  }`}
+                >
+                  {t.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
         <div className="flex-1" />
         <button
           type="button"
