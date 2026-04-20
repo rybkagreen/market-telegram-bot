@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — EmptyState icon (2026-04-20)
+
+#### Fixed
+- `EmptyState`'s `icon` prop was typed as `string` with an emoji
+  default (`'🌊'`) and rendered as literal text at `text-5xl`. Every
+  caller already passed a rh-sprite icon name (`icon="campaign"`,
+  `"channels"`, `"disputes"`, `"requests"`, `"payouts"`, `"contract"`,
+  `"feedback"`, `"users"`, `"error"`), so on every empty list the
+  literal word «campaign»/«channels»/etc. was shown above the title —
+  visible duplication. Switched the prop to `icon?: IconName` rendered
+  via `<Icon>` inside a 56×56 harbor-elevated tile, matching the
+  design-system icon-bubble pattern used elsewhere. Emoji default
+  removed; TS now enforces that only valid sprite names compile.
+
 ### S-47: UI redesign per Design System v2 — Mobile layout (2026-04-20)
 
 #### Fixed
