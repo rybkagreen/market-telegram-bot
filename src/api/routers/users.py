@@ -9,7 +9,7 @@ Endpoints:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -47,6 +47,36 @@ class UserStatsResponse(BaseModel):
     reputation: ReputationScoreResponse
 
     model_config = {"from_attributes": True}
+
+
+AttentionSeverity = Literal["danger", "warning", "info", "success"]
+AttentionType = Literal[
+    "legal_profile_incomplete",
+    "placement_pending_approval",
+    "new_topup_success",
+    "channel_verified",
+    "contract_sign_required",
+    "payout_ready",
+    "dispute_requires_response",
+]
+
+
+class AttentionItem(BaseModel):
+    """Элемент attention-feed — требует внимания пользователя."""
+
+    type: AttentionType
+    severity: AttentionSeverity
+    title: str
+    subtitle: str | None = None
+    url: str | None = None
+    created_at: datetime
+
+
+class AttentionFeedResponse(BaseModel):
+    """Агрегат для NotificationsCard (§7.9) — требует внимания."""
+
+    items: list[AttentionItem]
+    total: int  # count of danger+warning items (для red-dot в Topbar)
 
 
 class ReferralItem(BaseModel):
@@ -187,6 +217,42 @@ async def needs_accept_rules(current_user: CurrentUser) -> dict:
         or current_user.privacy_policy_accepted_at is None
     )
     return {"needs_accept": needs_accept}
+
+
+@router.get("/me/attention")
+async def get_attention_feed(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AttentionFeedResponse:
+    """
+    Агрегат требующих внимания событий для NotificationsCard (§7.9).
+
+    Сортировка: severity (danger > warning > info > success), потом created_at desc.
+    `total` — количество danger+warning, используется как red-dot в Topbar bell.
+
+    ВАЖНО: Этот эндпоинт должен быть объявлен ДО `/me/referrals` — строгий
+    static-path-before-/{id} паттерн из project_fastapi_route_ordering.md.
+    """
+    from src.core.services.user_attention_service import (
+        build_attention_feed,
+        count_attention_dots,
+    )
+
+    feed_items = await build_attention_feed(current_user, session)
+    return AttentionFeedResponse(
+        items=[
+            AttentionItem(
+                type=it.type,
+                severity=it.severity,
+                title=it.title,
+                subtitle=it.subtitle,
+                url=it.url,
+                created_at=it.created_at,
+            )
+            for it in feed_items
+        ],
+        total=count_attention_dots(feed_items),
+    )
 
 
 @router.get("/me/referrals")

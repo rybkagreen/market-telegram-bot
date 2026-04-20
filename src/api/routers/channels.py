@@ -937,8 +937,115 @@ async def compare_channels_preview(
     )
 
 
+class RecommendedChannelsResponse(BaseModel):
+    """Ответ recommended-каналов для Cabinet RecommendedChannels (§7.11)."""
+
+    items: list[ChannelResponse]
+    algorithm: str  # "top_er_by_topic" | "top_er_overall" | "random_fallback"
+
+
+@router.get("/recommended")
+async def get_recommended_channels(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    category: Annotated[str | None, Query()] = None,
+) -> RecommendedChannelsResponse:
+    """
+    Персонализированный подбор каналов для Cabinet RecommendedChannels.
+
+    Алгоритм:
+    1. Берём категории из успешных прошлых кампаний пользователя.
+    2. Если такие есть — выбираем активные каналы в этих категориях, сортируем
+       по last_er desc, берём top-N.
+    3. Fallback: если история пустая — top-ER каналы вообще.
+    4. Query-параметр `category` принудительно фиксирует фильтр.
+
+    ВАЖНО: этот эндпоинт должен быть объявлен ДО `/{channel_id}` —
+    иначе FastAPI попытается распарсить "recommended" как int и вернёт 422.
+    См. project_fastapi_route_ordering.md.
+    """
+    from src.db.models.placement_request import PlacementRequest, PlacementStatus
+
+    # Exclude channels the user already owns (can't recommend your own)
+    base_conds = [
+        TelegramChat.is_active == true(),
+        TelegramChat.is_test == false(),
+        TelegramChat.owner_id != current_user.id,
+    ]
+
+    algorithm = "top_er_overall"
+
+    if category:
+        base_conds.append(TelegramChat.category == category)
+        algorithm = "category_filter"
+    else:
+        topics_result = await session.execute(
+            select(TelegramChat.category)
+            .join(PlacementRequest, PlacementRequest.channel_id == TelegramChat.id)
+            .where(
+                PlacementRequest.advertiser_id == current_user.id,
+                PlacementRequest.status.in_(
+                    [PlacementStatus.published, PlacementStatus.completed]
+                ),
+                TelegramChat.category.isnot(None),
+            )
+            .distinct()
+            .limit(5)
+        )
+        topics = [row[0] for row in topics_result.all() if row[0]]
+        if topics:
+            base_conds.append(TelegramChat.category.in_(topics))
+            algorithm = "top_er_by_topic"
+
+    query = (
+        select(TelegramChat)
+        .where(and_(*base_conds))
+        .order_by(TelegramChat.last_er.desc(), TelegramChat.member_count.desc())
+        .limit(limit)
+    )
+    result = await session.execute(query)
+    channels = list(result.scalars().all())
+
+    # If topic-scoped query returned nothing, fall back to global top-ER.
+    if not channels and algorithm == "top_er_by_topic":
+        fallback_result = await session.execute(
+            select(TelegramChat)
+            .where(
+                TelegramChat.is_active == true(),
+                TelegramChat.is_test == false(),
+                TelegramChat.owner_id != current_user.id,
+            )
+            .order_by(TelegramChat.last_er.desc(), TelegramChat.member_count.desc())
+            .limit(limit)
+        )
+        channels = list(fallback_result.scalars().all())
+        algorithm = "top_er_overall"
+
+    items = [
+        ChannelResponse(
+            id=ch.id,
+            telegram_id=ch.telegram_id,
+            username=ch.username or "",
+            title=ch.title or NO_NAME,
+            owner_id=ch.owner_id,
+            member_count=ch.member_count or 0,
+            last_er=ch.last_er or 0.0,
+            avg_views=ch.avg_views or 0,
+            rating=ch.rating or 0.0,
+            category=ch.category,
+            is_active=ch.is_active,
+            is_test=ch.is_test,
+            created_at=ch.created_at.isoformat() if ch.created_at else "",
+        )
+        for ch in channels
+    ]
+
+    return RecommendedChannelsResponse(items=items, algorithm=algorithm)
+
+
 # ─── Dynamic-path endpoints (/{channel_id}/*) — must stay LAST ─────
-# Declared after static-path GETs (/available, /stats, /preview) so FastAPI
+# Declared after static-path GETs (/available, /stats, /preview, /recommended) so FastAPI
 # does not try to parse "available" etc. as int channel_id → 422 int_parsing.
 
 

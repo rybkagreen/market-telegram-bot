@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 
 interface ModalProps {
   open: boolean
@@ -9,22 +9,26 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+  const titleId = useId()
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50"
+      <button
+        type="button"
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
-        role="button"
-        tabIndex={0}
+        className="fixed inset-0 bg-black/50 cursor-default"
         aria-label="Закрыть модальное окно"
       />
 
       {/* Sheet */}
-      <div className="relative z-10 w-full sm:max-w-lg bg-harbor-card rounded-t-xl sm:rounded-xl shadow-xl max-h-[90vh] flex flex-col">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        className="relative z-10 w-full sm:max-w-lg bg-harbor-card rounded-t-xl sm:rounded-xl shadow-xl max-h-[90vh] flex flex-col"
+      >
         {/* Handle (mobile) */}
         <div className="sm:hidden flex justify-center py-2">
           <div className="w-10 h-1 rounded-full bg-border" />
@@ -33,11 +37,12 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         {/* Header */}
         {title && (
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+            <h3 id={titleId} className="text-lg font-semibold text-text-primary">{title}</h3>
             <button
               type="button"
               className="text-text-tertiary hover:text-text-primary transition-colors"
               onClick={onClose}
+              aria-label="Закрыть"
             >
               ✕
             </button>

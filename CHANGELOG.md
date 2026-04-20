@@ -7,6 +7,358 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — EmptyState icon (2026-04-20)
+
+#### Fixed
+- `EmptyState`'s `icon` prop was typed as `string` with an emoji
+  default (`'🌊'`) and rendered as literal text at `text-5xl`. Every
+  caller already passed a rh-sprite icon name (`icon="campaign"`,
+  `"channels"`, `"disputes"`, `"requests"`, `"payouts"`, `"contract"`,
+  `"feedback"`, `"users"`, `"error"`), so on every empty list the
+  literal word «campaign»/«channels»/etc. was shown above the title —
+  visible duplication. Switched the prop to `icon?: IconName` rendered
+  via `<Icon>` inside a 56×56 harbor-elevated tile, matching the
+  design-system icon-bubble pattern used elsewhere. Emoji default
+  removed; TS now enforces that only valid sprite names compile.
+
+### S-47: UI redesign per Design System v2 — Mobile layout (2026-04-20)
+
+#### Fixed
+- `ScreenHeader` stacked title above action on mobile. Action's
+  `flex-shrink-0` was overflowing the viewport on narrow screens
+  (iPhone SE, 320–375px) when screens passed two buttons in the
+  slot. Outer layout is now `flex-col` until `sm`, then switches to
+  the original horizontal layout; title scales to `text-[22px]` on
+  mobile and gains `break-words`.
+- `MyCampaigns` list row was a fixed five-column flex strip that
+  overflowed below ~400px. On mobile the status pill and the
+  separate price column are now hidden; price reappears inline in
+  the meta line next to the date (`justify-between`). Description
+  `max-w-[420px]` clamp is `sm+`-only. Desktop layout unchanged.
+- Other list-heavy screens (`OwnChannels`, `OwnRequests`,
+  `TransactionHistory`, `AdminUsersList`, …) retain their original
+  rows but already benefit from the ScreenHeader stack fix; full
+  per-screen row-responsiveness is tracked as a Phase 8.1 follow-up.
+- See `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-mobile-layout-my-campaigns.md`.
+
+### S-47: UI redesign per Design System v2 — Deduplicate breadcrumbs (2026-04-20)
+
+#### Fixed
+- Breadcrumbs rendered twice on every screen — once in the Topbar
+  (introduced during the current pre-merge pass) and once inside the
+  page body via `ScreenHeader`'s `crumbs` prop. Chose the Topbar chain
+  as the single source (it supports dynamic-route normalisation,
+  mobile collapse, and clickable parent links) and removed the
+  in-screen duplicate across 50 screens plus `ScreenHeader`,
+  `TaxSummaryBase`, and the dead `breadcrumbs` slice on
+  `portalUiStore`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-dedupe-breadcrumbs.md`.
+
+### S-47: UI redesign per Design System v2 — Cashflow query validation (2026-04-20)
+
+#### Fixed
+- `GET /api/analytics/cashflow` returned 422 for every request because
+  the `days` query parameter was declared as
+  `Annotated[Literal[7, 30, 90], Query(...)]`, and Pydantic 2 in strict
+  mode does not coerce the raw query-string `"30"` to the integer
+  literal `30`. The Cabinet's «Финансовая активность» widget
+  (`PerformanceChart`) therefore always fell into its `isError` branch.
+- Replaced the `Literal` with an `IntEnum` (`CashflowPeriod`), which is
+  FastAPI's recommended pattern for enum-like integer query params and
+  which coerces query strings natively. Request/response shapes and the
+  TS client contract are unchanged; the TS side continues to send
+  `?days=7|30|90`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-20_s47-cashflow-validation.md`.
+
+### S-47: UI redesign per Design System v2 — Mobile fixes (2026-04-20)
+
+Hotfix after Phase 7 mobile visual review, before Phase 8 merge. Two
+production-blocking defects on https://portal.rekharbor.ru/. See
+`reports/docs-architect/discovery/CHANGES_2026-04-20_s47-mobile-fixes.md`.
+
+#### Fixed — Icon sprite on mobile (two-pass fix)
+- **Pass 1 — external `<use>` references.** Icons were blank on iOS
+  Safari / some mobile Chrome builds due to external-file
+  `<use href="/icons/rh-sprite.svg#…">` references, which those engines
+  do not resolve reliably. The previous runtime `IconSpriteLoader` fix
+  could not help already-mounted `<Icon>`s. Switched to **build-time
+  inlining**: a Vite `transformIndexHtml` plugin
+  (`web_portal/vite-plugins/inline-sprite.ts`) injects the sprite at
+  the top of `<body>` in `index.html`; every `<Icon>` now references
+  a local fragment (`#rh-foo`). `Icon.tsx` simplified;
+  `IconSpriteLoader.tsx` deleted along with its export and its
+  `PortalShell` mount point.
+- **Pass 2 — shadow-tree stylesheet boundary.** Even with inlined
+  symbols, iOS Safari rendered icons invisible because `<use>` creates
+  a shadow tree and iOS Safari does not apply descendant selectors
+  (`.rh-icon .rh-stroke`) from the outer document across that boundary.
+  Fix: the plugin now **colocates the styling inside the sprite's
+  `<defs>`** as a `<style>` block with the `.rh-stroke` / `.rh-fill`
+  rules; styles declared inside an SVG travel with the shadow tree a
+  `<use>` clones from it. `currentColor` and `--rh-stroke-w` continue
+  to flow in via normal CSS inheritance.
+
+#### Fixed — Breadcrumbs
+- Detail pages (`/own/channels/:id`, `/adv/campaigns/:id/payment`,
+  `/admin/users/:id`, `/disputes/:id`, `/contracts/:id`, …) fell back to
+  «Главная» because `BREADCRUMB_MAP` was keyed by exact `location.pathname`.
+- `Topbar.tsx` now normalises pathname (`/\d+/` → `/:id`) before lookup,
+  and the map was extended with every dynamic route mounted in `App.tsx`.
+- On narrow viewports the nav is `min-w-0 flex-1 overflow-hidden`, middle
+  crumbs in 3+ chains are `hidden md:flex` (so mobile shows first › last,
+  desktop shows the full chain), each crumb is `truncate`.
+
+#### Not changed
+- Sprite contents (`public/icons/rh-sprite.svg`) — untouched.
+- Icon public API (`<Icon name … size … variant …/>`) — untouched.
+- Route definitions in `App.tsx` — untouched.
+- Backend, DB, Celery, business logic, FSM.
+
+### S-47: UI redesign per Design System v2 — Phase 7 (2026-04-20)
+
+Accessibility, performance, contract-sync, and routing pass before merge
+into `develop`. See
+`reports/docs-architect/discovery/CHANGES_2026-04-20_s47-phase7-a11y-perf.md`.
+
+#### Added
+- `/dev/icons` gallery (behind `import.meta.env.DEV` guard) — new
+  `src/screens/dev/DevIcons.tsx` lists all 132 sprite icons with
+  name-filter, outline/fill toggle, size slider, and click-to-copy.
+  Stripped from production bundle by Vite tree-shake.
+
+#### Changed — Accessibility (§7.18)
+- `Tabs` primitive — `role="tablist"`, `role="tab"`, `aria-selected`, and
+  a roving `tabIndex` so keyboard users focus the active tab.
+- `RecentActivity` — same ARIA treatment on its inline tab switcher.
+- `Modal` — `role="dialog"`, `aria-modal="true"`, `aria-labelledby`
+  (via `useId`) wired to the title heading; close ✕ button gains
+  `aria-label="Закрыть"`; the former `div[role=button]` backdrop became a
+  plain `<button>`.
+- `Topbar` — search stub `aria-label`; bell `aria-label` now reports the
+  unread count when the red dot is visible; dot marked `aria-hidden`.
+
+#### Changed — Performance (§7.19)
+- `PerformanceChart` wrapped in `React.memo` so Cabinet re-renders don't
+  re-walk its ~200-line SVG body.
+
+#### Verified (no code change)
+- `:focus-visible` and `@media (prefers-reduced-motion: reduce)` were
+  already globalised in `src/styles/globals.css` — confirmed to apply to
+  the `pulse-ring` animation in `TopUpConfirm` and to Framer Motion.
+- Icon tree-shaking — non-issue: `rh-sprite.svg` (37 KB) is a static file
+  fetched once by `IconSpriteLoader`, not inlined into JS chunks.
+- `lucide-react` — 0 imports remain across `web_portal/src/` (§7.23
+  closed out as N/A).
+- Cabinet widget endpoints (`billing/frozen`, `analytics/cashflow`,
+  `users/me/attention`, `channels/recommended`) — backend Pydantic
+  schemas vs TS clients and React Query hooks match field-for-field
+  (§7.21).
+- Routing audit — all 60+ screens mounted in `App.tsx`; no orphans.
+
+#### Bundle baseline (production)
+- Δ from Phase 6: +16 B raw / +0 KB gzip (React.memo wrapper only).
+- Largest lazy chunk: `BarChart-*.js` at 101.89 KB gz (Recharts,
+  loaded only on `/adv/analytics` and `/own/analytics`).
+- Entry `index-*.js`: 58.40 KB gz.
+
+#### Deferred
+- **§7.20 Storybook** — not installed; not blocking. `/dev/icons`
+  covers the most-requested primitives-gallery need. Will be a
+  follow-up ticket in the next sprint.
+- Chrome DevTools contrast audit on secondary/tertiary text — requires
+  a browser; listed in the pre-merge checklist.
+- Lighthouse Performance / Accessibility run — same reason; scores to
+  be added to the merge PR description.
+
+#### Not changed (Phase 7)
+- Backend, DB, Celery, business logic, API routes, FSM transitions,
+  query keys.
+- DS v2 tokens (`globals.css`), sprite contents (`public/icons/rh-sprite.svg`).
+
+### S-47: UI redesign per Design System v2 — Phase 6 (2026-04-20)
+
+#### Changed — 30 design-from-tokens screens (§7.17)
+
+Every screen in this section was redesigned from DS v2 tokens and primitives
+(§§7.1–7.4) without a handoff mockup, following the patterns established in
+§§7.5–7.12 and the pixel-perfect handoff screens (§7.5a). Business logic,
+query keys, and routes are unchanged.
+
+- **Advertiser (14 screens):** `MyCampaigns`, `CampaignCategory/Channels/
+  Format/Text/Arbitration/Waiting/Published`, `CampaignPayment`,
+  `CampaignCounterOffer`, `CampaignVideo`, `OrdStatus`,
+  `AdvertiserFrameworkContract`, `AdvAnalytics`. Wizard creation steps now
+  share `screens/advertiser/campaign/_shell.tsx` — a single
+  `CampaignWizardShell` (ScreenHeader + StepIndicator + sticky footer).
+  `Waiting` / `Published` are rebuilt as post-creation status screens (no
+  wizard indicator). `OrdStatus` is wired to `useOrdStatus`/`useRegisterOrd`
+  with a Timeline of 4 ОРД stages.
+- **Owner (10 screens):** `OwnChannels/Detail/Add/Settings`,
+  `OwnRequests/Detail`, `OwnPayouts`, `OwnPayoutRequest`, `OwnAnalytics`,
+  `DisputeResponse`. `OwnChannels` drops the table/MobileCard duplication for
+  a single responsive channel-card grid; `OwnPayouts` gains a cooldown
+  countdown hero.
+- **Shared + common (6 screens):** `MyDisputes`, `OpenDispute`,
+  `DisputeDetail`, `LegalProfilePrompt`, `LegalProfileView`, `ContractDetail`.
+- **Admin (11 screens + shared base):** `AdminDashboard`, `AdminUsersList`,
+  `AdminUserDetail`, `AdminDisputesList`, `AdminDisputeDetail`,
+  `AdminFeedbackList`, `AdminFeedbackDetail`, `AdminPayouts`,
+  `AdminAccounting`, `AdminTaxSummary`, `AdminPlatformSettings`, and
+  `components/admin/TaxSummaryBase` (ScreenHeader + KpiCells + subtitle /
+  crumbs props).
+
+#### Removed / replaced
+- All legacy emoji labels inside interactive surfaces (🔵 / ❌ / 📊 / ➕ / 🔄
+  / ✅ etc.) replaced with `<Icon name={...} />` from the DS v2 sprite.
+- Dual desktop-table + MobileCard layouts on list screens reduced to a single
+  responsive card/row grid per screen.
+- Ad-hoc `Card title="..."` wrappers replaced with DS v2 SectionCards
+  (bordered header strip + Icon + display font).
+
+#### Behaviour changes
+- `AdminDisputesList` rows are fully clickable — the former nested "Решить"
+  button became a visual span; clicking anywhere on the row navigates to
+  `/disputes/:id`.
+
+#### Not changed
+- Business logic, API routes, FSM transitions, query keys, mutation payloads.
+- Wizard navigation order (`/adv/campaigns/new/category → channels → format →
+  text → terms`) and post-creation status routes.
+- Alembic migrations, Celery queues, backend services.
+
+### S-47: UI redesign per Design System v2 — Phase 5 (2026-04-20)
+
+#### Added
+- **New primitives (§7.4.1):**
+  - `web_portal/src/shared/ui/ScreenHeader.tsx` — breadcrumb + title +
+    subtitle + action-slot pattern used by all 13 handoff screens.
+  - `web_portal/src/shared/ui/LinkButton.tsx` — inline text-link button
+    (accent/secondary/danger tones, optional underline).
+  - `Button` extended with `iconLeft` / `iconRight: IconName` props,
+    rendered via the DS v2 `<Icon>` sprite.
+  - `StepIndicator` rewritten to numbered-pill + per-step inline labels
+    (new semantics: `labels[i]` = label for step `i+1`).
+
+#### Changed — 13 handoff screens ported pixel-perfect
+- **Financial (Phase 5.1–5.4):**
+  - `web_portal/src/screens/shared/Plans.tsx` — 4 plan-tiles with
+    featured Pro + ribbon, current-plan highlight, low-balance warning,
+    comparison table, 3-cell FAQ.
+  - `web_portal/src/screens/shared/TopUp.tsx` — chip-amounts + custom
+    input with ruble icon, 3-method payment selector (card/СБП/YooMoney),
+    sticky summary card with "к оплате" total, autotopup toggle, balance
+    tile with wallet glyph.
+  - `web_portal/src/screens/shared/TopUpConfirm.tsx` — 4 live-states
+    (pending with indet progress + counter, succeeded with success-glyph
+    pulse-ring, canceled, timeout), details breakdown card, state-aware
+    action row.
+  - `web_portal/src/screens/common/TransactionHistory.tsx` — 4 summary
+    tiles (income/expense/netto/balance), search + 4-period toggle +
+    6-type filter-chips, day-grouped timeline, status-pills + mono
+    signed amounts, pagination footer.
+- **Reputation / acts / referral (Phase 5.5–5.7):**
+  - `web_portal/src/screens/common/ReputationHistory.tsx` — 2 score-cards
+    (Advertiser + Owner) with tier-progress sparkline, role/tone filters,
+    tone-colored event rows with delta-pill and before→after progress.
+  - `web_portal/src/screens/common/MyActsScreen.tsx` — pending-signature
+    banner, 4 summary tiles, type+status filter-bar with bulk-action
+    panel, table with checkbox + type-glyph + inline-actions.
+  - `web_portal/src/screens/common/Referral.tsx` — gradient hero with
+    code/link copy and 5 share-channels, 4-level progress
+    (Bronze→Platinum), 4 stat-tiles, referrals list with mono-avatars,
+    "how it works" sidebar.
+- **Help / feedback / legal (Phase 5.8–5.13):**
+  - `web_portal/src/screens/common/Help.tsx` — hero-search with ⌘K hint
+    + 6 category-chips, 2-column FAQ accordion with full-text filter +
+    helpful/not-helpful feedback, gradient support CTA + channels +
+    popular docs sidebar.
+  - `web_portal/src/screens/common/Feedback.tsx` — topic chips (5 tone-
+    colored), priority tiles, textarea with char-counter + quick topics,
+    email-for-response, secure-footer, success-state with ticket #,
+    online-support + "what to write" sidebars.
+  - `web_portal/src/screens/common/LegalProfileSetup.tsx` — 4 legal-type
+    tiles (self/IP/OOO/individual), StepIndicator 1..4, 2-column layout
+    with main form + bank + passport cards + right rail with SVG
+    completeness ring. Preserves FNS validation, required-fields, INN
+    checksum, passport logic.
+  - `web_portal/src/screens/common/ContractList.tsx` — 4 summary tiles,
+    filter-bar with 5 kind-chips + "active only" toggle, table with
+    kind-glyph + status-pills + inline actions, rules viewer modal.
+  - `web_portal/src/screens/common/DocumentUpload.tsx` — gradient hero
+    with SVG progress ring, document type + passport-page selectors,
+    drag-n-drop with image preview, full processing view (quality
+    score, OCR confidence, extracted fields, validation results),
+    requirements sidebar with encryption note.
+  - `web_portal/src/screens/common/AcceptRules.tsx` — sticky TOC sidebar +
+    read-progress tracker, rules-viewer with scroll-to-bottom detection,
+    3 agreement checkboxes, sign-action footer with disabled-state hint.
+
+#### Migration Notes
+- 6 existing `StepIndicator` callers updated to the new labels-per-step
+  format (`CampaignCategory`, `CampaignChannels`, `CampaignFormat`,
+  `CampaignText`, `CampaignVideo`, `CampaignArbitration`, `TopUpConfirm`).
+  Previously the labels array used off-by-one indexing; now `labels[0]`
+  corresponds to step 1, `labels[1]` to step 2, etc.
+- No backend / API change in Phase 5.
+- Docker rebuild required: `docker compose up -d --build nginx api`.
+
+### S-47: UI redesign per Design System v2 — Phases 1–4 (2026-04-20)
+
+#### Added
+- **Icon sprite system (Phase 1, §§7.1–7.2):**
+  - `web_portal/public/icons/rh-sprite.svg` (132 symbols, 10 groups, stroke 1.5)
+  - `web_portal/src/shared/ui/{Icon,IconSpriteLoader,icon-names}.{tsx,ts}` —
+    typed `<Icon name>` component with literal-union `IconName`, and one-time
+    inline sprite loader mounted inside `PortalShell`.
+  - `.rh-stroke` / `.rh-fill` component rules and `ui-spin` / `ui-skeleton`
+    keyframes in `web_portal/src/styles/globals.css`.
+  - `Sparkline` shared primitive.
+- **Backend Cabinet-widget endpoints (Phase 3, §7.21):**
+  - `GET /api/billing/frozen` — escrow+pending_payment summary.
+  - `GET /api/analytics/cashflow?days=7|30|90` — daily income/expense points.
+  - `GET /api/users/me/attention` — danger>warning>info>success feed.
+  - `GET /api/channels/recommended` — topic-matched top-ER list with fallback.
+  - New service `src/core/services/user_attention_service.py`.
+  - New repo method `PlacementRequestRepository.get_frozen_for_advertiser`.
+  - All four respect FastAPI static-path-before-`/{int_id}` ordering
+    (see `project_fastapi_route_ordering.md`).
+- **TS clients + React Query hooks** for the four endpoints
+  (`useFrozenBalance`, `useCashflow(days)`, `useAttentionFeed`,
+  `useRecommendedChannels`).
+- **Cabinet redesign (Phase 4, §§7.5–7.12):**
+  - 7 new widgets under `web_portal/src/screens/common/cabinet/`:
+    `BalanceHero`, `PerformanceChart`, `QuickActions`, `NotificationsCard`,
+    `ProfileCompleteness`, `RecommendedChannels`, `RecentActivity`.
+  - Cabinet shell rewritten with DS v2 greeting + 1.6fr/1fr grid + footer
+    waterline; uses all new backend endpoints via hooks.
+- **PortalShell v2 (Phase 2, §7.3):**
+  - Split into `Sidebar.tsx` + `Topbar.tsx` + thin `PortalShell.tsx`.
+  - Sidebar: 6 grouped nav sections, count chips bound to live hooks,
+    gradient-anchor logo, waterline divider, collapsed-mode.
+  - Topbar: sidebar toggle, breadcrumb map (~30 routes), search-stub
+    button with ⌘K visual, bell with red-dot from attention feed.
+
+#### Changed
+- `web_portal/src/components/layout/PortalShell.tsx` — now composition-only.
+- `web_portal/src/screens/common/Cabinet.tsx` — complete rewrite under DS v2.
+
+#### Deferred (next sessions)
+- Phase 5 — 13 handoff-designed screens (Plans, TopUp, TopUpConfirm,
+  TransactionHistory, ReputationHistory, MyActs, Referral, Help, Feedback,
+  LegalProfileSetup, ContractList, DocumentUpload, AcceptRules).
+- Phase 6 — ~25 design-from-tokens screens (advertiser wizard, owner,
+  admin).
+- Phase 7 — Role switcher, density toggle, a11y audit, perf-check.
+- Phase 8 — `lucide-react` → `<Icon>` migration lock (ESLint error-level).
+- §7.21.5: Redis 60s TTL cache for `/users/me/attention` with write-action
+  invalidation hooks.
+
+#### Migration Notes
+- No Alembic migration — all four new endpoints use existing tables.
+- Frontend `IconSpriteLoader` fetches `/icons/rh-sprite.svg` once at shell
+  mount; after that `<use href="#rh-foo"/>` resolves inline, no per-icon
+  fetches.
+
 ### S-48: Grep-guards for regression patterns (2026-04-20)
 
 #### Added
