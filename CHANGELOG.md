@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Phase 7 (2026-04-20)
+
+Accessibility, performance, contract-sync, and routing pass before merge
+into `develop`. See
+`reports/docs-architect/discovery/CHANGES_2026-04-20_s47-phase7-a11y-perf.md`.
+
+#### Added
+- `/dev/icons` gallery (behind `import.meta.env.DEV` guard) — new
+  `src/screens/dev/DevIcons.tsx` lists all 132 sprite icons with
+  name-filter, outline/fill toggle, size slider, and click-to-copy.
+  Stripped from production bundle by Vite tree-shake.
+
+#### Changed — Accessibility (§7.18)
+- `Tabs` primitive — `role="tablist"`, `role="tab"`, `aria-selected`, and
+  a roving `tabIndex` so keyboard users focus the active tab.
+- `RecentActivity` — same ARIA treatment on its inline tab switcher.
+- `Modal` — `role="dialog"`, `aria-modal="true"`, `aria-labelledby`
+  (via `useId`) wired to the title heading; close ✕ button gains
+  `aria-label="Закрыть"`; the former `div[role=button]` backdrop became a
+  plain `<button>`.
+- `Topbar` — search stub `aria-label`; bell `aria-label` now reports the
+  unread count when the red dot is visible; dot marked `aria-hidden`.
+
+#### Changed — Performance (§7.19)
+- `PerformanceChart` wrapped in `React.memo` so Cabinet re-renders don't
+  re-walk its ~200-line SVG body.
+
+#### Verified (no code change)
+- `:focus-visible` and `@media (prefers-reduced-motion: reduce)` were
+  already globalised in `src/styles/globals.css` — confirmed to apply to
+  the `pulse-ring` animation in `TopUpConfirm` and to Framer Motion.
+- Icon tree-shaking — non-issue: `rh-sprite.svg` (37 KB) is a static file
+  fetched once by `IconSpriteLoader`, not inlined into JS chunks.
+- `lucide-react` — 0 imports remain across `web_portal/src/` (§7.23
+  closed out as N/A).
+- Cabinet widget endpoints (`billing/frozen`, `analytics/cashflow`,
+  `users/me/attention`, `channels/recommended`) — backend Pydantic
+  schemas vs TS clients and React Query hooks match field-for-field
+  (§7.21).
+- Routing audit — all 60+ screens mounted in `App.tsx`; no orphans.
+
+#### Bundle baseline (production)
+- Δ from Phase 6: +16 B raw / +0 KB gzip (React.memo wrapper only).
+- Largest lazy chunk: `BarChart-*.js` at 101.89 KB gz (Recharts,
+  loaded only on `/adv/analytics` and `/own/analytics`).
+- Entry `index-*.js`: 58.40 KB gz.
+
+#### Deferred
+- **§7.20 Storybook** — not installed; not blocking. `/dev/icons`
+  covers the most-requested primitives-gallery need. Will be a
+  follow-up ticket in the next sprint.
+- Chrome DevTools contrast audit on secondary/tertiary text — requires
+  a browser; listed in the pre-merge checklist.
+- Lighthouse Performance / Accessibility run — same reason; scores to
+  be added to the merge PR description.
+
+#### Not changed (Phase 7)
+- Backend, DB, Celery, business logic, API routes, FSM transitions,
+  query keys.
+- DS v2 tokens (`globals.css`), sprite contents (`public/icons/rh-sprite.svg`).
+
 ### S-47: UI redesign per Design System v2 — Phase 6 (2026-04-20)
 
 #### Changed — 30 design-from-tokens screens (§7.17)
