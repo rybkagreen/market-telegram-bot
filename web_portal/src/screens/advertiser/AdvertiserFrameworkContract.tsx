@@ -1,6 +1,13 @@
-import { useNavigate } from 'react-router-dom'
-import { Card, Button, Checkbox, Textarea } from '@shared/ui'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  Button,
+  Checkbox,
+  Textarea,
+  Icon,
+  ScreenHeader,
+  Notification,
+} from '@shared/ui'
 
 export default function AdvertiserFrameworkContract() {
   const navigate = useNavigate()
@@ -8,53 +15,102 @@ export default function AdvertiserFrameworkContract() {
   const [comment, setComment] = useState('')
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold text-text-primary">Договор рекламодателя</h1>
+    <div className="max-w-[1080px] mx-auto">
+      <ScreenHeader
+        crumbs={['Главная', 'Документы', 'Рамочный договор']}
+        title="Рамочный договор рекламодателя"
+        subtitle="Подпишите однократно — далее вы сможете размещать рекламу без дополнительных подтверждений."
+        action={
+          <Button variant="ghost" iconLeft="external">
+            Скачать PDF
+          </Button>
+        }
+      />
 
-      <Card title="Рамочный договор на размещение рекламы">
-        <div className="space-y-4">
-          <div className="bg-harbor-elevated rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-text-secondary leading-relaxed">
-            <p className="mb-3">
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-border bg-harbor-secondary flex items-center gap-2">
+            <Icon name="contract" size={14} className="text-text-tertiary" />
+            <span className="font-display text-[13px] font-semibold text-text-primary">
+              Текст договора
+            </span>
+          </div>
+          <div className="p-5 max-h-[52vh] overflow-y-auto text-[13.5px] leading-[1.6] text-text-secondary space-y-3">
+            <p>
               Настоящий договор заключается между рекламодателем и платформой RekHarbor
               на размещение рекламных материалов в Telegram-каналах.
             </p>
-            <p className="mb-3">
+            <p>
               Платформа выступает посредником между рекламодателем и владельцами каналов,
-              обеспечивая безопасную сделку через эскроу-механизм.
+              обеспечивая безопасную сделку через эскроу-механизм. Средства рекламодателя
+              резервируются на эскроу-счёте и переводятся владельцу канала только после
+              подтверждения публикации поста.
             </p>
-            <p className="mb-3">
-              Комиссия платформы составляет 15% от стоимости размещения. Средства
-              резервируются на эскроу-счёте и переводятся владельцу канала после
-              успешной публикации.
+            <p>
+              Комиссия платформы составляет <strong className="text-text-primary">15%</strong> от
+              стоимости размещения. Оставшиеся 85% переводятся владельцу канала.
             </p>
             <p>
               Рекламодатель обязуется предоставить контент, соответствующий требованиям
-              законодательства о рекламе и маркировке (ФЗ-38).
+              Федерального закона № 38-ФЗ «О рекламе» и правилам маркировки (ФЗ-38).
+              Все рекламные материалы проходят обязательную маркировку у аккредитованного
+              ОРД-оператора.
+            </p>
+            <p>
+              Спорные случаи разрешаются через встроенный механизм арбитража платформы.
+              Рекламодатель имеет право открыть спор в течение 48 часов с момента публикации.
             </p>
           </div>
-
-          <Textarea
-            rows={3}
-            value={comment}
-            onChange={setComment}
-            placeholder="Комментарий к договору (необязательно)"
-          />
-
-          <Checkbox
-            checked={accepted}
-            onChange={setAccepted}
-            label="Я принимаю условия рамочного договора"
-          />
         </div>
-      </Card>
 
-      <div className="flex flex-col gap-3">
-        <Button variant="primary" fullWidth disabled={!accepted} onClick={() => navigate('/legal-profile')}>
-          📋 Подписать и перейти к профилю
-        </Button>
-        <Button variant="secondary" fullWidth onClick={() => navigate('/adv/campaigns')}>
-          ← Вернуться к кампаниям
-        </Button>
+        <div className="space-y-4">
+          <div className="bg-harbor-card border border-border rounded-xl p-5">
+            <div className="font-display text-[14px] font-semibold text-text-primary mb-3">
+              Комментарий
+            </div>
+            <Textarea
+              rows={3}
+              value={comment}
+              onChange={setComment}
+              placeholder="Необязательный комментарий к договору"
+            />
+          </div>
+
+          <div className="bg-harbor-card border border-border rounded-xl p-5">
+            <Checkbox
+              checked={accepted}
+              onChange={setAccepted}
+              label="Я принимаю условия рамочного договора"
+            />
+            {!accepted && (
+              <div className="mt-3">
+                <Notification type="info">
+                  Отметьте согласие, чтобы подписать договор и перейти к настройке профиля.
+                </Notification>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            <Button
+              variant="primary"
+              fullWidth
+              iconLeft="check"
+              disabled={!accepted}
+              onClick={() => navigate('/legal-profile')}
+            >
+              Подписать и продолжить
+            </Button>
+            <Button
+              variant="secondary"
+              fullWidth
+              iconLeft="arrow-left"
+              onClick={() => navigate('/adv/campaigns')}
+            >
+              Вернуться к кампаниям
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

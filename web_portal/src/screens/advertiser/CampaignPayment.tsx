@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Card, Notification, Button, Skeleton } from '@shared/ui'
+import {
+  Notification,
+  Button,
+  Skeleton,
+  FeeBreakdown,
+  Icon,
+  ScreenHeader,
+} from '@shared/ui'
 import { formatCurrency, formatDateTimeMSK, formatDateMSK } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useContracts } from '@/hooks/queries'
@@ -33,8 +40,8 @@ export default function CampaignPayment() {
   const formatInfo = placement?.publication_format
     ? PUBLICATION_FORMATS[placement.publication_format]
     : { name: 'Неизвестно', multiplier: 1.0 }
+
   const priceNum = (() => {
-    // FIX #12: When in counter_offer status, show counter_price (owner's price), not proposed_price
     const raw = placement?.final_price ?? placement?.counter_price ?? placement?.proposed_price
     if (raw == null) return 0
     const n = parseFloat(String(raw))
@@ -44,7 +51,6 @@ export default function CampaignPayment() {
   const platformCommission = priceNum * 0.15
   const ownerPayout = priceNum * 0.85
 
-  // Redirect based on status
   useEffect(() => {
     if (!placement) return
     if (placement.status === 'escrow') {
@@ -61,21 +67,22 @@ export default function CampaignPayment() {
     }
   }, [placement?.status, isExpired, navigate])
 
-  // Check framework contract
   useEffect(() => {
     if (!contractsLoading && contractsList && placement && !placement.is_test) {
       const hasSigned = contractsList.items.some(
         (c) => c.contract_type === 'advertiser_framework' && c.contract_status === 'signed',
       )
       if (!hasSigned) {
-        navigate(`/contracts/framework?returnTo=/adv/campaigns/${numId}/payment`, { replace: true })
+        navigate(`/contracts/framework?returnTo=/adv/campaigns/${numId}/payment`, {
+          replace: true,
+        })
       }
     }
   }, [contractsList, contractsLoading, placement, navigate, numId])
 
   if (isLoading || contractsLoading) {
     return (
-      <div className="space-y-4">
+      <div className="max-w-[900px] mx-auto space-y-4">
         <Skeleton className="h-20" />
         <Skeleton className="h-48" />
         <Skeleton className="h-12" />
@@ -84,7 +91,11 @@ export default function CampaignPayment() {
   }
 
   if (!placement) {
-    return <Notification type="danger">Заявка не найдена</Notification>
+    return (
+      <div className="max-w-[900px] mx-auto">
+        <Notification type="danger">Заявка не найдена</Notification>
+      </div>
+    )
   }
 
   const frameworkContract = contractsList?.items.find(
@@ -124,124 +135,147 @@ export default function CampaignPayment() {
     )
   }
 
+  const channelLabel = `@${placement.channel?.username ?? `#${placement.channel_id}`}`
+
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Page title */}
-      <div>
-        <h1 className="text-2xl font-display font-bold text-text-primary">Оплата размещения</h1>
-        <p className="text-text-secondary mt-1">
-          Канал: @{placement.channel?.username ?? `#${placement.channel_id}`} · {formatInfo.name}
-        </p>
-      </div>
-
-      {/* Status */}
-      {isCounterOffer ? (
-        <Notification type="warning">✏️ Владелец предложил другие условия</Notification>
-      ) : (
-        <Notification type="success">✅ Владелец принял условия!</Notification>
-      )}
-
-      {/* Counter offer details */}
-      {isCounterOffer && (
-        <Card title="Контрпредложение владельца">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-text-secondary">Оригинальная цена:</span>
-              <span className="line-through text-text-tertiary">{formatCurrency(placement.proposed_price)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-text-secondary">Новая цена:</span>
-              <span className="text-lg font-bold text-accent">{formatCurrency(price)}</span>
-            </div>
-            {placement.counter_comment && (
-              <div className="bg-harbor-elevated rounded-md p-3 text-sm text-text-secondary">
-                {placement.counter_comment}
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* Fee breakdown */}
-      <Card title="Детали оплаты">
-        <div className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">Стоимость размещения</span>
-            <span className="font-mono text-text-primary">{formatCurrency(price)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">Комиссия платформы (15%)</span>
-            <span className="font-mono text-text-secondary">{formatCurrency(platformCommission)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">К выплате владельцу (85%)</span>
-            <span className="font-mono text-text-secondary">{formatCurrency(ownerPayout)}</span>
-          </div>
-          <div className="border-t border-border pt-3">
-            <div className="flex justify-between">
-              <span className="font-semibold text-text-primary">Итого к оплате</span>
-              <span className="font-mono text-xl font-bold text-text-primary">{formatCurrency(price)}</span>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Expiry notice */}
-      {placement.expires_at && (
-        <Notification type="info">
-          ⏱ Действует до {formatDateTimeMSK(placement.expires_at)} (24 ч)
-        </Notification>
-      )}
-
-      {/* Submit error */}
-      {submitError && (
-        <Notification type="danger">{submitError}</Notification>
-      )}
-
-      {/* Contract notice */}
-      <Notification type="info">
-        📄 Нажимая «Оплатить», вы подтверждаете размещение рекламы согласно {frameworkRef}.
-      </Notification>
-
-      {/* Action buttons */}
-      <div className="flex flex-col gap-3">
-        {isCounterOffer && (
+    <div className="max-w-[900px] mx-auto">
+      <ScreenHeader
+        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${placement.id}`, 'Оплата']}
+        title="Оплата размещения"
+        subtitle={`${channelLabel} · ${formatInfo.name}`}
+        action={
           <Button
             variant="secondary"
-            fullWidth
-            loading={isPending}
-            onClick={() => navigate(`/adv/campaigns/${numId}/counter-offer`)}
+            iconLeft="arrow-left"
+            onClick={() => navigate('/adv/campaigns')}
           >
-            ✏️ Сделать встречное предложение
+            К списку
           </Button>
+        }
+      />
+
+      <div className="mb-5">
+        {isCounterOffer ? (
+          <Notification type="warning">Владелец предложил другие условия размещения.</Notification>
+        ) : (
+          <Notification type="success">Владелец принял ваши условия.</Notification>
         )}
-
-        <Button
-          variant="primary"
-          fullWidth
-          loading={isPending}
-          onClick={() => handleAction(isCounterOffer ? 'accept-counter' : 'pay')}
-        >
-          {isPending ? '⏳ Оплата...' : isCounterOffer ? '💳 Оплатить (принять условия)' : '💳 Оплатить и запустить кампанию'}
-        </Button>
-
-        <Button
-          variant="danger"
-          fullWidth
-          loading={isPending}
-          onClick={() => handleAction('cancel')}
-        >
-          ❌ Отменить заявку
-        </Button>
-
-        <Button variant="ghost" fullWidth onClick={() => navigate('/adv')}>
-          ← В меню рекламодателя
-        </Button>
       </div>
 
-      <Notification type="warning">
-        ⚠️ Отмена после оплаты: возврат 50%
-      </Notification>
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-4">
+          <div className="bg-harbor-card border border-border rounded-xl p-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-accent to-accent-2" />
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-1">
+              Итого к оплате
+            </div>
+            <div className="font-display text-[34px] font-bold tracking-[-0.02em] text-text-primary tabular-nums">
+              {formatCurrency(price)}
+            </div>
+            <div className="text-[12.5px] text-text-tertiary mt-1">
+              Средства будут зарезервированы на эскроу-счёте до подтверждения публикации.
+            </div>
+          </div>
+
+          {isCounterOffer && (
+            <div className="bg-harbor-card border border-border rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Icon name="refresh" size={14} className="text-accent-2" />
+                <span className="font-display text-[14px] font-semibold text-text-primary">
+                  Контрпредложение владельца
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div className="bg-harbor-elevated rounded-lg p-3">
+                  <div className="text-[11px] text-text-tertiary mb-1">Было</div>
+                  <div className="font-mono tabular-nums text-text-secondary line-through text-[14px]">
+                    {formatCurrency(placement.proposed_price)}
+                  </div>
+                </div>
+                <div className="bg-accent-muted/40 border border-accent/25 rounded-lg p-3">
+                  <div className="text-[11px] text-accent mb-1 font-semibold">Стало</div>
+                  <div className="font-mono tabular-nums text-accent font-bold text-[14px]">
+                    {formatCurrency(price)}
+                  </div>
+                </div>
+              </div>
+              {placement.counter_comment && (
+                <div className="text-[13px] text-text-secondary bg-harbor-elevated rounded-md p-3 italic">
+                  «{placement.counter_comment}»
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="bg-harbor-card border border-border rounded-xl p-5">
+            <div className="font-display text-[14px] font-semibold text-text-primary mb-3">
+              Детали оплаты
+            </div>
+            <FeeBreakdown
+              rows={[
+                { label: 'Стоимость размещения', value: formatCurrency(price) },
+                { label: 'Комиссия платформы (15%)', value: formatCurrency(platformCommission) },
+                { label: 'К выплате владельцу (85%)', value: formatCurrency(ownerPayout) },
+              ]}
+              total={{ label: 'Итого к оплате', value: formatCurrency(price) }}
+            />
+          </div>
+
+          {placement.expires_at && (
+            <Notification type="info">
+              Действительно до {formatDateTimeMSK(placement.expires_at)} (24 ч).
+            </Notification>
+          )}
+
+          {submitError && <Notification type="danger">{submitError}</Notification>}
+
+          <Notification type="info">
+            Нажимая «Оплатить», вы подтверждаете размещение согласно {frameworkRef}.
+          </Notification>
+
+          <Notification type="warning">
+            Отмена после оплаты — возврат 50% от стоимости размещения.
+          </Notification>
+        </div>
+
+        <div className="bg-harbor-card border border-border rounded-xl p-5 h-fit flex flex-col gap-2.5">
+          <div className="font-display text-[14px] font-semibold text-text-primary mb-1">
+            Действия
+          </div>
+          {isCounterOffer && (
+            <Button
+              variant="secondary"
+              fullWidth
+              iconLeft="refresh"
+              loading={isPending}
+              onClick={() => navigate(`/adv/campaigns/${numId}/counter-offer`)}
+            >
+              Встречное предложение
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            fullWidth
+            iconLeft="card"
+            loading={isPending}
+            onClick={() => handleAction(isCounterOffer ? 'accept-counter' : 'pay')}
+          >
+            {isCounterOffer ? 'Принять и оплатить' : 'Оплатить и запустить'}
+          </Button>
+          <Button
+            variant="danger"
+            fullWidth
+            iconLeft="close"
+            loading={isPending}
+            onClick={() => handleAction('cancel')}
+          >
+            Отменить заявку
+          </Button>
+          <Button variant="ghost" fullWidth onClick={() => navigate('/adv')}>
+            В меню рекламодателя
+          </Button>
+        </div>
+      </div>
 
       {ToastComponent}
     </div>
