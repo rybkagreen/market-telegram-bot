@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Phase 5 (2026-04-20)
+
+#### Added
+- **New primitives (§7.4.1):**
+  - `web_portal/src/shared/ui/ScreenHeader.tsx` — breadcrumb + title +
+    subtitle + action-slot pattern used by all 13 handoff screens.
+  - `web_portal/src/shared/ui/LinkButton.tsx` — inline text-link button
+    (accent/secondary/danger tones, optional underline).
+  - `Button` extended with `iconLeft` / `iconRight: IconName` props,
+    rendered via the DS v2 `<Icon>` sprite.
+  - `StepIndicator` rewritten to numbered-pill + per-step inline labels
+    (new semantics: `labels[i]` = label for step `i+1`).
+
+#### Changed — 13 handoff screens ported pixel-perfect
+- **Financial (Phase 5.1–5.4):**
+  - `web_portal/src/screens/shared/Plans.tsx` — 4 plan-tiles with
+    featured Pro + ribbon, current-plan highlight, low-balance warning,
+    comparison table, 3-cell FAQ.
+  - `web_portal/src/screens/shared/TopUp.tsx` — chip-amounts + custom
+    input with ruble icon, 3-method payment selector (card/СБП/YooMoney),
+    sticky summary card with "к оплате" total, autotopup toggle, balance
+    tile with wallet glyph.
+  - `web_portal/src/screens/shared/TopUpConfirm.tsx` — 4 live-states
+    (pending with indet progress + counter, succeeded with success-glyph
+    pulse-ring, canceled, timeout), details breakdown card, state-aware
+    action row.
+  - `web_portal/src/screens/common/TransactionHistory.tsx` — 4 summary
+    tiles (income/expense/netto/balance), search + 4-period toggle +
+    6-type filter-chips, day-grouped timeline, status-pills + mono
+    signed amounts, pagination footer.
+- **Reputation / acts / referral (Phase 5.5–5.7):**
+  - `web_portal/src/screens/common/ReputationHistory.tsx` — 2 score-cards
+    (Advertiser + Owner) with tier-progress sparkline, role/tone filters,
+    tone-colored event rows with delta-pill and before→after progress.
+  - `web_portal/src/screens/common/MyActsScreen.tsx` — pending-signature
+    banner, 4 summary tiles, type+status filter-bar with bulk-action
+    panel, table with checkbox + type-glyph + inline-actions.
+  - `web_portal/src/screens/common/Referral.tsx` — gradient hero with
+    code/link copy and 5 share-channels, 4-level progress
+    (Bronze→Platinum), 4 stat-tiles, referrals list with mono-avatars,
+    "how it works" sidebar.
+- **Help / feedback / legal (Phase 5.8–5.13):**
+  - `web_portal/src/screens/common/Help.tsx` — hero-search with ⌘K hint
+    + 6 category-chips, 2-column FAQ accordion with full-text filter +
+    helpful/not-helpful feedback, gradient support CTA + channels +
+    popular docs sidebar.
+  - `web_portal/src/screens/common/Feedback.tsx` — topic chips (5 tone-
+    colored), priority tiles, textarea with char-counter + quick topics,
+    email-for-response, secure-footer, success-state with ticket #,
+    online-support + "what to write" sidebars.
+  - `web_portal/src/screens/common/LegalProfileSetup.tsx` — 4 legal-type
+    tiles (self/IP/OOO/individual), StepIndicator 1..4, 2-column layout
+    with main form + bank + passport cards + right rail with SVG
+    completeness ring. Preserves FNS validation, required-fields, INN
+    checksum, passport logic.
+  - `web_portal/src/screens/common/ContractList.tsx` — 4 summary tiles,
+    filter-bar with 5 kind-chips + "active only" toggle, table with
+    kind-glyph + status-pills + inline actions, rules viewer modal.
+  - `web_portal/src/screens/common/DocumentUpload.tsx` — gradient hero
+    with SVG progress ring, document type + passport-page selectors,
+    drag-n-drop with image preview, full processing view (quality
+    score, OCR confidence, extracted fields, validation results),
+    requirements sidebar with encryption note.
+  - `web_portal/src/screens/common/AcceptRules.tsx` — sticky TOC sidebar +
+    read-progress tracker, rules-viewer with scroll-to-bottom detection,
+    3 agreement checkboxes, sign-action footer with disabled-state hint.
+
+#### Migration Notes
+- 6 existing `StepIndicator` callers updated to the new labels-per-step
+  format (`CampaignCategory`, `CampaignChannels`, `CampaignFormat`,
+  `CampaignText`, `CampaignVideo`, `CampaignArbitration`, `TopUpConfirm`).
+  Previously the labels array used off-by-one indexing; now `labels[0]`
+  corresponds to step 1, `labels[1]` to step 2, etc.
+- No backend / API change in Phase 5.
+- Docker rebuild required: `docker compose up -d --build nginx api`.
+
 ### S-47: UI redesign per Design System v2 — Phases 1–4 (2026-04-20)
 
 #### Added
