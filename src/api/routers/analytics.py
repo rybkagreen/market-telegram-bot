@@ -12,7 +12,8 @@ Endpoints:
 import logging
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Literal
+from enum import IntEnum
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -268,10 +269,24 @@ _EXPENSE_TX_TYPES = {
 }
 
 
+class CashflowPeriod(IntEnum):
+    """
+    Период для графика cashflow. IntEnum вместо Literal[7,30,90] —
+    FastAPI коэрсит query-string в int→enum автоматически, а
+    Pydantic 2 Literal в strict-режиме не коэрсит "30" в 30.
+    """
+
+    SEVEN_DAYS = 7
+    THIRTY_DAYS = 30
+    NINETY_DAYS = 90
+
+
 @router.get("/cashflow")
 async def get_cashflow(
     current_user: CurrentUser,
-    days: Annotated[Literal[7, 30, 90], Query(description="Период: 7/30/90 дней")] = 30,
+    days: Annotated[
+        CashflowPeriod, Query(description="Период: 7/30/90 дней")
+    ] = CashflowPeriod.THIRTY_DAYS,
 ) -> CashflowResponse:
     """
     Dual-line income/expense cashflow для PerformanceChart (§7.7).
