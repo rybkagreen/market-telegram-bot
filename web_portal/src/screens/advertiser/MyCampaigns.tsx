@@ -261,7 +261,7 @@ export default function MyCampaigns() {
               return (
                 <div
                   key={placement.id}
-                  className={`flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'}`}
+                  className={`flex items-center gap-3 sm:gap-4 px-4 sm:px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'}`}
                 >
                   <span
                     className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[status.tone]}`}
@@ -270,25 +270,30 @@ export default function MyCampaigns() {
                   </span>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2.5 mb-0.5 flex-wrap">
-                      <span className="text-[13.5px] font-semibold text-text-primary">
+                    <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+                      <span className="text-[13.5px] font-semibold text-text-primary truncate">
                         {channelLabel}
                       </span>
-                      <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated">
+                      <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated flex-shrink-0">
                         #{placement.id}
                       </span>
                       {expired && (
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-warning">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-warning flex-shrink-0">
                           Просрочена
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-text-secondary truncate max-w-[420px]">
+                    <div className="text-xs text-text-secondary truncate sm:max-w-[420px]">
                       {placement.ad_text.substring(0, 100)}
                       {placement.ad_text.length > 100 ? '…' : ''}
                     </div>
-                    <div className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums">
-                      {dateStr} МСК
+                    <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                      <span className="text-[11.5px] text-text-tertiary tabular-nums">
+                        {dateStr} МСК
+                      </span>
+                      <span className="sm:hidden font-mono tabular-nums text-[13px] font-semibold text-text-primary whitespace-nowrap">
+                        {price}
+                      </span>
                     </div>
                   </div>
 
@@ -298,7 +303,7 @@ export default function MyCampaigns() {
                     {status.label}
                   </span>
 
-                  <span className="font-mono tabular-nums text-[15px] font-semibold whitespace-nowrap text-right min-w-[110px] text-text-primary">
+                  <span className="hidden sm:inline-block font-mono tabular-nums text-[15px] font-semibold whitespace-nowrap text-right min-w-[110px] text-text-primary">
                     {price}
                   </span>
 
