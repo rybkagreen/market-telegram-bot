@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMediaQuery, breakpoints } from '@shared/hooks/useMediaQuery'
 import { usePortalUiStore } from '@/stores/portalUiStore'
 import { useNeedsAcceptRules } from '@/hooks/useUserQueries'
-import { Notification, Button, IconSpriteLoader } from '@shared/ui'
+import { Notification, Button } from '@shared/ui'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
@@ -28,8 +28,6 @@ export function PortalShell() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-harbor-bg">
-      <IconSpriteLoader />
-
       {/* Mobile overlay */}
       {!isDesktop && isOpen && (
         <button
