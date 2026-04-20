@@ -24,7 +24,6 @@ export function formatRub(value: string): string {
 interface TaxSummaryBaseProps {
   title: string
   subtitle?: string
-  crumbs?: string[]
   /** Use colored accent/danger KPI cards instead of neutral harbor-elevated */
   coloredKpis?: boolean
   /** Show empty state hint before first load */
@@ -43,7 +42,6 @@ interface TaxSummaryBaseProps {
 export default function TaxSummaryBase({
   title,
   subtitle,
-  crumbs = ['Администратор', 'Бухгалтерия'],
   coloredKpis = false,
   showEmptyHint = false,
   children,
@@ -82,7 +80,6 @@ export default function TaxSummaryBase({
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={crumbs}
         title={title}
         subtitle={subtitle ?? 'Выберите период и обновите сводку — появятся КУДиР и налоговые показатели.'}
       />

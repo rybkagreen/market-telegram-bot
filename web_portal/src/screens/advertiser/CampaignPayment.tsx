@@ -140,7 +140,6 @@ export default function CampaignPayment() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${placement.id}`, 'Оплата']}
         title="Оплата размещения"
         subtitle={`${channelLabel} · ${formatInfo.name}`}
         action={

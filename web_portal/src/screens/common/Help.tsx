@@ -138,7 +138,6 @@ export default function Help() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Помощь']}
         title="Чем можем помочь?"
         subtitle="Ответы на частые вопросы и связь с поддержкой за одну минуту"
       />

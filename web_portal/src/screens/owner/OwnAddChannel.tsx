@@ -63,7 +63,6 @@ export default function OwnAddChannel() {
   return (
     <div className="max-w-[1000px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Каналы', 'Добавить']}
         title="Добавить канал"
         subtitle="Проверим права бота, покажем AI-подсказку категории и добавим канал в ваш список."
         action={

@@ -71,7 +71,6 @@ export default function OpenDispute() {
     return (
       <div className="max-w-[1080px] mx-auto space-y-4">
         <ScreenHeader
-          crumbs={['Главная', 'Споры', 'Открыть спор']}
           title="Открыть спор"
         />
         <Notification type="danger">{reason}</Notification>
@@ -95,7 +94,6 @@ export default function OpenDispute() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Споры', 'Открыть спор']}
         title="Открыть спор"
         subtitle="Укажите причину и опишите, что пошло не так. Приложим автоматический лог публикации."
         action={

@@ -73,7 +73,6 @@ export default function AdvAnalytics() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Аналитика']}
         title="Аналитика рекламодателя"
         subtitle="Сводка по активным и завершённым кампаниям"
         action={

@@ -55,7 +55,6 @@ export default function OwnAnalytics() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Аналитика']}
         title="Аналитика владельца"
         subtitle="Доход по каналам и периодам · комиссия платформы 15% уже учтена"
         action={

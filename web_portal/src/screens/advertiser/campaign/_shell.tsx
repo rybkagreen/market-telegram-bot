@@ -20,11 +20,9 @@ export function CampaignWizardShell({
   children,
   footer,
 }: CampaignWizardShellProps) {
-  const currentLabel = WIZARD_STEP_LABELS[step - 1] ?? 'Шаг'
   return (
     <div className="max-w-[1100px] mx-auto pb-24">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Новая кампания', currentLabel]}
         title={title}
         subtitle={subtitle}
         action={action}

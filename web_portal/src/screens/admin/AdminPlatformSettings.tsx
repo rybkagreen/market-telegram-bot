@@ -99,7 +99,6 @@ export default function AdminPlatformSettings() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Реквизиты платформы']}
         title="Реквизиты платформы"
         subtitle="Подставляются в договоры с владельцами каналов и рекламодателями."
       />

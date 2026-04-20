@@ -106,7 +106,6 @@ export default function ContractDetail() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Договор']}
         title={type.label}
         subtitle={`№${contract.id}${contract.signed_at ? ` · подписан ${formatDateMSK(contract.signed_at)}` : ''}`}
         action={

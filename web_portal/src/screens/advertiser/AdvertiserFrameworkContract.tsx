@@ -17,7 +17,6 @@ export default function AdvertiserFrameworkContract() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Рамочный договор']}
         title="Рамочный договор рекламодателя"
         subtitle="Подпишите однократно — далее вы сможете размещать рекламу без дополнительных подтверждений."
         action={

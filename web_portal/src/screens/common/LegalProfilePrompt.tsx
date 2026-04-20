@@ -33,7 +33,6 @@ export default function LegalProfilePrompt() {
   return (
     <div className="max-w-[800px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Юридический профиль']}
         title="Заполните юридический профиль"
         subtitle="Занимает 3–5 минут. Без профиля вы не сможете запрашивать выплаты и принимать рекламу с маркировкой."
       />

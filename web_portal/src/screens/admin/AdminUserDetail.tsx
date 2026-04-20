@@ -124,7 +124,6 @@ export default function AdminUserDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Пользователи', `#${userId}`]}
         title="Профиль пользователя"
         subtitle={
           user

@@ -18,7 +18,6 @@ export default function CampaignVideo() {
   return (
     <div className="max-w-[900px] mx-auto pb-24">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Новая кампания', 'Видео']}
         title="Видеоролик поста"
         subtitle="Загрузите ролик формата MP4 или MOV размером до 50 МБ. Он будет прикреплён к рекламному посту."
         action={

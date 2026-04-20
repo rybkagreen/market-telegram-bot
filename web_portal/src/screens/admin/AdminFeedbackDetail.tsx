@@ -103,7 +103,6 @@ export default function AdminFeedbackDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Обращения', `#${feedback.id}`]}
         title={`Обращение #${feedback.id}`}
         subtitle={feedback.username ? `От @${feedback.username}` : `От User #${feedback.user_id}`}
         action={

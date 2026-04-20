@@ -199,7 +199,6 @@ export default function LegalProfileSetup() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Юридический профиль']}
         title="Юридический профиль"
         subtitle="Укажите реквизиты — мы используем их в договорах, чеках и актах"
         action={

@@ -141,7 +141,6 @@ export default function ReputationHistory() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Профиль', 'Репутация']}
         title="История репутации"
         subtitle="События, повлиявшие на ваш рейтинг рекламодателя и владельца канала"
         action={

@@ -102,7 +102,6 @@ export default function AdminPayouts() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Выплаты']}
         title="Заявки на выплату"
         subtitle={`Всего: ${data.total} · одобряйте вручную перед переводом банку`}
       />

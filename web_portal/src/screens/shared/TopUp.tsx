@@ -74,7 +74,6 @@ export default function TopUp() {
     >
       <div>
         <ScreenHeader
-          crumbs={['Главная', 'Финансы', 'Пополнение']}
           title="Пополнение баланса"
           subtitle="Два шага. Оплата через ЮKassa, средства зачисляются автоматически."
         />

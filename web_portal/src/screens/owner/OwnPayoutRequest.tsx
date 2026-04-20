@@ -39,7 +39,6 @@ export default function OwnPayoutRequest() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Выплаты', 'Запрос']}
         title="Запросить вывод средств"
         subtitle="Комиссия 1,5% · минимум 1 000 ₽ · обработка до 24 часов"
         action={

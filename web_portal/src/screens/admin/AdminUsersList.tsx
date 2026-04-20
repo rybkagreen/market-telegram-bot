@@ -104,7 +104,6 @@ export default function AdminUsersList() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Пользователи']}
         title="Пользователи"
         subtitle={`Всего: ${data.total} · управление ролями, тарифами, балансами`}
       />

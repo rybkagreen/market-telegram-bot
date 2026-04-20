@@ -189,7 +189,6 @@ export default function DocumentUpload() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Загрузка']}
         title="Документы на верификацию"
         subtitle="Загрузите сканы — проверим в течение 24 часов"
         action={

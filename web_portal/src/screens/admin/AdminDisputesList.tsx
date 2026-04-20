@@ -69,7 +69,6 @@ export default function AdminDisputesList() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Администратор', 'Споры']}
         title="Споры"
         subtitle={`Всего: ${data.total} · приоритет — открытые споры`}
       />

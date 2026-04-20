@@ -84,7 +84,6 @@ export default function DisputeResponse() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Споры', `#${dispute.id}`]}
         title={`Спор #${dispute.id}`}
         subtitle="Ответ владельца — опишите ситуацию, чтобы администратор мог принять справедливое решение"
         action={

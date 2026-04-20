@@ -118,7 +118,7 @@ export default function Feedback() {
   if (submitted) {
     return (
       <div className="max-w-[720px] mx-auto">
-        <ScreenHeader crumbs={['Главная', 'Обратная связь']} title="Обратная связь" />
+        <ScreenHeader title="Обратная связь" />
         <div className="bg-gradient-to-br from-harbor-card to-success-muted border border-success/35 rounded-2xl p-8 text-center">
           <div className="w-14 h-14 rounded-[14px] bg-success-muted text-success grid place-items-center mx-auto mb-4 shadow-[0_0_30px_rgba(var(--success-rgb),0.3)]">
             <Icon name="check" size={28} strokeWidth={2} />
@@ -156,7 +156,6 @@ export default function Feedback() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Обратная связь']}
         title="Обратная связь"
         subtitle="Опишите проблему или идею — мы прочитаем и ответим в Telegram и на почту"
         action={

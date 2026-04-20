@@ -66,7 +66,6 @@ export default function MyDisputes() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Споры']}
         title="Мои споры"
         subtitle="Оспорьте публикации, на которые у вас есть претензии — ответ владельца и решение администратора"
       />

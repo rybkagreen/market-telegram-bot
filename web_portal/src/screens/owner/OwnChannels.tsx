@@ -241,7 +241,6 @@ export default function OwnChannels() {
     return (
       <div className="max-w-[1280px] mx-auto">
         <ScreenHeader
-          crumbs={['Главная', 'Владелец', 'Каналы']}
           title="Мои каналы"
           subtitle="Управление вашими Telegram-каналами"
         />
@@ -257,7 +256,6 @@ export default function OwnChannels() {
   return (
     <div className="max-w-[1280px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Каналы']}
         title="Мои каналы"
         subtitle="Управляйте категориями, активностью и сравнением каналов"
         action={

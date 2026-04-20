@@ -64,7 +64,6 @@ export default function OwnChannelDetail() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Владелец', 'Каналы', `@${channel.username}`]}
         title={channel.title}
         subtitle={`@${channel.username} · ${categoryInfo ? `${categoryInfo.emoji} ${categoryInfo.label}` : 'без категории'}`}
         action={

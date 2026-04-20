@@ -70,7 +70,6 @@ export default function AcceptRules() {
   return (
     <div className="max-w-[1080px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Документы', 'Правила платформы']}
         title="Правила платформы RekHarbor"
         subtitle="Прочитайте и подтвердите согласие — это требуется однократно"
         action={

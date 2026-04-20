@@ -70,7 +70,6 @@ export default function CampaignCounterOffer() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${placement.id}`, 'Контр-оферта']}
         title="Встречное предложение"
         subtitle={`${channelLabel} · раунд ${currentRound} из ${maxRounds}`}
         action={

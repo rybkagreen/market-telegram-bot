@@ -53,7 +53,6 @@ export default function CampaignPublished() {
   return (
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
-        crumbs={['Главная', 'Рекламодатель', 'Кампании', `#${placement.id}`, 'Опубликовано']}
         title="Публикация успешна"
         subtitle={`${channelLabel} · ${placement.published_at ? formatTimeMSK(placement.published_at) + ' МСК' : '—'}`}
         action={
