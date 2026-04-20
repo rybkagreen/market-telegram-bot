@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### S-47: UI redesign per Design System v2 — Phase 6 (2026-04-20)
+
+#### Changed — 30 design-from-tokens screens (§7.17)
+
+Every screen in this section was redesigned from DS v2 tokens and primitives
+(§§7.1–7.4) without a handoff mockup, following the patterns established in
+§§7.5–7.12 and the pixel-perfect handoff screens (§7.5a). Business logic,
+query keys, and routes are unchanged.
+
+- **Advertiser (14 screens):** `MyCampaigns`, `CampaignCategory/Channels/
+  Format/Text/Arbitration/Waiting/Published`, `CampaignPayment`,
+  `CampaignCounterOffer`, `CampaignVideo`, `OrdStatus`,
+  `AdvertiserFrameworkContract`, `AdvAnalytics`. Wizard creation steps now
+  share `screens/advertiser/campaign/_shell.tsx` — a single
+  `CampaignWizardShell` (ScreenHeader + StepIndicator + sticky footer).
+  `Waiting` / `Published` are rebuilt as post-creation status screens (no
+  wizard indicator). `OrdStatus` is wired to `useOrdStatus`/`useRegisterOrd`
+  with a Timeline of 4 ОРД stages.
+- **Owner (10 screens):** `OwnChannels/Detail/Add/Settings`,
+  `OwnRequests/Detail`, `OwnPayouts`, `OwnPayoutRequest`, `OwnAnalytics`,
+  `DisputeResponse`. `OwnChannels` drops the table/MobileCard duplication for
+  a single responsive channel-card grid; `OwnPayouts` gains a cooldown
+  countdown hero.
+- **Shared + common (6 screens):** `MyDisputes`, `OpenDispute`,
+  `DisputeDetail`, `LegalProfilePrompt`, `LegalProfileView`, `ContractDetail`.
+- **Admin (11 screens + shared base):** `AdminDashboard`, `AdminUsersList`,
+  `AdminUserDetail`, `AdminDisputesList`, `AdminDisputeDetail`,
+  `AdminFeedbackList`, `AdminFeedbackDetail`, `AdminPayouts`,
+  `AdminAccounting`, `AdminTaxSummary`, `AdminPlatformSettings`, and
+  `components/admin/TaxSummaryBase` (ScreenHeader + KpiCells + subtitle /
+  crumbs props).
+
+#### Removed / replaced
+- All legacy emoji labels inside interactive surfaces (🔵 / ❌ / 📊 / ➕ / 🔄
+  / ✅ etc.) replaced with `<Icon name={...} />` from the DS v2 sprite.
+- Dual desktop-table + MobileCard layouts on list screens reduced to a single
+  responsive card/row grid per screen.
+- Ad-hoc `Card title="..."` wrappers replaced with DS v2 SectionCards
+  (bordered header strip + Icon + display font).
+
+#### Behaviour changes
+- `AdminDisputesList` rows are fully clickable — the former nested "Решить"
+  button became a visual span; clicking anywhere on the row navigates to
+  `/disputes/:id`.
+
+#### Not changed
+- Business logic, API routes, FSM transitions, query keys, mutation payloads.
+- Wizard navigation order (`/adv/campaigns/new/category → channels → format →
+  text → terms`) and post-creation status routes.
+- Alembic migrations, Celery queues, backend services.
+
 ### S-47: UI redesign per Design System v2 — Phase 5 (2026-04-20)
 
 #### Added
