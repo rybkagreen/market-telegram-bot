@@ -163,6 +163,19 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+
+  /* Icon sprite fill/stroke rules — applied to symbols inside rh-sprite.svg */
+  .rh-icon .rh-stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: var(--rh-stroke-w, 1.5);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rh-icon .rh-fill {
+    fill: currentColor;
+  }
 }
 
 @keyframes fadeInUp {
@@ -173,5 +186,20 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ui-skeleton {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
   }
 }

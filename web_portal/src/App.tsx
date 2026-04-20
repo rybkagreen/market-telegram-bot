@@ -78,6 +78,9 @@ const AdminPayouts = lazy(() => import('@/screens/admin/AdminPayouts'))
 const DisputeDetail = lazy(() => import('@/screens/shared/DisputeDetail'))
 const MyDisputes = lazy(() => import('@/screens/shared/MyDisputes'))
 
+// ═══ Dev-only screens (DEV build only) ═══
+const DevIcons = lazy(() => import('@/screens/dev/DevIcons'))
+
 // ═══ Placeholder screens для MVP ═══
 function PlaceholderScreen({ title }: { title: string }) {
   return (
@@ -207,6 +210,11 @@ const router = createBrowserRouter([
 
           // Settings
           { path: 'settings', element: <PlaceholderScreen title="Настройки" /> },
+
+          // DEV-only: icon gallery (stripped from prod build by Vite tree-shake)
+          ...(import.meta.env.DEV
+            ? [{ path: 'dev/icons', element: <DevIcons /> }]
+            : []),
 
           // Catch-all
           { path: '*', element: <NotFoundScreen /> },
