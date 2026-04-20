@@ -61,7 +61,7 @@ export default function CampaignArbitration() {
 
   return (
     <div className="space-y-6">
-      <StepIndicator total={6} current={5} labels={['', '', '', '', '', 'Шаг 5 — Условия размещения']} />
+      <StepIndicator total={6} current={5} labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']} />
 
       {store.selectedChannels.map((ch) => {
         const basePrice = parseFloat(ch.settings.price_per_post)

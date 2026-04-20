@@ -44,7 +44,7 @@ export default function CampaignText() {
 
   return (
     <div className="space-y-6">
-      <StepIndicator total={6} current={4} labels={['', '', '', '', 'Шаг 4 — Текст объявления']} />
+      <StepIndicator total={6} current={4} labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']} />
 
       <Tabs
         tabs={[

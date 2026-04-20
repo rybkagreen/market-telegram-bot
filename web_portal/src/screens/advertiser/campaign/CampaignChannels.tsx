@@ -26,7 +26,7 @@ export default function CampaignChannels() {
       <StepIndicator
         total={6}
         current={2}
-        labels={['', '', `Шаг 2 — Выберите каналы (${store.category ? store.category + ' тематика' : 'все тематики'})`]}
+        labels={['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']}
       />
 
       {isLoading ? (
