@@ -1,11 +1,16 @@
+import { Icon } from './Icon'
+import type { IconName } from './icon-names'
+
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
   icon?: boolean
+  iconLeft?: IconName
+  iconRight?: IconName
   fullWidth?: boolean
   loading?: boolean
   disabled?: boolean
-  children: React.ReactNode
+  children?: React.ReactNode
   onClick?: () => void
   className?: string
   type?: 'button' | 'submit'
@@ -24,6 +29,12 @@ const iconSizeClasses: Record<string, string> = {
   lg: 'p-3.5 text-2xl min-h-[52px] min-w-[52px]',
 }
 
+const iconPixelSize: Record<string, number> = {
+  sm: 14,
+  md: 16,
+  lg: 18,
+}
+
 const variantClasses: Record<string, string> = {
   primary: 'bg-accent text-accent-text hover:brightness-110 active:scale-[0.98] active:brightness-95',
   secondary: 'bg-transparent border border-border-active text-text-primary hover:border-accent hover:text-accent active:scale-[0.98]',
@@ -36,6 +47,8 @@ export function Button({
   variant = 'primary',
   size = 'md',
   icon = false,
+  iconLeft,
+  iconRight,
   fullWidth = false,
   loading = false,
   disabled = false,
@@ -62,9 +75,15 @@ export function Button({
     className,
   ].filter(Boolean).join(' ')
 
+  const iconSize = iconPixelSize[size]
+
   return (
     <button type={type} className={cn} onClick={handleClick} disabled={disabled || loading} title={title}>
-      <span className={loading ? 'opacity-0' : undefined}>{children}</span>
+      <span className={loading ? 'opacity-0 inline-flex items-center gap-2' : 'inline-flex items-center gap-2'}>
+        {iconLeft && <Icon name={iconLeft} size={iconSize} />}
+        {children}
+        {iconRight && <Icon name={iconRight} size={iconSize} />}
+      </span>
       {loading && (
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="w-4 h-4 border-2 border-border border-t-accent rounded-full animate-spin" aria-hidden="true" />

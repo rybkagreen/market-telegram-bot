@@ -7,6 +7,7 @@ import {
   purchasePlan,
   getTransactionHistory,
   getTopupStatus,
+  getFrozenBalance,
   type TopupStatus,
 } from '@/api/billing'
 
@@ -87,6 +88,14 @@ export function useTransactionHistory(page = 1, limit = 20) {
     queryFn: () => getTransactionHistory(page, limit),
     staleTime: 30_000,
     placeholderData: (prev) => prev,
+  })
+}
+
+export function useFrozenBalance() {
+  return useQuery({
+    queryKey: ['billing', 'frozen'],
+    queryFn: getFrozenBalance,
+    staleTime: 60_000,
   })
 }
 

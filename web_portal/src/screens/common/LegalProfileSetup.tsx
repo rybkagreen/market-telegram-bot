@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Button, Notification, Select, Textarea } from '@shared/ui'
+import { Button, Notification, Select, Textarea, Icon, ScreenHeader, StepIndicator } from '@shared/ui'
+import type { IconName } from '@shared/ui'
 import {
   useMyLegalProfile,
   useCreateLegalProfile,
@@ -10,11 +11,21 @@ import {
   useValidateEntity,
 } from '@/hooks/useLegalProfileQueries'
 
-const LEGAL_STATUS_OPTIONS = [
-  { value: 'individual', label: 'Физическое лицо' },
-  { value: 'self_employed', label: 'Самозанятый (НПД)' },
-  { value: 'individual_entrepreneur', label: 'ИП' },
-  { value: 'legal_entity', label: 'Юридическое лицо (ООО)' },
+type LegalStatus = 'individual' | 'self_employed' | 'individual_entrepreneur' | 'legal_entity'
+
+interface LegalTypeConf {
+  id: LegalStatus
+  label: string
+  sub: string
+  icon: IconName
+  tone: 'success' | 'accent' | 'accent2' | 'warning'
+}
+
+const LEGAL_TYPES: LegalTypeConf[] = [
+  { id: 'self_employed', label: 'Самозанятый', sub: 'НПД, ставка 6%', icon: 'users', tone: 'success' },
+  { id: 'individual_entrepreneur', label: 'ИП', sub: 'УСН / ПСН', icon: 'cabinet', tone: 'accent' },
+  { id: 'legal_entity', label: 'ООО', sub: 'Юридическое лицо', icon: 'admin', tone: 'accent2' },
+  { id: 'individual', label: 'Физлицо', sub: 'НДФЛ, ставка 13%', icon: 'referral', tone: 'warning' },
 ]
 
 const TAX_REGIME_OPTIONS = [
@@ -27,10 +38,17 @@ const TAX_REGIME_OPTIONS = [
   { value: 'ndfl', label: 'НДФЛ' },
 ]
 
+const toneTileClass: Record<LegalTypeConf['tone'], { border: string; bg: string; text: string; iconBg: string; iconText: string }> = {
+  success: { border: 'border-success', bg: 'bg-success-muted', text: 'text-success', iconBg: 'bg-success/15', iconText: 'text-success' },
+  accent: { border: 'border-accent', bg: 'bg-accent-muted', text: 'text-accent', iconBg: 'bg-accent/15', iconText: 'text-accent' },
+  accent2: { border: 'border-accent-2', bg: 'bg-accent-2-muted', text: 'text-accent-2', iconBg: 'bg-accent-2/15', iconText: 'text-accent-2' },
+  warning: { border: 'border-warning', bg: 'bg-warning-muted', text: 'text-warning', iconBg: 'bg-warning/15', iconText: 'text-warning' },
+}
+
 export default function LegalProfileSetup() {
   const navigate = useNavigate()
   const { data: existingProfile } = useMyLegalProfile()
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState<LegalStatus | ''>('')
   const { data: requiredFields } = useRequiredFields(status || undefined)
   const createMutation = useCreateLegalProfile()
   const updateMutation = useUpdateLegalProfile()
@@ -54,25 +72,23 @@ export default function LegalProfileSetup() {
   const [passportIssuedBy, setPassportIssuedBy] = useState('')
   const [passportIssuedAt, setPassportIssuedAt] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [fnsResult, setFnsResult] = useState<{ is_valid: boolean; warnings: string[]; errors: { field: string; message: string }[] } | null>(null)
+  const [fnsResult, setFnsResult] = useState<{
+    is_valid: boolean
+    warnings: string[]
+    errors: { field: string; message: string }[]
+  } | null>(null)
 
   const fields = requiredFields?.fields ?? []
   const isLegalEntity = status === 'legal_entity'
   const isIE = status === 'individual_entrepreneur'
   const isSelfEmployed = status === 'self_employed'
+  const isIndividual = status === 'individual'
   const showBank = isLegalEntity || isIE
 
-  function getLegalNameLabel(): string {
-    if (isLegalEntity) return 'Название организации *'
-    if (isIE) return 'ФИО ИП *'
-    return 'ФИО *'
-  }
-
-  // Pre-fill from existing profile
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (existingProfile) {
-      setStatus(existingProfile.legal_status)
+      setStatus(existingProfile.legal_status as LegalStatus)
       setLegalName(existingProfile.legal_name ?? '')
       setInn(existingProfile.inn ?? '')
       setKpp(existingProfile.kpp ?? '')
@@ -85,9 +101,6 @@ export default function LegalProfileSetup() {
       setBankBik(existingProfile.bank_bik ?? '')
       setBankCorrAccount(existingProfile.bank_corr_account ?? '')
       setYoomoneyWallet(existingProfile.yoomoney_wallet ?? '')
-      // Passport data is not returned by backend (PII). Form starts blank
-      // for existing profiles — the has_passport_data flag indicates whether
-      // passport is already on file.
     }
   }, [existingProfile])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -99,22 +112,24 @@ export default function LegalProfileSetup() {
     }
     setError(null)
     setFnsResult(null)
-
+    if (!status) {
+      setError('Сначала выберите тип лица')
+      return
+    }
     fnsMutation.mutate(
       {
         inn,
         legal_status: status,
         legal_name: legalName || undefined,
         kpp: kpp || undefined,
-        ogrn: isLegalEntity ? (ogrn || undefined) : undefined,
-        ogrnip: isIE ? (ogrnip || undefined) : undefined,
-        passport_series: status === 'individual' ? passportSeries || undefined : undefined,
-        passport_number: status === 'individual' ? passportNumber || undefined : undefined,
+        ogrn: isLegalEntity ? ogrn || undefined : undefined,
+        ogrnip: isIE ? ogrnip || undefined : undefined,
+        passport_series: isIndividual ? passportSeries || undefined : undefined,
+        passport_number: isIndividual ? passportNumber || undefined : undefined,
       },
       {
-        onSuccess: (result) => {
-          setFnsResult({ is_valid: result.is_valid, warnings: result.warnings, errors: result.errors })
-        },
+        onSuccess: (result) =>
+          setFnsResult({ is_valid: result.is_valid, warnings: result.warnings, errors: result.errors }),
         onError: () => setError('Ошибка проверки через ФНС'),
       },
     )
@@ -125,9 +140,7 @@ export default function LegalProfileSetup() {
       setError('Заполните обязательные поля')
       return
     }
-
-    // Passport required for individuals and self-employed
-    if (status === 'individual' || isSelfEmployed) {
+    if (isIndividual || isSelfEmployed) {
       if (!passportSeries || !passportNumber || !passportIssuedBy || !passportIssuedAt) {
         setError('Заполните паспортные данные — они необходимы для договора и ОРД')
         return
@@ -137,14 +150,8 @@ export default function LegalProfileSetup() {
         return
       }
     }
-
     setError(null)
-
-    const data: Record<string, unknown> = {
-      legal_status: status,
-      legal_name: legalName,
-      inn,
-    }
+    const data: Record<string, unknown> = { legal_status: status, legal_name: legalName, inn }
     if (fields.includes('kpp')) data.kpp = kpp
     if (fields.includes('ogrn')) data.ogrn = ogrn
     if (fields.includes('ogrnip')) data.ogrnip = ogrnip
@@ -155,8 +162,7 @@ export default function LegalProfileSetup() {
     if (showBank && bankBik) data.bank_bik = bankBik
     if (showBank && bankCorrAccount) data.bank_corr_account = bankCorrAccount
     if (fields.includes('yoomoney_wallet')) data.yoomoney_wallet = yoomoneyWallet
-    // Passport fields
-    if (status === 'individual' || isSelfEmployed) {
+    if (isIndividual || isSelfEmployed) {
       data.passport_series = passportSeries
       data.passport_number = passportNumber
       data.passport_issued_by = passportIssuedBy
@@ -177,254 +183,431 @@ export default function LegalProfileSetup() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending
+  const step = status ? (showBank ? 3 : 2) : 1
 
-  // ─── Step titles ───
-  const statusLabel = LEGAL_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? ''
+  const completeness = computeCompleteness({
+    status,
+    legalName,
+    inn,
+    address,
+    bankAccount,
+    bankBik,
+    passportSeries,
+    passportNumber,
+  })
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold text-text-primary">Юридический профиль</h1>
+    <div className="max-w-[1280px] mx-auto">
+      <ScreenHeader
+        title="Юридический профиль"
+        subtitle="Укажите реквизиты — мы используем их в договорах, чеках и актах"
+        action={
+          <Button variant="secondary" iconLeft="docs">
+            Шаблон заполнения
+          </Button>
+        }
+      />
 
-      {error && <Notification type="danger">{error}</Notification>}
-
-      {/* Status */}
-      <Card title="Юридический статус">
-        <Select
-          value={status}
-          onChange={setStatus}
-          options={LEGAL_STATUS_OPTIONS}
-          placeholder="Выберите статус..."
+      <div className="bg-harbor-card border border-border rounded-xl py-[18px] px-[22px] mb-4">
+        <StepIndicator
+          total={4}
+          current={step}
+          labels={['Тип лица', 'Реквизиты', 'Банк', 'Подписание']}
         />
-        {status && (
-          <p className="text-sm text-text-secondary mt-2">
-            Выбрано: <span className="font-medium text-text-primary">{statusLabel}</span>
-          </p>
-        )}
-      </Card>
+      </div>
 
-      {/* Basic info — shown only after status selected */}
-      {status && (
-        <Card title="Основные данные">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                {getLegalNameLabel()}
-              </label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={legalName}
-                onChange={(e) => setLegalName(e.target.value)}
-                placeholder={isLegalEntity ? 'ООО «Ромашка»' : 'Иванов Иван Иванович'}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">ИНН *</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={inn}
-                onChange={(e) => setInn(e.target.value)}
-                onBlur={(e) => { if (e.target.value.length >= 10) innMutation.mutate(e.target.value) }}
-                placeholder="ИНН"
-              />
-              {innMutation.data && !innMutation.data.valid && (
-                <p className="text-xs text-danger mt-1">Неверный ИНН</p>
-              )}
-            </div>
-
-            {fields.includes('kpp') && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">КПП</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                  value={kpp}
-                  onChange={(e) => setKpp(e.target.value)}
-                  placeholder="КПП"
-                />
-              </div>
-            )}
-            {fields.includes('ogrn') && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">ОГРН</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                  value={ogrn}
-                  onChange={(e) => setOgrn(e.target.value)}
-                  placeholder="ОГРН"
-                />
-              </div>
-            )}
-            {fields.includes('ogrnip') && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">ОГРНИП</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                  value={ogrnip}
-                  onChange={(e) => setOgrnip(e.target.value)}
-                  placeholder="ОГРНИП"
-                />
-              </div>
-            )}
-            {fields.includes('tax_regime') && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Налоговый режим</label>
-                <Select value={taxRegime} onChange={setTaxRegime} options={TAX_REGIME_OPTIONS} placeholder="Выберите..." />
-              </div>
-            )}
-            {fields.includes('yoomoney_wallet') && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Кошелёк ЮMoney</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                  value={yoomoneyWallet}
-                  onChange={(e) => setYoomoneyWallet(e.target.value)}
-                  placeholder="41001XXXXXXXXXX"
-                />
-                <p className="text-xs text-text-tertiary mt-1">Выплаты будут приходить на ЮMoney-кошелёк</p>
-              </div>
-            )}
-          </div>
-        </Card>
+      {error && (
+        <div className="mb-4">
+          <Notification type="danger">{error}</Notification>
+        </div>
       )}
 
-      {/* Bank details — only for ООО and ИП */}
-      {showBank && (
-        <Card title="Банковские реквизиты">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">Название банка</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="Сбербанк"
-              />
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.7fr) minmax(300px, 1fr)' }}>
+        <div className="flex flex-col gap-4">
+          <SectionCard title="Тип налогоплательщика" subtitle="Определяет, какие документы формирует платформа">
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              {LEGAL_TYPES.map((t) => {
+                const on = status === t.id
+                const tc = toneTileClass[t.tone]
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setStatus(t.id)}
+                    className={`py-3.5 px-3.5 rounded-[10px] border flex gap-[11px] items-start text-left transition-all ${
+                      on
+                        ? `${tc.border} ${tc.bg} ${tc.text} ring-[3px] ring-current/15`
+                        : 'bg-harbor-elevated border-border text-text-primary hover:border-border-active'
+                    }`}
+                  >
+                    <span
+                      className={`w-[34px] h-[34px] rounded-lg grid place-items-center flex-shrink-0 ${tc.iconBg} ${tc.iconText}`}
+                    >
+                      <Icon name={t.icon} size={16} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-display text-sm font-bold text-text-primary">{t.label}</div>
+                      <div className="text-[11.5px] text-text-tertiary mt-0.5">{t.sub}</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">Расчётный счёт</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={bankAccount}
-                onChange={(e) => setBankAccount(e.target.value)}
-                placeholder="40702810..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">БИК</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={bankBik}
-                onChange={(e) => setBankBik(e.target.value)}
-                placeholder="044525225"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">Корр. счёт</label>
-              <input
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={bankCorrAccount}
-                onChange={(e) => setBankCorrAccount(e.target.value)}
-                placeholder="30101810..."
-              />
-            </div>
-          </div>
-        </Card>
-      )}
+          </SectionCard>
 
-      {/* Passport — for individuals and self-employed */}
-      {(isSelfEmployed || status === 'individual') && (
-        <Card title="Паспортные данные">
-          <p className="text-xs text-text-tertiary mb-3">
-            Необходимы для заключения договора и передачи данных в ОРД
-          </p>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Серия *</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm font-mono"
-                  value={passportSeries}
-                  onChange={(e) => setPassportSeries(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="4510"
-                  maxLength={4}
+          {status && (
+            <SectionCard title="Основные реквизиты" subtitle={LEGAL_TYPES.find((t) => t.id === status)?.label}>
+              <div className="grid grid-cols-2 gap-3.5">
+                <LPField
+                  label={isLegalEntity ? 'Название организации' : isIE ? 'ФИО ИП' : 'ФИО'}
+                  value={legalName}
+                  onChange={setLegalName}
+                  span={2}
                 />
-              </div>
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Номер *</label>
-                <input
-                  className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm font-mono"
-                  value={passportNumber}
-                  onChange={(e) => setPassportNumber(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  maxLength={6}
+                <LPField
+                  label="ИНН"
+                  mono
+                  value={inn}
+                  onChange={setInn}
+                  onBlur={(v) => {
+                    if (v.length >= 10) innMutation.mutate(v)
+                  }}
+                  placeholder="10 или 12 цифр"
+                  hint={innMutation.data && !innMutation.data.valid ? 'Неверный ИНН' : undefined}
+                  hintTone={innMutation.data && !innMutation.data.valid ? 'danger' : 'neutral'}
                 />
+                {fields.includes('kpp') && <LPField label="КПП" mono value={kpp} onChange={setKpp} />}
+                {fields.includes('ogrn') && <LPField label="ОГРН" mono value={ogrn} onChange={setOgrn} />}
+                {fields.includes('ogrnip') && <LPField label="ОГРНИП" mono value={ogrnip} onChange={setOgrnip} />}
+                {fields.includes('tax_regime') && (
+                  <LPWrap span={2} label="Налоговый режим">
+                    <Select value={taxRegime} onChange={setTaxRegime} options={TAX_REGIME_OPTIONS} placeholder="Выберите…" />
+                  </LPWrap>
+                )}
+                {fields.includes('address') && (
+                  <LPWrap span={2} label="Юридический адрес">
+                    <Textarea value={address} onChange={setAddress} rows={2} />
+                  </LPWrap>
+                )}
+                {fields.includes('yoomoney_wallet') && (
+                  <LPField
+                    span={2}
+                    label="Кошелёк ЮMoney"
+                    mono
+                    value={yoomoneyWallet}
+                    onChange={setYoomoneyWallet}
+                    placeholder="41001XXXXXXXXXX"
+                    hint="Выплаты будут приходить на ЮMoney-кошелёк"
+                  />
+                )}
               </div>
-            </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">Кем выдан *</label>
-              <Textarea
-                value={passportIssuedBy}
-                onChange={setPassportIssuedBy}
-                placeholder="ОУФМС России по г. Москве"
-                rows={3}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">Дата выдачи *</label>
-              <input
-                type="date"
-                className="w-full px-4 py-2.5 bg-harbor-elevated border border-border rounded-md text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 text-sm"
-                value={passportIssuedAt}
-                onChange={(e) => setPassportIssuedAt(e.target.value)}
-              />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Address — for all */}
-      {status && fields.includes('address') && (
-        <Card title="Адрес">
-          <Textarea value={address} onChange={setAddress} placeholder="Юридический адрес" rows={2} />
-        </Card>
-      )}
-
-      {/* FNS validation result */}
-      {fnsResult && (
-        <Card title="🏛️ Результат проверки ФНС">
-          {fnsResult.is_valid ? (
-            <Notification type="success">
-              ✅ ИНН прошёл проверку по контрольной сумме
-              {fnsResult.warnings.length > 0 && (
-                <div className="mt-2">
-                  {fnsResult.warnings.map((w, i) => (
-                    <p key={i} className="text-sm text-warning">⚠️ {w}</p>
-                  ))}
-                </div>
-              )}
-            </Notification>
-          ) : (
-            <Notification type="danger">
-              ❌ Ошибки валидации:
-              {fnsResult.errors.map((e, i) => (
-                <p key={i} className="text-sm text-danger mt-1">• {e.field}: {e.message}</p>
-              ))}
-            </Notification>
+            </SectionCard>
           )}
-        </Card>
-      )}
 
-      {/* Actions */}
-      <div className="space-y-3">
-        <Button variant="ghost" fullWidth onClick={handleValidate} loading={fnsMutation.isPending} disabled={!inn}>
-          🏛️ Проверить ИНН через ФНС
-        </Button>
-        <Button variant="primary" fullWidth loading={isSaving} onClick={handleSave}>
-          {isSaving ? '⏳ Сохранение...' : '✅ Сохранить'}
-        </Button>
-        <Button variant="secondary" fullWidth onClick={() => navigate('/cabinet')}>
-          ← Назад в кабинет
-        </Button>
+          {showBank && (
+            <SectionCard title="Банковские реквизиты" subtitle="На этот счёт поступают выплаты">
+              <div className="grid grid-cols-2 gap-3.5">
+                <LPField label="БИК" mono value={bankBik} onChange={setBankBik} placeholder="044525225" />
+                <LPField label="Банк" value={bankName} onChange={setBankName} placeholder="ПАО СБЕРБАНК" hint="Подставится автоматически" />
+                <LPField span={2} label="Расчётный счёт" mono value={bankAccount} onChange={setBankAccount} placeholder="40702810…" />
+                <LPField
+                  span={2}
+                  label="Корреспондентский счёт"
+                  mono
+                  value={bankCorrAccount}
+                  onChange={setBankCorrAccount}
+                  placeholder="30101810…"
+                />
+              </div>
+              <div className="mt-4 p-3 bg-accent-muted border border-accent/15 rounded-lg flex gap-2.5 items-start">
+                <Icon name="lock" size={14} className="text-accent mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-text-secondary leading-[1.5]">
+                  Реквизиты зашифрованы и хранятся согласно 152-ФЗ. Доступ только у вас и банка-получателя.
+                </div>
+              </div>
+            </SectionCard>
+          )}
+
+          {(isIndividual || isSelfEmployed) && (
+            <SectionCard title="Паспортные данные" subtitle="Необходимы для договора и ОРД">
+              <div className="grid grid-cols-2 gap-3.5">
+                <LPField
+                  label="Серия"
+                  mono
+                  value={passportSeries}
+                  onChange={(v) => setPassportSeries(v.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="4510"
+                />
+                <LPField
+                  label="Номер"
+                  mono
+                  value={passportNumber}
+                  onChange={(v) => setPassportNumber(v.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                />
+                <LPWrap span={2} label="Кем выдан">
+                  <Textarea value={passportIssuedBy} onChange={setPassportIssuedBy} placeholder="ОУФМС России по г. Москве" rows={2} />
+                </LPWrap>
+                <LPWrap span={2} label="Дата выдачи">
+                  <input
+                    type="date"
+                    value={passportIssuedAt}
+                    onChange={(e) => setPassportIssuedAt(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-harbor-elevated border border-border rounded-lg text-text-primary font-body text-[13px] outline-none focus:border-accent transition-colors"
+                  />
+                </LPWrap>
+              </div>
+            </SectionCard>
+          )}
+
+          {fnsResult && (
+            <SectionCard title="Результат проверки ФНС">
+              {fnsResult.is_valid ? (
+                <Notification type="success">
+                  ИНН прошёл проверку по контрольной сумме
+                  {fnsResult.warnings.length > 0 && (
+                    <div className="mt-2 space-y-0.5">
+                      {fnsResult.warnings.map((w) => (
+                        <p key={w} className="text-sm text-warning">
+                          {w}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </Notification>
+              ) : (
+                <Notification type="danger">
+                  Ошибки валидации:
+                  <div className="mt-2 space-y-0.5">
+                    {fnsResult.errors.map((e) => (
+                      <p key={e.field} className="text-sm text-danger">
+                        • {e.field}: {e.message}
+                      </p>
+                    ))}
+                  </div>
+                </Notification>
+              )}
+            </SectionCard>
+          )}
+
+          <div className="flex justify-between gap-2.5 flex-wrap">
+            <Button variant="secondary" iconLeft="arrow-left" onClick={() => navigate('/cabinet')}>
+              Назад
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={handleValidate} loading={fnsMutation.isPending} disabled={!inn}>
+                Проверить ИНН
+              </Button>
+              <Button variant="primary" iconRight="arrow-right" loading={isSaving} onClick={handleSave}>
+                {isSaving ? 'Сохранение…' : 'Сохранить и далее'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3.5">
+          <div className="bg-harbor-card border border-border rounded-xl p-[18px]">
+            <div className="flex items-center gap-3.5">
+              <LPRing pct={completeness.pct} />
+              <div>
+                <div className="font-display text-sm font-semibold text-text-primary">Профиль заполнен</div>
+                <div className="text-xs text-text-tertiary mt-0.5">
+                  {completeness.filled} из {completeness.total} полей
+                </div>
+              </div>
+            </div>
+            <ul className="list-none p-0 m-0 mt-3.5 flex flex-col gap-1.5">
+              {completeness.checks.map((s) => (
+                <li key={s.label} className="flex items-center gap-2 text-[12.5px]">
+                  <span
+                    className={`w-4 h-4 rounded-full grid place-items-center flex-shrink-0 ${
+                      s.done ? 'bg-success text-white' : 'bg-harbor-elevated text-text-tertiary'
+                    }`}
+                  >
+                    {s.done ? (
+                      <Icon name="check" size={10} strokeWidth={2.5} />
+                    ) : (
+                      <span className="w-1 h-1 rounded-full bg-text-tertiary" />
+                    )}
+                  </span>
+                  <span className={s.done ? 'text-text-primary' : 'text-text-secondary'}>{s.label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-harbor-card border border-border rounded-xl p-[18px]">
+            <div className="font-display text-[13px] font-semibold text-text-primary mb-2.5">
+              Зачем это нужно
+            </div>
+            <ul className="list-none p-0 m-0 flex flex-col gap-2.5">
+              {[
+                { icon: 'docs' as IconName, text: 'Формируем договоры и акты автоматически' },
+                { icon: 'ruble' as IconName, text: 'Чеки и закрывающие документы за вас' },
+                { icon: 'lock' as IconName, text: 'Соответствие 54-ФЗ, 152-ФЗ, НК РФ' },
+                { icon: 'zap' as IconName, text: 'Выплаты в тот же день после подписания' },
+              ].map((r) => (
+                <li key={r.text} className="flex gap-2.5 text-[12.5px] text-text-secondary leading-[1.5]">
+                  <Icon name={r.icon} size={14} className="text-accent mt-0.5 flex-shrink-0" />
+                  {r.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-harbor-elevated border border-dashed border-border rounded-xl p-3.5 flex items-center gap-2.5 text-xs text-text-secondary">
+            <Icon name="info" size={13} className="text-text-tertiary" />
+            Поля ИНН/ОГРН подтягиваются из ФНС при вводе
+          </div>
+        </div>
       </div>
     </div>
   )
+}
+
+function SectionCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="bg-harbor-card border border-border rounded-xl p-5">
+      <div className="mb-4">
+        <div className="font-display text-[13.5px] font-semibold text-text-primary tracking-[-0.005em]">
+          {title}
+        </div>
+        {subtitle && <div className="text-xs text-text-tertiary mt-[3px]">{subtitle}</div>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function LPField({
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  mono,
+  span,
+  hint,
+  hintTone,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onBlur?: (v: string) => void
+  placeholder?: string
+  mono?: boolean
+  span?: 1 | 2
+  hint?: string
+  hintTone?: 'neutral' | 'danger'
+}) {
+  return (
+    <div style={{ gridColumn: span === 2 ? '1 / -1' : 'auto' }}>
+      <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-text-tertiary mb-1.5">
+        {label}
+      </div>
+      <input
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onBlur?.(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full py-2.5 px-3 bg-harbor-elevated border border-border rounded-lg text-text-primary text-[13px] outline-none focus:border-accent transition-colors ${
+          mono ? 'font-mono tabular-nums' : 'font-body'
+        }`}
+      />
+      {hint && (
+        <div className={`text-[11px] mt-1.5 ${hintTone === 'danger' ? 'text-danger' : 'text-text-tertiary'}`}>
+          {hint}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LPWrap({
+  label,
+  span,
+  children,
+}: {
+  label: string
+  span?: 1 | 2
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ gridColumn: span === 2 ? '1 / -1' : 'auto' }}>
+      <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-text-tertiary mb-1.5">
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function LPRing({ pct }: { pct: number }) {
+  const r = 22
+  const c = 2 * Math.PI * r
+  return (
+    <svg width="58" height="58" style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx="29" cy="29" r={r} stroke="var(--color-harbor-elevated)" strokeWidth="5" fill="none" />
+      <circle
+        cx="29"
+        cy="29"
+        r={r}
+        stroke="var(--color-accent)"
+        strokeWidth="5"
+        fill="none"
+        strokeDasharray={c}
+        strokeDashoffset={c - (c * pct) / 100}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 400ms ease' }}
+      />
+      <text
+        x="29"
+        y="29"
+        transform="rotate(90 29 29)"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 13,
+          fontWeight: 700,
+          fill: 'var(--color-text-primary)',
+        }}
+      >
+        {pct}%
+      </text>
+    </svg>
+  )
+}
+
+function computeCompleteness(s: {
+  status: string
+  legalName: string
+  inn: string
+  address: string
+  bankAccount: string
+  bankBik: string
+  passportSeries: string
+  passportNumber: string
+}) {
+  const checks = [
+    { label: 'ИНН и наименование', done: !!s.inn && !!s.legalName },
+    { label: 'Юридический адрес', done: !!s.address },
+    { label: 'Банковский счёт', done: !!s.bankAccount && !!s.bankBik },
+    { label: 'Паспорт (физлицо / самозанятый)', done: !!s.passportSeries && !!s.passportNumber },
+  ]
+  const filled = checks.filter((c) => c.done).length
+  const total = checks.length
+  return {
+    checks,
+    filled,
+    total,
+    pct: Math.round((filled / total) * 100),
+  }
 }

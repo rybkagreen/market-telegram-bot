@@ -354,6 +354,28 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
         )
         return result.scalar_one() or 0
 
+    async def get_frozen_for_advertiser(
+        self, advertiser_id: int, limit: int = 50
+    ) -> list[PlacementRequest]:
+        """
+        Получить placements рекламодателя в escrow/pending_payment для BalanceHero.
+
+        Eager-loads `channel` для сериализации channel_title без N+1.
+        """
+        result = await self.session.execute(
+            select(PlacementRequest)
+            .options(selectinload(PlacementRequest.channel))
+            .where(
+                PlacementRequest.advertiser_id == advertiser_id,
+                PlacementRequest.status.in_(
+                    [PlacementStatus.escrow, PlacementStatus.pending_payment]
+                ),
+            )
+            .order_by(PlacementRequest.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
 
 # Алиас для обратной совместимости
 PlacementRequestRepo = PlacementRequestRepository

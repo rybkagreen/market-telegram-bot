@@ -5,6 +5,18 @@ export async function getMyChannels() {
   return api.get('channels').json<ChannelResponse[]>()
 }
 
+export interface RecommendedChannelsResponse {
+  items: ChannelResponse[]
+  algorithm: string
+}
+
+export async function getRecommendedChannels(limit = 5, category?: string) {
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  if (category) params.set('category', category)
+  return api.get(`channels/recommended?${params.toString()}`).json<RecommendedChannelsResponse>()
+}
+
 export async function getChannelById(id: number) {
   return api.get(`channels/${id}`).json<ChannelResponse>()
 }

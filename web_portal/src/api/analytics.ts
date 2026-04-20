@@ -8,3 +8,23 @@ export async function getAdvertiserAnalytics() {
 export async function getOwnerAnalytics() {
   return api.get('analytics/owner').json<OwnerAnalyticsResponse>()
 }
+
+export type CashflowDays = 7 | 30 | 90
+
+export interface CashflowDataPoint {
+  date: string
+  income: string
+  expense: string
+}
+
+export interface CashflowResponse {
+  period_days: number
+  total_income: string
+  total_expense: string
+  net: string
+  points: CashflowDataPoint[]
+}
+
+export async function getCashflow(days: CashflowDays = 30) {
+  return api.get(`analytics/cashflow?days=${days}`).json<CashflowResponse>()
+}

@@ -1,28 +1,89 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DOMPurify from 'dompurify'
-import { Card, Button, Skeleton, EmptyState } from '@shared/ui'
-import { formatDateMSK } from '@/lib/constants'
+import { Button, Skeleton, Icon, ScreenHeader, Notification } from '@shared/ui'
+import type { IconName } from '@shared/ui'
 import { useContracts, usePlatformRules } from '@/hooks/useContractQueries'
+import type { Contract, ContractStatus, ContractType } from '@/lib/types/contracts'
 
-const TYPE_LABELS: Record<string, string> = {
-  owner_service: '📋 Договор оказания услуг (владелец)',
-  advertiser_framework: '📋 Рамочный договор (рекламодатель)',
-  tax_agreement: '💰 Налоговое соглашение',
+const STATUS_META: Record<
+  ContractStatus,
+  { label: string; pillClass: string; dotClass: string; pulsing: boolean }
+> = {
+  draft: {
+    label: 'Черновик',
+    pillClass: 'bg-harbor-elevated text-text-secondary',
+    dotClass: 'bg-text-secondary',
+    pulsing: false,
+  },
+  pending: {
+    label: 'Ожидает подписи',
+    pillClass: 'bg-warning-muted text-warning',
+    dotClass: 'bg-warning shadow-[0_0_6px_var(--color-warning)]',
+    pulsing: true,
+  },
+  signed: {
+    label: 'Действует',
+    pillClass: 'bg-success-muted text-success',
+    dotClass: 'bg-success',
+    pulsing: false,
+  },
+  expired: {
+    label: 'Истёк',
+    pillClass: 'bg-danger-muted text-danger',
+    dotClass: 'bg-danger',
+    pulsing: false,
+  },
+  cancelled: {
+    label: 'Расторгнут',
+    pillClass: 'bg-harbor-elevated text-text-tertiary',
+    dotClass: 'bg-text-tertiary',
+    pulsing: false,
+  },
 }
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  draft: { label: 'Черновик', className: 'bg-harbor-elevated text-text-tertiary' },
-  pending: { label: 'Ожидает подписания', className: 'bg-warning-muted text-warning' },
-  signed: { label: 'Подписан', className: 'bg-success-muted text-success' },
-  expired: { label: 'Истёк', className: 'bg-harbor-elevated text-text-tertiary' },
-  cancelled: { label: 'Отменён', className: 'bg-danger-muted text-danger' },
+interface ContractKindMeta {
+  label: string
+  icon: IconName
+  tone: 'accent' | 'accent2' | 'warning' | 'success'
 }
+
+const KIND_META: Record<ContractType, ContractKindMeta> = {
+  owner_service: { label: 'Договор с владельцем', icon: 'channels', tone: 'accent' },
+  advertiser_campaign: { label: 'Кампания', icon: 'campaign', tone: 'accent' },
+  advertiser_framework: { label: 'Рамочный B2B', icon: 'docs', tone: 'accent' },
+  platform_rules: { label: 'Оферта платформы', icon: 'lock', tone: 'accent2' },
+  privacy_policy: { label: 'Политика конфиденциальности', icon: 'lock', tone: 'accent2' },
+  tax_agreement: { label: 'Налоговое соглашение', icon: 'receipt', tone: 'warning' },
+}
+
+const toneIconClass: Record<ContractKindMeta['tone'], string> = {
+  accent: 'bg-accent-muted text-accent border-accent/15',
+  accent2: 'bg-accent-2-muted text-accent-2 border-accent-2/15',
+  warning: 'bg-warning-muted text-warning border-warning/15',
+  success: 'bg-success-muted text-success border-success/15',
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Europe/Moscow',
+  })
+}
+
+type KindFilter = 'all' | ContractType
 
 export default function ContractList() {
   const navigate = useNavigate()
   const { data, isLoading } = useContracts()
   const [viewerOpen, setViewerOpen] = useState(false)
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const [q, setQ] = useState('')
+  const [activeOnly, setActiveOnly] = useState(false)
+
   const {
     data: rulesData,
     isLoading: viewerLoading,
@@ -38,114 +99,194 @@ export default function ContractList() {
     })
   }, [rulesData, rulesError])
 
-  const openRulesViewer = () => setViewerOpen(true)
+  const items = data?.items ?? []
+
+  const filtered = useMemo(() => {
+    return items.filter((c) => {
+      if (kindFilter !== 'all' && c.contract_type !== kindFilter) return false
+      if (activeOnly && c.contract_status !== 'signed') return false
+      if (q) {
+        const title = `${KIND_META[c.contract_type]?.label ?? c.contract_type} #${c.id}`
+        if (!title.toLowerCase().includes(q.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [items, kindFilter, activeOnly, q])
+
+  const metrics = useMemo(() => {
+    const signed = items.filter((c) => c.contract_status === 'signed').length
+    const pending = items.filter((c) => c.contract_status === 'pending').length
+    const total = items.length
+    return { signed, pending, total }
+  }, [items])
+
+  const KIND_FILTERS: { id: KindFilter; label: string }[] = [
+    { id: 'all', label: 'Все' },
+    { id: 'owner_service', label: 'Владельцам' },
+    { id: 'advertiser_framework', label: 'Рамочные' },
+    { id: 'platform_rules', label: 'Оферты' },
+    { id: 'tax_agreement', label: 'Налоги' },
+  ]
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
+      <div className="max-w-[1280px] mx-auto space-y-4">
+        <Skeleton className="h-14" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
+        </div>
+        <Skeleton className="h-16" />
       </div>
     )
   }
 
-  if (!data?.items.length) {
-    return (
-      <EmptyState icon="📄" title="Договоров пока нет" description="Договоры появятся после начала работы на платформе" />
-    )
-  }
-
-  // Rules — one combined entry (platform_rules + privacy_policy)
-  const hasRules = data.items.some(
-    (c) => c.contract_type === 'platform_rules' || c.contract_type === 'privacy_policy',
-  )
-
-  // Other contracts (exclude rules)
-  const otherContracts = data.items.filter(
-    (c) => c.contract_type !== 'platform_rules' && c.contract_type !== 'privacy_policy',
-  )
-
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold text-text-primary">Мои договоры</h1>
-
-      {/* Rules — single combined row */}
-      {hasRules && (
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-text-primary">📋 Правила и Политика конфиденциальности</p>
-              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-muted text-success">
-                ✓ Принято
-              </span>
-            </div>
-            <Button variant="secondary" size="sm" onClick={openRulesViewer}>
-              📖 Читать
+    <div className="max-w-[1280px] mx-auto">
+      <ScreenHeader
+        title="Договоры"
+        subtitle="Оферты, B2B-договоры с подрядчиками, агентские и налоговые — в одном месте"
+        action={
+          <div className="flex gap-2">
+            <Button variant="secondary" iconLeft="docs">
+              Шаблоны
             </Button>
           </div>
-        </Card>
-      )}
+        }
+      />
 
-      {/* Other contracts */}
-      {otherContracts.length === 0 && !hasRules && (
-        <EmptyState icon="📄" title="Договоров пока нет" />
-      )}
+      <div className="grid gap-3.5 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <CLTile icon="lock" tone="success" label="Действующих" value={String(metrics.signed)} sub="договоров" />
+        <CLTile icon="clock" tone="warning" label="На подписание" value={String(metrics.pending)} sub="требуют действий" />
+        <CLTile icon="docs" tone="accent" label="Всего" value={String(metrics.total)} sub="за всё время" />
+        <CLTile icon="receipt" tone="accent2" label="Поиск" value="—" sub="по номеру и контрагенту" />
+      </div>
 
-      {otherContracts.map((contract) => {
-        const badge = STATUS_BADGE[contract.contract_status] ?? STATUS_BADGE.draft
-        const typeLabel = TYPE_LABELS[contract.contract_type] ?? contract.contract_type
-        const kepBadge = contract.kep_requested
-          ? '🔏 КЭП запрошена'
-          : null
-        return (
-          <Card key={contract.id} className="p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary">
-                  {typeLabel}
-                  {kepBadge && <span className="ml-2 text-xs text-warning">{kepBadge}</span>}
-                </p>
-                <p className="text-xs text-text-tertiary mt-1">
-                  от {formatDateMSK(contract.created_at)}
-                  {contract.signed_at && ` · подписан ${formatDateMSK(contract.signed_at)}`}
-                </p>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${badge.className}`}>
-                {badge.label}
-              </span>
+      <div className="bg-harbor-card border border-border rounded-xl p-3.5 mb-3.5 flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-[260px] max-w-[360px] flex items-center gap-2 px-3 py-2 rounded-lg bg-harbor-elevated border border-border">
+          <Icon name="search" size={14} className="text-text-tertiary" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Поиск по номеру, контрагенту…"
+            className="flex-1 bg-transparent border-0 outline-none text-text-primary text-[13px] placeholder:text-text-tertiary"
+          />
+        </div>
+
+        <div className="flex gap-1.5 flex-wrap">
+          {KIND_FILTERS.map((f) => {
+            const on = kindFilter === f.id
+            return (
+              <button
+                key={f.id}
+                onClick={() => setKindFilter(f.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-2xl border transition-all ${
+                  on
+                    ? 'border-accent bg-accent-muted text-accent'
+                    : 'border-border bg-transparent text-text-secondary hover:border-border-active'
+                }`}
+              >
+                {f.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex-1" />
+
+        <label className="flex items-center gap-2 text-[12.5px] text-text-secondary cursor-pointer">
+          <button
+            type="button"
+            onClick={() => setActiveOnly(!activeOnly)}
+            className={`w-[30px] h-[18px] rounded-[10px] border relative transition-colors ${
+              activeOnly ? 'bg-accent border-accent' : 'bg-harbor-elevated border-border'
+            }`}
+          >
+            <span
+              className={`absolute top-px w-3.5 h-3.5 rounded-full bg-white transition-all ${
+                activeOnly ? 'left-[13px]' : 'left-px'
+              }`}
+            />
+          </button>
+          Только действующие
+        </label>
+      </div>
+
+      <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
+        <div
+          className="grid gap-3.5 px-[18px] py-2.5 bg-harbor-secondary border-b border-border text-[10.5px] font-bold uppercase tracking-[0.08em] text-text-tertiary"
+          style={{ gridTemplateColumns: '1.4fr 2fr 1.2fr 0.9fr auto' }}
+        >
+          <span>Договор</span>
+          <span>Тип</span>
+          <span>Период</span>
+          <span>Статус</span>
+          <span />
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="p-[60px] text-center">
+            <div className="inline-grid place-items-center w-14 h-14 rounded-[14px] bg-harbor-elevated text-text-tertiary mb-3.5">
+              <Icon name="docs" size={22} />
             </div>
-            <div className="flex gap-2 mt-3">
-              <Button variant="secondary" size="sm" onClick={() => navigate(`/contracts/${contract.id}`)}>
-                {contract.contract_status === 'signed' ? '👁️ Просмотр' : '✍️ Подписать'}
-              </Button>
-              {contract.pdf_url && (
-                <Button variant="ghost" size="sm" onClick={() => window.open(contract.pdf_url!, '_blank')}>
-                  📥 PDF
-                </Button>
-              )}
+            <div className="font-display text-base font-semibold text-text-primary mb-1">
+              Ничего не найдено
             </div>
-          </Card>
-        )
-      })}
+            <div className="text-[13px] text-text-secondary">
+              {items.length === 0 ? 'Договоры появятся после начала работы на платформе' : 'Попробуйте изменить фильтры'}
+            </div>
+          </div>
+        ) : (
+          filtered.map((c, i) => (
+            <ContractRow
+              key={c.id}
+              c={c}
+              isLast={i === filtered.length - 1}
+              onClick={() => {
+                if (c.contract_type === 'platform_rules' || c.contract_type === 'privacy_policy') {
+                  setViewerOpen(true)
+                } else {
+                  navigate(`/contracts/${c.id}`)
+                }
+              }}
+            />
+          ))
+        )}
+      </div>
 
-      {/* Rules viewer modal */}
       {viewerOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setViewerOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(false) } }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setViewerOpen(false)
+            }
+          }}
           tabIndex={0}
           role="button"
           aria-label="Закрыть просмотр правил"
         >
-          <div className="bg-harbor-card rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col mx-4" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="bg-harbor-card rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="text-lg font-semibold text-text-primary">Правила и Политика конфиденциальности</h3>
-              <button className="text-text-tertiary hover:text-text-primary" onClick={() => setViewerOpen(false)}>✕</button>
+              <h3 className="text-lg font-semibold text-text-primary">
+                Правила и Политика конфиденциальности
+              </h3>
+              <button
+                className="text-text-tertiary hover:text-text-primary"
+                onClick={() => setViewerOpen(false)}
+              >
+                ✕
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 prose prose-invert max-w-none">
               {viewerLoading ? (
-                <p className="text-text-tertiary">Загрузка...</p>
+                <Notification type="info">Загрузка…</Notification>
               ) : (
                 <div dangerouslySetInnerHTML={{ __html: viewerHtml }} />
               )}
@@ -153,6 +294,128 @@ export default function ContractList() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+const tileIconBg: Record<'accent' | 'accent2' | 'success' | 'warning', string> = {
+  accent: 'bg-accent-muted text-accent',
+  accent2: 'bg-accent-2-muted text-accent-2',
+  success: 'bg-success-muted text-success',
+  warning: 'bg-warning-muted text-warning',
+}
+
+function CLTile({
+  icon,
+  tone,
+  label,
+  value,
+  sub,
+}: {
+  icon: IconName
+  tone: 'accent' | 'accent2' | 'success' | 'warning'
+  label: string
+  value: string
+  sub: string
+}) {
+  return (
+    <div className="bg-harbor-card border border-border rounded-xl p-4 flex gap-3 items-start">
+      <span className={`grid place-items-center w-[38px] h-[38px] rounded-[9px] flex-shrink-0 ${tileIconBg[tone]}`}>
+        <Icon name={icon} size={16} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-1">
+          {label}
+        </div>
+        <div className="font-display text-xl font-bold text-text-primary tracking-[-0.02em] tabular-nums truncate">
+          {value}
+        </div>
+        <div className="text-[11.5px] text-text-tertiary mt-0.5">{sub}</div>
+      </div>
+    </div>
+  )
+}
+
+function ContractRow({
+  c,
+  isLast,
+  onClick,
+}: {
+  c: Contract
+  isLast: boolean
+  onClick: () => void
+}) {
+  const st = STATUS_META[c.contract_status]
+  const km = KIND_META[c.contract_type] ?? { label: c.contract_type, icon: 'docs' as IconName, tone: 'accent' as const }
+
+  return (
+    <div
+      className={`grid gap-3.5 px-[18px] py-3.5 items-center transition-colors hover:bg-harbor-elevated/40 ${
+        isLast ? '' : 'border-b border-border'
+      }`}
+      style={{ gridTemplateColumns: '1.4fr 2fr 1.2fr 0.9fr auto' }}
+    >
+      <div className="flex items-center gap-[11px] min-w-0">
+        <span
+          className={`w-9 h-9 rounded-[9px] grid place-items-center border flex-shrink-0 ${toneIconClass[km.tone]}`}
+        >
+          <Icon name={km.icon} size={15} />
+        </span>
+        <div className="min-w-0">
+          <div className="font-mono text-[12.5px] font-semibold text-text-primary">#{c.id}</div>
+          <div className="text-[11px] text-text-tertiary mt-0.5 font-semibold tracking-wider uppercase">
+            v{c.template_version}
+          </div>
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <div className="text-[13px] font-medium text-text-primary truncate">{km.label}</div>
+        {c.kep_requested && (
+          <div className="text-[11px] text-warning mt-0.5">КЭП запрошена</div>
+        )}
+      </div>
+
+      <div className="text-xs text-text-secondary tabular-nums">
+        {c.signed_at ? (
+          fmtDate(c.signed_at)
+        ) : (
+          <span className="text-text-tertiary italic">не подписан</span>
+        )}
+        <div className="text-[11px] text-text-tertiary mt-0.5">до {fmtDate(c.expires_at)}</div>
+      </div>
+
+      <span
+        className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase py-1 px-2.5 rounded-[5px] whitespace-nowrap justify-self-start ${st.pillClass}`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${st.dotClass}`} />
+        {st.label}
+      </span>
+
+      <div className="flex gap-1">
+        {c.contract_status === 'pending' && (
+          <Button size="sm" variant="primary" iconLeft="check" onClick={onClick}>
+            Подписать
+          </Button>
+        )}
+        {c.contract_status !== 'pending' && (
+          <Button size="sm" variant="secondary" onClick={onClick}>
+            Открыть
+          </Button>
+        )}
+        {c.pdf_url && (
+          <button
+            title="PDF"
+            onClick={(e) => {
+              e.stopPropagation()
+              window.open(c.pdf_url!, '_blank')
+            }}
+            className="w-[30px] h-[30px] rounded-md border border-border bg-harbor-elevated text-text-secondary grid place-items-center hover:text-text-primary transition-colors"
+          >
+            <Icon name="download" size={13} />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
