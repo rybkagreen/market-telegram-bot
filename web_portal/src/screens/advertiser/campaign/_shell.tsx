@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ScreenHeader, StepIndicator } from '@shared/ui'
 
-export const WIZARD_STEP_LABELS = ['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']
+const WIZARD_STEP_LABELS = ['Тематика', 'Каналы', 'Формат', 'Текст', 'Условия', 'Оплата']
 
 export interface CampaignWizardShellProps {
   step: number

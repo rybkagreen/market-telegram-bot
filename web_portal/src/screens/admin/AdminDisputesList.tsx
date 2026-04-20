@@ -140,17 +140,12 @@ export default function AdminDisputesList() {
                 <span className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[meta.tone]}`}>
                   {meta.label}
                 </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  iconRight="arrow-right"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/disputes/${dispute.id}`)
-                  }}
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-harbor-elevated text-text-primary border border-border whitespace-nowrap"
                 >
                   {dispute.status === 'resolved' ? 'Просмотр' : 'Решить'}
-                </Button>
+                  <Icon name="arrow-right" size={12} />
+                </span>
               </button>
             )
           })}
