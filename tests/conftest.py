@@ -3,7 +3,8 @@
 """
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from datetime import date
 from typing import Any
 
 import pytest
@@ -473,3 +474,143 @@ async def api_client_with_auth(advertiser_user: User) -> AsyncGenerator[AsyncCli
         headers={"Authorization": f"Bearer {token}"},
     ) as client:
         yield client
+
+
+# =============================================================================
+# LEGAL PROFILE / CONTRACT / ORD fixtures (testing-suite 2026-04-21)
+# =============================================================================
+
+
+def _compute_inn10_checksum(first_9: str) -> str:
+    """Compute the 10th digit of a 10-digit INN."""
+    weights = [2, 4, 10, 3, 5, 9, 4, 6, 8]
+    total = sum(w * int(d) for w, d in zip(weights, first_9, strict=True))
+    return str((total % 11) % 10)
+
+
+def _compute_inn12_checksum(first_10: str) -> str:
+    """Compute the 2 check digits for a 12-digit INN."""
+    w1 = [7, 2, 4, 10, 3, 5, 9, 4, 6, 8]
+    w2 = [3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8]
+    c1 = (sum(w * int(d) for w, d in zip(w1, first_10, strict=True)) % 11) % 10
+    first_11 = first_10 + str(c1)
+    c2 = (sum(w * int(d) for w, d in zip(w2, first_11, strict=True)) % 11) % 10
+    return f"{c1}{c2}"
+
+
+def make_valid_inn10(first_9: str = "770708389") -> str:
+    """Build a 10-digit INN with a valid checksum (default: Yandex LLC)."""
+    return first_9 + _compute_inn10_checksum(first_9)
+
+
+def make_valid_inn12(first_10: str = "1234567890") -> str:
+    """Build a 12-digit INN with valid checksums."""
+    return first_10 + _compute_inn12_checksum(first_10)
+
+
+def make_valid_ogrn(first_12: str = "102770013219") -> str:
+    """Build a 13-digit OGRN with a valid checksum (default: Yandex LLC)."""
+    check = (int(first_12) % 11) % 10
+    return first_12 + str(check)
+
+
+def make_valid_ogrnip(first_14: str = "30450011600001") -> str:
+    """Build a 15-digit OGRNIP with a valid checksum."""
+    check = (int(first_14) % 13) % 10
+    return first_14 + str(check)
+
+
+# Pre-computed valid test values (shared across tests)
+VALID_INN10 = make_valid_inn10()  # 10 digits — legal_entity
+VALID_INN12 = make_valid_inn12()  # 12 digits — individual / ip / self_employed
+VALID_OGRN = make_valid_ogrn()
+VALID_OGRNIP = make_valid_ogrnip()
+VALID_KPP = "770701001"
+VALID_BIK = "044525225"
+
+
+@pytest.fixture
+def legal_profile_data() -> Callable[[str], dict[str, Any]]:
+    """Factory that returns valid `create_profile` payloads for each legal_status.
+
+    Keys match columns on LegalProfile; checksums are pre-computed and valid.
+    """
+
+    def _build(status: str) -> dict[str, Any]:
+        if status == "legal_entity":
+            return {
+                "legal_status": "legal_entity",
+                "legal_name": "ООО «Тест»",
+                "inn": VALID_INN10,
+                "kpp": VALID_KPP,
+                "ogrn": VALID_OGRN,
+                "address": "г. Москва, ул. Льва Толстого, 16",
+                "bank_name": "Сбербанк",
+                "bank_account": "40702810123456789012",
+                "bank_bik": VALID_BIK,
+                "bank_corr_account": "30101810400000000225",
+            }
+        if status == "individual_entrepreneur":
+            return {
+                "legal_status": "individual_entrepreneur",
+                "legal_name": "ИП Иванов И. И.",
+                "inn": VALID_INN12,
+                "ogrnip": VALID_OGRNIP,
+                "address": "г. Москва, ул. Арбат, 1",
+                "tax_regime": "usn_d",
+                "bank_name": "Сбербанк",
+                "bank_account": "40802810123456789012",
+                "bank_bik": VALID_BIK,
+                "bank_corr_account": "30101810400000000225",
+            }
+        if status == "self_employed":
+            return {
+                "legal_status": "self_employed",
+                "legal_name": "Сидоров Сидор Сидорович",
+                "inn": VALID_INN12,
+                "yoomoney_wallet": "41001234567890",
+            }
+        if status == "individual":
+            return {
+                "legal_status": "individual",
+                "legal_name": "Петров Петр Петрович",
+                "passport_series": "4500",
+                "passport_number": "123456",
+                "passport_issued_by": "ОУФМС России по гор. Москве",
+                "passport_issue_date": date(2020, 5, 15),
+            }
+        raise ValueError(f"Unknown legal_status: {status!r}")
+
+    return _build
+
+
+@pytest_asyncio.fixture
+async def user_with_legal_profile(
+    db_session: AsyncSession,
+    legal_profile_data: Callable[[str], dict[str, Any]],
+) -> Callable[[str, int], Any]:
+    """Factory: создать User + LegalProfile с валидными данными для нужного статуса."""
+    from src.core.services.legal_profile_service import LegalProfileService
+    from src.db.models.user import User
+
+    counter = {"n": 0}
+
+    async def _build(status: str, telegram_id: int | None = None) -> tuple[User, Any]:
+        counter["n"] += 1
+        tg_id = telegram_id if telegram_id is not None else 900_000_000 + counter["n"]
+        user = User(
+            telegram_id=tg_id,
+            username=f"user_{tg_id}",
+            first_name=f"Test {status}",
+            balance_rub=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+        await db_session.refresh(user)
+
+        svc = LegalProfileService(db_session)
+        profile = await svc.create_profile(user.id, legal_profile_data(status))
+        await db_session.flush()
+        return user, profile
+
+    return _build

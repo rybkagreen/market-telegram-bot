@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "Invalid or missing Bearer token"
+  }
+}

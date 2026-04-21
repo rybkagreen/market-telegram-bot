@@ -1,0 +1,11 @@
+{
+  "id": "contract-500",
+  "type": "contract",
+  "contractorId": "rekharbor-main",
+  "clientId": "org-42",
+  "isRegReport": true,
+  "date": "2026-04-21",
+  "amount": "1000.00",
+  "subjectType": "distribution",
+  "createdAt": "2026-04-21T10:00:02Z"
+}

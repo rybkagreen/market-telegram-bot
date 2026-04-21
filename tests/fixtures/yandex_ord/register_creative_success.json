@@ -1,0 +1,13 @@
+{
+  "id": "creative-500",
+  "token": "kra23abc-erid-token-xyz789",
+  "requestId": "req-abc-123-xyz",
+  "creativeType": "creative",
+  "form": "text_block",
+  "isSocial": false,
+  "isSocialQuota": false,
+  "contractIds": ["contract-500"],
+  "textData": ["Test ad copy"],
+  "kktuCodes": ["30.10.1"],
+  "createdAt": "2026-04-21T10:00:03Z"
+}
