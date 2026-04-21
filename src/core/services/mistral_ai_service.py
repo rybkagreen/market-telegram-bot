@@ -499,9 +499,19 @@ Username: @{username or "нет"}
         return tags[:10]
 
 
-# Глобальный экземпляр
-mistral_ai_service = MistralAIService()
+# Lazy module-level singletons — instantiating eagerly crashed startup when
+# MISTRAL_API_KEY was absent (e.g. test/CI environments). Consumers still
+# import `mistral_ai_service` / `ai_service` / `admin_ai_service` unchanged;
+# the first attribute access triggers construction, which then raises the
+# same RuntimeError — just at call-time instead of import-time.
+_LAZY_NAMES = {"mistral_ai_service", "ai_service", "admin_ai_service"}
+_lazy_singleton: MistralAIService | None = None
 
-# Алиас для совместимости с кодом где используется ai_service
-ai_service = mistral_ai_service
-admin_ai_service = mistral_ai_service
+
+def __getattr__(name: str) -> MistralAIService:
+    if name in _LAZY_NAMES:
+        global _lazy_singleton
+        if _lazy_singleton is None:
+            _lazy_singleton = MistralAIService()
+        return _lazy_singleton
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
