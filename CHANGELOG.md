@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 8.1 iter 4: Mobile action-wrap fix (2026-04-20)
+
+#### Fixed
+- `MyCampaigns`, `OwnChannels`, `TransactionHistory` — the 2-button
+  action slot clipped off the right edge at 320px because an inner
+  `<div className="flex gap-2">` around the buttons blocked
+  `ScreenHeader`'s outer `flex-wrap`. Replaced the wrapper with a
+  fragment; the second button now wraps to its own line on mobile and
+  keeps the original horizontal layout on ≥sm. No change to
+  `ScreenHeader.tsx` itself — its contract was already right.
+- Audited all 20+ ScreenHeader consumers against the freshly-captured
+  mobile-webkit baselines; no other screens exhibit the issue.
+
+### Phase 8.1 iter 3: Visual regression baseline (2026-04-20)
+
+#### Added
+- `web_portal/tests/specs/visual.spec.ts` — 35 routes × 3 viewports =
+  105 full-page screenshot tests with committed baselines under
+  `web_portal/tests/visual-snapshots/`.
+- `make test-e2e-visual-update` — refreshes baselines in one shot.
+- `playwright.config.ts`: `toHaveScreenshot` thresholds
+  (`threshold: 0.2`, `maxDiffPixelRatio: 0.005`).
+
+### Phase 8.1 iter 2: API contract test suite (2026-04-20)
+
+#### Added
+- `tests/e2e_api/` — pytest + httpx suite that runs inside the Docker
+  test stack alongside Playwright (`docker-compose.test.yml` gains
+  `api-contract` service). Asserts auth boundaries, query-param
+  coercion, 401/403/200/422 contracts across 17 representative routes.
+- `docker/Dockerfile.api-contract` — mirrors `Dockerfile.api` but
+  installs Poetry dev-group (pytest, pytest-asyncio). Used only by the
+  test stack; never in prod.
+- `make test-e2e-api` — standalone target; `make test-e2e` now runs API
+  contract + Playwright UI back-to-back in one stack bring-up.
+
+#### Fixed
+- `/api/analytics/summary`, `/activity`, `/cashflow` — all crashed with
+  500 in any environment without `MISTRAL_API_KEY`. Root cause:
+  `AnalyticsService.__init__` eagerly instantiated `MistralAIService()`.
+  Fixed with a `@property`-backed lazy factory matching the module-level
+  pattern from iter 1. Analytics queries that don't need AI (i.e. nearly
+  all of them) no longer build a Mistral client at all.
+
+### Phase 8.1: E2E test harness + production-readiness fixes (2026-04-20)
+
+#### Added
+- Dockerised Playwright harness: `docker-compose.test.yml` with isolated
+  postgres-test / redis-test / seed-test / api-test / nginx-test / playwright
+  services. Runs against a production-like runtime, not stubbed API. New
+  Makefile targets: `test-e2e`, `test-e2e-up`, `test-e2e-down`, `test-e2e-logs`.
+- `scripts/e2e/seed_e2e.py` — idempotent fixture loader (3 roles, channel,
+  placements).
+- `web_portal/tests/` — full Playwright suite: 35 routes × 3 viewports,
+  asserts ≤1 breadcrumbs, no horizontal overflow, no external sprite refs,
+  no uncaught client errors, axe-core baseline.
+
+#### Added — API (testing env only)
+- `POST /api/auth/e2e-login` — test-only JWT issuance by `telegram_id`,
+  gated on `settings.environment == "testing"` at router mount time.
+  Router is not imported in any other environment, so the path returns a
+  plain 404. Never an attack surface in staging/prod.
+
+#### Changed — Placements API
+- `GET /api/placements/?status=…` now accepts semantic aliases `active`
+  (pending_owner + counter_offer + pending_payment + escrow), `completed`
+  (published), `cancelled` (cancelled + refunded + failed + failed_permissions)
+  in addition to concrete `PlacementStatus` values. Unknown values return
+  HTTP 400 with the valid list — previously 500'd with
+  `ValueError: 'active' is not a valid PlacementStatus` on a call the
+  frontend makes from every advertiser route.
+
+#### Fixed
+- `MistralAIService` module-level instantiation crashed any environment
+  without `MISTRAL_API_KEY` at *import* time (tests, CI, smoke). Replaced
+  the eager `mistral_ai_service = MistralAIService()` (plus
+  `ai_service` / `admin_ai_service` aliases) with a module-level
+  `__getattr__` that constructs on first access. Consumer imports
+  unchanged; missing-key `RuntimeError` still raises — just at call-time.
+
+#### Fixed — minor
+- `src/api/main.py`: unused-param underscores (`lifespan`,
+  `_scrub_pii`, `rekharbor_error_handler`), and ORD shutdown now guards
+  the optional `close()` via `inspect.isawaitable` — no pyright narrowing
+  error, same runtime behaviour.
+
 ### S-47: UI redesign per Design System v2 — EmptyState icon (2026-04-20)
 
 #### Fixed
