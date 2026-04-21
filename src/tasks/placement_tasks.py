@@ -69,7 +69,7 @@ async def _notify_user(user_id: int, text: str) -> None:
         text: Текст сообщения.
     """
     from src.db.repositories.user_repo import UserRepository
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -83,12 +83,12 @@ async def _notify_user(user_id: int, text: str) -> None:
             return
 
         try:
-            bot = get_bot()
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text=text,
-                parse_mode="HTML",
-            )
+            async with ephemeral_bot() as bot:
+                await bot.send_message(
+                    chat_id=user.telegram_id,
+                    text=text,
+                    parse_mode="HTML",
+                )
             logger.info(f"Notification sent to user {user_id}")
         except Exception as e:
             logger.error(f"Failed to send notification to user {user_id}: {e}")
@@ -463,11 +463,11 @@ def publish_placement(self, placement_id: int) -> dict[str, Any]:
 async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация публикации через PublicationService."""
     from src.core.services.publication_service import PublicationService
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     result: dict[str, Any] = {"success": False, "status": "failed", "message": ""}
 
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         repo = PlacementRequestRepository(session)
         placement = await repo.get_by_id(placement_id)
 
@@ -495,7 +495,6 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = "Already being processed"
             return result
 
-        bot = get_bot()
         pub_service = PublicationService()
 
         try:
@@ -683,7 +682,7 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
     from src.db.models.placement_request import PlacementStatus
     from src.db.models.telegram_chat import TelegramChat
     from src.db.repositories.publication_log_repo import PublicationLogRepo
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     stats: dict[str, Any] = {
         "checked": 0,
@@ -693,8 +692,7 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
         "errors": 0,
     }
 
-    bot = get_bot()
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         from src.db.models.placement_request import PlacementRequest
 
         now = datetime.now(UTC)
@@ -1011,12 +1009,17 @@ def delete_published_post(self, placement_id: int) -> dict[str, Any]:
 
 
 async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация удаления опубликованного поста. Бросает исключение при ошибке."""
-    from src.core.services.publication_service import PublicationService
-    from src.tasks._bot_factory import get_bot
+    """Асинхронная реализация удаления опубликованного поста. Бросает исключение при ошибке.
 
-    async with async_session_factory() as session:
-        bot = get_bot()
+    Bot создаётся локально через ephemeral_bot(): asyncio.run() создаёт
+    свежий event loop на каждый вызов задачи, а aiohttp-сессия singleton-бота
+    привязана к первому loop и после его закрытия падает с
+    RuntimeError('Event loop is closed') при повторной инвокации.
+    """
+    from src.core.services.publication_service import PublicationService
+    from src.tasks._bot_factory import ephemeral_bot
+
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         pub_service = PublicationService()
         await pub_service.delete_published_post(
             bot=bot, session=session, placement_id=placement_id
@@ -1140,7 +1143,7 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
     from src.config.settings import settings
     from src.core.services.billing_service import BillingService
     from src.db.models.placement_request import PlacementRequest, PlacementStatus
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     stats: dict[str, Any] = {
         "total_checked": 0,
@@ -1153,9 +1156,8 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
 
     threshold = datetime.now(UTC) - timedelta(hours=48)
     billing_svc = BillingService()
-    bot = get_bot()
 
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         stmt = (
             select(PlacementRequest)
             .where(
