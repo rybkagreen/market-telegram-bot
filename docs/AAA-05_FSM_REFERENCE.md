@@ -1,8 +1,8 @@
 # RekHarborBot — FSM State Machine Reference
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-05_FSM_REFERENCE
-> **Verified against:** HEAD @ 2026-04-08 | Source: `src/bot/states/` (12 files), `src/bot/handlers/`
+> **Verified against:** HEAD @ 2026-04-21 | Source: `src/bot/states/`, `src/bot/handlers/` (22 handler files in 8 subdirs)
 
 ---
 
@@ -22,28 +22,28 @@
 
 **Framework:** aiogram 3.x, `aiogram.fsm.state.State, StatesGroup`
 **Storage:** Redis (configured in dispatcher)
-**Total state groups:** 12
-**Total individual states:** 47
-**Total state transitions:** ~49
+**Total state groups:** 11
+**Total individual states:** 52
 
-### State Group Summary
+### State Group Summary (verified 2026-04-21)
 
-| # | State Group | States | Handler File | Complexity | Trigger |
-|---|------------|--------|-------------|------------|---------|
-| 1 | TopupStates | 3 | billing/billing.py | Low | `/topup` button |
-| 2 | PayoutStates | 3 | payout/payout.py | Low | `/payouts` button |
-| 3 | AddChannelStates | 3 | owner/channel_owner.py | Low | Add channel flow |
-| 4 | ChannelSettingsStates | 3 | owner/channel_settings.py | Low | Channel settings |
-| 5 | FeedbackStates | 1 | shared/feedback.py | Trivial | Feedback button |
-| 6 | AdminFeedbackStates | 1 | admin/feedback.py | Trivial | Admin response |
-| 7 | DisputeStates | 3 | dispute/dispute.py | Low | Dispute initiation |
-| 8 | ArbitrationStates | 6 | owner/arbitration.py | Medium | Owner arbitration |
-| 9 | PlacementStates | 8 | placement/placement.py + advertiser/campaigns.py | High | Campaign creation |
-| 10 | LegalProfileStates | 15 | shared/legal_profile.py | High | Legal profile setup |
-| 11 | ContractSigningStates | 3 | shared/contract_signing.py | Low | Contract signing |
-| 12 | CampaignCreateState | 13 | campaign_create.py | High | AI-assisted campaign |
+| # | State Group | States | Handler File | Trigger |
+|---|------------|--------|-------------|---------|
+| 1 | TopupStates | 3 | `billing/billing.py` | `/topup` button |
+| 2 | PayoutStates | 3 | `payout/payout.py` | `/payouts` button |
+| 3 | AddChannelStates | 3 | `owner/channel_owner.py` | Add channel flow |
+| 4 | ChannelSettingsStates | 3 | `owner/channel_settings.py` | Channel settings |
+| 5 | FeedbackStates | 1 | `shared/feedback.py` | Feedback button |
+| 6 | AdminFeedbackStates | 1 | `admin/feedback.py` | Admin response |
+| 7 | DisputeStates | 3 | `dispute/dispute.py` | Dispute initiation |
+| 8 | ArbitrationStates | 6 | `owner/arbitration.py` | Owner arbitration |
+| 9 | PlacementStates | 7 | `placement/placement.py` | Campaign creation (incl. video upload) |
+| 10 | LegalProfileStates | 15 | `shared/legal_profile.py` | Legal profile setup |
+| 11 | ContractSigningStates | 3 | `shared/contract_signing.py` | Contract signing |
 
-**⚠️ Export Issue:** `states/__init__.py` does NOT export `ArbitrationStates`, `AdminFeedbackStates`, `LegalProfileStates`, `ContractSigningStates`. These are imported directly from their modules.
+**Total: 11 state groups / 52 states.** `CampaignCreateState` (older AI wizard flow) is no longer present — campaign creation consolidated into `PlacementStates`.
+
+**⚠️ Export Issue:** `states/__init__.py` does NOT export `ArbitrationStates`, `AdminFeedbackStates`, `LegalProfileStates`, `ContractSigningStates`. They are imported directly from their modules.
 
 ---
 

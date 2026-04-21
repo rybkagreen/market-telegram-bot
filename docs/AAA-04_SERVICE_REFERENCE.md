@@ -1,8 +1,23 @@
 # RekHarborBot — Service Business Rules Catalog
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-04_SERVICE_REFERENCE
-> **Verified against:** HEAD @ 2026-04-08 | Source: `src/core/services/` (34 files)
+> **Verified against:** HEAD @ 2026-04-21 | Source: `src/core/services/` (35 files)
+
+## Service inventory (35 verified)
+
+| Area | Files |
+|------|-------|
+| **Billing & payments** | `billing_service.py`, `yookassa_service.py`, `payout_service.py` |
+| **Placement lifecycle** | `placement_request_service.py`, `publication_service.py`, `link_tracking_service.py` |
+| **Reputation & gamification** | `reputation_service.py`, `review_service.py`, `badge_service.py`, `xp_service.py` |
+| **Legal & compliance** | `legal_profile_service.py`, `contract_service.py`, `fns_validation_service.py`, `document_validation_service.py`, `document_number_service.py` |
+| **Accounting (S-26)** | `act_service.py`, `invoice_service.py`, `kudir_export_service.py`, `tax_aggregation_service.py` |
+| **ORD (ФЗ-38)** | `ord_provider.py` (abstract), `stub_ord_provider.py`, `yandex_ord_provider.py`, `ord_yandex_provider.py`, `ord_service.py` |
+| **EDO** | `edo_provider.py` (abstract), `stub_edo_provider.py` |
+| **AI & analytics** | `mistral_ai_service.py`, `analytics_service.py`, `comparison_service.py`, `mediakit_service.py` |
+| **Channels & users** | `channel_service.py`, `user_attention_service.py`, `user_role_service.py` |
+| **Notifications & misc** | `notification_service.py`, `github_service.py` |
 
 ---
 
