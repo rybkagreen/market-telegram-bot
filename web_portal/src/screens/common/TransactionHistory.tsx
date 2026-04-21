@@ -177,14 +177,14 @@ export default function TransactionHistory() {
         title="История операций"
         subtitle="Все движения по балансу: пополнения, эскроу, выплаты и корректировки"
         action={
-          <div className="flex gap-2">
+          <>
             <Button variant="secondary" iconLeft="export">
               Экспорт CSV
             </Button>
             <Button variant="secondary" iconLeft="docs">
               Экспорт PDF
             </Button>
-          </div>
+          </>
         }
       />
 
