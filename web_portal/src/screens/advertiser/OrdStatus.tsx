@@ -72,7 +72,8 @@ export default function OrdStatus() {
         subtitle="Регистрация у оператора рекламных данных (ФЗ-38). Обязательна для публикации рекламы."
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate(-1 as unknown as string)}
           >

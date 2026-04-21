@@ -67,7 +67,8 @@ export default function OwnAddChannel() {
         subtitle="Проверим права бота, покажем AI-подсказку категории и добавим канал в ваш список."
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/channels')}
           >

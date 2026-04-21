@@ -73,7 +73,7 @@ export default function AcceptRules() {
         title="Правила платформы RekHarbor"
         subtitle="Прочитайте и подтвердите согласие — это требуется однократно"
         action={
-          <Button variant="ghost" iconLeft="external">
+          <Button variant="ghost" size="sm" iconLeft="external">
             Скачать PDF
           </Button>
         }

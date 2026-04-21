@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Skeleton, Notification, Icon, ScreenHeader } from '@shared/ui'
+import { Button, Skeleton, Notification, Icon, ScreenHeader, DropdownMenu } from '@shared/ui'
 import type { IconName } from '@shared/ui'
 import { useTransactionHistory } from '@/hooks/useBillingQueries'
 import { useMe } from '@/hooks/queries'
@@ -177,14 +177,17 @@ export default function TransactionHistory() {
         title="История операций"
         subtitle="Все движения по балансу: пополнения, эскроу, выплаты и корректировки"
         action={
-          <>
-            <Button variant="secondary" iconLeft="export">
-              Экспорт CSV
-            </Button>
-            <Button variant="secondary" iconLeft="docs">
-              Экспорт PDF
-            </Button>
-          </>
+          <DropdownMenu
+            trigger={
+              <Button variant="secondary" size="sm" iconLeft="export" iconRight="chevron-down">
+                Экспорт
+              </Button>
+            }
+            items={[
+              { label: 'CSV', icon: 'export' },
+              { label: 'PDF', icon: 'docs' },
+            ]}
+          />
         }
       />
 

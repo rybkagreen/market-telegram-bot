@@ -22,7 +22,8 @@ export default function CampaignVideo() {
         subtitle="Загрузите ролик формата MP4 или MOV размером до 50 МБ. Он будет прикреплён к рекламному посту."
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/adv/campaigns/new/text')}
           >

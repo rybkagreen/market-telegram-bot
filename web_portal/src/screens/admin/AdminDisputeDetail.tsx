@@ -11,6 +11,7 @@ import {
 import type { IconName } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
 import { useDisputeById, useResolveDispute } from '@/hooks/useDisputeQueries'
+import { getDisputeStatusMeta, DISPUTE_TONE_CLASSES } from '@/lib/disputeLabels'
 
 type Resolution = 'owner_fault' | 'advertiser_fault' | 'technical' | 'partial'
 
@@ -42,22 +43,6 @@ const RESOLUTION_META: Record<
     icon: 'percent',
     tone: 'accent2',
   },
-}
-
-type Tone = 'danger' | 'warning' | 'success' | 'neutral'
-
-const STATUS_META: Record<string, { label: string; tone: Tone; icon: IconName }> = {
-  open: { label: 'Открыт', tone: 'danger', icon: 'warning' },
-  owner_explained: { label: 'Ответ владельца', tone: 'warning', icon: 'hourglass' },
-  resolved: { label: 'Решён', tone: 'success', icon: 'verified' },
-  closed: { label: 'Закрыт', tone: 'neutral', icon: 'archive' },
-}
-
-const toneClasses: Record<Tone, string> = {
-  danger: 'bg-danger-muted text-danger',
-  warning: 'bg-warning-muted text-warning',
-  success: 'bg-success-muted text-success',
-  neutral: 'bg-harbor-elevated text-text-tertiary',
 }
 
 const resolutionToneClasses: Record<
@@ -128,8 +113,7 @@ export default function AdminDisputeDetail() {
     )
   }
 
-  const statusMeta =
-    STATUS_META[dispute.status] ?? { label: dispute.status, tone: 'neutral' as Tone, icon: 'info' as IconName }
+  const statusMeta = getDisputeStatusMeta(dispute.status)
 
   return (
     <div className="max-w-[1080px] mx-auto">
@@ -137,18 +121,29 @@ export default function AdminDisputeDetail() {
         title={`Спор #${dispute.id}`}
         subtitle={dispute.reason.replace(/_/g, ' ')}
         action={
-          <Button
-            variant="secondary"
-            iconLeft="arrow-left"
-            onClick={() => navigate('/admin/disputes')}
-          >
-            К списку
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="arrow-left"
+              onClick={() => navigate('/admin/disputes')}
+            >
+              К списку
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              iconRight="arrow-right"
+              onClick={() => navigate(`/own/requests/${dispute.placement_request_id}`)}
+            >
+              Перейти к кампании #{dispute.placement_request_id}
+            </Button>
+          </>
         }
       />
 
       <div className="mb-5 inline-flex items-center gap-2 text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded">
-        <span className={`inline-flex items-center gap-1.5 py-1 px-2 rounded ${toneClasses[statusMeta.tone]}`}>
+        <span className={`inline-flex items-center gap-1.5 py-1 px-2 rounded ${DISPUTE_TONE_CLASSES[statusMeta.tone]}`}>
           <Icon name={statusMeta.icon} size={12} />
           {statusMeta.label}
         </span>

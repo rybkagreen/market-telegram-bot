@@ -81,17 +81,6 @@ const MyDisputes = lazy(() => import('@/screens/shared/MyDisputes'))
 // ═══ Dev-only screens (DEV build only) ═══
 const DevIcons = lazy(() => import('@/screens/dev/DevIcons'))
 
-// ═══ Placeholder screens для MVP ═══
-function PlaceholderScreen({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-      <div className="text-6xl mb-4">🚧</div>
-      <h2 className="text-2xl font-display font-bold text-text-primary mb-2">{title}</h2>
-      <p className="text-text-secondary">Этот экран будет добавлен в следующей итерации.</p>
-    </div>
-  )
-}
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -188,28 +177,23 @@ const router = createBrowserRouter([
           // ── Disputes ──
           { path: 'disputes/:id', element: <DisputeDetail /> },
 
-          // ── Admin ──
-          { path: 'admin', element: <AdminDashboard /> },
-          { path: 'admin/users', element: <AdminUsersList /> },
-          { path: 'admin/users/:id', element: <AdminUserDetail /> },
-          { path: 'admin/feedback', element: <AdminFeedbackList /> },
-          { path: 'admin/feedback/:id', element: <AdminFeedbackDetail /> },
-          { path: 'admin/disputes', element: <AdminDisputesList /> },
-          { path: 'admin/disputes/:id', element: <AdminDisputeDetail /> },
-          { path: 'admin/payouts', element: <AdminPayouts /> },
-
-          // Admin guarded
+          // ── Admin (all admin routes gated) ──
           {
             element: <AdminGuard />,
             children: [
+              { path: 'admin', element: <AdminDashboard /> },
+              { path: 'admin/users', element: <AdminUsersList /> },
+              { path: 'admin/users/:id', element: <AdminUserDetail /> },
+              { path: 'admin/feedback', element: <AdminFeedbackList /> },
+              { path: 'admin/feedback/:id', element: <AdminFeedbackDetail /> },
+              { path: 'admin/disputes', element: <AdminDisputesList /> },
+              { path: 'admin/disputes/:id', element: <AdminDisputeDetail /> },
+              { path: 'admin/payouts', element: <AdminPayouts /> },
               { path: 'admin/accounting', element: <AdminAccounting /> },
               { path: 'admin/tax-summary', element: <AdminTaxSummary /> },
               { path: 'admin/settings', element: <AdminPlatformSettings /> },
             ],
           },
-
-          // Settings
-          { path: 'settings', element: <PlaceholderScreen title="Настройки" /> },
 
           // DEV-only: icon gallery (stripped from prod build by Vite tree-shake)
           ...(import.meta.env.DEV

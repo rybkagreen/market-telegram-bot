@@ -159,7 +159,7 @@ export default function Feedback() {
         title="Обратная связь"
         subtitle="Опишите проблему или идею — мы прочитаем и ответим в Telegram и на почту"
         action={
-          <Button variant="secondary" iconLeft="receipt" onClick={() => navigate('/feedback/my')}>
+          <Button variant="secondary" size="sm" iconLeft="receipt" onClick={() => navigate('/feedback/my')}>
             Мои обращения
           </Button>
         }
