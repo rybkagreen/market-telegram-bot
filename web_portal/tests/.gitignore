@@ -1,0 +1,11 @@
+# Per-run artifacts
+.auth/
+node_modules/
+# WebKit may drop `core` dumps here on crash — never commit (multi-GB).
+core
+tests/
+# Visual regression: committed baselines live at visual-snapshots/
+# but Playwright writes a `*-actual.png` and `*-diff.png` next to them
+# on failure — don't commit those.
+**/*-actual.png
+**/*-diff.png
