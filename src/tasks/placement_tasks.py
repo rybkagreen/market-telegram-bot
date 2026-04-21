@@ -551,6 +551,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                         owner_id=placement.owner_id,
                         scenario="after_escrow_before_confirmation",
                     )
+                    await refund_session.commit()
             except Exception as refund_err:
                 logger.critical(
                     f"CRITICAL: Failed to refund escrow for placement {placement_id} "
@@ -870,8 +871,8 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 
                 final_price = placement.final_price or placement.proposed_price
 
-                # Refund через BillingService — обновляет platform_account.escrow_reserved
-                # Используем отдельную сессию: refund_escrow управляет своей транзакцией
+                # Refund через BillingService — обновляет platform_account.escrow_reserved.
+                # refund_escrow работает в рамках переданной сессии; commit обязан вызывающий.
                 async with async_session_factory() as refund_session:
                     await billing_svc.refund_escrow(
                         refund_session,
@@ -881,6 +882,7 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
                         owner_id=placement.owner_id,
                         scenario="after_escrow_before_confirmation",
                     )
+                    await refund_session.commit()
 
                 # Mark as failed (per-item commit)
                 placement.status = PlacementStatus.failed
@@ -1190,7 +1192,8 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                     delete_published_post.apply_async(args=[placement.id])
                     stats["group_a_dispatched"] += 1
                 else:
-                    # Публикации не было — прямой возврат через BillingService
+                    # Публикации не было — прямой возврат через BillingService.
+                    # refund_escrow работает в рамках переданной сессии; commit обязан вызывающий.
                     final_price = placement.final_price or placement.proposed_price
                     async with async_session_factory() as refund_session:
                         await billing_svc.refund_escrow(
@@ -1201,6 +1204,7 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                             owner_id=placement.owner_id,
                             scenario="after_escrow_before_confirmation",
                         )
+                        await refund_session.commit()
                     placement.status = PlacementStatus.failed
                     stats["group_b_refunded"] += 1
 
