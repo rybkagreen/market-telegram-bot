@@ -8,38 +8,22 @@ import {
   ScreenHeader,
   EmptyState,
 } from '@shared/ui'
-import type { IconName } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
 import { useAdminDisputes } from '@/hooks/useFeedbackQueries'
+import { getDisputeStatusMeta, DISPUTE_TONE_CLASSES } from '@/lib/disputeLabels'
 
-type StatusFilter = 'all' | 'open' | 'owner_reply' | 'resolved'
+type StatusFilter = 'all' | 'open' | 'owner_explained' | 'resolved'
 
 const FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: 'open', label: 'Открытые' },
-  { key: 'owner_reply', label: 'Ответ владельца' },
-  { key: 'resolved', label: 'Решённые' },
   { key: 'all', label: 'Все' },
+  { key: 'open', label: 'Открытые' },
+  { key: 'owner_explained', label: 'На рассмотрении' },
+  { key: 'resolved', label: 'Решённые' },
 ]
-
-type Tone = 'danger' | 'warning' | 'success' | 'neutral'
-
-const STATUS_META: Record<string, { label: string; tone: Tone; icon: IconName }> = {
-  open: { label: 'Открыт', tone: 'danger', icon: 'warning' },
-  owner_explained: { label: 'Ответ владельца', tone: 'warning', icon: 'hourglass' },
-  resolved: { label: 'Решён', tone: 'success', icon: 'verified' },
-  closed: { label: 'Закрыт', tone: 'neutral', icon: 'archive' },
-}
-
-const toneClasses: Record<Tone, string> = {
-  danger: 'bg-danger-muted text-danger',
-  warning: 'bg-warning-muted text-warning',
-  success: 'bg-success-muted text-success',
-  neutral: 'bg-harbor-elevated text-text-tertiary',
-}
 
 export default function AdminDisputesList() {
   const navigate = useNavigate()
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(0)
   const limit = 20
 
@@ -107,18 +91,16 @@ export default function AdminDisputesList() {
       ) : (
         <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
           {data.items.map((dispute, i) => {
-            const meta =
-              STATUS_META[dispute.status] ??
-              { label: dispute.status, tone: 'neutral' as Tone, icon: 'info' as IconName }
+            const meta = getDisputeStatusMeta(dispute.status)
             const isLast = i === data.items.length - 1
             return (
               <button
                 key={dispute.id}
                 type="button"
-                onClick={() => navigate(`/disputes/${dispute.id}`)}
+                onClick={() => navigate(`/admin/disputes/${dispute.id}`)}
                 className={`w-full text-left flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${isLast ? '' : 'border-b border-border'}`}
               >
-                <span className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}>
+                <span className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${DISPUTE_TONE_CLASSES[meta.tone]}`}>
                   <Icon name={meta.icon} size={16} />
                 </span>
                 <div className="flex-1 min-w-0">
@@ -136,7 +118,7 @@ export default function AdminDisputesList() {
                     <span className="tabular-nums">{formatDateTimeMSK(dispute.created_at)} МСК</span>
                   </div>
                 </div>
-                <span className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[meta.tone]}`}>
+                <span className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${DISPUTE_TONE_CLASSES[meta.tone]}`}>
                   {meta.label}
                 </span>
                 <span
