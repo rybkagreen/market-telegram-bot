@@ -7,6 +7,209 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — web-portal button system unified (2026-04-21)
+
+#### Changed
+- `web_portal/src/shared/ui/Button.tsx` rewritten with a real size scale:
+  `sm = 32 px`, `md = 40 px`, `lg = 48 px` (was `sm = md = 44 px`, `lg = 52 px`).
+  Softened `secondary` variant (elevated background + transparent border — was
+  hard `border-border-active` rim). Added `focus-visible:ring` outline, `aria-label`
+  and `aria-busy` props. Public API is **backwards-compatible**.
+- All `ScreenHeader.action` buttons across advertiser / owner / admin / common /
+  shared screens now use `size="sm"`. Back/nav buttons shifted to `variant="ghost"`;
+  utility refresh buttons collapsed to icon-only 32 × 32.
+- Cabinet header ("Отчёт" + "Создать кампанию"), Plans ("Пополнить баланс"),
+  MyCampaigns and OwnChannels primary CTAs tightened to `size="sm"`.
+- `TransactionHistory` "Экспорт CSV" + "Экспорт PDF" pair consolidated into a
+  single `DropdownMenu` trigger.
+
+#### Added
+- `web_portal/src/shared/ui/DropdownMenu.tsx` — new generic menu primitive
+  (outside-click + Esc close, keyboard focus on open, ARIA menu semantics).
+  Exported from `@shared/ui`.
+
+#### Fixed (pre-existing lint errors resolved during hardening)
+- `Sparkline.tsx` — `Math.random` ID generation → `useId()`.
+- `useBillingQueries.ts` — `Date.now()` read moved out of render into effect.
+- `BalanceHero.tsx` — stabilized `history?.items` for React Compiler memo inference.
+- `MyDisputes.tsx` — wrapped `data?.items ?? []` in `useMemo`.
+
+Eslint: 0 errors (was 3), 6 pre-existing warnings unchanged.
+
+#### Visual regression (action required)
+- Playwright `visual.spec.ts` baselines need regeneration:
+  `make test-e2e-visual-update`. Every screen with a `ScreenHeader` action has
+  a new — intentional — button style.
+
+#### Fixed — admin "Настройки" sidebar link (bundled)
+- Removed the public "Настройки" entry from sidebar — it was visible to all
+  roles and pointed to a placeholder stub, masking the real platform
+  legal-profile screen.
+- Added "Реквизиты платформы" → `/admin/settings` (admin-only) which hosts the
+  existing `AdminPlatformSettings` form that feeds `legal_name`/`inn`/`kpp`/
+  `ogrn`/bank data into contract generation.
+- Removed the dead `/settings` route and unused `PlaceholderScreen` component.
+
+#### Not changed
+- No API / FSM / DB contract changes. No new migrations. No Celery changes.
+- `Button` API is source-compatible; no call-site migration beyond the
+  deliberate size/variant updates listed above.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_web-portal-button-unification.md](reports/docs-architect/discovery/CHANGES_2026-04-21_web-portal-button-unification.md).
+
+### Fixed — web-portal top-up returned 404 on yookassa.ru (2026-04-21)
+
+- `BillingService.create_payment` (`src/core/services/billing_service.py`) fabricated a
+  local UUID and a synthetic URL `https://yookassa.ru/payment/{uuid}`, which always
+  returned "Ошибка 404" because no payment was ever registered with YooKassa. The method
+  now actually calls `yookassa.Payment.create` (wrapped in `asyncio.to_thread`) and
+  stores the real `payment.id` and `payment.confirmation.confirmation_url` on the
+  `YookassaPayment` row.
+- Guards: raises `RuntimeError` if YooKassa credentials are unset or no confirmation URL
+  is returned; propagates `yookassa.domain.exceptions.ApiError`.
+
+#### Public contract change
+- `POST /api/billing/topup` response schema unchanged; `payment_url` now holds a real
+  YooKassa confirmation URL (e.g. `https://yoomoney.ru/checkout/payments/v2/contract?…`)
+  instead of a 404-returning string.
+- `yookassa_payments.payment_id` now holds the YooKassa-issued ID (previously a locally
+  generated UUID), enabling reconciliation against the YooKassa dashboard. No schema
+  change.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_fix-yookassa-topup-404.md](reports/docs-architect/discovery/CHANGES_2026-04-21_fix-yookassa-topup-404.md).
+
+### Docs — re-audit & drift fix (2026-04-21)
+
+#### Changed
+- `README.md` rewritten against verified counts: 27 routers · 131 endpoints · 35 services · 31 models · 26 repos · 22 handler files · 11 FSM groups (52 states) · 12 Celery files / 66 tasks / 9 queues / 18 periodic · Mini App 55 screens · Web Portal 66 screens / 126 Playwright specs · Landing page.
+- `docs/AAA-01…AAA-10` synced: headers re-dated, metric tables rebuilt, inventories regenerated from filesystem. AAA-07 gained a dedicated Landing Page section.
+- `docs/AAA-10_DISCREPANCY_REPORT.md` — added 2026-04-21 drift snapshot (earlier doc/CLAUDE.md claims vs reality).
+
+#### Not changed
+- `docs/AAA-11_PRODUCTION_FIX_PLAN.md`, `docs/AAA-12_CONTAINER_STARTUP_DEEP_DIVE.md` — point-in-time artefacts (S-29 / post-rebuild) intentionally left intact.
+- No code, schema, API or Celery routing changes.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_docs-sync-deep-dive.md](reports/docs-architect/discovery/CHANGES_2026-04-21_docs-sync-deep-dive.md).
+
+### Disputes flow — deep audit + hardening (2026-04-21)
+
+#### Fixed
+- **Admin "Все" filter was empty** — `GET /disputes/admin/disputes`
+  default `status="open"` в роутере `src/api/routers/disputes.py`;
+  фронт при «Все» не передавал параметр → бэк фильтровал только
+  open. Default переведён на `"all"`.
+- **Статус-лейблы расходились** между экранами (MyDisputes фильтр
+  «Ожидание» vs бейдж «Ответ владельца»; владелец читал про себя в
+  3-ем лице). Введён единый источник —
+  `web_portal/src/lib/disputeLabels.ts` + ролево-зависимые
+  формулировки `getRoleAwareStatusLabel(status, role)`.
+- **Shared `/disputes/:id` показывал форму «Ваш ответ» всем** —
+  рекламодатель мог кликнуть Submit, бэк возвращал 403. Форма
+  удалена; владельцу показывается CTA со ссылкой на
+  `/own/disputes/:id`.
+- **`useMyDisputeByPlacement`** делал full-scan последних 100
+  disputes клиентски. Заменён на backend endpoint
+  `GET /disputes/by-placement/{placement_request_id}`.
+- `DisputeDetail` back-кнопка вела в `/disputes` (маршрут не
+  существует) → `navigate(-1)` + лейбл «Назад».
+
+#### Added
+- `GET /disputes/by-placement/{placement_request_id}` — возвращает
+  `DisputeResponse | null`; авторизация через проверку роли в
+  размещении.
+
+#### Security / Data integrity
+- `POST /disputes` — добавлены серверные инварианты:
+  создавать диспут может только рекламодатель размещения;
+  размещение должно быть в статусе `published`; окно открытия —
+  48 часов с момента `published_at`. Раньше проверка была только
+  на фронте.
+
+#### Deferred (ticket needed)
+- Telegram-уведомления на события диспута
+  (`notify_dispute_created/replied/resolved`).
+- Celery auto-escalation для stale `owner_explained` диспутов (72h
+  через поле `expires_at`).
+- Унификация параллельных enum'ов `DisputeStatus`/`DisputeResolution`
+  между `api.schemas.dispute` и `db.models.dispute`.
+
+### Admin dispute filter + campaign-filter unification (2026-04-21)
+
+#### Fixed
+- `AdminDisputesList` — неверный ключ фильтра `owner_reply` в UI (бэк
+  принимает `open|owner_explained|resolved|all`). Из-за этого клик по
+  «Ответ владельца» возвращал 400 и дисп исчезал, а дефолтный
+  `status=open` прятал записи `owner_explained` (ожидающие решения
+  админа). Ключ переименован в `owner_explained`, дефолтный фильтр
+  переведён на `all`.
+- `OwnRequests` vs `MyCampaigns` — `status=published` классифицировался
+  у рекламодателя как «Завершена», а у владельца канала как
+  «Активные». Добавлен отдельный фильтр «Завершённые» для владельца,
+  `ACTIVE_STATUSES` у него сужены до `['escrow']`. Обе стороны теперь
+  трактуют `published` как завершённое размещение.
+
+### Portal Disputes restructure (2026-04-21)
+
+#### Fixed
+- `AdminDisputesList` — клик по записи открывал общий
+  `/disputes/:id` (shared `DisputeDetail` c textarea «Ваш ответ»), из-за
+  чего админ мог отправить `owner_explanation` от имени владельца.
+  Теперь список ведёт на `/admin/disputes/:id` (`AdminDisputeDetail`,
+  admin-only resolve-UI).
+- Все `/admin/**` маршруты теперь под `AdminGuard`: ранее только
+  `accounting`, `tax-summary`, `settings` были защищены, остальные лишь
+  скрывались в сайдбаре для не-админов.
+
+#### Added
+- `AdminDisputeDetail` — в header добавлена кнопка «Перейти к кампании
+  #N» → `/own/requests/:id`, чтобы админ мог изучить контекст
+  оспариваемого размещения.
+- `OwnRequestDetail` — при `has_dispute=true` отображается карточка
+  «Спор по этой заявке» с комментарием рекламодателя и кнопкой
+  «Ответить на спор» / «Открыть детали спора».
+- `CampaignPublished` (рекламодатель) — при существующем споре
+  отображается карточка статуса (open / owner_explained / resolved /
+  closed) и ответ владельца; кнопка «Открыть детали спора» ведёт на
+  `/disputes/:disputeId`.
+- Новый хук `useMyDisputeByPlacement(placementId)` —
+  клиентский lookup дисп-записи по `placement_request_id` через
+  существующий `GET /disputes`.
+
+#### Changed
+- Sidebar — удалён пункт «Мои споры» из группы «Реклама». Раздел
+  «Споры» остаётся только у админа (`adminOnly: true`). Маршруты
+  `/adv/disputes` и `/own/disputes` сохраняются как deep-links.
+
+### Portal UI fixes: Legal Profile, Cabinet, Sidebar (2026-04-21)
+
+#### Fixed
+- `LegalProfileSetup` — карточка «Профиль заполнен» теперь строится
+  динамически по `requiredFields` из бэкенда и флагам
+  `showBank`/`showPassport`: для Физлица/Самозанятого показываются
+  паспортные данные и ЮMoney-кошелёк, для ИП/ООО — КПП/ОГРН/банковские
+  реквизиты. Процент заполнения считается только по релевантным полям.
+- `LegalProfileSetup` — StepIndicator считает шаг по фактической
+  готовности секций: этап «Банк»/«Паспорт» загорается после заполнения
+  основных реквизитов; третий лейбл адаптируется под тип лица.
+- `ProfileCompleteness` (Кабинет) — шаг «Юридический профиль»
+  использует `legal.is_complete` (бэкенд-флаг
+  `user.legal_status_completed`) вместо простого наличия
+  `legal_status`; больше не помечается «выполненным» при частично
+  заполненном профиле.
+- `Sidebar` — `<aside>` получил `h-dvh min-h-0`, из-за чего внутренний
+  `<nav className="flex-1 overflow-y-auto">` снова корректно
+  прокручивается. Пункт «Администрирование» был скрыт за нижним краем
+  экрана.
+
+#### Removed
+- `LegalProfileSetup` — удалена кнопка «Проверить ИНН» и блок
+  «Результат проверки ФНС» (включая использование
+  `useValidateEntity`). Валидация ИНН по контрольной сумме остаётся
+  автоматической на `onBlur` через `useValidateInn`
+  (`POST /legal-profile/validate-inn`).
+- `LegalProfileSetup` — удалена кнопка «Шаблон заполнения» из
+  `ScreenHeader.action` (не имела обработчика).
+
 ### Phase 8.1 iter 4: Mobile action-wrap fix (2026-04-20)
 
 #### Fixed
