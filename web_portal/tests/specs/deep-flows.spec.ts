@@ -48,7 +48,7 @@ test.describe('[flow] accept rules', () => {
     const resp = await request.post('/api/legal-profile/rules', {
       data: { accept_platform_rules: true, accept_privacy_policy: true },
     })
-    expect(resp.status(), await resp.text()).toBeLessThan(300)
+    expect(resp.ok(), await resp.text()).toBe(true)
   })
 })
 
@@ -86,7 +86,7 @@ test.describe('[flow] campaign wizard navigation', () => {
 test.describe('[flow] owner updates channel settings', () => {
   test.use({ storageState: owner.storageFile })
 
-  test('PATCH /api/channels/:id then GET returns new price', async ({
+  test('PATCH /api/channel-settings/ then GET returns new price', async ({
     request,
   }) => {
     const list = await request.get('/api/channels/')
@@ -95,20 +95,21 @@ test.describe('[flow] owner updates channel settings', () => {
     expect(Array.isArray(rows) && rows.length).toBeTruthy()
     const channelId = rows[0].id
 
+    // Реальный маршрут (src/api/main.py:211 → channel_settings.py:187):
+    // PATCH /api/channel-settings/?channel_id=:id, body — ChannelSettingsUpdateRequest.
     const newPrice = 1234
-    const patch = await request.patch(`/api/channels/${channelId}/settings`, {
+    const patch = await request.patch('/api/channel-settings/', {
+      params: { channel_id: channelId },
       data: { price_per_post: newPrice },
     })
-    // 200 OK or 404 (route may be under a different path in current build).
-    // Only a 500 (server error) would be a regression.
-    expect(patch.status(), await patch.text()).toBeLessThan(500)
+    expect(patch.ok(), await patch.text()).toBe(true)
 
-    if (patch.ok()) {
-      const again = await request.get(`/api/channels/${channelId}/settings`)
-      expect(again.ok()).toBe(true)
-      const body = await again.json()
-      expect(body.price_per_post).toBe(newPrice)
-    }
+    const again = await request.get('/api/channel-settings/', {
+      params: { channel_id: channelId },
+    })
+    expect(again.ok(), await again.text()).toBe(true)
+    const body = (await again.json()) as { price_per_post: number }
+    expect(body.price_per_post).toBe(newPrice)
   })
 })
 
@@ -130,16 +131,21 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
     )
     expect(pending, 'seed provides at least one pending_owner placement').toBeTruthy()
 
-    // (b) owner accepts via unified PATCH → pending_payment
+    // (b) owner accepts via unified PATCH → pending_payment.
+    // 200 — первый запуск (placement ещё pending_owner).
+    // 409 — повторный прогон suite по тому же seed (placement уже переведён
+    //       в pending_payment/escrow), тоже засчитывается как контрактно
+    //       корректный ответ.
     const accepted = await ownCtx.request.patch(
       `/api/placements/${pending!.id}`,
       { data: { action: 'accept' } },
     )
-    // Любой недеструктивный ответ (200 ok, 409 уже accepted при повторе) нас
-    // устраивает; 500 — регрессия контракта роутера.
-    expect(accepted.status()).toBeLessThan(500)
+    expect(
+      accepted.ok() || accepted.status() === 409,
+      `owner PATCH accept: ${accepted.status()} — ${await accepted.text()}`,
+    ).toBe(true)
 
-    // (c) advertiser pays if еще не оплачен
+    // (c) advertiser pays если статус pending_payment.
     const current = await advCtx.request.get(`/api/placements/${pending!.id}`)
     if (current.ok()) {
       const body = (await current.json()) as { status: string }
@@ -148,7 +154,12 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
           `/api/placements/${pending!.id}`,
           { data: { action: 'pay' } },
         )
-        expect(paid.status()).toBeLessThan(500)
+        // 200 — успешная оплата; 409 — повторный прогон после уже оплаченного
+        // placement (status != pending_payment) роутер мапит в 409.
+        expect(
+          paid.ok() || paid.status() === 409,
+          `advertiser PATCH pay: ${paid.status()} — ${await paid.text()}`,
+        ).toBe(true)
       }
     }
 
@@ -163,7 +174,7 @@ test.describe('[flow] payouts list', () => {
   test('owner reads /api/payouts/ without error', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: owner.storageFile })
     const resp = await ctx.request.get('/api/payouts/')
-    expect(resp.status()).toBeLessThan(500)
+    expect(resp.ok(), await resp.text()).toBe(true)
     await ctx.close()
   })
 
@@ -190,21 +201,28 @@ test.describe('[flow] payouts list', () => {
 test.describe('[flow] top-up initiate', () => {
   test.use({ storageState: advertiser.storageFile })
 
-  test('POST /api/billing/topup returns confirmation_url or documented 4xx', async ({
-    request,
-  }) => {
+  test('POST /api/billing/topup returns payment_url', async ({ request }) => {
+    // Настоящий endpoint стреляет в YooKassa API — без shop-id/secret в
+    // env получаем 500. Тест имеет смысл только когда YooKassa настроена.
+    test.skip(
+      !process.env.YOOKASSA_SHOP_ID || !process.env.YOOKASSA_SECRET_KEY,
+      'YooKassa credentials отсутствуют в тестовом окружении',
+    )
+
+    // Контракт (src/api/routers/billing.py:159): TopupRequest требует
+    // desired_amount + method; TopupResponse.payment_url — единственная
+    // ссылка на платёж (confirmation_url — это внутреннее поле YooKassa SDK).
     const resp = await request.post('/api/billing/topup', {
-      data: { amount: 500 },
+      data: { desired_amount: 500, method: 'yookassa' },
     })
-    // YooKassa может быть не сконфигурирован в test-стеке — принимаем 4xx,
-    // но не 500.
-    expect(resp.status(), await resp.text()).toBeLessThan(500)
-    if (resp.ok()) {
-      const body = (await resp.json()) as { confirmation_url?: string }
-      // В тестовом стенде YOOKASSA может возвращать stub-URL; главное —
-      // контракт содержит confirmation_url.
-      expect('confirmation_url' in body).toBe(true)
+    expect(resp.ok(), await resp.text()).toBe(true)
+    const body = (await resp.json()) as {
+      payment_id: string
+      payment_url: string
+      status: string
     }
+    expect(body.payment_url).toMatch(/^https?:\/\//)
+    expect(body.payment_id).toBeTruthy()
   })
 })
 
@@ -227,16 +245,21 @@ test.describe('[flow] review on published placement', () => {
       return
     }
 
-    const resp = await request.post('/api/reviews', {
+    const resp = await request.post('/api/reviews/', {
       data: {
         placement_request_id: published.id,
         rating: 5,
         comment: 'E2E positive review',
       },
     })
-    // Повторный POST для той же пары (user, placement) может дать 409 —
-    // тест закрепляет только, что API контракт стабилен (не 500).
-    expect(resp.status(), await resp.text()).toBeLessThan(500)
+    // Роутер отдаёт 201 на первом прогоне и 409 при повторном POST той же
+    // пары (user, placement) — seed содержит published placement, поэтому
+    // оба статуса валидны. 200 добавлен на случай, если suite в будущем
+    // будет тестировать обновление существующего review.
+    expect(
+      [200, 201, 409],
+      `unexpected review status: ${resp.status()} — ${await resp.text()}`,
+    ).toContain(resp.status())
   })
 })
 
