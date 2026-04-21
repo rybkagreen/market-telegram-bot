@@ -1202,9 +1202,25 @@ class BillingService:
         Note:
             Caller-controlled transaction: метод работает в рамках транзакции
             вызывающего, не открывает и не коммитит её.
+
+            Idempotent: Transaction.idempotency_key = `escrow_freeze:placement={id}`.
+            Повторный вызов для того же placement_id — no-op.
         """
+        from sqlalchemy import exists, select
+        from sqlalchemy.exc import IntegrityError
+
         if amount < MIN_CAMPAIGN_BUDGET:
             raise ValueError(f"Минимальный бюджет размещения {MIN_CAMPAIGN_BUDGET} ₽")
+
+        freeze_key = f"escrow_freeze:placement={placement_id}"
+        already = await session.scalar(
+            select(exists().where(Transaction.idempotency_key == freeze_key))
+        )
+        if already:
+            logger.info(
+                f"freeze_escrow: placement {placement_id} already frozen (idempotency hit)"
+            )
+            return
 
         # SELECT FOR UPDATE user
         user_repo = UserRepository(session)
@@ -1230,7 +1246,9 @@ class BillingService:
             user_id=user_id,
             amount=amount,
             type=TransactionType.escrow_freeze,
+            placement_request_id=placement_id,
             yookassa_payment_id=None,
+            idempotency_key=freeze_key,
             meta_json={
                 "type": "escrow_freeze",
                 "placement_id": placement_id,
@@ -1240,7 +1258,13 @@ class BillingService:
             balance_after=user.balance_rub,
         )
         session.add(transaction)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            logger.warning(
+                f"freeze_escrow: idempotency race for placement {placement_id}: {exc}"
+            )
+            raise
 
         logger.info(
             f"Escrow frozen: {amount} ₽ from advertiser {user_id} for placement {placement_id}"
@@ -1270,19 +1294,30 @@ class BillingService:
 
             Caller-controlled transaction: метод работает в рамках транзакции
             вызывающего, не открывает и не коммитит её.
+
+            Idempotent: каждая из двух порождаемых транзакций несёт стабильный
+            Transaction.idempotency_key. При повторном вызове метод находит
+            существующий ключ и выходит без побочных эффектов. При конкурентной
+            вставке UNIQUE-индекс в БД пропускает лишь одного победителя.
         """
-        # Check idempotency - if mailing already paid, skip
-        # NOTE: MailingLog-based idempotency is a legacy artefact and is being
-        # replaced by Transaction.idempotency_key in a follow-up commit (A.3).
-        from sqlalchemy import select
+        from sqlalchemy import exists, select
+        from sqlalchemy.exc import IntegrityError
 
-        from src.db.models.mailing_log import MailingLog, MailingStatus
+        owner_key = f"escrow_release:placement={placement_id}:owner"
+        platform_key = f"escrow_release:placement={placement_id}:platform"
 
-        stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
-        result = await session.execute(stmt)
-        mailing = result.scalar_one_or_none()
-        if mailing and mailing.status == MailingStatus.paid:
-            logger.info(f"Escrow release skipped - already paid for placement {placement_id}")
+        # Idempotency: если ключ уже есть — релиз уже выполнен, no-op.
+        already = await session.scalar(
+            select(
+                exists().where(
+                    Transaction.idempotency_key.in_([owner_key, platform_key])
+                )
+            )
+        )
+        if already:
+            logger.info(
+                f"release_escrow: placement {placement_id} already released (idempotency hit)"
+            )
             return
 
         # Formula: owner_amount = final_price * OWNER_SHARE (rounded)
@@ -1306,7 +1341,9 @@ class BillingService:
             user_id=owner_id,
             amount=owner_amount,
             type=TransactionType.escrow_release,
+            placement_request_id=placement_id,
             yookassa_payment_id=None,
+            idempotency_key=owner_key,
             meta_json={
                 "type": "escrow_release",
                 "placement_id": placement_id,
@@ -1327,7 +1364,9 @@ class BillingService:
             user_id=advertiser_id,  # Платформа (условно)
             amount=platform_fee,
             type=TransactionType.commission,
+            placement_request_id=placement_id,
             yookassa_payment_id=None,
+            idempotency_key=platform_key,
             meta_json={
                 "type": "commission",
                 "placement_id": placement_id,
@@ -1338,7 +1377,17 @@ class BillingService:
             balance_after=platform_fee,
         )
         session.add(commission_transaction)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            # Race: кто-то параллельно успел вставить — откат на savepoint не нужен,
+            # так как caller получит ту же ошибку и откатит свою транзакцию.
+            # Логируем и пробрасываем — retry на уровне Celery подхватит и
+            # на следующей итерации EXISTS-проверка вверху сработает.
+            logger.warning(
+                f"release_escrow: idempotency race for placement {placement_id}: {exc}"
+            )
+            raise
 
         # Sprint A.3: записать комиссию размещения в УСН и КУДиР
         # Sprint C.1: рассчитать НДС 22% от комиссии платформы
@@ -1352,13 +1401,6 @@ class BillingService:
             f"Placement commission (placement_id={placement_id})",
             vat_amount=vat_amount,
         )
-
-        # Update mailing status to paid (legacy; superseded by idempotency_key)
-        stmt = select(MailingLog).where(MailingLog.placement_request_id == placement_id)
-        result = await session.execute(stmt)
-        mailing = result.scalar_one_or_none()
-        if mailing:
-            mailing.status = MailingStatus.paid
 
         logger.info(
             f"Escrow released: {owner_amount} ₽ to owner {owner_id} (earned_rub), "
@@ -1390,26 +1432,32 @@ class BillingService:
             after_escrow_before_confirmation: advertiser +100%, owner 0%, platform 0%, reputation -5
             after_confirmation: advertiser +50%, owner +42.5%, platform +7.5%, reputation -20
 
-        Idempotent: повторный вызов для того же placement_id — no-op (проверяет Transaction.placement_request_id).
-        """
-        from sqlalchemy import select
+        Caller-controlled transaction: метод работает в рамках транзакции вызывающего.
 
-        # Idempotency guard: если уже есть транзакция возврата для этого placement — пропустить
-        existing = await session.execute(
-            select(Transaction).where(
-                Transaction.placement_request_id == placement_id,
-                Transaction.type == TransactionType.refund_full,
-                Transaction.user_id == advertiser_id,
+        Idempotent: каждая порождаемая транзакция несёт стабильный
+        Transaction.idempotency_key (по сценарию); повторный вызов — no-op.
+        """
+        from sqlalchemy import exists, select
+        from sqlalchemy.exc import IntegrityError
+
+        advertiser_key = f"refund:placement={placement_id}:scenario={scenario}:advertiser"
+        owner_key = f"refund:placement={placement_id}:scenario={scenario}:owner"
+
+        # Idempotency: если один из ключей уже есть — refund уже выполнен, no-op.
+        already = await session.scalar(
+            select(
+                exists().where(
+                    Transaction.idempotency_key.in_([advertiser_key, owner_key])
+                )
             )
         )
-        if existing.scalar_one_or_none() is not None:
+        if already:
             logger.info(
-                f"refund_escrow: already refunded for placement {placement_id}, skipping (idempotency)"
+                f"refund_escrow: placement {placement_id} scenario {scenario} "
+                f"already refunded (idempotency hit)"
             )
             return
 
-        # Caller-controlled transaction: метод работает в рамках транзакции
-        # вызывающего, не открывает и не коммитит её.
         if scenario == "before_escrow" or scenario == "after_escrow_before_confirmation":
             # advertiser +100%, owner 0%, platform 0%
             advertiser_refund = final_price
@@ -1453,6 +1501,7 @@ class BillingService:
                 type=TransactionType.refund_full,
                 placement_request_id=placement_id,
                 yookassa_payment_id=None,
+                idempotency_key=advertiser_key,
                 meta_json={
                     "type": "refund",
                     "scenario": scenario,
@@ -1471,7 +1520,9 @@ class BillingService:
                 user_id=owner_id,
                 amount=owner_compensation,
                 type=TransactionType.escrow_release,
+                placement_request_id=placement_id,
                 yookassa_payment_id=None,
+                idempotency_key=owner_key,
                 meta_json={
                     "type": "owner_compensation",
                     "scenario": scenario,
@@ -1483,7 +1534,14 @@ class BillingService:
             )
             session.add(owner_txn)
 
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            logger.warning(
+                f"refund_escrow: idempotency race for placement {placement_id} "
+                f"scenario {scenario}: {exc}"
+            )
+            raise
 
         logger.info(
             f"Escrow refunded: scenario={scenario}, advertiser={advertiser_refund} ₽, "
