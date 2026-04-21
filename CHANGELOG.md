@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — FIX_PLAN_06 §§6.1–6.7 finish: tests + guards + CI + docs (2026-04-21)
+
+Closes the remaining subsections of `reports/20260419_diagnostics/FIX_PLAN_06_tests_and_guards.md`
+that were not shipped with the S-47 / S-48 sprints
+(contract-drift snapshots + grep-guards). Scope: **tests + tooling +
+docs only**; no changes to `src/`, `mini_app/src/`, `web_portal/src/`,
+`landing/src/`.
+
+**Added — tests:**
+- `tests/unit/api/test_admin_payouts.py` — 9 unit-тестов на роутер
+  `/api/admin/payouts*` через `app.dependency_overrides` + мок
+  `payout_service`. Покрывают 403 для не-админа, 401 для анонима, 200
+  на approve/reject с корректным `AdminPayoutResponse`, 400 на
+  уже-финализированную выплату, 404 на отсутствующую, 422 на пустую
+  `reason`. (§6.5 unit)
+- `tests/integration/test_payout_lifecycle.py` — 4 integration-теста
+  поверх testcontainers + реальной Postgres-схемы. Патчит
+  `async_session_factory` в `src.db.session` и
+  `src.core.services.payout_service`; sessionmaker привязан к
+  `test_engine`. Закрепляет финансовые инварианты approve (`pending
+  → paid`, `admin_id`, `processed_at`, `platform_account.payout_reserved`
+  уменьшен на gross) и reject (`pending → rejected`, `earned_rub`
+  восстановлен). (§6.5 integration)
+- `tests/unit/api/test_placements_patch.py` — 11 unit-тестов на
+  unified `PATCH /api/placements/{id}`, заменивший legacy
+  `POST /accept|/reject|/counter|/pay|/cancel` в S-44. Мокаются
+  репозитории и `PlacementRequestService`. Покрывают пять action'ов
+  + роль-guard (403 при попытке accept от advertiser), `price
+  required` для counter, 409 при pay вне `pending_payment`, 404 на
+  отсутствующий placement. (§6.6)
+- `web_portal/tests/specs/deep-flows.spec.ts` — 7 Playwright-сценариев
+  поверх docker-compose.test.yml: accept-rules, campaign wizard
+  navigation, channel settings PATCH, placement lifecycle PATCH (adv
+  → owner accept → adv pay), payouts list (owner + admin + 403),
+  top-up intent, review-after-published. Три недостижимых потока
+  (Telegram login widget, channel add via bot, KEP подпись в ЦС)
+  скаффолдены как `test.fixme` с пояснением. (§6.2)
+
+**Added — CI:**
+- `.github/workflows/contract-check.yml` — `bash
+  scripts/check_forbidden_patterns.sh` (§6.4 grep-guards) +
+  `pytest tests/unit/test_contract_schemas.py` (§6.1 contract-drift
+  snapshots) + `pytest tests/unit/api/` (§6.5 + §6.6 unit). Триггеры
+  `pull_request`/`push` на `develop` и `main`.
+- `.github/workflows/frontend.yml` — `tsc --noEmit` по матрице трёх
+  фронтендов (web_portal / mini_app / landing). Для landing
+  используется `npm run typecheck`, для остальных — прямой
+  `npx tsc --noEmit -p tsconfig.json`. (§6.3)
+- `ci.yml.disabled` и `deploy.yml` не изменены.
+
+**Added — docs:**
+- `CLAUDE.md` → два новых раздела:
+  - «API Conventions (FIX_PLAN_06 §6.7)» — формализовано правило
+    `screen → hook → api-module` и три-слойная защита (ESLint → grep
+    → CI).
+  - «Contract drift guard (FIX_PLAN_06 §6.1 Variant B)» — описание
+    snapshot-тестов, workflow обновления через `UPDATE_SNAPSHOTS=1`.
+- `web_portal/README.md` **(new)** — структура директории, правила
+  добавления endpoint'а, команды разработки, ссылки на CI workflow'ы.
+
+**Validation:**
+- `make check-forbidden` → 7/7 ok.
+- `poetry run pytest tests/unit/api/ tests/unit/test_contract_schemas.py
+  tests/integration/test_payout_lifecycle.py --no-cov` → **33 passed**.
+- `poetry run ruff check tests/unit/api/
+  tests/integration/test_payout_lifecycle.py` → clean.
+- `web_portal` tsc: `npx tsc --noEmit -p tests/tsconfig.json` → 0 errors
+  для нового `deep-flows.spec.ts`.
+
+**Known deviation from plan:**
+- §6.1 Variant A (openapi-typescript codegen → `api-generated.ts`) не
+  выполнен — остаётся отложенным в пользу Variant B.
+- §6.5 плановое ожидание 409 на already-finalized payout в admin API
+  закреплено как 400 (фактическое поведение роутера
+  `admin.py:1146-1149`). Изменение маппинга на 409 — отдельная задача
+  с breaking-change для frontend'ов.
+
 ### Fixed — legal-status validation hardening (2026-04-21)
 
 Closes the two pre-launch validation gaps surfaced by the 2026-04-21 test
