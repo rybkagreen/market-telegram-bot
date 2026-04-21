@@ -58,8 +58,15 @@ export default function OwnAnalytics() {
         title="Аналитика владельца"
         subtitle="Доход по каналам и периодам · комиссия платформы 15% уже учтена"
         action={
-          <Button variant="secondary" iconLeft="refresh" onClick={() => refetch()}>
-            Обновить
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            onClick={() => refetch()}
+            title="Обновить"
+            aria-label="Обновить"
+          >
+            <Icon name="refresh" size={14} />
           </Button>
         }
       />

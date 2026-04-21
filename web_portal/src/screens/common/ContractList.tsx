@@ -148,11 +148,9 @@ export default function ContractList() {
         title="Договоры"
         subtitle="Оферты, B2B-договоры с подрядчиками, агентские и налоговые — в одном месте"
         action={
-          <div className="flex gap-2">
-            <Button variant="secondary" iconLeft="docs">
-              Шаблоны
-            </Button>
-          </div>
+          <Button variant="secondary" size="sm" iconLeft="docs">
+            Шаблоны
+          </Button>
         }
       />
 

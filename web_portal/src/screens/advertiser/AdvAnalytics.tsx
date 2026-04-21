@@ -76,8 +76,15 @@ export default function AdvAnalytics() {
         title="Аналитика рекламодателя"
         subtitle="Сводка по активным и завершённым кампаниям"
         action={
-          <Button variant="secondary" iconLeft="refresh" onClick={() => refetch()}>
-            Обновить
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            onClick={() => refetch()}
+            title="Обновить"
+            aria-label="Обновить"
+          >
+            <Icon name="refresh" size={14} />
           </Button>
         }
       />

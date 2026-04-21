@@ -260,10 +260,22 @@ export default function OwnChannels() {
         subtitle="Управляйте категориями, активностью и сравнением каналов"
         action={
           <>
-            <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
-              Обновить
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
+              onClick={() => void refetch()}
+              title="Обновить"
+              aria-label="Обновить"
+            >
+              <Icon name="refresh" size={14} />
             </Button>
-            <Button variant="primary" iconLeft="plus" onClick={() => navigate('/own/channels/add')}>
+            <Button
+              variant="primary"
+              size="sm"
+              iconLeft="plus"
+              onClick={() => navigate('/own/channels/add')}
+            >
               Добавить канал
             </Button>
           </>

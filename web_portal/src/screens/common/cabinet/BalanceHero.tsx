@@ -184,17 +184,18 @@ export function BalanceHero() {
   const frozenNum = frozen ? parseFloat(frozen.total_frozen) : 0
   const navigate = useNavigate()
 
+  const historyItems = history?.items
   const balanceSpark = useMemo(
-    () => buildBalanceSpark(history?.items, days).map((v) => balanceNum + v),
-    [history?.items, days, balanceNum],
+    () => buildBalanceSpark(historyItems, days).map((v) => balanceNum + v),
+    [historyItems, days, balanceNum],
   )
   const earningsSpark = useMemo(() => {
     const daysAgo: number[] = Array(days).fill(0)
-    if (!history?.items) return daysAgo
+    if (!historyItems) return daysAgo
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     start.setDate(start.getDate() - (days - 1))
-    for (const tx of history.items) {
+    for (const tx of historyItems) {
       if (tx.type !== 'escrow_release' && tx.type !== 'refund_full') continue
       const when = new Date(tx.created_at)
       const diffDays = Math.floor((when.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
@@ -202,7 +203,7 @@ export function BalanceHero() {
       daysAgo[diffDays] += parseFloat(tx.amount)
     }
     return daysAgo
-  }, [history?.items, days])
+  }, [historyItems, days])
 
   const balanceTrend = computeTrend(balanceSpark)
   const earningsTrend = computeTrend(earningsSpark)

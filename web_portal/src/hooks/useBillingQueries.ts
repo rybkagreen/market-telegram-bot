@@ -41,12 +41,11 @@ export function useTopupStatus(paymentId: string | null | undefined) {
   const startedAtRef = useRef<number>(0)
   const [timedOut, setTimedOut] = useState(false)
 
-  if (paymentId && startedAtRef.current === 0) {
-    startedAtRef.current = Date.now()
-  }
-
   useEffect(() => {
     if (!paymentId) return
+    if (startedAtRef.current === 0) {
+      startedAtRef.current = Date.now()
+    }
     const elapsed = Date.now() - startedAtRef.current
     const remaining = Math.max(0, TOPUP_POLL_MAX_MS - elapsed)
     const handle = window.setTimeout(() => setTimedOut(true), remaining)
