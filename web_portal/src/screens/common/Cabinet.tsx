@@ -44,11 +44,11 @@ export default function Cabinet() {
             Здесь собрана сводка по балансу, активным кампаниям и событиям, которые требуют внимания.
           </p>
         </div>
-        <div className="flex gap-2.5 flex-shrink-0">
-          <Button variant="secondary" onClick={() => navigate('/adv/analytics')}>
+        <div className="flex gap-2 flex-shrink-0">
+          <Button variant="secondary" size="sm" iconLeft="analytics" onClick={() => navigate('/adv/analytics')}>
             Отчёт
           </Button>
-          <Button variant="primary" onClick={() => navigate('/adv/campaigns/new/category')}>
+          <Button variant="primary" size="sm" iconLeft="plus" onClick={() => navigate('/adv/campaigns/new/category')}>
             Создать кампанию
           </Button>
         </div>

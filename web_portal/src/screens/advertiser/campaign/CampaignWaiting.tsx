@@ -126,7 +126,8 @@ export default function CampaignWaiting() {
         subtitle={`@${p.channel?.username ?? `#${p.channel_id}`} · ${formatInfo?.name ?? p.publication_format}`}
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/adv/campaigns')}
           >

@@ -133,6 +133,7 @@ export default function AdminUserDetail() {
         action={
           <Button
             variant="secondary"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/admin/users')}
           >

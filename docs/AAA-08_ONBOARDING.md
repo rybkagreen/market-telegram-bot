@@ -1,8 +1,10 @@
 # RekHarborBot — Developer Onboarding Guide
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-08_ONBOARDING
-> **Verified against:** HEAD @ 2026-04-08 | Source: Project structure, QWEN.md, docker-compose.yml
+> **Verified against:** HEAD @ 2026-04-21 | Source: Project structure, CLAUDE.md, QWEN.md, docker-compose.yml
+>
+> **Quick numbers (verified 2026-04-21):** 27 API routers · 131 endpoints · 35 core services · 31 DB models · 26 repos · 22 bot handler files · 11 FSM groups (52 states) · 12 Celery task files / 66 tasks / 9 queues / 18 periodic · Mini App 55 screens · Web Portal 66 screens / 126 Playwright-спеков · 37 pytest files.
 
 ---
 

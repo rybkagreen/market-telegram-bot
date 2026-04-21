@@ -81,6 +81,7 @@ export default function LegalProfileView() {
         action={
           <Button
             variant="secondary"
+            size="sm"
             iconLeft="edit"
             onClick={() => navigate('/legal-profile')}
           >

@@ -7,6 +7,295 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — web-portal button system unified (2026-04-21)
+
+#### Changed
+- `web_portal/src/shared/ui/Button.tsx` rewritten with a real size scale:
+  `sm = 32 px`, `md = 40 px`, `lg = 48 px` (was `sm = md = 44 px`, `lg = 52 px`).
+  Softened `secondary` variant (elevated background + transparent border — was
+  hard `border-border-active` rim). Added `focus-visible:ring` outline, `aria-label`
+  and `aria-busy` props. Public API is **backwards-compatible**.
+- All `ScreenHeader.action` buttons across advertiser / owner / admin / common /
+  shared screens now use `size="sm"`. Back/nav buttons shifted to `variant="ghost"`;
+  utility refresh buttons collapsed to icon-only 32 × 32.
+- Cabinet header ("Отчёт" + "Создать кампанию"), Plans ("Пополнить баланс"),
+  MyCampaigns and OwnChannels primary CTAs tightened to `size="sm"`.
+- `TransactionHistory` "Экспорт CSV" + "Экспорт PDF" pair consolidated into a
+  single `DropdownMenu` trigger.
+
+#### Added
+- `web_portal/src/shared/ui/DropdownMenu.tsx` — new generic menu primitive
+  (outside-click + Esc close, keyboard focus on open, ARIA menu semantics).
+  Exported from `@shared/ui`.
+
+#### Fixed (pre-existing lint errors resolved during hardening)
+- `Sparkline.tsx` — `Math.random` ID generation → `useId()`.
+- `useBillingQueries.ts` — `Date.now()` read moved out of render into effect.
+- `BalanceHero.tsx` — stabilized `history?.items` for React Compiler memo inference.
+- `MyDisputes.tsx` — wrapped `data?.items ?? []` in `useMemo`.
+
+Eslint: 0 errors (was 3), 6 pre-existing warnings unchanged.
+
+#### Visual regression (action required)
+- Playwright `visual.spec.ts` baselines need regeneration:
+  `make test-e2e-visual-update`. Every screen with a `ScreenHeader` action has
+  a new — intentional — button style.
+
+#### Fixed — admin "Настройки" sidebar link (bundled)
+- Removed the public "Настройки" entry from sidebar — it was visible to all
+  roles and pointed to a placeholder stub, masking the real platform
+  legal-profile screen.
+- Added "Реквизиты платформы" → `/admin/settings` (admin-only) which hosts the
+  existing `AdminPlatformSettings` form that feeds `legal_name`/`inn`/`kpp`/
+  `ogrn`/bank data into contract generation.
+- Removed the dead `/settings` route and unused `PlaceholderScreen` component.
+
+#### Not changed
+- No API / FSM / DB contract changes. No new migrations. No Celery changes.
+- `Button` API is source-compatible; no call-site migration beyond the
+  deliberate size/variant updates listed above.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_web-portal-button-unification.md](reports/docs-architect/discovery/CHANGES_2026-04-21_web-portal-button-unification.md).
+
+### Fixed — web-portal top-up returned 404 on yookassa.ru (2026-04-21)
+
+- `BillingService.create_payment` (`src/core/services/billing_service.py`) fabricated a
+  local UUID and a synthetic URL `https://yookassa.ru/payment/{uuid}`, which always
+  returned "Ошибка 404" because no payment was ever registered with YooKassa. The method
+  now actually calls `yookassa.Payment.create` (wrapped in `asyncio.to_thread`) and
+  stores the real `payment.id` and `payment.confirmation.confirmation_url` on the
+  `YookassaPayment` row.
+- Guards: raises `RuntimeError` if YooKassa credentials are unset or no confirmation URL
+  is returned; propagates `yookassa.domain.exceptions.ApiError`.
+
+#### Public contract change
+- `POST /api/billing/topup` response schema unchanged; `payment_url` now holds a real
+  YooKassa confirmation URL (e.g. `https://yoomoney.ru/checkout/payments/v2/contract?…`)
+  instead of a 404-returning string.
+- `yookassa_payments.payment_id` now holds the YooKassa-issued ID (previously a locally
+  generated UUID), enabling reconciliation against the YooKassa dashboard. No schema
+  change.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_fix-yookassa-topup-404.md](reports/docs-architect/discovery/CHANGES_2026-04-21_fix-yookassa-topup-404.md).
+
+### Docs — re-audit & drift fix (2026-04-21)
+
+#### Changed
+- `README.md` rewritten against verified counts: 27 routers · 131 endpoints · 35 services · 31 models · 26 repos · 22 handler files · 11 FSM groups (52 states) · 12 Celery files / 66 tasks / 9 queues / 18 periodic · Mini App 55 screens · Web Portal 66 screens / 126 Playwright specs · Landing page.
+- `docs/AAA-01…AAA-10` synced: headers re-dated, metric tables rebuilt, inventories regenerated from filesystem. AAA-07 gained a dedicated Landing Page section.
+- `docs/AAA-10_DISCREPANCY_REPORT.md` — added 2026-04-21 drift snapshot (earlier doc/CLAUDE.md claims vs reality).
+
+#### Not changed
+- `docs/AAA-11_PRODUCTION_FIX_PLAN.md`, `docs/AAA-12_CONTAINER_STARTUP_DEEP_DIVE.md` — point-in-time artefacts (S-29 / post-rebuild) intentionally left intact.
+- No code, schema, API or Celery routing changes.
+
+Detail report: [reports/docs-architect/discovery/CHANGES_2026-04-21_docs-sync-deep-dive.md](reports/docs-architect/discovery/CHANGES_2026-04-21_docs-sync-deep-dive.md).
+
+### Disputes flow — deep audit + hardening (2026-04-21)
+
+#### Fixed
+- **Admin "Все" filter was empty** — `GET /disputes/admin/disputes`
+  default `status="open"` в роутере `src/api/routers/disputes.py`;
+  фронт при «Все» не передавал параметр → бэк фильтровал только
+  open. Default переведён на `"all"`.
+- **Статус-лейблы расходились** между экранами (MyDisputes фильтр
+  «Ожидание» vs бейдж «Ответ владельца»; владелец читал про себя в
+  3-ем лице). Введён единый источник —
+  `web_portal/src/lib/disputeLabels.ts` + ролево-зависимые
+  формулировки `getRoleAwareStatusLabel(status, role)`.
+- **Shared `/disputes/:id` показывал форму «Ваш ответ» всем** —
+  рекламодатель мог кликнуть Submit, бэк возвращал 403. Форма
+  удалена; владельцу показывается CTA со ссылкой на
+  `/own/disputes/:id`.
+- **`useMyDisputeByPlacement`** делал full-scan последних 100
+  disputes клиентски. Заменён на backend endpoint
+  `GET /disputes/by-placement/{placement_request_id}`.
+- `DisputeDetail` back-кнопка вела в `/disputes` (маршрут не
+  существует) → `navigate(-1)` + лейбл «Назад».
+
+#### Added
+- `GET /disputes/by-placement/{placement_request_id}` — возвращает
+  `DisputeResponse | null`; авторизация через проверку роли в
+  размещении.
+
+#### Security / Data integrity
+- `POST /disputes` — добавлены серверные инварианты:
+  создавать диспут может только рекламодатель размещения;
+  размещение должно быть в статусе `published`; окно открытия —
+  48 часов с момента `published_at`. Раньше проверка была только
+  на фронте.
+
+#### Deferred (ticket needed)
+- Telegram-уведомления на события диспута
+  (`notify_dispute_created/replied/resolved`).
+- Celery auto-escalation для stale `owner_explained` диспутов (72h
+  через поле `expires_at`).
+- Унификация параллельных enum'ов `DisputeStatus`/`DisputeResolution`
+  между `api.schemas.dispute` и `db.models.dispute`.
+
+### Admin dispute filter + campaign-filter unification (2026-04-21)
+
+#### Fixed
+- `AdminDisputesList` — неверный ключ фильтра `owner_reply` в UI (бэк
+  принимает `open|owner_explained|resolved|all`). Из-за этого клик по
+  «Ответ владельца» возвращал 400 и дисп исчезал, а дефолтный
+  `status=open` прятал записи `owner_explained` (ожидающие решения
+  админа). Ключ переименован в `owner_explained`, дефолтный фильтр
+  переведён на `all`.
+- `OwnRequests` vs `MyCampaigns` — `status=published` классифицировался
+  у рекламодателя как «Завершена», а у владельца канала как
+  «Активные». Добавлен отдельный фильтр «Завершённые» для владельца,
+  `ACTIVE_STATUSES` у него сужены до `['escrow']`. Обе стороны теперь
+  трактуют `published` как завершённое размещение.
+
+### Portal Disputes restructure (2026-04-21)
+
+#### Fixed
+- `AdminDisputesList` — клик по записи открывал общий
+  `/disputes/:id` (shared `DisputeDetail` c textarea «Ваш ответ»), из-за
+  чего админ мог отправить `owner_explanation` от имени владельца.
+  Теперь список ведёт на `/admin/disputes/:id` (`AdminDisputeDetail`,
+  admin-only resolve-UI).
+- Все `/admin/**` маршруты теперь под `AdminGuard`: ранее только
+  `accounting`, `tax-summary`, `settings` были защищены, остальные лишь
+  скрывались в сайдбаре для не-админов.
+
+#### Added
+- `AdminDisputeDetail` — в header добавлена кнопка «Перейти к кампании
+  #N» → `/own/requests/:id`, чтобы админ мог изучить контекст
+  оспариваемого размещения.
+- `OwnRequestDetail` — при `has_dispute=true` отображается карточка
+  «Спор по этой заявке» с комментарием рекламодателя и кнопкой
+  «Ответить на спор» / «Открыть детали спора».
+- `CampaignPublished` (рекламодатель) — при существующем споре
+  отображается карточка статуса (open / owner_explained / resolved /
+  closed) и ответ владельца; кнопка «Открыть детали спора» ведёт на
+  `/disputes/:disputeId`.
+- Новый хук `useMyDisputeByPlacement(placementId)` —
+  клиентский lookup дисп-записи по `placement_request_id` через
+  существующий `GET /disputes`.
+
+#### Changed
+- Sidebar — удалён пункт «Мои споры» из группы «Реклама». Раздел
+  «Споры» остаётся только у админа (`adminOnly: true`). Маршруты
+  `/adv/disputes` и `/own/disputes` сохраняются как deep-links.
+
+### Portal UI fixes: Legal Profile, Cabinet, Sidebar (2026-04-21)
+
+#### Fixed
+- `LegalProfileSetup` — карточка «Профиль заполнен» теперь строится
+  динамически по `requiredFields` из бэкенда и флагам
+  `showBank`/`showPassport`: для Физлица/Самозанятого показываются
+  паспортные данные и ЮMoney-кошелёк, для ИП/ООО — КПП/ОГРН/банковские
+  реквизиты. Процент заполнения считается только по релевантным полям.
+- `LegalProfileSetup` — StepIndicator считает шаг по фактической
+  готовности секций: этап «Банк»/«Паспорт» загорается после заполнения
+  основных реквизитов; третий лейбл адаптируется под тип лица.
+- `ProfileCompleteness` (Кабинет) — шаг «Юридический профиль»
+  использует `legal.is_complete` (бэкенд-флаг
+  `user.legal_status_completed`) вместо простого наличия
+  `legal_status`; больше не помечается «выполненным» при частично
+  заполненном профиле.
+- `Sidebar` — `<aside>` получил `h-dvh min-h-0`, из-за чего внутренний
+  `<nav className="flex-1 overflow-y-auto">` снова корректно
+  прокручивается. Пункт «Администрирование» был скрыт за нижним краем
+  экрана.
+
+#### Removed
+- `LegalProfileSetup` — удалена кнопка «Проверить ИНН» и блок
+  «Результат проверки ФНС» (включая использование
+  `useValidateEntity`). Валидация ИНН по контрольной сумме остаётся
+  автоматической на `onBlur` через `useValidateInn`
+  (`POST /legal-profile/validate-inn`).
+- `LegalProfileSetup` — удалена кнопка «Шаблон заполнения» из
+  `ScreenHeader.action` (не имела обработчика).
+
+### Phase 8.1 iter 4: Mobile action-wrap fix (2026-04-20)
+
+#### Fixed
+- `MyCampaigns`, `OwnChannels`, `TransactionHistory` — the 2-button
+  action slot clipped off the right edge at 320px because an inner
+  `<div className="flex gap-2">` around the buttons blocked
+  `ScreenHeader`'s outer `flex-wrap`. Replaced the wrapper with a
+  fragment; the second button now wraps to its own line on mobile and
+  keeps the original horizontal layout on ≥sm. No change to
+  `ScreenHeader.tsx` itself — its contract was already right.
+- Audited all 20+ ScreenHeader consumers against the freshly-captured
+  mobile-webkit baselines; no other screens exhibit the issue.
+
+### Phase 8.1 iter 3: Visual regression baseline (2026-04-20)
+
+#### Added
+- `web_portal/tests/specs/visual.spec.ts` — 35 routes × 3 viewports =
+  105 full-page screenshot tests with committed baselines under
+  `web_portal/tests/visual-snapshots/`.
+- `make test-e2e-visual-update` — refreshes baselines in one shot.
+- `playwright.config.ts`: `toHaveScreenshot` thresholds
+  (`threshold: 0.2`, `maxDiffPixelRatio: 0.005`).
+
+### Phase 8.1 iter 2: API contract test suite (2026-04-20)
+
+#### Added
+- `tests/e2e_api/` — pytest + httpx suite that runs inside the Docker
+  test stack alongside Playwright (`docker-compose.test.yml` gains
+  `api-contract` service). Asserts auth boundaries, query-param
+  coercion, 401/403/200/422 contracts across 17 representative routes.
+- `docker/Dockerfile.api-contract` — mirrors `Dockerfile.api` but
+  installs Poetry dev-group (pytest, pytest-asyncio). Used only by the
+  test stack; never in prod.
+- `make test-e2e-api` — standalone target; `make test-e2e` now runs API
+  contract + Playwright UI back-to-back in one stack bring-up.
+
+#### Fixed
+- `/api/analytics/summary`, `/activity`, `/cashflow` — all crashed with
+  500 in any environment without `MISTRAL_API_KEY`. Root cause:
+  `AnalyticsService.__init__` eagerly instantiated `MistralAIService()`.
+  Fixed with a `@property`-backed lazy factory matching the module-level
+  pattern from iter 1. Analytics queries that don't need AI (i.e. nearly
+  all of them) no longer build a Mistral client at all.
+
+### Phase 8.1: E2E test harness + production-readiness fixes (2026-04-20)
+
+#### Added
+- Dockerised Playwright harness: `docker-compose.test.yml` with isolated
+  postgres-test / redis-test / seed-test / api-test / nginx-test / playwright
+  services. Runs against a production-like runtime, not stubbed API. New
+  Makefile targets: `test-e2e`, `test-e2e-up`, `test-e2e-down`, `test-e2e-logs`.
+- `scripts/e2e/seed_e2e.py` — idempotent fixture loader (3 roles, channel,
+  placements).
+- `web_portal/tests/` — full Playwright suite: 35 routes × 3 viewports,
+  asserts ≤1 breadcrumbs, no horizontal overflow, no external sprite refs,
+  no uncaught client errors, axe-core baseline.
+
+#### Added — API (testing env only)
+- `POST /api/auth/e2e-login` — test-only JWT issuance by `telegram_id`,
+  gated on `settings.environment == "testing"` at router mount time.
+  Router is not imported in any other environment, so the path returns a
+  plain 404. Never an attack surface in staging/prod.
+
+#### Changed — Placements API
+- `GET /api/placements/?status=…` now accepts semantic aliases `active`
+  (pending_owner + counter_offer + pending_payment + escrow), `completed`
+  (published), `cancelled` (cancelled + refunded + failed + failed_permissions)
+  in addition to concrete `PlacementStatus` values. Unknown values return
+  HTTP 400 with the valid list — previously 500'd with
+  `ValueError: 'active' is not a valid PlacementStatus` on a call the
+  frontend makes from every advertiser route.
+
+#### Fixed
+- `MistralAIService` module-level instantiation crashed any environment
+  without `MISTRAL_API_KEY` at *import* time (tests, CI, smoke). Replaced
+  the eager `mistral_ai_service = MistralAIService()` (plus
+  `ai_service` / `admin_ai_service` aliases) with a module-level
+  `__getattr__` that constructs on first access. Consumer imports
+  unchanged; missing-key `RuntimeError` still raises — just at call-time.
+
+#### Fixed — minor
+- `src/api/main.py`: unused-param underscores (`lifespan`,
+  `_scrub_pii`, `rekharbor_error_handler`), and ORD shutdown now guards
+  the optional `close()` via `inspect.isawaitable` — no pyright narrowing
+  error, same runtime behaviour.
+
 ### S-47: UI redesign per Design System v2 — EmptyState icon (2026-04-20)
 
 #### Fixed

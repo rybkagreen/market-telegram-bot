@@ -108,6 +108,7 @@ export default function AdminFeedbackDetail() {
         action={
           <Button
             variant="secondary"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/admin/feedback')}
           >

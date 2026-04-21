@@ -7,53 +7,30 @@ import {
   ScreenHeader,
   EmptyState,
 } from '@shared/ui'
-import type { IconName } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
 import { useMyDisputes } from '@/hooks/useDisputeQueries'
-
-const DISPUTE_REASON_LABELS: Record<string, string> = {
-  not_published: 'Не опубликовано',
-  wrong_time: 'Нарушение времени',
-  wrong_text: 'Изменён текст',
-  early_deletion: 'Досрочное удаление',
-  post_removed_early: 'Пост удалён досрочно',
-  bot_kicked: 'Бот удалён из канала',
-  advertiser_complaint: 'Жалоба рекламодателя',
-  other: 'Другое',
-}
+import {
+  getDisputeStatusMeta,
+  getDisputeReasonLabel,
+  DISPUTE_TONE_CLASSES,
+} from '@/lib/disputeLabels'
 
 type Filter = 'all' | 'open' | 'owner_explained' | 'resolved' | 'closed'
 
 const STATUS_FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Все' },
   { key: 'open', label: 'Открытые' },
-  { key: 'owner_explained', label: 'Ожидание' },
+  { key: 'owner_explained', label: 'На рассмотрении' },
   { key: 'resolved', label: 'Решённые' },
   { key: 'closed', label: 'Закрытые' },
 ]
-
-type Tone = 'danger' | 'warning' | 'success' | 'neutral'
-
-const STATUS_CONFIG: Record<string, { tone: Tone; label: string; icon: IconName }> = {
-  open: { tone: 'danger', label: 'Открыт', icon: 'warning' },
-  owner_explained: { tone: 'warning', label: 'Ответ владельца', icon: 'hourglass' },
-  resolved: { tone: 'success', label: 'Решён', icon: 'check' },
-  closed: { tone: 'neutral', label: 'Закрыт', icon: 'archive' },
-}
-
-const toneClasses: Record<Tone, string> = {
-  danger: 'bg-danger-muted text-danger',
-  warning: 'bg-warning-muted text-warning',
-  success: 'bg-success-muted text-success',
-  neutral: 'bg-harbor-elevated text-text-tertiary',
-}
 
 export default function MyDisputes() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<Filter>('all')
 
   const { data, isLoading } = useMyDisputes(statusFilter, 50, 0)
-  const disputes = data?.items ?? []
+  const disputes = useMemo(() => data?.items ?? [], [data?.items])
 
   const counts = useMemo(() => {
     const all = disputes.length
@@ -116,12 +93,8 @@ export default function MyDisputes() {
       ) : (
         <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
           {disputes.map((d, i) => {
-            const cfg = STATUS_CONFIG[d.status] ?? {
-              tone: 'neutral' as Tone,
-              label: d.status,
-              icon: 'info' as IconName,
-            }
-            const reasonLabel = DISPUTE_REASON_LABELS[d.reason as string] ?? d.reason
+            const cfg = getDisputeStatusMeta(d.status)
+            const reasonLabel = getDisputeReasonLabel(d.reason)
             return (
               <button
                 key={d.id}
@@ -130,7 +103,7 @@ export default function MyDisputes() {
                 className={`w-full text-left flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === disputes.length - 1 ? '' : 'border-b border-border'}`}
               >
                 <span
-                  className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[cfg.tone]}`}
+                  className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${DISPUTE_TONE_CLASSES[cfg.tone]}`}
                 >
                   <Icon name={cfg.icon} size={16} />
                 </span>
@@ -158,7 +131,7 @@ export default function MyDisputes() {
                   </div>
                 </div>
                 <span
-                  className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[cfg.tone]}`}
+                  className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${DISPUTE_TONE_CLASSES[cfg.tone]}`}
                 >
                   {cfg.label}
                 </span>

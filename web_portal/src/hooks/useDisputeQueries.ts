@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   createDispute,
   getDisputeById,
+  getDisputeByPlacement,
   getDisputeEvidence,
   getMyDisputes,
   replyToDispute,
@@ -14,6 +15,15 @@ export function useMyDisputes(statusFilter = 'all', limit = 50, offset = 0) {
   return useQuery<DisputeListResponse>({
     queryKey: ['disputes', 'my', statusFilter, limit, offset],
     queryFn: () => getMyDisputes({ statusFilter, limit, offset }),
+    staleTime: 30_000,
+  })
+}
+
+export function useMyDisputeByPlacement(placementId: number | null) {
+  return useQuery<DisputeDetailResponse | null>({
+    queryKey: ['disputes', 'by-placement', placementId],
+    queryFn: () => getDisputeByPlacement(placementId!),
+    enabled: !!placementId,
     staleTime: 30_000,
   })
 }
