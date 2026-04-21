@@ -23,11 +23,15 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
         return result
 
     async def get_for_update(self) -> PlatformAccount:
-        """Получить аккаунт платформы с блокировкой строки."""
+        """Получить аккаунт платформы с блокировкой строки.
+
+        Если singleton-строки ещё нет — создаёт и возвращает без блокировки
+        (вновь вставленная строка всё равно видна только текущей транзакции).
+        """
         result = await self.session.execute(
             select(PlatformAccount).where(PlatformAccount.id == 1).with_for_update()
         )
-        account = result.scalar_one()
+        account = result.scalar_one_or_none()
         if account is None:
             account = PlatformAccount(id=1)
             self.session.add(account)
