@@ -109,6 +109,14 @@ class Transaction(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Sprint S-48 (A.2): business-level idempotency guard.
+    # UNIQUE + nullable lets legacy rows keep NULL while new financial events
+    # (escrow_freeze / escrow_release / refund / commission) carry a stable
+    # human-readable key like `escrow_release:placement=1:owner`.
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), unique=True, nullable=True, index=True
+    )
+
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="transactions")
     placement_request: Mapped[PlacementRequest | None] = relationship(

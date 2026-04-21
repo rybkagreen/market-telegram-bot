@@ -953,6 +953,8 @@ def upgrade() -> None:  # noqa: PLR0915
         ),
         sa.Column("act_id", sa.Integer(), nullable=True),
         sa.Column("invoice_id", sa.Integer(), nullable=True),
+        # Sprint S-48 (A.2): business-level idempotency guard for financial events
+        sa.Column("idempotency_key", sa.String(128), nullable=True),
         # Non-circular FKs added inline
         sa.ForeignKeyConstraint(
             ["payout_id"], ["payout_requests.id"], name="transactions_payout_id_fkey"
@@ -969,6 +971,14 @@ def upgrade() -> None:  # noqa: PLR0915
     op.create_index("ix_transactions_user_id", "transactions", ["user_id"])
     op.create_index("ix_transactions_act_id", "transactions", ["act_id"])
     op.create_index("ix_transactions_invoice_id", "transactions", ["invoice_id"])
+    # Sprint S-48 (A.2): unique index doubles as idempotency constraint for
+    # escrow_freeze / escrow_release / refund / commission events.
+    op.create_index(
+        "ix_transactions_idempotency_key",
+        "transactions",
+        ["idempotency_key"],
+        unique=True,
+    )
 
     # ── Table 21: placement_requests (escrow FK added after transactions) ──────
     op.create_table(
