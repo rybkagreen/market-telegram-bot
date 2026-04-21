@@ -3,6 +3,7 @@ Billing Service для управления платежами и балансо
 Двухвалютная система: рубли (размещения) + кредиты (подписки).
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -10,7 +11,10 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from yookassa import Configuration, Payment
+from yookassa.domain.exceptions import ApiError
 
+from src.config.settings import settings
 from src.constants.payments import (
     MAX_TOPUP,
     MIN_CAMPAIGN_BUDGET,
@@ -195,9 +199,6 @@ class BillingService:
             if not user:
                 raise ValueError(f"User {user_id} not found")
 
-            # Генерируем payment_id
-            payment_id = str(uuid.uuid4())
-
             # Конвертируем рубли в кредиты (1:1)
             credits_amount = int(amount)
 
@@ -209,6 +210,51 @@ class BillingService:
             fee_amount = (desired_balance * PLATFORM_TAX_RATE).quantize(Dec("0.01"))
             gross_amount = desired_balance + fee_amount
 
+            # Создаём реальный платёж в ЮKassa и получаем confirmation_url
+            if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
+                raise RuntimeError(
+                    "YooKassa credentials are not configured "
+                    "(YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
+                )
+
+            Configuration.account_id = settings.yookassa_shop_id
+            Configuration.secret_key = settings.yookassa_secret_key
+
+            idempotency_key = str(uuid.uuid4())
+            payment_request = {
+                "amount": {"value": str(gross_amount), "currency": "RUB"},
+                "confirmation": {
+                    "type": "redirect",
+                    "return_url": settings.yookassa_return_url,
+                },
+                "capture": True,
+                "description": f"Пополнение баланса RekHarborBot: {desired_balance} ₽",
+                "metadata": {
+                    "user_id": str(user_id),
+                    "desired_balance": str(desired_balance),
+                    "fee_amount": str(fee_amount),
+                    "gross_amount": str(gross_amount),
+                },
+            }
+
+            try:
+                yk_payment = await asyncio.to_thread(
+                    Payment.create, payment_request, idempotency_key
+                )
+            except ApiError as exc:
+                logger.error("YooKassa API error for user %s: %s", user_id, exc)
+                raise
+
+            payment_id = yk_payment.id
+            confirmation = yk_payment.confirmation
+            confirmation_url = (
+                confirmation.confirmation_url if confirmation is not None else None
+            )
+            if not confirmation_url:
+                raise RuntimeError(
+                    f"YooKassa did not return a confirmation URL for payment {payment_id}"
+                )
+
             # Создаём запись YookassaPayment
             from src.db.models.yookassa_payment import YookassaPayment
 
@@ -219,7 +265,7 @@ class BillingService:
                 desired_balance=desired_balance,
                 fee_amount=fee_amount,
                 status="pending",
-                payment_url=f"https://yookassa.ru/payment/{payment_id}",
+                payment_url=confirmation_url,
             )
             session.add(yookassa_record)
             await session.commit()
