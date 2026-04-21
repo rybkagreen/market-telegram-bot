@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.legal import INN_WEIGHTS_10, INN_WEIGHTS_12_1, INN_WEIGHTS_12_2, NDFL_RATE
 from src.core.security.field_encryption import HashableEncryptedString
+from src.core.services.fns_validation_service import validate_entity_documents
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.user import User
 from src.db.repositories.legal_profile_repo import LegalProfileRepo
@@ -77,14 +78,35 @@ _REQUIRED_FIELDS_MAP: dict[str, dict] = {
     },
 }
 
-_EMPTY_FIELDS: dict = {
-    "fields": [],
-    "scans": [],
-    "show_bank_details": False,
-    "show_passport": False,
-    "show_yoomoney": False,
-    "tax_regime_required": False,
-}
+_KNOWN_LEGAL_STATUSES: frozenset[str] = frozenset(_REQUIRED_FIELDS_MAP.keys())
+
+
+def _require_known_status(legal_status: str) -> None:
+    if legal_status not in _KNOWN_LEGAL_STATUSES:
+        raise ValueError(
+            f"Unknown legal_status: {legal_status!r} "
+            f"(known: {sorted(_KNOWN_LEGAL_STATUSES)})"
+        )
+
+
+def _validate_documents_for_status(legal_status: str, data: dict) -> None:
+    """Ensure submitted documents match the declared legal_status.
+
+    Skips validation for payloads that don't carry any of the relevant
+    fields (partial updates of unrelated columns like bank_name).
+    """
+    relevant_keys = ("ogrn", "ogrnip", "passport_series", "passport_number")
+    if not any(data.get(k) for k in relevant_keys):
+        return
+    ok, err = validate_entity_documents(
+        legal_status,
+        ogrn=data.get("ogrn"),
+        ogrnip=data.get("ogrnip"),
+        passport_series=data.get("passport_series"),
+        passport_number=data.get("passport_number"),
+    )
+    if not ok:
+        raise ValueError(err or "Документы не соответствуют статусу")
 
 
 class LegalProfileService:
@@ -95,9 +117,14 @@ class LegalProfileService:
 
     async def create_profile(self, user_id: int, data: dict) -> LegalProfile:
         """Создать юридический профиль пользователя."""
-        if data.get("legal_status") == "self_employed":
+        status = data.get("legal_status")
+        if status is None:
+            raise ValueError("legal_status is required")
+        _require_known_status(status)
+        _validate_documents_for_status(status, data)
+        if status == "self_employed":
             data["tax_regime"] = "npd"
-        if data.get("legal_status") == "individual":
+        if status == "individual":
             data["tax_regime"] = "ndfl"
         if data.get("inn"):
             data["inn_hash"] = HashableEncryptedString.hash_value(data["inn"])
@@ -107,6 +134,11 @@ class LegalProfileService:
 
     async def update_profile(self, user_id: int, data: dict) -> LegalProfile:
         """Обновить юридический профиль пользователя."""
+        # Only validate legal_status if the caller explicitly changes it;
+        # partial updates that don't touch the status must still work.
+        if "legal_status" in data and data["legal_status"] is not None:
+            _require_known_status(data["legal_status"])
+            _validate_documents_for_status(data["legal_status"], data)
         if data.get("inn"):
             data["inn_hash"] = HashableEncryptedString.hash_value(data["inn"])
         profile = await LegalProfileRepo(self.session).update(user_id=user_id, **data)
@@ -127,8 +159,13 @@ class LegalProfileService:
         await LegalProfileRepo(self.session).update_scan(user_id, field_name, file_id)
 
     async def get_required_fields(self, legal_status: str) -> dict:
-        """Вернуть список обязательных полей для данного правового статуса."""
-        return _REQUIRED_FIELDS_MAP.get(legal_status, _EMPTY_FIELDS)
+        """Вернуть список обязательных полей для данного правового статуса.
+
+        Raises ValueError on unknown statuses — empty fallback used to
+        silently mark any profile as "complete" (see 2026-04-21 audit).
+        """
+        _require_known_status(legal_status)
+        return _REQUIRED_FIELDS_MAP[legal_status]
 
     async def check_completeness(self, user_id: int) -> bool:
         """Проверить полноту юридического профиля и обновить флаг у пользователя."""
