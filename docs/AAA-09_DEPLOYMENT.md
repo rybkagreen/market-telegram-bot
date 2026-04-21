@@ -1,8 +1,10 @@
 # RekHarborBot — Deployment & Operations Guide
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-09_DEPLOYMENT
-> **Verified against:** HEAD @ 2026-04-08 | Source: `docker-compose.yml`, `.env.example`, `src/config/settings.py`
+> **Verified against:** HEAD @ 2026-04-21 | Source: `docker-compose.yml`, `nginx/conf.d/default.conf`, `.env.example`, `src/config/settings.py`
+>
+> **Frontends served by nginx:** `app.rekharbor.ru` → Mini App (`/usr/share/nginx/html/app/`), `portal.rekharbor.ru` → Web Portal (`/usr/share/nginx/html/portal/`), `rekharbor.ru` → Landing. All three share `/api/` proxy to `api:8001` upstream.
 
 ---
 

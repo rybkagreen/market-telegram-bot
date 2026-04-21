@@ -1,8 +1,13 @@
 # RekHarborBot — Testing & Quality Guide
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-09_TESTING_QUALITY
-> **Verified against:** HEAD @ 2026-04-08 | Source: `tests/`, `pyproject.toml`, `sonar-project.properties`
+> **Verified against:** HEAD @ 2026-04-21 | Source: `tests/` (37 files), `web_portal/tests/` (126 Playwright specs), `pyproject.toml`, `sonar-project.properties`
+>
+> **Test inventory (verified):**
+> - pytest: unit (18) · integration (8) · e2e_api (7) · tasks (2) · mocks (2) = **37 files**
+> - Playwright: **126 specs** in `web_portal/tests/specs/`, projects: mobile-webkit (iPhone SE), mobile-chromium (Pixel 5), desktop-chromium (1440×900)
+> - SonarQube scope: `sonar.sources=src,mini_app/src,web_portal/src,landing`
 
 ---
 

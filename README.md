@@ -5,7 +5,7 @@
 [![SQLAlchemy 2](https://img.shields.io/badge/SQLAlchemy-2.0-red.svg)](https://docs.sqlalchemy.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-teal.svg)](https://fastapi.tiangolo.com/)
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
-[![v4.4](https://img.shields.io/badge/Version-4.4-orange.svg)](CHANGELOG.md)
+[![v4.5](https://img.shields.io/badge/Version-4.5-orange.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **RekHarborBot** — Telegram-native рекламная биржа для каналов 1K–50K подписчиков. Платформа соединяет рекламодателей (малый и средний бизнес) с владельцами тематических каналов. Весь цикл — от выбора каналов до оплаты, публикации и аналитики — происходит внутри Telegram без перехода на сторонние сайты.
@@ -14,16 +14,18 @@
 
 ---
 
-## 🆕 What's New in v4.4 (April 2026)
+## 🆕 What's New in v4.5 (April 2026)
 
 | # | Change | Impact |
 |---|--------|--------|
-| 1 | **Web Portal** — React SPA, 137 TSX files | Второй фронтенд помимо Mini App |
-| 2 | **6 critical security fixes** | Rate limiting, banned-user checks, webhook error handling |
-| 3 | **SonarQube: 580 files scanned** | src + mini_app + web_portal |
-| 4 | **~70 code quality improvements** | Accessibility, keyboard navigation, unused param cleanup |
-| 5 | **Billing prices from settings** | 490/1490/4990 вместо хардкода |
-| 6 | **Telegram widget 500 fix** | Migration `t1u2v3w4x5y6` |
+| 1 | **Web Portal** — React SPA, 107 `.tsx` / 66 экранов / 126 Playwright-спеков | Второй фронтенд помимо Mini App |
+| 2 | **Landing** — статический одностраничник на `rekharbor.ru` | Маркетинговая витрина |
+| 3 | **Unified disputes flow** — единые лейблы, роль-зависимый текст, сервер-инварианты | S-48 consumer trust |
+| 4 | **ORD via Yandex API v7** — `YandexOrdProvider` + автопроброс ERID | ФЗ-38 compliance (stub по умолчанию) |
+| 5 | **Accounting module** — КУДиР, акты, счета-фактуры, квартальная отчётность | S-26 B2B hygiene |
+| 6 | **SonarQube: 4 sub-projects scanned** | src + mini_app + web_portal + landing |
+| 7 | **Schema consolidated** — все миграции свернуты в `0001_initial_schema.py` | Pre-prod reset pattern |
+| 8 | **Python 3.14 upgrade** | Celery/pyright/ruff под новый target |
 
 📜 Полная история изменений: [CHANGELOG.md](CHANGELOG.md)
 
@@ -98,58 +100,61 @@
 ## 🏗️ Architecture
 
 ```
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│  Telegram    │   │  Mini App    │   │  Web Portal  │
-│  Bot (poll)  │   │  (React SPA) │   │  (React SPA) │
-└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│  Telegram    │   │  Mini App    │   │  Web Portal  │   │   Landing    │
+│  Bot (poll)  │   │  (React SPA) │   │  (React SPA) │   │  (static)    │
+│              │   │  app.rekh... │   │ portal.rekh. │   │  rekharbor.  │
+└──────┬───────┘   └──────┬───────┘   └──────┬───────┘   └──────────────┘
        └──────────────────┼──────────────────┘
                           │
                ┌──────────▼──────────┐
                │   FastAPI Router    │
-               │  (JWT via Tg Auth)  │
+               │  27 routers / 131   │
+               │     endpoints       │
                └──────────┬──────────┘
                           │
     ┌─────────────────────┼─────────────────────┐
     │                     │                     │
 ┌───▼────┐         ┌─────▼────┐         ┌──────▼──────┐
 │aiogram │         │ Celery   │         │ Parser      │
-│Handlers│         │ Workers  │         │ (Telethon)  │
-│(FSM)   │         │ 3 queues │         │ (read-only) │
+│Handlers│         │ 3 workers│         │ (Telethon)  │
+│(FSM)   │         │ 9 queues │         │ (read-only) │
 └───┬────┘         └─────┬────┘         └──────┬──────┘
     └─────────────────────┼─────────────────────┘
                           │
                ┌──────────▼──────────┐
-               │   Service Layer     │
+               │  35 Core Services   │
                └──────────┬──────────┘
     ┌─────────────────────┼─────────────────────┐
     │                     │                     │
 ┌───▼────────┐   ┌───────▼──────┐   ┌──────────▼────────┐
 │ PostgreSQL  │   │   Redis 7    │   │   Mistral AI SDK  │
-│ (asyncpg)   │   │ FSM+Broker   │   │   (AI generation) │
+│ 31 models   │   │ FSM+Broker   │   │   (AI generation) │
 └────────────┘   └──────────────┘   └───────────────────┘
 ```
 
 | Компонент | Технология | Назначение |
 |-----------|------------|------------|
-| Bot | aiogram 3.x | Команды, FSM-диалоги, middlewares |
-| Mini App | React 19 + TypeScript + Vite | Telegram WebApp интерфейс |
-| Web Portal | React 19 + TypeScript + Vite | Полноценный веб-портал (v4.4) |
-| API | FastAPI | JWT auth через Telegram initData HMAC-SHA256 |
-| Workers | Celery + Beat | 3 очереди: critical, background, monitoring |
-| DB | PostgreSQL 16 + SQLAlchemy 2.0 async | 32 миграции, repository pattern |
+| Bot | aiogram 3.x | 22 handler-файла, 11 FSM-групп, 4 middleware |
+| Mini App | React 19 + TS 6 + Vite 8 + Tailwind v4 | 55 экранов · `@telegram-apps/sdk-react` · ky + TanStack Query |
+| Web Portal | React 19 + TS 6 + Vite 8 + Tailwind v4 | 66 экранов · JWT в localStorage · Telegram Login Widget |
+| Landing | Static Vite + Tailwind v4 | `rekharbor.ru` — маркетинг, CSP без unsafe-inline |
+| API | FastAPI | 27 роутеров, 131 endpoint, JWT через Telegram initData HMAC-SHA256 |
+| Workers | Celery + Beat | 3 воркера / 9 очередей / 66 задач / 18 периодических |
+| DB | PostgreSQL 16 + SQLAlchemy 2.0 async | 31 модель, 26 репозиториев, consolidated schema |
 | Cache | Redis 7 | FSM storage, rate limiting, AI cache |
-| AI | Mistral AI (mistralai>=1.12.4) | Генерация текстов, контент-фильтр |
-| Payments | ЮKassa | Пополнение баланса (карта, СБП) |
+| AI | Mistral AI (mistralai>=1.12.4) | Генерация текстов, L3 контент-фильтр, классификация тем |
+| Payments | ЮKassa | Пополнение баланса (карта, СБП, YooMoney) |
 
 ---
 
 ## 🛠️ Tech Stack
 
-**Backend:** Python 3.13 · aiogram 3.x · SQLAlchemy 2.0 async · FastAPI 0.115+ · Alembic 1.14+ · Celery 5.x · asyncpg 0.30+ · pydantic-settings 2.7+ · mistralai 1.12.4+ · Telethon 1.36+ · pymorphy3 2.0+ · yookassa 3.2.0 · reportlab 4.3+
+**Backend:** Python 3.14 · aiogram 3.x · SQLAlchemy 2.0 async · FastAPI 0.115+ · Alembic 1.14+ · Celery 5.x · asyncpg 0.30+ · pydantic-settings 2.7+ · mistralai 1.12.4+ · Telethon 1.36+ · pymorphy3 2.0+ · yookassa 3.2.0 · reportlab 4.3+
 
-**Frontend (Mini App + Web Portal):** React 19 · TypeScript 5.9/6.0 · Vite 5/8 · TailwindCSS 3/4 · Zustand 4.x · Recharts 2.x · react-router-dom 6.x · @twa-dev/sdk 7.x · CSS Modules
+**Frontend (Mini App · Web Portal · Landing):** React 19.2 · TypeScript 6.0 · Vite 8 · TailwindCSS v4 (CSS-first, `@theme`) · Zustand 5 · TanStack React Query 5 · ky 1.x · React Hook Form + zod · Recharts 3 · react-router-dom 7 · `@telegram-apps/sdk-react` 2 · Motion 12 · Sentry
 
-**DevOps & Tools:** Docker Compose · nginx · Cloudflare Tunnel · GitHub Actions · GlitchTip + Sentry · SonarQube · Gitleaks · Ruff · MyPy · pytest + testcontainers · Flower · Grafana
+**DevOps & Tools:** Docker Compose · nginx · Cloudflare Tunnel · GitHub Actions · GlitchTip + Sentry · SonarQube (4 sub-projects) · Gitleaks · Ruff · MyPy · pytest + testcontainers · Playwright (e2e) · Flower · Grafana
 
 ---
 
@@ -157,10 +162,10 @@
 
 ### Requirements
 
-- **Python 3.13** (через pyenv)
+- **Python 3.14** (через pyenv)
 - **Poetry** (менеджер зависимостей)
 - **Docker** (PostgreSQL 16, Redis 7)
-- **Node.js 20+** (для Mini App / Web Portal)
+- **Node.js 20+** (для Mini App / Web Portal / Landing)
 
 ### Setup
 
@@ -177,23 +182,28 @@ cp .env.example .env
 # 3. Start infrastructure
 docker compose up -d postgres redis
 
-# 4. Apply migrations (32 migrations as of v4.4)
+# 4. Apply schema (single consolidated migration pre-prod)
 make migrate   # or: poetry run alembic upgrade head
 
 # 5. Run bot (polling mode for development)
 make run       # or: poetry run python -m src.bot.main
 
-# 6. Run Celery workers
-celery -A src.tasks.celery_app worker -Q critical,background,monitoring -l info
+# 6. Run Celery workers (3 workers, 9 queues)
+celery -A src.tasks.celery_app worker -Q worker_critical,mailing,notifications,billing,placement -n critical@%h --concurrency=2 -l info
+celery -A src.tasks.celery_app worker -Q parser,cleanup,background -n background@%h --concurrency=4 -l info
+celery -A src.tasks.celery_app worker -Q gamification,badges -n game@%h --concurrency=2 -l info
 
 # 7. Run Celery Beat (periodic tasks — ONE instance only)
 celery -A src.tasks.celery_app beat -l info
 
-# 8. Mini App (optional)
+# 8. Mini App (optional, dev server on :3000)
 cd mini_app && npm install && npm run dev
 
-# 9. Web Portal (optional, v4.4)
+# 9. Web Portal (optional, dev server on :5174)
 cd web_portal && npm install && npm run dev
+
+# 10. Landing (optional)
+cd landing && npm install && npm run dev
 ```
 
 > **Bot token:** Получить у [@BotFather](https://t.me/BotFather). **Mistral API:** [console.mistral.ai](https://console.mistral.ai). **ЮKassa:** merchant dashboard.
@@ -205,20 +215,22 @@ cd web_portal && npm install && npm run dev
 ```
 market-telegram-bot/
 ├── src/
-│   ├── bot/              # aiogram handlers, keyboards, FSM states, middlewares
-│   ├── api/              # FastAPI routers, JWT auth, dependencies
-│   ├── db/               # SQLAlchemy models, repositories, Alembic migrations
-│   ├── core/             # Business logic services, exceptions, constants
-│   ├── tasks/            # Celery tasks, Beat schedule, config
-│   ├── utils/            # Telegram sender, parser, content filter
+│   ├── bot/              # aiogram: 22 handler-файла, 11 FSM-групп, 15 клавиатур, 4 middleware
+│   ├── api/              # FastAPI: 27 роутеров, 131 endpoint, JWT, 2 middleware
+│   ├── db/               # SQLAlchemy: 31 модель, 26 репозиториев, 1 consolidated migration
+│   ├── core/             # 35 бизнес-сервисов (billing, payout, ORD, contracts, …)
+│   ├── tasks/            # Celery: 12 task-файлов, 66 задач, 18 периодических
+│   ├── utils/            # Telegram sender/parser, content filter (L1/L2/L3), PDF builders
 │   └── config/           # Pydantic settings
-├── mini_app/             # Telegram Mini App (React 19, TS, Vite)
-├── web_portal/           # Web Portal (React 19, TS, Vite) — v4.4
-├── tests/                # pytest unit + integration tests (101 tests)
-├── docs/                 # Technical documentation, reports
+├── mini_app/             # Telegram Mini App — React 19 + TS 6 + Vite 8, 55 экранов
+├── web_portal/           # Web Portal — React 19 + TS 6 + Vite 8, 66 экранов, 126 Playwright-спеков
+├── landing/              # Маркетинговый лендинг — static Vite + Tailwind v4
+├── tests/                # pytest: 37 файлов тестов (unit/, integration/, e2e_api/, tasks/)
+├── docs/                 # AAA-01…AAA-12 — архитектура, API, DB, сервисы, FSM, Celery, фронт, деплой, тесты
+├── reports/              # Discovery-отчёты, CHANGES_*.md, sprint reports
 ├── .qwen/skills/         # 10 project-specific skills для Qwen Code
-├── docker-compose.yml    # Production services definition
-├── nginx/                # Reverse proxy, HTTPS config
+├── docker-compose.yml    # 11 сервисов (postgres, redis, bot, 3×worker, beat, flower, api, nginx, glitchtip)
+├── nginx/                # Reverse proxy, HTTPS, server blocks для app/portal/landing
 └── scripts/              # Utility scripts (DB cleanup, etc.)
 ```
 
@@ -226,7 +238,9 @@ market-telegram-bot/
 
 ## 🗄️ Database
 
-**32 Alembic migrations** (head: `s31a001_document_uploads`). Модели описаны подробно в [QWEN.md](QWEN.md#database-models).
+**31 SQLAlchemy моделей · 26 репозиториев · 1 consolidated migration** (head: `0001_initial_schema`).
+
+> **Migration policy:** до первого прод-пользователя не создаём инкрементальные Alembic-миграции — редактируем `0001_initial_schema.py` и пересоздаём БД. После старта прод — стандартный Alembic workflow.
 
 ### Core Models
 
@@ -275,8 +289,9 @@ celery -A src.tasks.celery_app worker -Q critical,background,monitoring -l info
 celery -A src.tasks.celery_app beat -l info
 
 # ── Tests ──
-poetry run pytest tests/ -v           # all 101 tests
+poetry run pytest tests/ -v           # 37 test files (unit/, integration/, e2e_api/, tasks/)
 poetry run pytest --cov=src           # coverage gate ≥80%
+cd web_portal && npx playwright test  # 126 e2e specs (mobile + desktop)
 
 # ── Linting ──
 ruff check src/ --fix && ruff format src/
@@ -339,7 +354,7 @@ docker compose up -d --no-deps
 | Инструмент | Назначение | URL |
 |-------------|-----------|-----|
 | **GlitchTip / Sentry** | Ошибки, трассировки | Sentry dashboard |
-| **SonarQube** | Статический анализ кода (580 файлов) | SonarQube dashboard |
+| **SonarQube** | Статический анализ кода (src, mini_app/src, web_portal/src, landing) | SonarQube dashboard |
 | **Flower** | Celery task monitoring | `:5555` |
 | **Grafana** | Метрики приложения | `:3000` |
 | **Gitleaks** | Secrets detection в git (pre-commit + CI) | `.gitleaks.toml` |
@@ -348,15 +363,32 @@ docker compose up -d --no-deps
 
 ## 📚 Documentation
 
+**AAA reference set** (`docs/` — Diátaxis framework, verified 2026-04-21):
+
+| # | Doc | Scope |
+|---|-----|-------|
+| 01 | [AAA-01_ARCHITECTURE](docs/AAA-01_ARCHITECTURE.md) | Слои, диаграммы потоков, технологический стек |
+| 02 | [AAA-02_API_REFERENCE](docs/AAA-02_API_REFERENCE.md) | 27 FastAPI-роутеров, 131 endpoint, JWT, webhook-спеки |
+| 03 | [AAA-03_DATABASE_REFERENCE](docs/AAA-03_DATABASE_REFERENCE.md) | 31 модель, 26 репозиториев, ERD, миграции |
+| 04 | [AAA-04_SERVICE_REFERENCE](docs/AAA-04_SERVICE_REFERENCE.md) | 35 Core Services (billing, payout, ORD, contracts, …) |
+| 05 | [AAA-05_FSM_REFERENCE](docs/AAA-05_FSM_REFERENCE.md) | 11 FSM-групп / 52 states, keyboards, routing |
+| 06 | [AAA-06_CELERY_REFERENCE](docs/AAA-06_CELERY_REFERENCE.md) | 9 очередей / 66 задач / 18 периодических |
+| 07 | [AAA-07_FRONTEND_REFERENCE](docs/AAA-07_FRONTEND_REFERENCE.md) | Mini App (55 экранов) · Web Portal (66 экранов) · Landing |
+| 08 | [AAA-08_ONBOARDING](docs/AAA-08_ONBOARDING.md) | Developer onboarding, setup, проектные инварианты |
+| 09 | [AAA-09_DEPLOYMENT](docs/AAA-09_DEPLOYMENT.md) | Docker Compose, nginx, CI/CD, backup/restore |
+| 09 | [AAA-09_TESTING_QUALITY](docs/AAA-09_TESTING_QUALITY.md) | pytest, Playwright, SonarQube, coverage |
+| 10 | [AAA-10_DISCREPANCY_REPORT](docs/AAA-10_DISCREPANCY_REPORT.md) | Drift-репорт между документацией и реальностью |
+| 11 | [AAA-11_PRODUCTION_FIX_PLAN](docs/AAA-11_PRODUCTION_FIX_PLAN.md) | Pre-launch блокеры (ORD, FNS, etc.) |
+| 12 | [AAA-12_CONTAINER_STARTUP_DEEP_DIVE](docs/AAA-12_CONTAINER_STARTUP_DEEP_DIVE.md) | Лайфцикл контейнеров, healthchecks |
+
 | Resource | Description |
 |----------|-------------|
-| [QWEN.md](QWEN.md) | Developer context — финансовые константы, модели, сервис-контракты, FSM states, архитектурные правила |
-| [CHANGELOG.md](CHANGELOG.md) | Полная история версий (v4.2 → v4.4) |
-| [docs/](docs/) | Технические отчёты, code review, deployment checklists |
-| [reports/](reports/) | Sprint reports, tech debt registry |
+| [QWEN.md](QWEN.md) | Developer context — финансовые константы, модели, сервис-контракты |
+| [CHANGELOG.md](CHANGELOG.md) | Полная история версий (v4.2 → v4.5) |
+| [reports/](reports/) | Sprint reports, discovery отчёты, CHANGES_*.md |
 | [.qwen/skills/](.qwen/skills/) | 10 project-specific skills для AI-assisted разработки |
 
-**Deep-dive documentation (Diátaxis framework):** подробная документация формата AAA создаётся через `docs-sync` skill после изменений в кодовой базе.
+**Deep-dive documentation (Diátaxis framework):** подробная документация формата AAA обновляется через `docs-sync` skill после изменений в кодовой базе.
 
 ---
 
