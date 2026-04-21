@@ -25,6 +25,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
 from src.api.main import app
+from src.core.services.payout_service import payout_service
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.user import User
 
@@ -159,12 +160,15 @@ class TestApprovePayoutChangesStatus:
         admin_client: AsyncClient,
         fake_payout_paid: PayoutRequest,
     ) -> None:
-        approve_mock = AsyncMock(return_value=fake_payout_paid)
-
-        with patch(
-            "src.core.services.payout_service.payout_service.approve_request",
-            approve_mock,
-        ):
+        # autospec=True привязывает сигнатуру мока к реальному
+        # bound-method `payout_service.approve_request`. Если в сервисе
+        # переименовать аргументы — тест упадёт на этапе assert_awaited_with.
+        with patch.object(
+            payout_service,
+            "approve_request",
+            autospec=True,
+        ) as approve_mock:
+            approve_mock.return_value = fake_payout_paid
             resp = await admin_client.post("/api/admin/payouts/42/approve")
 
         assert resp.status_code == 200, resp.text
@@ -188,10 +192,12 @@ class TestApproveAlreadyProcessed:
 
     async def test_approve_already_finalized_returns_400(self, admin_client: AsyncClient) -> None:
         err = ValueError("PayoutRequest 42 already finalized (status=paid)")
-        with patch(
-            "src.core.services.payout_service.payout_service.approve_request",
-            AsyncMock(side_effect=err),
-        ):
+        with patch.object(
+            payout_service,
+            "approve_request",
+            autospec=True,
+        ) as approve_mock:
+            approve_mock.side_effect = err
             resp = await admin_client.post("/api/admin/payouts/42/approve")
 
         assert resp.status_code == 400, resp.text
@@ -199,10 +205,12 @@ class TestApproveAlreadyProcessed:
 
     async def test_approve_missing_returns_404(self, admin_client: AsyncClient) -> None:
         err = ValueError("PayoutRequest 9999 not found")
-        with patch(
-            "src.core.services.payout_service.payout_service.approve_request",
-            AsyncMock(side_effect=err),
-        ):
+        with patch.object(
+            payout_service,
+            "approve_request",
+            autospec=True,
+        ) as approve_mock:
+            approve_mock.side_effect = err
             resp = await admin_client.post("/api/admin/payouts/9999/approve")
 
         assert resp.status_code == 404, resp.text
@@ -228,11 +236,12 @@ class TestRejectRequiresReason:
         admin_client: AsyncClient,
         fake_payout_rejected: PayoutRequest,
     ) -> None:
-        reject_mock = AsyncMock(return_value=fake_payout_rejected)
-        with patch(
-            "src.core.services.payout_service.payout_service.reject_request",
-            reject_mock,
-        ):
+        with patch.object(
+            payout_service,
+            "reject_request",
+            autospec=True,
+        ) as reject_mock:
+            reject_mock.return_value = fake_payout_rejected
             resp = await admin_client.post(
                 "/api/admin/payouts/43/reject",
                 json={"reason": "Реквизиты не прошли проверку."},
@@ -246,10 +255,12 @@ class TestRejectRequiresReason:
 
     async def test_reject_already_finalized_returns_400(self, admin_client: AsyncClient) -> None:
         err = ValueError("PayoutRequest 43 already finalized (status=rejected)")
-        with patch(
-            "src.core.services.payout_service.payout_service.reject_request",
-            AsyncMock(side_effect=err),
-        ):
+        with patch.object(
+            payout_service,
+            "reject_request",
+            autospec=True,
+        ) as reject_mock:
+            reject_mock.side_effect = err
             resp = await admin_client.post(
                 "/api/admin/payouts/43/reject",
                 json={"reason": "дубль отклонения"},

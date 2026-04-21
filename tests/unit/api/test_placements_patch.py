@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
 import pytest_asyncio
@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api.dependencies import get_current_user, get_db_session
 from src.api.main import app
+from src.core.services.placement_request_service import PlacementRequestService
 from src.db.models.placement_request import PlacementStatus
 from src.db.models.user import User
 
@@ -157,9 +158,14 @@ def _patch_router_repos(
     service_method_name: str,
     service_return: SimpleNamespace,
 ) -> Any:
-    """Патчит PlacementRequestRepository/TelegramChatRepository/PlacementRequestService.
+    """Патчит PlacementRequestRepository / TelegramChatRepository / PlacementRequestService.
 
-    Возвращает context manager на все патчи.
+    `PlacementRequestService` мокается через `create_autospec(..., instance=True,
+    spec_set=True)` — это гарантирует, что тест упадёт, если в сервисе
+    переименуют/удалят метод (`owner_accept`, `owner_reject`,
+    `owner_counter_offer`, `process_payment`, `advertiser_cancel`) или
+    поменяют его арность. MagicMock в этом месте ловил регрессии тестов,
+    а не drift сервиса, что и было написано в FIX_PLAN_06 §6.6.
     """
     placement_repo = MagicMock()
     placement_repo.get_by_id = AsyncMock(return_value=placement)
@@ -167,8 +173,11 @@ def _patch_router_repos(
     channel_repo = MagicMock()
     channel_repo.get_by_id = AsyncMock(return_value=channel)
 
-    service = MagicMock()
-    setattr(service, service_method_name, AsyncMock(return_value=service_return))
+    service = create_autospec(PlacementRequestService, instance=True, spec_set=True)
+    # autospec авто-создаёт AsyncMock для async-методов; задаём return_value
+    # на конкретной цели, не вызывая setattr (spec_set запрещает новые атрибуты,
+    # но существующий атрибут уже является AsyncMock).
+    getattr(service, service_method_name).return_value = service_return
 
     return (
         patch(
