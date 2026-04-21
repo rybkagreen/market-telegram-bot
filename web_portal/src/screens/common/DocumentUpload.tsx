@@ -192,7 +192,7 @@ export default function DocumentUpload() {
         title="Документы на верификацию"
         subtitle="Загрузите сканы — проверим в течение 24 часов"
         action={
-          <Button variant="secondary" iconLeft="info">
+          <Button variant="secondary" size="sm" iconLeft="info">
             Требования
           </Button>
         }

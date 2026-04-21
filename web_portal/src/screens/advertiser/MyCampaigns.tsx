@@ -145,18 +145,26 @@ export default function MyCampaigns() {
         title="Мои кампании"
         subtitle="Запросы на размещение, модерация, эскроу и публикации"
         action={
-          <div className="flex gap-2">
-            <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
-              Обновить
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
+              onClick={() => void refetch()}
+              title="Обновить"
+              aria-label="Обновить"
+            >
+              <Icon name="refresh" size={14} />
             </Button>
             <Button
               variant="primary"
+              size="sm"
               iconLeft="plus"
               onClick={() => navigate('/adv/campaigns/new/category')}
             >
               Создать кампанию
             </Button>
-          </div>
+          </>
         }
       />
 

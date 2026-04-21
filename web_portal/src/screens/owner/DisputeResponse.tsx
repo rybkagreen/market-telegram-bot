@@ -12,31 +12,13 @@ import { PUBLICATION_FORMATS } from '@/lib/constants'
 import { formatCurrency } from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
 import { useDisputeById, useReplyToDispute } from '@/hooks/useDisputeQueries'
+import {
+  DISPUTE_TONE_CLASSES,
+  getDisputeStatusMeta,
+  getRoleAwareStatusLabel,
+} from '@/lib/disputeLabels'
 
 const MIN_REPLY = 20
-
-const STATUS_LABEL: Record<string, string> = {
-  open: 'Открыт',
-  owner_explained: 'Владелец ответил',
-  resolved: 'Решён',
-  closed: 'Закрыт',
-}
-
-type Tone = 'danger' | 'warning' | 'success' | 'neutral'
-
-const STATUS_TONE: Record<string, Tone> = {
-  open: 'danger',
-  owner_explained: 'warning',
-  resolved: 'success',
-  closed: 'neutral',
-}
-
-const toneClasses: Record<Tone, string> = {
-  danger: 'bg-danger-muted text-danger',
-  warning: 'bg-warning-muted text-warning',
-  success: 'bg-success-muted text-success',
-  neutral: 'bg-harbor-elevated text-text-tertiary',
-}
 
 export default function DisputeResponse() {
   const { id } = useParams()
@@ -71,7 +53,8 @@ export default function DisputeResponse() {
   }
 
   const fmt = placement ? PUBLICATION_FORMATS[placement.publication_format] : null
-  const tone = STATUS_TONE[dispute.status] ?? 'neutral'
+  const tone = getDisputeStatusMeta(dispute.status).tone
+  const ownerStatusLabel = getRoleAwareStatusLabel(dispute.status, 'owner')
 
   const handleSubmit = () => {
     if (ownerReply.length < MIN_REPLY) return
@@ -88,7 +71,8 @@ export default function DisputeResponse() {
         subtitle="Ответ владельца — опишите ситуацию, чтобы администратор мог принять справедливое решение"
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/requests')}
           >
@@ -99,7 +83,7 @@ export default function DisputeResponse() {
 
       <div className="mb-5">
         <Notification type={dispute.status === 'open' ? 'warning' : 'info'}>
-          Статус: {STATUS_LABEL[dispute.status] ?? dispute.status}
+          Статус: {ownerStatusLabel}
         </Notification>
       </div>
 
@@ -167,7 +151,7 @@ export default function DisputeResponse() {
             </Notification>
           ) : (
             <Notification type="info">
-              Спор {STATUS_LABEL[dispute.status] ?? 'закрыт'}.
+              Спор {ownerStatusLabel.toLowerCase()}.
             </Notification>
           )}
         </div>
@@ -201,9 +185,9 @@ export default function DisputeResponse() {
               )}
               <DetailRow icon="info" label="Статус">
                 <span
-                  className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded ${toneClasses[tone]}`}
+                  className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded ${DISPUTE_TONE_CLASSES[tone]}`}
                 >
-                  {STATUS_LABEL[dispute.status] ?? dispute.status}
+                  {ownerStatusLabel}
                 </span>
               </DetailRow>
             </dl>

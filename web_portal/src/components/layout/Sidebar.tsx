@@ -63,7 +63,6 @@ export function Sidebar() {
           count: campaignsCount || undefined,
         },
         { id: 'adv-analytics', label: 'Аналитика', path: '/adv/analytics', icon: 'analytics' },
-        { id: 'adv-disputes', label: 'Мои споры', path: '/adv/disputes', icon: 'disputes' },
       ],
     },
     {
@@ -94,7 +93,6 @@ export function Sidebar() {
         { id: 'referral', label: 'Реферальная', path: '/referral', icon: 'referral' },
         { id: 'help', label: 'Помощь', path: '/help', icon: 'info' },
         { id: 'feedback', label: 'Обратная связь', path: '/feedback', icon: 'feedback' },
-        { id: 'settings', label: 'Настройки', path: '/settings', icon: 'settings' },
       ],
     },
   ]
@@ -110,6 +108,7 @@ export function Sidebar() {
         { id: 'admin-payouts', label: 'Выплаты', path: '/admin/payouts', icon: 'payouts', adminOnly: true },
         { id: 'admin-acc', label: 'Бухгалтерия', path: '/admin/accounting', icon: 'accounting', adminOnly: true },
         { id: 'admin-tax', label: 'Налоги', path: '/admin/tax-summary', icon: 'taxes', adminOnly: true },
+        { id: 'admin-settings', label: 'Реквизиты платформы', path: '/admin/settings', icon: 'settings', adminOnly: true },
       ],
     })
   }
@@ -122,7 +121,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`flex flex-col bg-harbor-secondary border-r border-border transition-[width] duration-300 flex-shrink-0 ${
+      className={`h-dvh min-h-0 flex flex-col bg-harbor-secondary border-r border-border transition-[width] duration-300 flex-shrink-0 ${
         isCollapsed ? 'w-16' : 'w-60'
       }`}
       aria-label="Основная навигация"

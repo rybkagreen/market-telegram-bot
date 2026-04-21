@@ -140,7 +140,8 @@ export default function OwnChannelSettings() {
         subtitle={channel ? `${channelTitle} · @${channelUsername}` : 'Параметры публикаций и расписания'}
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/channels')}
           >

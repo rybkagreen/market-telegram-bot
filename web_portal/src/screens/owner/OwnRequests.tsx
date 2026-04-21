@@ -11,18 +11,20 @@ import type { IconName } from '@shared/ui'
 import { formatCurrency, formatDateMSK, formatDateTimeMSK } from '@/lib/constants'
 import { useMyPlacements } from '@/hooks/useCampaignQueries'
 
-type Filter = 'new' | 'active' | 'cancelled'
+type Filter = 'new' | 'active' | 'completed' | 'cancelled'
 type SortKey = 'date' | 'price'
 type SortDir = 'asc' | 'desc'
 
 const NEW_STATUSES = ['pending_owner', 'counter_offer', 'pending_payment']
-const ACTIVE_STATUSES = ['escrow', 'published']
+const ACTIVE_STATUSES = ['escrow']
+const COMPLETED_STATUSES = ['published']
 const CANCELLED_STATUSES = ['cancelled', 'refunded', 'failed', 'failed_permissions']
 const PAGE_SIZE = 10
 
 function getFilter(status: string): Filter {
   if (NEW_STATUSES.includes(status)) return 'new'
   if (ACTIVE_STATUSES.includes(status)) return 'active'
+  if (COMPLETED_STATUSES.includes(status)) return 'completed'
   if (CANCELLED_STATUSES.includes(status)) return 'cancelled'
   return 'cancelled'
 }
@@ -30,6 +32,7 @@ function getFilter(status: string): Filter {
 const EMPTY_SUBTITLE: Record<Filter, string> = {
   new: 'Новые заявки появятся, когда рекламодатели отправят запросы на ваш канал.',
   active: 'Нет активных размещений',
+  completed: 'Нет завершённых размещений',
   cancelled: 'Нет отменённых заявок',
 }
 
@@ -71,6 +74,7 @@ export default function OwnRequests() {
   const counts = useMemo(() => {
     const newCount = requests.filter((r) => getFilter(r.status) === 'new').length
     const activeCount = requests.filter((r) => getFilter(r.status) === 'active').length
+    const completedCount = requests.filter((r) => getFilter(r.status) === 'completed').length
     const cancelledCount = requests.filter((r) => getFilter(r.status) === 'cancelled').length
     const pendingOwnerEarn = requests
       .filter((r) => r.status === 'pending_owner')
@@ -78,7 +82,7 @@ export default function OwnRequests() {
         (s, r) => s + parseFloat(String(r.proposed_price ?? '0')) * 0.85,
         0,
       )
-    return { newCount, activeCount, cancelledCount, pendingOwnerEarn }
+    return { newCount, activeCount, completedCount, cancelledCount, pendingOwnerEarn }
   }, [requests])
 
   const filtered = requests.filter((r) => getFilter(r.status) === filter)
@@ -123,8 +127,15 @@ export default function OwnRequests() {
         title="Входящие заявки"
         subtitle="Рассматривайте, принимайте или делайте контр-оферту на новые запросы размещений"
         action={
-          <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
-            Обновить
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            onClick={() => void refetch()}
+            title="Обновить"
+            aria-label="Обновить"
+          >
+            <Icon name="refresh" size={14} />
           </Button>
         }
       />
@@ -150,9 +161,9 @@ export default function OwnRequests() {
         <SummaryTile
           icon="check"
           tone="success"
-          label="Активных"
-          value={String(counts.activeCount)}
-          delta="Эскроу и публикации"
+          label="Завершено"
+          value={String(counts.completedCount)}
+          delta="Опубликованные размещения"
         />
         <SummaryTile
           icon="close"
@@ -178,6 +189,13 @@ export default function OwnRequests() {
             onClick={() => handleFilterChange('active')}
           >
             Активные <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.activeCount}</span>
+          </FilterPill>
+          <FilterPill
+            active={filter === 'completed'}
+            tone="success"
+            onClick={() => handleFilterChange('completed')}
+          >
+            Завершённые <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.completedCount}</span>
           </FilterPill>
           <FilterPill
             active={filter === 'cancelled'}

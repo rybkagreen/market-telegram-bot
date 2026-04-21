@@ -13,6 +13,8 @@ import {
 } from '@shared/ui'
 import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
+import { useMyDisputeByPlacement } from '@/hooks/useDisputeQueries'
+import { getRoleAwareStatusLabel } from '@/lib/disputeLabels'
 
 export default function OwnRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +23,9 @@ export default function OwnRequestDetail() {
 
   const { data: request, isLoading } = usePlacementRequest(numId)
   const { mutate: updatePlacement, isPending } = useUpdatePlacement()
+  const { data: dispute } = useMyDisputeByPlacement(
+    request?.has_dispute ? request.id : null,
+  )
   const queryClient = useQueryClient()
 
   const [counterPrice, setCounterPrice] = useState('')
@@ -172,7 +177,8 @@ export default function OwnRequestDetail() {
         subtitle={`@${request.channel?.username ?? `#${request.channel_id}`} · ${fmtName}`}
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/requests')}
           >
@@ -280,6 +286,37 @@ export default function OwnRequestDetail() {
                 </Button>
               </div>
             </>
+          )}
+
+          {request.has_dispute && (
+            <div className="bg-harbor-card border border-danger/25 rounded-xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Icon name="warning" size={14} className="text-danger" />
+                  <span className="font-display text-[14px] font-semibold text-text-primary">
+                    Спор по этой заявке
+                  </span>
+                </div>
+                {dispute && (
+                  <span className="text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded bg-danger-muted text-danger">
+                    {getRoleAwareStatusLabel(dispute.status, 'owner')}
+                  </span>
+                )}
+              </div>
+              {dispute?.advertiser_comment && (
+                <p className="text-[13px] leading-[1.55] text-text-secondary whitespace-pre-wrap mb-3">
+                  {dispute.advertiser_comment}
+                </p>
+              )}
+              <Button
+                variant={dispute?.status === 'open' ? 'primary' : 'secondary'}
+                iconLeft="chat"
+                disabled={!dispute}
+                onClick={() => dispute && navigate(`/own/disputes/${dispute.id}`)}
+              >
+                {dispute?.status === 'open' ? 'Ответить на спор' : 'Открыть детали спора'}
+              </Button>
+            </div>
           )}
 
           {request.status === 'cancelled' && request.rejection_reason && (

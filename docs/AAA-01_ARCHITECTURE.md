@@ -83,17 +83,17 @@ Advertiser pays 10,000₽ for placement
 │  ┌────────────────────┐              ┌───────────────────────────────┐  │
 │  │  BOT (aiogram 3.x) │              │  API (FastAPI)                │  │
 │  │  ┌──────────────┐  │              │  ┌─────────────────────────┐  │  │
-│  │  │ 30 handlers  │  │              │  │ 26 routers              │  │  │
-│  │  │ 12 FSM groups│  │              │  │ JWT auth (HMAC-SHA256)  │  │  │
-│  │  │ 22 keyboards │  │              │  │ Audit middleware        │  │  │
-│  │  │ 4 middleware │  │              │  │ Rate limiting           │  │  │
+│  │  │ 22 handlers  │  │              │  │ 27 routers / 131 eps    │  │  │
+│  │  │ 11 FSM groups│  │              │  │ JWT auth (HMAC-SHA256)  │  │  │
+│  │  │ 15 keyboards │  │              │  │ Audit middleware        │  │  │
+│  │  │ 4 middleware │  │              │  │ Log sanitizer           │  │  │
 │  │  └──────────────┘  │              │  └─────────────────────────┘  │  │
 │  └────────┬───────────┘              └──────────────┬────────────────┘  │
 │           │                                         │                    │
 │           └──────────────┬──────────────────────────┘                    │
 │                          ▼                                               │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  CORE SERVICES (34 services in src/core/services/)                 │  │
+│  │  CORE SERVICES (35 services in src/core/services/)                 │  │
 │  │  ┌─────────────┐ ┌────────────┐ ┌─────────────┐ ┌──────────────┐ │  │
 │  │  │BillingSvc   │ │PayoutSvc   │ │PlacementSvc │ │PublicationSvc│ │  │
 │  │  │1459 lines   │ │778 lines   │ │1029 lines   │ │392 lines     │ │  │
@@ -105,19 +105,20 @@ Advertiser pays 10,000₽ for placement
 │  └──────────────────────────┬────────────────────────────────────────┘  │
 │                             │                                            │
 │  ┌──────────────────────────▼────────────────────────────────────────┐  │
-│  │  DATA ACCESS (24 repositories + SQLAlchemy 2.0 async)              │  │
+│  │  DATA ACCESS (26 repositories + SQLAlchemy 2.0 async)              │  │
 │  │  Generic BaseRepository[T] pattern, asyncpg driver                 │  │
 │  │  selectinload/joinedload for relations (no lazy-loading)           │  │
 │  └──────────────────────────┬────────────────────────────────────────┘  │
 │                             │                                            │
 │  ┌──────────────────────────▼────────────────────────────────────────┐  │
-│  │  CELERY WORKERS (16 task files, 3 workers + Beat + Flower)         │  │
+│  │  CELERY WORKERS (12 task files, 66 tasks, 3 workers + Beat + Flower)│  │
 │  │  ┌─────────────────┐ ┌──────────────────┐ ┌───────────────────┐   │  │
 │  │  │worker_critical  │ │worker_background │ │worker_game        │   │  │
-│  │  │-Q celery,       │ │-Q parser,cleanup │ │-Q gamification,   │   │  │
-│  │  │  mailing,       │ │  rating           │ │  badges           │   │  │
+│  │  │-Q worker_crit,  │ │-Q parser,cleanup,│ │-Q gamification,   │   │  │
+│  │  │  mailing,       │ │  background       │ │  badges           │   │  │
 │  │  │  notifications, │ │concurrency=4      │ │concurrency=2      │   │  │
-│  │  │  billing        │ │                  │ │                   │   │  │
+│  │  │  billing,       │ │                  │ │                   │   │  │
+│  │  │  placement      │ │                  │ │                   │   │  │
 │  │  │concurrency=2    │ │                  │ │                   │   │  │
 │  │  └─────────────────┘ └──────────────────┘ └───────────────────┘   │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
@@ -128,8 +129,8 @@ Advertiser pays 10,000₽ for placement
 │  TIER 3: INFRASTRUCTURE                                                 │
 │  ┌──────────────┐              ┌──────────────┐                         │
 │  │ PostgreSQL 16│              │  Redis 7     │                         │
-│  │ 33 models    │              │ - Cache      │                         │
-│  │ 33 migrations│              │ - Celery broker│                        │
+│  │ 31 models    │              │ - Cache      │                         │
+│  │ 1 migration  │              │ - Celery broker│                        │
 │  │ asyncpg      │              │ - FSM store  │                         │
 │  └──────────────┘              │ - Dedup      │                         │
 │                                └──────────────┘                         │

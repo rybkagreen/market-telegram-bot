@@ -1,15 +1,15 @@
 # RekHarborBot — Database Schema Reference
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-03_DATABASE_REFERENCE
-> **Verified against:** HEAD @ 2026-04-08 | Source: `src/db/models/` (33 files), `alembic/versions/` (33 migrations)
+> **Verified against:** HEAD @ 2026-04-21 | Source: `src/db/models/` (31 files), `src/db/repositories/` (26 files), `src/db/migrations/versions/0001_initial_schema.py`
 
 ---
 
 ## Table of Contents
 
 1. [Database Overview](#1-database-overview)
-2. [Complete Entity Reference (33 Models)](#2-complete-entity-reference)
+2. [Complete Entity Reference (31 Models)](#2-complete-entity-reference)
 3. [Entity Relationship Diagram](#3-entity-relationship-diagram)
 4. [Foreign Key Matrix](#4-foreign-key-matrix)
 5. [Index Strategy](#5-index-strategy)
@@ -26,15 +26,23 @@
 |----------|-------|
 | Engine | PostgreSQL 16 (asyncpg driver) |
 | ORM | SQLAlchemy 2.0 async |
-| Migrations | Alembic (33 migrations) |
-| Models | 33 |
-| Total tables | ~35+ (including Alembic version table) |
+| Migrations | Alembic — **1 consolidated migration** (`0001_initial_schema`) pre-prod; инкрементальные после релиза |
+| Models | **31** (`src/db/models/`) |
+| Repositories | **26** (`src/db/repositories/`) |
 | Connection | `postgresql+asyncpg://user:pass@postgres:5432/market_bot_db` |
-| Session factory | `celery_async_session_factory` for Celery, `async_session_factory` for API/bot |
+| Session factory | `celery_async_session_factory` (NullPool) для Celery, `async_session_factory` (pool_size=20, overflow=10) для API/bot |
 | Loading strategy | Explicit `selectinload`/`joinedload` (no lazy-loading) |
 | Refresh pattern | `await session.refresh(obj)` after `flush()` |
 
-**Source files:** `src/db/session.py`, `src/db/base.py`, `src/db/models/`
+**Source files:** `src/db/session.py`, `src/db/base.py`, `src/db/models/`, `src/db/repositories/`
+
+### 1.1 Model inventory (31)
+
+`act`, `audit_log`, `badge`, `campaign`, `category`, `channel_mediakit`, `channel_settings`, `click_tracking`, `contract`, `contract_signature`, `dispute`, `document_counter`, `document_upload`, `feedback`, `invoice`, `kudir_record`, `legal_profile`, `mailing_log`, `ord_registration`, `payout`, `placement_request`, `platform_account`, `platform_quarterly_revenue`, `publication_log`, `reputation_history`, `reputation_score`, `review`, `telegram_chat`, `transaction`, `user`, `yookassa_payment`.
+
+### 1.2 Models without dedicated repository
+
+`document_upload`, `mailing_log` (accessed directly via ORM). `platform_quarterly_revenue` and `kudir_record` reside inside `tax_repo.py`. `contract_signature` is managed through `contract_repo.py`.
 
 ---
 

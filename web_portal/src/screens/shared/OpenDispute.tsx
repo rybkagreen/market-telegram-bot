@@ -98,7 +98,8 @@ export default function OpenDispute() {
         subtitle="Укажите причину и опишите, что пошло не так. Приложим автоматический лог публикации."
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate(-1 as unknown as string)}
           >

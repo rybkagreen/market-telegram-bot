@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 interface SparklineProps {
   data: number[]
   color?: string
@@ -19,6 +21,8 @@ export function Sparkline({
   fill = true,
   className = '',
 }: SparklineProps) {
+  const gradId = `sparkline-grad-${useId().replace(/:/g, '_')}`
+
   if (!data.length) {
     return <div style={{ width, height }} className={className} />
   }
@@ -35,8 +39,6 @@ export function Sparkline({
   const points = data.map((v, i) => `${padX + i * stepX},${toY(v).toFixed(2)}`)
   const line = `M${points.join(' L')}`
   const area = `${line} L ${padX + (data.length - 1) * stepX},${height - padY} L ${padX},${height - padY} Z`
-
-  const gradId = `sparkline-grad-${Math.random().toString(36).slice(2, 8)}`
 
   return (
     <svg

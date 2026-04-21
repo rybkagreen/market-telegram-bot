@@ -259,6 +259,38 @@ class PlacementResponse(BaseModel):
 # =============================================================================
 
 
+_STATUS_ALIASES: dict[str, list[PlacementStatus]] = {
+    "active": [
+        PlacementStatus.pending_owner,
+        PlacementStatus.counter_offer,
+        PlacementStatus.pending_payment,
+        PlacementStatus.escrow,
+    ],
+    "completed": [PlacementStatus.published],
+    "cancelled": [
+        PlacementStatus.cancelled,
+        PlacementStatus.refunded,
+        PlacementStatus.failed,
+        PlacementStatus.failed_permissions,
+    ],
+}
+
+
+def _resolve_status_filter(raw: str | None) -> list[PlacementStatus] | None:
+    if not raw:
+        return None
+    if raw in _STATUS_ALIASES:
+        return _STATUS_ALIASES[raw]
+    try:
+        return [PlacementStatus(raw)]
+    except ValueError as exc:
+        valid = ", ".join(sorted([*(s.value for s in PlacementStatus), *_STATUS_ALIASES]))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status={raw!r}. Expected one of: {valid}",
+        ) from exc
+
+
 @router.get("/")
 async def list_placements(
     current_user: CurrentUser,
@@ -276,7 +308,8 @@ async def list_placements(
         view: Контекст — "advertiser" (заявки пользователя как рекламодателя)
               или "owner" (заявки на каналах пользователя).
               Без view — UNION обоих.
-        status_filter: Фильтр по статусу.
+        status_filter: Фильтр по статусу — либо concrete PlacementStatus value,
+              либо алиас "active" / "completed" / "cancelled".
         channel_id: Фильтр по ID канала.
         limit: Лимит записей.
         offset: Смещение.
@@ -284,19 +317,17 @@ async def list_placements(
     if view not in (None, "advertiser", "owner"):
         raise HTTPException(status_code=400, detail="Invalid view value")
 
+    statuses = _resolve_status_filter(status_filter)
     repo = PlacementRequestRepository(session)
 
     if view == "advertiser":
-        status_enum = PlacementStatus(status_filter) if status_filter else None
-        placements = await repo.get_by_advertiser(
-            current_user.id, statuses=[status_enum] if status_enum else None
-        )
+        placements = await repo.get_by_advertiser(current_user.id, statuses=statuses)
     elif view == "owner":
-        placements = await repo.get_by_owner(current_user.id, statuses=None)
+        placements = await repo.get_by_owner(current_user.id, statuses=statuses)
     else:
         # UNION
-        adv_placements = await repo.get_by_advertiser(current_user.id, statuses=None)
-        own_placements = await repo.get_by_owner(current_user.id, statuses=None)
+        adv_placements = await repo.get_by_advertiser(current_user.id, statuses=statuses)
+        own_placements = await repo.get_by_owner(current_user.id, statuses=statuses)
         seen: dict[int, PlacementRequest] = {}
         for p in adv_placements + own_placements:
             if p.id not in seen:

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Notification, Button, Skeleton, Icon, ScreenHeader, FeeBreakdown } from '@shared/ui'
 import { formatCurrency, formatDateTimeMSK, formatTimeMSK } from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
+import { useMyDisputeByPlacement } from '@/hooks/useDisputeQueries'
+import { getRoleAwareStatusLabel } from '@/lib/disputeLabels'
 
 const PLATFORM_COMMISSION = 0.15
 
@@ -11,6 +13,9 @@ export default function CampaignPublished() {
   const navigate = useNavigate()
   const numId = id ? parseInt(id, 10) : null
   const { data: placement, isLoading } = usePlacement(numId)
+  const { data: dispute } = useMyDisputeByPlacement(
+    placement?.has_dispute ? placement.id : null,
+  )
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -57,7 +62,8 @@ export default function CampaignPublished() {
         subtitle={`${channelLabel} · ${placement.published_at ? formatTimeMSK(placement.published_at) + ' МСК' : '—'}`}
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/adv/campaigns')}
           >
@@ -94,6 +100,38 @@ export default function CampaignPublished() {
               total={{ label: 'Итого с эскроу', value: formatCurrency(price) }}
             />
           </div>
+
+          {placement.has_dispute && (
+            <div className="bg-harbor-card border border-danger/25 rounded-xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Icon name="warning" size={14} className="text-danger" />
+                  <span className="font-display text-[14px] font-semibold text-text-primary">
+                    Ваш спор
+                  </span>
+                </div>
+                {dispute && (
+                  <span className="text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded bg-danger-muted text-danger">
+                    {getRoleAwareStatusLabel(dispute.status, 'advertiser')}
+                  </span>
+                )}
+              </div>
+              {dispute?.owner_explanation && (
+                <p className="text-[13px] leading-[1.55] text-text-secondary whitespace-pre-wrap mb-3">
+                  <span className="font-semibold text-text-primary">Ответ владельца: </span>
+                  {dispute.owner_explanation}
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                iconLeft="chat"
+                disabled={!dispute}
+                onClick={() => dispute && navigate(`/disputes/${dispute.id}`)}
+              >
+                Открыть детали спора
+              </Button>
+            </div>
+          )}
 
           {placement.erid !== undefined && (
             <div className="bg-harbor-card border border-border rounded-xl p-5">

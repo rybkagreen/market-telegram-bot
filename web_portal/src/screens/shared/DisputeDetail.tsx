@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Notification,
@@ -6,36 +5,20 @@ import {
   Skeleton,
   Icon,
   ScreenHeader,
-  Textarea,
   Timeline,
 } from '@shared/ui'
-import type { IconName } from '@shared/ui'
 import { formatDateTimeMSK } from '@/lib/constants'
-import { useDisputeById, useReplyToDispute } from '@/hooks/useDisputeQueries'
-
-type Tone = 'danger' | 'warning' | 'success' | 'neutral'
-
-const STATUS_META: Record<string, { label: string; tone: Tone; icon: IconName }> = {
-  open: { label: 'Открыт', tone: 'danger', icon: 'warning' },
-  owner_explained: { label: 'Ответ владельца', tone: 'warning', icon: 'hourglass' },
-  resolved: { label: 'Решён', tone: 'success', icon: 'verified' },
-  closed: { label: 'Закрыт', tone: 'neutral', icon: 'archive' },
-}
-
-const toneClasses: Record<Tone, string> = {
-  danger: 'bg-danger-muted text-danger',
-  warning: 'bg-warning-muted text-warning',
-  success: 'bg-success-muted text-success',
-  neutral: 'bg-harbor-elevated text-text-tertiary',
-}
+import { useDisputeById } from '@/hooks/useDisputeQueries'
+import { useMe } from '@/hooks/queries'
+import { getDisputeStatusMeta, DISPUTE_TONE_CLASSES } from '@/lib/disputeLabels'
 
 export default function DisputeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const numId = id ? parseInt(id, 10) : null
   const { data: dispute, isLoading } = useDisputeById(numId)
-  const replyMutation = useReplyToDispute()
-  const [replyText, setReplyText] = useState('')
+  const { data: me } = useMe()
+  const isOwner = !!me && !!dispute && dispute.owner_id === me.id
 
   if (isLoading) {
     return (
@@ -54,11 +37,7 @@ export default function DisputeDetail() {
     )
   }
 
-  const meta = STATUS_META[dispute.status] ?? {
-    label: dispute.status,
-    tone: 'neutral' as Tone,
-    icon: 'info' as IconName,
-  }
+  const meta = getDisputeStatusMeta(dispute.status)
 
   const timelineEvents = [
     {
@@ -106,15 +85,15 @@ export default function DisputeDetail() {
         title={`Спор #${dispute.id}`}
         subtitle={`Размещение #${dispute.placement_request_id}`}
         action={
-          <Button variant="secondary" iconLeft="arrow-left" onClick={() => navigate('/disputes')}>
-            К списку
+          <Button variant="ghost" size="sm" iconLeft="arrow-left" onClick={() => navigate(-1)}>
+            Назад
           </Button>
         }
       />
 
       <div className="mb-5">
         <div
-          className={`inline-flex items-center gap-2 text-[11px] font-bold tracking-[0.08em] uppercase py-1.5 px-2.5 rounded ${toneClasses[meta.tone]}`}
+          className={`inline-flex items-center gap-2 text-[11px] font-bold tracking-[0.08em] uppercase py-1.5 px-2.5 rounded ${DISPUTE_TONE_CLASSES[meta.tone]}`}
         >
           <Icon name={meta.icon} size={12} />
           {meta.label}
@@ -165,36 +144,19 @@ export default function DisputeDetail() {
             </Notification>
           )}
 
-          {dispute.status === 'open' && (
-            <div className="bg-harbor-card border border-border rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Icon name="edit" size={14} className="text-accent" />
-                <span className="font-display text-[14px] font-semibold text-text-primary">
-                  Ваш ответ
-                </span>
+          {dispute.status === 'open' && isOwner && (
+            <Notification type="warning">
+              <div className="flex items-center justify-between gap-3 w-full flex-wrap">
+                <span>Вы указаны как владелец канала в этом споре — нужен ваш ответ.</span>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => navigate(`/own/disputes/${dispute.id}`)}
+                >
+                  Ответить
+                </Button>
               </div>
-              <Textarea
-                rows={4}
-                value={replyText}
-                onChange={setReplyText}
-                placeholder="Объясните вашу позицию…"
-              />
-              <Button
-                variant="primary"
-                iconLeft="check"
-                className="mt-3"
-                loading={replyMutation.isPending}
-                disabled={!replyText.trim() || replyMutation.isPending}
-                onClick={() =>
-                  replyMutation.mutate(
-                    { id: dispute.id, comment: replyText },
-                    { onSuccess: () => setReplyText('') },
-                  )
-                }
-              >
-                Отправить ответ
-              </Button>
-            </div>
+            </Notification>
           )}
         </div>
 

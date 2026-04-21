@@ -108,7 +108,7 @@ export default function Referral() {
         title="Реферальная программа"
         subtitle="Приглашайте друзей — получайте бонусные кредиты с каждой оплаты"
         action={
-          <Button variant="secondary" iconLeft="docs">
+          <Button variant="secondary" size="sm" iconLeft="docs">
             Правила программы
           </Button>
         }
