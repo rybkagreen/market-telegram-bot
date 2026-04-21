@@ -153,13 +153,59 @@ Any state → `cancelled` / `refunded` / `failed` / `failed_permissions`
 - 4 periodic notification tasks (`auto_approve_placements`, `notify_pending_placement_reminders`, `notify_expiring_plans`, `notify_expired_plans`) intentionally use `queue=mailing` in their decorator despite the `notifications:*` prefix. Decorator overrides `task_routes`. This is correct: `mailing` is for scheduled batch sends, `notifications` is for event-driven.
 - **task_routes uses colon-patterns** (`mailing:*`, `parser:*`, etc.) — Celery does fnmatch against task names. Dot-patterns (`mailing.*`) do NOT match colon-prefixed names. Never revert to dot-patterns.
 
-### Bot Instance Lifecycle (S-37)
+### Bot Instance Lifecycle (S-37 + S-48 refinement)
 
-- `Bot()` is created **once per worker process** via `worker_process_init` hook in `celery_app.py`.
-- All tasks obtain the instance via `get_bot()` from `src/tasks/_bot_factory.py`.
-- Session stays alive for the worker's lifetime; closed only in `worker_process_shutdown`.
+Two valid patterns, deliberately separated:
+
+1. **`get_bot()` — process-level singleton.** Created once per worker process via
+   `worker_process_init` hook, closed in `worker_process_shutdown`. Session is
+   bound to the creating event loop. **Safe only when the worker runs in a
+   persistent loop.** Use in `bot/main.py` polling.
+
+2. **`ephemeral_bot()` — per-task async context manager.** Creates and closes a
+   Bot inside the caller's event loop. **Required in any Celery task that
+   wraps async work with `asyncio.run(...)`** — each call spins up a new loop,
+   and singleton's aiohttp session bound to a prior loop raises
+   `RuntimeError('Event loop is closed')` on the next invocation.
+
+```python
+from src.tasks._bot_factory import ephemeral_bot
+
+async def _delete_published_post_async(placement_id: int) -> None:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
+        ...
+```
+
 - **Rule: `Bot()` must NEVER be instantiated outside `_bot_factory.py`.**
-- `bot.session.close()` must NEVER be called in task code — session lifecycle is managed by factory.
+- `bot.session.close()` must NEVER be called in task code — both factories
+  manage their own lifecycle.
+
+### Service Transaction Contract (S-48)
+
+Transaction ownership rests with the **outermost caller** (Celery task or
+FastAPI endpoint). Service methods accepting `session: AsyncSession`:
+
+- **MUST NOT** call `async with session.begin()` — it poisons any session
+  that already has an active autobegin transaction (first SELECT starts one).
+- **MUST NOT** call `await session.commit()` / `await session.rollback()`.
+- **MAY** call `await session.flush()` to materialise constraints early.
+- **MAY** use `async with session.begin_nested()` (SAVEPOINT) when a specific
+  sub-block must roll back independently without aborting the outer
+  transaction.
+
+Methods that open their own session (e.g. `async with async_session_factory()
+as session, session.begin():`) are fine — they own that transaction
+end-to-end.
+
+**Business-level idempotency.** Financial events carry stable keys on
+`Transaction.idempotency_key` (UNIQUE index). EXISTS-check early-exit covers
+the happy path; `try/except IntegrityError` around `flush()` covers the
+race-past-EXISTS case.
+
+Key format (in use today):
+- `escrow_freeze:placement={id}`
+- `escrow_release:placement={id}:{owner|platform}`
+- `refund:placement={id}:scenario={scenario}:{advertiser|owner}`
 
 ### Notification Helpers (S-37)
 
@@ -290,6 +336,17 @@ These tasks MUST be completed before deploying with real payments and publicatio
 - **ruff**: 0 errors (clean).
 - **Menu Button**: ✅ Implemented in src/bot/main.py — MenuButtonWebApp pointing to https://app.rekharbor.ru/
 - **Admin Panel**: Deferred to next sprint.
+
+### Resolved
+
+- **ESCROW-002 (2026-04-21)** — auto-deletion of expired placements and
+  release of escrow. Fixed by Track A: caller-controlled transaction contract
+  for BillingService; `Transaction.idempotency_key` + UNIQUE as the single
+  source of idempotency truth; per-task `ephemeral_bot()` lifecycle;
+  `check_escrow_stuck` group C for recovery. See
+  `CHANGES_2026-04-21_fix-escrow-auto-release.md` and
+  `/root/.claude/plans/lexical-swinging-pony.md` Track B for architectural
+  follow-up.
 
 ---
 

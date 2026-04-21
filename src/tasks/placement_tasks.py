@@ -45,13 +45,19 @@ SCORE_AFTER_BAN: float = 2.0
 REFUND_AFTER_ESCROW_PCT: int = 50
 BEAT_CHECK_INTERVAL_MINUTES: int = 5
 
-# TTL для дедупликации задач (в секундах)
+# TTL для дедупликации задач (в секундах).
+# Правило выбора: TTL ≤ max retry window задачи. Слишком большой TTL
+# удерживает placement в «обрабатывается» при успешном падении retries.
 DEDUP_TTL = {
     "check_owner_response_sla": 3600,
     "check_payment_sla": 3600,
     "check_counter_offer_sla": 3600,
     "publish_placement": 300,
     "retry_failed_publication": 600,
+    # A.6: короткий TTL для защиты от одновременного диспатча на двух
+    # pool-воркерах (task_acks_late + retry). 180 с покрывает окно
+    # max_retries=5 с exponential backoff до retry_backoff_max=600.
+    "delete_published_post": 180,
 }
 
 
@@ -69,7 +75,7 @@ async def _notify_user(user_id: int, text: str) -> None:
         text: Текст сообщения.
     """
     from src.db.repositories.user_repo import UserRepository
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
@@ -83,12 +89,12 @@ async def _notify_user(user_id: int, text: str) -> None:
             return
 
         try:
-            bot = get_bot()
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text=text,
-                parse_mode="HTML",
-            )
+            async with ephemeral_bot() as bot:
+                await bot.send_message(
+                    chat_id=user.telegram_id,
+                    text=text,
+                    parse_mode="HTML",
+                )
             logger.info(f"Notification sent to user {user_id}")
         except Exception as e:
             logger.error(f"Failed to send notification to user {user_id}: {e}")
@@ -463,11 +469,11 @@ def publish_placement(self, placement_id: int) -> dict[str, Any]:
 async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
     """Асинхронная реализация публикации через PublicationService."""
     from src.core.services.publication_service import PublicationService
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     result: dict[str, Any] = {"success": False, "status": "failed", "message": ""}
 
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         repo = PlacementRequestRepository(session)
         placement = await repo.get_by_id(placement_id)
 
@@ -495,7 +501,6 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = "Already being processed"
             return result
 
-        bot = get_bot()
         pub_service = PublicationService()
 
         try:
@@ -551,6 +556,7 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                         owner_id=placement.owner_id,
                         scenario="after_escrow_before_confirmation",
                     )
+                    await refund_session.commit()
             except Exception as refund_err:
                 logger.critical(
                     f"CRITICAL: Failed to refund escrow for placement {placement_id} "
@@ -675,14 +681,12 @@ def check_published_posts_health(self) -> dict[str, Any]:
 
 async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: python:S3776
     """Асинхронная реализация проверки здоровья опубликованных постов."""
-    from datetime import UTC, datetime
-
     from sqlalchemy import select
 
     from src.db.models.placement_request import PlacementStatus
     from src.db.models.telegram_chat import TelegramChat
     from src.db.repositories.publication_log_repo import PublicationLogRepo
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     stats: dict[str, Any] = {
         "checked": 0,
@@ -692,18 +696,19 @@ async def _check_published_posts_health_async() -> dict[str, Any]:  # NOSONAR: p
         "errors": 0,
     }
 
-    bot = get_bot()
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         from src.db.models.placement_request import PlacementRequest
 
-        now = datetime.now(UTC)
+        # A.6: previous filter `scheduled_delete_at > now` skipped the very
+        # stuck placements we need to audit. Now we check both active (future)
+        # and already-expired posts — the health monitor's job is to surface
+        # inconsistencies regardless of timing.
         result = await session.execute(
             select(PlacementRequest).where(
                 PlacementRequest.status.in_([
                     PlacementStatus.published,
                     PlacementStatus.completed,
                 ]),
-                PlacementRequest.scheduled_delete_at > now,
                 PlacementRequest.message_id.isnot(None),
             )
         )
@@ -870,8 +875,8 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
 
                 final_price = placement.final_price or placement.proposed_price
 
-                # Refund через BillingService — обновляет platform_account.escrow_reserved
-                # Используем отдельную сессию: refund_escrow управляет своей транзакцией
+                # Refund через BillingService — обновляет platform_account.escrow_reserved.
+                # refund_escrow работает в рамках переданной сессии; commit обязан вызывающий.
                 async with async_session_factory() as refund_session:
                     await billing_svc.refund_escrow(
                         refund_session,
@@ -881,6 +886,7 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
                         owner_id=placement.owner_id,
                         scenario="after_escrow_before_confirmation",
                     )
+                    await refund_session.commit()
 
                 # Mark as failed (per-item commit)
                 placement.status = PlacementStatus.failed
@@ -1000,8 +1006,18 @@ def delete_published_post(self, placement_id: int) -> dict[str, Any]:
         Результат удаления.
 
     Autoretry: 5 попыток с экспоненциальным backoff до 10 мин.
-    Идемпотентность обеспечена BillingService.release_escrow.
+    Идемпотентность обеспечена BillingService.release_escrow + status guard
+    в PublicationService.delete_published_post.
+
+    Dedup: Redis-ключ с TTL 180 с защищает от гонки task_acks_late,
+    когда один task_id попадает на два pool-воркера одновременно.
     """
+    if asyncio.run(_check_dedup_async("delete_published_post", placement_id)):
+        logger.info(
+            f"Placement {placement_id} deletion already in-flight (dedup hit), skipping"
+        )
+        return {"success": True, "skipped": True, "reason": "dedup"}
+
     logger.info(f"Deleting placement post {placement_id}")
     result = asyncio.run(_delete_published_post_async(placement_id))
     logger.info(f"Placement {placement_id} deletion: {result}")
@@ -1009,12 +1025,17 @@ def delete_published_post(self, placement_id: int) -> dict[str, Any]:
 
 
 async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация удаления опубликованного поста. Бросает исключение при ошибке."""
-    from src.core.services.publication_service import PublicationService
-    from src.tasks._bot_factory import get_bot
+    """Асинхронная реализация удаления опубликованного поста. Бросает исключение при ошибке.
 
-    async with async_session_factory() as session:
-        bot = get_bot()
+    Bot создаётся локально через ephemeral_bot(): asyncio.run() создаёт
+    свежий event loop на каждый вызов задачи, а aiohttp-сессия singleton-бота
+    привязана к первому loop и после его закрытия падает с
+    RuntimeError('Event loop is closed') при повторной инвокации.
+    """
+    from src.core.services.publication_service import PublicationService
+    from src.tasks._bot_factory import ephemeral_bot
+
+    async with ephemeral_bot() as bot, async_session_factory() as session:
         pub_service = PublicationService()
         await pub_service.delete_published_post(
             bot=bot, session=session, placement_id=placement_id
@@ -1089,11 +1110,12 @@ async def _check_scheduled_deletions_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} deletion already scheduled, skipping")
                     continue
 
-                # Schedule deletion task
-                delete_published_post.apply_async(
-                    args=[placement.id],
-                    countdown=60,  # 1 minute buffer
-                )
+                # A.6: dispatch immediately — no countdown buffer.
+                # The old 60s buffer opened a race window where task_acks_late
+                # could deliver the same task_id to a second pool worker; the
+                # task-level dedup (DEDUP_TTL['delete_published_post']=180s)
+                # now closes that window at the handler.
+                delete_published_post.apply_async(args=[placement.id])
                 stats["scheduled"] += 1
 
             except Exception as e:
@@ -1138,22 +1160,28 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
     from src.config.settings import settings
     from src.core.services.billing_service import BillingService
     from src.db.models.placement_request import PlacementRequest, PlacementStatus
-    from src.tasks._bot_factory import get_bot
+    from src.tasks._bot_factory import ephemeral_bot
 
     stats: dict[str, Any] = {
         "total_checked": 0,
         "stuck": 0,
         "group_a_dispatched": 0,
         "group_b_refunded": 0,
+        "group_c_dispatched": 0,
         "alerted": 0,
         "errors": 0,
     }
 
     threshold = datetime.now(UTC) - timedelta(hours=48)
+    # A.6 group C: опубликованные placements, где scheduled_delete_at прошёл
+    # больше часа назад. Это ловит случай, когда delete_published_post
+    # упал по любой причине (Event loop is closed, IntegrityError и т.п.),
+    # и check_scheduled_deletions перестал передиспатчить из-за Redis-дедупа.
+    published_stuck_threshold = datetime.now(UTC) - timedelta(hours=1)
     billing_svc = BillingService()
-    bot = get_bot()
 
-    async with async_session_factory() as session:
+    async with ephemeral_bot() as bot, async_session_factory() as session:
+        # Group A/B: status=escrow >48h
         stmt = (
             select(PlacementRequest)
             .where(
@@ -1166,7 +1194,21 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
         result = await session.execute(stmt)
         stuck_placements = list(result.scalars().all())
 
-        stats["total_checked"] = len(stuck_placements)
+        # Group C: status=published + expired >1h — deletion pipeline failed.
+        stmt_c = (
+            select(PlacementRequest)
+            .where(
+                PlacementRequest.status == PlacementStatus.published,
+                PlacementRequest.scheduled_delete_at.isnot(None),
+                PlacementRequest.scheduled_delete_at < published_stuck_threshold,
+                PlacementRequest.message_id.isnot(None),
+            )
+            .options(selectinload(PlacementRequest.channel))
+        )
+        result_c = await session.execute(stmt_c)
+        stuck_published = list(result_c.scalars().all())
+
+        stats["total_checked"] = len(stuck_placements) + len(stuck_published)
 
         for placement in stuck_placements:
             try:
@@ -1190,7 +1232,8 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                     delete_published_post.apply_async(args=[placement.id])
                     stats["group_a_dispatched"] += 1
                 else:
-                    # Публикации не было — прямой возврат через BillingService
+                    # Публикации не было — прямой возврат через BillingService.
+                    # refund_escrow работает в рамках переданной сессии; commit обязан вызывающий.
                     final_price = placement.final_price or placement.proposed_price
                     async with async_session_factory() as refund_session:
                         await billing_svc.refund_escrow(
@@ -1201,6 +1244,7 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                             owner_id=placement.owner_id,
                             scenario="after_escrow_before_confirmation",
                         )
+                        await refund_session.commit()
                     placement.status = PlacementStatus.failed
                     stats["group_b_refunded"] += 1
 
@@ -1213,6 +1257,45 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                     f"placement_id={placement.id}, group={group}\n"
                     f"channel={channel_name}\n"
                     f"action={'dispatch delete_published_post' if group == 'A' else 'refund executed'}"
+                )
+                for admin_id in settings.admin_ids:
+                    try:
+                        await bot.send_message(chat_id=admin_id, text=alert_text)
+                        stats["alerted"] += 1
+                    except Exception as alert_err:
+                        logger.warning(f"Failed to alert admin {admin_id}: {alert_err}")
+
+            except Exception as e:
+                logger.error(f"Failed to process stuck escrow #{placement.id}: {e}")
+                await session.rollback()
+                stats["errors"] += 1
+
+        # Group C: stuck published — deletion pipeline failed, re-dispatch.
+        for placement in stuck_published:
+            try:
+                stats["stuck"] += 1
+                channel_name = placement.channel.username if placement.channel else "unknown"
+
+                logger.critical(
+                    f"STUCK PUBLISHED: placement #{placement.id}, group=C, "
+                    f"scheduled_delete_at={placement.scheduled_delete_at}, "
+                    f"channel={channel_name}"
+                )
+
+                if placement.meta_json is None:
+                    placement.meta_json = {}
+                placement.meta_json["published_stuck_detected"] = datetime.now(UTC).isoformat()
+                placement.meta_json["escrow_stuck_group"] = "C"
+                await session.commit()
+
+                delete_published_post.apply_async(args=[placement.id])
+                stats["group_c_dispatched"] += 1
+
+                alert_text = (
+                    f"🚨 STUCK PUBLISHED action\n"
+                    f"placement_id={placement.id}, group=C\n"
+                    f"channel={channel_name}\n"
+                    f"action=dispatch delete_published_post (deletion pipeline recovery)"
                 )
                 for admin_id in settings.admin_ids:
                     try:
