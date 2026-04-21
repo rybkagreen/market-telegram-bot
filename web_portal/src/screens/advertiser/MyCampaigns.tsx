@@ -145,7 +145,7 @@ export default function MyCampaigns() {
         title="Мои кампании"
         subtitle="Запросы на размещение, модерация, эскроу и публикации"
         action={
-          <div className="flex gap-2">
+          <>
             <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
               Обновить
             </Button>
@@ -156,7 +156,7 @@ export default function MyCampaigns() {
             >
               Создать кампанию
             </Button>
-          </div>
+          </>
         }
       />
 

@@ -259,14 +259,14 @@ export default function OwnChannels() {
         title="Мои каналы"
         subtitle="Управляйте категориями, активностью и сравнением каналов"
         action={
-          <div className="flex gap-2">
+          <>
             <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
               Обновить
             </Button>
             <Button variant="primary" iconLeft="plus" onClick={() => navigate('/own/channels/add')}>
               Добавить канал
             </Button>
-          </div>
+          </>
         }
       />
 
