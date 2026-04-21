@@ -25,7 +25,11 @@ export function ScreenHeader({
           <p className="text-sm text-text-secondary mt-1.5">{subtitle}</p>
         )}
       </div>
-      {action && <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">{action}</div>}
+      {action && (
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:flex-shrink-0">
+          {action}
+        </div>
+      )}
     </div>
   )
 }

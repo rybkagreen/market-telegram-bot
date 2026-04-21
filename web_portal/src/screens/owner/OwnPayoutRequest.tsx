@@ -43,7 +43,8 @@ export default function OwnPayoutRequest() {
         subtitle="Комиссия 1,5% · минимум 1 000 ₽ · обработка до 24 часов"
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/payouts')}
           >

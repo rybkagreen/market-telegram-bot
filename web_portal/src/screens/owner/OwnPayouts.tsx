@@ -83,8 +83,15 @@ export default function OwnPayouts() {
         title="Выплаты"
         subtitle="Доступные средства, лимиты и история выводов"
         action={
-          <Button variant="secondary" iconLeft="refresh" onClick={() => void refetch()}>
-            Обновить
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            onClick={() => void refetch()}
+            title="Обновить"
+            aria-label="Обновить"
+          >
+            <Icon name="refresh" size={14} />
           </Button>
         }
       />

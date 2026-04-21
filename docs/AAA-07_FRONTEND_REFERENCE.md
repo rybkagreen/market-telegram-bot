@@ -1,151 +1,118 @@
 # RekHarborBot — Frontend Architecture Reference
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-07_FRONTEND_REFERENCE
-> **Verified against:** HEAD @ 2026-04-08 | Source: `mini_app/src/`, `web_portal/src/`
+> **Verified against:** HEAD @ 2026-04-21 | Source: `mini_app/src/`, `web_portal/src/`, `landing/src/`
 
 ---
 
 ## Table of Contents
 
 1. [Mini App Overview](#1-mini-app-overview)
-2. [Mini App Screens (22)](#2-mini-app-screens)
-3. [Mini App Hooks (30+)](#3-mini-app-hooks)
+2. [Mini App Screens (55)](#2-mini-app-screens)
+3. [Mini App Hooks (21)](#3-mini-app-hooks)
 4. [Mini App Zustand Stores (4)](#4-mini-app-zustand-stores)
 5. [Web Portal Overview](#5-web-portal-overview)
-6. [Web Portal Screens (52)](#6-web-portal-screens)
-7. [Web Portal Hooks (19)](#7-web-portal-hooks)
+6. [Web Portal Screens (66)](#6-web-portal-screens)
+7. [Web Portal Hooks (21)](#7-web-portal-hooks)
 8. [Web Portal Zustand Stores (3)](#8-web-portal-zustand-stores)
 9. [Design System](#9-design-system)
 10. [API Client Patterns](#10-api-client-patterns)
 11. [TypeScript Types Cross-Reference](#11-typescript-types-cross-reference)
 12. [Route Guards & Navigation](#12-route-guards--navigation)
+13. [Landing Page](#13-landing-page)
 
 ---
 
 ## 1. Mini App Overview
 
-**Framework:** React 19.2.4, TypeScript 5.9, Vite 8
-**Styling:** Tailwind CSS v4 @theme, glassmorphism design
-**State Management:** Zustand (4 stores)
-**Data Fetching:** @tanstack/react-query + ky (API client)
-**Navigation:** react-router-dom
-**Charts:** recharts
-**Telegram Integration:** @twa-dev/sdk
+**Framework:** React 19.2.4, TypeScript 6.0.2, Vite 8
+**Styling:** Tailwind CSS v4 CSS-first (`@import 'tailwindcss'`, custom `--rh-` tokens), glassmorphism
+**State Management:** Zustand 5 (4 stores)
+**Data Fetching:** @tanstack/react-query 5 + ky 1.x (auth-aware HTTP client)
+**Forms:** react-hook-form + zod
+**Navigation:** react-router-dom 7
+**Telegram Integration:** `@telegram-apps/sdk-react` 2 (+ access to `window.Telegram.WebApp` for initData)
+**Error Tracking:** Sentry (5% trace sample, auth headers scrubbed)
+**Dev server:** `:3000`, proxy `/api` → `:8001`
+**Production domain:** `app.rekharbor.ru`, served from `/usr/share/nginx/html/app/`
 
 ### Architecture
 
 ```
 mini_app/src/
-├── api/              # ky-based API client, interceptors
-├── hooks/            # Custom hooks (30+)
-├── screens/          # Screen components (22 screens)
-│   ├── admin/        # Admin screens (7)
-│   ├── advertiser/   # Advertiser screens (4)
-│   ├── owner/        # Owner screens (4)
-│   └── common/       # Shared screens (7)
-├── components/       # Shared components (27)
-├── stores/           # Zustand stores (4)
-├── types/            # TypeScript types
-├── lib/              # Utilities
-├── router/           # Route definitions (53 routes)
-└── styles/           # Global CSS, Tailwind config
+├── api/              # 18 domain modules + ky client with JWT refresh on 401
+├── hooks/            # 8 custom + 13 TanStack Query hooks (+ 1 admin)
+├── screens/          # 55 routable screens
+│   ├── common/       # 16 (Cabinet, TopUp, Plans, LegalProfile, Contracts, Acts, ...)
+│   ├── advertiser/   # 17 (AdvMenu, MyCampaigns, 6-step wizard, CampaignVideo, Disputes, OrdStatus)
+│   ├── owner/        # 11 (OwnChannels, OwnRequests, OwnPayouts, DisputeResponse, ...)
+│   ├── admin/        # 10 (AdminDashboard, Users, Disputes, Feedback, Accounting, TaxSummary)
+│   └── shared/       # 1 (MyDisputes)
+├── components/       # 45 components (ui/ 26, layout/ 8, admin/ 2, guards/, root/ 6)
+├── stores/           # 4 Zustand: authStore, campaignWizardStore, uiStore, legalProfileStore
+├── lib/              # constants, formatters, types
+└── styles/           # tokens.css (--rh-*), globals.css, animations.css
 ```
 
-### Route Structure (53 routes)
+### Route structure (selected — see `mini_app/src/App.tsx` for full tree)
 
 ```
-/                       → Home redirect based on role
-/auth                   → Auth screen
-/cabinet                → Cabinet (profile + balance)
-/billing                → Billing screen
-/billing/topup          → Top-up flow
-/billing/plans          → Plans screen
-/billing/history        → Transaction history
-/feedback               → Feedback screen
-/feedback/list          → My feedback list
-/help                   → Help screen
-/campaigns              → Campaigns list
-/campaigns/create       → Campaign creation wizard
-/campaigns/:id          → Campaign detail
-/campaigns/:id/stats    → Campaign stats
-/analytics              → Advertiser analytics
-/channels               → My channels
-/channels/add           → Add channel
-/channels/:id/settings  → Channel settings
-/analytics/owner        → Owner analytics
-/payouts                → Payouts list
-/payouts/create         → Create payout
-/legal-profile          → Legal profile setup
-/legal-profile/view     → Legal profile view
-/contracts              → Contract list
-/contracts/:id          → Contract detail
-/contracts/:id/sign     → Contract signing
-/ord/:placement_id      → ORD status
-/admin                  → Admin dashboard
-/admin/users            → Admin users list
-/admin/users/:id        → Admin user detail
-/admin/feedback         → Admin feedback
-/admin/disputes         → Admin disputes
-/admin/settings         → Admin platform settings
-/admin/tax-summary      → Admin tax summary
-/*                      → 404
+/                             → MainMenu
+/cabinet, /referral, /help, /feedback, /plans, /accept-rules, /billing/history, /acts
+/topup → /topup/confirm
+/legal-profile-prompt, /legal-profile, /legal-profile/view
+/contracts → /contracts/:id, /contracts/framework
+
+/adv                          → AdvMenu
+/adv/analytics, /adv/campaigns
+/adv/campaigns/new/{category|channels|format|text|terms}
+/adv/campaigns/:id/{payment|waiting|counter-offer|published|dispute}
+/campaign/video, /campaign/:id/ord
+/adv/disputes/:id
+
+/own                          → OwnMenu
+/own/analytics, /own/channels → /own/channels/add → /own/channels/:id → /own/channels/:id/settings
+/own/requests → /own/requests/:id
+/own/payouts → /own/payouts/request
+/own/disputes/:id
+
+/admin (AdminGuard)           → AdminDashboard
+/admin/{feedback|disputes|users}[/:id]
+/admin/{settings|tax-summary|accounting}
+
+*                             → NotFoundScreen
 ```
 
 ---
 
-## 2. Mini App Screens
+## 2. Mini App Screens (55 — verified 2026-04-21)
 
-### 2.1 Admin Screens (7)
+### 2.1 Common (16)
 
-| # | Screen | File | API Calls | Purpose |
-|---|--------|------|-----------|---------|
-| 1 | AdminDashboard | AdminDashboard.tsx | GET /api/admin/stats | Platform overview |
-| 2 | AdminUsers | AdminUsers.tsx | GET /api/admin/users | User management |
-| 3 | AdminUserDetail | AdminUserDetail.tsx | GET/PATCH /api/admin/users/{id} | User detail + edit |
-| 4 | AdminFeedback | AdminFeedback.tsx | GET /api/feedback/admin/, POST respond | Feedback management |
-| 5 | AdminDisputes | AdminDisputes.tsx | GET /api/disputes/admin/disputes, POST resolve | Dispute management |
-| 6 | AdminPlatformSettings | AdminPlatformSettings.tsx | GET/PUT /api/admin/platform-settings | Platform config |
-| 7 | AdminTaxSummary | AdminTaxSummary.tsx | GET /api/admin/tax-summary | Tax overview |
+`MainMenu`, `Cabinet`, `Referral`, `TopUp`, `TopUpConfirm`, `Help`, `Feedback`, `Plans`, `LegalProfilePrompt`, `LegalProfileSetup`, `LegalProfileView`, `ContractList`, `ContractDetail`, `AcceptRules`, `TransactionHistory`, `MyActsScreen`, plus `NotFoundScreen` fallback.
 
-### 2.2 Advertiser Screens (4)
+### 2.2 Advertiser (17)
 
-| # | Screen | File | API Calls | Purpose |
-|---|--------|------|-----------|---------|
-| 1 | Campaigns | Campaigns.tsx | GET /api/campaigns/list, GET stats | Campaign management |
-| 2 | CampaignCreate | CampaignCreate.tsx | POST /api/campaigns, GET /api/channels/available | Campaign wizard |
-| 3 | CampaignDetail | CampaignDetail.tsx | GET /api/campaigns/{id} | Campaign detail view |
-| 4 | Analytics | Analytics.tsx | GET /api/analytics/advertiser, /summary | Advertiser analytics |
+`AdvMenu`, `AdvAnalytics`, `MyCampaigns`, `CampaignVideo`, `OrdStatus`, `AdvertiserFrameworkContract`; 6-step wizard — `CampaignCategory`, `CampaignChannels`, `CampaignFormat`, `CampaignText`, `CampaignArbitration`, `CampaignPayment`; status screens — `CampaignWaiting`, `CampaignCounterOffer`, `CampaignPublished`; disputes — `OpenDispute`, `DisputeDetail`.
 
-### 2.3 Owner Screens (4)
+### 2.3 Owner (11)
 
-| # | Screen | File | API Calls | Purpose |
-|---|--------|------|-----------|---------|
-| 1 | MyChannels | MyChannels.tsx | GET /api/channels/ | Channel list |
-| 2 | ChannelSettings | ChannelSettings.tsx | PATCH /api/channel-settings/{id} | Channel config |
-| 3 | OwnerAnalytics | OwnerAnalytics.tsx | GET /api/analytics/owner | Owner analytics |
-| 4 | Payouts | Payouts.tsx | GET/POST /api/payouts/ | Payout management |
+`OwnMenu`, `OwnAnalytics`, `OwnChannels`, `OwnAddChannel`, `OwnChannelDetail`, `OwnChannelSettings`, `OwnRequests`, `OwnRequestDetail`, `OwnPayouts`, `OwnPayoutRequest`, `DisputeResponse`.
 
-### 2.4 Common Screens (7)
+### 2.4 Admin (10)
 
-| # | Screen | File | API Calls | Purpose |
-|---|--------|------|-----------|---------|
-| 1 | Cabinet | Cabinet.tsx | GET /api/auth/me, GET /api/billing/balance | Profile + balance |
-| 2 | Feedback | Feedback.tsx | POST/GET /api/feedback/ | Submit feedback |
-| 3 | Billing | Billing.tsx | POST /api/billing/topup, GET /history | Billing flow |
-| 4 | Plans | Plans.tsx | GET /api/billing/plans | Plan selection |
-| 5 | LegalProfileSetup | LegalProfileSetup.tsx | GET/POST /api/legal-profile | Legal profile wizard |
-| 6 | ContractList | ContractList.tsx | GET /api/contracts | Contract list |
-| 7 | ContractSign | ContractSign.tsx | POST /api/contracts/{id}/sign | Contract signing |
-| 8 | OrdStatus | OrdStatus.tsx | GET /api/ord/{placement_id} | ORD registration status |
-| 9 | NotFound | NotFoundScreen.tsx | — | 404 page |
-| 10 | Help | HelpScreen.tsx | — | Static help content |
+`AdminDashboard`, `AdminFeedbackList`, `AdminFeedbackDetail`, `AdminDisputesList`, `AdminDisputeDetail`, `AdminUsersList`, `AdminUserDetail`, `AdminPlatformSettings`, `AdminTaxSummary`, `Accounting/index.tsx` (with `DocumentRegistry`, `TaxSummaryCard`, `KudirExportSection` submodules).
+
+### 2.5 Shared (1)
+
+`MyDisputes` — used by both advertiser and owner roles.
 
 ---
 
 ## 3. Mini App Hooks
 
-### 3.1 API Query Hooks (15)
+### 3.1 API Query Hooks (13 domain + 1 admin)
 
 | Hook | File | Query Keys | Mutations |
 |------|------|-----------|-----------|
@@ -165,25 +132,18 @@ mini_app/src/
 | useReviewQueries | useReviewQueries.ts | reviews | create, getByPlacement |
 | useCategoryQueries | useCategoryQueries.ts | categories | list, get |
 
-### 3.2 Custom Hooks (15+)
+### 3.2 Custom Hooks (8 verified)
 
 | Hook | Purpose |
 |------|---------|
-| useAuth | JWT token management, login flow |
-| useTelegramWebApp | @twa-dev/sdk wrapper, theme detection |
-| useRole | Current user role detection |
-| useTheme | Dark/light theme via Telegram.WebApp.colorScheme |
-| useNavigateBack | Browser back navigation helper |
-| useFormState | Form state management |
-| useDebounce | Debounced value |
-| useMediaQuery | Responsive breakpoint detection |
-| useCopyToClipboard | Clipboard operations |
-| usePagination | Paginated list helper |
-| useFileUpload | File upload with progress |
-| useConfirmation | Confirmation dialog |
-| useReferralStats | GET /api/users/referral-stats |
-| useVideoUpload | Video upload handling |
-| useLinkTracking | Click tracking integration |
+| useAuth | Telegram → JWT handshake |
+| useTelegram | Wrapper over `window.Telegram.WebApp` (initData, theme, haptic, back/main buttons) |
+| useHaptic | Shortcut for haptic feedback (tap, success, error, warning, select) |
+| useBackButton | Telegram BackButton ↔ React Router integration |
+| useContractQueries | Contract queries (list, get, sign, rules acceptance) |
+| useLegalProfileQueries | Legal profile (GET/POST/PATCH) |
+| useOrdQueries | ORD status queries |
+| useReferralStats | Referral program statistics |
 
 ---
 
@@ -191,94 +151,89 @@ mini_app/src/
 
 | Store | File | State | Actions |
 |-------|------|-------|---------|
-| authStore | authStore.ts | token, user, isLoading, isAuthenticated | login, logout, setUser |
-| themeStore | themeStore.ts | theme (dark/light) | setTheme, toggleTheme |
-| campaignStore | campaignStore.ts | activeCampaign, wizardStep, formData | setCampaign, nextStep, prevStep, reset |
-| uiStore | uiStore.ts | sidebar, modals, toasts, loading | openSidebar, closeModal, addToast, setLoading |
+| authStore | `authStore.ts` | token, user, isAuthenticated, isLoading | setAuth, updateUser, logout, setLoading |
+| campaignWizardStore | `campaignWizardStore.ts` | step (1–6), category, selectedChannels, format, adText, proposedPrices/Schedules, media (video fileId/url/duration) | setCategory, toggleChannel, setFormat, setAdText, setProposedPrice/Schedule, setVideo, nextStep, prevStep, reset, getTotalPrice |
+| uiStore | `uiStore.ts` | toasts[] | addToast(type, message), removeToast(id) — auto-dismiss 3s |
+| legalProfileStore | `legalProfileStore.ts` | currentStep, formData, selectedStatus | setStep, setSelectedStatus, updateFormData, reset |
+
+> Note: no separate `themeStore` — theme comes from `window.Telegram.WebApp.colorScheme` via `useTelegram`.
 
 ---
 
 ## 5. Web Portal Overview
 
-**Framework:** React 19, TypeScript 6.0, Tailwind CSS v4 @theme
-**State Management:** Zustand (3 stores)
-**Data Fetching:** @tanstack/react-query + custom fetch wrapper
-**Navigation:** react-router-dom
+**Framework:** React 19.2.4, TypeScript 6.0.2, Vite 8
+**Styling:** Tailwind CSS v4 CSS-first (no `tailwind.config.ts`, theme lives in `globals.css` via `@theme`), OKLCH palette
+**State Management:** Zustand 5 (3 stores)
+**Data Fetching:** @tanstack/react-query 5 + ky 1.x (JWT in `localStorage['rh_token']`)
+**Forms:** react-hook-form + zod + @hookform/resolvers
+**Charts:** Recharts 3
+**Error Tracking:** Sentry
+**Auth:** Telegram Login Widget (primary) · email code (secondary) · `/auth/e2e-login` (test-only)
+**Dev server:** `:5174`, proxy `/api` → `:8001`
+**Production domain:** `portal.rekharbor.ru`, served from `/usr/share/nginx/html/portal/`
 
 ### Architecture
 
 ```
 web_portal/src/
-├── api/              # Fetch-based API client, 15 API modules
-├── hooks/            # Custom hooks (19)
-├── screens/          # Screen components (52 screens)
-│   ├── auth/         # Login screen
-│   ├── admin/        # Admin screens (11)
-│   ├── advertiser/   # Advertiser screens (12)
-│   ├── owner/        # Owner screens (9)
-│   └── common/       # Shared screens (10)
-├── components/       # Shared components (25)
-├── stores/           # Zustand stores (3)
-├── shared/           # Shared utilities (separate from mini_app)
-├── types/            # TypeScript types
-├── router/           # Route definitions (60+ routes)
-└── styles/           # Global CSS, Tailwind @theme
+├── api/              # 18 domain modules on top of ky (shared/api/client.ts)
+├── hooks/            # 21 custom + query hooks
+├── screens/          # 66 routable screens
+│   ├── auth/         # 1  (LoginPage)
+│   ├── common/       # 22 (Cabinet, Help, Plans, TopUp, Referral, Contracts, Documents, LegalProfile, …)
+│   ├── advertiser/   # 15 (+ campaign wizard 7 sub-screens)
+│   ├── owner/        # 10 (OwnChannels, OwnRequests, OwnPayouts, DisputeResponse, …)
+│   ├── admin/        # 11 (Dashboard, Users, Disputes, Feedback, Accounting, TaxSummary, Payouts, Settings)
+│   ├── shared/       # 6  (DisputeDetail, MyDisputes, OpenDispute, Plans, TopUp, TopUpConfirm)
+│   └── dev/          # 1  (DevIcons — stripped from prod)
+├── components/       # 8 guards/layout (AuthGuard, RulesGuard, AdminGuard, PortalShell, Sidebar, Topbar, TaxSummaryBase, KepWarning)
+├── shared/ui/        # 31 design-system components (Button, Card, Input, Tabs, Modal, Sparkline, …)
+├── stores/           # 3 Zustand: authStore, campaignWizardStore, portalUiStore
+├── lib/              # constants, 13 type files (lib/types/), timeline, disputeLabels
+└── styles/           # globals.css (@theme, @layer base/components, keyframes)
 ```
 
-### Route Structure (60+ routes)
+### Route structure (condensed — see `web_portal/src/App.tsx`)
+
+Public: `/login`
+
+Auth-gated (AuthGuard → RulesGuard → PortalShell):
 
 ```
-/login                → Login page (one-time code)
-/dashboard            → Admin dashboard
-/admin/users          → Users list
-/admin/users/:id      → User detail + edit
-/admin/feedback       → Feedback list
-/admin/feedback/:id   → Feedback detail + respond
-/admin/disputes       → Disputes list
-/admin/disputes/:id   → Dispute detail + resolve
-/admin/settings       → Platform settings
-/admin/tax-summary    → Tax summary
-/admin/accounting     → Accounting overview
-/admin/legal-profiles → Legal profiles list
-/campaigns            → My campaigns (⚠️ stub — TD-03)
-/campaigns/create/*   → Campaign wizard (5 steps)
-/campaigns/:id        → Campaign detail
-/analytics/advertiser → Advertiser analytics
-/analytics/owner      → Owner analytics
-/channels             → My channels
-/channels/add         → Add channel
-/channels/:id         → Channel detail
-/channels/:id/settings → Channel settings
-/payouts              → Payouts list
-/payouts/create       → Create payout
-/placements           → Placement requests
-/placements/:id       → Placement detail
-/disputes             → My disputes
-/disputes/create      → Open dispute
-/disputes/:id         → Dispute detail
-/feedback             → Submit feedback
-/feedback/list        → My feedback
-/legal-profile        → Legal profile setup
-/legal-profile/view   → Legal profile view
-/contracts            → Contract list
-/contracts/:id        → Contract detail
-/contracts/:id/sign   → Contract signing
-/acts                 → My acts
-/acts/:id             → Act detail
-/documents/upload     → Document upload
-/referral             → Referral program
-/billing              → Billing overview
-/billing/topup        → Top-up flow
-/billing/plans        → Plans
-/billing/history      → Transaction history
-/cabinet              → Profile + balance
-/help                 → Help content
-/*                    → 404
+/ → /cabinet                     (role-aware redirect)
+/cabinet, /feedback, /plans, /topup → /topup/confirm, /referral, /help,
+/billing/history, /profile/reputation, /acts,
+/legal-profile, /legal-profile/view, /legal-profile/documents,
+/contracts → /contracts/:id, /contracts/framework,
+/accept-rules
+
+/adv                             (redirect into advertiser section)
+/adv/campaigns → /adv/campaigns/:id/{waiting|payment|counter-offer|published|dispute}
+/adv/campaigns/new/{category|channels|format|text|terms}
+/campaign/video, /campaign/:id/ord, /adv/analytics
+
+/own                             (redirect into owner section)
+/own/channels → /own/channels/:id → /own/channels/:id/settings
+/own/channels/add
+/own/requests → /own/requests/:id
+/own/payouts → /own/payouts/request
+/own/analytics
+/own/disputes → /own/disputes/:id
+
+/disputes/:id
+
+/admin (AdminGuard):
+  /admin                         (dashboard)
+  /admin/users → /admin/users/:id
+  /admin/feedback → /admin/feedback/:id
+  /admin/disputes → /admin/disputes/:id
+  /admin/accounting, /admin/tax-summary, /admin/settings, /admin/payouts
 ```
 
 ---
 
-## 6. Web Portal Screens
+## 6. Web Portal Screens (66 — verified 2026-04-21)
 
 ### 6.1 Admin Screens (11)
 
@@ -296,7 +251,7 @@ web_portal/src/
 | 10 | AdminAccounting | AdminAccounting.tsx | Various accounting endpoints | ⚠️ Uses combined admin stats |
 | 11 | AdminLegalProfiles | AdminLegalProfiles.tsx | GET /api/admin/legal-profiles | Legal profiles list |
 
-### 6.2 Advertiser Screens (12)
+### 6.2 Advertiser Screens (15 + 7 wizard sub-screens)
 
 | # | Screen | File | API Calls | Purpose |
 |---|--------|------|-----------|---------|
@@ -313,7 +268,7 @@ web_portal/src/
 | 11 | OrdStatus | OrdStatus.tsx | GET /api/ord/{placement_id} | ORD registration |
 | 12 | AdvertiserContract | AdvertiserFrameworkContract.tsx | GET/POST /api/contracts | Contract acceptance |
 
-### 6.3 Owner Screens (9)
+### 6.3 Owner Screens (10)
 
 | # | Screen | File | API Calls | Purpose |
 |---|--------|------|-----------|---------|
@@ -327,7 +282,7 @@ web_portal/src/
 | 8 | OwnRequests | OwnRequests.tsx | GET /api/placements/?role=owner | Placement requests |
 | 9 | DisputeResponse | DisputeResponse.tsx | PATCH /api/disputes/{id} | Respond to dispute |
 
-### 6.4 Common Screens (10)
+### 6.4 Common Screens (22)
 
 | # | Screen | File | API Calls | Purpose |
 |---|--------|------|-----------|---------|
@@ -354,6 +309,16 @@ web_portal/src/
 
 ---
 
+### 6.5 Shared Screens (6)
+
+`DisputeDetail`, `MyDisputes`, `OpenDispute`, `Plans`, `TopUp`, `TopUpConfirm` — reused by advertiser and owner flows.
+
+### 6.6 Dev-only (1)
+
+`DevIcons` — icon gallery, route `/dev/icons`, stripped from production build.
+
+---
+
 ## 7. Web Portal Hooks
 
 ### 7.1 API Query Hooks (15)
@@ -376,14 +341,16 @@ web_portal/src/
 | useCategoryQueries | useCategoryQueries.ts | categories/ |
 | useUserQueries | useUserQueries.ts | users/me, users/referral-stats |
 
-### 7.2 Custom Hooks (4+)
+### 7.2 Custom Hooks (6+)
 
 | Hook | Purpose |
 |------|---------|
-| useAuth | JWT token management, login flow |
-| useRole | Current user role detection |
-| useTheme | Dark/light theme |
-| useFormState | Form state management |
+| useToast | Toast notifications dispatch |
+| useGenerateAdText | AI text generation mutation |
+| useChannelSettings | Channel configuration |
+| useNeedsAcceptRules | Check whether user still has to accept platform rules |
+| useMediaQuery (`shared/hooks`) | Breakpoint detection (`@sm`, `@md`, `@lg`, `@xl`) |
+| useAuth (`authStore` selectors) | Token/user exposure |
 
 ---
 
@@ -391,9 +358,11 @@ web_portal/src/
 
 | Store | File | State | Actions |
 |-------|------|-------|---------|
-| authStore | authStore.ts | token, user, isLoading | login, logout, setUser, refresh |
-| themeStore | themeStore.ts | theme (dark/light) | setTheme, toggleTheme |
-| uiStore | uiStore.ts | sidebar, modals, toasts, loading | openSidebar, closeModal, addToast |
+| authStore | `authStore.ts` | token, user, isAuthenticated, isLoading | login widget, login code, logout, refresh via `/auth/me` |
+| campaignWizardStore | `campaignWizardStore.ts` | wizard form state (category, channels, format, text, arbitration, payment) | step setters, reset |
+| portalUiStore | `portalUiStore.ts` | sidebarMode (`open` / `closed` / `collapsed`) | toggleSidebar, setMode |
+
+> Theme is driven by OS `prefers-color-scheme: dark` with a fallback to the light palette via CSS layers — no runtime theme store is needed.
 
 ---
 
@@ -707,5 +676,21 @@ Both:
 
 ---
 
-🔍 Verified against: HEAD @ 2026-04-08 | Source files: `mini_app/src/`, `web_portal/src/`
-✅ Validation: passed | All screens, hooks, stores documented | API contracts verified against backend | Design system rules confirmed
+## 13. Landing Page
+
+**Location:** `/opt/market-telegram-bot/landing/`
+**Audience:** marketing/SEO — first touchpoint on `rekharbor.ru`.
+**Build:** static Vite + Tailwind v4 (`@theme` tokens from `DESIGN.md`), no runtime FastAPI calls.
+**Constraints (from `CLAUDE.md`):**
+- TS 6.0.2, aligned with mini_app & web_portal.
+- Fonts: DM Sans, Outfit, Poppins, Roboto — all via Google Fonts.
+- CSP: no `unsafe-inline`, no `unsafe-eval`.
+- Motion imports: `import { ... } from 'motion/react'` (package `motion`).
+- Lighthouse budgets tracked in `landing/lighthouserc.cjs`.
+
+**Nginx:** separate server block for `rekharbor.ru` serves the built landing `dist/`. Does **not** share `/api/` proxy — no runtime backend dependency.
+
+---
+
+🔍 Verified against: HEAD @ 2026-04-21 | Source files: `mini_app/src/`, `web_portal/src/`, `landing/src/`
+✅ Validation: passed | All screens, hooks, stores re-counted | Route maps regenerated from current `App.tsx`

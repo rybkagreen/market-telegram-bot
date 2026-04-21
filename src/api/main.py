@@ -2,6 +2,7 @@
 FastAPI приложение для Mini App Telegram бота.
 """
 
+import inspect
 import logging
 from contextlib import asynccontextmanager
 
@@ -67,7 +68,7 @@ _SENTRY_PII_KEYS = {
 }
 
 
-def _scrub_pii(event: dict, hint: dict) -> dict:
+def _scrub_pii(event: dict, _hint: dict) -> dict:
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
             return {
@@ -94,7 +95,7 @@ if settings.sentry_dsn:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """
     Lifespan контекст для инициализации и закрытия пула БД.
     """
@@ -130,8 +131,11 @@ async def lifespan(app: FastAPI):
 
     # ─── Cleanup ──────────────────────────────────────────────
     provider = OrdService.get_default_provider()
-    if hasattr(provider, "close"):
-        await provider.close()
+    close_fn = getattr(provider, "close", None)
+    if callable(close_fn):
+        result = close_fn()
+        if inspect.isawaitable(result):
+            await result
 
     from src.api.dependencies import close_bot
 
@@ -184,6 +188,13 @@ app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
 app.include_router(auth_router, prefix=_AUTH_PREFIX, tags=["Auth"])
 app.include_router(auth_login_widget_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-27)
 app.include_router(auth_login_code_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-29)
+
+# E2E-only auth endpoint — mounted ONLY when ENVIRONMENT=testing (Playwright suite)
+if settings.environment == "testing":
+    from src.api.routers.auth_e2e import router as auth_e2e_router
+
+    app.include_router(auth_e2e_router, prefix=_AUTH_PREFIX, tags=["Auth (E2E)"])
+    logger.warning("E2E auth endpoint /api/auth/e2e-login is MOUNTED — should never happen in prod")
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
@@ -224,7 +235,7 @@ app.add_exception_handler(RequestValidationError, sanitized_validation_error_han
 
 
 @app.exception_handler(RekHarborError)
-async def rekharbor_error_handler(request, exc: RekHarborError):
+async def rekharbor_error_handler(_request, exc: RekHarborError):
     """Handler для бизнес-ошибок проекта."""
     return JSONResponse(
         status_code=400,

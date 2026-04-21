@@ -47,6 +47,10 @@ export async function getDisputeById(id: number) {
   return api.get(`disputes/${id}`).json<DisputeDetailResponse>()
 }
 
+export async function getDisputeByPlacement(placementId: number) {
+  return api.get(`disputes/by-placement/${placementId}`).json<DisputeDetailResponse | null>()
+}
+
 export async function replyToDispute(id: number, comment: string) {
   return api.patch(`disputes/${id}`, { json: { owner_comment: comment } }).json<DisputeDetailResponse>()
 }

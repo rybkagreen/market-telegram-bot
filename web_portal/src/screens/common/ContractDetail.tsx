@@ -109,7 +109,7 @@ export default function ContractDetail() {
         title={type.label}
         subtitle={`№${contract.id}${contract.signed_at ? ` · подписан ${formatDateMSK(contract.signed_at)}` : ''}`}
         action={
-          <Button variant="secondary" iconLeft="arrow-left" onClick={() => navigate('/contracts')}>
+          <Button variant="secondary" size="sm" iconLeft="arrow-left" onClick={() => navigate('/contracts')}>
             К списку
           </Button>
         }

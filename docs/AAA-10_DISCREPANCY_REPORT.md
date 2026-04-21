@@ -1,8 +1,30 @@
 # RekHarborBot — Discrepancy & Tech Debt Report
 
-> **RekHarborBot AAA Documentation v4.3 | April 2026**
+> **RekHarborBot AAA Documentation v4.5 | April 2026**
 > **Document:** AAA-10_DISCREPANCY_REPORT
-> **Verified against:** HEAD @ 2026-04-08 | Sources: Phase 1 Discovery + Phase 2 Deep Dive reports
+> **Verified against:** HEAD @ 2026-04-21 | Sources: 2026-04-21 docs-sync deep-dive + earlier Phase 1/2 reports
+
+## 2026-04-21 drift snapshot (latest re-audit)
+
+| Metric | Earlier doc/CLAUDE.md claim | Reality | Note |
+|--------|------------------|---------|------|
+| API routers | 15 (CLAUDE.md) / 26 (AAA-02) | **27** | S-26/S-27/S-29/admin split added routers |
+| API endpoints | 120+ | **131** | Counted `@router.*` decorators across routers |
+| Core services | 15 (CLAUDE.md) / 34 (AAA-04) | **35** | Stub/real providers (`stub_ord_provider`, `yandex_ord_provider`, `ord_yandex_provider`) + specialized services |
+| DB models | 19 / 33 | **31** | See AAA-03 inventory |
+| DB repositories | 24 | **26** | See AAA-03 §1.2 for models without repo |
+| Migrations | 7 / 33 | **1** | Consolidated to `0001_initial_schema` pre-prod |
+| FSM groups | 9 / 12 | **11** | `CampaignCreateState` removed, campaign creation merged into `PlacementStates` |
+| FSM states | ~47 | **52** | Total states across 11 groups |
+| Bot handler files | 18 | **22** | 8 subdirs (admin 4 · advertiser 2 · billing 1 · dispute 1 · owner 4 · payout 1 · placement 1 · shared 8) |
+| Celery task files | 16 | **12** | Legacy `rating_tasks.py` and others removed in v4.3/S-36 |
+| Celery tasks | 40+ | **66** | Counted `@celery_app.task` decorators |
+| Celery queues | 11 | **9** | `rating` is dead, `worker_critical` is real name |
+| Beat periodic | 26 | **18** | After S-36 consolidation |
+| Mini App screens | 22 (AAA-07) / 39 (CLAUDE.md) | **55** | common 16 · adv 17 · owner 11 · admin 10 · shared 1 |
+| Web Portal screens | 52 (AAA-07) | **66** | + 126 Playwright specs for QA |
+| Landing | n/a | present | `/opt/market-telegram-bot/landing/` — static Vite+Tailwind v4 |
+| pytest files | 101 (README) | **37** | Individual tests: ~54 (`grep -c "def test_"`) |
 
 ---
 

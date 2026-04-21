@@ -159,14 +159,21 @@ export default function MyActsScreen() {
         title="Мои акты"
         subtitle="Первичные документы по каждому размещению и выплате — подписывайте онлайн или скачивайте PDF"
         action={
-          <div className="flex gap-2">
-            <Button variant="secondary" iconLeft="refresh" onClick={() => refetch()}>
-              Синхронизировать
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
+              onClick={() => refetch()}
+              title="Синхронизировать"
+              aria-label="Синхронизировать"
+            >
+              <Icon name="refresh" size={14} />
             </Button>
-            <Button variant="secondary" iconLeft="download">
+            <Button variant="secondary" size="sm" iconLeft="download">
               Скачать ZIP
             </Button>
-          </div>
+          </>
         }
       />
 

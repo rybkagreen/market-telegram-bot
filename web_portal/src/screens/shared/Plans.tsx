@@ -148,7 +148,7 @@ export default function Plans() {
           </>
         }
         action={
-          <Button variant="secondary" iconLeft="topup" onClick={() => navigate('/topup')}>
+          <Button variant="primary" size="sm" iconLeft="topup" onClick={() => navigate('/topup')}>
             Пополнить баланс
           </Button>
         }
