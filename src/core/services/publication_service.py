@@ -318,6 +318,11 @@ class PublicationService:
         """
         Удалить опубликованный пост.
 
+        Идемпотентен по статусу: повторный вызов на `completed` — мгновенный
+        no-op. Вызов на любом другом не-published статусе — warning + return,
+        без побочных эффектов. В штатном пути release_escrow внутри метода
+        также идемпотентен на уровне БД (Transaction.idempotency_key).
+
         Args:
             bot: Telegram бот.
             session: Асинхронная сессия.
@@ -331,6 +336,17 @@ class PublicationService:
         placement = result.scalar_one_or_none()
         if not placement:
             logger.warning(f"PlacementRequest {placement_id} not found for deletion")
+            return
+
+        # Status guard — первый рубеж идемпотентности до любых побочных эффектов.
+        if placement.status == PlacementStatus.completed:
+            logger.info(f"Placement {placement_id} already completed, skipping deletion")
+            return
+        if placement.status != PlacementStatus.published:
+            logger.warning(
+                f"Placement {placement_id} in unexpected status "
+                f"{placement.status.value}; deletion aborted"
+            )
             return
 
         if not placement.message_id:
