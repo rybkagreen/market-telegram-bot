@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — escrow auto-release + post-deletion pipeline (2026-04-21)
+
+Resolves a production-grade failure where placements that reached `published`
+were never deleted and escrow was never released: 18× `InvalidRequestError`
+and `RuntimeError('Event loop is closed')` in worker logs; Redis-dedup held
+stuck placements for 1 h between retries. Root causes were three independent
+bugs working together; Track A (surgical fix) closes the financial-loss
+window and adds two recovery lanes.
+
+#### Fixed
+- `BillingService.release_escrow` / `refund_escrow` / `freeze_escrow` /
+  `process_topup_webhook` no longer call `async with session.begin()` on a
+  caller-owned session (root of `InvalidRequestError('A transaction is
+  already begun on this Session')`). Transaction ownership rests with the
+  outermost caller per CLAUDE.md service contract.
+- `PublicationService.delete_published_post` adds a status guard — calls on
+  `completed` placements are a no-op; calls on other non-`published` statuses
+  log and return.
+- Singleton `Bot` in `_bot_factory.get_bot()` was loop-bound and exploded on
+  Celery retry (aiohttp session outlived the event loop). `ephemeral_bot()`
+  async context manager creates and closes a Bot per task invocation.
+- `platform_account_repo.get_for_update` now creates the singleton row if
+  missing (was raising `NoResultFound` on fresh DB, matching sibling
+  `get_singleton`).
+
+#### Changed
+- Replaced broken `MailingLog.status=paid` idempotency with
+  `Transaction.idempotency_key` UNIQUE-index at the DB level. Keys follow a
+  stable human-readable format:
+  `escrow_freeze:placement={id}`,
+  `escrow_release:placement={id}:{owner|platform}`,
+  `refund:placement={id}:scenario={scenario}:{advertiser|owner}`.
+- `BillingService` financial methods now materialise transactions via
+  `session.flush()` and catch `IntegrityError` for race-past-EXISTS.
+- `check_scheduled_deletions` dispatches `delete_published_post` without the
+  60 s countdown (the window was the source of the double-dispatch race).
+- `check_published_posts_health` now audits both active and expired posts
+  (dropped `scheduled_delete_at > now` filter, which hid stuck placements).
+
+#### Added
+- `Transaction.idempotency_key` column: `String(128)` NULLable + UNIQUE index.
+  Pre-production schema edit to `0001_initial_schema.py` per CLAUDE.md §
+  Migration Strategy.
+- `DEDUP_TTL['delete_published_post'] = 180` + task-level dedup gate blocks
+  double-dispatch on two pool workers (task_acks_late race).
+- `check_escrow_stuck` group C: `status=published` + `scheduled_delete_at <
+  now - 1 h` + `message_id set` → auto re-dispatch `delete_published_post`
+  and admin alert. Closes the recovery loop for any future deletion failure.
+- `tasks/_bot_factory.ephemeral_bot()` async context manager.
+- `tests/test_billing_service_idempotency.py` fully rewritten: 25 tests
+  covering the new contract.
+
+#### Migration Notes
+- DB reset **not** required — column added in place via `ALTER TABLE
+  transactions ADD COLUMN idempotency_key VARCHAR(128)` plus `CREATE UNIQUE
+  INDEX ix_transactions_idempotency_key ON transactions (idempotency_key)`.
+  Existing rows keep `idempotency_key = NULL`; Postgres UNIQUE treats NULL
+  as distinct.
+- `alembic -c alembic.ini check` confirms model / DB sync: "No new upgrade
+  operations detected."
+
+#### Verified
+- Placement #1 (stuck since 2026-04-20) closed end-to-end on one attempt, no
+  retries, no `InvalidRequestError`, no `Event loop is closed`.
+- Idempotency confirmed: second dispatch of `delete_published_post` for the
+  same placement is a status-guard no-op; transaction count and `earned_rub`
+  unchanged.
+
+#### Follow-up (Track B, separate sprint)
+- `PlacementStatus.deleting` as status-machine lock, replacing Redis-dedup.
+- Collapse `check_scheduled_deletions` + `delete_published_post` into one
+  inline Beat task.
+- Unify transactional contract across all services.
+- Prometheus / Grafana metrics for `placement_stuck_seconds` and deletion
+  failure counters.
+
+See `reports/docs-architect/discovery/CHANGES_2026-04-21_fix-escrow-auto-release.md`
+and `/root/.claude/plans/lexical-swinging-pony.md` for the full plan.
+
 ### Changed — web-portal button system unified (2026-04-21)
 
 #### Changed

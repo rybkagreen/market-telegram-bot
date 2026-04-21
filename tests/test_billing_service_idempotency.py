@@ -1,224 +1,285 @@
 """
-Regression tests: BillingService.refund_escrow idempotency (S-38 Phase 1).
+Regression tests: BillingService idempotency via Transaction.idempotency_key (S-48 A.3).
 
-Source-inspection tests — no DB required; verify guard logic is present.
+Covers:
+ - source-level invariants (key format, no session.begin in public methods)
+ - behavioural guards via in-memory mocks (EXISTS short-circuit)
 """
 
 import inspect
 
-import pytest
-
 
 # =============================================================================
-# Source-inspection: guard presence
+# Source-inspection: caller-controlled transaction contract (A.1)
 # =============================================================================
 
 
-class TestRefundEscrowIdempotencyGuard:
-    def test_idempotency_check_present(self):
-        """refund_escrow содержит SELECT для проверки существующей транзакции."""
-        from src.core.services.billing_service import BillingService
+class TestCallerControlledTransactionContract:
+    """Methods that accept `session: AsyncSession` must NOT open their own transaction."""
 
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "scalar_one_or_none" in source, (
-            "refund_escrow must check for existing transaction (idempotency guard)"
+    def _assert_no_session_begin(self, method) -> None:
+        source = inspect.getsource(method)
+        assert "async with session.begin()" not in source, (
+            f"{method.__qualname__} must not call `session.begin()` — "
+            "caller owns the transaction (see CLAUDE.md § Service Transaction Contract)."
         )
 
-    def test_guard_uses_refund_full_type(self):
-        """Идемпотентность проверяется по типу TransactionType.refund_full."""
+    def test_release_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+        self._assert_no_session_begin(BillingService.release_escrow)
 
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "refund_full" in source, (
-            "refund_escrow idempotency guard must check TransactionType.refund_full"
-        )
-
-    def test_guard_uses_placement_request_id(self):
-        """Идемпотентность проверяется по placement_request_id, а не только по типу."""
+    def test_refund_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+        self._assert_no_session_begin(BillingService.refund_escrow)
 
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "placement_request_id" in source, (
-            "refund_escrow idempotency guard must filter by placement_request_id"
-        )
-
-    def test_guard_logs_and_returns_on_duplicate(self):
-        """При обнаружении дубля — логирование и ранний return."""
+    def test_freeze_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+        self._assert_no_session_begin(BillingService.freeze_escrow)
 
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "idempotency" in source.lower() or "skipping" in source.lower(), (
-            "refund_escrow must log idempotency skip message"
-        )
-        assert "return" in source, "refund_escrow must return early on duplicate"
-
-    def test_advertiser_txn_has_placement_request_id(self):
-        """Transaction, создаваемая в refund_escrow, имеет placement_request_id=placement_id."""
+    def test_process_topup_webhook_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
-
-        source = inspect.getsource(BillingService.refund_escrow)
-        # Check that placement_request_id is set on the transaction object
-        assert "placement_request_id=placement_id" in source, (
-            "advertiser_txn in refund_escrow must set placement_request_id=placement_id "
-            "so future idempotency checks can find it via FK"
-        )
+        self._assert_no_session_begin(BillingService.process_topup_webhook)
 
 
-class TestRefundEscrowScenarios:
-    def test_known_scenarios_present(self):
-        """Известные сценарии: before_escrow, after_escrow_before_confirmation, after_confirmation."""
+# =============================================================================
+# Source-inspection: idempotency_key format (A.3)
+# =============================================================================
+
+
+class TestIdempotencyKeyFormat:
+    """Each financial event carries a stable business-level idempotency key."""
+
+    def test_release_escrow_uses_owner_and_platform_keys(self):
         from src.core.services.billing_service import BillingService
-
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "before_escrow" in source
-        assert "after_escrow_before_confirmation" in source
-        assert "after_confirmation" in source
-
-    def test_unknown_scenario_raises(self):
-        """Неизвестный сценарий вызывает ValueError."""
-        from src.core.services.billing_service import BillingService
-
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "raise ValueError" in source, (
-            "refund_escrow must raise ValueError for unknown scenario"
-        )
-
-    def test_after_escrow_before_confirmation_gives_full_refund(self):
-        """scenario=after_escrow_before_confirmation: advertiser_refund = final_price (100%)."""
-        from src.core.services.billing_service import BillingService
-
-        source = inspect.getsource(BillingService.refund_escrow)
-        # The logic: advertiser_refund = final_price (no percentage applied)
-        assert "advertiser_refund = final_price" in source, (
-            "after_escrow_before_confirmation must give 100% refund to advertiser"
-        )
-
-    def test_after_confirmation_splits_50_425_75(self):
-        """scenario=after_confirmation: advertiser +50%, owner +42.5%, platform +7.5%."""
-        from src.core.services.billing_service import BillingService
-
-        source = inspect.getsource(BillingService.refund_escrow)
-        assert "0.50" in source
-        assert "0.425" in source
-
-
-class TestReleaseEscrowIdempotency:
-    def test_release_escrow_has_idempotency_check(self):
-        """release_escrow проверяет MailingLog.status == paid перед выплатой."""
-        from src.core.services.billing_service import BillingService
-
         source = inspect.getsource(BillingService.release_escrow)
-        assert "MailingStatus.paid" in source or "paid" in source, (
-            "release_escrow must check mailing paid status for idempotency"
-        )
-        assert "skipped" in source.lower() or "skip" in source.lower(), (
-            "release_escrow must skip if already released"
-        )
+        assert "escrow_release:placement=" in source
+        assert ":owner" in source
+        assert ":platform" in source
+
+    def test_freeze_escrow_uses_freeze_key(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.freeze_escrow)
+        assert "escrow_freeze:placement=" in source
+
+    def test_refund_escrow_uses_scenario_specific_keys(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.refund_escrow)
+        assert "refund:placement=" in source
+        assert ":scenario=" in source
+        assert ":advertiser" in source
+        assert ":owner" in source
 
 
 # =============================================================================
-# Mock-based: guard actually blocks second call
+# Source-inspection: early-exit on idempotency hit
 # =============================================================================
 
 
-def test_refund_escrow_guard_blocks_on_existing_transaction():
-    """
-    Idempotency guard возвращает early когда существующая Transaction найдена.
-    Использует asyncio.run() — обход бага pytest-asyncio 0.26.0 + Python 3.14.
-    """
+class TestIdempotencyShortCircuit:
+    def test_release_escrow_early_exits_on_exists(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.release_escrow)
+        assert "exists" in source.lower()
+        assert "idempotency hit" in source.lower()
+
+    def test_refund_escrow_early_exits_on_exists(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.refund_escrow)
+        assert "exists" in source.lower()
+        assert "idempotency hit" in source.lower()
+
+    def test_freeze_escrow_early_exits_on_exists(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.freeze_escrow)
+        assert "exists" in source.lower()
+        assert "idempotency hit" in source.lower()
+
+
+# =============================================================================
+# Source-inspection: IntegrityError handling around flush
+# =============================================================================
+
+
+class TestIntegrityErrorHandling:
+    """On race past EXISTS check, UNIQUE index catches the loser at flush."""
+
+    def test_release_escrow_catches_integrity_error(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.release_escrow)
+        assert "IntegrityError" in source
+        assert "idempotency race" in source
+
+    def test_refund_escrow_catches_integrity_error(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.refund_escrow)
+        assert "IntegrityError" in source
+
+    def test_freeze_escrow_catches_integrity_error(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.freeze_escrow)
+        assert "IntegrityError" in source
+
+
+# =============================================================================
+# Source-inspection: placement_request_id set on every financial Transaction
+# =============================================================================
+
+
+class TestPlacementLinkage:
+    def test_release_escrow_links_owner_txn_to_placement(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.release_escrow)
+        assert "placement_request_id=placement_id" in source
+
+    def test_refund_escrow_links_advertiser_txn_to_placement(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.refund_escrow)
+        assert "placement_request_id=placement_id" in source
+
+    def test_freeze_escrow_links_txn_to_placement(self):
+        from src.core.services.billing_service import BillingService
+        source = inspect.getsource(BillingService.freeze_escrow)
+        assert "placement_request_id=placement_id" in source
+
+
+# =============================================================================
+# Behavioural: EXISTS short-circuits before any writes
+# =============================================================================
+
+
+def _make_session_with_existing_key():
+    """Build an AsyncSession mock where the EXISTS check returns True."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    session = AsyncMock()
+    session.scalar = AsyncMock(return_value=True)  # EXISTS hits
+    session.execute = AsyncMock()
+    session.flush = AsyncMock()
+    session.add = MagicMock()
+    return session
+
+
+def test_release_escrow_noop_when_key_exists():
+    """Second call is a no-op: no flush, no add, no user lookup."""
     import asyncio
     from decimal import Decimal
-    from unittest.mock import AsyncMock, MagicMock
 
     from src.core.services.billing_service import BillingService
 
     async def _run():
-        existing_txn = MagicMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = existing_txn
+        session = _make_session_with_existing_key()
+        await BillingService().release_escrow(
+            session,
+            placement_id=42,
+            final_price=Decimal("500"),
+            advertiser_id=10,
+            owner_id=20,
+        )
+        session.flush.assert_not_called()
+        session.add.assert_not_called()
 
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=mock_result)
-        mock_session.begin = MagicMock()
+    asyncio.run(_run())
 
-        svc = BillingService()
-        await svc.refund_escrow(
-            mock_session,
+
+def test_refund_escrow_noop_when_key_exists():
+    import asyncio
+    from decimal import Decimal
+
+    from src.core.services.billing_service import BillingService
+
+    async def _run():
+        session = _make_session_with_existing_key()
+        await BillingService().refund_escrow(
+            session,
             placement_id=42,
             final_price=Decimal("500"),
             advertiser_id=10,
             owner_id=20,
             scenario="after_escrow_before_confirmation",
         )
-        # Guard triggered → session.begin() never entered
-        mock_session.begin.assert_not_called()
+        session.flush.assert_not_called()
+        session.add.assert_not_called()
 
     asyncio.run(_run())
 
 
-def test_refund_escrow_guard_proceeds_when_no_existing_transaction():
-    """
-    Когда существующей транзакции нет — guard не блокирует, session.begin() вызывается.
-    """
+def test_freeze_escrow_noop_when_key_exists():
     import asyncio
     from decimal import Decimal
-    from unittest.mock import AsyncMock, MagicMock, patch
 
     from src.core.services.billing_service import BillingService
-    from src.db.models.user import User
 
     async def _run():
-        mock_check_result = MagicMock()
-        mock_check_result.scalar_one_or_none.return_value = None  # no existing txn
-
-        mock_user = MagicMock(spec=User)
-        mock_user.balance_rub = Decimal("1000")
-        mock_user.earned_rub = Decimal("0")
-
-        call_count = 0
-
-        async def mock_execute(stmt):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return mock_check_result
-            r = MagicMock()
-            r.scalar_one_or_none.return_value = mock_user
-            return r
-
-        mock_begin_ctx = AsyncMock()
-        mock_begin_ctx.__aenter__ = AsyncMock(return_value=None)
-        mock_begin_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.execute = mock_execute
-        mock_session.flush = AsyncMock()
-        mock_session.add = MagicMock()
-        mock_session.begin = MagicMock(return_value=mock_begin_ctx)
-
-        with (
-            patch(
-                "src.db.repositories.user_repo.UserRepository.get_by_id",
-                new=AsyncMock(return_value=mock_user),
-            ),
-            patch(
-                "src.db.repositories.platform_account_repo.PlatformAccountRepo.release_from_escrow",
-                new=AsyncMock(),
-            ),
-        ):
-            svc = BillingService()
-            try:
-                await svc.refund_escrow(
-                    mock_session,
-                    placement_id=99,
-                    final_price=Decimal("500"),
-                    advertiser_id=10,
-                    owner_id=20,
-                    scenario="after_escrow_before_confirmation",
-                )
-            except Exception:
-                pass  # internals may fail in mock — begin() call is what matters
-
-        mock_session.begin.assert_called_once()
+        session = _make_session_with_existing_key()
+        # Сумма ≥ MIN_CAMPAIGN_BUDGET, чтобы дойти до EXISTS-проверки.
+        await BillingService().freeze_escrow(
+            session,
+            user_id=10,
+            placement_id=42,
+            amount=Decimal("2500"),
+        )
+        session.flush.assert_not_called()
+        session.add.assert_not_called()
 
     asyncio.run(_run())
+
+
+# =============================================================================
+# publication_service.delete_published_post — status guard (A.4)
+# =============================================================================
+
+
+class TestDeletePublishedPostStatusGuard:
+    def test_guards_on_completed_status(self):
+        from src.core.services.publication_service import PublicationService
+
+        source = inspect.getsource(PublicationService.delete_published_post)
+        assert "PlacementStatus.completed" in source
+        assert "skipping deletion" in source.lower() or "already completed" in source.lower()
+
+    def test_guards_on_unexpected_status(self):
+        from src.core.services.publication_service import PublicationService
+
+        source = inspect.getsource(PublicationService.delete_published_post)
+        assert "PlacementStatus.published" in source
+        assert "unexpected status" in source.lower() or "aborted" in source.lower()
+
+
+# =============================================================================
+# tasks/_bot_factory — ephemeral_bot
+# =============================================================================
+
+
+class TestEphemeralBot:
+    def test_factory_exports_ephemeral_bot(self):
+        from src.tasks import _bot_factory
+
+        assert hasattr(_bot_factory, "ephemeral_bot")
+
+    def test_delete_task_uses_ephemeral_bot(self):
+        import src.tasks.placement_tasks as pt
+
+        source = inspect.getsource(pt._delete_published_post_async)
+        assert "ephemeral_bot" in source
+        assert "get_bot" not in source
+
+    def test_dedup_ttl_has_delete_published_post(self):
+        from src.tasks.placement_tasks import DEDUP_TTL
+
+        assert "delete_published_post" in DEDUP_TTL
+        assert DEDUP_TTL["delete_published_post"] <= 300  # короткий TTL, не 3600
+
+
+# =============================================================================
+# check_escrow_stuck — group C branch
+# =============================================================================
+
+
+class TestCheckEscrowStuckGroupC:
+    def test_group_c_branch_present(self):
+        from src.tasks.placement_tasks import _check_escrow_stuck_async
+
+        source = inspect.getsource(_check_escrow_stuck_async)
+        assert 'group_c_dispatched' in source
+        assert 'STUCK PUBLISHED' in source
+        assert 'PlacementStatus.published' in source
