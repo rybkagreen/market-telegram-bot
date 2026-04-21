@@ -20,7 +20,7 @@ export default function AdvertiserFrameworkContract() {
         title="Рамочный договор рекламодателя"
         subtitle="Подпишите однократно — далее вы сможете размещать рекламу без дополнительных подтверждений."
         action={
-          <Button variant="ghost" iconLeft="external">
+          <Button variant="ghost" size="sm" iconLeft="external">
             Скачать PDF
           </Button>
         }

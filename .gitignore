@@ -186,7 +186,11 @@ src/core/middleware/
 .env.sonar
 
 # Development scripts (utility scripts, not production code)
-scripts/
+# (root `scripts/*` rather than `scripts/` so we can re-include the E2E harness below)
+/scripts/*
+landing/scripts/
+# …except the E2E seed script — required by docker-compose.test.yml
+!/scripts/e2e/
 
 # Working documentation (drafts, checklists, not final docs)
 docs/project_context_update/

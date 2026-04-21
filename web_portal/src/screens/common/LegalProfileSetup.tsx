@@ -8,7 +8,6 @@ import {
   useUpdateLegalProfile,
   useValidateInn,
   useRequiredFields,
-  useValidateEntity,
 } from '@/hooks/useLegalProfileQueries'
 
 type LegalStatus = 'individual' | 'self_employed' | 'individual_entrepreneur' | 'legal_entity'
@@ -53,7 +52,6 @@ export default function LegalProfileSetup() {
   const createMutation = useCreateLegalProfile()
   const updateMutation = useUpdateLegalProfile()
   const innMutation = useValidateInn()
-  const fnsMutation = useValidateEntity()
 
   const [legalName, setLegalName] = useState('')
   const [inn, setInn] = useState('')
@@ -72,11 +70,6 @@ export default function LegalProfileSetup() {
   const [passportIssuedBy, setPassportIssuedBy] = useState('')
   const [passportIssuedAt, setPassportIssuedAt] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [fnsResult, setFnsResult] = useState<{
-    is_valid: boolean
-    warnings: string[]
-    errors: { field: string; message: string }[]
-  } | null>(null)
 
   const fields = requiredFields?.fields ?? []
   const isLegalEntity = status === 'legal_entity'
@@ -104,36 +97,6 @@ export default function LegalProfileSetup() {
     }
   }, [existingProfile])
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  const handleValidate = () => {
-    if (!inn) {
-      setError('Введите ИНН для проверки')
-      return
-    }
-    setError(null)
-    setFnsResult(null)
-    if (!status) {
-      setError('Сначала выберите тип лица')
-      return
-    }
-    fnsMutation.mutate(
-      {
-        inn,
-        legal_status: status,
-        legal_name: legalName || undefined,
-        kpp: kpp || undefined,
-        ogrn: isLegalEntity ? ogrn || undefined : undefined,
-        ogrnip: isIE ? ogrnip || undefined : undefined,
-        passport_series: isIndividual ? passportSeries || undefined : undefined,
-        passport_number: isIndividual ? passportNumber || undefined : undefined,
-      },
-      {
-        onSuccess: (result) =>
-          setFnsResult({ is_valid: result.is_valid, warnings: result.warnings, errors: result.errors }),
-        onError: () => setError('Ошибка проверки через ФНС'),
-      },
-    )
-  }
 
   const handleSave = () => {
     if (!status || !legalName || !inn) {
@@ -183,17 +146,51 @@ export default function LegalProfileSetup() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending
-  const step = status ? (showBank ? 3 : 2) : 1
+
+  const showPassport = requiredFields?.show_passport ?? (isIndividual || isSelfEmployed)
+  const thirdStepLabel = showBank ? 'Банк' : showPassport ? 'Паспорт' : 'Документы'
+  const stepLabels = ['Тип лица', 'Реквизиты', thirdStepLabel, 'Подписание']
+
+  const reqFilled = requiredFieldsFilled({
+    fields,
+    legalName,
+    inn,
+    innValid: innMutation.data?.valid !== false,
+    kpp,
+    ogrn,
+    ogrnip,
+    address,
+    taxRegime,
+    yoomoneyWallet,
+  })
+  const bankFilled = !!bankBik && !!bankAccount
+  const passportFilled = !!passportSeries && !!passportNumber && !!passportIssuedBy && !!passportIssuedAt
+  const thirdFilled = showBank ? bankFilled : showPassport ? passportFilled : true
+
+  let step = 1
+  if (status) step = 2
+  if (status && reqFilled) step = 3
+  if (status && reqFilled && thirdFilled) step = 4
 
   const completeness = computeCompleteness({
     status,
+    fields,
+    showBank,
+    showPassport,
     legalName,
     inn,
+    kpp,
+    ogrn,
+    ogrnip,
     address,
+    taxRegime,
+    yoomoneyWallet,
     bankAccount,
     bankBik,
     passportSeries,
     passportNumber,
+    passportIssuedBy,
+    passportIssuedAt,
   })
 
   return (
@@ -201,19 +198,10 @@ export default function LegalProfileSetup() {
       <ScreenHeader
         title="Юридический профиль"
         subtitle="Укажите реквизиты — мы используем их в договорах, чеках и актах"
-        action={
-          <Button variant="secondary" iconLeft="docs">
-            Шаблон заполнения
-          </Button>
-        }
       />
 
       <div className="bg-harbor-card border border-border rounded-xl py-[18px] px-[22px] mb-4">
-        <StepIndicator
-          total={4}
-          current={step}
-          labels={['Тип лица', 'Реквизиты', 'Банк', 'Подписание']}
-        />
+        <StepIndicator total={4} current={step} labels={stepLabels} />
       </div>
 
       {error && (
@@ -359,48 +347,13 @@ export default function LegalProfileSetup() {
             </SectionCard>
           )}
 
-          {fnsResult && (
-            <SectionCard title="Результат проверки ФНС">
-              {fnsResult.is_valid ? (
-                <Notification type="success">
-                  ИНН прошёл проверку по контрольной сумме
-                  {fnsResult.warnings.length > 0 && (
-                    <div className="mt-2 space-y-0.5">
-                      {fnsResult.warnings.map((w) => (
-                        <p key={w} className="text-sm text-warning">
-                          {w}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </Notification>
-              ) : (
-                <Notification type="danger">
-                  Ошибки валидации:
-                  <div className="mt-2 space-y-0.5">
-                    {fnsResult.errors.map((e) => (
-                      <p key={e.field} className="text-sm text-danger">
-                        • {e.field}: {e.message}
-                      </p>
-                    ))}
-                  </div>
-                </Notification>
-              )}
-            </SectionCard>
-          )}
-
           <div className="flex justify-between gap-2.5 flex-wrap">
             <Button variant="secondary" iconLeft="arrow-left" onClick={() => navigate('/cabinet')}>
               Назад
             </Button>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={handleValidate} loading={fnsMutation.isPending} disabled={!inn}>
-                Проверить ИНН
-              </Button>
-              <Button variant="primary" iconRight="arrow-right" loading={isSaving} onClick={handleSave}>
-                {isSaving ? 'Сохранение…' : 'Сохранить и далее'}
-              </Button>
-            </div>
+            <Button variant="primary" iconRight="arrow-right" loading={isSaving} onClick={handleSave}>
+              {isSaving ? 'Сохранение…' : 'Сохранить и далее'}
+            </Button>
           </div>
         </div>
 
@@ -586,24 +539,79 @@ function LPRing({ pct }: { pct: number }) {
   )
 }
 
-function computeCompleteness(s: {
-  status: string
+function requiredFieldsFilled(s: {
+  fields: string[]
   legalName: string
   inn: string
+  innValid: boolean
+  kpp: string
+  ogrn: string
+  ogrnip: string
   address: string
+  taxRegime: string
+  yoomoneyWallet: string
+}) {
+  if (!s.legalName || !s.inn || !s.innValid) return false
+  const fieldValues: Record<string, string> = {
+    kpp: s.kpp,
+    ogrn: s.ogrn,
+    ogrnip: s.ogrnip,
+    address: s.address,
+    tax_regime: s.taxRegime,
+    yoomoney_wallet: s.yoomoneyWallet,
+  }
+  return s.fields.every((f) => {
+    if (f === 'legal_name' || f === 'inn') return true
+    if (!(f in fieldValues)) return true
+    return !!fieldValues[f]
+  })
+}
+
+function computeCompleteness(s: {
+  status: string
+  fields: string[]
+  showBank: boolean
+  showPassport: boolean
+  legalName: string
+  inn: string
+  kpp: string
+  ogrn: string
+  ogrnip: string
+  address: string
+  taxRegime: string
+  yoomoneyWallet: string
   bankAccount: string
   bankBik: string
   passportSeries: string
   passportNumber: string
+  passportIssuedBy: string
+  passportIssuedAt: string
 }) {
-  const checks = [
-    { label: 'ИНН и наименование', done: !!s.inn && !!s.legalName },
-    { label: 'Юридический адрес', done: !!s.address },
-    { label: 'Банковский счёт', done: !!s.bankAccount && !!s.bankBik },
-    { label: 'Паспорт (физлицо / самозанятый)', done: !!s.passportSeries && !!s.passportNumber },
+  const checks: { label: string; done: boolean }[] = [
+    { label: 'Тип налогоплательщика', done: !!s.status },
+    { label: 'Наименование и ИНН', done: !!s.legalName && !!s.inn },
   ]
+  if (s.fields.includes('kpp')) checks.push({ label: 'КПП', done: !!s.kpp })
+  if (s.fields.includes('ogrn')) checks.push({ label: 'ОГРН', done: !!s.ogrn })
+  if (s.fields.includes('ogrnip')) checks.push({ label: 'ОГРНИП', done: !!s.ogrnip })
+  if (s.fields.includes('address')) checks.push({ label: 'Юридический адрес', done: !!s.address })
+  if (s.fields.includes('tax_regime')) checks.push({ label: 'Налоговый режим', done: !!s.taxRegime })
+  if (s.fields.includes('yoomoney_wallet'))
+    checks.push({ label: 'Кошелёк ЮMoney', done: !!s.yoomoneyWallet })
+  if (s.showBank)
+    checks.push({ label: 'Банковские реквизиты', done: !!s.bankBik && !!s.bankAccount })
+  if (s.showPassport)
+    checks.push({
+      label: 'Паспортные данные',
+      done:
+        !!s.passportSeries &&
+        !!s.passportNumber &&
+        !!s.passportIssuedBy &&
+        !!s.passportIssuedAt,
+    })
+
   const filled = checks.filter((c) => c.done).length
-  const total = checks.length
+  const total = checks.length || 1
   return {
     checks,
     filled,

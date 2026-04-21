@@ -68,7 +68,8 @@ export default function OwnChannelDetail() {
         subtitle={`@${channel.username} · ${categoryInfo ? `${categoryInfo.emoji} ${categoryInfo.label}` : 'без категории'}`}
         action={
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate('/own/channels')}
           >

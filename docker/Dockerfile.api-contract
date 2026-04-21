@@ -1,0 +1,46 @@
+# ══════════════════════════════════════════════════════════════
+# Test-only image — same runtime as Dockerfile.api but also installs
+# dev-group dependencies (pytest, pytest-asyncio, etc.).
+# Used exclusively by docker-compose.test.yml's api-contract service.
+# ══════════════════════════════════════════════════════════════
+
+FROM python:3.14-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir poetry
+
+COPY pyproject.toml poetry.lock* ./
+
+# Install main + dev groups (pytest & friends)
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-root --with dev
+
+# ── Runtime ──
+FROM python:3.14-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY pyproject.toml ./
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --only-root
+
+# Default: run the contract suite. Override via compose `command`.
+CMD ["poetry", "run", "pytest", "tests/e2e_api/", "-v"]

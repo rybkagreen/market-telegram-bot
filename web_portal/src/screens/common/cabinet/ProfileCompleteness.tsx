@@ -20,7 +20,7 @@ export function ProfileCompleteness() {
   const steps: Step[] = [
     { label: 'Telegram привязан', done: Boolean(user?.telegram_id) },
     { label: 'Имя заполнено', done: Boolean(user?.first_name?.trim()) },
-    { label: 'Юридический профиль', done: Boolean(legal?.legal_status) },
+    { label: 'Юридический профиль', done: Boolean(legal?.is_complete) },
     { label: 'Правила приняты', done: Boolean(user?.platform_rules_accepted_at) },
     { label: 'Оферт-договор', done: contractSigned },
   ]

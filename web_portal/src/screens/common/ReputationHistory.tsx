@@ -144,7 +144,7 @@ export default function ReputationHistory() {
         title="История репутации"
         subtitle="События, повлиявшие на ваш рейтинг рекламодателя и владельца канала"
         action={
-          <Button variant="secondary" iconLeft="docs">
+          <Button variant="secondary" size="sm" iconLeft="docs">
             Правила рейтинга
           </Button>
         }

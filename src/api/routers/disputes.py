@@ -178,6 +178,31 @@ async def get_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
+@router.get(
+    "/by-placement/{placement_request_id}",
+    responses={
+        404: {"description": "Not found"},
+        403: {"description": "Forbidden"},
+    },
+)
+async def get_dispute_by_placement(
+    placement_request_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DisputeResponse | None:
+    """
+    Получить диспут по ID размещения.
+    Доступно только рекламодателю или владельцу канала из размещения.
+    Возвращает null, если диспут не существует.
+    """
+    placement = await _get_placement_or_404(placement_request_id, session, current_user)
+    repo = DisputeRepository(session)
+    dispute = await repo.get_by_placement(placement.id)
+    if dispute is None:
+        return None
+    return DisputeResponse.model_validate(dispute)
+
+
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -213,6 +238,37 @@ async def create_dispute(
     """
     # Проверяем что заявка существует и принадлежит пользователю
     placement = await _get_placement_or_404(dispute_data.placement_id, session, current_user)
+
+    # Только рекламодатель может открыть спор по своему размещению
+    if placement.advertiser_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the advertiser can open a dispute",
+        )
+
+    # Спор можно открыть только для опубликованного размещения
+    if placement.status != PlacementStatus.published:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Dispute can only be opened for published placements",
+        )
+
+    # Окно открытия спора — 48 часов с момента публикации
+    if placement.published_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Placement has no published_at timestamp",
+        )
+    now_utc = datetime.now(UTC)
+    published_at = placement.published_at
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=UTC)
+    window_seconds = (now_utc - published_at).total_seconds()
+    if window_seconds > 48 * 3600:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Dispute window of 48 hours has expired",
+        )
 
     # Проверяем что диспут ещё не создан для этой заявки
     repo = DisputeRepository(session)
@@ -441,7 +497,7 @@ async def get_placement_evidence(  # NOSONAR: python:S3776
 
 @router.get("/admin/disputes", responses={400: {"description": "Bad request"}})
 async def get_all_disputes_admin(
-    status_filter: Annotated[str, Query(alias="status")] = "open",
+    status_filter: Annotated[str, Query(alias="status")] = "all",
     limit: int = 20,
     offset: int = 0,
     *,

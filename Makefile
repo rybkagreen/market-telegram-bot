@@ -1,4 +1,4 @@
-.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci check-forbidden
+.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci check-forbidden test-e2e test-e2e-up test-e2e-down test-e2e-logs
 
 # Default target
 help:
@@ -151,3 +151,49 @@ portal-dev:
 
 portal-preview:
 	cd web_portal && npm run preview
+
+# ══════════════════════════════════════════════════════════════
+# E2E Tests — Playwright in Docker (isolated runtime)
+# ══════════════════════════════════════════════════════════════
+
+E2E_COMPOSE := docker compose -p e2e -f docker-compose.test.yml --env-file .env.test
+
+# One-shot: build, seed, run API contract + UI smoke back-to-back in the same
+# stack, tear down. Exits non-zero if either suite fails.
+test-e2e:
+	$(E2E_COMPOSE) up --build -d postgres-test redis-test seed-test api-test nginx-test ; \
+	api_status=0 ; ui_status=0 ; \
+	$(E2E_COMPOSE) run --rm api-contract || api_status=$$? ; \
+	$(E2E_COMPOSE) run --rm playwright || ui_status=$$? ; \
+	$(E2E_COMPOSE) down -v --remove-orphans ; \
+	if [ $$api_status -ne 0 ] || [ $$ui_status -ne 0 ]; then \
+		echo "API contract exit=$$api_status, UI exit=$$ui_status" ; \
+		exit 1 ; \
+	fi
+
+# API contract tests only — pytest inside the test stack
+test-e2e-api:
+	$(E2E_COMPOSE) up --build -d postgres-test redis-test seed-test api-test nginx-test ; \
+	$(E2E_COMPOSE) run --rm api-contract ; \
+	status=$$? ; \
+	$(E2E_COMPOSE) down -v --remove-orphans ; \
+	exit $$status
+
+# Keep test stack running (for local iteration — run `npx playwright test` manually)
+test-e2e-up:
+	$(E2E_COMPOSE) up --build -d postgres-test redis-test seed-test api-test nginx-test
+
+test-e2e-down:
+	$(E2E_COMPOSE) down -v --remove-orphans
+
+test-e2e-logs:
+	$(E2E_COMPOSE) logs -f
+
+# Refresh visual regression baselines (commit resulting PNGs to git).
+# Use after an intentional UI change.
+test-e2e-visual-update:
+	$(E2E_COMPOSE) up --build -d postgres-test redis-test seed-test api-test nginx-test ; \
+	$(E2E_COMPOSE) run --rm playwright npx playwright test visual.spec.ts --update-snapshots ; \
+	status=$$? ; \
+	$(E2E_COMPOSE) down -v --remove-orphans ; \
+	exit $$status

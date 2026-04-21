@@ -75,6 +75,7 @@ export default function CampaignCounterOffer() {
         action={
           <Button
             variant="secondary"
+            size="sm"
             iconLeft="arrow-left"
             onClick={() => navigate(`/adv/campaigns/${placement.id}/payment`)}
           >
