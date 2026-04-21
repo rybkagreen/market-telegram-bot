@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — plan-01 deep-flow spec hardening (2026-04-21)
+
+Follow-up to FIX_PLAN_06 §§6.2, 6.5, 6.6 after re-review flagged three
+silent-pass regressions in the tests shipped with the previous block:
+
+- **`web_portal/tests/specs/deep-flows.spec.ts`**
+  - Channel-settings flow: PATCH path corrected
+    `/api/channels/:id/settings` → `/api/channel-settings/?channel_id=:id`.
+    Previously the spec hit a 404 that passed under `< 500` — the
+    PATCH was never actually performed. Now asserts round-trip
+    (`price_per_post` written, then read back).
+  - All `status < 500` and `status < 300` replaced with explicit
+    expectations (`ok()`, `[200, 201, 409]`, etc.). Any 404/422 on a
+    valid request now fails the spec instead of silently passing.
+  - Top-up flow: body fixed to `{ desired_amount, method: 'yookassa' }`
+    (was `{ amount }`); asserts `payment_url`, not `confirmation_url`
+    (the latter is the internal YooKassa SDK field). Added
+    `test.skip` guard when `YOOKASSA_SHOP_ID`/`_SECRET_KEY` are not
+    in the runner env, so the scenario only runs where YooKassa is
+    reachable.
+  - Review POST path changed to `/api/reviews/` (trailing slash) to
+    match FastAPI router mount exactly and avoid a 307 that could
+    drop the body.
+- **`tests/unit/api/test_admin_payouts.py`** — all five
+  `patch("…payout_service.{approve,reject}_request", AsyncMock(...))`
+  sites rewritten to `patch.object(payout_service, name, autospec=True)`.
+  Renaming or resignaturing `approve_request` / `reject_request` now
+  breaks the tests at import/patch time instead of producing a green
+  test on a broken service.
+- **`tests/unit/api/test_placements_patch.py`** — `_patch_router_repos`
+  switched from `MagicMock() + setattr(AsyncMock)` to
+  `create_autospec(PlacementRequestService, instance=True, spec_set=True)`.
+  Any drift in `owner_accept`, `owner_reject`, `owner_counter_offer`,
+  `process_payment`, `advertiser_cancel` now fails the suite.
+
+Validation: 20 / 20 pytest passes, ruff clean, grep-guard 7/7,
+Playwright `tsc --noEmit` clean. No `src/` changes.
+
 ### Added — FIX_PLAN_06 §§6.1–6.7 finish: tests + guards + CI + docs (2026-04-21)
 
 Closes the remaining subsections of `reports/20260419_diagnostics/FIX_PLAN_06_tests_and_guards.md`
