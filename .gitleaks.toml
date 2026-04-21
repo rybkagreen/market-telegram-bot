@@ -9,4 +9,9 @@ regex = '''sqp_[a-f0-9]{40}'''
 tags = ["key", "sonarqube"]
 
 [allowlist]
-paths = ['''docs/.*\.md$''']
+paths = [
+    '''docs/.*\.md$''',
+    # E2E test-only secrets — never touch real environments (compose stack is
+    # isolated, keys are documented in .env.test.example as dummy values).
+    '''\.env\.test\.example$''',
+]
