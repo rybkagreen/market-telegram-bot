@@ -48,7 +48,17 @@ class AnalyticsService:
     """Сервис агрегации статистики кампаний и пользователей. Интегрирует AI инсайты."""
 
     def __init__(self) -> None:
-        self.ai_service = MistralAIService()
+        # Lazily constructed — instantiating Mistral client at service
+        # construction time crashes every environment without MISTRAL_API_KEY
+        # (tests, CI) and every endpoint that doesn't need AI (e.g. the
+        # basic summary/cashflow/activity queries). Build on first .generate().
+        self._ai_service: MistralAIService | None = None
+
+    @property
+    def ai_service(self) -> MistralAIService:
+        if self._ai_service is None:
+            self._ai_service = MistralAIService()
+        return self._ai_service
 
     async def get_advertiser_stats(
         self, advertiser_id: int, session: AsyncSession
