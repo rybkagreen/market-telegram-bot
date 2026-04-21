@@ -1,0 +1,20 @@
+# ══════════════════════════════════════════════════════════════
+# Playwright runner — runs the web_portal E2E suite.
+# Uses the Microsoft-maintained image which ships all browser deps.
+# ══════════════════════════════════════════════════════════════
+
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+
+WORKDIR /e2e
+
+# Install test-only dependencies (kept small — uses the host's web_portal/tests)
+COPY web_portal/tests/package.json web_portal/tests/package-lock.json* ./
+RUN npm ci --silent
+
+# Tests are bind-mounted at /e2e/tests so changes don't need rebuild.
+# Entrypoint waits for nginx-test, runs seeding trigger, then runs playwright.
+COPY docker/entrypoint.playwright.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["npx", "playwright", "test"]
