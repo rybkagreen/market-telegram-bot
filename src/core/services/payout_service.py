@@ -8,6 +8,7 @@ import logging
 from datetime import UTC, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.payments import (
@@ -633,46 +634,48 @@ class PayoutService:
         """
         Администратор подтвердил перевод — завершить выплату.
 
+        Service Transaction Contract (CLAUDE.md § S-48): caller владеет
+        транзакцией. Метод ожидает уже открытую (или autobegin'утую)
+        сессию и выполняет только flush; commit/rollback — за caller'ом.
+
         Args:
-            session: Асинхронная сессия.
+            session: Асинхронная сессия с активной транзакцией caller'а.
             payout_id: ID заявки на выплату.
         """
-        async with session.begin():
-            payout = await session.get(PayoutRequest, payout_id)
-            if not payout:
-                raise ValueError(f"PayoutRequest {payout_id} not found")
+        payout = await session.get(PayoutRequest, payout_id)
+        if not payout:
+            raise ValueError(f"PayoutRequest {payout_id} not found")
 
-            payout.status = PayoutStatus.paid
-            payout.processed_at = datetime.now(UTC)
+        payout.status = PayoutStatus.paid
+        payout.processed_at = datetime.now(UTC)
 
-            # complete_payout: gross_amount and net_amount are required
-            if payout.gross_amount is None or payout.net_amount is None:
-                raise ValueError(f"PayoutRequest {payout_id} missing gross_amount or net_amount")
+        # complete_payout: gross_amount and net_amount are required
+        if payout.gross_amount is None or payout.net_amount is None:
+            raise ValueError(f"PayoutRequest {payout_id} missing gross_amount or net_amount")
 
-            # platform_account_repo.complete_payout(session, gross_amount=payout.gross_amount, net_amount=payout.net_amount)
-            platform_repo = PlatformAccountRepository(session)
-            await platform_repo.complete_payout(session, payout.gross_amount, payout.net_amount)
+        platform_repo = PlatformAccountRepository(session)
+        await platform_repo.complete_payout(session, payout.gross_amount, payout.net_amount)
 
-            await session.flush()
+        await session.flush()
 
-            # Sprint D.2: записать расход — выплата владельцу канала (PAYOUT_TO_CONTRACTORS)
-            try:
-                from src.constants.expense_categories import ExpenseCategory
-                from src.core.services.tax_aggregation_service import TaxAggregationService
+        # Sprint D.2: записать расход — выплата владельцу канала (PAYOUT_TO_CONTRACTORS)
+        try:
+            from src.constants.expense_categories import ExpenseCategory
+            from src.core.services.tax_aggregation_service import TaxAggregationService
 
-                if payout.net_amount > 0:
-                    await TaxAggregationService.record_expense_for_usn(
-                        session,
-                        payout.net_amount,
-                        ExpenseCategory.PAYOUT_TO_CONTRACTORS.value,
-                        f"Payout to channel owner for request {payout_id}",
-                    )
-            except Exception as e:
-                logger.error(f"Failed to record payout expense for payout {payout_id}: {e}")
+            if payout.net_amount > 0:
+                await TaxAggregationService.record_expense_for_usn(
+                    session,
+                    payout.net_amount,
+                    ExpenseCategory.PAYOUT_TO_CONTRACTORS.value,
+                    f"Payout to channel owner for request {payout_id}",
+                )
+        except Exception as e:
+            logger.error(f"Failed to record payout expense for payout {payout_id}: {e}")
 
-            logger.info(
-                f"PayoutRequest {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"
-            )
+        logger.info(
+            f"PayoutRequest {payout_id} completed: gross={payout.gross_amount} ₽, net={payout.net_amount} ₽"
+        )
 
     async def reject_payout(
         self,
@@ -683,52 +686,53 @@ class PayoutService:
         """
         Администратор отклонил выплату — вернуть деньги на earned_rub.
 
+        Service Transaction Contract (CLAUDE.md § S-48): caller владеет
+        транзакцией. Метод ожидает уже открытую (или autobegin'утую)
+        сессию и выполняет только flush; commit/rollback — за caller'ом.
+
         Args:
-            session: Асинхронная сессия.
+            session: Асинхронная сессия с активной транзакцией caller'а.
             payout_id: ID заявки на выплату.
             reason: Причина отклонения.
         """
-        async with session.begin():
-            payout = await session.get(PayoutRequest, payout_id)
-            if not payout:
-                raise ValueError(f"PayoutRequest {payout_id} not found")
+        payout = await session.get(PayoutRequest, payout_id)
+        if not payout:
+            raise ValueError(f"PayoutRequest {payout_id} not found")
 
-            gross_amount = payout.gross_amount or Decimal("0")
-            fee_amount = payout.fee_amount or Decimal("0")
+        gross_amount = payout.gross_amount or Decimal("0")
+        fee_amount = payout.fee_amount or Decimal("0")
 
-            payout.status = PayoutStatus.cancelled
-            payout.rejection_reason = reason  # Используем для хранения причины
+        payout.status = PayoutStatus.cancelled
+        payout.rejection_reason = reason  # хранение причины
 
-            # UPDATE users SET earned_rub = earned_rub + gross_amount WHERE id = user_id
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_id(payout.owner_id)
-            if user:
-                user.earned_rub += gross_amount
+        # UPDATE users SET earned_rub = earned_rub + gross_amount WHERE id = user_id
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_id(payout.owner_id)
+        if user:
+            user.earned_rub += gross_amount
 
-            # platform_account: payout_reserved -= gross_amount, profit_accumulated -= fee_amount
-            platform_repo = PlatformAccountRepository(session)
-            # Для упрощения: вызываем add_to_payout_reserved с отрицательным значением
-            # и add_to_profit с отрицательным
-            await platform_repo.add_to_payout_reserved(session, -gross_amount)
-            if fee_amount > 0:
-                await platform_repo.add_to_profit(session, -fee_amount)
+        # platform_account: payout_reserved -= gross_amount, profit_accumulated -= fee_amount
+        platform_repo = PlatformAccountRepository(session)
+        await platform_repo.add_to_payout_reserved(session, -gross_amount)
+        if fee_amount > 0:
+            await platform_repo.add_to_profit(session, -fee_amount)
 
-            # Transaction(type=REFUND_FULL, amount=gross_amount)
-            txn_repo = TransactionRepository(session)
-            await txn_repo.create(
-                {
-                    "user_id": payout.owner_id,
-                    "type": TransactionType.refund_full,
-                    "amount": gross_amount,
-                    "meta_json": {"type": "payout_rejected", "reason": reason},
-                },
-            )
+        # Transaction(type=REFUND_FULL, amount=gross_amount)
+        txn_repo = TransactionRepository(session)
+        await txn_repo.create(
+            {
+                "user_id": payout.owner_id,
+                "type": TransactionType.refund_full,
+                "amount": gross_amount,
+                "meta_json": {"type": "payout_rejected", "reason": reason},
+            },
+        )
 
-            await session.flush()
+        await session.flush()
 
-            logger.info(
-                f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽"
-            )
+        logger.info(
+            f"PayoutRequest {payout_id} rejected: reason={reason}, refunded {gross_amount} ₽"
+        )
 
     # ══════════════════════════════════════════════════════════════
     # Admin panel — approve / reject payout requests (S-42)
@@ -742,9 +746,14 @@ class PayoutService:
         """
         Админ одобрил выплату: pending/processing → paid.
 
-        Выполняет финансовые операции через `complete_payout`
-        (обновление `platform_account`, запись расхода USN), после чего
-        фиксирует `admin_id` в записи.
+        Выполняется в одной сессии под `SELECT … FOR UPDATE` блокировкой
+        строки `PayoutRequest`: два параллельных approve на одном
+        `payout_id` сериализуются — второй увидит уже финализированную
+        запись и поднимет `ValueError("already finalized")`.
+
+        Порядок блокировок: `PayoutRequest` → `PlatformAccount` (через
+        `complete_payout`/`platform_repo.complete_payout`). Тот же порядок
+        соблюдается в `reject_request` — deadlock невозможен.
 
         Args:
             payout_id: ID заявки.
@@ -757,23 +766,29 @@ class PayoutService:
             ValueError: Если заявка не найдена или уже в финальном статусе.
         """
         async with async_session_factory() as session:
-            payout = await session.get(PayoutRequest, payout_id)
-            if not payout:
-                raise ValueError(f"PayoutRequest {payout_id} not found")
-            if payout.status in (PayoutStatus.paid, PayoutStatus.rejected, PayoutStatus.cancelled):
-                raise ValueError(
-                    f"PayoutRequest {payout_id} already finalized (status={payout.status.value})"
+            async with session.begin():
+                stmt = (
+                    select(PayoutRequest)
+                    .where(PayoutRequest.id == payout_id)
+                    .with_for_update()
                 )
+                payout = (await session.execute(stmt)).scalar_one_or_none()
+                if payout is None:
+                    raise ValueError(f"PayoutRequest {payout_id} not found")
+                if payout.status in (
+                    PayoutStatus.paid,
+                    PayoutStatus.rejected,
+                    PayoutStatus.cancelled,
+                ):
+                    raise ValueError(
+                        f"PayoutRequest {payout_id} already finalized "
+                        f"(status={payout.status.value})"
+                    )
 
-        async with async_session_factory() as session:
-            await self.complete_payout(session, payout_id)
+                await self.complete_payout(session, payout_id)
+                payout.admin_id = admin_id
+                # commit — неявный, на выходе из session.begin()
 
-        async with async_session_factory() as session:
-            payout = await session.get(PayoutRequest, payout_id)
-            if payout is None:
-                raise ValueError(f"PayoutRequest {payout_id} disappeared after complete_payout")
-            payout.admin_id = admin_id
-            await session.commit()
             await session.refresh(payout)
             logger.info(f"PayoutRequest {payout_id} approved by admin {admin_id}")
             return payout
@@ -789,6 +804,10 @@ class PayoutService:
         и ставит статус `rejected` (не `cancelled` — cancelled — это отмена
         пользователем).
 
+        Та же стратегия, что в `approve_request`: одна сессия, `SELECT …
+        FOR UPDATE` на `PayoutRequest`, тот же порядок блокировок
+        (`PayoutRequest` → `PlatformAccount`).
+
         Args:
             payout_id: ID заявки.
             admin_id: ID админа.
@@ -801,28 +820,35 @@ class PayoutService:
             ValueError: Если заявка не найдена или уже в финальном статусе.
         """
         async with async_session_factory() as session:
-            payout = await session.get(PayoutRequest, payout_id)
-            if not payout:
-                raise ValueError(f"PayoutRequest {payout_id} not found")
-            if payout.status in (PayoutStatus.paid, PayoutStatus.rejected, PayoutStatus.cancelled):
-                raise ValueError(
-                    f"PayoutRequest {payout_id} already finalized (status={payout.status.value})"
+            async with session.begin():
+                stmt = (
+                    select(PayoutRequest)
+                    .where(PayoutRequest.id == payout_id)
+                    .with_for_update()
                 )
+                payout = (await session.execute(stmt)).scalar_one_or_none()
+                if payout is None:
+                    raise ValueError(f"PayoutRequest {payout_id} not found")
+                if payout.status in (
+                    PayoutStatus.paid,
+                    PayoutStatus.rejected,
+                    PayoutStatus.cancelled,
+                ):
+                    raise ValueError(
+                        f"PayoutRequest {payout_id} already finalized "
+                        f"(status={payout.status.value})"
+                    )
 
-        # Использует существующую финансовую логику (возврат на earned_rub),
-        # затем правит статус `cancelled` → `rejected` и фиксирует admin_id.
-        async with async_session_factory() as session:
-            await self.reject_payout(session, payout_id, reason)
+                await self.reject_payout(session, payout_id, reason)
+                # reject_payout выставляет status=cancelled — поверх него
+                # ставим финальный rejected (cancelled = отмена пользователем).
+                payout.status = PayoutStatus.rejected
+                payout.admin_id = admin_id
 
-        async with async_session_factory() as session:
-            payout = await session.get(PayoutRequest, payout_id)
-            if payout is None:
-                raise ValueError(f"PayoutRequest {payout_id} disappeared after reject_payout")
-            payout.status = PayoutStatus.rejected
-            payout.admin_id = admin_id
-            await session.commit()
             await session.refresh(payout)
-            logger.info(f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}")
+            logger.info(
+                f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}"
+            )
             return payout
 
     async def calculate_payout_with_tax(self, user_id: int, gross_amount: Decimal) -> dict:
