@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — plan-04 list-response contract snapshots (2026-04-21)
+
+Closes the drift-guard gap left by FIX_PLAN_06 §6.1 Variant B: only
+item schemas (`UserResponse`, `PlacementResponse`, …) were locked,
+but the web_portal admin pages and Mini App actually consume the
+**pagination wrapper** shape (`{items, total, limit, offset}`). A
+rename of `total → count` or `items → rows` would have been invisible
+to the contract-check CI.
+
+- `tests/unit/test_contract_schemas.py` — `CONTRACT_SCHEMAS` extended
+  from 8 to 18 entries. Added wrappers (with the router endpoint each
+  one is consumed by, in parens):
+  - `AdminPayoutListResponse` (`/api/admin/payouts`),
+  - `AdminContractListResponse` (`/api/admin/contracts`),
+  - `UserListAdminResponse` (`/api/admin/users`),
+  - `DisputeListAdminResponse` (`/api/admin/disputes`),
+  - `FeedbackListAdminResponse` (`/api/admin/feedback`),
+  - `DisputeListResponse` (`/api/disputes/`),
+  - `FeedbackListResponse` (`/api/feedback/`),
+  - `ContractListResponse` (`/api/contracts/`),
+  - `CampaignListResponse` (`/api/campaigns`),
+  - `CampaignsListResponse` (`/api/campaigns/list`).
+- 10 new files in `tests/unit/snapshots/*_list_response.json`.
+- `CLAUDE.md § Contract drift guard` rewritten — 18 schemas, explicit
+  list of intentionally skipped endpoints (`GET /api/payouts/`,
+  `GET /api/admin/audit-logs`) with reason.
+
+The 8 existing item snapshots were **not** modified — verified via
+`git status` after `UPDATE_SNAPSHOTS=1` regeneration.
+
+Validation: `pytest tests/unit/test_contract_schemas.py` → 19 passed
+(18 schema asserts + duplicate-guard); ruff clean; grep-guard 7/7.
+
 ### Changed — plan-01 deep-flow spec hardening (2026-04-21)
 
 Follow-up to FIX_PLAN_06 §§6.2, 6.5, 6.6 after re-review flagged three
