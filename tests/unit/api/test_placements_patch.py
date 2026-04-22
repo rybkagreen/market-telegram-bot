@@ -151,6 +151,49 @@ async def _stub_session_dep() -> AsyncGenerator[Any]:
     yield session
 
 
+@pytest.fixture
+def session_spy() -> MagicMock:
+    """Один и тот же session-mock между фикстурой и тестом — нужен, чтобы
+    после запроса проверить `session.rollback.assert_awaited_once()`."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.flush = AsyncMock()
+    return session
+
+
+@pytest_asyncio.fixture
+async def client_as_owner_with_spy(
+    owner_user: User, session_spy: MagicMock
+) -> AsyncGenerator[tuple[AsyncClient, MagicMock]]:
+    async def _dep() -> AsyncGenerator[Any]:
+        yield session_spy
+
+    app.dependency_overrides[get_current_user] = lambda: owner_user
+    app.dependency_overrides[get_db_session] = _dep
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client, session_spy
+
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def client_as_advertiser_with_spy(
+    advertiser_user: User, session_spy: MagicMock
+) -> AsyncGenerator[tuple[AsyncClient, MagicMock]]:
+    async def _dep() -> AsyncGenerator[Any]:
+        yield session_spy
+
+    app.dependency_overrides[get_current_user] = lambda: advertiser_user
+    app.dependency_overrides[get_db_session] = _dep
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client, session_spy
+
+    app.dependency_overrides.clear()
+
+
 def _patch_router_repos(
     placement: SimpleNamespace,
     channel: SimpleNamespace,
@@ -405,3 +448,314 @@ class TestPatchNotFound:
         ):
             resp = await client_as_owner.patch("/api/placements/999", json={"action": "accept"})
         assert resp.status_code == 404, resp.text
+
+
+# ─── Plan-03 additions: missing actions, error paths, edge cases ─────
+
+
+class TestPatchAcceptCounter:
+    """PATCH {action: 'accept-counter'} → advertiser_accept_counter, status=pending_payment."""
+
+    async def test_advertiser_accepts_counter(
+        self, client_as_advertiser: AsyncClient
+    ) -> None:
+        placement = _make_placement(
+            status=PlacementStatus.counter_offer,
+            counter_price=Decimal("2000"),
+        )
+        channel = _make_channel(owner_id=7001)
+        updated = _make_placement(
+            status=PlacementStatus.pending_payment,
+            final_price=Decimal("2000"),
+        )
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_accept_counter",
+            service_return=updated,
+        )
+        with p1, p2, p3:
+            resp = await client_as_advertiser.patch(
+                "/api/placements/4242", json={"action": "accept-counter"}
+            )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "pending_payment"
+        service.advertiser_accept_counter.assert_awaited_once_with(4242, 8001)
+
+    async def test_accept_counter_in_wrong_status_returns_409(
+        self, client_as_advertiser: AsyncClient
+    ) -> None:
+        # placement в pending_owner — accept-counter недопустим
+        placement = _make_placement(status=PlacementStatus.pending_owner)
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_accept_counter",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client_as_advertiser.patch(
+                "/api/placements/4242", json={"action": "accept-counter"}
+            )
+        assert resp.status_code == 409, resp.text
+        assert "counter_offer" in resp.json()["detail"]
+        service.advertiser_accept_counter.assert_not_awaited()
+
+    async def test_accept_counter_by_owner_returns_403(
+        self, client_as_owner: AsyncClient
+    ) -> None:
+        # owner.id=7001 == channel.owner_id, и НЕ advertiser → 403 от _action_accept_counter
+        placement = _make_placement(status=PlacementStatus.counter_offer)
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_accept_counter",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client_as_owner.patch(
+                "/api/placements/4242", json={"action": "accept-counter"}
+            )
+        assert resp.status_code == 403, resp.text
+        service.advertiser_accept_counter.assert_not_awaited()
+
+
+class TestPatchCounterReply:
+    """PATCH {action: 'counter-reply', price, comment} → advertiser_counter_offer.
+
+    FIX #20 (S-45): advertiser отвечает контр-предложением на owner's counter
+    — раньше был дедлок в counter_offer-статусе.
+    """
+
+    async def test_advertiser_counter_replies_with_price_and_comment(
+        self, client_as_advertiser: AsyncClient
+    ) -> None:
+        placement = _make_placement(
+            status=PlacementStatus.counter_offer,
+            counter_price=Decimal("2000"),
+        )
+        channel = _make_channel(owner_id=7001)
+        updated = _make_placement(
+            status=PlacementStatus.counter_offer,
+            counter_price=Decimal("1800"),
+        )
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_counter_offer",
+            service_return=updated,
+        )
+        with p1, p2, p3:
+            resp = await client_as_advertiser.patch(
+                "/api/placements/4242",
+                json={
+                    "action": "counter-reply",
+                    "price": 1800,
+                    "comment": "Моё контр-предложение",
+                },
+            )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "counter_offer"
+        # Все 4 позиционных: placement_id, advertiser_id, Decimal(price), comment
+        service.advertiser_counter_offer.assert_awaited_once_with(
+            4242, 8001, Decimal("1800"), "Моё контр-предложение"
+        )
+
+    async def test_counter_reply_without_price_returns_400(
+        self, client_as_advertiser: AsyncClient
+    ) -> None:
+        placement = _make_placement(status=PlacementStatus.counter_offer)
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_counter_offer",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client_as_advertiser.patch(
+                "/api/placements/4242", json={"action": "counter-reply"}
+            )
+        assert resp.status_code == 400, resp.text
+        assert "price required" in resp.json()["detail"]
+        service.advertiser_counter_offer.assert_not_awaited()
+
+    async def test_counter_reply_by_owner_returns_403(
+        self, client_as_owner: AsyncClient
+    ) -> None:
+        placement = _make_placement(status=PlacementStatus.counter_offer)
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="advertiser_counter_offer",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client_as_owner.patch(
+                "/api/placements/4242",
+                json={"action": "counter-reply", "price": 1800},
+            )
+        assert resp.status_code == 403, resp.text
+        service.advertiser_counter_offer.assert_not_awaited()
+
+
+class TestPatchRejectReasonCode:
+    """`reason_text or reason_code or "rejected"` fallback chain (placements.py:58)."""
+
+    async def test_reason_code_used_when_text_missing(
+        self, client_as_owner: AsyncClient
+    ) -> None:
+        placement = _make_placement()
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="owner_reject",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client_as_owner.patch(
+                "/api/placements/4242",
+                json={"action": "reject", "reason_code": "off_topic"},
+            )
+        assert resp.status_code == 200, resp.text
+        # router передаёт reason_code как 3-й позиционный аргумент
+        service.owner_reject.assert_awaited_once_with(4242, 7001, "off_topic")
+
+
+class TestChannelNotFound:
+    """placements.py:502 — `if not channel: raise 404`."""
+
+    async def test_missing_channel_returns_404(self, client_as_owner: AsyncClient) -> None:
+        placement = _make_placement()
+        placement_repo = MagicMock()
+        placement_repo.get_by_id = AsyncMock(return_value=placement)
+        channel_repo = MagicMock()
+        channel_repo.get_by_id = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "src.api.routers.placements.PlacementRequestRepository",
+                return_value=placement_repo,
+            ),
+            patch(
+                "src.api.routers.placements.TelegramChatRepository",
+                return_value=channel_repo,
+            ),
+        ):
+            resp = await client_as_owner.patch(
+                "/api/placements/4242", json={"action": "accept"}
+            )
+        assert resp.status_code == 404, resp.text
+        assert "channel not found" in resp.json()["detail"].lower()
+
+
+class TestErrorPathsCallRollback:
+    """ESCROW-002 regression guard: каждая error-ветка в update_placement
+    обязана вызвать `session.rollback()` и НЕ вызывать `session.commit()`.
+
+    Покрывает три ветки в placements.py:549-563:
+        * `except HTTPException`  — handler сам поднял 4xx (например, price required)
+        * `except ValueError`     — service бросил ValueError → 409
+        * `except Exception`      — неожиданный сбой → 500
+    """
+
+    async def test_value_error_maps_to_409_and_rolls_back(
+        self,
+        client_as_owner_with_spy: tuple[AsyncClient, MagicMock],
+    ) -> None:
+        client, session_spy = client_as_owner_with_spy
+        placement = _make_placement()
+        channel = _make_channel(owner_id=7001)
+
+        placement_repo = MagicMock()
+        placement_repo.get_by_id = AsyncMock(return_value=placement)
+        channel_repo = MagicMock()
+        channel_repo.get_by_id = AsyncMock(return_value=channel)
+        service = create_autospec(PlacementRequestService, instance=True, spec_set=True)
+        service.owner_accept.side_effect = ValueError(
+            "Placement not in pending_owner status"
+        )
+
+        with (
+            patch(
+                "src.api.routers.placements.PlacementRequestRepository",
+                return_value=placement_repo,
+            ),
+            patch(
+                "src.api.routers.placements.TelegramChatRepository",
+                return_value=channel_repo,
+            ),
+            patch(
+                "src.api.routers.placements.PlacementRequestService",
+                return_value=service,
+            ),
+        ):
+            resp = await client.patch("/api/placements/4242", json={"action": "accept"})
+
+        assert resp.status_code == 409, resp.text
+        assert "pending_owner" in resp.json()["detail"]
+        session_spy.rollback.assert_awaited_once()
+        session_spy.commit.assert_not_awaited()
+
+    async def test_http_exception_rolls_back(
+        self,
+        client_as_owner_with_spy: tuple[AsyncClient, MagicMock],
+    ) -> None:
+        # `counter` без price — _action_counter сам поднимает HTTPException(400).
+        # Маршрут попадает в `except HTTPException: rollback; raise` (placements.py:549-551).
+        client, session_spy = client_as_owner_with_spy
+        placement = _make_placement()
+        channel = _make_channel(owner_id=7001)
+        p1, p2, p3, service = _patch_router_repos(
+            placement,
+            channel,
+            service_method_name="owner_counter_offer",
+            service_return=placement,
+        )
+        with p1, p2, p3:
+            resp = await client.patch("/api/placements/4242", json={"action": "counter"})
+
+        assert resp.status_code == 400, resp.text
+        assert "price required" in resp.json()["detail"]
+        session_spy.rollback.assert_awaited_once()
+        session_spy.commit.assert_not_awaited()
+        service.owner_counter_offer.assert_not_awaited()
+
+    async def test_unexpected_exception_maps_to_500_and_rolls_back(
+        self,
+        client_as_owner_with_spy: tuple[AsyncClient, MagicMock],
+    ) -> None:
+        client, session_spy = client_as_owner_with_spy
+        placement = _make_placement()
+        channel = _make_channel(owner_id=7001)
+
+        placement_repo = MagicMock()
+        placement_repo.get_by_id = AsyncMock(return_value=placement)
+        channel_repo = MagicMock()
+        channel_repo.get_by_id = AsyncMock(return_value=channel)
+        service = create_autospec(PlacementRequestService, instance=True, spec_set=True)
+        service.owner_accept.side_effect = RuntimeError("boom")
+
+        with (
+            patch(
+                "src.api.routers.placements.PlacementRequestRepository",
+                return_value=placement_repo,
+            ),
+            patch(
+                "src.api.routers.placements.TelegramChatRepository",
+                return_value=channel_repo,
+            ),
+            patch(
+                "src.api.routers.placements.PlacementRequestService",
+                return_value=service,
+            ),
+        ):
+            resp = await client.patch("/api/placements/4242", json={"action": "accept"})
+
+        assert resp.status_code == 500, resp.text
+        session_spy.rollback.assert_awaited_once()
+        session_spy.commit.assert_not_awaited()
