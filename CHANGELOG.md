@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — plan-06 integration test SAVEPOINT isolation (2026-04-21)
+
+Replaces the TRUNCATE-based cleanup in
+`tests/integration/test_payout_lifecycle.py` with the SQLAlchemy 2
+"join into an external transaction" pattern. All sessions opened by
+`PayoutService` (via `async_session_factory`) now bind to a single
+connection wrapped in an outer transaction;
+`join_transaction_mode="create_savepoint"` makes the service's
+internal `session.begin()` open a SAVEPOINT, and the outer rollback
+discards everything at test end.
+
+- **Modified** `tests/integration/test_payout_lifecycle.py`:
+  rewritten `bound_factory` (savepoint-bound), removed
+  `_cleanup_after_test` autouse fixture (outer rollback replaces
+  TRUNCATE), removed unused `text` / TRUNCATE machinery.
+- **Modified** `tests/integration/test_payout_concurrent.py`:
+  docstring updated to flag the deliberate use of engine + TRUNCATE
+  (Pattern C) — SAVEPOINT cannot serve `asyncio.gather` on a single
+  asyncpg connection.
+- **New** `tests/integration/README.md`: documents the three
+  legitimate session isolation patterns (A — service accepts
+  session, B — savepoint, C — engine + TRUNCATE) with a decision
+  tree and four common pitfalls.
+
+Benefits over TRUNCATE+RESTART: no `RESTART IDENTITY` masking
+ordering bugs, no cross-test state leakage, parallel-safe
+(`pytest -n` won't deadlock), faster (SAVEPOINT release ≪
+TRUNCATE … RESTART IDENTITY at scale).
+
+Validation: 4 lifecycle tests green across 3 consecutive runs; full
+payout slice (lifecycle + concurrent) → 7 passed. No `src/` change.
+
 ### Fixed — plan-02 concurrent payout approve / reject race (2026-04-21)
 
 Closes a financial double-spend race in
