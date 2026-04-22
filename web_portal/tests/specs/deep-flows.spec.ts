@@ -264,27 +264,43 @@ test.describe('[flow] review on published placement', () => {
 })
 
 // ─── Scaffolded (fixme) — require additional fixtures ────────────────
+//
+// Each block below is a deferred E2E flow with an explicit re-activation
+// contract recorded in `reports/docs-architect/BACKLOG.md`. The fixme
+// title links back to the BL-ID so a contributor seeing the skip in the
+// Playwright report can find the acceptance criteria without
+// git-archaeology.
+//
+// `test.fixme(title, body)` declares an expected-skipped test that
+// stays visible in reports — preferable to deleting the describe
+// (which would lose discoverability of the deferred work).
 
 test.describe('[flow] dispute open → owner reply → admin resolve', () => {
   test.fixme(
-    true,
-    'Нужен fixture: escrow-placement + disputable window ≤48h в seed.',
+    'dispute round-trip — BL-001 (reports/docs-architect/BACKLOG.md)',
+    async () => {
+      // Re-activation criteria: BL-001 — needs seed-fixture with an
+      // escrow placement inside the disputable window (≤ 48 h).
+    },
   )
-  test('dispute round-trip', async () => {})
 })
 
 test.describe('[flow] owner adds channel via bot verification', () => {
   test.fixme(
-    true,
-    'Требует реального Telegram Bot API (get_chat_administrators).',
+    'channel add — BL-002 (reports/docs-architect/BACKLOG.md)',
+    async () => {
+      // Re-activation criteria: BL-002 — needs Telegram Bot API mock
+      // wired into docker-compose.test.yml.
+    },
   )
-  test('channel add', async () => {})
 })
 
 test.describe('[flow] KEP signature on framework contract', () => {
   test.fixme(
-    true,
-    'KEP-флоу подписи заявки требует ЦС (удостоверяющий центр) — E2E невозможен в контейнере.',
+    'kep sign — BL-003 (reports/docs-architect/BACKLOG.md)',
+    async () => {
+      // Re-activation criteria: BL-003 — needs КриптоПро stub or an
+      // sms_code fallback branch in the contract-signing flow.
+    },
   )
-  test('kep sign', async () => {})
 })
