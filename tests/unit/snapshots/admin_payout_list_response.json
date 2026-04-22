@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "AdminPayoutResponse": {
+      "description": "Ответ для админки — обогащён данными владельца.",
+      "properties": {
+        "admin_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Admin Id"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "fee_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Fee Amount"
+        },
+        "gross_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Gross Amount"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "net_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Net Amount"
+        },
+        "owner_id": {
+          "title": "Owner Id",
+          "type": "integer"
+        },
+        "owner_telegram_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Telegram Id"
+        },
+        "owner_username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Username"
+        },
+        "processed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Processed At"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rejection Reason"
+        },
+        "requisites": {
+          "title": "Requisites",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/PayoutStatus"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "owner_id",
+        "gross_amount",
+        "fee_amount",
+        "net_amount",
+        "status",
+        "requisites",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "AdminPayoutResponse",
+      "type": "object"
+    },
+    "PayoutStatus": {
+      "description": "Статусы заявок на выплату.",
+      "enum": [
+        "pending",
+        "processing",
+        "paid",
+        "rejected",
+        "cancelled"
+      ],
+      "title": "PayoutStatus",
+      "type": "string"
+    }
+  },
+  "description": "Список выплат для админ-панели (пагинация).",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AdminPayoutResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "limit": {
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "limit",
+    "offset"
+  ],
+  "title": "AdminPayoutListResponse",
+  "type": "object"
+}
