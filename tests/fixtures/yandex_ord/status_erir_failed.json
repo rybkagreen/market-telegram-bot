@@ -1,0 +1,6 @@
+{
+  "requestId": "req-abc-123-xyz",
+  "status": "ERIR async error",
+  "errorCode": "EINVAL",
+  "errorMessage": "Creative text too long for ERIR"
+}

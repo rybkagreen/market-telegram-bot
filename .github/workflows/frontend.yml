@@ -1,0 +1,53 @@
+name: Frontend typecheck
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  typecheck:
+    name: tsc --noEmit (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: web_portal
+            dir: web_portal
+          - project: mini_app
+            dir: mini_app
+          - project: landing
+            dir: landing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      # FIX_PLAN_06 §6.3 — TypeScript typecheck in CI.
+      # web_portal/mini_app используют tsc -b в build-скрипте; поднимаем его
+      # отдельным шагом с --noEmit для быстрой обратной связи без vite build.
+      # landing отдельно экспортирует npm run typecheck (tsc --noEmit).
+      - name: Run tsc --noEmit
+        working-directory: ${{ matrix.dir }}
+        run: |
+          if [ "${{ matrix.project }}" = "landing" ]; then
+            npm run typecheck
+          else
+            npx tsc --noEmit -p tsconfig.json
+          fi

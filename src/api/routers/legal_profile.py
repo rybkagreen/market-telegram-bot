@@ -120,7 +120,10 @@ async def get_required_fields(
 ) -> RequiredFieldsResponse:
     """Get required fields for a given legal status."""
     svc = LegalProfileService(session)
-    result = await svc.get_required_fields(legal_status)
+    try:
+        result = await svc.get_required_fields(legal_status)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return RequiredFieldsResponse(**result)
 
 
@@ -148,6 +151,7 @@ async def validate_entity(
     - ОГРН/ОГРНИП (контрольная сумма)
     """
     from src.core.services.fns_validation_service import (
+        validate_entity_documents,
         validate_entity_type_match,
         validate_individual_entrepreneur,
         validate_inn_type,
@@ -162,6 +166,25 @@ async def validate_entity(
             errors=[
                 FnsValidationError(field="inn", message=type_error or "Несоответствие типа ИНН")
             ],
+        )
+
+    # Documents must match the status (OGRN for LLC, OGRNIP for IE, passport for
+    # individual, nothing for self_employed). Catches the coarse 12-digit-INN
+    # gap where individual / self_employed / IE are otherwise interchangeable.
+    docs_ok, docs_error = validate_entity_documents(
+        data.legal_status,
+        ogrn=data.ogrn,
+        ogrnip=data.ogrnip,
+        passport_series=data.passport_series,
+        passport_number=data.passport_number,
+    )
+    if not docs_ok:
+        # field name depends on which document was wrong; default to a
+        # generic "documents" bucket since the message identifies it.
+        field = "ogrnip" if data.ogrnip else ("ogrn" if data.ogrn else "documents")
+        return FnsValidationResponse(
+            is_valid=False,
+            errors=[FnsValidationError(field=field, message=docs_error or "Документы не соответствуют статусу")],
         )
 
     # Quick INN check

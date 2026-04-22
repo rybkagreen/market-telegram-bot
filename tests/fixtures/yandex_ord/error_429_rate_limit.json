@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests, try again later",
+    "retryAfterSeconds": 60
+  }
+}
