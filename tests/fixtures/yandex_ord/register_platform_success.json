@@ -1,0 +1,13 @@
+{
+  "organizationId": "rekharbor-main",
+  "platforms": [
+    {
+      "platformId": "platform-101",
+      "type": "site",
+      "name": "Test Channel",
+      "url": "https://t.me/test_channel",
+      "isOwned": false,
+      "createdAt": "2026-04-21T10:00:01Z"
+    }
+  ]
+}

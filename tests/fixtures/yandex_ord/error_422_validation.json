@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Field 'inn' must be 10 or 12 digits",
+    "fields": {"inn": "expected 10 or 12 digits"}
+  }
+}

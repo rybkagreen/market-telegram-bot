@@ -279,6 +279,55 @@ Mistral AI (`mistralai` SDK) used for:
 
 Tests use `pytest-asyncio` with `asyncio_mode = "auto"`. Integration tests use `testcontainers` for real PostgreSQL — do not mock the DB.
 
+## API Conventions (FIX_PLAN_06 §6.7)
+
+**screen → hook → api-module — единственный путь вызова бэкенда из
+`web_portal/src/` и `mini_app/src/`.**
+
+- Экран никогда не импортирует `api` напрямую — только hook.
+- Hook инкапсулирует React Query / мутацию и вызывает функцию из
+  `web_portal/src/api/<domain>.ts` (или `mini_app/src/lib/`).
+- API-модуль — единственное место, где собирается URL и параметры.
+- Правило проверяется трёхступенчато:
+    1. ESLint `no-restricted-imports` (S-46) — блокирует прямые
+       `import { api }` в `screens/**`, `components/**`, `hooks/**`.
+    2. `scripts/check_forbidden_patterns.sh` (S-48) — grep-guard на
+       7 регрессионных паттернов (import api, legacy-поля,
+       phantom-пути).
+    3. CI `.github/workflows/contract-check.yml` — прогоняет 1 + 2
+       + pytest `tests/unit/test_contract_schemas.py` + pytest
+       `tests/unit/api/`.
+
+**Добавление нового endpoint'а:**
+1. Pydantic-схема ответа в `src/api/schemas/<domain>.py` (или прямо в
+   роутере). Любое изменение formы попадает в
+   `tests/unit/test_contract_schemas.py` — после изменения запустить
+   `UPDATE_SNAPSHOTS=1 poetry run pytest tests/unit/test_contract_schemas.py`
+   и закоммитить обновлённый snapshot в ту же PR.
+2. Добавить функцию в `web_portal/src/api/<domain>.ts` — это
+   единственное место с fetch/ky.
+3. Добавить hook в `web_portal/src/hooks/` (useQuery/useMutation
+   поверх api-функции).
+4. Подключить hook в экране. Прямой вызов `api.*` в экране — fail
+   CI (ESLint + grep-guard).
+
+## Contract drift guard (FIX_PLAN_06 §6.1 Variant B)
+
+`tests/unit/test_contract_schemas.py` снимает JSON-schema-снимки
+восьми критичных Pydantic-моделей (`UserResponse`,
+`UserAdminResponse`, `PlacementResponse`, `PayoutResponse`,
+`ContractResponse`, `DisputeResponse`, `LegalProfileResponse`,
+`ChannelResponse`) и валидирует против файлов в
+`tests/unit/snapshots/*.json`. Любое изменение формы (переименование
+/ добавление / удаление поля, смена типа) ломает тест с unified diff
+— автор обязан пересгенерировать snapshot и закоммитить рядом со
+схемой, что делает drift видимым в ревью.
+
+Регенерация: `UPDATE_SNAPSHOTS=1 poetry run pytest
+tests/unit/test_contract_schemas.py`.
+
+Контракт прогоняется в CI — `.github/workflows/contract-check.yml`.
+
 ## Component Inventory (Verified 2026-03-22)
 
 | Component | Count | Location |

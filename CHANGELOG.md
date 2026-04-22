@@ -7,6 +7,205 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — plan-01 deep-flow spec hardening (2026-04-21)
+
+Follow-up to FIX_PLAN_06 §§6.2, 6.5, 6.6 after re-review flagged three
+silent-pass regressions in the tests shipped with the previous block:
+
+- **`web_portal/tests/specs/deep-flows.spec.ts`**
+  - Channel-settings flow: PATCH path corrected
+    `/api/channels/:id/settings` → `/api/channel-settings/?channel_id=:id`.
+    Previously the spec hit a 404 that passed under `< 500` — the
+    PATCH was never actually performed. Now asserts round-trip
+    (`price_per_post` written, then read back).
+  - All `status < 500` and `status < 300` replaced with explicit
+    expectations (`ok()`, `[200, 201, 409]`, etc.). Any 404/422 on a
+    valid request now fails the spec instead of silently passing.
+  - Top-up flow: body fixed to `{ desired_amount, method: 'yookassa' }`
+    (was `{ amount }`); asserts `payment_url`, not `confirmation_url`
+    (the latter is the internal YooKassa SDK field). Added
+    `test.skip` guard when `YOOKASSA_SHOP_ID`/`_SECRET_KEY` are not
+    in the runner env, so the scenario only runs where YooKassa is
+    reachable.
+  - Review POST path changed to `/api/reviews/` (trailing slash) to
+    match FastAPI router mount exactly and avoid a 307 that could
+    drop the body.
+- **`tests/unit/api/test_admin_payouts.py`** — all five
+  `patch("…payout_service.{approve,reject}_request", AsyncMock(...))`
+  sites rewritten to `patch.object(payout_service, name, autospec=True)`.
+  Renaming or resignaturing `approve_request` / `reject_request` now
+  breaks the tests at import/patch time instead of producing a green
+  test on a broken service.
+- **`tests/unit/api/test_placements_patch.py`** — `_patch_router_repos`
+  switched from `MagicMock() + setattr(AsyncMock)` to
+  `create_autospec(PlacementRequestService, instance=True, spec_set=True)`.
+  Any drift in `owner_accept`, `owner_reject`, `owner_counter_offer`,
+  `process_payment`, `advertiser_cancel` now fails the suite.
+
+Validation: 20 / 20 pytest passes, ruff clean, grep-guard 7/7,
+Playwright `tsc --noEmit` clean. No `src/` changes.
+
+### Added — FIX_PLAN_06 §§6.1–6.7 finish: tests + guards + CI + docs (2026-04-21)
+
+Closes the remaining subsections of `reports/20260419_diagnostics/FIX_PLAN_06_tests_and_guards.md`
+that were not shipped with the S-47 / S-48 sprints
+(contract-drift snapshots + grep-guards). Scope: **tests + tooling +
+docs only**; no changes to `src/`, `mini_app/src/`, `web_portal/src/`,
+`landing/src/`.
+
+**Added — tests:**
+- `tests/unit/api/test_admin_payouts.py` — 9 unit-тестов на роутер
+  `/api/admin/payouts*` через `app.dependency_overrides` + мок
+  `payout_service`. Покрывают 403 для не-админа, 401 для анонима, 200
+  на approve/reject с корректным `AdminPayoutResponse`, 400 на
+  уже-финализированную выплату, 404 на отсутствующую, 422 на пустую
+  `reason`. (§6.5 unit)
+- `tests/integration/test_payout_lifecycle.py` — 4 integration-теста
+  поверх testcontainers + реальной Postgres-схемы. Патчит
+  `async_session_factory` в `src.db.session` и
+  `src.core.services.payout_service`; sessionmaker привязан к
+  `test_engine`. Закрепляет финансовые инварианты approve (`pending
+  → paid`, `admin_id`, `processed_at`, `platform_account.payout_reserved`
+  уменьшен на gross) и reject (`pending → rejected`, `earned_rub`
+  восстановлен). (§6.5 integration)
+- `tests/unit/api/test_placements_patch.py` — 11 unit-тестов на
+  unified `PATCH /api/placements/{id}`, заменивший legacy
+  `POST /accept|/reject|/counter|/pay|/cancel` в S-44. Мокаются
+  репозитории и `PlacementRequestService`. Покрывают пять action'ов
+  + роль-guard (403 при попытке accept от advertiser), `price
+  required` для counter, 409 при pay вне `pending_payment`, 404 на
+  отсутствующий placement. (§6.6)
+- `web_portal/tests/specs/deep-flows.spec.ts` — 7 Playwright-сценариев
+  поверх docker-compose.test.yml: accept-rules, campaign wizard
+  navigation, channel settings PATCH, placement lifecycle PATCH (adv
+  → owner accept → adv pay), payouts list (owner + admin + 403),
+  top-up intent, review-after-published. Три недостижимых потока
+  (Telegram login widget, channel add via bot, KEP подпись в ЦС)
+  скаффолдены как `test.fixme` с пояснением. (§6.2)
+
+**Added — CI:**
+- `.github/workflows/contract-check.yml` — `bash
+  scripts/check_forbidden_patterns.sh` (§6.4 grep-guards) +
+  `pytest tests/unit/test_contract_schemas.py` (§6.1 contract-drift
+  snapshots) + `pytest tests/unit/api/` (§6.5 + §6.6 unit). Триггеры
+  `pull_request`/`push` на `develop` и `main`.
+- `.github/workflows/frontend.yml` — `tsc --noEmit` по матрице трёх
+  фронтендов (web_portal / mini_app / landing). Для landing
+  используется `npm run typecheck`, для остальных — прямой
+  `npx tsc --noEmit -p tsconfig.json`. (§6.3)
+- `ci.yml.disabled` и `deploy.yml` не изменены.
+
+**Added — docs:**
+- `CLAUDE.md` → два новых раздела:
+  - «API Conventions (FIX_PLAN_06 §6.7)» — формализовано правило
+    `screen → hook → api-module` и три-слойная защита (ESLint → grep
+    → CI).
+  - «Contract drift guard (FIX_PLAN_06 §6.1 Variant B)» — описание
+    snapshot-тестов, workflow обновления через `UPDATE_SNAPSHOTS=1`.
+- `web_portal/README.md` **(new)** — структура директории, правила
+  добавления endpoint'а, команды разработки, ссылки на CI workflow'ы.
+
+**Validation:**
+- `make check-forbidden` → 7/7 ok.
+- `poetry run pytest tests/unit/api/ tests/unit/test_contract_schemas.py
+  tests/integration/test_payout_lifecycle.py --no-cov` → **33 passed**.
+- `poetry run ruff check tests/unit/api/
+  tests/integration/test_payout_lifecycle.py` → clean.
+- `web_portal` tsc: `npx tsc --noEmit -p tests/tsconfig.json` → 0 errors
+  для нового `deep-flows.spec.ts`.
+
+**Known deviation from plan:**
+- §6.1 Variant A (openapi-typescript codegen → `api-generated.ts`) не
+  выполнен — остаётся отложенным в пользу Variant B.
+- §6.5 плановое ожидание 409 на already-finalized payout в admin API
+  закреплено как 400 (фактическое поведение роутера
+  `admin.py:1146-1149`). Изменение маппинга на 409 — отдельная задача
+  с breaking-change для frontend'ов.
+
+### Fixed — legal-status validation hardening (2026-04-21)
+
+Closes the two pre-launch validation gaps surfaced by the 2026-04-21 test
+suite (both were marked `xfail(strict=True)` — now flipped to `passed`).
+
+**Fixed:**
+- `LegalProfileService.create_profile` / `update_profile` now raise
+  `ValueError` for missing / unknown `legal_status`. Previously the
+  profile was silently persisted and `legal_status_completed` was set
+  to `True` because `get_required_fields` fell through to an empty
+  list. (`src/core/services/legal_profile_service.py`)
+- `get_required_fields(legal_status)` now raises on unknown statuses
+  (was returning an empty `_EMPTY_FIELDS` dict). The API endpoint
+  `GET /api/legal-profile/required-fields` surfaces this as HTTP 422.
+- `fns_validation_service.validate_entity_type_match` kept its narrow
+  INN-length responsibility; a new `validate_entity_documents(
+  legal_status, *, ogrn, ogrnip, passport_series, passport_number)`
+  enforces status-specific document rules (OGRN for `legal_entity`,
+  OGRNIP for `individual_entrepreneur`, neither for `self_employed`,
+  passport for `individual`). Wired into
+  `POST /api/legal-profile/validate-entity` and the write path of
+  `LegalProfileService`.
+
+**Added tests:**
+- 15-row parametrised `TestValidateEntityDocuments` matrix
+  (`tests/unit/test_fns_validation_service.py`).
+- Integration-level regressions for unknown / missing status and
+  `self_employed + OGRNIP` rejection at service and API layers.
+
+**Breaking error-shape change:**
+- `GET /api/legal-profile/required-fields?legal_status=<unknown>`:
+  `200 with empty fields` → `422 with {detail: "Unknown legal_status: …"}`.
+- No DB / Pydantic schema changes.
+
+### Added — test suite for legal profiles, contracts, placement↔ORD (2026-04-21)
+
+New automated test coverage for the four flows that gate the
+`ORD_PROVIDER=stub → yandex` switch: legal profiles (all 4 statuses),
+contract generation, placement ↔ ORD ↔ contract wiring, and the
+`YandexOrdProvider` request/response contract via `httpx.MockTransport`.
+
+**Added:**
+- `tests/unit/test_fns_validation_service.py` — INN/OGRN/KPP checksum
+  coverage and matrix for `validate_entity_type_match`.
+- `tests/unit/test_contract_template_map.py` — asserts every
+  `(contract_type, legal_status)` → template file mapping.
+- `tests/unit/test_yandex_ord_provider.py` +
+  `tests/unit/test_yandex_ord_org_type_map.py` — provider methods,
+  error matrix, org-type mapping helpers.
+- `tests/integration/test_legal_profile_service.py` — CRUD / completeness
+  / encrypted round-trip / scan upload / calculate_tax across 4 statuses.
+- `tests/integration/test_api_legal_profile.py` — full
+  `/api/legal-profile/*` HTTP coverage with ASGI transport.
+- `tests/integration/test_contract_service.py` — owner_service
+  generation across 4 templates, `_SNAPSHOT_WHITELIST` PII guard, dedup,
+  signing audit trail.
+- `tests/integration/test_ord_service_with_yandex_mock.py` —
+  `OrdService.register_creative` end-to-end through `YandexOrdProvider`
+  via `httpx.MockTransport` (all 4 endpoints).
+- `tests/integration/test_placement_ord_contract_integration.py` —
+  placement ↔ contract ↔ ORD wiring smoke test.
+- `tests/integration/conftest.py` — testcontainers-based Postgres +
+  per-test transaction rollback fixture.
+- `tests/fixtures/yandex_ord/*.json` — 13 request/response fixtures.
+- `docs/ord/YANDEX_ORD_API_NOTES.md` — Yandex ORD API v7 contract
+  reference + sandbox-access procedure.
+
+**Surfaced (documented as `xfail`, not fixed):**
+- `LegalProfileService.create_profile` accepts unknown `legal_status`
+  and silently marks the profile complete
+  (`legal_profile_service.py:131-152`).
+- `fns_validation_service.validate_entity_type_match` is too coarse on
+  12-digit INN — does not distinguish individual / self_employed /
+  individual_entrepreneur based on OGRNIP presence
+  (`fns_validation_service.py:257`).
+
+**Shared utilities:**
+- `tests/conftest.py` gained `make_valid_inn10/12`, `make_valid_ogrn[ip]`,
+  pre-computed `VALID_*` constants, and `legal_profile_data(status)` +
+  `user_with_legal_profile(status)` factories.
+
+**Results:** 198 passed, 4 skipped (pre-existing), 2 xfailed; ruff clean
+on all new files.
+
 ### Fixed — escrow auto-release + post-deletion pipeline (2026-04-21)
 
 Resolves a production-grade failure where placements that reached `published`
