@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "DisputeAdminResponse": {
+      "description": "Schema for dispute response in admin panel.",
+      "properties": {
+        "admin_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Admin Id"
+        },
+        "advertiser_comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Advertiser Comment"
+        },
+        "advertiser_id": {
+          "title": "Advertiser Id",
+          "type": "integer"
+        },
+        "advertiser_refund_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Advertiser Refund Pct"
+        },
+        "advertiser_username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Advertiser Username"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "owner_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Explanation"
+        },
+        "owner_id": {
+          "title": "Owner Id",
+          "type": "integer"
+        },
+        "owner_payout_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Payout Pct"
+        },
+        "owner_username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Username"
+        },
+        "placement_request_id": {
+          "title": "Placement Request Id",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "resolution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolution"
+        },
+        "resolution_comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolution Comment"
+        },
+        "resolved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved At"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "placement_request_id",
+        "advertiser_id",
+        "owner_id",
+        "reason",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "DisputeAdminResponse",
+      "type": "object"
+    }
+  },
+  "description": "Schema for dispute list response in admin panel.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DisputeAdminResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "limit": {
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "limit",
+    "offset"
+  ],
+  "title": "DisputeListAdminResponse",
+  "type": "object"
+}

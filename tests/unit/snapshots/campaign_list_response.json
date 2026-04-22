@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "CampaignResponse": {
+      "description": "Ответ с данными кампании.",
+      "properties": {
+        "ad_text": {
+          "title": "Ad Text",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "meta_json": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Meta Json"
+        },
+        "proposed_schedule": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Schedule"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "ad_text",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "CampaignResponse",
+      "type": "object"
+    }
+  },
+  "description": "Список кампаний с пагинацией.",
+  "properties": {
+    "has_more": {
+      "title": "Has More",
+      "type": "boolean"
+    },
+    "page": {
+      "title": "Page",
+      "type": "integer"
+    },
+    "page_size": {
+      "title": "Page Size",
+      "type": "integer"
+    },
+    "placement_requests": {
+      "items": {
+        "$ref": "#/$defs/CampaignResponse"
+      },
+      "title": "Placement Requests",
+      "type": "array"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "placement_requests",
+    "total",
+    "page",
+    "page_size",
+    "has_more"
+  ],
+  "title": "CampaignListResponse",
+  "type": "object"
+}

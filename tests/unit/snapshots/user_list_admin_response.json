@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "UserAdminResponse": {
+      "description": "Schema for user response in admin panel.",
+      "properties": {
+        "advertiser_level": {
+          "title": "Advertiser Level",
+          "type": "integer"
+        },
+        "advertiser_xp": {
+          "title": "Advertiser Xp",
+          "type": "integer"
+        },
+        "balance_rub": {
+          "title": "Balance Rub",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "earned_rub": {
+          "title": "Earned Rub",
+          "type": "string"
+        },
+        "first_name": {
+          "title": "First Name",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "is_admin": {
+          "title": "Is Admin",
+          "type": "boolean"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "owner_level": {
+          "title": "Owner Level",
+          "type": "integer"
+        },
+        "owner_xp": {
+          "title": "Owner Xp",
+          "type": "integer"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "plan_expires_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Expires At"
+        },
+        "reputation_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reputation Score"
+        },
+        "telegram_id": {
+          "title": "Telegram Id",
+          "type": "integer"
+        },
+        "total_channels": {
+          "default": 0,
+          "title": "Total Channels",
+          "type": "integer"
+        },
+        "total_disputes": {
+          "default": 0,
+          "title": "Total Disputes",
+          "type": "integer"
+        },
+        "total_feedback": {
+          "default": 0,
+          "title": "Total Feedback",
+          "type": "integer"
+        },
+        "total_placements": {
+          "default": 0,
+          "title": "Total Placements",
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Username"
+        }
+      },
+      "required": [
+        "id",
+        "telegram_id",
+        "first_name",
+        "plan",
+        "balance_rub",
+        "earned_rub",
+        "is_admin",
+        "advertiser_xp",
+        "advertiser_level",
+        "owner_xp",
+        "owner_level",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "UserAdminResponse",
+      "type": "object"
+    }
+  },
+  "description": "Schema for user list response in admin panel.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/UserAdminResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "limit": {
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "limit",
+    "offset"
+  ],
+  "title": "UserListAdminResponse",
+  "type": "object"
+}
