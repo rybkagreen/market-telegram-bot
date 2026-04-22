@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — plan-08 deferred E2E flows formalized in BACKLOG.md (2026-04-21)
+
+Three `test.fixme(true, …)` blocks in
+`web_portal/tests/specs/deep-flows.spec.ts` had no trackable
+re-activation contract — they were sliding toward permanent dead
+code. Now each one references a BL-ID in the new project backlog.
+
+- **New** `reports/docs-architect/BACKLOG.md` — top-level project
+  backlog. Three deferred items:
+  - **BL-001** Dispute round-trip — needs seed-fixture (escrow
+    placement + open disputable window).
+  - **BL-002** Channel add via bot verification — needs Telegram Bot
+    API mock in `docker-compose.test.yml`.
+  - **BL-003** KEP signature on framework contract — needs
+    КриптоПро stub or `signature_method=sms_code` fallback.
+- **Modified** `.gitignore` — `!reports/docs-architect/BACKLOG.md`
+  exception so the new backlog file escapes the broad `reports/*`
+  ignore.
+- **Modified** `web_portal/tests/specs/deep-flows.spec.ts` — all
+  three fixme blocks rewritten: `test.fixme(true, reason)` + empty
+  `test()` → single `test.fixme(title, body)` whose title points at
+  the BL-ID, body holds the re-activation hint as a comment.
+- **Modified** `CLAUDE.md` — added `## Deferred E2E items (plan-08)`
+  with the BL-ID table and a rule against silent
+  `test.fixme(true, …)` blocks going forward.
+
+Validation: TypeScript clean. No `src/` changes.
+
 ### Added — plan-04 list-response contract snapshots (2026-04-21)
 
 Closes the drift-guard gap left by FIX_PLAN_06 §6.1 Variant B: only
