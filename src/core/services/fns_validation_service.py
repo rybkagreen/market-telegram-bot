@@ -284,3 +284,79 @@ def validate_entity_type_match(legal_status: str, inn: str) -> tuple[bool, str |
         return False, "12-значный ИНН характерен для физлица/ИП, а не для юрлица (ООО/АО)"
 
     return True, None
+
+
+def validate_entity_documents(
+    legal_status: str,
+    *,
+    ogrn: str | None = None,
+    ogrnip: str | None = None,
+    passport_series: str | None = None,
+    passport_number: str | None = None,
+) -> tuple[bool, str | None]:
+    """Validate that the supplied documents match the declared legal_status.
+
+    Complements `validate_entity_type_match` (which only checks INN length
+    against the status) by ensuring status-specific documents are present
+    and incompatible ones are absent.
+
+    Rules:
+      legal_entity            — OGRN present, OGRNIP / passport absent.
+      individual_entrepreneur — OGRNIP present, OGRN / passport absent.
+      self_employed           — OGRN / OGRNIP absent (cert is uploaded
+                                separately via /scan, not validated here).
+      individual              — passport_series + passport_number present,
+                                OGRN / OGRNIP absent.
+
+    Fields passed as None or empty string are treated as "not provided".
+    Returns the first violation it finds; prefers "missing required" over
+    "forbidden field present" when both apply.
+    """
+    def _has(value: str | None) -> bool:
+        return bool(value and str(value).strip())
+
+    has_ogrn = _has(ogrn)
+    has_ogrnip = _has(ogrnip)
+    has_passport = _has(passport_series) and _has(passport_number)
+
+    if legal_status == "legal_entity":
+        if not has_ogrn:
+            return False, "Для юрлица (ООО/АО) требуется ОГРН"
+        if has_ogrnip:
+            return False, "ОГРНИП не применим к юрлицу — ожидается только ОГРН"
+        if has_passport:
+            return False, "Паспортные данные не применимы к юрлицу"
+        return True, None
+
+    if legal_status == "individual_entrepreneur":
+        if not has_ogrnip:
+            return False, "Для ИП требуется ОГРНИП"
+        if has_ogrn:
+            return False, "ОГРН не применим к ИП — ожидается только ОГРНИП"
+        if has_passport:
+            return False, "Паспортные данные не применимы к ИП в качестве реквизитов"
+        return True, None
+
+    if legal_status == "self_employed":
+        if has_ogrnip:
+            return (
+                False,
+                "ОГРНИП указывает на статус ИП, а не самозанятого — "
+                "выберите статус «ИП» или уберите ОГРНИП",
+            )
+        if has_ogrn:
+            return False, "ОГРН не применим к самозанятому"
+        return True, None
+
+    if legal_status == "individual":
+        if not has_passport:
+            return False, "Для физлица требуются паспортные данные (серия и номер)"
+        if has_ogrnip:
+            return False, "ОГРНИП указывает на статус ИП, а не физлица"
+        if has_ogrn:
+            return False, "ОГРН не применим к физлицу"
+        return True, None
+
+    # Unknown status — not this function's job to validate the enum,
+    # caller is expected to guard via LegalProfileService._require_known_status.
+    return True, None
