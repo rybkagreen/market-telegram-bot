@@ -1,0 +1,16 @@
+{
+  "statistics": [
+    {
+      "creativeId": "creative-500",
+      "platformId": "platform-500",
+      "dateStartFact": "2026-04-21",
+      "dateEndFact": "2026-04-21",
+      "dateStartPlan": "2026-04-21",
+      "dateEndPlan": "2026-04-21",
+      "impsFact": 1,
+      "impsPlan": 1,
+      "type": "other",
+      "createdAt": "2026-04-21T11:00:00Z"
+    }
+  ]
+}

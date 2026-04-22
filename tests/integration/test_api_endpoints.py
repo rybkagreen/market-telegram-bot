@@ -3,9 +3,9 @@ Integration tests for critical API endpoints.
 Tests public endpoints and basic API functionality.
 """
 
-import pytest
-from httpx import AsyncClient
 from decimal import Decimal
+
+import pytest
 
 
 class TestPublicEndpoints:
@@ -101,8 +101,9 @@ class TestPayoutService:
 
     def test_payout_fee_calculation(self):
         """Payout fee is calculated as 15% platform commission."""
-        from src.core.services.payout_service import PayoutService
         from decimal import Decimal
+
+        from src.core.services.payout_service import PayoutService
 
         service = PayoutService()
         price = Decimal("1000")
@@ -113,8 +114,9 @@ class TestPayoutService:
 
     def test_payout_calculation_rounding(self):
         """Payout calculation rounds to 2 decimal places."""
-        from src.core.services.payout_service import PayoutService
         from decimal import Decimal
+
+        from src.core.services.payout_service import PayoutService
 
         service = PayoutService()
         price = Decimal("999")
@@ -154,8 +156,9 @@ class TestFormatMultipliers:
 
     def test_format_multipliers_values(self):
         """Format multipliers have correct values."""
-        from src.constants.payments import FORMAT_MULTIPLIERS
         from decimal import Decimal
+
+        from src.constants.payments import FORMAT_MULTIPLIERS
 
         assert FORMAT_MULTIPLIERS["post_24h"] == Decimal("1.0")
         assert FORMAT_MULTIPLIERS["post_48h"] == Decimal("1.4")
