@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — plan-03 placement PATCH coverage completion (2026-04-21)
+
+Closes the gaps in `tests/unit/api/test_placements_patch.py` left
+after FIX_PLAN_06 §6.6: 2 of 7 PATCH actions had no tests, and the
+router's three error branches (`HTTPException`, `ValueError → 409`,
+`Exception → 500`) — all of which call `session.rollback()` — were
+unreachable from the suite because every previous test mocked the
+service with `return_value=…` and never raised.
+
+- **Modified** `tests/unit/api/test_placements_patch.py` — +11 unit
+  tests (5 new classes), now 22 total:
+  - `TestPatchAcceptCounter` (3) — `accept-counter` happy path,
+    409 wrong status, 403 owner-not-advertiser.
+  - `TestPatchCounterReply` (3) — `counter-reply` happy path with
+    price+comment (4-arg autospec match — FIX #20 / S-45 safety
+    net), 400 missing price, 403 owner-not-advertiser.
+  - `TestPatchRejectReasonCode` (1) — router falls back to
+    `reason_code` when `reason_text` is absent.
+  - `TestChannelNotFound` (1) — placement exists but channel was
+    deleted → 404.
+  - `TestErrorPathsCallRollback` (3) — ESCROW-002 regression
+    guard: `ValueError`, `HTTPException`, `RuntimeError` all
+    assert `session.rollback.assert_awaited_once()` and
+    `session.commit.assert_not_awaited()`.
+- New fixtures `session_spy`, `client_as_owner_with_spy`,
+  `client_as_advertiser_with_spy` — share one session-mock between
+  the dependency-override and the test so `rollback` / `commit`
+  call counts can be inspected after the request returns.
+
+Validation: `pytest tests/unit/api/test_placements_patch.py` →
+22 passed; ruff clean; grep-guard 7/7.
+
 ### Changed — plan-08 deferred E2E flows formalized in BACKLOG.md (2026-04-21)
 
 Three `test.fixme(true, …)` blocks in
