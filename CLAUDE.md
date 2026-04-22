@@ -395,6 +395,22 @@ These tasks MUST be completed before deploying with real payments and publicatio
 - For post-launch adversarial protection — integrate `npchk.nalog.ru`
 - Does not block launch (checksum is sufficient against typos)
 
+## Deferred E2E items (plan-08)
+
+Three flows in `web_portal/tests/specs/deep-flows.spec.ts` are
+permanently `test.fixme`'d. Each has explicit re-activation criteria
+in `reports/docs-architect/BACKLOG.md` — re-activate by satisfying
+the criterion, then turn the `test.fixme` into a real `test`.
+
+| ID | Flow | Blocked by |
+|---|---|---|
+| BL-001 | Dispute round-trip | seed-fixture: escrow placement + open disputable window |
+| BL-002 | Channel add via bot verification | Telegram Bot API mock in docker-compose.test.yml |
+| BL-003 | KEP signature on framework contract | КриптоПро stub or `signature_method=sms_code` fallback |
+
+Do **not** add new `test.fixme(true, ...)` blocks without recording a
+matching BL entry — silent skips defeat the point of the suite.
+
 ## Known Issues (2026-03-22)
 
 - **mypy**: 529 errors in 41 files — long-standing, pre-existing, not blocking deployment. Key example: `placements.py:534` returns `PlacementRequest` where `PlacementResponse` expected.
