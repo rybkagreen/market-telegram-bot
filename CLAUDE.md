@@ -311,17 +311,33 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`. Integration tests use `
 4. Подключить hook в экране. Прямой вызов `api.*` в экране — fail
    CI (ESLint + grep-guard).
 
-## Contract drift guard (FIX_PLAN_06 §6.1 Variant B)
+## Contract drift guard (FIX_PLAN_06 §6.1 Variant B + plan-04)
 
 `tests/unit/test_contract_schemas.py` снимает JSON-schema-снимки
-восьми критичных Pydantic-моделей (`UserResponse`,
-`UserAdminResponse`, `PlacementResponse`, `PayoutResponse`,
-`ContractResponse`, `DisputeResponse`, `LegalProfileResponse`,
-`ChannelResponse`) и валидирует против файлов в
+18 моделей и валидирует их против файлов в
 `tests/unit/snapshots/*.json`. Любое изменение формы (переименование
 / добавление / удаление поля, смена типа) ломает тест с unified diff
 — автор обязан пересгенерировать snapshot и закоммитить рядом со
 схемой, что делает drift видимым в ревью.
+
+**Item-схемы (8):** `UserResponse`, `UserAdminResponse`,
+`PlacementResponse`, `PayoutResponse`, `ContractResponse`,
+`DisputeResponse`, `LegalProfileResponse`, `ChannelResponse`.
+
+**List / pagination wrappers (10, plan-04):**
+`AdminPayoutListResponse`, `AdminContractListResponse`,
+`UserListAdminResponse`, `DisputeListAdminResponse`,
+`FeedbackListAdminResponse`, `DisputeListResponse`,
+`FeedbackListResponse`, `ContractListResponse`,
+`CampaignListResponse`, `CampaignsListResponse`. Покрывают форму
+`{items, total, limit, offset}` (и две легаси-формы в
+`campaigns.py`) — переименование `total → count` или
+`items → rows` ломает тест.
+
+**Сознательно НЕ покрыто** (item-схема уже фиксирует контракт, либо
+ответ собирается inline-dict без Pydantic-обёртки):
+`GET /api/payouts/` (`list[PayoutResponse]`),
+`GET /api/admin/audit-logs` (inline `dict`).
 
 Регенерация: `UPDATE_SNAPSHOTS=1 poetry run pytest
 tests/unit/test_contract_schemas.py`.

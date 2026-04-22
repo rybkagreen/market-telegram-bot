@@ -36,17 +36,41 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from src.api.routers.campaigns import CampaignListResponse, CampaignsListResponse
 from src.api.routers.placements import PlacementResponse
-from src.api.schemas.admin import UserAdminResponse
+from src.api.schemas.admin import (
+    AdminContractListResponse,
+    DisputeListAdminResponse,
+    FeedbackListAdminResponse,
+    UserAdminResponse,
+    UserListAdminResponse,
+)
 from src.api.schemas.channel import ChannelResponse
-from src.api.schemas.dispute import DisputeResponse
-from src.api.schemas.legal_profile import ContractResponse, LegalProfileResponse
-from src.api.schemas.payout import PayoutResponse
+from src.api.schemas.dispute import DisputeListResponse, DisputeResponse
+from src.api.schemas.feedback import FeedbackListResponse
+from src.api.schemas.legal_profile import (
+    ContractListResponse,
+    ContractResponse,
+    LegalProfileResponse,
+)
+from src.api.schemas.payout import AdminPayoutListResponse, PayoutResponse
 from src.api.schemas.user import UserResponse
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 
-# (snapshot_name, model_class) — snapshot_name is the file stem under SNAPSHOT_DIR
+# (snapshot_name, model_class) — snapshot_name is the file stem under SNAPSHOT_DIR.
+#
+# List-wrapper schemas (plan-04, 2026-04-21) are deliberately included here:
+# the web_portal admin and Mini App pages consume the wrapper shape
+# (`{items, total, limit, offset}` / `{placement_requests, total, page, …}`),
+# not the bare list. A rename of `total → count` or `items → rows` would be
+# invisible without an explicit snapshot.
+#
+# Skipped on purpose — endpoint either returns a bare list[X] (item schema
+# already covers the contract) or builds an inline dict without a Pydantic
+# wrapper:
+#   * GET /api/payouts/                 → list[PayoutResponse]
+#   * GET /api/admin/audit-logs         → inline dict (no wrapper class)
 CONTRACT_SCHEMAS: list[tuple[str, type[BaseModel]]] = [
     ("user_response", UserResponse),
     ("user_admin_response", UserAdminResponse),
@@ -56,6 +80,17 @@ CONTRACT_SCHEMAS: list[tuple[str, type[BaseModel]]] = [
     ("dispute_response", DisputeResponse),
     ("legal_profile_response", LegalProfileResponse),
     ("channel_response", ChannelResponse),
+    # ── list / pagination wrappers ──────────────────────────────────────
+    ("admin_payout_list_response", AdminPayoutListResponse),
+    ("admin_contract_list_response", AdminContractListResponse),
+    ("user_list_admin_response", UserListAdminResponse),
+    ("dispute_list_admin_response", DisputeListAdminResponse),
+    ("feedback_list_admin_response", FeedbackListAdminResponse),
+    ("dispute_list_response", DisputeListResponse),
+    ("feedback_list_response", FeedbackListResponse),
+    ("contract_list_response", ContractListResponse),
+    ("campaign_list_response", CampaignListResponse),
+    ("campaigns_list_response", CampaignsListResponse),
 ]
 
 
