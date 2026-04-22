@@ -9,16 +9,16 @@ Integration-тест полного жизненного цикла выплат
     * Обновление `PlatformAccount.payout_reserved` / `total_payouts`
     * Возврат `earned_rub` владельцу при reject
 
-Особенности:
-    * Сервис внутри открывает собственные сессии через
-      `async_session_factory`, поэтому используем отдельный
-      sessionmaker, привязанный к `test_engine`, и патчим фабрику
-      в `src.db.session` и `src.core.services.payout_service`.
-    * Транзакции сервиса настоящие (commit'ят в базу), поэтому после
-      каждого теста чистим связанные таблицы — schema живёт до конца
-      сессии testcontainers.
-    * Использует уникальные `telegram_id` / `requisites` на случай,
-      если предыдущий тест упал и не успел дочистить.
+Изоляция (plan-06, 2026-04-21):
+    Используется SAVEPOINT-pattern из SQLAlchemy 2 docs (см.
+    `tests/integration/README.md`). Все сессии — на одном connection'е
+    под одной наружной транзакцией; `join_transaction_mode=
+    "create_savepoint"` превращает service-внутренний `session.begin()`
+    в SAVEPOINT, наружный rollback откатывает всё → TRUNCATE между
+    тестами не нужен.
+
+    Тест `test_payout_concurrent.py` живёт на engine-bound фабрике с
+    TRUNCATE — для honest-concurrency через asyncio.gather.
 """
 
 from __future__ import annotations
@@ -31,7 +31,6 @@ from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.core.services import payout_service as payout_service_module
@@ -50,33 +49,41 @@ def _unique_int() -> int:
 
 @pytest_asyncio.fixture
 async def bound_factory(test_engine: Any) -> AsyncGenerator[Any]:
-    """Привязать `async_session_factory` к engine'у testcontainer'а.
+    """SAVEPOINT-isolated session factory (plan-06).
 
-    Сервис открывает собственные сессии — нужно, чтобы они видели тот же
-    engine, что и тестовая подготовка данных.
+    Открывает один connection, заворачивает его в наружную транзакцию,
+    отдаёт `async_sessionmaker(bind=connection,
+    join_transaction_mode="create_savepoint")`. Все сессии — и тестовые
+    seed'ы, и service-внутренние через async_session_factory — садятся
+    на тот же connection. Каждый `async with session.begin():` внутри
+    сервиса теперь открывает SAVEPOINT (а не реальную транзакцию), и
+    наружный `trans.rollback()` откатывает всё разом.
+
+    Преимущества над прежним engine + TRUNCATE подходом:
+        * Нет cross-test leakage — каждый тест видит чистую базу.
+        * Sequence не сбрасываются — нет «прошло/упало от порядка».
+        * Параллельный прогон (`pytest -n auto`) безопасен.
+        * Быстрее: SAVEPOINT rollback ≪ TRUNCATE … RESTART IDENTITY.
+
+    Несовместим с `asyncio.gather` (asyncpg single-threaded на один
+    connection). Concurrent-тесты используют отдельную фабрику,
+    см. `test_payout_concurrent.py`.
     """
-    factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
-    with (
-        patch.object(session_module, "async_session_factory", factory),
-        patch.object(payout_service_module, "async_session_factory", factory),
-    ):
-        yield factory
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def _cleanup_after_test(test_engine: Any, bound_factory: Any) -> AsyncGenerator[None]:
-    """Вычистить данные теста (TRUNCATE) после прогона.
-
-    Schema между тестами остаётся, строки чистим точечно.
-    """
-    yield
-    async with test_engine.begin() as conn:
-        await conn.execute(
-            text(
-                "TRUNCATE TABLE transactions, payout_requests, platform_account, "
-                "users RESTART IDENTITY CASCADE"
+    async with test_engine.connect() as connection:
+        trans = await connection.begin()
+        try:
+            factory = async_sessionmaker(
+                bind=connection,
+                expire_on_commit=False,
+                join_transaction_mode="create_savepoint",
             )
-        )
+            with (
+                patch.object(session_module, "async_session_factory", factory),
+                patch.object(payout_service_module, "async_session_factory", factory),
+            ):
+                yield factory
+        finally:
+            await trans.rollback()
 
 
 async def _seed_pending_payout(factory: Any) -> tuple[int, int, int]:
