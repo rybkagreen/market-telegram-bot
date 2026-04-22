@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — plan-02 concurrent payout approve / reject race (2026-04-21)
+
+Closes a financial double-spend race in
+`PayoutService.approve_request` / `reject_request`. The pre-fix code
+ran in three sequential sessions (status check → financial move →
+admin_id stamp); two parallel admin clicks could both pass the
+status check in independent sessions, causing
+`PlatformAccount.payout_reserved -= gross` to apply twice (and the
+USN expense to be recorded twice). Same class of bug as ESCROW-002.
+
+**Modified — `src/core/services/payout_service.py`:**
+- `approve_request` and `reject_request` rewritten to a single
+  session under `async with session.begin():` whose first statement
+  is `select(PayoutRequest).where(id=…).with_for_update()`.
+  Concurrent admins now serialize on the row lock; the second
+  arrival sees the already-finalized status and raises
+  `ValueError("already finalized")`.
+- Lock order documented (`PayoutRequest → PlatformAccount`) and
+  identical between approve and reject — no approve↔reject
+  deadlock.
+- `complete_payout` and `reject_payout` no longer open their own
+  `async with session.begin():`. Per Service Transaction Contract
+  (CLAUDE.md § S-48), the outermost caller owns the transaction;
+  these methods now `flush` only. Audit confirmed both methods are
+  called only by `approve_request` / `reject_request` (no external
+  callers).
+
+**New — `tests/integration/test_payout_concurrent.py` (3 tests):**
+- `test_three_concurrent_approves_yield_one_success` — 3 ×
+  `approve_request` via `asyncio.gather`; asserts exactly 1 success
+  and `platform.payout_reserved == 0` (would land at `-gross` /
+  `-2*gross` pre-fix).
+- `test_concurrent_approve_then_reject_one_wins` — `approve` ‖
+  `reject`; asserts exactly 1 winner with state consistent with the
+  winner.
+- `test_three_concurrent_rejects_yield_one_success` — 3 × `reject`;
+  asserts `owner.earned_rub == gross` (not `2*gross` / `3*gross`).
+
+Validation: 16 passed across `test_payout_lifecycle.py` (4) +
+`test_payout_concurrent.py` (3) + `test_admin_payouts.py` (9). Ruff
+clean. Grep-guard 7/7. No DB migration; no public-API change.
+
 ### Added — plan-03 placement PATCH coverage completion (2026-04-21)
 
 Closes the gaps in `tests/unit/api/test_placements_patch.py` left
