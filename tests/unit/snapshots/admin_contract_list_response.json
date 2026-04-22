@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "AdminContractItem": {
+      "description": "Single contract item for admin listing — no sensitive fields.",
+      "properties": {
+        "contract_status": {
+          "title": "Contract Status",
+          "type": "string"
+        },
+        "contract_type": {
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "signed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signed At"
+        },
+        "template_version": {
+          "title": "Template Version",
+          "type": "string"
+        },
+        "user_id": {
+          "title": "User Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "contract_type",
+        "contract_status",
+        "created_at",
+        "template_version"
+      ],
+      "title": "AdminContractItem",
+      "type": "object"
+    }
+  },
+  "description": "Paginated list of all platform contracts (admin only).",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AdminContractItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "limit": {
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "limit",
+    "offset"
+  ],
+  "title": "AdminContractListResponse",
+  "type": "object"
+}

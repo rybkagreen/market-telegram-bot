@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "CampaignItem": {
+      "description": "Краткая информация о кампании для списка.",
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "error_msg": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Msg"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "sent_count": {
+          "title": "Sent Count",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "target_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Count"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "created_at",
+        "sent_count"
+      ],
+      "title": "CampaignItem",
+      "type": "object"
+    }
+  },
+  "description": "Список кампаний для Mini App.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/CampaignItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "page": {
+      "title": "Page",
+      "type": "integer"
+    },
+    "pages": {
+      "title": "Pages",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "page",
+    "pages"
+  ],
+  "title": "CampaignsListResponse",
+  "type": "object"
+}

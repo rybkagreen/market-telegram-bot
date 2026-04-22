@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "FeedbackResponse": {
+      "description": "Schema for feedback response.",
+      "properties": {
+        "admin_response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Admin Response"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "responded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Responded At"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "user_id": {
+          "title": "User Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "text",
+        "status",
+        "created_at"
+      ],
+      "title": "FeedbackResponse",
+      "type": "object"
+    }
+  },
+  "description": "Schema for feedback list.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/FeedbackResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "total"
+  ],
+  "title": "FeedbackListResponse",
+  "type": "object"
+}
