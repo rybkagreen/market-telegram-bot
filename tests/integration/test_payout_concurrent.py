@@ -14,8 +14,11 @@ accounting is moved exactly once.
 Without `SELECT … FOR UPDATE` on `PayoutRequest`, the assertions on
 `payout_reserved` / `earned_rub` would fail on the first race attempt.
 
-Mirrors fixture/cleanup conventions from
-`tests/integration/test_payout_lifecycle.py`.
+Uses **Pattern C** (engine-bound factory + TRUNCATE) deliberately.
+The SAVEPOINT pattern (`test_payout_lifecycle.py`, Pattern B) would
+serialize all gathered coroutines on the single connection and the
+race could never trigger. See `tests/integration/README.md` for the
+decision tree.
 """
 
 from __future__ import annotations
