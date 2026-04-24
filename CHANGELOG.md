@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Project rules: objections section + phase mode discipline (2026-04-25)
+
+Documentation-only update to `CLAUDE.md` and `IMPLEMENTATION_PLAN_ACTIVE.md`.
+No `src/` or runtime changes. Triggered by Phase 0 research stop-point
+review where the consolidation report rubber-stamped a known-imprecise
+plan directive and proposed a "WARN-and-accept" legacy JWT fallback. See
+`reports/docs-architect/discovery/CHANGES_2026-04-25_meta-rules-objections-phase-discipline.md`.
+
+- New `CLAUDE.md` section **"Research reports — Objections section
+  (MANDATORY)"** before "Documentation & Changelog Sync". Three
+  sub-rules:
+  - Research reports must contain a "Возражения и риски" section *before*
+    "Вопросы для подтверждения". Five categories listed (security,
+    contradictions, missed edge cases, bad naming, API ergonomics traps).
+    Disguising objections as confirmation questions is prohibited.
+  - **Phase mode discipline:** research/planning = critical, dispute
+    decisions; implementation = execute as written, stop only on blocking
+    issues, no scope creep.
+  - **Raise-vs-defer split:** four blocking categories (security, bugs,
+    contradictions, future-maintenance burden) raised explicitly; five
+    cosmetic categories (refactors, style, untouched-code coverage,
+    unmeasured perf, naming preferences) deferred to a one-line footnote.
+- Same three rules mirrored into `IMPLEMENTATION_PLAN_ACTIVE.md`
+  "Общие правила" so each phase's resume prompt picks them up
+  automatically.
+- `IMPLEMENTATION_PLAN_ACTIVE.md` Phase 0 sections rewritten to bake in
+  security-hardened decisions (legacy aud-less → 401 not WARN;
+  `decode_jwt_token` audience required; `/consume-ticket` rate-limit +
+  replay logging; JTI value with context not `"1"`; `STUB-ERID` retained
+  not renamed; VITE_PORTAL_URL fallback removed; `audit_middleware`
+  FIXME-only). Test count raised from 3 to 8 functional + 2 rate-limit.
+
 ### Changed — Consolidated escrow pipeline + unified Bot factory (2026-04-24)
 
 Diagnostic of a reported "advertiser vs owner status desync" exposed
