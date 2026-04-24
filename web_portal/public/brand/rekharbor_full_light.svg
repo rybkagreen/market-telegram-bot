@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <g id="icon" transform="translate(40.96, 68.84) scale(1.5929)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 988 200" width="988" height="200">
+  <g id="icon" transform="translate(30.00, 20.00) scale(0.6809)">
     <g fill="#00AEEE" fill-rule="evenodd" transform="translate(0, 235) scale(0.1, -0.1)">
       <path d="M95 2173 c-7 -5 -9 -175 -7 -485 l4 -478 64 0 64 0 0 240 0 240 235
 0 c272 0 291 -5 377 -93 38 -38 52 -63 69 -120 20 -64 21 -77 10 -132 -22
@@ -24,4 +24,9 @@ l-75 80 571 0 571 0 0 -371z"/>
 -2 0 266 0 267 43 -7 c23 -4 65 -18 93 -31z"/>
     </g>
   </g>
+  <text id="wordmark" x="238" y="137"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif"
+        font-size="110" font-weight="600" letter-spacing="-2">
+    <tspan fill="#00AEEE">Rek</tspan><tspan fill="#0C121A">Harbor</tspan>
+  </text>
 </svg>
