@@ -587,6 +587,36 @@ async def get_campaign_ai_insights(
     )
 
 
+# ─── Unified AI insights (new /analytics screen) ───────────────
+
+
+@router.get("/ai-insights")
+async def get_unified_ai_insights(
+    current_user: CurrentUser,
+    role: Annotated[str, Query(pattern="^(advertiser|owner)$")] = "advertiser",
+    nocache: Annotated[bool, Query()] = False,
+):
+    """Единая AI-аналитика для нового экрана /analytics.
+
+    Возвращает нарратив, 1-3 action item'а, forecast, аномалии и флаги каналов.
+    Использует Mistral как основной путь и детерминированный rule-based fallback
+    при недоступности ключа/сети. Redis-cache 15 мин (ключ
+    `ai_insights:{user_id}:{role}:v1`). ``?nocache=1`` форсит обновление.
+    """
+    from src.api.schemas.analytics import AIInsightsUnifiedResponse
+
+    async with async_session_factory() as session:
+        service = AnalyticsService()
+        payload = await service.generate_unified_insights(
+            user_id=current_user.id,
+            role=role,  # type: ignore[arg-type]
+            session=session,
+            force_refresh=nocache,
+        )
+
+    return AIInsightsUnifiedResponse.model_validate(payload)
+
+
 # ─── Mini App Analytics Endpoints ──────────────────────────────
 
 

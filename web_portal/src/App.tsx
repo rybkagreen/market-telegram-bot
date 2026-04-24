@@ -30,8 +30,10 @@ const ContractDetail = lazy(() => import('@/screens/common/ContractDetail'))
 const DocumentUpload = lazy(() => import('@/screens/common/DocumentUpload'))
 const ReputationHistory = lazy(() => import('@/screens/common/ReputationHistory'))
 
+// ═══ Common screens ═══
+const Analytics = lazy(() => import('@/screens/common/Analytics'))
+
 // ═══ Advertiser screens ═══
-const AdvAnalytics = lazy(() => import('@/screens/advertiser/AdvAnalytics'))
 const CampaignPayment = lazy(() => import('@/screens/advertiser/CampaignPayment'))
 const CampaignCounterOffer = lazy(() => import('@/screens/advertiser/CampaignCounterOffer'))
 const MyCampaigns = lazy(() => import('@/screens/advertiser/MyCampaigns'))
@@ -50,7 +52,6 @@ const CampaignWaiting = lazy(() => import('@/screens/advertiser/campaign/Campaig
 const CampaignPublished = lazy(() => import('@/screens/advertiser/campaign/CampaignPublished'))
 
 // ═══ Owner screens ═══
-const OwnAnalytics = lazy(() => import('@/screens/owner/OwnAnalytics'))
 const OwnChannels = lazy(() => import('@/screens/owner/OwnChannels'))
 const OwnChannelDetail = lazy(() => import('@/screens/owner/OwnChannelDetail'))
 const OwnRequestDetail = lazy(() => import('@/screens/owner/OwnRequestDetail'))
@@ -157,12 +158,13 @@ const router = createBrowserRouter([
           { path: 'campaign/:id/ord', element: <OrdStatus /> },
           { path: 'contracts/framework', element: <AdvertiserFrameworkContract /> },
 
-          // Analytics
-          { path: 'adv/analytics', element: <AdvAnalytics /> },
+          // Analytics — unified /analytics replaces adv/analytics and own/analytics
+          { path: 'analytics', element: <Analytics /> },
+          { path: 'adv/analytics', element: <Navigate to="/analytics?role=advertiser" replace /> },
 
           // ── Owner ──
           { path: 'own', element: <Navigate to="/own/channels" replace /> },
-          { path: 'own/analytics', element: <OwnAnalytics /> },
+          { path: 'own/analytics', element: <Navigate to="/analytics?role=owner" replace /> },
           { path: 'own/channels', element: <OwnChannels /> },
           { path: 'own/channels/add', element: <OwnAddChannel /> },
           { path: 'own/channels/:id', element: <OwnChannelDetail /> },
