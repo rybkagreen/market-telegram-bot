@@ -68,11 +68,8 @@ export default function TopUp() {
   }
 
   return (
-    <div
-      className="max-w-[1120px] mx-auto grid gap-7 items-start"
-      style={{ gridTemplateColumns: 'minmax(0, 1fr) 360px' }}
-    >
-      <div>
+    <div className="max-w-[1120px] mx-auto grid gap-6 items-start grid-cols-1 md:gap-7 md:[grid-template-columns:minmax(0,1fr)_360px]">
+      <div className="min-w-0">
         <ScreenHeader
           title="Пополнение баланса"
           subtitle="Два шага. Оплата через ЮKassa, средства зачисляются автоматически."
@@ -156,7 +153,7 @@ export default function TopUp() {
         <Section className="mt-[18px]">
           <div className="flex items-center justify-between gap-5">
             <div className="flex gap-3 items-start">
-              <span className="grid place-items-center w-8.5 h-8.5 w-[34px] h-[34px] rounded-lg bg-accent-2-muted text-accent-2 flex-shrink-0">
+              <span className="grid place-items-center w-[34px] h-[34px] rounded-lg bg-accent-2-muted text-accent-2 flex-shrink-0">
                 <Icon name="refresh" size={16} />
               </span>
               <div>
@@ -173,7 +170,7 @@ export default function TopUp() {
         </Section>
       </div>
 
-      <aside className="sticky top-5 flex flex-col gap-3.5">
+      <aside className="flex flex-col gap-3.5 min-w-0 md:sticky md:top-5">
         <div className="bg-harbor-card border border-border rounded-xl p-5">
           <div className="font-display text-[13px] font-semibold text-text-primary mb-3.5 tracking-[-0.005em]">
             Итог пополнения

@@ -250,43 +250,46 @@ export default function OwnRequests() {
               return (
                 <div
                   key={req.id}
-                  className={`flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'}`}
+                  className={`px-4 sm:px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'} flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4`}
                 >
-                  <span
-                    className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}
-                  >
-                    <Icon name={meta.icon} size={16} />
-                  </span>
+                  {/* Top row on mobile: icon + channel + id + price-trailing */}
+                  <div className="flex items-start gap-3 sm:contents">
+                    <span
+                      className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}
+                      aria-label={meta.label}
+                      title={meta.label}
+                    >
+                      <Icon name={meta.icon} size={16} />
+                    </span>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2.5 mb-0.5 flex-wrap">
-                      <span className="text-[13.5px] font-semibold text-text-primary">
-                        {channelLabel}
-                      </span>
-                      <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated">
-                        #{req.id}
-                      </span>
-                    </div>
-                    <div className="text-xs text-text-secondary truncate max-w-[420px]">
-                      {req.ad_text.substring(0, 100)}
-                      {req.ad_text.length > 100 ? '…' : ''}
-                    </div>
-                    <div className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums">
-                      {dateStr} МСК
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+                        <span className="text-[13.5px] font-semibold text-text-primary truncate">
+                          {channelLabel}
+                        </span>
+                        <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated flex-shrink-0">
+                          #{req.id}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-secondary truncate sm:max-w-[420px]">
+                        {req.ad_text.substring(0, 100)}
+                        {req.ad_text.length > 100 ? '…' : ''}
+                      </div>
+                      <div className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums flex items-center justify-between gap-2 sm:block">
+                        <span>{dateStr} МСК</span>
+                        <span className="sm:hidden font-mono text-[14px] font-semibold text-text-primary whitespace-nowrap">
+                          {priceStr}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <span
-                    className={`hidden sm:inline-flex text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[meta.tone]}`}
-                  >
-                    {meta.label}
-                  </span>
-
-                  <span className="font-mono tabular-nums text-[15px] font-semibold whitespace-nowrap text-right min-w-[110px] text-text-primary">
+                  {/* Desktop price cell */}
+                  <span className="hidden sm:inline-block font-mono tabular-nums text-[15px] font-semibold whitespace-nowrap text-right min-w-[110px] text-text-primary">
                     {priceStr}
                   </span>
 
-                  <div className="flex gap-1.5 flex-shrink-0">
+                  <div className="flex gap-1.5 flex-shrink-0 justify-end">
                     <Button
                       variant={isActionable ? 'primary' : 'secondary'}
                       size="sm"

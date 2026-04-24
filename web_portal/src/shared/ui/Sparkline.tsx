@@ -7,6 +7,13 @@ interface SparklineProps {
   height?: number
   fill?: boolean
   className?: string
+  /**
+   * When true, svg stretches to fill parent width. `width` still defines the
+   * viewBox coordinate space (affects step spacing aesthetics). Use together
+   * with a width-constrained parent. Default false preserves previous pixel-
+   * sized rendering for backward compatibility.
+   */
+  responsive?: boolean
 }
 
 /**
@@ -20,11 +27,17 @@ export function Sparkline({
   height = 32,
   fill = true,
   className = '',
+  responsive = false,
 }: SparklineProps) {
   const gradId = `sparkline-grad-${useId().replace(/:/g, '_')}`
 
   if (!data.length) {
-    return <div style={{ width, height }} className={className} />
+    return (
+      <div
+        style={responsive ? { height } : { width, height }}
+        className={`${responsive ? 'w-full' : ''} ${className}`}
+      />
+    )
   }
 
   const stroke = color ?? 'currentColor'
@@ -42,10 +55,11 @@ export function Sparkline({
 
   return (
     <svg
-      width={width}
+      width={responsive ? '100%' : width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      className={className}
+      preserveAspectRatio={responsive ? 'none' : 'xMidYMid meet'}
+      className={`${responsive ? 'block' : ''} ${className}`.trim()}
       aria-hidden="true"
     >
       {fill && (

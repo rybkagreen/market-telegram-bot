@@ -236,11 +236,22 @@ app.add_exception_handler(RequestValidationError, sanitized_validation_error_han
 
 @app.exception_handler(RekHarborError)
 async def rekharbor_error_handler(_request, exc: RekHarborError):
-    """Handler для бизнес-ошибок проекта."""
-    return JSONResponse(
-        status_code=400,
-        content={"detail": str(exc), "error_type": type(exc).__name__},
-    )
+    """Handler для бизнес-ошибок проекта.
+
+    plan-05 (2026-04-21): использует `exc.http_status` (404/409/400/403/500
+    в зависимости от подкласса вместо вечного 400) и эмитит `error_code`
+    рядом с `detail`. Поле `error_type` оставлено для backwards-compat
+    фронта, который мог его читать; новые потребители должны переходить
+    на `error_code` (стабильный, не зависит от Python-class-name).
+    """
+    body: dict[str, object] = {
+        "error_code": exc.error_code,
+        "detail": str(exc) or exc.error_code,
+        "error_type": type(exc).__name__,
+    }
+    if exc.extra:
+        body["extra"] = exc.extra
+    return JSONResponse(status_code=exc.http_status, content=body)
 
 
 @app.get("/health")

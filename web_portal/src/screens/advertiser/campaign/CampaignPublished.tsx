@@ -169,7 +169,7 @@ export default function CampaignPublished() {
             variant="primary"
             fullWidth
             iconLeft="analytics"
-            onClick={() => navigate('/adv/analytics')}
+            onClick={() => navigate('/analytics?role=advertiser')}
           >
             В статистику
           </Button>

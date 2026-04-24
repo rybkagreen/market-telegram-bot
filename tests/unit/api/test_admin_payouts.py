@@ -25,6 +25,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
 from src.api.main import app
+from src.core.exceptions import PayoutAlreadyFinalizedError, PayoutNotFoundError
 from src.core.services.payout_service import payout_service
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.user import User
@@ -181,17 +182,20 @@ class TestApprovePayoutChangesStatus:
 
 
 class TestApproveAlreadyProcessed:
-    """FIX_PLAN_06 §6.5 — approve уже финализированной выплаты отдаёт 400.
+    """FIX_PLAN_06 §6.5 + plan-05: approve уже финализированной выплаты
+    отдаёт 409 (PayoutAlreadyFinalizedError → ConflictError → 409) с
+    error_code="payout_already_finalized".
 
-    Примечание: план упоминал 409, однако текущая реализация
-    `admin.py:1147-1149` мэппит `ValueError('... already finalized ...')`
-    в 400. Тест закрепляет фактический контракт, чтобы зафиксировать его
-    как регрессионный snapshot. Изменение маппинга на 409 — отдельная
-    задача (см. CHANGES §6.5).
+    До plan-05 роутер мэппил substring "already finalized" → 400 (всё
+    остальное — 400). Теперь маппинг по типу исключения через глобальный
+    handler в src/api/main.py.
     """
 
-    async def test_approve_already_finalized_returns_400(self, admin_client: AsyncClient) -> None:
-        err = ValueError("PayoutRequest 42 already finalized (status=paid)")
+    async def test_approve_already_finalized_returns_409(self, admin_client: AsyncClient) -> None:
+        err = PayoutAlreadyFinalizedError(
+            "PayoutRequest 42 already finalized (status=paid)",
+            extra={"payout_id": 42, "status": "paid"},
+        )
         with patch.object(
             payout_service,
             "approve_request",
@@ -200,11 +204,17 @@ class TestApproveAlreadyProcessed:
             approve_mock.side_effect = err
             resp = await admin_client.post("/api/admin/payouts/42/approve")
 
-        assert resp.status_code == 400, resp.text
-        assert "already finalized" in resp.json()["detail"]
+        assert resp.status_code == 409, resp.text
+        body = resp.json()
+        assert "already finalized" in body["detail"]
+        assert body["error_code"] == "payout_already_finalized"
+        assert body["extra"] == {"payout_id": 42, "status": "paid"}
 
     async def test_approve_missing_returns_404(self, admin_client: AsyncClient) -> None:
-        err = ValueError("PayoutRequest 9999 not found")
+        err = PayoutNotFoundError(
+            "PayoutRequest 9999 not found",
+            extra={"payout_id": 9999},
+        )
         with patch.object(
             payout_service,
             "approve_request",
@@ -214,7 +224,9 @@ class TestApproveAlreadyProcessed:
             resp = await admin_client.post("/api/admin/payouts/9999/approve")
 
         assert resp.status_code == 404, resp.text
-        assert "not found" in resp.json()["detail"].lower()
+        body = resp.json()
+        assert "not found" in body["detail"].lower()
+        assert body["error_code"] == "payout_not_found"
 
 
 # ─── POST /api/admin/payouts/{id}/reject ───────────────────────────────
@@ -253,8 +265,12 @@ class TestRejectRequiresReason:
         assert body["rejection_reason"] == "Реквизиты не прошли проверку."
         reject_mock.assert_awaited_once_with(43, 9001, "Реквизиты не прошли проверку.")
 
-    async def test_reject_already_finalized_returns_400(self, admin_client: AsyncClient) -> None:
-        err = ValueError("PayoutRequest 43 already finalized (status=rejected)")
+    async def test_reject_already_finalized_returns_409(self, admin_client: AsyncClient) -> None:
+        # plan-05: ConflictError → 409 (was 400 pre-plan-05).
+        err = PayoutAlreadyFinalizedError(
+            "PayoutRequest 43 already finalized (status=rejected)",
+            extra={"payout_id": 43, "status": "rejected"},
+        )
         with patch.object(
             payout_service,
             "reject_request",
@@ -265,4 +281,5 @@ class TestRejectRequiresReason:
                 "/api/admin/payouts/43/reject",
                 json={"reason": "дубль отклонения"},
             )
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == 409, resp.text
+        assert resp.json()["error_code"] == "payout_already_finalized"

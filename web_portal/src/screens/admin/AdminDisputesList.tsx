@@ -100,7 +100,11 @@ export default function AdminDisputesList() {
                 onClick={() => navigate(`/admin/disputes/${dispute.id}`)}
                 className={`w-full text-left flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${isLast ? '' : 'border-b border-border'}`}
               >
-                <span className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${DISPUTE_TONE_CLASSES[meta.tone]}`}>
+                <span
+                  className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${DISPUTE_TONE_CLASSES[meta.tone]}`}
+                  aria-label={meta.label}
+                  title={meta.label}
+                >
                   <Icon name={meta.icon} size={16} />
                 </span>
                 <div className="flex-1 min-w-0">
@@ -118,9 +122,6 @@ export default function AdminDisputesList() {
                     <span className="tabular-nums">{formatDateTimeMSK(dispute.created_at)} МСК</span>
                   </div>
                 </div>
-                <span className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${DISPUTE_TONE_CLASSES[meta.tone]}`}>
-                  {meta.label}
-                </span>
                 <span
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-harbor-elevated text-text-primary border border-border whitespace-nowrap"
                 >

@@ -542,22 +542,12 @@ async def update_placement(
     handler = _action_dispatch.get(update_data.action)
     if handler is None:
         raise HTTPException(status_code=400, detail=f"Unknown action: {update_data.action}")
-    try:
-        result = await handler()
-        await session.commit()
-        return result
-    except HTTPException:
-        await session.rollback()
-        raise
-    except ValueError as e:
-        await session.rollback()
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    except Exception as e:
-        await session.rollback()
-        logger.exception(
-            "Unexpected error in update_placement placement_id=%s action=%s: %s",
-            placement_id,
-            update_data.action,
-            e,
-        )
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+    # plan-05: explicit try/except removed.
+    #   * commit/rollback live in get_db_session (src/api/dependencies.py:84-97):
+    #     yield → commit on success, rollback on any exception.
+    #   * Domain exceptions (PlacementNotFoundError / PlacementStatusConflictError /
+    #     PlacementAccessError / PlacementValidationError) are mapped to 404/409/
+    #     403/400 by the global RekHarborError handler in src/api/main.py.
+    #   * Unexpected exceptions reach FastAPI's default 500 handler; the dep
+    #     still rolls the transaction back.
+    return await handler()

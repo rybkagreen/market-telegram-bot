@@ -220,7 +220,7 @@ function PlanCard({ plan, price, isCurrent, loading, onSelect }: PlanCardProps) 
 
   return (
     <div
-      className={`relative bg-harbor-card border rounded-xl pt-[22px] px-5 pb-5 flex flex-col overflow-hidden transition-transform duration-fast hover:-translate-y-0.5 ${borderClass}`}
+      className={`relative bg-harbor-card border rounded-xl pt-[22px] px-5 pb-5 flex flex-col overflow-hidden transition-colors duration-fast hover:border-accent/50 ${borderClass}`}
     >
       {featured && (
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-accent to-accent-2" />
@@ -321,8 +321,9 @@ function ComparisonTable({ currentPlan }: { currentPlan: Plan }) {
         </span>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: '1.6fr repeat(4, 1fr)' }}>
-        <div className="px-[22px] py-3.5 border-b border-border bg-harbor-secondary" />
+      <div className="overflow-x-auto">
+      <div className="grid min-w-[640px] md:min-w-0 [grid-template-columns:1.6fr_repeat(4,1fr)]">
+        <div className="px-[22px] py-3.5 border-b border-border bg-harbor-secondary sticky left-0 z-10" />
         {PLAN_DATA.map((plan) => {
           const active = plan.key === currentPlan
           return (
@@ -344,7 +345,7 @@ function ComparisonTable({ currentPlan }: { currentPlan: Plan }) {
           return (
             <Fragment key={ri}>
               <div
-                className={`px-[22px] py-[13px] text-[13px] text-text-secondary ${isLast ? '' : 'border-b border-border'}`}
+                className={`px-[22px] py-[13px] text-[13px] text-text-secondary bg-harbor-card sticky left-0 z-10 ${isLast ? '' : 'border-b border-border'}`}
               >
                 {row.label}
               </div>
@@ -385,6 +386,7 @@ function ComparisonTable({ currentPlan }: { currentPlan: Plan }) {
             </Fragment>
           )
         })}
+      </div>
       </div>
     </div>
   )

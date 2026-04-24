@@ -165,7 +165,7 @@ export default function Feedback() {
         }
       />
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.6fr) minmax(300px, 1fr)' }}>
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,1.6fr)_minmax(300px,1fr)]">
         <div className="bg-harbor-card border border-border rounded-xl p-[22px]">
           {error && (
             <div className="mb-4">

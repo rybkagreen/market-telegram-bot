@@ -25,7 +25,7 @@ export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { sidebarMode } = usePortalUiStore()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const { data: me } = useMe()
   const { data: ownedChannels } = useMyChannels()
   const { data: activeCampaigns } = useMyPlacements('advertiser', 'active')
@@ -33,16 +33,9 @@ export function Sidebar() {
   const isCollapsed = sidebarMode === 'collapsed'
   const campaignsCount = Array.isArray(activeCampaigns) ? activeCampaigns.length : 0
   const channelsCount = ownedChannels?.length ?? 0
-  const displayName = me?.first_name?.trim() || user?.first_name || 'User'
-  const displayHandle = me?.username ? `@${me.username}` : user?.username ?? 'unknown'
-  const initial = displayName.slice(0, 1).toUpperCase()
   const planLabel = me?.plan && me.plan !== 'free' ? me.plan.toUpperCase() : null
 
   const sections: NavSection[] = [
-    {
-      group: null,
-      items: [{ id: 'cabinet', label: 'Кабинет', path: '/cabinet', icon: 'cabinet' }],
-    },
     {
       group: 'Финансы',
       items: [
@@ -62,7 +55,6 @@ export function Sidebar() {
           icon: 'campaign',
           count: campaignsCount || undefined,
         },
-        { id: 'adv-analytics', label: 'Аналитика', path: '/adv/analytics', icon: 'analytics' },
       ],
     },
     {
@@ -76,7 +68,12 @@ export function Sidebar() {
           count: channelsCount || undefined,
         },
         { id: 'own-requests', label: 'Размещения', path: '/own/requests', icon: 'placement' },
-        { id: 'own-analytics', label: 'Аналитика', path: '/own/analytics', icon: 'analytics' },
+      ],
+    },
+    {
+      group: 'Аналитика',
+      items: [
+        { id: 'analytics', label: 'Аналитика', path: '/analytics', icon: 'analytics' },
       ],
     },
     {
@@ -113,6 +110,11 @@ export function Sidebar() {
     })
   }
 
+  sections.push({
+    group: null,
+    items: [{ id: 'cabinet', label: 'Кабинет', path: '/cabinet', icon: 'cabinet' }],
+  })
+
   const isItemActive = (path: string) =>
     location.pathname === path ||
     (path !== '/cabinet' && location.pathname.startsWith(path + '/'))
@@ -127,20 +129,29 @@ export function Sidebar() {
       aria-label="Основная навигация"
     >
       {/* Logo */}
-      <div className={`flex items-center gap-2.5 pt-4 pb-3 ${isCollapsed ? 'justify-center px-2' : 'px-4'}`}>
-        <div
-          className="w-[30px] h-[30px] rounded-lg grid place-items-center text-white flex-shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-2))',
-            boxShadow: 'var(--shadow-harbor-glow)',
-          }}
-        >
-          <Icon name="anchor" size={16} strokeWidth={1.75} />
-        </div>
-        {!isCollapsed && (
-          <div className="font-display font-bold text-[17px] tracking-[-0.01em] text-text-primary">
-            RekHarbor
-          </div>
+      <div className={`flex items-center pt-4 pb-3 ${isCollapsed ? 'justify-center px-2' : 'px-4'}`}>
+        {isCollapsed ? (
+          <picture key="logo-icon">
+            <source srcSet="/brand/rekharbor_icon_dark.svg" media="(prefers-color-scheme: light)" />
+            <img
+              src="/brand/rekharbor_icon_teal.svg"
+              alt="RekHarbor"
+              width={32}
+              height={32}
+              className="block shrink-0"
+            />
+          </picture>
+        ) : (
+          <picture key="logo-full">
+            <source srcSet="/brand/rekharbor_full_light.svg" media="(prefers-color-scheme: light)" />
+            <img
+              src="/brand/rekharbor_full_dark.svg"
+              alt="RekHarbor"
+              width={158}
+              height={32}
+              className="block shrink-0 h-8 w-[158px]"
+            />
+          </picture>
         )}
       </div>
 
@@ -154,11 +165,11 @@ export function Sidebar() {
       />
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto scrollbar-thin px-2.5 pb-3.5">
+      <nav className={`flex-1 overflow-y-auto scrollbar-thin pb-3.5 ${isCollapsed ? 'px-2' : 'px-2'}`}>
         {sections.map((section, idx) => (
           <div key={idx} className="mb-2.5">
             {section.group && !isCollapsed && (
-              <div className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-tertiary px-2.5 pt-2 pb-1">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-tertiary px-2 pt-2 pb-1">
                 {section.group}
               </div>
             )}
@@ -171,7 +182,7 @@ export function Sidebar() {
                   onClick={() => handleNavigate(item.path)}
                   title={isCollapsed ? item.label : undefined}
                   className={`group relative w-full flex items-center gap-2.5 rounded-md text-left transition-colors text-[13.5px] font-medium ${
-                    isCollapsed ? 'justify-center px-2 py-2.5' : 'px-2.5 py-2'
+                    isCollapsed ? 'justify-center px-2 py-2.5' : 'px-2 py-2'
                   } ${
                     active
                       ? 'bg-accent-muted text-accent font-semibold'
@@ -181,7 +192,7 @@ export function Sidebar() {
                   {active && (
                     <span
                       aria-hidden="true"
-                      className="absolute left-[-10px] top-2 bottom-2 w-0.5 bg-accent rounded-r"
+                      className="absolute left-[-8px] top-2 bottom-2 w-0.5 bg-accent rounded-r"
                     />
                   )}
                   <Icon name={item.icon} size={17} variant={active ? 'fill' : 'outline'} />
@@ -208,34 +219,6 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* User footer */}
-      <div className={`flex items-center gap-2.5 p-3 border-t border-border ${isCollapsed ? 'justify-center' : ''}`}>
-        <div
-          className="w-8 h-8 rounded-lg grid place-items-center text-white font-display font-bold text-sm flex-shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, var(--color-accent-2), var(--color-accent))',
-          }}
-          title={isCollapsed ? `${displayName} (${displayHandle})` : undefined}
-        >
-          {initial}
-        </div>
-        {!isCollapsed && (
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-text-primary truncate">{displayName}</div>
-            <div className="text-[11px] text-text-tertiary truncate">{displayHandle}</div>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={logout}
-          className="p-1 rounded text-text-tertiary hover:text-danger transition-colors cursor-pointer"
-          title="Выйти"
-          aria-label="Выйти"
-        >
-          <Icon name="logout" size={16} />
-        </button>
-      </div>
     </aside>
   )
 }

@@ -210,7 +210,7 @@ export default function LegalProfileSetup() {
         </div>
       )}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.7fr) minmax(300px, 1fr)' }}>
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,1.7fr)_minmax(300px,1fr)]">
         <div className="flex flex-col gap-4">
           <SectionCard title="Тип налогоплательщика" subtitle="Определяет, какие документы формирует платформа">
             <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>

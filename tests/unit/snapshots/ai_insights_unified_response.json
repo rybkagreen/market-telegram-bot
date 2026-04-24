@@ -1,0 +1,268 @@
+{
+  "$defs": {
+    "InsightsActionItem": {
+      "description": "One recommended action produced by the AI or rule-based engine.",
+      "properties": {
+        "channel_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel Id"
+        },
+        "cta_type": {
+          "default": "none",
+          "enum": [
+            "create_campaign",
+            "open_channel",
+            "open_placement",
+            "none"
+          ],
+          "title": "Cta Type",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "impact_estimate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Impact Estimate"
+        },
+        "kind": {
+          "enum": [
+            "reallocate",
+            "pause",
+            "scale",
+            "experiment",
+            "optimize",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "description"
+      ],
+      "title": "InsightsActionItem",
+      "type": "object"
+    },
+    "InsightsAnomaly": {
+      "description": "Detected anomaly in user performance.",
+      "properties": {
+        "channel_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel Id"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "ctr_drop",
+            "ctr_spike",
+            "reach_drop",
+            "earnings_drop",
+            "inactive_channel",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "severity",
+        "description"
+      ],
+      "title": "InsightsAnomaly",
+      "type": "object"
+    },
+    "InsightsChannelFlag": {
+      "description": "AI-assigned flag for a channel — renders as badge in the deep-dive table.",
+      "properties": {
+        "channel_id": {
+          "title": "Channel Id",
+          "type": "integer"
+        },
+        "flag": {
+          "enum": [
+            "hot",
+            "warn",
+            "idle",
+            "neutral"
+          ],
+          "title": "Flag",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel_id",
+        "flag",
+        "reason"
+      ],
+      "title": "InsightsChannelFlag",
+      "type": "object"
+    },
+    "InsightsForecast": {
+      "description": "Forecasted metric for the next period.",
+      "properties": {
+        "confidence_pct": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Confidence Pct",
+          "type": "integer"
+        },
+        "expected_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Expected Value"
+        },
+        "metric": {
+          "enum": [
+            "earnings",
+            "spend",
+            "reach",
+            "ctr"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "period_days": {
+          "title": "Period Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "period_days",
+        "metric",
+        "expected_value",
+        "confidence_pct"
+      ],
+      "title": "InsightsForecast",
+      "type": "object"
+    }
+  },
+  "description": "Unified AI analytics response for the new `/analytics` screen.\n\n`ai_backend` is `\"mistral\"` when the narrative came from the LLM and\n`\"rules\"` when the deterministic fallback produced it (missing API key,\ntimeout, invalid JSON, etc). The frontend surfaces this as a small badge.",
+  "properties": {
+    "action_items": {
+      "items": {
+        "$ref": "#/$defs/InsightsActionItem"
+      },
+      "title": "Action Items",
+      "type": "array"
+    },
+    "ai_backend": {
+      "enum": [
+        "mistral",
+        "rules"
+      ],
+      "title": "Ai Backend",
+      "type": "string"
+    },
+    "anomalies": {
+      "items": {
+        "$ref": "#/$defs/InsightsAnomaly"
+      },
+      "title": "Anomalies",
+      "type": "array"
+    },
+    "cache_ttl_seconds": {
+      "default": 900,
+      "title": "Cache Ttl Seconds",
+      "type": "integer"
+    },
+    "channel_flags": {
+      "items": {
+        "$ref": "#/$defs/InsightsChannelFlag"
+      },
+      "title": "Channel Flags",
+      "type": "array"
+    },
+    "forecast": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InsightsForecast"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "advertiser",
+        "owner"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "summary",
+    "ai_backend",
+    "generated_at"
+  ],
+  "title": "AIInsightsUnifiedResponse",
+  "type": "object"
+}

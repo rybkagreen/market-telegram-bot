@@ -85,8 +85,8 @@ export default function AcceptRules() {
         </div>
       )}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: '220px minmax(0, 1fr)' }}>
-        <nav className="bg-harbor-card border border-border rounded-xl p-3.5 sticky top-5 self-start max-h-[calc(100vh-140px)]">
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:220px_minmax(0,1fr)]">
+        <nav className="bg-harbor-card border border-border rounded-xl p-3.5 self-start lg:sticky lg:top-5 lg:max-h-[calc(100vh-140px)]">
           <div className="text-[10.5px] font-bold tracking-[0.08em] uppercase text-text-tertiary py-1 px-2 pb-2.5">
             Содержание
           </div>

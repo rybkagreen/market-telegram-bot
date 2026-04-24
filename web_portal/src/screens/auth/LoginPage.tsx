@@ -116,8 +116,16 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-6xl mb-4">⚓</div>
-          <h1 className="text-3xl font-display font-bold text-text-primary">RekHarbor</h1>
+          <picture>
+            <source srcSet="/brand/rekharbor_full_light.svg" media="(prefers-color-scheme: light)" />
+            <img
+              src="/brand/rekharbor_full_dark.svg"
+              alt="RekHarbor"
+              width={237}
+              height={48}
+              className="mx-auto mb-3 h-12 w-[237px]"
+            />
+          </picture>
           <p className="text-text-secondary mt-2">Рекламная биржа Telegram-каналов</p>
         </div>
 
