@@ -43,7 +43,7 @@ export function Input({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         className={`
-          px-3 py-2 rounded-md border bg-harbor-elevated text-text-primary
+          px-3 py-2 min-h-11 rounded-md border bg-harbor-elevated text-text-primary
           placeholder:text-text-tertiary
           focus:outline-none focus:ring-2 focus:border-transparent
           disabled:opacity-50 disabled:pointer-events-none
