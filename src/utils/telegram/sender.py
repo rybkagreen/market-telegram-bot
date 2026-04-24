@@ -243,8 +243,9 @@ async def create_sender(bot_token: str) -> TelegramSender:
     Returns:
         TelegramSender instance.
     """
-    bot = Bot(token=bot_token)
-    return TelegramSender(bot)
+    from src.bot.session_factory import new_bot
+
+    return TelegramSender(new_bot(token=bot_token))
 
 
 class CampaignSender:

@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import (
+    PlacementAccessError,
+    PlacementNotFoundError,
+    PlacementStatusConflictError,
+    PlacementValidationError,
+)
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
@@ -340,20 +346,20 @@ class PlacementRequestService:
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Проверка: принадлежит каналу владельца
         channel = await self.session.get(TelegramChat, placement.channel_id)
         if not channel or channel.owner_id != owner_id:
-            raise ValueError(CHANNEL_NOT_BELONG)
+            raise PlacementAccessError(CHANNEL_NOT_BELONG)
 
         # Проверка: статус pending_owner
         if placement.status != PlacementStatus.pending_owner:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         # Проверка: expires_at не истёк
         if placement.expires_at and placement.expires_at < datetime.now(UTC):
-            raise ValueError("Placement expired")
+            raise PlacementStatusConflictError("Placement expired")
 
         # FIX #10: Auto-resolve final_price from counter_price when owner accepts counter_offer
         resolved_final_price = final_price
@@ -376,7 +382,7 @@ class PlacementRequestService:
             await _notify_owner_accept(result, advertiser, channel)
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     async def owner_reject(
@@ -411,16 +417,16 @@ class PlacementRequestService:
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Проверка: принадлежит каналу владельца
         channel = await self.session.get(TelegramChat, placement.channel_id)
         if not channel or channel.owner_id != owner_id:
-            raise ValueError(CHANNEL_NOT_BELONG)
+            raise PlacementAccessError(CHANNEL_NOT_BELONG)
 
         # Проверка: статус pending_owner
         if placement.status != PlacementStatus.pending_owner:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         # Валидация reason
         if not self.validate_rejection_reason(rejection_reason):
@@ -432,7 +438,7 @@ class PlacementRequestService:
                 owner_id=owner_id,
                 placement_request_id=placement_id,
             )
-            raise ValueError("Invalid rejection reason")
+            raise PlacementValidationError("Invalid rejection reason")
 
         # Отклоняем
         result = await self.placement_repo.reject(
@@ -446,7 +452,7 @@ class PlacementRequestService:
             await _notify_rejected(result, advertiser, channel)
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     async def owner_counter_offer(
@@ -479,23 +485,23 @@ class PlacementRequestService:
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Проверка: принадлежит каналу владельца
         channel = await self.session.get(TelegramChat, placement.channel_id)
         if not channel or channel.owner_id != owner_id:
-            raise ValueError(CHANNEL_NOT_BELONG)
+            raise PlacementAccessError(CHANNEL_NOT_BELONG)
 
         # Проверка: статус pending_owner
         if placement.status != PlacementStatus.pending_owner:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         # Проверка: лимит не исчерпан
         if placement.counter_offer_count >= 3:
-            raise ValueError("Counter offer limit reached")
+            raise PlacementStatusConflictError("Counter offer limit reached")
 
         if proposed_price is None:
-            raise ValueError("proposed_price is required for counter offer")
+            raise PlacementValidationError("proposed_price is required for counter offer")
 
         # Контр-предложение
         result = await self.placement_repo.counter_offer(
@@ -505,7 +511,7 @@ class PlacementRequestService:
         )
 
         if result is None:
-            raise ValueError("Counter offer limit reached")
+            raise PlacementStatusConflictError("Counter offer limit reached")
 
         # Устанавливаем срок действия контр-предложения (3 часа)
         from datetime import UTC, timedelta
@@ -542,13 +548,13 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         if placement.advertiser_id != advertiser_id:
-            raise ValueError(PLACEMENT_NOT_BELONG)
+            raise PlacementAccessError(PLACEMENT_NOT_BELONG)
 
         if placement.status != PlacementStatus.counter_offer:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         # Принимаем контр-предложение → pending_payment
         # FIX #1: Pass counter_price and counter_schedule as final values
@@ -566,7 +572,7 @@ class PlacementRequestService:
             await _notify_counter_accepted(result, advertiser, owner, channel)
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     async def advertiser_counter_offer(
@@ -593,16 +599,16 @@ class PlacementRequestService:
 
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         if placement.advertiser_id != advertiser_id:
-            raise ValueError(PLACEMENT_NOT_BELONG)
+            raise PlacementAccessError(PLACEMENT_NOT_BELONG)
 
         if placement.status != PlacementStatus.counter_offer:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         if placement.counter_offer_count >= 3:
-            raise ValueError("Достигнут лимит раундов переговоров (3/3)")
+            raise PlacementStatusConflictError("Достигнут лимит раундов переговоров (3/3)")
 
         # Обновляем заявку
         placement.advertiser_counter_price = counter_price
@@ -693,9 +699,9 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         if placement.advertiser_id != advertiser_id:
-            raise ValueError(PLACEMENT_NOT_BELONG)
+            raise PlacementAccessError(PLACEMENT_NOT_BELONG)
 
         # Возврат средств через billing_service
         await self._refund_escrow_if_needed(placement, placement_id, advertiser_id)
@@ -718,7 +724,7 @@ class PlacementRequestService:
         )
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Отправляем уведомление
         channel = await self.session.get(TelegramChat, placement.channel_id)
@@ -735,25 +741,39 @@ class PlacementRequestService:
         placement_id: int,
         advertiser_id: int,
     ) -> PlacementRequest | None:
-        """Move placement into escrow, handling test and real-payment paths."""
-        if placement.is_test:
-            result = await self.placement_repo.set_escrow(
-                placement_id=placement_id,
-                escrow_transaction_id=None,
+        """Move placement into escrow via single BillingService path.
+
+        INV-1: placement.status='escrow' ⇒ escrow_transaction_id IS NOT NULL
+        AND final_price IS NOT NULL. Holds for is_test=true as well —
+        BillingService.freeze_escrow_for_placement(is_test=True) creates
+        a zero-amount Transaction without touching user balance.
+        """
+        if placement.final_price is None and placement.proposed_price is None:
+            raise PlacementValidationError(
+                f"placement {placement_id}: cannot freeze escrow — "
+                "both final_price and proposed_price are NULL"
             )
-        else:
-            if not self.billing_service:
-                raise RuntimeError("BillingService not initialized")
-            transaction = await self.billing_service.freeze_escrow_for_placement(
-                session=self.session,
-                placement_id=placement_id,
-                advertiser_id=advertiser_id,
-                amount=placement.final_price or placement.proposed_price,
-            )
-            result = await self.placement_repo.set_escrow(
-                placement_id=placement_id,
-                escrow_transaction_id=transaction.id,
-            )
+        if not self.billing_service:
+            raise RuntimeError("BillingService not initialized")
+
+        amount = placement.final_price or placement.proposed_price
+        transaction = await self.billing_service.freeze_escrow_for_placement(
+            session=self.session,
+            placement_id=placement_id,
+            advertiser_id=advertiser_id,
+            amount=amount,
+            is_test=placement.is_test,
+        )
+
+        # Fix final_price now that escrow is committed — downstream
+        # release/refund and CHECK constraint both depend on it.
+        if placement.final_price is None:
+            placement.final_price = amount
+
+        result = await self.placement_repo.set_escrow(
+            placement_id=placement_id,
+            escrow_transaction_id=transaction.id,
+        )
 
         # Ensure tracking_short_code exists before publication
         if result and not result.tracking_short_code:
@@ -800,11 +820,11 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         if placement.advertiser_id != advertiser_id:
-            raise ValueError(PLACEMENT_NOT_BELONG)
+            raise PlacementAccessError(PLACEMENT_NOT_BELONG)
         if placement.status != PlacementStatus.pending_payment:
-            raise ValueError(f"Invalid status: {placement.status}")
+            raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
         result = await self._freeze_escrow_for_payment(placement, placement_id, advertiser_id)
 
@@ -812,7 +832,7 @@ class PlacementRequestService:
             self._schedule_publication_task(result)
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Отправляем уведомления
         channel = await self.session.get(TelegramChat, placement.channel_id)
@@ -842,7 +862,7 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # v4.2: Эскроу НЕ освобождаем здесь — только в delete_published_post()
         # Репутация +1 за публикацию
@@ -864,7 +884,7 @@ class PlacementRequestService:
         # Уведомления отправляются в placement_tasks.py
 
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     async def process_publication_failure(
@@ -885,7 +905,7 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
@@ -912,7 +932,7 @@ class PlacementRequestService:
             new_status=PlacementStatus.refunded,
         )
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     async def auto_expire(self, placement_id: int) -> PlacementRequest:
@@ -929,7 +949,7 @@ class PlacementRequestService:
         """
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
 
         # Возврат 100%
         if placement.escrow_transaction_id and self.billing_service:
@@ -950,7 +970,7 @@ class PlacementRequestService:
             rejection_reason="Expired",
         )
         if result is None:
-            raise ValueError(PLACEMENT_NOT_FOUND)
+            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
         return result
 
     def validate_rejection_reason(self, reason: str) -> bool:

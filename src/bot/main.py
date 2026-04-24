@@ -5,8 +5,6 @@ import logging
 
 import sentry_sdk
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import MenuButtonWebApp, WebAppInfo
@@ -17,6 +15,7 @@ from src.bot.middlewares.db_session import DBSessionMiddleware
 from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware
 from src.bot.middlewares.role_check import RoleCheckMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
+from src.bot.session_factory import new_bot
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -39,27 +38,10 @@ if settings.sentry_dsn:
     )
 
 
-async def _create_bot() -> Bot:
-    """Create Bot with proxy if configured."""
-    if settings.telegram_proxy:
-        from aiogram.client.session.aiohttp import AiohttpSession
-
-        session = AiohttpSession(proxy=settings.telegram_proxy)
-        return Bot(
-            token=settings.bot_token,
-            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-            session=session,
-        )
-    return Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
-
-
 async def main() -> None:
     """Запуск бота с retry логикой."""
     global bot
-    bot = await _create_bot()
+    bot = new_bot()
 
     storage = RedisStorage.from_url(str(settings.redis_url))
     dp = Dispatcher(storage=storage)

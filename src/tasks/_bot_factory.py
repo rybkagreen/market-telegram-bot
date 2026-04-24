@@ -23,10 +23,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from aiogram import Bot
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 
-from src.config.settings import settings
+from src.bot.session_factory import new_bot
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +36,7 @@ def init_bot() -> None:
     global _bot
     if _bot is not None:
         return
-    _bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    _bot = new_bot()
     logger.info("Bot initialized for worker PID=%s", os.getpid())
 
 
@@ -67,10 +62,7 @@ async def ephemeral_bot() -> AsyncIterator[Bot]:
     this loop and guaranteed to be closed before the loop exits, so
     the aiohttp session never leaks into a subsequent invocation.
     """
-    bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    bot = new_bot()
     try:
         yield bot
     finally:

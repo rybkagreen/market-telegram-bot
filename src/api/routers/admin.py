@@ -1136,18 +1136,14 @@ async def approve_admin_payout(
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> AdminPayoutResponse:
-    """Админ одобрил выплату: pending/processing → paid."""
+    """Админ одобрил выплату: pending/processing → paid.
+
+    PayoutNotFoundError → 404, PayoutAlreadyFinalizedError → 409
+    мапятся глобальным `RekHarborError` handler'ом в src/api/main.py.
+    """
     from src.core.services.payout_service import payout_service
 
-    try:
-        payout = await payout_service.approve_request(payout_id, admin_user.id)
-    except ValueError as e:
-        msg = str(e)
-        status_code = (
-            status.HTTP_404_NOT_FOUND if "not found" in msg else status.HTTP_400_BAD_REQUEST
-        )
-        raise HTTPException(status_code=status_code, detail=msg) from e
-
+    payout = await payout_service.approve_request(payout_id, admin_user.id)
     owner = await session.get(User, payout.owner_id)
     logger.info(f"Admin {admin_user.id} approved payout {payout_id}")
     return _payout_to_admin_response(payout, owner)
@@ -1163,18 +1159,14 @@ async def reject_admin_payout(
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> AdminPayoutResponse:
-    """Админ отклонил выплату: возвращает средства на earned_rub, status=rejected."""
+    """Админ отклонил выплату: возвращает средства на earned_rub, status=rejected.
+
+    PayoutNotFoundError → 404, PayoutAlreadyFinalizedError → 409 — глобальный
+    handler в src/api/main.py.
+    """
     from src.core.services.payout_service import payout_service
 
-    try:
-        payout = await payout_service.reject_request(payout_id, admin_user.id, body.reason)
-    except ValueError as e:
-        msg = str(e)
-        status_code = (
-            status.HTTP_404_NOT_FOUND if "not found" in msg else status.HTTP_400_BAD_REQUEST
-        )
-        raise HTTPException(status_code=status_code, detail=msg) from e
-
+    payout = await payout_service.reject_request(payout_id, admin_user.id, body.reason)
     owner = await session.get(User, payout.owner_id)
     logger.info(f"Admin {admin_user.id} rejected payout {payout_id}: {body.reason}")
     return _payout_to_admin_response(payout, owner)

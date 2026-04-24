@@ -6,7 +6,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,12 +32,27 @@ class Settings(BaseSettings):
         description="Telethon StringSession для парсера",
     )
 
-    # Telegram Proxy (MTProxy/HTTP proxy для обхода ограничений)
+    # Telegram Proxy (SOCKS5/HTTP proxy для обхода ограничений)
     telegram_proxy: str | None = Field(
         None,
         alias="TELEGRAM_PROXY",
-        description="Proxy для Telegram (формат: host:port или http://user:pass@host:port)",
+        description=(
+            "Proxy for Telegram API. Accepted schemes: socks5://, http://, https://. "
+            "Examples: socks5://host:1080, http://user:pass@host:3128."
+        ),
     )
+
+    @field_validator("telegram_proxy")
+    @classmethod
+    def _validate_telegram_proxy(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        allowed = ("socks5://", "socks4://", "http://", "https://")
+        if not value.startswith(allowed):
+            raise ValueError(
+                f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}"
+            )
+        return value
 
     # PostgreSQL
     postgres_user: str = Field("market_bot", alias="POSTGRES_USER")
