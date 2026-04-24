@@ -68,10 +68,17 @@ function fmtDate(iso: string | null) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('ru-RU', {
     day: '2-digit',
-    month: 'short',
+    month: '2-digit',
     year: 'numeric',
     timeZone: 'Europe/Moscow',
   })
+}
+
+function fmtPeriod(signedAt: string | null, expiresAt: string | null) {
+  if (!signedAt) return 'не подписан'
+  const left = fmtDate(signedAt)
+  const right = expiresAt ? fmtDate(expiresAt) : 'бессрочно'
+  return `${left} — ${right}`
 }
 
 type KindFilter = 'all' | ContractType
@@ -213,8 +220,7 @@ export default function ContractList() {
 
       <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
         <div
-          className="grid gap-3.5 px-[18px] py-2.5 bg-harbor-secondary border-b border-border text-[10.5px] font-bold uppercase tracking-[0.08em] text-text-tertiary"
-          style={{ gridTemplateColumns: '1.4fr 2fr 1.2fr 0.9fr auto' }}
+          className="hidden md:grid gap-3.5 px-[18px] py-2.5 bg-harbor-secondary border-b border-border text-[10.5px] font-bold uppercase tracking-[0.08em] text-text-tertiary md:[grid-template-columns:1.4fr_2fr_1.2fr_0.9fr_auto]"
         >
           <span>Договор</span>
           <span>Тип</span>
@@ -345,52 +351,77 @@ function ContractRow({
 }) {
   const st = STATUS_META[c.contract_status]
   const km = KIND_META[c.contract_type] ?? { label: c.contract_type, icon: 'docs' as IconName, tone: 'accent' as const }
+  const period = fmtPeriod(c.signed_at, c.expires_at)
 
   return (
     <div
-      className={`grid gap-3.5 px-[18px] py-3.5 items-center transition-colors hover:bg-harbor-elevated/40 ${
+      className={`px-4 md:px-[18px] py-3.5 transition-colors hover:bg-harbor-elevated/40 ${
         isLast ? '' : 'border-b border-border'
-      }`}
-      style={{ gridTemplateColumns: '1.4fr 2fr 1.2fr 0.9fr auto' }}
+      } flex flex-col gap-3 md:grid md:gap-3.5 md:items-center md:[grid-template-columns:1.4fr_2fr_1.2fr_0.9fr_auto]`}
     >
-      <div className="flex items-center gap-[11px] min-w-0">
+      {/* ── Mobile: single stacked card.  Desktop: Col 1 (icon + #id + version) ── */}
+      <div className="flex items-center gap-3 min-w-0">
         <span
-          className={`w-9 h-9 rounded-[9px] grid place-items-center border flex-shrink-0 ${toneIconClass[km.tone]}`}
+          className={`w-10 h-10 md:w-9 md:h-9 rounded-[9px] grid place-items-center border flex-shrink-0 ${toneIconClass[km.tone]}`}
+          aria-label={st.label}
+          title={st.label}
         >
-          <Icon name={km.icon} size={15} />
+          <Icon name={km.icon} size={16} />
         </span>
-        <div className="min-w-0">
-          <div className="font-mono text-[12.5px] font-semibold text-text-primary">#{c.id}</div>
+        <div className="flex-1 min-w-0">
+          {/* Mobile header: #id + type on one line; Desktop: #id stands alone */}
+          <div className="flex items-baseline gap-2 flex-wrap md:flex-nowrap">
+            <span className="font-mono text-[13px] md:text-[12.5px] font-semibold text-text-primary">
+              #{c.id}
+            </span>
+            <span className="text-[13px] font-medium text-text-primary md:hidden truncate">
+              {km.label}
+            </span>
+          </div>
           <div className="text-[11px] text-text-tertiary mt-0.5 font-semibold tracking-wider uppercase">
             v{c.template_version}
           </div>
         </div>
+        {/* Mobile status dot — moved to the right of the row header */}
+        <span
+          className={`md:hidden inline-grid place-items-center w-6 h-6 rounded-full flex-shrink-0 ${st.pillClass}`}
+          aria-label={st.label}
+          title={st.label}
+        >
+          <span className={`w-2 h-2 rounded-full ${st.dotClass}`} />
+        </span>
       </div>
 
-      <div className="min-w-0">
+      {/* Desktop Col 2 — type label (hidden on mobile, shown above) */}
+      <div className="hidden md:block min-w-0">
         <div className="text-[13px] font-medium text-text-primary truncate">{km.label}</div>
         {c.kep_requested && (
           <div className="text-[11px] text-warning mt-0.5">КЭП запрошена</div>
         )}
       </div>
 
-      <div className="text-xs text-text-secondary tabular-nums">
-        {c.signed_at ? (
-          fmtDate(c.signed_at)
-        ) : (
-          <span className="text-text-tertiary italic">не подписан</span>
+      {/* Period: unified single string on mobile and desktop */}
+      <div className="text-xs text-text-secondary tabular-nums min-w-0">
+        <span className="md:hidden text-[11px] uppercase tracking-wider text-text-tertiary mr-1.5">
+          Период:
+        </span>
+        {period}
+        {c.kep_requested && (
+          <span className="md:hidden ml-2 text-[11px] text-warning font-semibold">КЭП</span>
         )}
-        <div className="text-[11px] text-text-tertiary mt-0.5">до {fmtDate(c.expires_at)}</div>
       </div>
 
+      {/* Desktop status pill — text visible only on desktop; mobile uses dot above */}
       <span
-        className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase py-1 px-2.5 rounded-[5px] whitespace-nowrap justify-self-start ${st.pillClass}`}
+        className={`hidden md:inline-grid place-items-center w-7 h-7 rounded-full ${st.pillClass} justify-self-start`}
+        aria-label={st.label}
+        title={st.label}
       >
-        <span className={`w-1.5 h-1.5 rounded-full ${st.dotClass}`} />
-        {st.label}
+        <span className={`w-2 h-2 rounded-full ${st.dotClass}`} />
       </span>
 
-      <div className="flex gap-1">
+      {/* Actions — full-width buttons on mobile, compact on desktop */}
+      <div className="flex gap-2 justify-end md:gap-1">
         {c.contract_status === 'pending' && (
           <Button size="sm" variant="primary" iconLeft="check" onClick={onClick}>
             Подписать
@@ -404,13 +435,14 @@ function ContractRow({
         {c.pdf_url && (
           <button
             title="PDF"
+            aria-label="Скачать PDF"
             onClick={(e) => {
               e.stopPropagation()
               window.open(c.pdf_url!, '_blank')
             }}
-            className="w-[30px] h-[30px] rounded-md border border-border bg-harbor-elevated text-text-secondary grid place-items-center hover:text-text-primary transition-colors"
+            className="w-11 h-11 md:w-[30px] md:h-[30px] rounded-md border border-border bg-harbor-elevated text-text-secondary grid place-items-center hover:text-text-primary transition-colors flex-shrink-0"
           >
-            <Icon name="download" size={13} />
+            <Icon name="download" size={14} />
           </button>
         )}
       </div>

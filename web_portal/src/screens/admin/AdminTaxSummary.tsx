@@ -11,7 +11,7 @@ function KudirTable({ entries }: { entries: KudirEntry[] }) {
       <table className="w-full text-sm">
         <thead className="bg-harbor-secondary">
           <tr className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary font-semibold">
-            <th className="text-left px-4 py-2.5 w-12">№</th>
+            <th className="text-left px-4 py-2.5 w-12 sticky left-0 bg-harbor-secondary z-10">№</th>
             <th className="text-left px-4 py-2.5">Дата</th>
             <th className="text-left px-4 py-2.5">Операция</th>
             <th className="text-right px-4 py-2.5">Доход</th>
@@ -24,7 +24,7 @@ function KudirTable({ entries }: { entries: KudirEntry[] }) {
             const expense = e.expense_amount ? parseFloat(e.expense_amount) : 0
             return (
               <tr key={e.entry_number} className="hover:bg-harbor-elevated/40 transition-colors">
-                <td className="px-4 py-3 text-text-tertiary font-mono tabular-nums">
+                <td className="px-4 py-3 text-text-tertiary font-mono tabular-nums sticky left-0 bg-harbor-card z-10">
                   {e.entry_number}
                 </td>
                 <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">

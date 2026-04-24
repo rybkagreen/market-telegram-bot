@@ -99,10 +99,7 @@ const BREADCRUMB_MAP: Record<string, Crumb[]> = {
     { label: 'Кампания' },
     { label: 'Спор' },
   ],
-  '/adv/analytics': [
-    { label: 'Реклама', path: '/adv/campaigns' },
-    { label: 'Аналитика' },
-  ],
+  '/analytics': [{ label: 'Аналитика' }],
   '/adv/disputes': [
     { label: 'Реклама', path: '/adv/campaigns' },
     { label: 'Споры' },
@@ -162,11 +159,6 @@ const BREADCRUMB_MAP: Record<string, Crumb[]> = {
     { label: 'Споры', path: '/own/disputes' },
     { label: 'Детали' },
   ],
-  '/own/analytics': [
-    { label: 'Каналы', path: '/own/channels' },
-    { label: 'Аналитика' },
-  ],
-
   // ── Shared disputes ──
   '/disputes/:id': [{ label: 'Споры' }, { label: 'Детали' }],
 
@@ -239,15 +231,15 @@ export function Topbar() {
 
   return (
     <header className="h-14 bg-harbor-bg border-b border-border flex items-center gap-3 md:gap-4 px-4 lg:px-6 flex-shrink-0">
-      {/* Sidebar toggle */}
+      {/* Sidebar toggle — directional chevrons indicate collapse/expand intent */}
       <button
         type="button"
         onClick={() => toggleSidebar(isDesktop)}
-        className="p-1 text-text-secondary hover:text-text-primary transition-colors cursor-pointer flex-shrink-0"
+        className="grid place-items-center w-8 h-8 rounded-md text-text-secondary hover:text-text-primary hover:bg-harbor-secondary transition-colors cursor-pointer flex-shrink-0"
         title={isSidebarOpen ? 'Свернуть меню' : 'Развернуть меню'}
         aria-label="Переключить боковое меню"
       >
-        <Icon name={isSidebarOpen ? 'close' : 'more-h'} size={20} />
+        <Icon name={isSidebarOpen ? 'chevrons-left' : 'chevrons-right'} size={16} />
       </button>
 
       {/* Breadcrumbs — intermediate crumbs with path are clickable Links.

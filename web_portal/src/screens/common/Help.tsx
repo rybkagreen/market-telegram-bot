@@ -183,7 +183,7 @@ export default function Help() {
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.8fr) minmax(280px, 1fr)' }}>
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,1.8fr)_minmax(280px,1fr)]">
         <div>
           {filtered.length === 0 ? (
             <div className="bg-harbor-card border border-dashed border-border rounded-xl p-[60px] text-center">

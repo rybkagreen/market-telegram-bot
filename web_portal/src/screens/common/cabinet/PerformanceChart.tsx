@@ -84,7 +84,7 @@ function PerformanceChartInner() {
       </header>
 
       <div className="px-5 pt-4">
-        <div className="flex items-start gap-6 mb-3">
+        <div className="flex items-start flex-wrap gap-3 md:gap-6 mb-3">
           <div>
             <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary flex items-center gap-1.5">
               <span className="inline-block w-2 h-0.5 rounded bg-success" />
