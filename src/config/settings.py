@@ -4,7 +4,6 @@
 """
 
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -76,10 +75,11 @@ class Settings(BaseSettings):
     nginx_port: int = Field(8081, alias="NGINX_PORT")
 
     # Environment
-    environment: Literal["development", "production", "testing"] = Field(
-        "development", alias="ENVIRONMENT"
-    )
     debug: bool = Field(False, alias="DEBUG")
+
+    # E2E-only auth endpoint flag (mounts /api/auth/e2e-login when True).
+    # Replaces the old ENVIRONMENT=="testing" check — feature-flag, not env-label.
+    enable_e2e_auth: bool = Field(False, alias="ENABLE_E2E_AUTH")
 
     # ══════════════════════════════════════════════════════════════
     # Mistral AI — единственный AI провайдер (официальный SDK)
@@ -293,7 +293,21 @@ class Settings(BaseSettings):
 
     # Webhook & Mini App
     webhook_url: str | None = Field(None, alias="WEBHOOK_URL")
-    mini_app_url: str | None = Field(None, alias="MINI_APP_URL")
+
+    # Public URLs — single source of truth for frontend endpoints.
+    # Do NOT hardcode rekharbor.ru anywhere in src/ or mini_app/src/.
+    mini_app_url: str = Field("https://app.rekharbor.ru/", alias="MINI_APP_URL")
+    web_portal_url: str = Field("https://rekharbor.ru/portal", alias="WEB_PORTAL_URL")
+    landing_url: str = Field("https://rekharbor.ru", alias="LANDING_URL")
+    api_public_url: str = Field("https://api.rekharbor.ru", alias="API_PUBLIC_URL")
+    tracking_base_url: str = Field("https://rekharbor.ru/t", alias="TRACKING_BASE_URL")
+    terms_url: str = Field("https://rekharbor.ru/terms", alias="TERMS_URL")
+
+    # Mini_app → web_portal JWT bridge (Phase 0)
+    ticket_jwt_ttl_seconds: int = Field(300, alias="TICKET_JWT_TTL_SECONDS")
+
+    # Optional sandbox Telegram channel id for test-mode routing (Phase 5).
+    sandbox_telegram_channel_id: int | None = Field(None, alias="SANDBOX_TELEGRAM_CHANNEL_ID")
 
     # Sentry / GlitchTip
     sentry_dsn: str | None = Field(None, alias="SENTRY_DSN")
@@ -323,21 +337,6 @@ class Settings(BaseSettings):
         if not self.admin_ids_raw:
             return []
         return [int(x.strip()) for x in self.admin_ids_raw.split(",") if x.strip().isdigit()]
-
-    @property
-    def is_development(self) -> bool:
-        """Проверка на development окружение."""
-        return self.environment == "development"
-
-    @property
-    def is_production(self) -> bool:
-        """Проверка на production окружение."""
-        return self.environment == "production"
-
-    @property
-    def is_testing(self) -> bool:
-        """Проверка на testing окружение."""
-        return self.environment == "testing"
 
     @property
     def database_url_sync(self) -> str:
