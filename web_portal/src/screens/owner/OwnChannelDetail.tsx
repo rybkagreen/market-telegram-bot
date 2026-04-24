@@ -83,7 +83,11 @@ export default function OwnChannelDetail() {
           className={`absolute top-0 left-0 right-0 h-[3px] ${channel.is_active ? 'bg-gradient-to-r from-accent to-accent-2' : 'bg-harbor-elevated'}`}
         />
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-[14px] bg-accent-muted grid place-items-center font-display text-[26px] font-bold text-accent flex-shrink-0">
+          <div
+            className={`w-16 h-16 rounded-[14px] grid place-items-center font-display text-[26px] font-bold flex-shrink-0 ${channel.is_active ? 'bg-accent-muted text-accent' : 'bg-harbor-elevated text-text-tertiary'}`}
+            aria-label={channel.is_active ? 'Активен' : 'Скрыт'}
+            title={channel.is_active ? 'Активен' : 'Скрыт'}
+          >
             {channel.title[0]?.toUpperCase() ?? '#'}
           </div>
           <div className="flex-1 min-w-0">
@@ -92,9 +96,11 @@ export default function OwnChannelDetail() {
                 {channel.title}
               </span>
               <span
-                className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded ${channel.is_active ? 'bg-success-muted text-success' : 'bg-harbor-elevated text-text-tertiary'}`}
+                className={`inline-grid place-items-center w-5 h-5 rounded-full flex-shrink-0 ${channel.is_active ? 'bg-success-muted' : 'bg-harbor-elevated'}`}
+                aria-label={channel.is_active ? 'Активен' : 'Скрыт'}
+                title={channel.is_active ? 'Активен' : 'Скрыт'}
               >
-                {channel.is_active ? 'Активен' : 'Скрыт'}
+                <span className={`w-1.5 h-1.5 rounded-full ${channel.is_active ? 'bg-success' : 'bg-text-tertiary'}`} />
               </span>
             </div>
             <div className="text-[13px] text-text-tertiary mt-0.5">@{channel.username}</div>
@@ -259,7 +265,7 @@ function ActionTile({
     <button
       type="button"
       onClick={onClick}
-      className="text-left bg-harbor-card border border-border rounded-xl p-5 flex items-center gap-3 hover:-translate-y-0.5 hover:border-accent/40 transition-all"
+      className="text-left bg-harbor-card border border-border rounded-xl p-5 flex items-center gap-3 hover:border-accent/40 hover:bg-harbor-elevated/40 transition-colors"
     >
       <span className="grid place-items-center w-10 h-10 rounded-[10px] bg-accent-muted text-accent flex-shrink-0">
         <Icon name={icon} size={18} />
