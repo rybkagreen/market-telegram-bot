@@ -2,18 +2,20 @@
 // Никогда не перепутывать их местами. Используйте РАЗНЫЕ queryKey для каждого!
 
 import { useQuery } from '@tanstack/react-query'
-import { getAdvertiserAnalytics, getOwnerAnalytics } from '@/api/analytics'
-
-// Примечание (UX-P0): onError логирование реализовано на уровне компонентов
-// (AdvAnalytics.tsx, OwnAnalytics.tsx) так как React Query v5 не поддерживает
-// onError в useQuery options напрямую
+import {
+  getAdvertiserAnalytics,
+  getOwnerAnalytics,
+  getAIInsights,
+  type AIInsightsUnifiedResponse,
+  type InsightsRole,
+} from '@/api/analytics'
 
 export const useAdvertiserAnalytics = () =>
   useQuery({
     queryKey: ['analytics', 'advertiser'],
     queryFn: getAdvertiserAnalytics,
     staleTime: 5 * 60_000,
-    retry: 2, // ИЗМЕНЕНО (UX-P0): уменьшено с 3 до 2 для быстрой ошибки
+    retry: 2,
   })
 
 export const useOwnerAnalytics = () =>
@@ -21,5 +23,14 @@ export const useOwnerAnalytics = () =>
     queryKey: ['analytics', 'owner'],
     queryFn: getOwnerAnalytics,
     staleTime: 5 * 60_000,
-    retry: 2, // ИЗМЕНЕНО (UX-P0): уменьшено с 3 до 2 для быстрой ошибки
+    retry: 2,
+  })
+
+export const useAIInsights = (role: InsightsRole) =>
+  useQuery<AIInsightsUnifiedResponse>({
+    queryKey: ['analytics', 'ai-insights', role],
+    queryFn: () => getAIInsights(role),
+    staleTime: 10 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   })

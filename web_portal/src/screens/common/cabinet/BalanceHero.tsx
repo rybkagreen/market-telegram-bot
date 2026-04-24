@@ -98,11 +98,11 @@ function BalanceTile({
         </div>
       )}
 
-      <div className="mt-3 mb-4" style={{ color: toneColor }}>
-        <Sparkline data={spark.length ? spark : [0, 0]} width={420} height={42} />
+      <div className="mt-3 mb-4 w-full" style={{ color: toneColor }}>
+        <Sparkline data={spark.length ? spark : [0, 0]} width={420} height={42} responsive />
       </div>
 
-      <div className="flex items-center gap-5 pt-3 border-t border-dashed border-border">
+      <div className="flex flex-wrap items-center gap-3 md:gap-5 pt-3 border-t border-dashed border-border">
         {secondary.map((s) => (
           <div key={s.label}>
             <div className="text-[10.5px] uppercase tracking-[0.05em] text-text-tertiary font-medium">
@@ -117,7 +117,7 @@ function BalanceTile({
           type="button"
           onClick={cta.disabled ? undefined : cta.onClick}
           disabled={cta.disabled}
-          className={`ml-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12.5px] font-semibold transition-colors ${
+          className={`ml-auto inline-flex items-center gap-1.5 px-4 py-2.5 min-h-11 md:py-1.5 md:min-h-0 rounded-md text-[12.5px] font-semibold transition-colors ${
             cta.disabled
               ? 'bg-harbor-secondary text-text-tertiary cursor-not-allowed'
               : 'text-white cursor-pointer hover:brightness-110'

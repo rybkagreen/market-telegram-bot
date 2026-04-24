@@ -27,7 +27,7 @@ const OWNER_ACTIONS: Action[] = [
   { id: 'add-channel', label: 'Добавить канал', sub: 'подключи к бирже', icon: 'channels', tone: 'primary', href: '/own/channels/add' },
   { id: 'payout', label: 'Запросить выплату', sub: 'вывести заработок', icon: 'payouts', tone: 'primary2', href: '/own/payouts/request' },
   { id: 'requests', label: 'Размещения', sub: 'заявки рекламодателей', icon: 'placement', tone: 'secondary', href: '/own/requests' },
-  { id: 'analytics', label: 'Аналитика', sub: 'метрики каналов', icon: 'analytics', tone: 'secondary', href: '/own/analytics' },
+  { id: 'analytics', label: 'Аналитика', sub: 'метрики каналов', icon: 'analytics', tone: 'secondary', href: '/analytics' },
   { id: 'legal', label: 'Юр. профиль', sub: 'реквизиты для выплат', icon: 'verified', tone: 'secondary', href: '/legal-profile/view' },
   { id: 'docs', label: 'Документы', sub: 'акты и договоры', icon: 'docs', tone: 'secondary', href: '/acts' },
 ]
@@ -46,7 +46,7 @@ function ActionTile({ action }: { action: Action }) {
     <button
       type="button"
       onClick={() => navigate(action.href)}
-      className={`group flex items-center gap-3 p-3 rounded-lg bg-harbor-secondary border ${borderClr} text-left transition-all hover:bg-harbor-elevated hover:-translate-y-0.5 cursor-pointer`}
+      className={`group flex items-center gap-3 p-3 rounded-lg bg-harbor-secondary border ${borderClr} text-left transition-colors hover:bg-harbor-elevated cursor-pointer`}
     >
       <div className={`w-[34px] h-[34px] rounded-md grid place-items-center flex-shrink-0 ${iconBg}`}>
         <Icon name={action.icon} size={17} />

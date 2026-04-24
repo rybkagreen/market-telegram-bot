@@ -49,7 +49,7 @@ export function PortalShell() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto scrollbar-thin bg-harbor-bg">
+        <main className="flex-1 overflow-x-hidden overflow-y-scroll scrollbar-thin bg-harbor-bg [scrollbar-gutter:stable] overscroll-contain">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
             {showAcceptRulesBanner && (
               <Notification type="warning">

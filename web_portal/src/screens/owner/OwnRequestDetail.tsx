@@ -207,7 +207,7 @@ export default function OwnRequestDetail() {
                 Текст объявления
               </span>
             </div>
-            <p className="text-[13.5px] leading-[1.55] text-text-secondary whitespace-pre-wrap">
+            <p className="text-[13.5px] leading-[1.55] text-text-secondary whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {request.ad_text}
             </p>
           </div>

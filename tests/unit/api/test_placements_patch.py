@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api.dependencies import get_current_user, get_db_session
 from src.api.main import app
+from src.core.exceptions import PlacementStatusConflictError
 from src.core.services.placement_request_service import PlacementRequestService
 from src.db.models.placement_request import PlacementStatus
 from src.db.models.user import User
@@ -162,17 +163,35 @@ def session_spy() -> MagicMock:
     return session
 
 
+async def _spy_dep_factory(session_spy: MagicMock) -> Any:
+    """Build a get_db_session-shaped override that mirrors production
+    commit/rollback semantics so spy assertions match real behaviour
+    (plan-05 made the router rely on dep cleanup for both)."""
+
+    async def _dep() -> AsyncGenerator[Any]:
+        try:
+            yield session_spy
+            await session_spy.commit()
+        except Exception:
+            await session_spy.rollback()
+            raise
+
+    return _dep
+
+
 @pytest_asyncio.fixture
 async def client_as_owner_with_spy(
     owner_user: User, session_spy: MagicMock
 ) -> AsyncGenerator[tuple[AsyncClient, MagicMock]]:
-    async def _dep() -> AsyncGenerator[Any]:
-        yield session_spy
-
     app.dependency_overrides[get_current_user] = lambda: owner_user
-    app.dependency_overrides[get_db_session] = _dep
+    app.dependency_overrides[get_db_session] = await _spy_dep_factory(session_spy)
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    # raise_app_exceptions=False: mirror uvicorn behaviour — unhandled
+    # exceptions become 500 responses instead of propagating into the test.
+    # Plan-05 removed the router's `except Exception` catch in favour of
+    # FastAPI's default 500 handler; the spy tests exercise that path.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, session_spy
 
     app.dependency_overrides.clear()
@@ -182,13 +201,11 @@ async def client_as_owner_with_spy(
 async def client_as_advertiser_with_spy(
     advertiser_user: User, session_spy: MagicMock
 ) -> AsyncGenerator[tuple[AsyncClient, MagicMock]]:
-    async def _dep() -> AsyncGenerator[Any]:
-        yield session_spy
-
     app.dependency_overrides[get_current_user] = lambda: advertiser_user
-    app.dependency_overrides[get_db_session] = _dep
+    app.dependency_overrides[get_db_session] = await _spy_dep_factory(session_spy)
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, session_spy
 
     app.dependency_overrides.clear()
@@ -663,10 +680,14 @@ class TestErrorPathsCallRollback:
         * `except Exception`      — неожиданный сбой → 500
     """
 
-    async def test_value_error_maps_to_409_and_rolls_back(
+    async def test_typed_conflict_maps_to_409_and_rolls_back(
         self,
         client_as_owner_with_spy: tuple[AsyncClient, MagicMock],
     ) -> None:
+        # plan-05: service raises PlacementStatusConflictError (typed).
+        # Global handler in src/api/main.py maps RekHarborError subclasses
+        # to exc.http_status (409 here) and emits error_code in the body;
+        # the get_db_session dependency rolls the transaction back.
         client, session_spy = client_as_owner_with_spy
         placement = _make_placement()
         channel = _make_channel(owner_id=7001)
@@ -676,7 +697,7 @@ class TestErrorPathsCallRollback:
         channel_repo = MagicMock()
         channel_repo.get_by_id = AsyncMock(return_value=channel)
         service = create_autospec(PlacementRequestService, instance=True, spec_set=True)
-        service.owner_accept.side_effect = ValueError(
+        service.owner_accept.side_effect = PlacementStatusConflictError(
             "Placement not in pending_owner status"
         )
 
@@ -697,7 +718,9 @@ class TestErrorPathsCallRollback:
             resp = await client.patch("/api/placements/4242", json={"action": "accept"})
 
         assert resp.status_code == 409, resp.text
-        assert "pending_owner" in resp.json()["detail"]
+        body = resp.json()
+        assert "pending_owner" in body["detail"]
+        assert body["error_code"] == "placement_status_conflict"
         session_spy.rollback.assert_awaited_once()
         session_spy.commit.assert_not_awaited()
 

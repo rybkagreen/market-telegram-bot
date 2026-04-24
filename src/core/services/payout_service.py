@@ -20,7 +20,11 @@ from src.constants.payments import (
     VELOCITY_MAX_RATIO,
     VELOCITY_WINDOW_DAYS,
 )
-from src.core.exceptions import VelocityCheckError
+from src.core.exceptions import (
+    PayoutAlreadyFinalizedError,
+    PayoutNotFoundError,
+    VelocityCheckError,
+)
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.transaction import TransactionType
 from src.db.models.user import User
@@ -774,15 +778,19 @@ class PayoutService:
                 )
                 payout = (await session.execute(stmt)).scalar_one_or_none()
                 if payout is None:
-                    raise ValueError(f"PayoutRequest {payout_id} not found")
+                    raise PayoutNotFoundError(
+                        f"PayoutRequest {payout_id} not found",
+                        extra={"payout_id": payout_id},
+                    )
                 if payout.status in (
                     PayoutStatus.paid,
                     PayoutStatus.rejected,
                     PayoutStatus.cancelled,
                 ):
-                    raise ValueError(
+                    raise PayoutAlreadyFinalizedError(
                         f"PayoutRequest {payout_id} already finalized "
-                        f"(status={payout.status.value})"
+                        f"(status={payout.status.value})",
+                        extra={"payout_id": payout_id, "status": payout.status.value},
                     )
 
                 await self.complete_payout(session, payout_id)
@@ -828,15 +836,19 @@ class PayoutService:
                 )
                 payout = (await session.execute(stmt)).scalar_one_or_none()
                 if payout is None:
-                    raise ValueError(f"PayoutRequest {payout_id} not found")
+                    raise PayoutNotFoundError(
+                        f"PayoutRequest {payout_id} not found",
+                        extra={"payout_id": payout_id},
+                    )
                 if payout.status in (
                     PayoutStatus.paid,
                     PayoutStatus.rejected,
                     PayoutStatus.cancelled,
                 ):
-                    raise ValueError(
+                    raise PayoutAlreadyFinalizedError(
                         f"PayoutRequest {payout_id} already finalized "
-                        f"(status={payout.status.value})"
+                        f"(status={payout.status.value})",
+                        extra={"payout_id": payout_id, "status": payout.status.value},
                     )
 
                 await self.reject_payout(session, payout_id, reason)

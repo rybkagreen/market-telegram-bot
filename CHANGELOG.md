@@ -7,6 +7,319 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Consolidated escrow pipeline + unified Bot factory (2026-04-24)
+
+Diagnostic of a reported "advertiser vs owner status desync" exposed
+three architectural defects in the escrow path. All fixed in one
+coordinated change; see
+`reports/docs-architect/discovery/CHANGES_2026-04-24_escrow-pipeline-bot-factory.md`.
+
+- `BillingService.freeze_escrow(...)` removed. All freeze paths now
+  go through `BillingService.freeze_escrow_for_placement(placement_id,
+  advertiser_id, amount, is_test=False) -> Transaction`. The unified
+  method is idempotent (`escrow_freeze:placement={id}`), updates
+  `platform_account.escrow_reserved`, and returns the created
+  Transaction so callers can persist `escrow_transaction_id`.
+- `PlacementRequestService._freeze_escrow_for_payment` no longer has
+  an `is_test` shortcut that skipped billing. `is_test=true` now
+  creates a normal freeze transaction (with the given `amount`,
+  not zero) that just doesn't deduct `user.balance_rub`. This removes
+  all downstream NULL-handling for `escrow_transaction_id` and
+  `final_price`.
+- Bot handler `camp_pay_balance` rewritten to delegate to
+  `PlacementRequestService.process_payment()`. Direct
+  `req.status = PlacementStatus.escrow`, direct `billing.freeze_escrow`,
+  and duplicated `schedule_placement_publication.delay(...)` removed.
+- New `src/bot/session_factory.py` with `new_bot()` — the single
+  factory for aiogram `Bot` instances. It applies
+  `AiohttpSession(proxy=settings.telegram_proxy)` automatically.
+  Used by `src/bot/main.py`, `src/tasks/_bot_factory.py`, and
+  `src/utils/telegram/sender.py`. Fixes all Celery Bot calls failing
+  with `TelegramNetworkError` on proxy-required hosts.
+- `settings.telegram_proxy` now validated at boot: must start with
+  `socks5://`, `socks4://`, `http://`, or `https://`.
+- `scripts/check_forbidden_patterns.sh` extended with two Python
+  guards: aiogram `Bot(token=...)` outside the factory; direct
+  `.status = PlacementStatus.escrow` outside the repository.
+
+### Breaking
+
+- **Python API:** `BillingService.freeze_escrow` removed. Callers
+  must migrate to `freeze_escrow_for_placement` (different kwargs:
+  `advertiser_id` in place of `user_id`, returns `Transaction`,
+  new `is_test` flag).
+
+### Fixed — DB invariant for escrow state (INV-1)
+
+- New `CHECK constraint placement_escrow_integrity` on
+  `placement_requests`: `status != 'escrow' OR
+  (escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)`.
+  Prevents any future code path (accidental direct SQL, migration
+  backfill, flaky service) from persisting a broken escrow row.
+
+### Migration Notes
+
+- Pre-production rule applies: initial migration
+  `src/db/migrations/versions/0001_initial_schema.py` was edited
+  in place. DB dropped and re-created with `dropdb && createdb &&
+  alembic upgrade head`. `alembic check` clean.
+
+### Fixed — Cabinet account card + unified list cards on mobile (2026-04-24, phase 4)
+
+- `Cabinet.tsx` account card — previously rendered on mobile as four
+  disconnected pieces (avatar / 3 label-value pairs / logout button
+  stacked). Now a single horizontal row: avatar + name with
+  `@handle · telegram_id` meta + 44×44 icon-only logout. Desktop layout
+  preserved.
+- Unified list-card pattern across Кампании (`MyCampaigns`),
+  Размещения (`OwnRequests`), Каналы (`OwnChannels`). All three
+  follow the same mobile skeleton now: status-avatar + title/id/meta
+  header + date↔price row + right-justified action row.
+  - `MyCampaigns`: row was a single tight flex that squeezed into
+    343px; now `flex flex-col sm:flex-row`.
+  - `OwnChannels`: category chip pulled into the header instead of
+    its own mobile row; edit-mode category picker rendered as a
+    full-width row only on mobile. Card drops from 4 to 3 visual
+    sections on mobile.
+
+Breaking: none. Pure UI.
+
+### Fixed — web_portal mobile jitter + residual bugs (2026-04-24, phase 3)
+
+Follow-up after user reported (a) remaining visible bugs on 4 screens
+(Каналы, Пополнить, Размещение, Выплаты) and (b) horizontal jitter /
+"экраны не зафиксированы по вертикали" across most screens.
+
+**Root cause of jitter — fixed globally:**
+- `PortalShell.tsx` main scroll container — `overflow-y-auto` →
+  `overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable]
+  overscroll-contain`. Reserves scrollbar gutter so the content doesn't
+  shift horizontally when the scrollbar appears/disappears; clips
+  accidental horizontal overflow; prevents scroll-chain to body.
+- `globals.css` — `html` and `body` now `overflow-x: hidden; height:
+  100%; overscroll-behavior: none` — stops iOS rubber-band at the
+  document root.
+- Removed `hover:-translate-y-0.5` from three components (`Plans`
+  PlanCard, `OwnChannelDetail` ActionTile, cabinet `QuickActions`) —
+  on touch devices the sticky `:hover` state caused rows to stay
+  shifted by -2px after a tap, creating visible layout jumps
+  ("UI не зафиксирован жестко"). Replaced with
+  color/border-only hover feedback.
+
+**Residual per-screen bugs:**
+- `TopUp.tsx` — removed a duplicated-and-shadowed class pair
+  (`w-8.5 h-8.5 w-[34px] h-[34px]`).
+- `TopUpConfirm.tsx` — inline 3-column grid-template replaced with
+  responsive `grid-cols-1 sm:grid-cols-3` so the 3 action buttons no
+  longer squeeze onto one row on 375px.
+- `OwnRequests.tsx` — request row rewritten as a stacked card on
+  `<sm` (icon + channel + id header, ad-text + date + inline price,
+  action below); desktop grid preserved.
+- `OwnRequestDetail.tsx` — ad_text gains `break-words
+  [overflow-wrap:anywhere]` so long URLs/tokens no longer overflow
+  the 343px card.
+- `OwnChannelDetail.tsx` — redundant "Активен / Скрыт" uppercase
+  pill replaced with an avatar-colour + small dot-indicator
+  (aria-label preserved for screen readers).
+- `OwnPayouts.tsx` — hero amount `text-[34px]` now `text-[26px]
+  sm:text-[34px] break-words` to avoid 6+ digit clipping on 375px;
+  meta row wraps.
+- `PerformanceChart.tsx` — three-metric header `gap-6` → `flex-wrap
+  gap-3 md:gap-6` so Доходы/Расходы/Нетто don't run off a 343px row.
+- `advertiser/campaign/_shell.tsx` — removed redundant
+  `overflow-x-auto` wrapper around `StepIndicator` (indicator
+  manages its own horizontal overflow).
+
+Breaking: none. Pure UI.
+
+### Fixed — web_portal mobile deep-sweep phase 2 (2026-04-24)
+
+Follow-up sweep across every remaining screen (Cabinet, Common, Shared,
+Owner, Advertiser wizard, Admin, Analytics). 26 files + 1 new generic
+mobile component (`MobileDataCard`) in 5 sub-phases. Pure UI; zero API /
+DB / business-logic impact.
+
+- **Shared UI**: `Input` and `Textarea` now enforce 44px+ tap targets
+  (`min-h-11` / `min-h-[88px]`). `StepIndicator` collapses step labels
+  to active-only + horizontal scroll on mobile. `Sparkline` grew a
+  `responsive` prop that stretches to container width — fixes the
+  Cabinet/BalanceHero horizontal overflow (sparkline was hardcoded
+  `width={420}` on 375px viewport). New `.safe-bottom` utility in
+  `globals.css` applies `env(safe-area-inset-bottom)` to fixed footers.
+- **Layout-killer grids (6 screens)**: AcceptRules, DocumentUpload,
+  Feedback, Help, LegalProfileSetup, Plans — all had inline
+  `gridTemplateColumns` with fixed 220–360px side panels that
+  crushed the main column on 375px. Migrated to responsive
+  `grid-cols-1 lg:[grid-template-columns:...]`. Plans comparison
+  table got `overflow-x-auto` + `sticky left-0` feature column.
+- **Table → stack on mobile (3 screens)**: MyActsScreen (two 6-column
+  grids), ReputationHistory (4-col), TransactionHistory (4-col) — each
+  now `hidden md:grid` on desktop, stacked mobile render with labels
+  inline. Download/PDF buttons sized to 44×44 on mobile.
+- **Admin tables (4 screens)**: AdminUsersList, AdminTaxSummary,
+  AdminPayouts, ChannelDeepDive — `sticky left-0` on first column of
+  `overflow-x-auto` tables; `min-w-[260-320px]` values relaxed on
+  mobile.
+- **Cabinet**: `BalanceHero` sparkline now responsive; CTA buttons
+  (Пополнить / К выплате) 44px on mobile. Top header reviewed —
+  reported "АДМИН ПАНЕЛЬ overlap" could not be reproduced; no sticky
+  or z-index conflicts exist in current layout.
+- **Fixed bottoms**: OwnChannels compare bar, campaign wizard footer,
+  CampaignVideo footer all gained `safe-bottom` utility.
+- **Status pills**: removed redundant uppercase-text labels next to
+  icon-avatars in 4 files where the duplication was real
+  (DisputeDetail, MyDisputes, OwnRequests, AdminDisputesList). The
+  remaining ~13 places where text is the sole indicator (icon lives
+  inside the pill, not in a separate avatar) were left intact.
+
+Total: 26 files touched, ~600 insertions / ~300 deletions.
+
+Verified: typecheck + lint + vite build clean. Playwright not run —
+not installed in `web_portal/node_modules` (same condition as phase 1
+session). Manual QA at 375/390 Chrome DevTools recommended before
+merge.
+
+### Fixed — web_portal mobile layout on 375/390px (2026-04-24)
+
+Systemic mobile-viewport cleanup on `portal.rekharbor.ru` across six
+high-traffic screens. Cabinet intentionally left untouched (out of
+scope). No API / DB / business-logic changes.
+
+- **TopUp**: dropped the inline `grid-template-columns: minmax(0,1fr)
+  360px` that was the root cause of the "vertical text on the left
+  edge" artefact on narrow viewports — the right column tried to reserve
+  360px on a ~343px content width, crushing the left column to ~0px.
+  Now single-column on `<md`, 2-col on `md+`. Sticky summary panel
+  becomes in-flow on mobile.
+- **Referral**: the `1.6fr / minmax(280px,1fr)` grid squeezed "Ваши
+  рефералы" to ~60px on 375px (visually hidden under "Как это
+  работает"). Replaced with responsive single-column on `<md`. All
+  inline grid styles converted to responsive Tailwind arbitrary
+  `[grid-template-columns:…]` variants. Active/new referral label
+  collapsed to a dot indicator with aria-label.
+- **OwnPayouts**: history row was a flex-row with hard `min-w-[160/120]`
+  cells, which clipped the "ЗАПРОШЕНО"/"К ЗАЧИСЛЕНИЮ" column headers
+  on mobile. Refactored to a stacked mobile card: icon + `#id` + date
+  in the header, amounts in a 2-column grid below. Removed the
+  redundant uppercase status label; status is conveyed by icon colour +
+  `aria-label`/`title`.
+- **MyCampaigns**: filter pills gain a horizontally-scrollable strip
+  with `snap-mandatory` on `<sm`; kept `flex-wrap` on `sm+`. Sort
+  control stacked on its own row on mobile. `FilterPill` gets
+  `flex-shrink-0 snap-start`.
+- **OwnChannels**: bottom action cluster gets 44×44 tap targets on
+  mobile (via `!w-11 !h-11 @3xl:!w-8 @3xl:!h-8` per button) and wider
+  gap (`gap-2`). The "Активен/Скрыт" uppercase label next to
+  `@username` replaced with a dot-in-circle indicator.
+- **ContractList**: per-row grid (`1.4fr 2fr 1.2fr 0.9fr auto`) now
+  stacks into a mobile card (icon + `#id` + type on row 1, period on
+  row 2, status dot, full-width buttons). Date format switched from
+  `'19 апр. 2026 г.'` to `'19.04.2026'`. New helper `fmtPeriod` yields
+  `'DD.MM.YYYY — бессрочно'` when `expires_at` is null. Status pill
+  reduced to dot-only on desktop per brief rule (icon/colour is
+  self-sufficient). PDF download button is 44×44 on mobile.
+
+Breaking: none. Contract-drift guard unaffected (no schema changes).
+
+### Added — Unified `/analytics` screen with Mistral AI insights (2026-04-23)
+
+Replaces `/adv/analytics` and `/own/analytics` with a single `/analytics`
+that shifts focus from duplicated KPIs (already on Cabinet) to real
+AI-generated narrative, actionable recommendations, a per-period
+forecast, detected anomalies, and a role-aware channel deep-dive with
+AI-assigned flags.
+
+- **Backend**: new `GET /api/analytics/ai-insights?role={advertiser|owner}`
+  returning `AIInsightsUnifiedResponse`. Calls Mistral with a strict-JSON
+  prompt (8 s timeout, Redis-cached 15 min per `ai_insights:{user_id}:{role}:v1`);
+  on any Mistral failure (missing key, timeout, invalid JSON) transparently
+  falls back to a deterministic rule-based engine with the same output
+  shape, surfacing `ai_backend: "rules"` for UI badge display. Existing
+  `/analytics/advertiser`, `/analytics/owner`, `/cashflow`, `/summary` etc.
+  are untouched.
+- **Service**: new method `AnalyticsService.generate_unified_insights`
+  plus helpers (`_rules_advertiser`, `_rules_owner`,
+  `_sanitize_mistral_payload`) in `src/core/services/analytics_service.py`.
+  Reuses existing `get_advertiser_stats` / `get_owner_stats` /
+  `get_top_channels_by_reach`.
+- **web_portal**: new `screens/common/Analytics.tsx` + four subcomponents
+  (`AIInsightCard`, `ChannelDeepDive`, `TrendComparison`, `RoleTabs`).
+  The AI insight card is the hero element — narrative summary, up to
+  three action items with estimated impact and CTAs, forecast strip,
+  severity-coded anomalies, and a Mistral/Rules backend badge.
+- **mini_app**: parallel `screens/common/Analytics.tsx` (no chart
+  library; leaner layout for Telegram WebApp).
+- **Contract drift guard**: `AIInsightsUnifiedResponse` registered in
+  `tests/unit/test_contract_schemas.py` with a new JSON snapshot.
+- **Tests**: 15 service-layer unit tests + 5 HTTP endpoint tests.
+
+### Changed — Analytics navigation consolidated (2026-04-23)
+
+- **web_portal**: Sidebar collapses two legacy "Аналитика" entries
+  (under "Реклама" and "Каналы") into a single entry under a new
+  dedicated "Аналитика" section. Topbar breadcrumb entries for the old
+  paths are removed; `/analytics` has its own breadcrumb.
+- **web_portal / mini_app**: `/adv/analytics` and `/own/analytics` now
+  `<Navigate replace />` to `/analytics?role=<role>` — bookmarks and
+  notification deep-links continue to work.
+- **web_portal**: Cabinet header CTA ("Отчёт" → "Аналитика"),
+  QuickActions owner tile, and post-publication redirect on
+  `CampaignPublished` all point at `/analytics`.
+- **mini_app**: `AdvMenu`, `OwnMenu`, and `CampaignPublished` navigate
+  to `/analytics`.
+- **Playwright**: `web_portal/tests/fixtures/routes.ts` replaces the two
+  legacy route entries with a single `/analytics` under common routes.
+
+### Removed — Legacy per-role analytics screens (2026-04-23)
+
+- `web_portal/src/screens/advertiser/AdvAnalytics.tsx`
+- `web_portal/src/screens/owner/OwnAnalytics.tsx`
+- `mini_app/src/screens/advertiser/AdvAnalytics.tsx` + `.module.css`
+- `mini_app/src/screens/owner/OwnAnalytics.tsx` + `.module.css`
+
+### Migration Notes — Unified analytics
+
+- After rebuilding containers (`docker compose up -d --build nginx api`),
+  the legacy URLs redirect transparently — no user action required.
+- If `MISTRAL_API_KEY` is not set in the API container's environment,
+  the feature continues to work using the rule-based engine (badge
+  displays "Rules" instead of "AI"). No 500s, no blank screens.
+- **Pre-existing issue noted (not fixed)**: the notification button
+  callback `analytics:by_campaign:{campaign_id}` emitted from
+  `src/tasks/notification_tasks.py:660` has no handler anywhere in the
+  codebase. Separate ticket recommended.
+
+### Changed — RekHarbor logo refresh (2026-04-23)
+
+Swaps placeholder anchor/emoji/RH-badge marks across all frontends
+for the new brand-grade RekHarbor logo (icon + wordmark).
+
+- **web_portal**: new `public/brand/` folder holds four SVG variants
+  (`rekharbor_full_light`, `rekharbor_full_dark`,
+  `rekharbor_icon_teal`, `rekharbor_icon_dark`). `Sidebar.tsx` and
+  `LoginPage.tsx` render them via `<picture>` with
+  `<source media="(prefers-color-scheme: light)">` so the correct
+  light/dark variant loads natively without JS. The old gradient-box
+  `<Icon name="anchor">` + literal `RekHarbor` span in the sidebar
+  is gone; the old `⚓` emoji + `<h1>` duo in `LoginPage` is gone.
+- **web_portal**: added `public/favicon.svg` (was missing — `index.html`
+  referenced a 404).
+- **mini_app, landing**: `favicon.svg` replaced with the new teal icon
+  (was `⚓`-on-gradient and `RH`-badge respectively).
+- **landing**: `public/assets/og-cover.svg` (1200×630) rewritten with
+  the new full logo and brand accent `#14A5A8`.
+
+No API, DB, FSM, Celery task, or Pydantic schema changes; purely visual.
+
+Follow-up same day: (1) retargeted all brand colours from placeholder
+teal `#14A5A8` to the real portal accent `#00AEEE` (= `oklch(0.70 0.16
+230)`) and text-primary `#0C121A` / `#E1E5EB`; (2) fixed a logo-swap
+bug in the sidebar where React reused the `<img>` DOM node across the
+ternary branches — old full logo was rendered squished into the new
+32×32 attrs while the new SVG loaded, creating a "shrinking" illusion
+instead of a clean swap. Resolved via `key` props forcing a remount
+plus explicit pixel dimensions.
+
 ### Changed — plan-06 integration test SAVEPOINT isolation (2026-04-21)
 
 Replaces the TRUNCATE-based cleanup in

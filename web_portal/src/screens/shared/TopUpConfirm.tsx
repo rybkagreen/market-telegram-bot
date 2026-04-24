@@ -204,10 +204,7 @@ export default function TopUpConfirm() {
       </div>
 
       <div
-        className="grid gap-2.5"
-        style={{
-          gridTemplateColumns: live === 'succeeded' ? '1fr 1fr' : '1fr 1fr 1fr',
-        }}
+        className={`grid gap-2.5 grid-cols-1 ${live === 'succeeded' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}
       >
         {live === 'succeeded' ? (
           <>
