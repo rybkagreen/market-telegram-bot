@@ -23,6 +23,25 @@
 >
 > **Общие правила (копируются в каждую сессию):**
 > - CLAUDE.md, MEMORY.md, `src/config/settings.py` — обязательно перечитать.
+> - **Research-фазы обязаны иметь секцию "Возражения и риски" перед "Вопросами
+>   для подтверждения".** Если в плане замечены security-холы, противоречия,
+>   упущенные граничные случаи или неудачные именования — поднимать явно, не
+>   маскировать под уточняющие вопросы. Спорить с планом, когда есть основания.
+> - **Phase-mode дисциплина:**
+>   - Research / planning (0.A, N.A): «Будь критичным, ищи проблемы,
+>     оспаривай решения с аргументацией.»
+>   - Implementation (0.B–0.C, N.B–N.C): «Реализуй план как написано. Если
+>     вылезла блокирующая проблема — останавливайся и сообщай. Не вноси
+>     не предусмотренные планом улучшения.»
+> - **Что поднимать явно vs что отложить:**
+>   - **Поднимать (block / interrupt):** (а) проблемы безопасности,
+>     (б) баги или потенциальные баги, (в) явные противоречия в плане
+>     или требованиях, (г) решения, заметно усложняющие будущую поддержку.
+>   - **Отложить одной строкой в конце отчёта** под заголовком
+>     «возможные дальнейшие улучшения, не требуют действий сейчас»:
+>     косметические рефакторы, стилистические придирки, test coverage
+>     gaps в нетронутом коде, perf-оптимизации без замеров, naming
+>     preferences без семантического mismatch.
 > - S-48 transaction contract (сервис не открывает/не закрывает транзакции).
 > - API convention: screen → hook → api-module (ESLint + grep-guard).
 > - Pre-production migration rule: правим `0001_initial_schema.py`, новые
@@ -222,71 +241,197 @@ Phase 0 (env + constants + JWT aud)
 **Stop after research** — свести findings в короткий отчёт (< 400 строк
 в чате), согласовать с пользователем что менять, только потом кодить.
 
-## 0.B Implementation
+## 0.A.bis Research findings (зафиксированы 2026-04-25)
+
+Research уже выполнен в первой сессии. Ключевые факты, на которых стоит
+последующая реализация:
+
+- **ENVIRONMENT**: единственная behaviour-changing точка —
+  `src/api/main.py:193` (mount `auth_e2e_router` при `environment=="testing"`).
+  Параллельный dead-code `src/config/__init__.py` (никем не импортируется).
+  Properties `is_development/is_production/is_testing` не используются.
+- **Hardcoded URLs**: 8 backend-сайтов на `rekharbor.ru/app.rekharbor.ru` +
+  5 Jinja-templates (deferred to Phase 6) + 3 frontend-точки.
+  Typo-баг: `src/constants/legal.py:53,83,107,108` содержат
+  `rekhaborbot.ru` (лишнее `bot`) — фикс обязателен.
+- **ERID-prefix**: единственный — `STUB-ERID-` в `stub_ord_provider.py:43`
+  и в `tests/integration/test_placement_ord_contract_integration.py:127`.
+  Никакого `TEST-ERID-` в коде нет.
+- **JWT**: payload = `{sub, tg, plan, exp, iat}`. Никакого `aud`. Никакой
+  audience-валидации в `decode_jwt_token`. Endpoints выпускающие JWT — 4
+  (`/auth/telegram`, `/auth/telegram-login-widget`, `/auth/login-code`,
+  `/auth/e2e-login`). Redis уже подключён к auth-пути через
+  `src/api/dependencies.py:141` (`get_redis()`).
+- **VITE_PORTAL_URL**: НЕ задан ни в одном `.env`, `.env.example`, CI или
+  Dockerfile. То есть fallback `'https://rekharbor.ru/portal'` в
+  `mini_app/src/screens/common/LegalProfile{Setup,Prompt}.tsx:8` — это
+  фактический prod URL. Чинить.
+
+## 0.B Implementation (revised после security-review)
 
 ### 0.B.1 ENVIRONMENT consolidation
-- Все dead-code точки — удалить `if settings.environment == "..."` ветки.
-- Функциональные feature-flag — вынести в явные булевы флаги
-  (`settings.enable_debug_endpoints` и т.п.).
-- Удалить `ENVIRONMENT` из `settings.py`, `.env`, `.env.example`,
-  `docker-compose.yml`.
+- Удалить `src/config/__init__.py` целиком (dead code, нет импортов).
+- В `src/config/settings.py`: удалить `environment` field, properties
+  `is_development/is_production/is_testing`.
+- Заменить `if settings.environment == "testing"` на `if settings.enable_e2e_auth`
+  в `src/api/main.py:193`.
+- Добавить в `settings.py`: `enable_e2e_auth: bool = Field(False, alias="ENABLE_E2E_AUTH")`.
+- В `.env.test` и `.env.test.example`: `ENABLE_E2E_AUTH=true`.
+- Удалить `ENVIRONMENT=` из `.env`, `.env.example`, `.env.test`, `.env.test.example`.
+- В `/health` response (`src/api/main.py:260`): убрать ключ `environment`.
+- Docstring `src/api/routers/auth_e2e.py:4` — переписать под новый флаг.
 
 ### 0.B.2 Hardcode hygiene
-- Новый `src/core/constants.py`:
-  - `ERID_TEST_PREFIX = "TEST-ERID-"` (единственный; `STUB-ERID-` удалить).
-  - Magic numbers (batch sizes, message limits) перенести сюда.
-- Добавить в `settings.py` (если нет):
-  - `web_portal_url: AnyHttpUrl`
-  - `mini_app_url: AnyHttpUrl`
-  - `landing_url: AnyHttpUrl`
-  - `api_public_url: AnyHttpUrl`
-  - `ticket_jwt_ttl_seconds: int = 300`
-  - `sandbox_telegram_channel_id: int | None = None` (для Phase 5)
-- По результатам Agent B — заменить каждый хардкод на ссылку.
-- `scripts/check_forbidden_patterns.sh` добавить паттерн для URL:
-  `https?://[a-z.]*rekharbor\.ru` в `src/`, `mini_app/src/`,
-  `web_portal/src/`.
+- Новый `src/constants/erid.py` (внутри существующего `src/constants/`
+  пакета — НЕ создавать `src/core/constants.py`):
+  - `ERID_STUB_PREFIX = "STUB-ERID-"` — оставляем «STUB», описывает
+    *тип провайдера* (синтетический). «TEST» был бы про *режим placement-а*
+    (это отдельный концепт для Phase 5). НЕ переименовывать.
+- `src/config/settings.py` — добавить:
+  - `web_portal_url: AnyHttpUrl = Field("https://rekharbor.ru/portal", alias="WEB_PORTAL_URL")`
+  - `mini_app_url: AnyHttpUrl = Field("https://app.rekharbor.ru/", alias="MINI_APP_URL")`
+  - `landing_url: AnyHttpUrl = Field("https://rekharbor.ru", alias="LANDING_URL")`
+  - `api_public_url: AnyHttpUrl = Field("https://api.rekharbor.ru", alias="API_PUBLIC_URL")`
+  - `tracking_base_url: AnyHttpUrl = Field("https://rekharbor.ru/t", alias="TRACKING_BASE_URL")`
+  - `terms_url: AnyHttpUrl = Field("https://rekharbor.ru/terms", alias="TERMS_URL")`
+  - `ticket_jwt_ttl_seconds: int = Field(300, alias="TICKET_JWT_TTL_SECONDS")`
+  - `sandbox_telegram_channel_id: int | None = Field(None, alias="SANDBOX_TELEGRAM_CHANNEL_ID")`
+- Backend замены (8 файлов) — каждый хардкод `rekharbor.ru` URL заменить
+  на `settings.<нужное_поле>`:
+  - `src/api/main.py:175,176` — CORS origins
+  - `src/bot/main.py:65` — `WebAppInfo(url=settings.mini_app_url)`
+  - `src/bot/handlers/shared/legal_profile.py:16` — `PORTAL_URL = settings.web_portal_url`
+  - `src/bot/handlers/shared/start.py:34` — terms link
+  - `src/bot/handlers/shared/login_code.py:26` — instructional message
+  - `src/core/services/publication_service.py:126` — tracking URL
+  - `src/core/services/link_tracking_service.py:137,170` — tracking URL
+- Typo fix: `src/constants/legal.py:53,83,107,108` →
+  `rekhaborbot.ru` → `rekharbor.ru` (4 замены).
+- Frontend (no fallbacks):
+  - `mini_app/src/screens/common/LegalProfileSetup.tsx:8` и
+    `LegalProfilePrompt.tsx:8` — убрать `|| 'https://rekharbor.ru/portal'`.
+    Использовать `import.meta.env.VITE_PORTAL_URL` напрямую.
+  - `mini_app/.env.example` и `mini_app/.env`: добавить
+    `VITE_PORTAL_URL=https://rekharbor.ru/portal`.
+  - `nginx/Dockerfile` (или где собирается mini_app): пробросить
+    `ARG VITE_PORTAL_URL` + `ENV VITE_PORTAL_URL=$VITE_PORTAL_URL` перед
+    `vite build`. Если уже есть paттерн для `VITE_API_URL` — копировать.
+- Jinja templates (`src/templates/contracts/*.html`) — НЕ трогать в этой
+  фазе. Перенос на render-time переменные — Phase 6.
+- `scripts/check_forbidden_patterns.sh` — добавить:
+  - Python check: pattern `https?://[a-z.\-]*rekharbor\.ru` в `src/`,
+    исключения: `--exclude=settings.py`, `--exclude-dir=templates`.
+  - TS check: тот же pattern в `mini_app/src/` и `web_portal/src/`,
+    исключения: `--exclude-dir=lib`, `--exclude-dir=api`.
 
-### 0.B.3 JWT `aud` claim
-- `src/api/auth_utils.py`:
-  - `create_jwt_token(..., source: Literal["mini_app", "web_portal"])` —
-    прописывает `aud` в payload.
-  - `decode_jwt_token()` возвращает `source`.
-  - Legacy без `aud`: принимать с `WARN` лог до конца TTL (pre-prod — юзеров
-    мало).
-- `src/api/routers/auth.py`:
-  - `/api/auth/telegram` → `source="mini_app"`.
-  - `/api/auth/login` (web_portal) → `source="web_portal"`.
-- `src/api/dependencies.py`:
-  - `get_current_user_from_web_portal()` — новая dependency, проверяет
-    `aud == "web_portal"`, иначе 403.
-  - Старый `get_current_user` не меняется.
-- Bridge endpoint `POST /api/auth/exchange-miniapp-to-portal`:
-  - Принимает mini_app JWT.
-  - Возвращает `{ticket: <short_jwt>, portal_url: <from settings>}`.
-  - TTL ticket — `settings.ticket_jwt_ttl_seconds`. Одноразовый (JTI в Redis).
-- `POST /api/auth/consume-ticket` (web_portal endpoint):
-  - Принимает ticket → web_portal JWT с `aud="web_portal"`.
+### 0.B.3 JWT `aud` claim — security-hardened
+
+**`src/api/auth_utils.py`:**
+- `create_jwt_token(user_id, telegram_id, plan, source: Literal["mini_app", "web_portal"]) -> str`
+  — добавляем `"aud": source` в payload.
+- `decode_jwt_token(token: str, audience: Literal["mini_app", "web_portal"] | None) -> dict`
+  — `audience` без default value (обязательный позиционный аргумент).
+  `None` оставляем как явный opt-out для `audit_middleware`-like helpers,
+  но НЕ делаем default — кто пользует, обязан явно подумать.
+- Legacy-токены без `aud`: в новых production-dependencies возвращают
+  **401**, не WARN+accept. Pre-prod — окно миграции = одно перелогинивание
+  юзера. Никаких "до конца TTL" компромиссов.
+
+**Update token-issuing endpoints (4):**
+- `src/api/routers/auth.py:90` — `source="mini_app"` (`/api/auth/telegram`).
+- `src/api/routers/auth_login_widget.py:111` — `source="web_portal"`.
+- `src/api/routers/auth_login_code.py:124` — `source="web_portal"`.
+- `src/api/routers/auth_e2e.py:47` — `source="mini_app"` (test-only).
+
+**`src/api/dependencies.py`:**
+- `get_current_user` — теперь требует `aud in {"mini_app", "web_portal"}`.
+  Tokens без aud → 401 InvalidToken.
+- Новая `get_current_user_from_web_portal()` — обязательно передаёт
+  `audience="web_portal"` в `decode_jwt_token`. Mini_app JWT → 403
+  InvalidAudience. Никакого fallback.
+- `get_current_admin_user` — без изменений (наследует от `get_current_user`).
+
+**Bridge endpoints (`src/api/routers/auth.py`):**
+
+`POST /api/auth/exchange-miniapp-to-portal`:
+- Depends `get_current_user` (требует `aud="mini_app"`).
+- Генерирует `jti = uuid4()`.
+- Подписывает короткий ticket-JWT с `aud="web_portal"`, `jti`,
+  `exp = now + settings.ticket_jwt_ttl_seconds`.
+- Сохраняет в Redis: `auth:ticket:jti:{jti}` →
+  JSON `{"user_id": int, "issued_at": "<ISO8601>", "ip": "<request.client.host>"}`.
+  TTL = `settings.ticket_jwt_ttl_seconds`.
+- Возвращает `TicketResponse {ticket: str, portal_url: AnyHttpUrl, expires_in: int}`.
+
+`POST /api/auth/consume-ticket`:
+- Без auth (но с защитой, см. ниже).
+- **Rate-limit по IP**: 10 запросов / минута через Redis-counter
+  `auth:ticket:rate:ip:{ip}` (INCR + EXPIRE 60). 11-й → 429.
+- **Rate-limit по user_id**: 5 неудачных попыток / 5 минут через
+  `auth:ticket:rate:user:{user_id}:fail` (INCR + EXPIRE 300). 6-й → 429
+  + WARN-лог.
+- Decode ticket с `audience="web_portal"`. На любой ошибке (expired,
+  invalid signature, wrong aud, missing jti) — INCR fail-counter + 401
+  + structured log: `event=ticket_consume_failed`, `reason=<...>`,
+  `ip`, `jti_prefix=<first 8 chars of uuid>`.
+- Verify `auth:ticket:jti:{jti}` exists в Redis. Нет → 401 (replay или
+  Redis-flush).
+- `redis.delete(...)` — one-shot.
+- Issue full web_portal JWT: `create_jwt_token(..., source="web_portal")`.
+- Возвращает `AuthTokenResponse {access_token: str, token_type: "bearer", source: Literal["web_portal"]}`.
+
+**`audit_middleware.py` — НЕ трогаем в этой фазе:**
+- Декодирует JWT без проверки подписи (читает `sub` для логов).
+- Добавляем FIXME-комментарий с явной ссылкой на
+  `reports/docs-architect/BACKLOG.md` запись (создать).
+- Issue tracker entry: «refactor audit_middleware to read pre-validated
+  payload from `request.state.user` instead of re-decoding».
+
+**Pydantic schemas (`src/api/schemas/auth.py` — новый файл):**
+- `class TicketResponse(BaseModel)`: `ticket: str`, `portal_url: AnyHttpUrl`, `expires_in: int`.
+- `class AuthTokenResponse(BaseModel)`: `access_token: str`, `token_type: Literal["bearer"] = "bearer"`, `source: Literal["mini_app", "web_portal"]`.
+- Snapshots в `tests/unit/snapshots/` — обе модели.
+- `tests/unit/test_contract_schemas.py` — добавить обе.
 
 ## 0.C Acceptance
 
-- [ ] Поиск `settings.environment` в `src/` возвращает 0.
-- [ ] `scripts/check_forbidden_patterns.sh` проходит.
-- [ ] Unit tests `tests/unit/api/test_jwt_aud_claim.py` — all green:
-  - legacy токен без `aud` принимается + WARN в логах.
-  - mini_app JWT не принимается в `get_current_user_from_web_portal`.
-  - ticket flow: mini_app → exchange → consume → full web_portal JWT.
-- [ ] `make lint`, `make test`, `make typecheck` — pass.
-- [ ] `CHANGES_<date>_phase0-env-constants-jwt.md` + `CHANGELOG.md`.
+**Tests:**
+- [ ] `tests/unit/api/test_jwt_aud_claim.py` (8 кейсов):
+  1. mini_app JWT (`aud="mini_app"`) в `get_current_user` → 200.
+  2. web_portal JWT (`aud="web_portal"`) в `get_current_user` → 200.
+  3. legacy JWT без `aud` в `get_current_user` → **401** (НЕ WARN+200).
+  4. mini_app JWT в `get_current_user_from_web_portal` → 403 InvalidAudience.
+  5. Full ticket flow: exchange → consume → web_portal token works → 200 на каждом шаге.
+  6. Expired ticket consumed → 401.
+  7. Replay: consume того же ticket дважды → 1-й 200, 2-й 401 (jti уже удалён).
+  8. Tampered: ticket с правильным aud, но JTI отсутствует в Redis → 401.
+- [ ] `tests/unit/api/test_jwt_rate_limit.py` (2 кейса):
+  1. 11-й `/consume-ticket` запрос с одного IP за минуту → 429.
+  2. 6 неудачных consume для одного user_id за 5 минут → 429.
+
+**Static checks:**
+- [ ] `grep -rn "settings.environment" src/` → 0 результатов.
+- [ ] `grep -rn "rekhaborbot" src/` → 0 результатов.
+- [ ] `grep -rn "rekharbor.ru" src/ --include="*.py"` → только `settings.py` defaults
+  (templates/ — отдельно, deferred to Phase 6).
+- [ ] `scripts/check_forbidden_patterns.sh` → exit 0.
+- [ ] `make lint`, `make test`, `make typecheck` → pass.
+
+**Docs:**
+- [ ] `reports/docs-architect/discovery/CHANGES_2026-04-25_phase0-env-constants-jwt.md`.
+- [ ] `CHANGELOG.md` `[Unreleased]` — секции Added/Changed/Removed.
+- [ ] `reports/docs-architect/BACKLOG.md` — запись про audit_middleware refactor.
 
 ### 0.D Cross-cutting checklist
 - [ ] **Repo:** N/A (нет новых таблиц).
 - [ ] **Hooks:** N/A (backend-only фаза).
-- [ ] **Types (Python):** `TicketResponse`, `AuthTokenResponse` с `source` — +snapshot.
-- [ ] **Types (TS):** `web_portal/src/lib/types.ts` и `mini_app/src/lib/types.ts` — обновить `Auth*` типы если были.
+- [ ] **Types (Python):** `TicketResponse`, `AuthTokenResponse` — +snapshot.
+- [ ] **Types (TS):** обновить `mini_app/src/lib/types.ts` если есть `Auth*`-типы
+  (Auth-flow в mini_app — Phase 1).
 - [ ] **Indices:** N/A.
 - [ ] **Frontend tests:** N/A (UI в Phase 1).
-- [ ] **Mini_app audit:** затрагивает клиентскую `api/client.ts`? → аудит в Phase 1.
+- [ ] **Mini_app audit:** `mini_app/src/api/client.ts` — глубокий аудит в Phase 1
+  (storage ключа JWT, refresh-логика, обработка 401).
 
 **STOP → ждать "ок" перед Phase 1.**
 
