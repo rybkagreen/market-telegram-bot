@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -186,7 +187,16 @@ class PlacementRequest(Base, TimestampMixin):
         "MailingLog", back_populates="placement_request"
     )
 
-    __table_args__ = (Index("ix_placement_requests_status_expires", "status", "expires_at"),)
+    __table_args__ = (
+        Index("ix_placement_requests_status_expires", "status", "expires_at"),
+        # INV-1 (see /root/.claude/plans/optimized-brewing-music.md):
+        # status='escrow' ⇒ escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL.
+        CheckConstraint(
+            "status != 'escrow' OR "
+            "(escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
+            name="placement_escrow_integrity",
+        ),
+    )
 
     @property
     def has_dispute(self) -> bool:

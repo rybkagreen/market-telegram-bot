@@ -1093,6 +1093,14 @@ def upgrade() -> None:  # noqa: PLR0915
             "tracking_short_code",
             name="placement_requests_tracking_short_code_key",
         ),
+        # INV-1: status='escrow' ⇒ escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL.
+        # Enforced at DB level so no code path (is_test, handler, migration) can create
+        # a broken escrow state. See /root/.claude/plans/optimized-brewing-music.md.
+        sa.CheckConstraint(
+            "status != 'escrow' OR "
+            "(escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
+            name="placement_escrow_integrity",
+        ),
     )
     op.create_index(
         "ix_placement_requests_advertiser_id",

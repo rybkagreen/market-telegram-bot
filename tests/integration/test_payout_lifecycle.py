@@ -33,6 +33,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from src.core.exceptions import PayoutAlreadyFinalizedError
 from src.core.services import payout_service as payout_service_module
 from src.db import session as session_module
 from src.db.models.payout import PayoutRequest, PayoutStatus
@@ -172,7 +173,7 @@ class TestApproveLifecycle:
         admin_id, _owner_id, payout_id = await _seed_pending_payout(bound_factory)
 
         await payout_service.approve_request(payout_id, admin_id)
-        with pytest.raises(ValueError, match="already finalized"):
+        with pytest.raises(PayoutAlreadyFinalizedError, match="already finalized"):
             await payout_service.approve_request(payout_id, admin_id)
 
 
@@ -208,5 +209,5 @@ class TestRejectLifecycle:
         admin_id, _owner_id, payout_id = await _seed_pending_payout(bound_factory)
         await payout_service.approve_request(payout_id, admin_id)
 
-        with pytest.raises(ValueError, match="already finalized"):
+        with pytest.raises(PayoutAlreadyFinalizedError, match="already finalized"):
             await payout_service.reject_request(payout_id, admin_id, reason="поздно")

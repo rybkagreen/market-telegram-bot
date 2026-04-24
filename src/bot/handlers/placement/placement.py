@@ -1,6 +1,5 @@
 """Placement wizard handler - 6 steps."""
 
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from aiogram import F, Router
@@ -381,56 +380,63 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
 # ISSUE #9: Handler camp:pay:balance:{request_id} — списание с баланса + эскроу
 @router.callback_query(F.data.startswith("camp:pay:balance:"))
 async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> None:
-    """Оплатить заявку с баланса и заморозить эскроу."""
+    """Оплатить заявку с баланса — делегирует PlacementRequestService.process_payment."""
     if not isinstance(callback.message, Message):
         return
 
     import logging
 
+    from src.core.exceptions import (
+        InsufficientFundsError,
+        PlacementAccessError,
+        PlacementNotFoundError,
+        PlacementStatusConflictError,
+    )
     from src.core.services.billing_service import BillingService
-    from src.db.models.placement_request import PlacementRequest, PlacementStatus
+    from src.core.services.placement_request_service import PlacementRequestService
     from src.db.models.telegram_chat import TelegramChat
+    from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+    from src.db.repositories.placement_request_repo import PlacementRequestRepository
+    from src.db.repositories.reputation_repo import ReputationRepo
 
     request_id = int((callback.data or "").split(":")[-1])
-    req = await session.get(PlacementRequest, request_id)
-    if not req:
-        await callback.answer(REQUEST_NOT_FOUND, show_alert=True)
-        return
-    if req.status != PlacementStatus.pending_payment:
-        await callback.answer("❌ Заявка уже обработана", show_alert=True)
-        return
-
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
         await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
-    price = req.final_price or req.proposed_price
-
-    if user.balance_rub < price:
+    service = PlacementRequestService(
+        session=session,
+        placement_repo=PlacementRequestRepository(session),
+        channel_settings_repo=ChannelSettingsRepo(session),
+        reputation_repo=ReputationRepo(session),
+        billing_service=BillingService(),
+    )
+    try:
+        req = await service.process_payment(placement_id=request_id, advertiser_id=user.id)
+    except PlacementNotFoundError:
+        await callback.answer(REQUEST_NOT_FOUND, show_alert=True)
+        return
+    except PlacementAccessError:
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
+        return
+    except PlacementStatusConflictError:
+        await callback.answer("❌ Заявка уже обработана", show_alert=True)
+        return
+    except InsufficientFundsError:
         await callback.answer("❌ Недостаточно средств", show_alert=True)
         return
-
-    billing = BillingService()
-    try:
-        await billing.freeze_escrow(
-            session=session,
-            user_id=user.id,
-            placement_id=request_id,
-            amount=price,
-        )
     except Exception as e:
-        _logger = logging.getLogger(__name__)
-        _logger.error("freeze_escrow failed for placement %s: %s", request_id, e)
+        logging.getLogger(__name__).error(
+            "process_payment failed for placement %s: %s", request_id, e
+        )
         import sentry_sdk
 
         sentry_sdk.capture_exception()
         await callback.answer("❌ Ошибка оплаты. Попробуйте позже.", show_alert=True)
         return
 
-    req.status = PlacementStatus.escrow
-
-    # --- ORD auto-trigger (S7 addition) ---
+    # --- ORD auto-trigger (not part of service; handler adds it post-freeze) ---
     try:
         from src.core.services.ord_service import get_ord_service
 
@@ -441,8 +447,9 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
             media_type=req.media_type or "none",
         )
     except Exception as _ord_exc:
-        _logger = logging.getLogger(__name__)
-        _logger.warning("ORD auto-trigger failed for placement %s: %s", req.id, _ord_exc)
+        logging.getLogger(__name__).warning(
+            "ORD auto-trigger failed for placement %s: %s", req.id, _ord_exc
+        )
         import sentry_sdk
 
         sentry_sdk.capture_exception()
@@ -451,15 +458,8 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
 
     await session.commit()
 
-    # --- Schedule publication (Fix: stalled escrow root cause) ---
-    from datetime import timedelta as _timedelta
-
-    from src.tasks.placement_tasks import schedule_placement_publication
-
-    scheduled_at = req.final_schedule or (datetime.now(UTC) + _timedelta(minutes=5))
-    schedule_placement_publication.delay(req.id, scheduled_at.isoformat())
-    # --- end publication scheduling ---
-
+    price = req.final_price or req.proposed_price
+    scheduled_at = req.final_schedule or req.proposed_schedule
     channel = await session.get(TelegramChat, req.channel_id)
 
     builder = InlineKeyboardBuilder()
