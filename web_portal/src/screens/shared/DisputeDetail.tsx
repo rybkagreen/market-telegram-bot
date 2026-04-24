@@ -93,10 +93,11 @@ export default function DisputeDetail() {
 
       <div className="mb-5">
         <div
-          className={`inline-flex items-center gap-2 text-[11px] font-bold tracking-[0.08em] uppercase py-1.5 px-2.5 rounded ${DISPUTE_TONE_CLASSES[meta.tone]}`}
+          className={`inline-grid place-items-center w-10 h-10 rounded-full ${DISPUTE_TONE_CLASSES[meta.tone]}`}
+          aria-label={meta.label}
+          title={meta.label}
         >
-          <Icon name={meta.icon} size={12} />
-          {meta.label}
+          <Icon name={meta.icon} size={16} />
         </div>
       </div>
 

@@ -45,7 +45,7 @@ export default function OwnMenu() {
             iconBg="var(--rh-accent-muted)"
             title="Статистика"
             subtitle="Доход, публикации, рейтинг"
-            onClick={() => navigate('/own/analytics')}
+            onClick={() => navigate('/analytics?role=owner')}
           />
         </motion.div>
 

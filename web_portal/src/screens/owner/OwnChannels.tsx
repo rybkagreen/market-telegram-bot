@@ -358,23 +358,24 @@ export default function OwnChannels() {
         />
       ) : (
         <>
-          <div
-            className="grid gap-3.5 mb-4"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
-          >
-            {paged.map((channel) => {
+          <div className="@container bg-harbor-card border border-border rounded-xl overflow-hidden mb-4">
+            {paged.map((channel, idx) => {
               const categoryLabel = channel.category
                 ? CATEGORY_OPTIONS.find((c) => c.key === channel.category)
                 : null
               const inCompare = compareIds.has(channel.id)
               const deleting = deletingChannelId === channel.id
+              const disabledCompare = !inCompare && compareIds.size >= MAX_COMPARE
 
               return (
                 <div
                   key={channel.id}
-                  className="bg-harbor-card border border-border rounded-xl p-4 flex flex-col gap-3"
+                  className={`grid gap-3 p-4 items-center grid-cols-1 @3xl:grid-cols-[minmax(220px,1fr)_280px_minmax(160px,200px)_auto] ${
+                    idx > 0 ? 'border-t border-border' : ''
+                  }`}
                 >
-                  <div className="flex items-start gap-3">
+                  {/* Col 1 — Channel identity */}
+                  <div className="flex items-center gap-3 min-w-0">
                     <span
                       className={`grid place-items-center w-11 h-11 rounded-[10px] flex-shrink-0 ${
                         channel.is_active
@@ -385,20 +386,39 @@ export default function OwnChannels() {
                       <Icon name="channels" size={18} />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-display text-[14.5px] font-semibold text-text-primary truncate">
                           @{channel.username}
                         </span>
                         <span
-                          className={`text-[10px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded ${channel.is_active ? 'bg-success-muted text-success' : 'bg-harbor-elevated text-text-tertiary'}`}
+                          className={`inline-grid place-items-center w-4 h-4 rounded-full flex-shrink-0 ${channel.is_active ? 'bg-success-muted' : 'bg-harbor-elevated'}`}
+                          aria-label={channel.is_active ? 'Активен' : 'Скрыт'}
+                          title={channel.is_active ? 'Активен' : 'Скрыт'}
                         >
-                          {channel.is_active ? 'Активен' : 'Скрыт'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${channel.is_active ? 'bg-success' : 'bg-text-tertiary'}`} />
                         </span>
+                        {/* Category chip inline in header on mobile (hidden on @3xl where a dedicated column shows it) */}
+                        {categoryLabel && (
+                          <span className="@3xl:hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-accent-muted text-accent flex-shrink-0">
+                            {categoryLabel.emoji} {categoryLabel.label}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[12px] text-text-tertiary truncate">{channel.title}</div>
+                      {!categoryLabel && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategoryFor(channel.id)}
+                          className="@3xl:hidden inline-flex items-center gap-1.5 text-[11.5px] text-warning hover:opacity-80 transition-opacity mt-0.5"
+                          title="Канал без категории не виден рекламодателям"
+                        >
+                          <Icon name="warning" size={12} /> Выбрать категорию
+                        </button>
+                      )}
                     </div>
                   </div>
 
+                  {/* Col 2 — Stats */}
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <StatCell
                       label="Подписчики"
@@ -407,71 +427,85 @@ export default function OwnChannels() {
                     <StatCell label="Рейтинг" value={channel.rating.toFixed(1)} />
                     <StatCell
                       label="ER"
-                      value={channel.last_er != null ? `${(Number(channel.last_er) * 100).toFixed(1)}%` : '—'}
+                      value={
+                        channel.last_er != null
+                          ? `${(Number(channel.last_er) * 100).toFixed(1)}%`
+                          : '—'
+                      }
                     />
                   </div>
 
-                  <div>
+                  {/* Col 3 — Category (shown only on @3xl as a dedicated column; on mobile the chip/button lives in the header above) */}
+                  <div className="hidden @3xl:block min-w-0">
                     {categoryLabel ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-accent-muted text-accent">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-accent-muted text-accent">
                         {categoryLabel.emoji} {categoryLabel.label}
                       </span>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-warning">
-                          <Icon name="warning" size={12} /> Без категории — не виден
-                        </span>
-                        {editingCategoryFor === channel.id ? (
-                          <div className="flex flex-wrap gap-1">
-                            {CATEGORY_OPTIONS.map((cat) => (
-                              <button
-                                key={cat.key}
-                                className="px-2 py-0.5 rounded text-[11px] bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
-                                onClick={() => {
-                                  updateCategory.mutate({ id: channel.id, category: cat.key })
-                                  setEditingCategoryFor(null)
-                                }}
-                              >
-                                {cat.emoji} {cat.label}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            iconLeft="category"
-                            onClick={() => setEditingCategoryFor(channel.id)}
+                    ) : editingCategoryFor === channel.id ? (
+                      <div className="flex flex-wrap gap-1">
+                        {CATEGORY_OPTIONS.map((cat) => (
+                          <button
+                            key={cat.key}
+                            className="px-2 py-0.5 rounded text-[11px] bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
+                            onClick={() => {
+                              updateCategory.mutate({ id: channel.id, category: cat.key })
+                              setEditingCategoryFor(null)
+                            }}
                           >
-                            Выбрать категорию
-                          </Button>
-                        )}
+                            {cat.emoji} {cat.label}
+                          </button>
+                        ))}
                       </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategoryFor(channel.id)}
+                        className="inline-flex items-center gap-1.5 text-[11.5px] text-warning hover:opacity-80 transition-opacity"
+                        title="Канал без категории не виден рекламодателям"
+                      >
+                        <Icon name="warning" size={12} /> Выбрать категорию
+                      </button>
                     )}
                   </div>
 
-                  <div className="flex gap-1.5 justify-between border-t border-border pt-3">
-                    <button
-                      type="button"
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
-                        inCompare
-                          ? 'bg-accent text-accent-text'
-                          : compareIds.size >= MAX_COMPARE
-                            ? 'bg-harbor-elevated text-text-tertiary cursor-not-allowed'
-                            : 'bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent'
-                      }`}
-                      disabled={!inCompare && compareIds.size >= MAX_COMPARE}
+                  {/* Mobile-only category picker row (when editing) — takes full width below header */}
+                  {editingCategoryFor === channel.id && (
+                    <div className="@3xl:hidden flex flex-wrap gap-1">
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <button
+                          key={cat.key}
+                          className="px-2 py-1 rounded text-[11px] bg-harbor-elevated text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors"
+                          onClick={() => {
+                            updateCategory.mutate({ id: channel.id, category: cat.key })
+                            setEditingCategoryFor(null)
+                          }}
+                        >
+                          {cat.emoji} {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Col 4 — Actions: three equal-sized icon buttons. 44×44 tap targets on mobile. */}
+                  <div className="flex items-center gap-2 @3xl:gap-1.5 @3xl:justify-end">
+                    <Button
+                      size="sm"
+                      variant={inCompare ? 'primary' : 'secondary'}
+                      icon
+                      disabled={disabledCompare}
                       onClick={() => toggleCompare(channel.id)}
+                      title={inCompare ? 'В сравнении' : 'Добавить к сравнению'}
+                      className="!w-11 !h-11 @3xl:!w-8 @3xl:!h-8"
                     >
-                      <Icon name="ctr" size={12} />
-                      {inCompare ? 'В сравнении' : 'Сравнить'}
-                    </button>
+                      <Icon name="ctr" size={14} />
+                    </Button>
                     <Button
                       size="sm"
                       variant="secondary"
                       icon
                       onClick={() => navigate(`/own/channels/${channel.id}/settings`)}
                       title="Настройки"
+                      className="!w-11 !h-11 @3xl:!w-8 @3xl:!h-8"
                     >
                       <Icon name="settings" size={14} />
                     </Button>
@@ -484,6 +518,7 @@ export default function OwnChannels() {
                         loading={deleting}
                         onClick={() => handleDeleteChannel(channel.id, channel.title)}
                         title="Скрыть"
+                        className="!w-11 !h-11 @3xl:!w-8 @3xl:!h-8"
                       >
                         <Icon name="eye-off" size={14} />
                       </Button>
@@ -494,6 +529,7 @@ export default function OwnChannels() {
                         icon
                         onClick={() => handleActivateChannel(channel.id, channel.title)}
                         title="Восстановить"
+                        className="!w-11 !h-11 @3xl:!w-8 @3xl:!h-8"
                       >
                         <Icon name="refresh" size={14} />
                       </Button>
@@ -546,7 +582,7 @@ export default function OwnChannels() {
       )}
 
       {compareIds.size >= 2 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-harbor-card border-t border-border shadow-2xl px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-harbor-card border-t border-border shadow-2xl px-4 pt-3 safe-bottom">
           <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-4">
             <span className="text-sm text-text-secondary flex items-center gap-2">
               <Icon name="ctr" size={14} className="text-accent" />

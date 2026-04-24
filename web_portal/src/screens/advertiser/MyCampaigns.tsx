@@ -202,23 +202,25 @@ export default function MyCampaigns() {
         />
       </div>
 
-      <div className="bg-harbor-card border border-border rounded-xl p-3.5 mb-3.5 flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1.5 flex-wrap">
-          <FilterPill active={filter === 'active'} tone="warning" onClick={() => handleFilterChange('active')}>
-            Активные
-            <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.active}</span>
-          </FilterPill>
-          <FilterPill active={filter === 'completed'} tone="success" onClick={() => handleFilterChange('completed')}>
-            Завершённые
-            <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.completed}</span>
-          </FilterPill>
-          <FilterPill active={filter === 'cancelled'} tone="neutral" onClick={() => handleFilterChange('cancelled')}>
-            Отменённые
-            <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.cancelled}</span>
-          </FilterPill>
+      <div className="bg-harbor-card border border-border rounded-xl p-3.5 mb-3.5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+        <div className="-mx-3.5 px-3.5 overflow-x-auto sm:mx-0 sm:px-0 sm:overflow-visible">
+          <div className="flex gap-1.5 snap-x snap-mandatory sm:flex-wrap">
+            <FilterPill active={filter === 'active'} tone="warning" onClick={() => handleFilterChange('active')}>
+              Активные
+              <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.active}</span>
+            </FilterPill>
+            <FilterPill active={filter === 'completed'} tone="success" onClick={() => handleFilterChange('completed')}>
+              Завершённые
+              <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.completed}</span>
+            </FilterPill>
+            <FilterPill active={filter === 'cancelled'} tone="neutral" onClick={() => handleFilterChange('cancelled')}>
+              Отменённые
+              <span className="font-mono tabular-nums text-[11px] opacity-80">{counts.cancelled}</span>
+            </FilterPill>
+          </div>
         </div>
 
-        <div className="flex-1" />
+        <div className="hidden sm:block sm:flex-1" />
 
         <div className="flex items-center gap-1 text-[12px] text-text-tertiary">
           <span>Сортировка:</span>
@@ -269,42 +271,48 @@ export default function MyCampaigns() {
               return (
                 <div
                   key={placement.id}
-                  className={`flex items-center gap-3 sm:gap-4 px-4 sm:px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'}`}
+                  className={`px-4 sm:px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === paged.length - 1 ? '' : 'border-b border-border'} flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4`}
                 >
-                  <span
-                    className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[status.tone]}`}
-                  >
-                    <Icon name={status.icon} size={16} />
-                  </span>
+                  {/* Row 1 (mobile) / Col 1-2 (desktop) — status icon + identity + meta */}
+                  <div className="flex items-start gap-3 sm:items-center sm:contents">
+                    <span
+                      className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[status.tone]}`}
+                      aria-label={status.label}
+                      title={status.label}
+                    >
+                      <Icon name={status.icon} size={16} />
+                    </span>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
-                      <span className="text-[13.5px] font-semibold text-text-primary truncate">
-                        {channelLabel}
-                      </span>
-                      <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated flex-shrink-0">
-                        #{placement.id}
-                      </span>
-                      {expired && (
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-warning flex-shrink-0">
-                          Просрочена
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+                        <span className="text-[13.5px] font-semibold text-text-primary truncate">
+                          {channelLabel}
                         </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-text-secondary truncate sm:max-w-[420px]">
-                      {placement.ad_text.substring(0, 100)}
-                      {placement.ad_text.length > 100 ? '…' : ''}
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2 mt-0.5">
-                      <span className="text-[11.5px] text-text-tertiary tabular-nums">
-                        {dateStr} МСК
-                      </span>
-                      <span className="sm:hidden font-mono tabular-nums text-[13px] font-semibold text-text-primary whitespace-nowrap">
-                        {price}
-                      </span>
+                        <span className="font-mono text-[11px] text-text-tertiary py-px px-1.5 rounded bg-harbor-elevated flex-shrink-0">
+                          #{placement.id}
+                        </span>
+                        {expired && (
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-warning flex-shrink-0">
+                            Просрочена
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-text-secondary truncate sm:max-w-[420px]">
+                        {placement.ad_text.substring(0, 100)}
+                        {placement.ad_text.length > 100 ? '…' : ''}
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                        <span className="text-[11.5px] text-text-tertiary tabular-nums">
+                          {dateStr} МСК
+                        </span>
+                        <span className="sm:hidden font-mono tabular-nums text-[14px] font-semibold text-text-primary whitespace-nowrap">
+                          {price}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Desktop-only: status text pill + price cell */}
                   <span
                     className={`hidden sm:inline-flex text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${toneClasses[status.tone]}`}
                   >
@@ -315,7 +323,8 @@ export default function MyCampaigns() {
                     {price}
                   </span>
 
-                  <div className="flex gap-1.5 flex-shrink-0">
+                  {/* Actions: mobile full-width row justified right; desktop inline */}
+                  <div className="flex gap-2 flex-shrink-0 justify-end sm:gap-1.5">
                     {filter === 'active' && (
                       <>
                         <Button
@@ -324,6 +333,7 @@ export default function MyCampaigns() {
                           icon
                           onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}
                           title="Детали"
+                          aria-label="Детали"
                         >
                           <Icon name="eye" size={14} />
                         </Button>
@@ -340,6 +350,7 @@ export default function MyCampaigns() {
                             )
                           }
                           title="Отменить"
+                          aria-label="Отменить"
                         >
                           <Icon name="close" size={14} />
                         </Button>
@@ -352,6 +363,7 @@ export default function MyCampaigns() {
                         icon
                         onClick={() => navigate(`/adv/campaigns/${placement.id}/published`)}
                         title="Результат"
+                        aria-label="Результат"
                       >
                         <Icon name="analytics" size={14} />
                       </Button>
@@ -363,6 +375,7 @@ export default function MyCampaigns() {
                         icon
                         onClick={() => navigate(`/adv/campaigns/${placement.id}/waiting`)}
                         title="Просмотр"
+                        aria-label="Просмотр"
                       >
                         <Icon name="eye" size={14} />
                       </Button>
@@ -487,7 +500,7 @@ function FilterPill({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-2xl border transition-all ${cls}`}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-2xl border transition-all flex-shrink-0 snap-start ${cls}`}
     >
       {children}
     </button>

@@ -117,7 +117,7 @@ export default function Referral() {
       <div className="relative bg-gradient-to-br from-harbor-card via-harbor-card to-accent-muted border border-border rounded-2xl p-[22px] mb-5 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-accent to-accent-2" />
 
-        <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        <div className="grid gap-5 grid-cols-1 md:[grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
           <div>
             <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-text-tertiary mb-2">
               Ваш реферальный код
@@ -234,7 +234,7 @@ export default function Referral() {
         </div>
       </div>
 
-      <div className="grid gap-3.5 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      <div className="grid gap-3.5 mb-5 grid-cols-1 sm:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <RefTile icon="users" tone="accent" label="Приглашено" value={stats.total_referrals} sub="всего за всё время" />
         <RefTile icon="check" tone="success" label="Активных" value={stats.active_referrals} sub="с первой оплатой" />
         <RefTile icon="ruble" tone="warning" label="Заработано" value={fmtRub(earned)} sub="зачислено на баланс" />
@@ -247,8 +247,8 @@ export default function Referral() {
         />
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 1fr)' }}>
-        <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
+      <div className="grid gap-4 grid-cols-1 md:[grid-template-columns:minmax(0,1.6fr)_minmax(280px,1fr)]">
+        <div className="bg-harbor-card border border-border rounded-xl overflow-hidden min-w-0">
           <div className="py-3.5 px-[18px] border-b border-border flex items-center justify-between">
             <div>
               <div className="font-display text-sm font-semibold text-text-primary">Ваши рефералы</div>
@@ -375,12 +375,13 @@ function RefRow({ r, isLast }: { r: ReferralItem; isLast: boolean }) {
         </div>
       </div>
       <span
-        className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase py-1 px-2 rounded ${
-          r.is_active ? 'bg-success-muted text-success' : 'bg-harbor-elevated text-text-tertiary'
+        className={`inline-grid place-items-center w-6 h-6 rounded-full ${
+          r.is_active ? 'bg-success-muted' : 'bg-harbor-elevated'
         }`}
+        aria-label={r.is_active ? 'Активен' : 'Новый'}
+        title={r.is_active ? 'Активен' : 'Новый'}
       >
-        <span className={`w-1 h-1 rounded-full ${r.is_active ? 'bg-success' : 'bg-text-tertiary'}`} />
-        {r.is_active ? 'Активен' : 'Новый'}
+        <span className={`w-2 h-2 rounded-full ${r.is_active ? 'bg-success' : 'bg-text-tertiary'}`} />
       </span>
     </div>
   )

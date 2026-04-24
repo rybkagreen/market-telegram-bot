@@ -104,6 +104,8 @@ export default function MyDisputes() {
               >
                 <span
                   className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${DISPUTE_TONE_CLASSES[cfg.tone]}`}
+                  aria-label={cfg.label}
+                  title={cfg.label}
                 >
                   <Icon name={cfg.icon} size={16} />
                 </span>
@@ -130,11 +132,6 @@ export default function MyDisputes() {
                     )}
                   </div>
                 </div>
-                <span
-                  className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded whitespace-nowrap ${DISPUTE_TONE_CLASSES[cfg.tone]}`}
-                >
-                  {cfg.label}
-                </span>
                 <Icon name="chevron-right" size={14} className="text-text-tertiary flex-shrink-0" />
               </button>
             )

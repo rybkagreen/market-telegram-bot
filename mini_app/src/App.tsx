@@ -1,6 +1,6 @@
 import { lazy } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Outlet, createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { Outlet, createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { RulesGuard } from '@/components/RulesGuard'
 import AdminGuard from '@/components/guards/AdminGuard'
@@ -24,9 +24,11 @@ const TransactionHistory = lazy(() => import('@/screens/common/TransactionHistor
 const MyActsScreen       = lazy(() => import('@/screens/common/MyActsScreen'))
 const NotFoundScreen     = lazy(() => import('@/screens/common/NotFoundScreen'))
 
+// ═══ Common (new) ═══
+const Analytics      = lazy(() => import('@/screens/common/Analytics'))
+
 // ═══ Advertiser ═══
 const AdvMenu        = lazy(() => import('@/screens/advertiser/AdvMenu'))
-const AdvAnalytics   = lazy(() => import('@/screens/advertiser/AdvAnalytics'))
 const MyCampaigns    = lazy(() => import('@/screens/advertiser/MyCampaigns'))
 
 // ═══ Advertiser / S5 additions ═══
@@ -52,7 +54,6 @@ const MyDisputes     = lazy(() => import('@/screens/shared/MyDisputes'))
 
 // ═══ Owner ═══
 const OwnMenu            = lazy(() => import('@/screens/owner/OwnMenu'))
-const OwnAnalytics       = lazy(() => import('@/screens/owner/OwnAnalytics'))
 const OwnChannels        = lazy(() => import('@/screens/owner/OwnChannels'))
 const OwnAddChannel      = lazy(() => import('@/screens/owner/OwnAddChannel'))
 const OwnChannelDetail   = lazy(() => import('@/screens/owner/OwnChannelDetail'))
@@ -122,9 +123,12 @@ const router = createBrowserRouter([
       { path: 'campaign/:id/ord',         element: <OrdStatus /> },
       { path: 'contracts/framework',      element: <AdvertiserFrameworkContract /> },
 
+      // ── Unified analytics (replaces adv/analytics + own/analytics) ──
+      { path: 'analytics',                              element: <Analytics /> },
+
       // ── Advertiser ──
       { path: 'adv',                                    element: <AdvMenu /> },
-      { path: 'adv/analytics',                          element: <AdvAnalytics /> },
+      { path: 'adv/analytics',                          element: <Navigate to="/analytics?role=advertiser" replace /> },
       { path: 'adv/campaigns',                          element: <MyCampaigns /> },
       { path: 'adv/campaigns/new/category',             element: <CampaignCategory /> },
       { path: 'adv/campaigns/new/channels',             element: <CampaignChannels /> },
@@ -141,7 +145,7 @@ const router = createBrowserRouter([
 
       // ── Owner ──
       { path: 'own',                                    element: <OwnMenu /> },
-      { path: 'own/analytics',                          element: <OwnAnalytics /> },
+      { path: 'own/analytics',                          element: <Navigate to="/analytics?role=owner" replace /> },
       { path: 'own/channels',                           element: <OwnChannels /> },
       { path: 'own/channels/add',                       element: <OwnAddChannel /> },
       { path: 'own/channels/:id',                       element: <OwnChannelDetail /> },

@@ -155,7 +155,7 @@ export default function AdminPayouts() {
                 className="bg-harbor-card border border-border rounded-xl p-5"
               >
                 <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex-1 min-w-[320px]">
+                  <div className="flex-1 min-w-[220px] md:min-w-[320px]">
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <span
                         className={`inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.08em] uppercase py-1 px-2 rounded ${toneClasses[meta.tone]}`}
@@ -224,7 +224,7 @@ export default function AdminPayouts() {
                     <input
                       type="text"
                       placeholder="Причина отклонения…"
-                      className="flex-1 min-w-[240px] px-3 py-2 bg-harbor-elevated border border-border rounded-md text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+                      className="flex-1 min-w-[180px] md:min-w-[240px] px-3 py-2 min-h-11 bg-harbor-elevated border border-border rounded-md text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       onKeyDown={(e) => {

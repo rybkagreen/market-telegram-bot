@@ -3,7 +3,10 @@ import {
   getAdvertiserAnalytics,
   getOwnerAnalytics,
   getCashflow,
+  getAIInsights,
   type CashflowDays,
+  type InsightsRole,
+  type AIInsightsUnifiedResponse,
 } from '@/api/analytics'
 
 export function useAdvertiserAnalytics() {
@@ -27,5 +30,14 @@ export function useCashflow(days: CashflowDays = 30) {
     queryKey: ['analytics', 'cashflow', days],
     queryFn: () => getCashflow(days),
     staleTime: 60_000,
+  })
+}
+
+export function useAIInsights(role: InsightsRole) {
+  return useQuery<AIInsightsUnifiedResponse>({
+    queryKey: ['analytics', 'ai-insights', role],
+    queryFn: () => getAIInsights(role),
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
   })
 }
