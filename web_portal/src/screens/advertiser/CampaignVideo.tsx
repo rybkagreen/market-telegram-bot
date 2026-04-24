@@ -69,7 +69,7 @@ export default function CampaignVideo() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-harbor-card border-t border-border shadow-[0_-8px_20px_-12px_rgba(0,0,0,0.3)]">
-        <div className="max-w-[900px] mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-3 flex-wrap">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 pt-3.5 safe-bottom flex items-center gap-3 flex-wrap">
           <Button
             variant="secondary"
             iconLeft="arrow-left"

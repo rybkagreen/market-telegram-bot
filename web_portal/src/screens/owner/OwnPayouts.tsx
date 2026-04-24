@@ -103,12 +103,12 @@ export default function OwnPayouts() {
             <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-1">
               Доступно к выводу
             </div>
-            <div className="font-display text-[34px] font-bold tracking-[-0.02em] text-success tabular-nums">
+            <div className="font-display text-[26px] sm:text-[34px] font-bold tracking-[-0.02em] text-success tabular-nums break-words">
               {formatCurrency(earnedRub)}
             </div>
-            <div className="text-[12.5px] text-text-tertiary mt-1 flex items-center gap-2">
-              <Icon name="info" size={12} />
-              Минимум {formatCurrency(1000)} · комиссия 1,5% · кулдаун 24 ч
+            <div className="text-[12.5px] text-text-tertiary mt-1 flex items-center gap-2 flex-wrap">
+              <Icon name="info" size={12} className="flex-shrink-0" />
+              <span>Минимум {formatCurrency(1000)} · комиссия 1,5% · кулдаун 24 ч</span>
             </div>
             {isCooldownActive && (
               <div className="mt-2 text-[13px] text-warning flex items-center gap-1.5">
@@ -186,42 +186,44 @@ export default function OwnPayouts() {
               return (
                 <div
                   key={payout.id}
-                  className={`flex items-center gap-4 px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === payouts.length - 1 ? '' : 'border-b border-border'}`}
+                  className={`px-4 sm:px-[18px] py-3.5 hover:bg-harbor-elevated/40 transition-colors ${i === payouts.length - 1 ? '' : 'border-b border-border'} flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4`}
                 >
-                  <span
-                    className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}
-                  >
-                    <Icon name={meta.icon} size={16} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2.5 flex-wrap">
-                      <span className="text-[13.5px] font-semibold text-text-primary">
+                  {/* Top row: icon + title + date (mobile: full width; desktop: left cluster) */}
+                  <div className="flex items-center gap-3 sm:gap-4 sm:flex-1 sm:min-w-0">
+                    <span
+                      className={`grid place-items-center w-10 h-10 rounded-[10px] flex-shrink-0 ${toneClasses[meta.tone]}`}
+                      aria-label={meta.label}
+                      title={meta.label}
+                    >
+                      <Icon name={meta.icon} size={16} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-semibold text-text-primary">
                         Выплата #{payout.id}
-                      </span>
-                      <span
-                        className={`text-[10.5px] font-bold tracking-[0.08em] uppercase py-0.5 px-1.5 rounded ${toneClasses[meta.tone]}`}
-                      >
-                        {meta.label}
-                      </span>
-                    </div>
-                    <div className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums">
-                      {formatDateTimeMSK(payout.created_at)} МСК
+                      </div>
+                      <div className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums">
+                        {formatDateTimeMSK(payout.created_at)} МСК
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right min-w-[160px]">
-                    <div className="text-[11px] uppercase tracking-wider text-text-tertiary">
-                      Запрошено
+
+                  {/* Amounts: 2-col grid on mobile (below header), fixed-width cells on desktop */}
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border sm:pt-0 sm:border-0 sm:flex sm:gap-4 sm:flex-shrink-0">
+                    <div className="min-w-0 sm:text-right sm:min-w-[140px]">
+                      <div className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                        Запрошено
+                      </div>
+                      <div className="font-mono tabular-nums text-[13px] text-text-secondary whitespace-nowrap">
+                        {formatCurrency(payout.gross_amount)}
+                      </div>
                     </div>
-                    <div className="font-mono tabular-nums text-[13px] text-text-secondary">
-                      {formatCurrency(payout.gross_amount)}
-                    </div>
-                  </div>
-                  <div className="text-right min-w-[120px]">
-                    <div className="text-[11px] uppercase tracking-wider text-text-tertiary">
-                      К зачислению
-                    </div>
-                    <div className="font-mono tabular-nums font-semibold text-[14px] text-success">
-                      {formatCurrency(payout.net_amount)}
+                    <div className="min-w-0 text-right sm:min-w-[140px]">
+                      <div className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                        К зачислению
+                      </div>
+                      <div className="font-mono tabular-nums font-semibold text-[14px] text-success whitespace-nowrap">
+                        {formatCurrency(payout.net_amount)}
+                      </div>
                     </div>
                   </div>
                 </div>

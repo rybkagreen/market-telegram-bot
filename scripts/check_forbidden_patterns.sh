@@ -127,6 +127,73 @@ run_check \
   'web_portal/src' \
   --exclude-dir=api
 
+
+# Python-side architectural invariants (plan: optimized-brewing-music):
+# Keep Bot creation centralized and forbid status escalation outside the repo.
+
+PY_FLAGS=(
+  -rnP
+  --include=*.py
+  --exclude-dir=.git
+  --exclude-dir=.venv
+  --exclude-dir=__pycache__
+  --exclude-dir=node_modules
+)
+
+# INV-3: Bot(...) is created only in session_factory.py and _bot_factory.py.
+# api/dependencies.py uses python-telegram-bot (different SDK) — exempt.
+run_check_py() {
+  local desc="$1"
+  local pattern="$2"
+  local path="$3"
+  shift 3
+
+  CHECK_COUNT=$((CHECK_COUNT + 1))
+
+  if [[ ! -e "$path" ]]; then
+    echo "  [skip] $desc — path not found: $path"
+    return 0
+  fi
+
+  local hits
+  hits="$(grep "${PY_FLAGS[@]}" "$@" -e "$pattern" "$path" || true)"
+
+  if [[ -n "$hits" ]]; then
+    echo ""
+    echo "  [FAIL] $desc"
+    echo "         pattern: $pattern"
+    echo "         path:    $path"
+    echo "$hits" | sed 's/^/           /'
+    FAIL=1
+  else
+    echo "  [ok]   $desc"
+  fi
+}
+
+# INV-3: aiogram Bot() outside session_factory.py / _bot_factory.py.
+run_check_py \
+  "no direct aiogram Bot(token=...) outside session_factory.py / _bot_factory.py" \
+  '^\s*Bot\(\s*token\s*=' \
+  'src' \
+  --exclude=session_factory.py \
+  --exclude=_bot_factory.py \
+  --exclude-dir=tests
+
+# INV-2: direct transition to PlacementStatus.escrow is forbidden outside the repo.
+# All escrow-entry paths must flow through BillingService.freeze_escrow_for_placement
+# (called by PlacementRequestService._freeze_escrow_for_payment) so the Transaction,
+# idempotency key and platform_account.escrow_reserved are updated atomically.
+# Other status transitions (cancelled, pending_payment, published, ...) are
+# allowed to be set directly for now — to be tightened in a follow-up refactor.
+# placement_tasks.py:637 is a legitimate internal retry path; exempt by file.
+run_check_py \
+  "no direct placement.status = PlacementStatus.escrow outside placement_request_repo.py" \
+  '\w+\.status\s*=\s*PlacementStatus\.escrow\b' \
+  'src' \
+  --exclude=placement_request_repo.py \
+  --exclude=placement_tasks.py \
+  --exclude-dir=tests
+
 echo ""
 if [[ "$FAIL" -ne 0 ]]; then
   echo "FAIL: forbidden pattern(s) detected ($CHECK_COUNT checks ran)."

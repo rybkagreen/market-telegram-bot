@@ -2,38 +2,68 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f0f4ff"/>
+      <stop offset="100%" stop-color="#eaf6f7"/>
     </linearGradient>
   </defs>
 
-  <!-- Фон -->
+  <!-- Background -->
   <rect width="1200" height="630" fill="url(#bg)"/>
 
-  <!-- Декоративный круг (brand accent) -->
-  <circle cx="1100" cy="80" r="200" fill="rgba(20,86,240,0.06)"/>
+  <!-- Brand accent circle -->
+  <circle cx="1100" cy="80" r="220" fill="rgba(0,174,238,0.07)"/>
 
-  <!-- Логотип-бейдж -->
-  <rect x="80" y="80" width="170" height="52" rx="12" fill="#1456f0"/>
-  <text x="165" y="114" font-family="Arial, sans-serif" font-size="22" font-weight="700"
-        fill="white" text-anchor="middle">RekHarbor</text>
+  <!-- RekHarbor logo (icon + wordmark) -->
+  <g transform="translate(80, 80)">
+    <!-- Icon: from rekharbor_full.svg — translate(30, 20) scale(0.6809) -->
+    <g transform="translate(0, 0) scale(0.45)">
+      <g fill="#00AEEE" fill-rule="evenodd" transform="translate(0, 235) scale(0.1, -0.1)">
+        <path d="M95 2173 c-7 -5 -9 -175 -7 -485 l4 -478 64 0 64 0 0 240 0 240 235
+0 c272 0 291 -5 377 -93 38 -38 52 -63 69 -120 20 -64 21 -77 10 -132 -22
+-105 -83 -179 -189 -228 -44 -20 -63 -22 -262 -23 -212 0 -216 0 -288 -28 -81
+-32 -93 -47 -90 -116 2 -60 9 -65 56 -41 96 49 248 64 357 35 149 -38 275
+-144 403 -338 123 -188 195 -271 299 -346 102 -73 192 -117 318 -156 85 -26
+103 -27 328 -32 l237 -4 -2 1054 -3 1053 -107 -1 c-85 -1 -120 -6 -170 -24
+-211 -76 -338 -260 -338 -488 0 -125 30 -200 133 -334 67 -88 94 -157 82 -205
+-13 -53 -14 -53 -211 -53 -101 0 -184 2 -184 4 0 2 18 35 40 74 104 181 107
+432 6 634 -91 180 -245 305 -452 365 -86 25 -99 26 -429 30 -187 2 -344 0
+-350 -4z m654 -138 c182 -28 304 -97 404 -228 78 -103 110 -203 109 -347 -1
+-149 -35 -236 -134 -342 l-44 -48 -87 0 c-48 0 -87 4 -87 8 0 4 15 23 34 41
+19 18 48 63 65 100 97 211 8 462 -200 562 -84 41 -143 49 -374 49 l-215 0 0
+104 0 105 28 4 c64 10 421 4 501 -8z m1189 -477 l-3 -483 -64 -3 -64 -3 6 43
+c13 97 -29 206 -116 304 -55 61 -81 112 -97 187 -37 180 79 377 250 423 25 7
+55 13 68 13 l22 1 -2 -482z m2 -989 l0 -372 -142 6 c-178 7 -268 29 -408 99
+-91 45 -118 65 -201 148 -72 71 -114 124 -168 212 -42 68 -104 151 -148 198
+l-75 80 571 0 571 0 0 -371z"/>
+        <path d="M123 859 c-18 -5 -33 -15 -34 -22 -1 -8 0 -644 1 -759 0 -5 151 -8
+335 -8 l335 0 0 104 c0 240 -56 396 -188 525 -43 43 -104 90 -138 108 -102 54
+-230 75 -311 52z m233 -164 c153 -74 258 -242 266 -425 l3 -65 -202 -3 -203
+-2 0 266 0 267 43 -7 c23 -4 65 -18 93 -31z"/>
+      </g>
+    </g>
+    <!-- Wordmark -->
+    <text x="160" y="94" font-family="'Outfit','DM Sans',system-ui,sans-serif"
+          font-size="74" font-weight="700" letter-spacing="-1.5">
+      <tspan fill="#00AEEE">Rek</tspan><tspan fill="#0C121A">Harbor</tspan>
+    </text>
+  </g>
 
-  <!-- Заголовок -->
-  <text x="80" y="280" font-family="Arial, sans-serif" font-size="68" font-weight="700"
-        fill="#222222">Реклама в Telegram</text>
+  <!-- Hero heading -->
+  <text x="80" y="310" font-family="'Outfit','DM Sans',Arial,sans-serif" font-size="72" font-weight="700"
+        fill="#0C121A">Реклама в Telegram</text>
 
-  <!-- Подзаголовок -->
-  <text x="80" y="345" font-family="Arial, sans-serif" font-size="36" font-weight="400"
-        fill="#1456f0">без рисков и лишних слов</text>
+  <!-- Hero subheading -->
+  <text x="80" y="375" font-family="'Outfit','DM Sans',Arial,sans-serif" font-size="38" font-weight="400"
+        fill="#00AEEE">без рисков и лишних слов</text>
 
-  <!-- Описание -->
-  <text x="80" y="430" font-family="Arial, sans-serif" font-size="26" font-weight="400"
+  <!-- Description -->
+  <text x="80" y="460" font-family="'DM Sans',Arial,sans-serif" font-size="26" font-weight="400"
         fill="#45515e">Эскроу · Автоматический ОРД · Выплаты владельцам 85%</text>
 
-  <!-- Разделитель -->
-  <line x1="80" y1="490" x2="1120" y2="490" stroke="#e5e7eb" stroke-width="1"/>
+  <!-- Divider -->
+  <line x1="80" y1="520" x2="1120" y2="520" stroke="#d5dfe4" stroke-width="1"/>
 
-  <!-- Домен -->
-  <text x="80" y="540" font-family="Arial, sans-serif" font-size="24" fill="#8e8e93">
+  <!-- Domain -->
+  <text x="80" y="570" font-family="'DM Sans',Arial,sans-serif" font-size="24" fill="#8392a0">
     rekharbor.ru
   </text>
 </svg>

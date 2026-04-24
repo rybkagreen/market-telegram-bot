@@ -45,6 +45,7 @@ from src.api.schemas.admin import (
     UserAdminResponse,
     UserListAdminResponse,
 )
+from src.api.schemas.analytics import AIInsightsUnifiedResponse
 from src.api.schemas.channel import ChannelResponse
 from src.api.schemas.dispute import DisputeListResponse, DisputeResponse
 from src.api.schemas.feedback import FeedbackListResponse
@@ -91,6 +92,8 @@ CONTRACT_SCHEMAS: list[tuple[str, type[BaseModel]]] = [
     ("contract_list_response", ContractListResponse),
     ("campaign_list_response", CampaignListResponse),
     ("campaigns_list_response", CampaignsListResponse),
+    # ── unified AI insights (new /analytics screen) ─────────────────────
+    ("ai_insights_unified_response", AIInsightsUnifiedResponse),
 ]
 
 

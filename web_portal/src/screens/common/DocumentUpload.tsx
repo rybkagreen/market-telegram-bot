@@ -227,7 +227,7 @@ export default function DocumentUpload() {
         </div>
       )}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(300px, 1fr)' }}>
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,1.5fr)_minmax(300px,1fr)]">
         <div className="flex flex-col gap-4">
           {!uploadResult && (
             <SectionCard title="Загрузить документ" subtitle={docLabel}>

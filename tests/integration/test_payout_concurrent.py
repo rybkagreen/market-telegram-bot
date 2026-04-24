@@ -35,6 +35,7 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from src.core.exceptions import PayoutAlreadyFinalizedError
 from src.core.services import payout_service as payout_service_module
 from src.db import session as session_module
 from src.db.models.payout import PayoutRequest, PayoutStatus
@@ -138,7 +139,7 @@ class TestConcurrentApprove:
             try:
                 await payout_service.approve_request(payout_id, admin_id)
                 return "ok"
-            except ValueError as e:
+            except PayoutAlreadyFinalizedError as e:
                 return ("err", str(e))
 
         results = await asyncio.gather(_approve(), _approve(), _approve())
@@ -181,7 +182,7 @@ class TestConcurrentApprove:
             try:
                 await payout_service.approve_request(payout_id, admin_id)
                 return "approved"
-            except ValueError:
+            except PayoutAlreadyFinalizedError:
                 return "approve-blocked"
 
         async def _reject() -> str:
@@ -190,7 +191,7 @@ class TestConcurrentApprove:
                     payout_id, admin_id, reason="Concurrent reject test"
                 )
                 return "rejected"
-            except ValueError:
+            except PayoutAlreadyFinalizedError:
                 return "reject-blocked"
 
         results = await asyncio.gather(_approve(), _reject())
@@ -232,7 +233,7 @@ class TestConcurrentReject:
                     payout_id, admin_id, reason="Test reject race"
                 )
                 return "ok"
-            except ValueError as e:
+            except PayoutAlreadyFinalizedError as e:
                 return ("err", str(e))
 
         results = await asyncio.gather(_reject(), _reject(), _reject())

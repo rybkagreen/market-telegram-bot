@@ -17,7 +17,6 @@ from yookassa.domain.exceptions import ApiError
 from src.config.settings import settings
 from src.constants.payments import (
     MAX_TOPUP,
-    MIN_CAMPAIGN_BUDGET,
     MIN_TOPUP,
     OWNER_SHARE,
     YOOKASSA_FEE_RATE,
@@ -982,64 +981,100 @@ class BillingService:
         placement_id: int,
         advertiser_id: int,
         amount: Decimal,
+        is_test: bool = False,
     ) -> Transaction:
         """
-        Заблокировать средства для PlacementRequest.
-        1. Проверить balance_rub рекламодателя
-        2. Списать amount с balance_rub
-        3. Создать Transaction(type=escrow_freeze, amount=amount)
+        Заморозить эскроу для PlacementRequest — единственный путь freeze.
+
+        Операции (атомарно в рамках caller transaction):
+        1. EXISTS-проверка по idempotency_key=escrow_freeze:placement={id}.
+        2. (Если НЕ is_test) проверка balance_rub >= amount и списание.
+        3. platform_account.escrow_reserved += amount.
+        4. Transaction(type=escrow_freeze, amount=amount, idempotency_key).
 
         Args:
-            session: Асинхронная сессия.
+            session: Сессия.
             placement_id: ID заявки.
             advertiser_id: ID рекламодателя.
-            amount: Сумма для блокировки (в рублях).
+            amount: Сумма блокировки (для is_test может быть 0).
+            is_test: Тестовый placement — balance_rub не трогаем,
+                всё остальное (Transaction, platform_account) — как обычно.
 
         Returns:
-            Транзакция эскроу.
+            Transaction с заполненным id. При idempotency-hit возвращает
+            существующую транзакцию.
 
         Raises:
-            InsufficientFundsError: Если недостаточно balance_rub.
+            ValueError: advertiser не найден.
+            InsufficientFundsError: balance_rub < amount (только НЕ is_test).
         """
+        from sqlalchemy import select
+        from sqlalchemy.exc import IntegrityError
+
         from src.db.models.transaction import Transaction
+        from src.db.repositories.platform_account_repo import PlatformAccountRepo
+
+        freeze_key = f"escrow_freeze:placement={placement_id}"
+
+        existing = await session.scalar(
+            select(Transaction).where(Transaction.idempotency_key == freeze_key)
+        )
+        if existing is not None:
+            logger.info(
+                f"freeze_escrow_for_placement: placement {placement_id} "
+                f"already frozen (idempotency hit)"
+            )
+            return existing
 
         user_repo = UserRepository(session)
         user = await user_repo.get_by_id(advertiser_id)
-
         if not user:
             raise ValueError(f"User {advertiser_id} not found")
 
-        # Проверка баланса (balance_rub для размещений)
-        if user.balance_rub < amount:
-            raise InsufficientFundsError(f"Insufficient balance_rub: {user.balance_rub} < {amount}")
-
-        # Списание средств с balance_rub
         balance_before = user.balance_rub
-        user.balance_rub -= amount
 
-        # Создание транзакции
+        if not is_test:
+            if user.balance_rub < amount:
+                raise InsufficientFundsError(
+                    f"Insufficient balance_rub: {user.balance_rub} < {amount}"
+                )
+            user.balance_rub -= amount
+
+        platform_repo = PlatformAccountRepo(session)
+        await platform_repo.add_to_escrow(session, amount)
+
         transaction = Transaction(
             user_id=advertiser_id,
             amount=amount,
             type=TransactionType.escrow_freeze,
+            placement_request_id=placement_id,
             yookassa_payment_id=None,
+            idempotency_key=freeze_key,
             meta_json={
                 "type": "escrow_freeze",
                 "placement_id": placement_id,
                 "currency": "rub",
+                "is_test": is_test,
             },
             balance_before=balance_before,
             balance_after=user.balance_rub,
             created_at=datetime.now(UTC),
         )
         session.add(transaction)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            logger.warning(
+                f"freeze_escrow_for_placement: idempotency race for "
+                f"placement {placement_id}: {exc}"
+            )
+            raise
         await session.refresh(transaction)
 
         logger.info(
-            f"Escrow frozen: {amount} ₽ from advertiser {advertiser_id} for placement {placement_id}"
+            f"Escrow frozen: {amount} ₽ for placement {placement_id} "
+            f"(advertiser={advertiser_id}, is_test={is_test})"
         )
-
         return transaction
 
     # ══════════════════════════════════════════════════════════════
@@ -1177,97 +1212,6 @@ class BillingService:
         logger.info(
             f"Topup webhook processed: +{desired_balance} ₽ for user {user_id}, "
             f"payment_id={payment_id}, gross={gross_amount} ₽"
-        )
-
-    async def freeze_escrow(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        placement_id: int,
-        amount: Decimal,
-    ) -> None:
-        """
-        Заморозить средства на эскроу для размещения.
-
-        Args:
-            session: Асинхронная сессия.
-            user_id: ID рекламодателя.
-            placement_id: ID заявки.
-            amount: Сумма для заморозки.
-
-        Raises:
-            ValueError: Если amount < MIN_CAMPAIGN_BUDGET.
-            InsufficientFundsError: Если недостаточно balance_rub.
-
-        Note:
-            Caller-controlled transaction: метод работает в рамках транзакции
-            вызывающего, не открывает и не коммитит её.
-
-            Idempotent: Transaction.idempotency_key = `escrow_freeze:placement={id}`.
-            Повторный вызов для того же placement_id — no-op.
-        """
-        from sqlalchemy import exists, select
-        from sqlalchemy.exc import IntegrityError
-
-        if amount < MIN_CAMPAIGN_BUDGET:
-            raise ValueError(f"Минимальный бюджет размещения {MIN_CAMPAIGN_BUDGET} ₽")
-
-        freeze_key = f"escrow_freeze:placement={placement_id}"
-        already = await session.scalar(
-            select(exists().where(Transaction.idempotency_key == freeze_key))
-        )
-        if already:
-            logger.info(
-                f"freeze_escrow: placement {placement_id} already frozen (idempotency hit)"
-            )
-            return
-
-        # SELECT FOR UPDATE user
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_id(user_id)
-        if not user:
-            raise ValueError(f"User {user_id} not found")
-
-        if user.balance_rub < amount:
-            raise InsufficientFundsError(
-                f"Insufficient balance_rub: {user.balance_rub} < {amount}"
-            )
-
-        # UPDATE users SET balance_rub = balance_rub - amount
-        balance_before = user.balance_rub
-        user.balance_rub -= amount
-
-        # platform_account_repo.add_to_escrow(session, amount)
-        platform_repo = PlatformAccountRepo(session)
-        await platform_repo.add_to_escrow(session, amount)
-
-        # Transaction(type=ESCROW_FREEZE, amount=amount, user_id=user_id)
-        transaction = Transaction(
-            user_id=user_id,
-            amount=amount,
-            type=TransactionType.escrow_freeze,
-            placement_request_id=placement_id,
-            yookassa_payment_id=None,
-            idempotency_key=freeze_key,
-            meta_json={
-                "type": "escrow_freeze",
-                "placement_id": placement_id,
-                "currency": "rub",
-            },
-            balance_before=balance_before,
-            balance_after=user.balance_rub,
-        )
-        session.add(transaction)
-        try:
-            await session.flush()
-        except IntegrityError as exc:
-            logger.warning(
-                f"freeze_escrow: idempotency race for placement {placement_id}: {exc}"
-            )
-            raise
-
-        logger.info(
-            f"Escrow frozen: {amount} ₽ from advertiser {user_id} for placement {placement_id}"
         )
 
     async def release_escrow(

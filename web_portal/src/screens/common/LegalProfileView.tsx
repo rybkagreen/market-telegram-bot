@@ -105,7 +105,11 @@ export default function LegalProfileView() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div
+        className={`grid gap-4 ${
+          profile.bank_name || profile.bank_account ? 'lg:grid-cols-2' : 'grid-cols-1'
+        }`}
+      >
         <SectionCard icon="contract" title="Основные данные">
           <div>
             <FieldRow

@@ -114,7 +114,7 @@ export default function CampaignPublished() {
           📋 Мои кампании
         </Button>
 
-        <Button variant="secondary" fullWidth onClick={() => navigate('/adv/analytics')}>
+        <Button variant="secondary" fullWidth onClick={() => navigate('/analytics?role=advertiser')}>
           📊 В статистику
         </Button>
 

@@ -109,7 +109,7 @@ export default function AdminUsersList() {
       />
 
       <div className="bg-harbor-card border border-border rounded-xl p-3.5 mb-3.5 flex items-center gap-3 flex-wrap">
-        <div className="flex-1 min-w-[260px] flex items-center gap-2 px-3 py-2 rounded-lg bg-harbor-elevated border border-border">
+        <div className="flex-1 min-w-[200px] md:min-w-[260px] flex items-center gap-2 px-3 py-2 rounded-lg bg-harbor-elevated border border-border">
           <Icon name="search" size={15} className="text-text-tertiary" />
           <input
             value={search}
@@ -208,7 +208,7 @@ export default function AdminUsersList() {
             <table className="w-full text-sm">
               <thead className="bg-harbor-secondary">
                 <tr className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary font-semibold">
-                  <th className="px-4 py-2.5 w-10">
+                  <th className="px-4 py-2.5 w-10 sticky left-0 bg-harbor-secondary z-10">
                     <input
                       type="checkbox"
                       className="rounded border-border accent-accent"
@@ -216,7 +216,7 @@ export default function AdminUsersList() {
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="text-left px-4 py-2.5">Имя</th>
+                  <th className="text-left px-4 py-2.5 sticky left-10 bg-harbor-secondary z-10">Имя</th>
                   <th className="text-left px-4 py-2.5 hidden md:table-cell">Тариф</th>
                   <th className="text-right px-4 py-2.5 hidden sm:table-cell">Баланс</th>
                   <th className="text-right px-4 py-2.5">Репутация</th>
@@ -231,7 +231,7 @@ export default function AdminUsersList() {
                       key={user.id}
                       className={`hover:bg-harbor-elevated/40 transition-colors ${selected ? 'bg-accent-muted/30' : ''}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className={`px-4 py-3 sticky left-0 z-10 ${selected ? 'bg-accent-muted/30' : 'bg-harbor-card'}`}>
                         <input
                           type="checkbox"
                           className="rounded border-border accent-accent"
@@ -241,7 +241,7 @@ export default function AdminUsersList() {
                         />
                       </td>
                       <td
-                        className="px-4 py-3 cursor-pointer"
+                        className={`px-4 py-3 cursor-pointer sticky left-10 z-10 ${selected ? 'bg-accent-muted/30' : 'bg-harbor-card'}`}
                         onClick={() => navigate(`/admin/users/${user.id}`)}
                       >
                         <p className="font-medium text-text-primary">

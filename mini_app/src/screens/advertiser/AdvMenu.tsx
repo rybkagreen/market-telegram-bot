@@ -43,7 +43,7 @@ export default function AdvMenu() {
             iconBg="var(--rh-accent-muted)"
             title="Статистика и аналитика"
             subtitle="Кампании, охваты, CTR"
-            onClick={() => navigate('/adv/analytics')}
+            onClick={() => navigate('/analytics?role=advertiser')}
           />
         </motion.div>
 

@@ -273,8 +273,7 @@ export default function MyActsScreen() {
 
       <div className="bg-harbor-card border border-border rounded-xl overflow-hidden">
         <div
-          className="grid gap-3.5 px-[18px] py-2.5 bg-harbor-secondary border-b border-border text-[10.5px] font-bold uppercase tracking-[0.08em] text-text-tertiary"
-          style={{ gridTemplateColumns: '40px 1.2fr 1.8fr 0.9fr 0.9fr auto' }}
+          className="hidden md:grid gap-3.5 px-[18px] py-2.5 bg-harbor-secondary border-b border-border text-[10.5px] font-bold uppercase tracking-[0.08em] text-text-tertiary md:[grid-template-columns:40px_1.2fr_1.8fr_0.9fr_0.9fr_auto]"
         >
           <span />
           <span>Акт</span>
@@ -387,35 +386,47 @@ function ActRow({
 
   return (
     <div
-      className={`grid gap-3.5 px-[18px] py-3.5 items-center transition-colors ${
+      className={`px-4 md:px-[18px] py-3.5 transition-colors ${
         selected ? 'bg-accent-muted/40' : 'hover:bg-harbor-elevated/40'
-      } ${isLast ? '' : 'border-b border-border'}`}
-      style={{ gridTemplateColumns: '40px 1.2fr 1.8fr 0.9fr 0.9fr auto' }}
+      } ${isLast ? '' : 'border-b border-border'} flex flex-col gap-3 md:grid md:gap-3.5 md:items-center md:[grid-template-columns:40px_1.2fr_1.8fr_0.9fr_0.9fr_auto]`}
     >
-      <button
-        onClick={onToggle}
-        className={`w-5 h-5 rounded-[5px] grid place-items-center border-[1.5px] p-0 text-white justify-self-start transition-colors ${
-          selected ? 'bg-accent border-accent' : 'bg-harbor-elevated border-border'
-        }`}
-      >
-        {selected && <Icon name="check" size={12} strokeWidth={2.5} />}
-      </button>
-
-      <div className="flex items-center gap-[11px] min-w-0">
-        <span
-          className={`w-9 h-9 rounded-[9px] grid place-items-center border flex-shrink-0 ${typeIconClass[tm.tone]}`}
+      {/* Mobile row 1: checkbox + icon + title + status dot */}
+      <div className="flex items-center gap-3 md:contents">
+        <button
+          onClick={onToggle}
+          className={`w-5 h-5 rounded-[5px] grid place-items-center border-[1.5px] p-0 text-white flex-shrink-0 md:justify-self-start transition-colors ${
+            selected ? 'bg-accent border-accent' : 'bg-harbor-elevated border-border'
+          }`}
         >
-          <Icon name={tm.icon} size={16} />
-        </span>
-        <div className="min-w-0">
-          <div className="font-mono text-[13px] font-semibold text-text-primary tracking-[-0.005em]">
-            № {act.act_number ?? act.id}
+          {selected && <Icon name="check" size={12} strokeWidth={2.5} />}
+        </button>
+
+        <div className="flex items-center gap-[11px] min-w-0 md:min-w-0 flex-1">
+          <span
+            className={`w-9 h-9 rounded-[9px] grid place-items-center border flex-shrink-0 ${typeIconClass[tm.tone]}`}
+          >
+            <Icon name={tm.icon} size={16} />
+          </span>
+          <div className="min-w-0">
+            <div className="font-mono text-[13px] font-semibold text-text-primary tracking-[-0.005em] truncate">
+              № {act.act_number ?? act.id}
+            </div>
+            <div className="text-[11.5px] text-text-tertiary mt-0.5">{tm.full} акт</div>
           </div>
-          <div className="text-[11.5px] text-text-tertiary mt-0.5">{tm.full} акт</div>
         </div>
+
+        {/* Mobile-only status dot (trailing) */}
+        <span
+          className={`md:hidden inline-grid place-items-center w-6 h-6 rounded-full flex-shrink-0 ${sm.pillClass}`}
+          aria-label={sm.label}
+          title={sm.label}
+        >
+          <span className={`w-2 h-2 rounded-full ${sm.dotClass}`} />
+        </span>
       </div>
 
-      <div className="min-w-0">
+      {/* Desktop col 3: description */}
+      <div className="hidden md:block min-w-0">
         <div className="text-[13px] font-medium text-text-primary truncate">
           {tm.full === 'Входящий' ? 'Размещение' : 'Выплата'} #{act.placement_request_id}
         </div>
@@ -427,21 +438,29 @@ function ActRow({
         )}
       </div>
 
-      <div className="text-[12.5px] text-text-secondary tabular-nums">{fmtDate(act.act_date)}</div>
+      {/* Mobile row 2: date + placement id side-by-side */}
+      <div className="flex items-center justify-between gap-3 md:contents">
+        <div className="text-[12.5px] text-text-secondary tabular-nums md:text-[12.5px]">
+          <span className="md:hidden text-[11px] uppercase tracking-wider text-text-tertiary mr-1.5">Дата:</span>
+          {fmtDate(act.act_date)}
+        </div>
 
-      <div className="font-mono tabular-nums text-sm font-semibold text-text-primary text-right">
-        #{act.placement_request_id}
+        <div className="font-mono tabular-nums text-sm font-semibold text-text-primary md:text-right">
+          <span className="md:hidden text-[11px] uppercase tracking-wider text-text-tertiary mr-1.5 font-body font-medium">Заявка:</span>
+          #{act.placement_request_id}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2.5 justify-end">
+      {/* Actions: status pill (desktop) + buttons */}
+      <div className="flex items-center gap-2.5 md:justify-end">
         <span
-          className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase py-1 px-2.5 rounded-[5px] whitespace-nowrap ${sm.pillClass}`}
+          className={`hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase py-1 px-2.5 rounded-[5px] whitespace-nowrap ${sm.pillClass}`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${sm.dotClass}`} />
           {sm.label}
         </span>
 
-        <div className="flex gap-1">
+        <div className="flex gap-2 md:gap-1 flex-1 md:flex-initial justify-end">
           {canSign && (
             <Button
               size="sm"
@@ -456,9 +475,10 @@ function ActRow({
           {act.pdf_url && (
             <button
               title="Скачать PDF"
+              aria-label="Скачать PDF"
               onClick={onDownload}
               disabled={downloading}
-              className="w-[30px] h-[30px] rounded-md border border-border bg-harbor-elevated text-text-secondary grid place-items-center hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-11 h-11 md:w-[30px] md:h-[30px] rounded-md border border-border bg-harbor-elevated text-text-secondary grid place-items-center hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               <Icon name="download" size={14} />
             </button>

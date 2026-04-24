@@ -34,7 +34,7 @@ class TestCallerControlledTransactionContract:
 
     def test_freeze_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
-        self._assert_no_session_begin(BillingService.freeze_escrow)
+        self._assert_no_session_begin(BillingService.freeze_escrow_for_placement)
 
     def test_process_topup_webhook_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
@@ -58,7 +58,7 @@ class TestIdempotencyKeyFormat:
 
     def test_freeze_escrow_uses_freeze_key(self):
         from src.core.services.billing_service import BillingService
-        source = inspect.getsource(BillingService.freeze_escrow)
+        source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "escrow_freeze:placement=" in source
 
     def test_refund_escrow_uses_scenario_specific_keys(self):
@@ -90,7 +90,7 @@ class TestIdempotencyShortCircuit:
 
     def test_freeze_escrow_early_exits_on_exists(self):
         from src.core.services.billing_service import BillingService
-        source = inspect.getsource(BillingService.freeze_escrow)
+        source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "exists" in source.lower()
         assert "idempotency hit" in source.lower()
 
@@ -116,7 +116,7 @@ class TestIntegrityErrorHandling:
 
     def test_freeze_escrow_catches_integrity_error(self):
         from src.core.services.billing_service import BillingService
-        source = inspect.getsource(BillingService.freeze_escrow)
+        source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "IntegrityError" in source
 
 
@@ -138,7 +138,7 @@ class TestPlacementLinkage:
 
     def test_freeze_escrow_links_txn_to_placement(self):
         from src.core.services.billing_service import BillingService
-        source = inspect.getsource(BillingService.freeze_escrow)
+        source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "placement_request_id=placement_id" in source
 
 
@@ -212,10 +212,10 @@ def test_freeze_escrow_noop_when_key_exists():
     async def _run():
         session = _make_session_with_existing_key()
         # Сумма ≥ MIN_CAMPAIGN_BUDGET, чтобы дойти до EXISTS-проверки.
-        await BillingService().freeze_escrow(
+        await BillingService().freeze_escrow_for_placement(
             session,
-            user_id=10,
             placement_id=42,
+            advertiser_id=10,
             amount=Decimal("2500"),
         )
         session.flush.assert_not_called()

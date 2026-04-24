@@ -19,6 +19,7 @@ export interface RouteSpec {
 // ── Common routes (any authenticated user) ──
 const common: RouteSpec[] = [
   { path: '/cabinet', role: 'advertiser' },
+  { path: '/analytics', role: 'advertiser' },
   { path: '/feedback', role: 'advertiser' },
   { path: '/plans', role: 'advertiser' },
   { path: '/topup', role: 'advertiser' },
@@ -40,13 +41,11 @@ const advertiser: RouteSpec[] = [
   { path: '/adv/campaigns/new/text', role: 'advertiser' },
   { path: '/adv/campaigns/new/terms', role: 'advertiser' },
   { path: '/adv/disputes', role: 'advertiser' },
-  { path: '/adv/analytics', role: 'advertiser' },
   { path: '/contracts/framework', role: 'advertiser' },
 ]
 
 // ── Owner routes ──
 const owner: RouteSpec[] = [
-  { path: '/own/analytics', role: 'owner' },
   { path: '/own/channels', role: 'owner' },
   { path: '/own/channels/add', role: 'owner' },
   { path: '/own/requests', role: 'owner' },

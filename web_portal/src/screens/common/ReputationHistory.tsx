@@ -392,41 +392,60 @@ function RepRow({ item }: { item: ReputationHistoryItem }) {
 
   return (
     <div
-      className={`bg-harbor-card border border-border border-l-[3px] rounded-[10px] py-3.5 pl-4 pr-[18px] grid gap-3.5 items-center transition-colors hover:border-border-active ${tc.border}`}
-      style={{ gridTemplateColumns: '42px 1fr auto 130px' }}
+      className={`bg-harbor-card border border-border border-l-[3px] rounded-[10px] py-3.5 pl-4 pr-4 md:pr-[18px] transition-colors hover:border-border-active ${tc.border} flex flex-col gap-3 md:grid md:gap-3.5 md:items-center md:[grid-template-columns:42px_1fr_auto_130px]`}
     >
-      <span
-        className={`w-[38px] h-[38px] rounded-[10px] grid place-items-center border border-transparent ${tc.iconBg} ${tc.iconFg}`}
-      >
-        <Icon name={meta.icon} size={17} />
-      </span>
+      {/* Row 1 on mobile: icon + label header + delta */}
+      <div className="flex items-start gap-3 md:contents">
+        <span
+          className={`w-[38px] h-[38px] rounded-[10px] grid place-items-center border border-transparent flex-shrink-0 ${tc.iconBg} ${tc.iconFg}`}
+        >
+          <Icon name={meta.icon} size={17} />
+        </span>
 
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5 mb-0.5 flex-wrap">
-          <span className="text-[13.5px] font-semibold text-text-primary">{meta.label}</span>
-          <span
-            className={`text-[10px] font-bold tracking-[0.08em] uppercase py-0.5 px-[7px] rounded ${roleAccent}`}
-          >
-            {ROLE_LABELS[item.role] ?? item.role}
-          </span>
-        </div>
-        {item.comment && (
-          <div className="text-[12.5px] text-text-secondary leading-[1.45] line-clamp-2">
-            {item.comment}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-[13.5px] font-semibold text-text-primary">{meta.label}</span>
+            <span
+              className={`inline-grid place-items-center w-5 h-5 rounded-full ${roleAccent}`}
+              aria-label={ROLE_LABELS[item.role] ?? item.role}
+              title={ROLE_LABELS[item.role] ?? item.role}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+            </span>
           </div>
-        )}
-        <div className="text-[11px] text-text-tertiary mt-1 tabular-nums">
-          {fmtDateTime(item.created_at)} МСК
+          {item.comment && (
+            <div className="text-[12.5px] text-text-secondary leading-[1.45] line-clamp-2">
+              {item.comment}
+            </div>
+          )}
+          <div className="text-[11px] text-text-tertiary mt-1 tabular-nums">
+            {fmtDateTime(item.created_at)} МСК
+          </div>
+        </div>
+
+        {/* Mobile: delta stacked with score-change */}
+        <div className="flex flex-col items-end gap-1 md:hidden flex-shrink-0">
+          <span
+            className={`font-mono tabular-nums text-sm font-bold py-1 px-2 rounded-lg border whitespace-nowrap ${deltaPillClass[dPolarity]}`}
+          >
+            {dText}
+          </span>
+          <div className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-text-secondary whitespace-nowrap">
+            <span className="text-text-tertiary">{item.score_before.toFixed(2)}</span>
+            <Icon name="arrow-right" size={10} className="text-text-tertiary" />
+            <span className="text-text-primary font-semibold">{item.score_after.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
+      {/* Desktop-only: delta and score cells */}
       <span
-        className={`font-mono tabular-nums text-sm font-bold py-1.5 px-2.5 rounded-lg border whitespace-nowrap ${deltaPillClass[dPolarity]}`}
+        className={`hidden md:inline-flex font-mono tabular-nums text-sm font-bold py-1.5 px-2.5 rounded-lg border whitespace-nowrap ${deltaPillClass[dPolarity]}`}
       >
         {dText}
       </span>
 
-      <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary whitespace-nowrap">
+      <div className="hidden md:flex items-center gap-1.5 font-mono text-xs tabular-nums text-text-secondary whitespace-nowrap">
         <span className="text-text-tertiary">{item.score_before.toFixed(2)}</span>
         <Icon name="arrow-right" size={11} className="text-text-tertiary" />
         <span className="text-text-primary font-semibold">{item.score_after.toFixed(2)}</span>
