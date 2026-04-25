@@ -208,5 +208,10 @@ async def test_bridge_happy_path_token_authenticates(
     assert access_token
 
     # Step 4: token must authenticate against `get_current_user`
-    user = await get_current_user(_bearer(access_token))
+    request = MagicMock()
+    request.state = type("S", (), {})()
+    user = await get_current_user(request, _bearer(access_token))
     assert user.id == fake_user.id
+    # Phase 1 §1.B.0b: dep wrote identity to request.state for AuditMiddleware
+    assert request.state.user_id == fake_user.id
+    assert request.state.user_aud == "web_portal"

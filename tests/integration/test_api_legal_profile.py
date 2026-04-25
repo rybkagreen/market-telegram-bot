@@ -10,7 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.api.main import app
 from src.db.models.user import User
 from tests.conftest import VALID_INN10, VALID_INN12
@@ -48,7 +48,7 @@ async def authed_client(
         return test_user
 
     app.dependency_overrides[get_db_session] = _session_override
-    app.dependency_overrides[get_current_user] = _user_override
+    app.dependency_overrides[get_current_user_from_web_portal] = _user_override
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -56,7 +56,7 @@ async def authed_client(
             yield client
     finally:
         app.dependency_overrides.pop(get_db_session, None)
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_user_from_web_portal, None)
 
 
 # ────────────────────────────────────────────
