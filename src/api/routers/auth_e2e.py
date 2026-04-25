@@ -48,6 +48,7 @@ async def e2e_login(body: E2ELoginRequest) -> E2ELoginResponse:
         user_id=user.id,
         telegram_id=user.telegram_id,
         plan=plan_value,
+        source="mini_app",
     )
     logger.info("E2E login: telegram_id=%s, plan=%s", body.telegram_id, plan_value)
 

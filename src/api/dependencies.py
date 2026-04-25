@@ -13,7 +13,7 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from telegram import Bot
 
-from src.api.auth_utils import decode_jwt_token
+from src.api.auth_utils import JwtSource, decode_jwt_token
 from src.config.settings import settings
 from src.db.models.user import User
 from src.db.session import async_session_factory
@@ -24,25 +24,22 @@ logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+_ALLOWED_AUDIENCES: list[JwtSource] = ["mini_app", "web_portal"]
+
+
+async def _resolve_user_for_audience(
+    credentials: HTTPAuthorizationCredentials | None,
+    audience: JwtSource | list[JwtSource],
+    *,
+    audience_mismatch_status: int = status.HTTP_403_FORBIDDEN,
 ) -> User:
     """
-    Dependency: получить текущего пользователя из JWT токена.
+    Decode JWT с обязательной проверкой audience и вернуть active User.
 
-    Использование:
-        @router.get("/me")
-        async def me(user: Annotated[User, Depends(get_current_user)]):
-            return user
-
-    Args:
-        credentials: JWT токен из заголовка Authorization
-
-    Returns:
-        Пользователь из БД
-
-    Raises:
-        HTTPException 401: токен отсутствует, невалиден или истёк
+    Все три фронтенд-dependencies (`get_current_user`,
+    `get_current_user_from_web_portal`, `get_current_user_from_mini_app`)
+    делегируют сюда — отличаются только разрешённым набором audience и
+    тем, какой статус возвращать при aud-несовпадении.
     """
     if not credentials:
         raise HTTPException(
@@ -52,12 +49,23 @@ async def get_current_user(
         )
 
     try:
-        payload = decode_jwt_token(credentials.credentials)
+        payload = decode_jwt_token(credentials.credentials, audience=audience)
         user_id = int(payload["sub"])
     except pyjwt.ExpiredSignatureError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired",
+        ) from e
+    except pyjwt.InvalidAudienceError as e:
+        raise HTTPException(
+            status_code=audience_mismatch_status,
+            detail="Invalid token audience",
+        ) from e
+    except pyjwt.MissingRequiredClaimError as e:
+        # legacy aud-less token — pre-prod policy: reject, force re-login
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing audience claim",
         ) from e
     except (pyjwt.InvalidTokenError, KeyError, ValueError) as e:
         raise HTTPException(
@@ -71,7 +79,6 @@ async def get_current_user(
         )
         user = result.scalar_one_or_none()
 
-    # ИЗМЕНЕНО (2026-03-17): is_banned → is_active (поле is_banned не существует в модели User)
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,6 +86,61 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> User:
+    """
+    Dependency: получить текущего пользователя из JWT токена (mini_app или web_portal).
+
+    Принимает оба источника. Для аудит-чувствительных эндпоинтов
+    (`/api/legal-profile/*`, документы, реквизиты) использовать
+    `get_current_user_from_web_portal` — он жёстко режет mini_app токены.
+
+    Raises:
+        HTTPException 401: токен отсутствует, невалиден, истёк, или
+            не содержит claim `aud` (legacy токены до Phase 0).
+    """
+    return await _resolve_user_for_audience(
+        credentials,
+        _ALLOWED_AUDIENCES,
+        audience_mismatch_status=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+async def get_current_user_from_web_portal(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> User:
+    """
+    Dependency: только web_portal-токены. mini_app JWT → 403.
+
+    Use case: эндпоинты, обрабатывающие ПД (ФЗ-152) — паспорт, ИНН,
+    выписки, реквизиты. mini_app категорически не должен видеть ПД,
+    поэтому даже валидный mini_app-токен отбивается на этом уровне.
+    """
+    return await _resolve_user_for_audience(
+        credentials,
+        "web_portal",
+        audience_mismatch_status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+async def get_current_user_from_mini_app(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> User:
+    """
+    Dependency: только mini_app-токены. web_portal JWT → 403.
+
+    Use case: бридж `exchange-miniapp-to-portal`, который преобразует
+    mini_app-сессию в краткоживущий ticket. Принимать web_portal-токен
+    здесь не имеет смысла (у юзера уже есть портальная сессия).
+    """
+    return await _resolve_user_for_audience(
+        credentials,
+        "mini_app",
+        audience_mismatch_status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 async def get_db_session():

@@ -1,0 +1,24 @@
+{
+  "description": "Short-lived JWT ticket returned by /api/auth/exchange-miniapp-to-portal.",
+  "properties": {
+    "expires_in": {
+      "title": "Expires In",
+      "type": "integer"
+    },
+    "portal_url": {
+      "title": "Portal Url",
+      "type": "string"
+    },
+    "ticket": {
+      "title": "Ticket",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ticket",
+    "portal_url",
+    "expires_in"
+  ],
+  "title": "TicketResponse",
+  "type": "object"
+}
