@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 0: ENABLE_E2E_AUTH flag, centralised URLs, JWT `aud` + ticket bridge (2026-04-25)
+
+Production-readiness Phase 0 (`feature/env-constants-jwt-aud`). Six
+commits, all sub-phases green; full report:
+`reports/docs-architect/discovery/CHANGES_2026-04-25_phase0-env-constants-jwt.md`.
+
+- **JWT now carries an explicit `aud` claim** (`mini_app` or `web_portal`).
+  - New endpoints:
+    - `POST /api/auth/exchange-miniapp-to-portal` — mints short-lived
+      ticket-JWT (default TTL 300s) for a mini_app session. Stores
+      `auth:ticket:jti:{jti}` in Redis with `{user_id, issued_at, ip}`.
+    - `POST /api/auth/consume-ticket` — public endpoint, manual Redis
+      INCR+EXPIRE rate-limits (10 req/min/IP, 5 fails/5min/user). One-shot
+      Redis DELETE on jti — replay returns 401 with structured WARN log.
+  - New dependencies: `get_current_user_from_web_portal` (rejects mini_app
+    JWT with 403 — used by ФЗ-152 paths in Phase 1) and
+    `get_current_user_from_mini_app` (used by the bridge endpoint).
+  - New Pydantic schemas `TicketResponse`, `AuthTokenResponse` with
+    snapshot-pinned contracts.
+- **New settings** in `src/config/settings.py`: `enable_e2e_auth`,
+  `mini_app_url`, `web_portal_url`, `landing_url`, `api_public_url`,
+  `tracking_base_url`, `terms_url`, `ticket_jwt_ttl_seconds`,
+  `sandbox_telegram_channel_id`. Subdomain-correct defaults
+  (`portal.rekharbor.ru`, `t.rekharbor.ru`, `app.rekharbor.ru/`).
+- **New** `src/constants/erid.py` with `ERID_STUB_PREFIX = "STUB-ERID-"`
+  (provider type — orthogonal to placement-test-mode in Phase 5).
+- **New tests**: `tests/unit/api/test_jwt_aud_claim.py` (9 cases) and
+  `tests/unit/api/test_jwt_rate_limit.py` (2 cases). FakeRedis stub +
+  monkeypatched session factory — sub-second runs.
+
+### Changed — Phase 0 hygiene (2026-04-25)
+
+- 8 hardcoded `rekharbor.ru` URLs in `src/` replaced with `settings.*`
+  references (CORS, bot menu webapp, legal-profile portal redirect, ToS
+  link, /login code template, publication post tracking, link-tracking
+  service ×2). 2 mini_app fallbacks (`LegalProfileSetup`,
+  `LegalProfilePrompt`) now read `import.meta.env.VITE_PORTAL_URL`
+  without a hidden hardcode.
+- `create_jwt_token` requires `source: Literal["mini_app", "web_portal"]`.
+  All four token-issuing endpoints updated.
+- `decode_jwt_token` requires positional `audience` argument (no default).
+  `None` is the explicit opt-out for legacy/audit helpers.
+- `ENABLE_E2E_AUTH` replaces the `ENVIRONMENT == "testing"` check at
+  `src/api/main.py:193` (`/api/auth/e2e-login` mount gate).
+- `scripts/check_forbidden_patterns.sh` extended with three new guards
+  on hardcoded `rekharbor.ru` URLs across `src/`, `mini_app/src/`,
+  `web_portal/src/`.
+- `docker/Dockerfile.nginx` carries `ARG VITE_PORTAL_URL` in the
+  `builder-miniapp` stage; `docker-compose.yml` pipes
+  `${VITE_PORTAL_URL:-https://portal.rekharbor.ru}` into the build args.
+- `audit_middleware.py` carries a one-line `FIXME(security)` comment on
+  the unsigned-JWT decode helper. No logic change.
+
+### Fixed — Phase 0 (2026-04-25)
+
+- Typo `rekhaborbot.ru → rekharbor.ru` in `src/constants/legal.py`
+  (4 sites: lines 53, 83, 107, 108).
+
+### Removed — Phase 0 (2026-04-25)
+
+- `src/config/__init__.py` — dead parallel `Settings` class with zero
+  importers across `src/` and `tests/`.
+- `environment` field, `is_development/is_production/is_testing`
+  properties, and the `environment` key in `/health` JSON response.
+- `ENVIRONMENT=` from `.env.example`, `.env.test.example`. `.env`,
+  `.env.test` updated locally (gitignored, not part of this commit).
+
+### Breaking — Phase 0 (2026-04-25)
+
+- All JWTs issued before this phase **lack the `aud` claim** and are
+  rejected with `401: Invalid token: missing audience claim`. Pre-prod
+  policy — one re-login per existing session is the migration cost.
+  After Phase 1 ships, ФЗ-152 paths additionally reject mini_app-aud
+  tokens with 403.
+
 ### Changed — Project rules: objections section + phase mode discipline (2026-04-25)
 
 Documentation-only update to `CLAUDE.md` and `IMPLEMENTATION_PLAN_ACTIVE.md`.
