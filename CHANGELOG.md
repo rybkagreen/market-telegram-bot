@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Phase 1 §1.B.1: 23 PII endpoints now web_portal-only (FZ-152) (2026-04-25)
+
+All endpoints handling legal profile, contracts, acts, and document
+validation now reject mini_app JWT with 403 (mini_app categorically must
+not see ПД per ФЗ-152). Affected files: `legal_profile.py` (7 endpoints),
+`contracts.py` (7), `acts.py` (4), `document_validation.py` (5).
+
+Public, non-PII endpoints intentionally left unchanged: `GET
+/api/contracts/platform-rules/text` (no auth — static text),
+`/api/ord/*` (no PII in response), `GET /video/{session_id}` (no PII).
+
+- 23 sites of `Depends(get_current_user)` → `Depends(get_current_user_from_web_portal)`.
+- `tests/integration/test_api_legal_profile.py` fixture override updated
+  (25/25 tests still pass).
+- Schema snapshots unchanged (auth dep is transparent to Pydantic).
+
 ### Changed — Phase 1 §1.B.0b: audit middleware refactor in place (PF.4) (2026-04-25)
 
 Closes Phase 0's `FIXME(security)` on `_extract_user_id_from_token`. The

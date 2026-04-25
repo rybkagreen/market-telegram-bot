@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.api.schemas.legal_profile import (
     AcceptRulesRequest,
     ContractListResponse,
@@ -57,7 +57,7 @@ def _contract_to_response(contract: Contract) -> ContractResponse:
 @router.post("/generate", status_code=201, responses={400: {"description": "Bad Request"}})
 async def generate_contract(
     data: GenerateContractRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ContractResponse:
     """Generate a new contract."""
@@ -75,7 +75,7 @@ async def generate_contract(
 )
 async def accept_rules(
     data: AcceptRulesRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Accept platform rules and privacy policy."""
@@ -92,7 +92,7 @@ async def accept_rules(
 
 @router.get("")
 async def list_contracts(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     type: ContractType | None = None,
     status: str | None = None,
@@ -112,7 +112,7 @@ async def list_contracts(
 )
 async def get_contract(
     contract_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ContractResponse:
     """Get a single contract by ID."""
@@ -133,7 +133,7 @@ async def sign_contract(
     contract_id: int,
     data: ContractSignRequest,
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ContractResponse:
     """Sign a contract."""
@@ -161,7 +161,7 @@ async def sign_contract(
 )
 async def request_kep(
     data: KepRequestBody,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Запросить КЭП-версию договора (для ЮЛ и ИП)."""
@@ -207,7 +207,7 @@ async def request_kep(
 )
 async def download_pdf(
     contract_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FileResponse:
     """Download a contract PDF."""
