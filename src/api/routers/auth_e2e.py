@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from src.api.auth_utils import create_jwt_token
+from src.api.auth_utils import JwtSource, create_jwt_token
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
 
@@ -23,17 +23,24 @@ router = APIRouter()
 
 class E2ELoginRequest(BaseModel):
     telegram_id: int
+    source: JwtSource = "mini_app"
 
 
 class E2ELoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    source: JwtSource
     user: dict
 
 
 @router.post("/e2e-login")
 async def e2e_login(body: E2ELoginRequest) -> E2ELoginResponse:
-    """Test-only login. Creates or fetches user by telegram_id, returns JWT."""
+    """Test-only login. Creates or fetches user by telegram_id, returns JWT.
+
+    Phase 1 §1.B.6: `source` parameter selects mini_app vs web_portal aud.
+    Default `mini_app` keeps backwards-compat with the existing global-setup.
+    The `legal-profile-requires-web-portal.spec.ts` happy path needs web_portal.
+    """
     async with async_session_factory() as session:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_telegram_id(body.telegram_id)
@@ -48,12 +55,18 @@ async def e2e_login(body: E2ELoginRequest) -> E2ELoginResponse:
         user_id=user.id,
         telegram_id=user.telegram_id,
         plan=plan_value,
-        source="mini_app",
+        source=body.source,
     )
-    logger.info("E2E login: telegram_id=%s, plan=%s", body.telegram_id, plan_value)
+    logger.info(
+        "E2E login: telegram_id=%s, plan=%s, source=%s",
+        body.telegram_id,
+        plan_value,
+        body.source,
+    )
 
     return E2ELoginResponse(
         access_token=token,
+        source=body.source,
         user={
             "id": user.id,
             "telegram_id": user.telegram_id,
