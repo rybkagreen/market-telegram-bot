@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { MenuButton, Notification } from '@/components/ui'
 import { useMe } from '@/hooks/queries'
+import { useOpenInWebPortal } from '@/hooks/useOpenInWebPortal'
 import styles from './MainMenu.module.css'
 
 const containerVariants = {
@@ -20,6 +21,8 @@ export default function MainMenu() {
   const navigate = useNavigate()
   const { data: user } = useMe()
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  // Phase 1 §1.B.2: legal-profile screen lives only in web_portal (ФЗ-152).
+  const openLegalProfile = useOpenInWebPortal('/legal-profile')
 
   const showLegalBanner =
     !bannerDismissed &&
@@ -42,9 +45,9 @@ export default function MainMenu() {
             </span>
             <button
               className={styles.legalBannerLink}
-              onClick={() => navigate('/legal-profile')}
+              onClick={() => openLegalProfile.mutate()}
             >
-              Заполнить
+              Заполнить в портале
             </button>
             <button
               className={styles.legalBannerDismiss}
