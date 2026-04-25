@@ -8,12 +8,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import settings
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 
 legal_profile_router = Router()
 
-PORTAL_URL = "https://rekharbor.ru/portal"
+PORTAL_URL = settings.web_portal_url
 
 
 @legal_profile_router.callback_query(F.data == "legal:start")

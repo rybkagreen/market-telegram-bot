@@ -125,6 +125,7 @@ async def login_with_code(
         user_id=user.id,
         telegram_id=user.telegram_id,
         plan=plan_value,
+        source="web_portal",
     )
 
     logger.info(f"Login code auth: telegram_id={telegram_id}, plan={plan_value}")

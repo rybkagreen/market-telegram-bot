@@ -7,6 +7,8 @@ Used until a real ORD provider is configured via ORD_PROVIDER env var.
 import logging
 from datetime import datetime
 
+from src.constants.erid import ERID_STUB_PREFIX
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +42,7 @@ class StubOrdProvider:
     ) -> str:  # noqa: S1172
         logger.warning("ORD stub: реальный провайдер не настроен (register_creative)")
         ts = int(datetime.now().timestamp())
-        return f"STUB-ERID-{placement_request_id}-{ts}"
+        return f"{ERID_STUB_PREFIX}{placement_request_id}-{ts}"
 
     async def report_publication(
         self,

@@ -241,6 +241,10 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.nginx
+      args:
+        # Visible here so ops can override via env without grepping the Dockerfile.
+        # Dockerfile carries the same default as a safety net for raw `docker build`.
+        VITE_PORTAL_URL: ${VITE_PORTAL_URL:-https://portal.rekharbor.ru}
     container_name: market_bot_nginx
     ports:
       - "127.0.0.1:8080:80"

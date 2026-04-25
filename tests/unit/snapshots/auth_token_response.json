@@ -1,0 +1,29 @@
+{
+  "description": "Full-session JWT issued after consuming a ticket or signing in directly.",
+  "properties": {
+    "access_token": {
+      "title": "Access Token",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "mini_app",
+        "web_portal"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "token_type": {
+      "const": "bearer",
+      "default": "bearer",
+      "title": "Token Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "access_token",
+    "source"
+  ],
+  "title": "AuthTokenResponse",
+  "type": "object"
+}

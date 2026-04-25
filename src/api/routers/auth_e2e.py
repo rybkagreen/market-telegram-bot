@@ -1,7 +1,7 @@
 """
 E2E-only auth endpoint for Playwright tests.
 
-Mounted ONLY when settings.environment == "testing".
+Mounted ONLY when settings.enable_e2e_auth is True (ENABLE_E2E_AUTH=true).
 Grants a JWT for an arbitrary telegram_id without Telegram signature check.
 
 Never exposed in dev/prod builds — see src/api/main.py.
@@ -48,6 +48,7 @@ async def e2e_login(body: E2ELoginRequest) -> E2ELoginResponse:
         user_id=user.id,
         telegram_id=user.telegram_id,
         plan=plan_value,
+        source="mini_app",
     )
     logger.info("E2E login: telegram_id=%s, plan=%s", body.telegram_id, plan_value)
 

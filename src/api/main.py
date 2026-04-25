@@ -172,8 +172,8 @@ app.add_middleware(AuditMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://app.rekharbor.ru",
-        "https://rekharbor.ru",
+        str(settings.mini_app_url).rstrip("/"),
+        str(settings.landing_url).rstrip("/"),
         "http://localhost:5173",  # mini_app dev
         "http://localhost:5174",  # web_portal dev
     ],
@@ -189,8 +189,8 @@ app.include_router(auth_router, prefix=_AUTH_PREFIX, tags=["Auth"])
 app.include_router(auth_login_widget_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-27)
 app.include_router(auth_login_code_router, prefix=_AUTH_PREFIX, tags=["Auth"])  # ДОБАВЛЕНО (S-29)
 
-# E2E-only auth endpoint — mounted ONLY when ENVIRONMENT=testing (Playwright suite)
-if settings.environment == "testing":
+# E2E-only auth endpoint — mounted ONLY when ENABLE_E2E_AUTH=true (Playwright suite)
+if settings.enable_e2e_auth:
     from src.api.routers.auth_e2e import router as auth_e2e_router
 
     app.include_router(auth_e2e_router, prefix=_AUTH_PREFIX, tags=["Auth (E2E)"])
@@ -257,7 +257,7 @@ async def rekharbor_error_handler(_request, exc: RekHarborError):
 @app.get("/health")
 async def health_check():
     """Проверка здоровья API."""
-    return {"status": "healthy", "environment": settings.environment}
+    return {"status": "healthy"}
 
 
 @app.get("/")
