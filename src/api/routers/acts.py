@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.db.models.act import Act
 from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
@@ -42,7 +42,7 @@ def _act_to_dict(act: Act) -> dict:
 
 @router.get("/mine")
 async def list_my_acts(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     limit: int = 50,
     placement_request_id: Annotated[int | None, Query(ge=1)] = None,
@@ -63,7 +63,7 @@ async def list_my_acts(
 @router.get("/{act_id}")
 async def get_act(
     act_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Получить акт по ID."""
@@ -86,7 +86,7 @@ async def get_act(
 async def sign_act(
     act_id: int,
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Подписать акт (акцепт через интерфейс)."""
@@ -134,7 +134,7 @@ async def sign_act(
 @router.get("/{act_id}/pdf")
 async def download_act_pdf(
     act_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> FileResponse:
     """Скачать PDF акта."""

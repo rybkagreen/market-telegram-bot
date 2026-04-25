@@ -1,0 +1,15 @@
+poetry run mypy src/
+src/core/services/mediakit_service.py:111: error: "TelegramChat" has no attribute "last_avg_views"; maybe "avg_views"?  [attr-defined]
+src/core/services/mediakit_service.py:113: error: "TelegramChat" has no attribute "last_post_frequency"  [attr-defined]
+src/core/services/mediakit_service.py:115: error: "TelegramChat" has no attribute "price_per_post"  [attr-defined]
+src/core/services/mediakit_service.py:116: error: "TelegramChat" has no attribute "price_per_post"  [attr-defined]
+src/core/services/analytics_service.py:397: error: Argument "messages" to "to_thread" has incompatible type "list[dict[str, str]]"; expected "list[AssistantMessage | SystemMessage | ToolMessage | UserMessage] | list[SystemMessageTypedDict | UserMessageTypedDict | AssistantMessageTypedDict | ToolMessageTypedDict]"  [arg-type]
+src/bot/handlers/owner/channel_owner.py:439: error: Item "None" of "TelegramChat | None" has no attribute "username"  [union-attr]
+src/bot/handlers/owner/channel_owner.py:439: error: Item "None" of "TelegramChat | None" has no attribute "title"  [union-attr]
+src/tasks/ord_tasks.py:59: error: Unexpected keyword argument "channel_id" for "report_publication" of "OrdService"  [call-arg]
+src/core/services/ord_service.py:216: note: "report_publication" of "OrdService" defined here
+src/tasks/ord_tasks.py:59: error: Unexpected keyword argument "post_url" for "report_publication" of "OrdService"  [call-arg]
+src/bot/handlers/advertiser/campaigns.py:172: error: Unexpected keyword argument "parse_mode" for "safe_callback_edit"  [call-arg]
+src/bot/utils/safe_callback.py: note: "safe_callback_edit" defined here
+Found 10 errors in 5 files (checked 272 source files)
+make: *** [Makefile:51: typecheck] Error 1

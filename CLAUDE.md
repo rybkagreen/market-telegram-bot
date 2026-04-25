@@ -579,13 +579,19 @@ git checkout $CURRENT_BRANCH
 ### NEVER TOUCH (extended list for Claude Code)
 # Original list from CLAUDE.md applies PLUS:
 src/core/security/field_encryption.py
-src/api/middleware/audit_middleware.py
 src/api/middleware/log_sanitizer.py
 src/db/models/audit_log.py
 src/db/models/legal_profile.py
 src/db/models/contract.py
 src/db/models/ord_registration.py
 src/db/migrations/versions/          ← read-only, never edit after production apply
+
+# Notes:
+# - src/api/middleware/audit_middleware.py was previously listed here but
+#   removed for Phase 1 §1.B.0b refactor (PF.4 decision: replace unsafe JWT
+#   re-decode with request.state.user_id read; ~21 LOC, 2 files). After Phase 1
+#   merge, the file is owned by Phase 1; do not re-add to NEVER TOUCH unless
+#   the security model around audit logging changes again.
 
 ### Landing-specific rules
 - Landing lives in: /opt/market-telegram-bot/landing/

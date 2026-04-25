@@ -155,8 +155,7 @@ test_endpoint "POST" "/channels/" "401" "POST /channels/ (no token)"
 test_endpoint "POST" "/payouts/" "401" "POST /payouts/ (no token)"
 # Backend uses PATCH not PUT for legal-profile
 test_endpoint "PATCH" "/legal-profile" "401" "PATCH /legal-profile (no token)"
-# Skip is at /api/users/skip-legal-prompt
-test_endpoint "POST" "/users/skip-legal-prompt" "401" "POST /users/skip-legal-prompt (no token)"
+# /users/skip-legal-prompt removed in Phase 1 §1.B.5 (FZ-152 mini_app strip).
 test_endpoint "POST" "/legal-profile/validate-inn" "401" "POST /legal-profile/validate-inn (no token)"
 
 # ─── 6. Non-existent endpoints (should return 404) ──────────

@@ -15,7 +15,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user_from_web_portal
 from src.core.services.document_validation_service import (
     MAX_FILE_SIZE,
     DocumentValidationService,
@@ -63,7 +63,7 @@ class DocumentStatusResponse(BaseModel):
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
-    current_user: Annotated[UserModel, Depends(get_current_user)],
+    current_user: Annotated[UserModel, Depends(get_current_user_from_web_portal)],
     file: Annotated[UploadFile, File(...)],
     document_type: Annotated[str, Form(...)],
     passport_page_group: Annotated[str | None, Form()] = None,
@@ -167,7 +167,7 @@ async def upload_document(
 @router.get("/{upload_id}/status", response_model=DocumentStatusResponse)
 async def get_document_status(
     upload_id: int,
-    current_user: Annotated[UserModel, Depends(get_current_user)],
+    current_user: Annotated[UserModel, Depends(get_current_user_from_web_portal)],
 ):
     """Check processing status of an uploaded document."""
     async with async_session_factory() as session:
@@ -219,7 +219,7 @@ async def get_document_status(
 
 @router.get("")
 async def list_documents(
-    current_user: Annotated[UserModel, Depends(get_current_user)],
+    current_user: Annotated[UserModel, Depends(get_current_user_from_web_portal)],
 ):
     """List all uploaded documents for current user."""
     async with async_session_factory() as session:
@@ -247,7 +247,7 @@ async def list_documents(
 
 @router.get("/passport-completeness")
 async def check_passport_completeness(
-    current_user: Annotated[UserModel, Depends(get_current_user)],
+    current_user: Annotated[UserModel, Depends(get_current_user_from_web_portal)],
 ):
     """Check if both passport photos are uploaded and validated."""
     from sqlalchemy import select as sa_select
@@ -290,7 +290,7 @@ async def check_passport_completeness(
 @router.delete("/{upload_id}")
 async def delete_document(
     upload_id: int,
-    current_user: Annotated[UserModel, Depends(get_current_user)],
+    current_user: Annotated[UserModel, Depends(get_current_user_from_web_portal)],
 ):
     """Delete an uploaded document."""
     import os

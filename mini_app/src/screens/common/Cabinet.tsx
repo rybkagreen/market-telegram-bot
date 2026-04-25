@@ -5,25 +5,22 @@ import { Text } from '@/components/ui/Text'
 import { PLAN_INFO } from '@/lib/constants'
 import { formatCurrency } from '@/lib/formatters'
 import { useMe, useMyStats } from '@/hooks/queries'
-import { useContracts } from '@/hooks/useContractQueries'
-import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
+import { useOpenInWebPortal } from '@/hooks/useOpenInWebPortal'
 import styles from './Cabinet.module.css'
 
-const KEP_NEEDS_STATUSES = ['legal_entity', 'individual_entrepreneur']
-
-export default function Cabinet() { // NOSONAR: typescript:S3776
+export default function Cabinet() {
   const navigate = useNavigate()
   const { data: user, isLoading: userLoading, isError: userError } = useMe()
   const { data: stats, isLoading: statsLoading } = useMyStats()
-  const { data: profile } = useMyLegalProfile()
-  const { data: contractsList } = useContracts()
+
+  // Phase 1 §1.B.2: legal-profile and contracts UI moved to web_portal
+  // (ФЗ-152). The mini_app surfaces a "Open in portal" entry per flow;
+  // the underlying click mints a ticket via useOpenInWebPortal.
+  const openLegalProfile = useOpenInWebPortal('/legal-profile/view')
+  const openContracts = useOpenInWebPortal('/contracts')
+
   const plan = user ? PLAN_INFO[user.plan] : null
   const earnedAmount = user ? parseFloat(user.earned_rub) : 0
-
-  const legalStatus = profile?.legal_status ?? ''
-  const hasPendingKepNeeds =
-    KEP_NEEDS_STATUSES.includes(legalStatus) &&
-    (contractsList?.items.some((c) => c.contract_status === 'signed' && !c.kep_requested) ?? false)
 
   return (
     <ScreenLayout title="Кабинет">
@@ -80,15 +77,15 @@ export default function Cabinet() { // NOSONAR: typescript:S3776
       <MenuButton
         icon="📋"
         title="Юридический профиль"
-        subtitle="Реквизиты, статус, документы"
-        onClick={() => navigate('/legal-profile/view')}
+        subtitle="Откроется в веб-портале"
+        onClick={() => openLegalProfile.mutate()}
       />
 
       <MenuButton
         icon="📄"
         title="Мои договоры"
-        subtitle={hasPendingKepNeeds ? '⚠️ Рекомендуется запросить КЭП' : 'Просмотр и подписание договоров'}
-        onClick={() => navigate('/contracts')}
+        subtitle="Откроется в веб-портале"
+        onClick={() => openContracts.mutate()}
       />
 
       <Card title="Репутация">
