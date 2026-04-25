@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking — Phase 1 §1.B.5: `POST /api/users/skip-legal-prompt` removed (2026-04-25)
+
+The endpoint was only ever called from `mini_app/src/screens/common/LegalProfilePrompt.tsx`,
+which is being deleted in §1.B.2 (mini_app legal strip). Pre-prod
+fact-check confirmed **0 calls** in the last 14 days across nginx access
+logs (current + 14 archived) and api logs. Removed in one commit; all
+unit api tests still pass (49/49).
+
+- `src/api/routers/users.py` — endpoint, helper handler, related imports
+  (UTC, sa_update, User, get_current_user) cleaned up.
+- `tests/integration/test_web_portal.sh` — removed the 401-no-token
+  smoke test for this endpoint.
+
+`/api/acts/*` (4 endpoints) also become unreferenced after the mini_app
+strip but were intentionally **kept**; Phase 2 ticket files re-wire to a
+web_portal acts UI. Ripping out and re-adding endpoints is wasted work.
+
 ### Changed — Phase 1 §1.B.1: 23 PII endpoints now web_portal-only (FZ-152) (2026-04-25)
 
 All endpoints handling legal profile, contracts, acts, and document
