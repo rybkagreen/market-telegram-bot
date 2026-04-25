@@ -4,8 +4,7 @@ import DOMPurify from 'dompurify'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Button } from '@/components/ui'
 import { Text } from '@/components/ui/Text'
-import { useAcceptRules } from '@/hooks/useContractQueries'
-import { useMe } from '@/hooks/queries/useUserQueries'
+import { useAcceptRules } from '@/hooks/useLegalAcceptance'
 import { api } from '@/api/client'
 import * as Sentry from '@sentry/react'
 import styles from './AcceptRules.module.css'
@@ -17,7 +16,6 @@ export default function AcceptRules() {
   const [viewerHtml, setViewerHtml] = useState('')
   const [viewerLoading, setViewerLoading] = useState(false)
 
-  const { data: user } = useMe()
   const acceptMutation = useAcceptRules()
 
   const openViewer = async () => {
@@ -35,14 +33,12 @@ export default function AcceptRules() {
   }
 
   const handleAccept = () => {
+    // Phase 1 §1.B.2: /legal-profile-prompt route deleted with the mini_app
+    // legal strip. New users go directly to home; the optional legal-profile
+    // prompt now lives in web_portal (reachable via OpenInWebPortal from
+    // Cabinet → "Юридический профиль").
     acceptMutation.mutate(undefined, {
-      onSuccess: () => {
-        if (!user?.legal_profile_prompted_at) {
-          navigate('/legal-profile-prompt')
-        } else {
-          navigate('/')
-        }
-      },
+      onSuccess: () => navigate('/'),
     })
   }
 
