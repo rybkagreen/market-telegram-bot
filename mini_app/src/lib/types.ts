@@ -464,122 +464,23 @@ export interface PlatformStatsResponse {
 }
 
 // ============================================================
-// S5 ADDITIONS — Document Automation & Video Support
+// Phase 1 §1.B.2 — FZ-152 strip (2026-04-25)
 // ============================================================
-
-export type LegalStatus =
-  | 'legal_entity'
-  | 'individual_entrepreneur'
-  | 'self_employed'
-  | 'individual'
-
-export type TaxRegime =
-  | 'osno' | 'usn' | 'usn_d' | 'usn_dr' | 'patent' | 'npd' | 'ndfl'
-
-export type ContractType =
-  | 'owner_service'
-  | 'advertiser_campaign'
-  | 'advertiser_framework'
-  | 'platform_rules'
-  | 'privacy_policy'
-  | 'tax_agreement'
-
-export type ContractRole = 'owner' | 'advertiser'
-
-export interface ContractSignatureInfo {
-  requires_kep: boolean
-  kep_requested: boolean
-  kep_message: string | null
-  can_proceed: boolean
-}
-
-export type ContractStatus = 'draft' | 'pending' | 'signed' | 'expired' | 'cancelled'
-export type SignatureMethod = 'button_accept' | 'sms_code'
-export type OrdStatus = 'pending' | 'registered' | 'token_received' | 'reported' | 'failed'
-
-export interface LegalProfile {
-  id: number
-  user_id: number
-  legal_status: LegalStatus
-  inn: string | null
-  kpp: string | null
-  ogrn: string | null
-  ogrnip: string | null
-  legal_name: string | null
-  address: string | null
-  tax_regime: TaxRegime | null
-  bank_name: string | null
-  bank_account: string | null
-  bank_bik: string | null
-  bank_corr_account: string | null
-  yoomoney_wallet: string | null
-  has_passport_data: boolean
-  has_inn_scan: boolean
-  has_passport_scan: boolean
-  has_self_employed_cert: boolean
-  has_company_doc: boolean
-  is_verified: boolean
-  is_complete: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface LegalProfileCreate {
-  legal_status: LegalStatus
-  inn?: string
-  kpp?: string
-  ogrn?: string
-  ogrnip?: string
-  legal_name?: string
-  address?: string
-  tax_regime?: TaxRegime
-  bank_name?: string
-  bank_account?: string
-  bank_bik?: string
-  bank_corr_account?: string
-  yoomoney_wallet?: string
-  passport_series?: string
-  passport_number?: string
-  passport_issued_by?: string
-  passport_issue_date?: string
-}
-
-export interface Contract {
-  id: number
-  user_id: number
-  contract_type: ContractType
-  contract_status: ContractStatus
-  placement_request_id: number | null
-  template_version: string
-  signature_method: SignatureMethod | null
-  signed_at: string | null
-  expires_at: string | null
-  pdf_url: string | null
-  kep_requested: boolean
-  kep_request_email: string | null
-  role: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface OrdRegistration {
-  id: number
-  placement_request_id: number
-  erid: string | null
-  status: OrdStatus
-  ord_provider: string
-  error_message: string | null
-  created_at: string
-}
-
-export interface RequiredFields {
-  fields: string[]
-  scans: string[]
-  show_bank_details: boolean
-  show_passport: boolean
-  show_yoomoney: boolean
-  tax_regime_required: boolean
-}
+// Types previously defined here:
+//   LegalStatus, TaxRegime, ContractType, ContractRole,
+//   ContractSignatureInfo, ContractStatus, SignatureMethod, OrdStatus,
+//   LegalProfile, LegalProfileCreate, Contract, OrdRegistration,
+//   RequiredFields
+//
+// Removed because the screens / api modules / hooks that consumed them
+// were stripped in §1.B.2. PII flows live only in web_portal; mini_app
+// reaches them via the OpenInWebPortal bridge. Re-introducing any of
+// these names in mini_app fails the forbidden-pattern check
+// (scripts/check_forbidden_patterns.sh, §1.D).
+//
+// User-side legal flags (legal_status_completed, legal_profile_*_at,
+// has_legal_profile) remain on the User type — they are booleans /
+// timestamps, not PII.
 
 // ============================================================
 // Reviews
