@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.api.schemas.legal_profile import (
-    AcceptRulesRequest,
     ContractListResponse,
     ContractResponse,
     ContractSignRequest,
@@ -69,25 +68,10 @@ async def generate_contract(
     return _contract_to_response(contract)
 
 
-@router.post(
-    "/accept-rules",
-    responses={400: {"description": "Bad Request"}},
-)
-async def accept_rules(
-    data: AcceptRulesRequest,
-    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> dict:
-    """Accept platform rules and privacy policy."""
-    if not (data.accept_platform_rules and data.accept_privacy_policy):
-        raise HTTPException(
-            status_code=400,
-            detail="Both platform_rules and privacy_policy must be accepted",
-        )
-    svc = ContractService(session)
-    await svc.accept_platform_rules(current_user.id)
-    await session.commit()
-    return {"success": True}
+# NOTE (Phase 1 §1.B.2 scope policy): /accept-rules moved to
+# src/api/routers/legal_acceptance.py. It is a non-PII consent endpoint
+# (two booleans + timestamps), kept on both audiences to preserve mini_app
+# onboarding. URL preserved as `/api/contracts/accept-rules`.
 
 
 @router.get("")

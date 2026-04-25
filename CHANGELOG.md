@@ -24,6 +24,35 @@ unit api tests still pass (49/49).
 strip but were intentionally **kept**; Phase 2 ticket files re-wire to a
 web_portal acts UI. Ripping out and re-adding endpoints is wasted work.
 
+### Changed — Phase 1 §1.B.2 carve-out: accept-rules retained on both audiences (2026-04-25)
+
+`POST /api/contracts/accept-rules` is **provably non-PII** — the request
+schema is two booleans, the service writes only timestamps and a constant
+`signature_method = "button_accept"`. Routing it through web_portal-only
+auth (as §1.B.1 did wholesale) would force every new mini_app user to
+bounce through the browser during onboarding for what is fundamentally a
+flag-set operation.
+
+Resolution: carve the endpoint out of `contracts.py` into a new
+`src/api/routers/legal_acceptance.py` with `Depends(get_current_user)`
+(both audiences). URL path **preserved** as `/api/contracts/accept-rules`
+for backward compatibility with existing clients.
+
+This is a **scope policy** for FZ-152 hardening, not a one-off exception:
+exception from heavy-strip is permitted only when the endpoint is
+provably non-PII, and the justification must live in the router docstring
+plus the phase CHANGES doc. If PII is ever required at this URL, the
+endpoint moves to web_portal-only authentication immediately.
+
+- New: `src/api/routers/legal_acceptance.py` (single endpoint, ~70 LOC
+  including the FZ-152 scope-policy docstring).
+- Removed: `accept_rules` handler from `contracts.py` + the now-unused
+  `AcceptRulesRequest` import. `contracts.py` is now uniformly
+  web_portal-only.
+- `src/api/main.py` registers `legal_acceptance_router` immediately
+  before `contracts_router` for visual proximity.
+- All 74 backend tests still pass (49 unit api + 25 integration legal-profile).
+
 ### Changed — Phase 1 §1.B.1: 23 PII endpoints now web_portal-only (FZ-152) (2026-04-25)
 
 All endpoints handling legal profile, contracts, acts, and document
