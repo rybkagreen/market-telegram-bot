@@ -287,13 +287,15 @@ Research уже выполнен в первой сессии. Ключевые 
   - `ERID_STUB_PREFIX = "STUB-ERID-"` — оставляем «STUB», описывает
     *тип провайдера* (синтетический). «TEST» был бы про *режим placement-а*
     (это отдельный концепт для Phase 5). НЕ переименовывать.
-- `src/config/settings.py` — добавить:
-  - `web_portal_url: AnyHttpUrl = Field("https://rekharbor.ru/portal", alias="WEB_PORTAL_URL")`
-  - `mini_app_url: AnyHttpUrl = Field("https://app.rekharbor.ru/", alias="MINI_APP_URL")`
-  - `landing_url: AnyHttpUrl = Field("https://rekharbor.ru", alias="LANDING_URL")`
-  - `api_public_url: AnyHttpUrl = Field("https://api.rekharbor.ru", alias="API_PUBLIC_URL")`
-  - `tracking_base_url: AnyHttpUrl = Field("https://rekharbor.ru/t", alias="TRACKING_BASE_URL")`
-  - `terms_url: AnyHttpUrl = Field("https://rekharbor.ru/terms", alias="TERMS_URL")`
+- `src/config/settings.py` — добавить (subdomain-схема, уточнена 2026-04-25):
+  - `web_portal_url: str = Field("https://portal.rekharbor.ru", alias="WEB_PORTAL_URL")`
+  - `mini_app_url: str = Field("https://app.rekharbor.ru/", alias="MINI_APP_URL")`
+  - `landing_url: str = Field("https://rekharbor.ru", alias="LANDING_URL")` (apex)
+  - `api_public_url: str = Field("https://api.rekharbor.ru", alias="API_PUBLIC_URL")`
+  - `tracking_base_url: str = Field("https://t.rekharbor.ru", alias="TRACKING_BASE_URL")`
+  - `terms_url: str = Field("https://rekharbor.ru/terms", alias="TERMS_URL")` (живёт на apex)
+  - Тип `str` (не `AnyHttpUrl`) — для консистентности с `yookassa_return_url: str`
+    и чтобы не плодить pyright-false-positive на str-дефолтах.
   - `ticket_jwt_ttl_seconds: int = Field(300, alias="TICKET_JWT_TTL_SECONDS")`
   - `sandbox_telegram_channel_id: int | None = Field(None, alias="SANDBOX_TELEGRAM_CHANNEL_ID")`
 - Backend замены (8 файлов) — каждый хардкод `rekharbor.ru` URL заменить
@@ -312,7 +314,7 @@ Research уже выполнен в первой сессии. Ключевые 
     `LegalProfilePrompt.tsx:8` — убрать `|| 'https://rekharbor.ru/portal'`.
     Использовать `import.meta.env.VITE_PORTAL_URL` напрямую.
   - `mini_app/.env.example` и `mini_app/.env`: добавить
-    `VITE_PORTAL_URL=https://rekharbor.ru/portal`.
+    `VITE_PORTAL_URL=https://portal.rekharbor.ru`.
   - `nginx/Dockerfile` (или где собирается mini_app): пробросить
     `ARG VITE_PORTAL_URL` + `ENV VITE_PORTAL_URL=$VITE_PORTAL_URL` перед
     `vite build`. Если уже есть paттерн для `VITE_API_URL` — копировать.
