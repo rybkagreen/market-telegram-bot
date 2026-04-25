@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.api.schemas.legal_profile import (
     FnsValidationError,
     FnsValidationResponse,
@@ -57,7 +57,7 @@ def _build_response(profile, user: User) -> LegalProfileResponse:
 
 @router.get("/me")
 async def get_my_profile(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LegalProfileResponse | None:
     """Get legal profile of current user."""
@@ -70,7 +70,7 @@ async def get_my_profile(
 @router.post("", status_code=201)
 async def create_profile(
     data: LegalProfileCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LegalProfileResponse:
     """Create legal profile for current user."""
@@ -83,7 +83,7 @@ async def create_profile(
 @router.patch("")
 async def update_profile(
     data: LegalProfileUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LegalProfileResponse:
     """Update legal profile of current user."""
@@ -99,7 +99,7 @@ async def update_profile(
 )
 async def upload_scan(
     data: ScanUpload,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Upload a document scan file_id for current user's legal profile."""
@@ -114,7 +114,7 @@ async def upload_scan(
 
 @router.get("/required-fields")
 async def get_required_fields(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     legal_status: Annotated[str, Query()],
 ) -> RequiredFieldsResponse:
@@ -130,7 +130,7 @@ async def get_required_fields(
 @router.post("/validate-inn")
 async def validate_inn(
     data: ValidateInnRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
 ) -> ValidateInnResponse:
     """Validate an INN number."""
     valid, inn_type = LegalProfileService.validate_inn(data.inn)
@@ -140,7 +140,7 @@ async def validate_inn(
 @router.post("/validate-entity")
 async def validate_entity(
     data: ValidateEntityRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
 ) -> FnsValidationResponse:
     """
     Валидация юрлица или ИП через контрольные суммы ФНС.
