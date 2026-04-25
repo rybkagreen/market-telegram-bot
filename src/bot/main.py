@@ -62,7 +62,7 @@ async def main() -> None:
             await bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
                     text="🚀 Открыть приложение",
-                    web_app=WebAppInfo(url="https://app.rekharbor.ru/"),
+                    web_app=WebAppInfo(url=settings.mini_app_url),
                 )
             )
             logger.info("Menu button set")

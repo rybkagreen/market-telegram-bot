@@ -10,6 +10,7 @@ import hmac
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from urllib.parse import parse_qsl, unquote
 
 import jwt as pyjwt
@@ -17,6 +18,8 @@ import jwt as pyjwt
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+JwtSource = Literal["mini_app", "web_portal"]
 
 
 # ─── Telegram initData валидация ────────────────────────────────
@@ -94,23 +97,31 @@ def validate_telegram_init_data(init_data: str) -> dict:
 # ─── JWT ────────────────────────────────────────────────────────
 
 
-def create_jwt_token(user_id: int, telegram_id: int, plan: str) -> str:
+def create_jwt_token(
+    user_id: int,
+    telegram_id: int,
+    plan: str,
+    source: JwtSource,
+) -> str:
     """
-    Создать JWT токен для пользователя Mini App.
+    Создать JWT токен с явной audience-меткой.
 
     Args:
-        user_id: ID пользователя в БД (users.id)
-        telegram_id: Telegram ID пользователя
-        plan: текущий тариф ("free", "starter", "pro", "business")
+        user_id: ID пользователя в БД (users.id).
+        telegram_id: Telegram ID пользователя.
+        plan: текущий тариф ("free", "starter", "pro", "business").
+        source: каким каналом выпущен токен — `"mini_app"` или `"web_portal"`.
+            Записывается в claim `aud`. Валидируется при decode.
 
     Returns:
-        Подписанный JWT токен (строка)
+        Подписанный JWT токен (строка).
     """
     expire = datetime.now(UTC) + timedelta(hours=settings.jwt_expire_hours)
     payload = {
         "sub": str(user_id),
         "tg": telegram_id,
         "plan": plan,
+        "aud": source,
         "exp": expire,
         "iat": datetime.now(UTC),
     }
@@ -121,24 +132,37 @@ def create_jwt_token(user_id: int, telegram_id: int, plan: str) -> str:
     )
 
 
-def decode_jwt_token(token: str) -> dict:
+def decode_jwt_token(
+    token: str,
+    audience: JwtSource | list[JwtSource] | None,
+) -> dict:
     """
     Декодировать и проверить JWT токен.
 
     Args:
-        token: JWT токен из заголовка Authorization
+        token: JWT токен из заголовка Authorization.
+        audience: ожидаемое значение claim `aud`.
+            - конкретное значение (`"mini_app"` / `"web_portal"`) —
+              разрешён только этот источник;
+            - список значений — разрешён любой из перечисленных;
+            - `None` — явный opt-out (audit/legacy helpers, читающие
+              payload без проверки источника). Default НЕ задан намеренно:
+              каждый caller обязан явно решить, что он принимает.
 
     Returns:
-        Payload токена с полями sub, tg, plan
+        Payload токена с полями sub, tg, plan, aud.
 
     Raises:
-        jwt.ExpiredSignatureError: токен истёк
-        jwt.InvalidTokenError: невалидный токен
+        jwt.ExpiredSignatureError: токен истёк.
+        jwt.InvalidAudienceError: aud в токене есть, но не соответствует.
+        jwt.MissingRequiredClaimError: aud отсутствует, а audience задан.
+        jwt.InvalidTokenError: иная причина невалидности.
     """
     return pyjwt.decode(
         token,
         settings.jwt_secret,
         algorithms=[settings.jwt_algorithm],
+        audience=audience,
     )
 
 
