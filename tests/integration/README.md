@@ -1,5 +1,29 @@
 # Integration tests — session isolation patterns
 
+## How to run
+
+Integration tests run **on the host** via Poetry, **not** inside the `api`
+docker container:
+
+```bash
+poetry run pytest tests/integration/ -v
+poetry run pytest tests/integration/test_ticket_bridge_e2e.py -v   # single file
+```
+
+Reason: the `api` Dockerfile only `COPY src/`, so `tests/` is not present
+inside the container, and `/var/run/docker.sock` is not mounted, which means
+testcontainers cannot spin up its isolated Postgres from inside `api`. The
+host has the Poetry venv (`.venv` → poetry virtualenv, Python 3.14) and the
+Docker socket — both prerequisites for the testcontainer fixture.
+
+`docker compose exec api pytest ...` does **not** work today and is tracked
+as a Phase 3 backlog item (mount `tests/` into the api image, or add a
+test-stage to `docker/Dockerfile.api`). See
+`reports/docs-architect/discovery/CHANGES_2026-04-25_phase1-fz152.md` (TODO
+ticket section) for the deadline.
+
+## Session isolation patterns
+
 Integration tests in this project run against a real Postgres
 testcontainer (see `conftest.py` → `postgres_container`,
 `test_engine`). The schema is created once per session; **each test
