@@ -68,6 +68,51 @@ it back to the criterion.
   `signed`.
 - **Owner:** _unassigned_
 
+### BL-004 — `tests/` mounted into api docker image (Phase 3 deadline)
+
+- **Surfaced in:** Phase 1 PF.3 follow-up — the user spec said
+  `docker compose exec api pytest tests/integration/test_ticket_bridge_e2e.py`,
+  which does not work today: the api Dockerfile only `COPY src/`,
+  `tests/` is not bind-mounted, and there is no `/var/run/docker.sock`
+  inside the container so `testcontainers` cannot spin up its isolated
+  Postgres from inside `api`.
+- **Why deferred:** all existing integration tests already run on the
+  host via `poetry run pytest` (`tests/integration/README.md`
+  documents this). Phase 1 accepted host-pytest as canonical to avoid
+  scope creep; this ticket tracks moving `docker compose exec api
+  pytest` to the canonical path before Phase 3 ships.
+- **Acceptance criteria for activation:** _either_
+  - `docker/Dockerfile.api` gains a test-stage that includes `tests/`
+    and dev dependencies, _or_
+  - `docker-compose.yml` bind-mounts `./tests:/app/tests:ro` for the
+    api service AND testcontainers can either be replaced by the
+    running compose Postgres (with isolation strategy documented) or
+    Docker socket access is provided to the api container.
+  Once one of those is in place the integration suite documentation
+  in `tests/integration/README.md` flips back to `docker compose exec
+  api pytest ...` as the canonical path.
+- **Deadline:** Phase 3 entry. **Do not let this rot into Phase 4.**
+- **Owner:** _unassigned_
+
+### BL-005 — `/api/acts/*` portal wiring (Phase 2 deadline)
+
+- **Surfaced in:** Phase 1 §1.B.5 dead-code analysis. After the mini_app
+  legal strip the four endpoints `GET /api/acts/mine`,
+  `GET /api/acts/{id}`, `POST /api/acts/{id}/sign`,
+  `GET /api/acts/{id}/pdf` have **no consumers** — the only caller was
+  the deleted `MyActsScreen.tsx`.
+- **Why deferred:** acts ARE a real domain entity (signed act of work
+  per placement); ripping the endpoints out and re-adding when portal
+  needs them is wasted work. Endpoints retained, switched to
+  `get_current_user_from_web_portal` in §1.B.1.
+- **Acceptance criteria for activation:** web_portal/src/api/acts.ts
+  + corresponding hook + screen reaches feature-parity with the
+  deleted mini_app `MyActsScreen.tsx` (list / detail / sign / pdf).
+  Phase 2 must wire this BEFORE merging, otherwise the dead-code
+  surface becomes long-term debt.
+- **Deadline:** Phase 2 ship.
+- **Owner:** _unassigned_
+
 ## Closed items
 
 _(none yet)_

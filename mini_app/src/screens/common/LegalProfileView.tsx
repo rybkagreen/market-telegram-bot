@@ -1,110 +1,27 @@
-import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { Card, Button, Skeleton, EmptyState, StatusPill } from '@/components/ui'
-import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
-import styles from './LegalProfileView.module.css'
+import { Card } from '@/components/ui'
+import { Text } from '@/components/ui/Text'
+import { OpenInWebPortal } from '@/components/OpenInWebPortal'
 
-const FIELD_LABELS: Record<string, string> = {
-  legal_name: 'Название / ФИО',
-  inn: 'ИНН',
-  kpp: 'КПП',
-  ogrn: 'ОГРН',
-  ogrnip: 'ОГРНИП',
-  address: 'Адрес',
-  tax_regime: 'Налоговый режим',
-  bank_name: 'Банк',
-  bank_account: 'Расчётный счёт',
-  bank_bik: 'БИК',
-  bank_corr_account: 'Корр. счёт',
-  yoomoney_wallet: 'ЮMoney',
-}
-
+/**
+ * Phase 1 §1.B.2 placeholder.
+ *
+ * The previous mini_app implementation displayed inn / bank_account /
+ * tax_regime — full PII surface. Per ФЗ-152 these fields live only in
+ * the web portal at `/legal-profile/view`.
+ */
 export default function LegalProfileView() {
-  const navigate = useNavigate()
-  const { data: profile, isLoading } = useMyLegalProfile()
-
-  if (isLoading) {
-    return (
-      <ScreenShell>
-        <Skeleton height={200} />
-      </ScreenShell>
-    )
-  }
-
-  if (!profile) {
-    return (
-      <ScreenShell>
-        <EmptyState
-          icon="📋"
-          title="Профиль не заполнен"
-          description="Заполните юридический профиль для работы с договорами и выплатами"
-        />
-        <Button variant="primary" fullWidth onClick={() => navigate('/legal-profile')}>
-          Заполнить профиль
-        </Button>
-      </ScreenShell>
-    )
-  }
-
-  const mainFields = ['legal_name', 'inn', 'kpp', 'ogrn', 'ogrnip', 'address', 'tax_regime'] as const
-  const bankFields = ['bank_name', 'bank_account', 'bank_bik', 'bank_corr_account', 'yoomoney_wallet'] as const
-
   return (
     <ScreenShell>
-      {profile.is_verified && (
-        <div className={styles.statusWrapper}>
-          <StatusPill status="success">✅ Верифицирован</StatusPill>
-        </div>
-      )}
-
-      <Card title="Основные данные">
-        {mainFields.map((key) => {
-          const val = profile[key]
-          if (!val) return null
-          return (
-            <div key={key} className={styles.fieldRow}>
-              <span className={styles.fieldLabel}>{FIELD_LABELS[key] ?? key}</span>
-              <span>{String(val)}</span>
-            </div>
-          )
-        })}
+      <Card title="Юридический профиль">
+        <Text variant="md" className="mb-4">
+          Просмотр и редактирование реквизитов выполняется в веб-портале —
+          согласно ФЗ-152 эти данные не передаются в мини-приложение.
+        </Text>
+        <OpenInWebPortal target="/legal-profile/view">
+          Открыть профиль в портале
+        </OpenInWebPortal>
       </Card>
-
-      <Card title="Платёжные реквизиты">
-        {bankFields.map((key) => {
-          const val = profile[key]
-          if (!val) return null
-          return (
-            <div key={key} className={styles.fieldRow}>
-              <span className={styles.fieldLabel}>{FIELD_LABELS[key] ?? key}</span>
-              <span>{String(val)}</span>
-            </div>
-          )
-        })}
-      </Card>
-
-      <Card title="Документы">
-        {[
-          { key: 'has_inn_scan', label: 'Скан ИНН' },
-          { key: 'has_passport_scan', label: 'Скан паспорта' },
-          { key: 'has_self_employed_cert', label: 'Справка самозанятого' },
-          { key: 'has_company_doc', label: 'Учредительные документы' },
-        ].map(({ key, label }) => (
-          <div key={key} className={styles.docRow}>
-            <span>{profile[key as keyof typeof profile] ? '✅' : '⬜'}</span>
-            <span className={profile[key as keyof typeof profile] ? undefined : styles.docLabel}>{label}</span>
-          </div>
-        ))}
-      </Card>
-
-      <div className={styles.actionButtons}>
-        <Button variant="secondary" fullWidth onClick={() => navigate('/legal-profile')}>
-          Редактировать
-        </Button>
-        <Button variant="primary" fullWidth onClick={() => navigate('/contracts')}>
-          Мои договоры
-        </Button>
-      </div>
     </ScreenShell>
   )
 }

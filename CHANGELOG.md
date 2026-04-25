@@ -7,6 +7,190 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking — Phase 1 §1.B.5: `POST /api/users/skip-legal-prompt` removed (2026-04-25)
+
+The endpoint was only ever called from `mini_app/src/screens/common/LegalProfilePrompt.tsx`,
+which is being deleted in §1.B.2 (mini_app legal strip). Pre-prod
+fact-check confirmed **0 calls** in the last 14 days across nginx access
+logs (current + 14 archived) and api logs. Removed in one commit; all
+unit api tests still pass (49/49).
+
+- `src/api/routers/users.py` — endpoint, helper handler, related imports
+  (UTC, sa_update, User, get_current_user) cleaned up.
+- `tests/integration/test_web_portal.sh` — removed the 401-no-token
+  smoke test for this endpoint.
+
+`/api/acts/*` (4 endpoints) also become unreferenced after the mini_app
+strip but were intentionally **kept**; Phase 2 ticket files re-wire to a
+web_portal acts UI. Ripping out and re-adding endpoints is wasted work.
+
+### Removed — Phase 1 §1.B.2: mini_app FZ-152 legal strip (2026-04-25)
+
+ФЗ-152 hardening: mini_app is now PII-free. PII flows live only in
+web_portal; mini_app reaches them via the `OpenInWebPortal` bridge.
+
+**Deleted (20 files):**
+- 5 PII screens + their `.module.css`: `LegalProfileSetup`,
+  `LegalProfilePrompt`, `ContractDetail`, `ContractList`, `MyActsScreen`.
+- 4 components: `KepWarning`, `ContractCard`, `TaxBreakdown`,
+  `LegalStatusSelector` (+ its CSS).
+- 2 api modules: `mini_app/src/api/legalProfile.ts`,
+  `mini_app/src/api/contracts.ts`.
+- 2 hook files: `useLegalProfileQueries.ts`, `useContractQueries.ts`.
+- 1 store: `legalProfileStore.ts` (zero importers verified).
+
+**Replaced with `OpenInWebPortal` placeholders (4 screens):**
+- `AdvertiserFrameworkContract` → portal `/contracts/framework`
+- `OwnPayoutRequest` → portal `/own/payouts/request`
+- `CampaignPayment` → portal `/adv/campaigns/:id/payment`
+- `LegalProfileView` → portal `/legal-profile/view`
+
+**Routes removed from `mini_app/src/App.tsx` (5):**
+`/legal-profile-prompt`, `/legal-profile`, `/contracts`, `/contracts/:id`,
+`/acts`. Kept: `/legal-profile/view` (placeholder),
+`/contracts/framework` (placeholder), `/accept-rules` (carve-out).
+
+**Types pruned from `mini_app/src/lib/types.ts` (13):**
+`LegalStatus`, `TaxRegime`, `ContractType`, `ContractRole`,
+`ContractSignatureInfo`, `ContractStatus`, `SignatureMethod`,
+`OrdStatus`, `LegalProfile`, `LegalProfileCreate`, `Contract`,
+`OrdRegistration`, `RequiredFields`. User-side legal flags
+(`legal_status_completed`, `legal_profile_*_at`, `has_legal_profile`)
+retained — booleans/timestamps, not PII.
+
+**Cabinet + MainMenu refactored:** legal-profile and contracts entries
+now use `useOpenInWebPortal` instead of `navigate`. Banner label
+clarified to "Заполнить в портале" so users understand the destination.
+
+**Bot side:** `src/bot/handlers/shared/legal_profile.py` already directs
+users to `{settings.web_portal_url}/legal-profile` — no change needed.
+
+**Acceptance:** `tsc --noEmit` clean on mini_app;
+`scripts/check_forbidden_patterns.sh` 15/15 pass with three new
+PII-pattern guards (legacy identifiers, deleted routes, type names).
+
+### Added — Phase 1 §1.B.3: TicketLogin + OpenInWebPortal bridge (2026-04-25)
+
+Wires Phase 0's `exchange-miniapp-to-portal` + `consume-ticket`
+endpoints to actual UI. Mini_app users with PII needs click "Open in
+Portal" → external browser opens the portal logged-in on the right
+screen.
+
+**Web_portal:**
+- `web_portal/src/screens/auth/TicketLogin.tsx` — landing at
+  `/login/ticket?ticket=<jwt>&redirect=/...`. Consumes the ticket,
+  persists token, fetches `/api/auth/me`, navigates.
+- `web_portal/src/api/auth.ts` — append `consumeTicket(ticket)` +
+  `AuthTokenResponse` type.
+- `web_portal/src/hooks/useConsumeTicket.ts` — useMutation wrapper.
+- `web_portal/src/App.tsx` — public route registered.
+
+**Security — `safeRedirect()`:** allowlists same-origin paths
+starting with single `/` only. Rejects `https://evil.com`,
+`//evil.com`, `javascript:` etc. Falls back to `/cabinet`. Closes
+the open-redirect risk that PHASE1_RESEARCH §1.A.3 flagged as a
+hard objection. Mandatory mitigation, not optional.
+
+**Mini_app:**
+- `mini_app/src/components/OpenInWebPortal.tsx` — `<Button>`-shaped
+  affordance with `target` prop.
+- `mini_app/src/hooks/useOpenInWebPortal.ts` — useMutation; on
+  success calls `Telegram.WebApp.openLink` (with `window.open`
+  fallback for desktop).
+- `mini_app/src/api/auth.ts` — append `exchangeMiniappToPortal()` +
+  `TicketResponse` type.
+
+### Changed — Phase 1 §1.B.2 carve-out: accept-rules retained on both audiences (2026-04-25)
+
+`POST /api/contracts/accept-rules` is **provably non-PII** — the request
+schema is two booleans, the service writes only timestamps and a constant
+`signature_method = "button_accept"`. Routing it through web_portal-only
+auth (as §1.B.1 did wholesale) would force every new mini_app user to
+bounce through the browser during onboarding for what is fundamentally a
+flag-set operation.
+
+Resolution: carve the endpoint out of `contracts.py` into a new
+`src/api/routers/legal_acceptance.py` with `Depends(get_current_user)`
+(both audiences). URL path **preserved** as `/api/contracts/accept-rules`
+for backward compatibility with existing clients.
+
+This is a **scope policy** for FZ-152 hardening, not a one-off exception:
+exception from heavy-strip is permitted only when the endpoint is
+provably non-PII, and the justification must live in the router docstring
+plus the phase CHANGES doc. If PII is ever required at this URL, the
+endpoint moves to web_portal-only authentication immediately.
+
+- New: `src/api/routers/legal_acceptance.py` (single endpoint, ~70 LOC
+  including the FZ-152 scope-policy docstring).
+- Removed: `accept_rules` handler from `contracts.py` + the now-unused
+  `AcceptRulesRequest` import. `contracts.py` is now uniformly
+  web_portal-only.
+- `src/api/main.py` registers `legal_acceptance_router` immediately
+  before `contracts_router` for visual proximity.
+- All 74 backend tests still pass (49 unit api + 25 integration legal-profile).
+
+### Changed — Phase 1 §1.B.1: 23 PII endpoints now web_portal-only (FZ-152) (2026-04-25)
+
+All endpoints handling legal profile, contracts, acts, and document
+validation now reject mini_app JWT with 403 (mini_app categorically must
+not see ПД per ФЗ-152). Affected files: `legal_profile.py` (7 endpoints),
+`contracts.py` (7), `acts.py` (4), `document_validation.py` (5).
+
+Public, non-PII endpoints intentionally left unchanged: `GET
+/api/contracts/platform-rules/text` (no auth — static text),
+`/api/ord/*` (no PII in response), `GET /video/{session_id}` (no PII).
+
+- 23 sites of `Depends(get_current_user)` → `Depends(get_current_user_from_web_portal)`.
+- `tests/integration/test_api_legal_profile.py` fixture override updated
+  (25/25 tests still pass).
+- Schema snapshots unchanged (auth dep is transparent to Pydantic).
+
+### Changed — Phase 1 §1.B.0b: audit middleware refactor in place (PF.4) (2026-04-25)
+
+Closes Phase 0's `FIXME(security)` on `_extract_user_id_from_token`. The
+middleware no longer re-decodes the JWT (the previous pattern decoded
+without signature verification — safe in practice because the auth dep
+ran first, but a code smell). Identity now flows through `request.state`,
+populated by the auth dependency.
+
+- `src/api/dependencies.py::_resolve_user_for_audience` — accepts
+  `request: Request | None`; on success, writes `request.state.user_id`
+  and `request.state.user_aud` (the JWT `aud` claim).
+- Public deps `get_current_user`, `get_current_user_from_web_portal`,
+  `get_current_user_from_mini_app` now take `request: Request` as their
+  first parameter (auto-injected by FastAPI). Tests pass a stub.
+- `src/api/middleware/audit_middleware.py` — `_extract_user_id_from_token`
+  helper deleted. `dispatch` reads
+  `getattr(request.state, "user_id", None)` and adds the `aud` claim
+  to the audit-log `extra` dict.
+- `/api/acts/*` added to sensitive prefixes; `_path_to_resource_type`
+  now returns `"act"` for that prefix.
+- New test cases in `tests/unit/api/test_jwt_aud_claim.py`:
+  `test_resolve_writes_user_id_and_aud_to_request_state_mini_app`,
+  `test_resolve_writes_user_aud_web_portal`. `tests/integration/test_ticket_bridge_e2e.py`
+  step 4 also asserts the state contract.
+- `audit_middleware.py` removed from CLAUDE.md NEVER TOUCH (PF.4 lifted
+  the freeze for this refactor).
+
+### Breaking — Phase 1 §1.B.0a: legacy aud-less JWT rejected with 426 instead of 401 (2026-04-25)
+
+Phase 0 shipped 401 for aud-less JWT (`src/api/dependencies.py:67`). PF.2
+research found this semantically imprecise — RFC 7231 §6.5.15 426 Upgrade
+Required communicates "your token format is obsolete, re-authenticate"
+more precisely than 401 ("credentials missing or wrong"). Pre-prod
+fact-check (DB users / Redis sessions / api logs) confirmed zero active
+legacy-token holders, so the flip is a pure signal-correctness change.
+
+Bonus fix in the same commit: the aud-less branch previously omitted
+`WWW-Authenticate: Bearer`, while the missing-credentials branch at
+`dependencies.py:44-49` always set it. Both branches now match RFC 7235
+§3.1 SHOULD-include guidance.
+
+- `_resolve_user_for_audience` aud-less branch: `HTTP_401_UNAUTHORIZED`
+  → `HTTP_426_UPGRADE_REQUIRED` + `headers={"WWW-Authenticate": "Bearer"}`.
+- `tests/unit/api/test_jwt_aud_claim.py::test_case3_*` updated to assert
+  the new status + header.
+
 ### Added — Phase 0: ENABLE_E2E_AUTH flag, centralised URLs, JWT `aud` + ticket bridge (2026-04-25)
 
 Production-readiness Phase 0 (`feature/env-constants-jwt-aud`). Six

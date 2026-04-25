@@ -14,14 +14,14 @@ const TopUpConfirm       = lazy(() => import('@/screens/common/TopUpConfirm'))
 const Help               = lazy(() => import('@/screens/common/Help'))
 const Feedback           = lazy(() => import('@/screens/common/Feedback'))  // ДОБАВЛЕНО (2026-03-18)
 const Plans              = lazy(() => import('@/screens/common/Plans'))
-const LegalProfilePrompt = lazy(() => import('@/screens/common/LegalProfilePrompt'))
-const LegalProfileSetup  = lazy(() => import('@/screens/common/LegalProfileSetup'))
+// Phase 1 §1.B.2: legal-profile / contracts / acts screens removed from
+// mini_app (ФЗ-152 strip). Their portal counterparts are reachable via
+// the OpenInWebPortal bridge (see Cabinet, MainMenu, and the per-flow
+// placeholder screens — AdvertiserFrameworkContract, OwnPayoutRequest,
+// CampaignPayment, LegalProfileView).
 const LegalProfileView   = lazy(() => import('@/screens/common/LegalProfileView'))
-const ContractList       = lazy(() => import('@/screens/common/ContractList'))
-const ContractDetail     = lazy(() => import('@/screens/common/ContractDetail'))
 const AcceptRules        = lazy(() => import('@/screens/common/AcceptRules'))
 const TransactionHistory = lazy(() => import('@/screens/common/TransactionHistory'))
-const MyActsScreen       = lazy(() => import('@/screens/common/MyActsScreen'))
 const NotFoundScreen     = lazy(() => import('@/screens/common/NotFoundScreen'))
 
 // ═══ Common (new) ═══
@@ -111,14 +111,12 @@ const router = createBrowserRouter([
       { path: 'help',                     element: <Help /> },
       { path: 'feedback',                 element: <Feedback /> },  // ДОБАВЛЕНО (2026-03-18)
       { path: 'plans',                    element: <Plans /> },
-      { path: 'legal-profile-prompt',     element: <LegalProfilePrompt /> },
-      { path: 'legal-profile',            element: <LegalProfileSetup /> },
+      // Phase 1 §1.B.2: PII routes removed (ФЗ-152). legal-profile/view
+      // is the redirect-to-portal placeholder — the others are gone
+      // entirely; navigation to them is replaced by OpenInWebPortal.
       { path: 'legal-profile/view',       element: <LegalProfileView /> },
-      { path: 'contracts',                element: <ContractList /> },
-      { path: 'contracts/:id',            element: <ContractDetail /> },
       { path: 'accept-rules',             element: <AcceptRules /> },
       { path: 'billing/history',          element: <TransactionHistory /> },
-      { path: 'acts',                     element: <MyActsScreen /> },
       { path: 'campaign/video',           element: <CampaignVideo /> },
       { path: 'campaign/:id/ord',         element: <OrdStatus /> },
       { path: 'contracts/framework',      element: <AdvertiserFrameworkContract /> },

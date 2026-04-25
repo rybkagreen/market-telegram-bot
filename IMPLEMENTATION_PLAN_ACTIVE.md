@@ -463,12 +463,35 @@ Research уже выполнен в первой сессии. Ключевые 
 
 ## 1.B Implementation
 
+> **Scope alignment (2026-04-25):** Phase 0 follow-up (PF.1–PF.4) and 1.A research
+> changed and expanded the scope below. The authoritative scope for §1.B is
+> `reports/docs-architect/discovery/PHASE1_RESEARCH_2026-04-25.md`. The
+> sub-sections here are kept for historical intent with point-fixes only.
+
+### 1.B.0a — Legacy JWT 426 flip (PF.2)
+- `src/api/dependencies.py:67` — flip `HTTP_401_UNAUTHORIZED` → `HTTP_426_UPGRADE_REQUIRED`
+  for the aud-less rejection branch in `_resolve_user_for_audience`.
+- Add `WWW-Authenticate: Bearer` header to that branch (parity with line 44-49).
+- Update `tests/unit/api/test_jwt_aud_claim.py::test_case3_*` assertion to `== 426`.
+- CHANGELOG: `Breaking — aud-less legacy JWT now rejected with 426 Upgrade Required + WWW-Authenticate header (PF.2 deviation from Phase 0's 401)`.
+
+### 1.B.0b — Audit middleware refactor in place (PF.4)
+- `src/api/middleware/audit_middleware.py` — remove `_extract_user_id_from_token`
+  helper (Phase 0 FIXME); replace its call site with `getattr(request.state, "user_id", None)`.
+- `src/api/dependencies.py::_resolve_user_for_audience` — set
+  `request.state.user_id = user.id` before returning the User.
+- ~21 LOC across 2 files; supersedes the original §1.B.4 plan to create a
+  parallel `aud_audit_middleware.py`. PF.4 quantified the in-place refactor as
+  trivially small relative to the parallel-file approach.
+
 ### 1.B.1 Backend guard
-- Все endpoints `/api/legal-profile/*` — заменить `Depends(get_current_user)`
-  на `Depends(get_current_user_from_web_portal)`.
-- Решение по legacy токенам (нет `aud`) — **отклонять 426 Upgrade Required**
-  (pre-prod, юзеров мало, заставить re-login).
-- Если найдутся `documents.py`/`uploads.py` с ПД — то же самое.
+- Switch `Depends(get_current_user)` → `Depends(get_current_user_from_web_portal)`
+  on **23 endpoints across 4 files** (full enumeration in PHASE1_RESEARCH §1.A.1):
+  `src/api/routers/legal_profile.py` (7), `contracts.py` (7), `acts.py` (4),
+  `document_validation.py` (5).
+- Update `tests/integration/test_api_legal_profile.py` fixture override at lines 13/51
+  to use `get_current_user_from_web_portal`.
+- Legacy aud-less JWT path already addressed in §1.B.0a (426 + WWW-Authenticate).
 
 ### 1.B.2 Mini_app legal strip
 - **Удалить** из `mini_app/src/`:
@@ -494,12 +517,35 @@ Research уже выполнен в первой сессии. Ключевые 
   "Юридический профиль → Открыть в портале" (компонент
   `OpenInWebPortal` с target=`/legal-profile`). Меню документов — в Phase 6.
 
-### 1.B.4 `aud` audit
-- **НЕ править** `audit_middleware.py`.
-- Новый `src/api/middleware/aud_audit_middleware.py`:
-  - На каждом запросе к `/api/legal-profile/*` логирует `aud` claim
-    и user-id в отдельный structured log (`fz152.access`).
-- Зарегистрировать в `src/api/main.py`.
+### 1.B.4 `aud` audit — folded into §1.B.0b
+- Original intent: parallel `aud_audit_middleware.py` for `aud`-claim + user_id
+  logging on `/api/legal-profile/*`. **Superseded by PF.4 decision:** the
+  existing `audit_middleware.py` is refactored in §1.B.0b to read user_id from
+  `request.state` (set by the auth dependency). Adding `aud` to the structured
+  log line in the same middleware is a one-line extension during §1.B.0b — no
+  parallel file.
+- Net: `audit_middleware.py` now logs `{action, resource_type, user_id, aud, ip,
+  user_agent, path, method}` for every successful sensitive-route response.
+
+### 1.B.5 — Dead-code endpoint removal (research O.4)
+- Remove `POST /api/users/skip-legal-prompt` (only `LegalProfilePrompt.tsx`
+  called it; that screen is being deleted in §1.B.2). Verified 0 calls in the
+  last 14 days across nginx access logs (current + 14 archived) and api logs.
+- Endpoint, schema, service handler — delete in one commit.
+- CHANGELOG: `Breaking — POST /api/users/skip-legal-prompt removed (0 calls in 14 days, only mini_app screen consumed it which is being removed in §1.B.2)`.
+- `/api/acts/*` (4 endpoints) — kept; Phase 2 ticket files re-wire to web_portal acts UI.
+
+### 1.B.6 — Test infra: e2e-login source param + Playwright specs
+- `src/api/routers/auth_e2e.py:51` — extend `E2ELoginRequest` with optional
+  `source: JwtSource = "mini_app"` (back-compat default keeps existing tests
+  working). Required so `legal-profile-requires-web-portal.spec.ts` can mint a
+  web_portal JWT for the happy path.
+- New Playwright specs (3 viewports each: iPhone SE / Pixel 5 / Desktop 1440x900):
+  - `web_portal/tests/specs/legal-profile-requires-web-portal.spec.ts` —
+    mini_app JWT → 403 (negative) + web_portal JWT → 200 (positive).
+  - `web_portal/tests/specs/ticket-login.spec.ts` — bridge happy path +
+    open-redirect rejection cases (`?redirect=https://evil.com`,
+    `?redirect=//evil.com` → both ignored, navigates to `/cabinet`).
 
 ## 1.C Acceptance
 
