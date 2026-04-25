@@ -24,6 +24,82 @@ unit api tests still pass (49/49).
 strip but were intentionally **kept**; Phase 2 ticket files re-wire to a
 web_portal acts UI. Ripping out and re-adding endpoints is wasted work.
 
+### Removed — Phase 1 §1.B.2: mini_app FZ-152 legal strip (2026-04-25)
+
+ФЗ-152 hardening: mini_app is now PII-free. PII flows live only in
+web_portal; mini_app reaches them via the `OpenInWebPortal` bridge.
+
+**Deleted (20 files):**
+- 5 PII screens + their `.module.css`: `LegalProfileSetup`,
+  `LegalProfilePrompt`, `ContractDetail`, `ContractList`, `MyActsScreen`.
+- 4 components: `KepWarning`, `ContractCard`, `TaxBreakdown`,
+  `LegalStatusSelector` (+ its CSS).
+- 2 api modules: `mini_app/src/api/legalProfile.ts`,
+  `mini_app/src/api/contracts.ts`.
+- 2 hook files: `useLegalProfileQueries.ts`, `useContractQueries.ts`.
+- 1 store: `legalProfileStore.ts` (zero importers verified).
+
+**Replaced with `OpenInWebPortal` placeholders (4 screens):**
+- `AdvertiserFrameworkContract` → portal `/contracts/framework`
+- `OwnPayoutRequest` → portal `/own/payouts/request`
+- `CampaignPayment` → portal `/adv/campaigns/:id/payment`
+- `LegalProfileView` → portal `/legal-profile/view`
+
+**Routes removed from `mini_app/src/App.tsx` (5):**
+`/legal-profile-prompt`, `/legal-profile`, `/contracts`, `/contracts/:id`,
+`/acts`. Kept: `/legal-profile/view` (placeholder),
+`/contracts/framework` (placeholder), `/accept-rules` (carve-out).
+
+**Types pruned from `mini_app/src/lib/types.ts` (13):**
+`LegalStatus`, `TaxRegime`, `ContractType`, `ContractRole`,
+`ContractSignatureInfo`, `ContractStatus`, `SignatureMethod`,
+`OrdStatus`, `LegalProfile`, `LegalProfileCreate`, `Contract`,
+`OrdRegistration`, `RequiredFields`. User-side legal flags
+(`legal_status_completed`, `legal_profile_*_at`, `has_legal_profile`)
+retained — booleans/timestamps, not PII.
+
+**Cabinet + MainMenu refactored:** legal-profile and contracts entries
+now use `useOpenInWebPortal` instead of `navigate`. Banner label
+clarified to "Заполнить в портале" so users understand the destination.
+
+**Bot side:** `src/bot/handlers/shared/legal_profile.py` already directs
+users to `{settings.web_portal_url}/legal-profile` — no change needed.
+
+**Acceptance:** `tsc --noEmit` clean on mini_app;
+`scripts/check_forbidden_patterns.sh` 15/15 pass with three new
+PII-pattern guards (legacy identifiers, deleted routes, type names).
+
+### Added — Phase 1 §1.B.3: TicketLogin + OpenInWebPortal bridge (2026-04-25)
+
+Wires Phase 0's `exchange-miniapp-to-portal` + `consume-ticket`
+endpoints to actual UI. Mini_app users with PII needs click "Open in
+Portal" → external browser opens the portal logged-in on the right
+screen.
+
+**Web_portal:**
+- `web_portal/src/screens/auth/TicketLogin.tsx` — landing at
+  `/login/ticket?ticket=<jwt>&redirect=/...`. Consumes the ticket,
+  persists token, fetches `/api/auth/me`, navigates.
+- `web_portal/src/api/auth.ts` — append `consumeTicket(ticket)` +
+  `AuthTokenResponse` type.
+- `web_portal/src/hooks/useConsumeTicket.ts` — useMutation wrapper.
+- `web_portal/src/App.tsx` — public route registered.
+
+**Security — `safeRedirect()`:** allowlists same-origin paths
+starting with single `/` only. Rejects `https://evil.com`,
+`//evil.com`, `javascript:` etc. Falls back to `/cabinet`. Closes
+the open-redirect risk that PHASE1_RESEARCH §1.A.3 flagged as a
+hard objection. Mandatory mitigation, not optional.
+
+**Mini_app:**
+- `mini_app/src/components/OpenInWebPortal.tsx` — `<Button>`-shaped
+  affordance with `target` prop.
+- `mini_app/src/hooks/useOpenInWebPortal.ts` — useMutation; on
+  success calls `Telegram.WebApp.openLink` (with `window.open`
+  fallback for desktop).
+- `mini_app/src/api/auth.ts` — append `exchangeMiniappToPortal()` +
+  `TicketResponse` type.
+
 ### Changed — Phase 1 §1.B.2 carve-out: accept-rules retained on both audiences (2026-04-25)
 
 `POST /api/contracts/accept-rules` is **provably non-PII** — the request
