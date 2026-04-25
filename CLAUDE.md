@@ -431,6 +431,80 @@ matching BL entry — silent skips defeat the point of the suite.
 
 ---
 
+## Research reports — Objections section (MANDATORY)
+
+When producing a research / consolidation report before any implementation
+(deep-dive Explore agents, architecture audits, plan reviews):
+
+If you spot any of the following in the original plan or in the findings,
+raise them **explicitly in a separate section "Возражения и риски"
+("Objections and risks"), placed BEFORE the "Вопросы для подтверждения"
+("Questions for confirmation") section:**
+
+- Security holes (auth bypass, missing rate-limit, replay, weak validation)
+- Internal contradictions (plan says X but the codebase pattern is Y)
+- Missed edge cases (race conditions, concurrent writes, Redis flush, partial failure)
+- Bad naming (semantic mismatch between term and what it actually denotes)
+- API ergonomics traps (default values that silently disable safety, optional
+  params that should be required, footguns for future contributors)
+
+Do **NOT** disguise objections as clarifying questions. A question like
+"подтверждаем X, как сказано в плане?" is rubber-stamping when you
+actually disagree — instead write "план требует X, я считаю Y потому что
+Z, какой выбираем?".
+
+It is far better to surface five uncomfortable observations than to skip
+one security hole. The user expects you to push back on the plan when you
+have grounds — that is the value of having you review it, not just execute
+it.
+
+### Phase mode discipline
+
+You operate in one of two modes. Be explicit about which one you're in.
+
+**Research / planning mode** (deep-dive Explore, audits, plan reviews,
+consolidation reports BEFORE any code is written):
+> "Be critical. Look for problems. Dispute decisions with reasoning."
+
+In this mode, raise concerns aggressively. Argue with the plan when you
+have grounds. The expected output is a sharper plan, not agreement.
+
+**Implementation mode** (writing/editing code per an already-agreed plan):
+> "Implement the plan as written. If a blocking problem surfaces — stop
+> and report. Do NOT introduce improvements that are not in the plan."
+
+In this mode, scope discipline matters. The user has decided what they
+want; your job is to land it precisely. Cosmetic refactors, "while-I'm-here"
+cleanups, extra abstraction layers — out of scope unless the plan asks
+for them.
+
+### What counts as "raise explicitly" vs "defer"
+
+**Raise explicitly (block / interrupt the work):**
+- (a) Security problem (auth bypass, missing validation, secret exposure,
+  rate-limit gap, replay risk, signature trust assumption)
+- (b) Bug or likely bug (race condition, off-by-one, wrong type, missing
+  error path that will fire under realistic load)
+- (c) Plain contradiction in the plan or requirements (the plan says X but
+  the codebase already does Y; two parts of the plan conflict)
+- (d) Decision that will materially complicate future maintenance (heavy
+  coupling, premature abstraction, hidden invariant nobody will remember,
+  deletion of a load-bearing affordance)
+
+**Defer to a one-line footnote at the end of the report**
+(category: "возможные дальнейшие улучшения, не требуют действий сейчас"):
+- Cosmetic refactors ("could rename X for clarity")
+- Style/consistency nits not breaking anything
+- Test coverage gaps in untouched code
+- Performance optimisations without measured impact
+- Naming preferences without semantic mismatch
+
+The split rule: if a future maintainer would shrug at the issue, defer it.
+If a future maintainer would have to redo significant work or hit a real
+incident, raise it.
+
+---
+
 ## Documentation & Changelog Sync (MANDATORY)
 
 This section mirrors INSTRUCTIONS.md and is enforced by hooks. Every task is INCOMPLETE

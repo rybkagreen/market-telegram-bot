@@ -33,6 +33,10 @@ _METHOD_TO_ACTION = {
 
 def _extract_user_id_from_token(authorization: str | None) -> int | None:
     """Decode JWT payload to get user_id without verifying signature."""
+    # FIXME(security): re-decoding JWT here without signature verification.
+    # Tracked: TODO-create-ticket. Acceptable today because the auth dependency
+    # runs first and rejects unsigned/expired/wrong-aud tokens (Phase 0). Future
+    # refactor: read the pre-validated payload off `request.state.user`.
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization.removeprefix("Bearer ").strip()

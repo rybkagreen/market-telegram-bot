@@ -107,11 +107,12 @@ async def login_telegram_login_widget(
     plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
     logger.info(f"Login Widget auth: telegram_id={telegram_id}, plan={plan_value}")
 
-    # Создаём JWT (тот же формат что и для Mini App — совместим)
+    # Login Widget mounts on the web portal subdomain — issue web_portal JWT.
     token = create_jwt_token(
         user_id=user.id,
         telegram_id=user.telegram_id,
         plan=plan_value,
+        source="web_portal",
     )
 
     return LoginWidgetResponse(

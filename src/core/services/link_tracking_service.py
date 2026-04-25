@@ -8,6 +8,7 @@ import secrets
 import string
 from typing import Any
 
+from src.config.settings import settings
 from src.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ class LinkTrackingService:
             )
 
             return (
-                f"https://rekharbor.ru/t/{placement.tracking_short_code}"
+                f"{settings.tracking_base_url}/{placement.tracking_short_code}"
                 if placement.tracking_short_code
                 else None
             )
@@ -167,7 +168,7 @@ class LinkTrackingService:
             return {
                 "clicks_count": campaign.clicks_count or 0,
                 "short_link": short_link,
-                "original_url": f"https://rekharbor.ru/t/{campaign.tracking_short_code}"
+                "original_url": f"{settings.tracking_base_url}/{campaign.tracking_short_code}"
                 if campaign.tracking_short_code
                 else None,
             }
