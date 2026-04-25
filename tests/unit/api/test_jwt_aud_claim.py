@@ -197,13 +197,19 @@ async def test_case2_web_portal_jwt_accepted_by_get_current_user(
 
 
 @pytest.mark.asyncio
-async def test_case3_legacy_jwt_without_aud_rejected_with_401() -> None:
-    """Case 3: legacy aud-less JWT → 401 (NOT WARN+200)."""
+async def test_case3_legacy_jwt_without_aud_rejected_with_426() -> None:
+    """Case 3: legacy aud-less JWT → 426 Upgrade Required + WWW-Authenticate.
+
+    Phase 1 §1.B.0a (PF.2 decision): the aud-less branch ships 426 instead of
+    401. Semantically the token is cryptographically valid; only the claim
+    format is obsolete. RFC 7231 §6.5.15 426 communicates that precisely.
+    """
     token = _legacy_token_without_aud()
     with pytest.raises(HTTPException) as exc:
         await get_current_user(_bearer(token))
-    assert exc.value.status_code == 401
+    assert exc.value.status_code == 426
     assert "audience" in exc.value.detail.lower()
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.asyncio
