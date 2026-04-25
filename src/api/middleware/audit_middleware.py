@@ -1,15 +1,20 @@
 """
 AuditMiddleware — auto-logs access to sensitive API routes into audit_logs.
 
+User identity is read off `request.state.user_id` (and `user_aud`), populated
+by the auth dependency `_resolve_user_for_audience` in `src/api/dependencies.py`.
+The middleware never re-decodes the JWT — that pattern was removed in Phase 1
+§1.B.0b (PF.4) because re-decoding without signature verification is a code
+smell, even when "safe in practice" because the dep ran first.
+
 Sensitive prefixes audited:
   /api/legal-profile
   /api/contracts
+  /api/acts
   /api/ord
 """
 
 import logging
-from base64 import b64decode
-from json import loads as json_loads
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -19,6 +24,7 @@ logger = logging.getLogger(__name__)
 _SENSITIVE_PREFIXES = (
     "/api/legal-profile",
     "/api/contracts",
+    "/api/acts",
     "/api/ord",
 )
 
@@ -29,31 +35,6 @@ _METHOD_TO_ACTION = {
     "PUT": "WRITE",
     "DELETE": "DELETE",
 }
-
-
-def _extract_user_id_from_token(authorization: str | None) -> int | None:
-    """Decode JWT payload to get user_id without verifying signature."""
-    # FIXME(security): re-decoding JWT here without signature verification.
-    # Tracked: TODO-create-ticket. Acceptable today because the auth dependency
-    # runs first and rejects unsigned/expired/wrong-aud tokens (Phase 0). Future
-    # refactor: read the pre-validated payload off `request.state.user`.
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.removeprefix("Bearer ").strip()
-    parts = token.split(".")
-    if len(parts) != 3:
-        return None
-    try:
-        payload_b64 = parts[1]
-        # Add padding
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += "=" * padding
-        payload = json_loads(b64decode(payload_b64).decode())
-        uid = payload.get("sub") or payload.get("user_id")
-        return int(uid) if uid is not None else None
-    except Exception:
-        return None
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -70,7 +51,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 from src.db.repositories.audit_log_repo import AuditLogRepo
                 from src.db.session import async_session_factory
 
-                user_id = _extract_user_id_from_token(request.headers.get("Authorization"))
+                # PF.4: identity is set by the auth dep on `request.state` —
+                # no JWT re-decode here. `getattr(..., None)` is the explicit
+                # fallback for routes that somehow run without the dep
+                # (shouldn't happen on sensitive prefixes, defensive).
+                user_id = getattr(request.state, "user_id", None)
+                user_aud = getattr(request.state, "user_aud", None)
                 action = _METHOD_TO_ACTION.get(request.method, "READ")
                 ip = request.client.host if request.client else None
                 user_agent = request.headers.get("user-agent")
@@ -84,7 +70,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         target_user_id=user_id,
                         ip_address=ip,
                         user_agent=user_agent,
-                        extra={"path": path, "method": request.method},
+                        extra={
+                            "path": path,
+                            "method": request.method,
+                            "aud": user_aud,
+                        },
                     )
                     await session.commit()
             except Exception:
@@ -98,6 +88,8 @@ def _path_to_resource_type(path: str) -> str:
         return "legal_profile"
     if path.startswith("/api/contracts"):
         return "contract"
+    if path.startswith("/api/acts"):
+        return "act"
     if path.startswith("/api/ord"):
         return "ord"
     return "unknown"

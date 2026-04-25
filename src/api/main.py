@@ -30,6 +30,7 @@ from src.api.routers.categories import router as categories_router
 from src.api.routers.channel_settings import router as channel_settings_router
 from src.api.routers.channels import router as channels_router
 from src.api.routers.contracts import router as contracts_router
+from src.api.routers.legal_acceptance import router as legal_acceptance_router
 from src.api.routers.disputes import router as disputes_router
 from src.api.routers.document_validation import router as document_validation_router
 from src.api.routers.feedback import router as feedback_router  # ДОБАВЛЕНО (2026-03-18)
@@ -215,6 +216,7 @@ app.include_router(reviews_router, prefix="/api/reviews", tags=["Reviews"])
 app.include_router(categories_router, prefix="/api/categories", tags=["Categories"])
 app.include_router(legal_profile_router)
 app.include_router(document_validation_router, prefix="/api", tags=["Document Validation"])
+app.include_router(legal_acceptance_router)  # non-PII; both audiences (Phase 1 §1.B.2)
 app.include_router(contracts_router)
 app.include_router(acts_router)
 app.include_router(ord_router)

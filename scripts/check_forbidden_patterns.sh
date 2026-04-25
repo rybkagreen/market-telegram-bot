@@ -226,6 +226,37 @@ run_check_py \
   --exclude=placement_tasks.py \
   --exclude-dir=tests
 
+# Phase 1 §1.B.2 / §1.D — FZ-152 mini_app strip enforcement.
+# These checks lock in the legal-data carve-out: mini_app must never
+# re-introduce PII screens, hooks, types, or API calls. Re-introducing
+# any of them is a fail; the carve-out is one-shot, not a rolling decision.
+
+# Allowed exceptions (each scoped narrowly):
+#   - mini_app/src/api/legal-acceptance.ts — non-PII consent endpoint
+#     URL `/api/contracts/accept-rules`. Excluded from the URL guard so
+#     the legitimate POST stays.
+
+run_check \
+  "no PII identifiers in mini_app/src (legalProfile / DocumentUpload / passport_ / inn_ / snils_ / legal_act)" \
+  '\b(legalProfile|DocumentUpload|passport_|inn_|snils_|legal_act)' \
+  'mini_app/src' \
+  --exclude=legal-acceptance.ts \
+  --exclude=useLegalAcceptance.ts
+
+# `contract_type` / `contract_status` are non-PII metadata used by admin
+# accounting screens (e.g. DocumentRegistry.tsx); broad `contract_` was too
+# wide. Stripped PII surface is enforced by the type-name check below.
+
+run_check \
+  "no deleted legal/contract/act routes in mini_app/src/App.tsx (kept: legal-profile/view, contracts/framework)" \
+  "path:\s*['\"](legal-profile-prompt|legal-profile|contracts|contracts/:id|acts)['\"]" \
+  'mini_app/src/App.tsx'
+
+run_check \
+  "no PII type identifiers in mini_app/src/lib/types.ts" \
+  '^(export\s+)?(type|interface)\s+(LegalProfile|LegalProfileCreate|TaxRegime|LegalStatus|Contract|ContractType|ContractRole|ContractStatus|ContractSignatureInfo|SignatureMethod|RequiredFields|Passport)\b' \
+  'mini_app/src/lib/types.ts'
+
 echo ""
 if [[ "$FAIL" -ne 0 ]]; then
   echo "FAIL: forbidden pattern(s) detected ($CHECK_COUNT checks ran)."

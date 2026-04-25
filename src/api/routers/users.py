@@ -7,18 +7,16 @@ Endpoints:
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, get_current_user, get_db_session
+from src.api.dependencies import CurrentUser, get_db_session
 from src.api.schemas.user import UserResponse
-from src.db.models.user import User
 from src.db.repositories.reputation_repo import ReputationRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -147,22 +145,6 @@ async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
         privacy_policy_accepted_at=current_user.privacy_policy_accepted_at,
         has_legal_profile=current_user.legal_profile is not None,
     )
-
-
-@router.post("/skip-legal-prompt")
-async def skip_legal_prompt(
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> dict:
-    """Mark that the user skipped the legal profile prompt."""
-    now = datetime.now(UTC)
-    await session.execute(
-        sa_update(User)
-        .where(User.id == current_user.id)
-        .values(legal_profile_prompted_at=now, legal_profile_skipped_at=now)
-    )
-    await session.commit()
-    return {"success": True}
 
 
 @router.get("/me/stats", responses={404: {"description": "Reputation record not found"}})

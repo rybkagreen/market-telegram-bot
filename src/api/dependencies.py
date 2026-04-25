@@ -7,7 +7,7 @@ from typing import Annotated
 
 import jwt as pyjwt
 import redis.asyncio as aioredis
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
@@ -32,6 +32,7 @@ async def _resolve_user_for_audience(
     audience: JwtSource | list[JwtSource],
     *,
     audience_mismatch_status: int = status.HTTP_403_FORBIDDEN,
+    request: Request | None = None,
 ) -> User:
     """
     Decode JWT с обязательной проверкой audience и вернуть active User.
@@ -40,6 +41,11 @@ async def _resolve_user_for_audience(
     `get_current_user_from_web_portal`, `get_current_user_from_mini_app`)
     делегируют сюда — отличаются только разрешённым набором audience и
     тем, какой статус возвращать при aud-несовпадении.
+
+    `request` опционален: когда вызвано через FastAPI DI — FastAPI
+    автоинжектит, и мы пишем `request.state.user_id` + `user_aud`, чтобы
+    `AuditMiddleware` мог читать их без повторного декода JWT (PF.4).
+    Прямые вызовы из тестов передают `request=None` — стейт не пишется.
     """
     if not credentials:
         raise HTTPException(
@@ -51,6 +57,7 @@ async def _resolve_user_for_audience(
     try:
         payload = decode_jwt_token(credentials.credentials, audience=audience)
         user_id = int(payload["sub"])
+        token_aud = payload.get("aud")
     except pyjwt.ExpiredSignatureError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,10 +69,13 @@ async def _resolve_user_for_audience(
             detail="Invalid token audience",
         ) from e
     except pyjwt.MissingRequiredClaimError as e:
-        # legacy aud-less token — pre-prod policy: reject, force re-login
+        # Legacy aud-less token — pre-Phase-0 format. RFC 7231 §6.5.15 426
+        # Upgrade Required signals "your token format is obsolete, re-authenticate".
+        # WWW-Authenticate parity with the missing-credentials branch (line 44-49).
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_426_UPGRADE_REQUIRED,
             detail="Invalid token: missing audience claim",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from e
     except (pyjwt.InvalidTokenError, KeyError, ValueError) as e:
         raise HTTPException(
@@ -85,10 +95,18 @@ async def _resolve_user_for_audience(
             detail="User not found or inactive",
         )
 
+    if request is not None:
+        # PF.4: surface verified identity on request.state so AuditMiddleware
+        # can read it without re-decoding the JWT (the previous pattern decoded
+        # without signature verification — code smell, see git history).
+        request.state.user_id = user.id
+        request.state.user_aud = token_aud
+
     return user
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> User:
     """
@@ -100,16 +118,19 @@ async def get_current_user(
 
     Raises:
         HTTPException 401: токен отсутствует, невалиден, истёк, или
-            не содержит claim `aud` (legacy токены до Phase 0).
+            юзер удалён.
+        HTTPException 426: legacy aud-less токен (до Phase 0).
     """
     return await _resolve_user_for_audience(
         credentials,
         _ALLOWED_AUDIENCES,
         audience_mismatch_status=status.HTTP_401_UNAUTHORIZED,
+        request=request,
     )
 
 
 async def get_current_user_from_web_portal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> User:
     """
@@ -123,10 +144,12 @@ async def get_current_user_from_web_portal(
         credentials,
         "web_portal",
         audience_mismatch_status=status.HTTP_403_FORBIDDEN,
+        request=request,
     )
 
 
 async def get_current_user_from_mini_app(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> User:
     """
@@ -140,6 +163,7 @@ async def get_current_user_from_mini_app(
         credentials,
         "mini_app",
         audience_mismatch_status=status.HTTP_403_FORBIDDEN,
+        request=request,
     )
 
 
