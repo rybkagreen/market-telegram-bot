@@ -466,11 +466,10 @@ export interface PlatformStatsResponse {
 // ============================================================
 // Phase 1 §1.B.2 — FZ-152 strip (2026-04-25)
 // ============================================================
-// Types previously defined here:
+// Types previously defined here that have been REMOVED (PII surface):
 //   LegalStatus, TaxRegime, ContractType, ContractRole,
-//   ContractSignatureInfo, ContractStatus, SignatureMethod, OrdStatus,
-//   LegalProfile, LegalProfileCreate, Contract, OrdRegistration,
-//   RequiredFields
+//   ContractSignatureInfo, ContractStatus, SignatureMethod,
+//   LegalProfile, LegalProfileCreate, Contract, RequiredFields
 //
 // Removed because the screens / api modules / hooks that consumed them
 // were stripped in §1.B.2. PII flows live only in web_portal; mini_app
@@ -481,6 +480,29 @@ export interface PlatformStatsResponse {
 // User-side legal flags (legal_status_completed, legal_profile_*_at,
 // has_legal_profile) remain on the User type — they are booleans /
 // timestamps, not PII.
+
+// `OrdRegistration` / `OrdStatus` describe placement registration with
+// the Russian advertising operator (erid, status, provider, timestamps)
+// — no PII. Retained for `mini_app/src/api/ord.ts` and the OrdStatus
+// screen which both legitimately surface registration progress to the
+// advertiser.
+
+export type OrdStatus =
+  | 'pending'
+  | 'registered'
+  | 'token_received'
+  | 'reported'
+  | 'failed'
+
+export interface OrdRegistration {
+  id: number
+  placement_request_id: number
+  erid: string | null
+  status: OrdStatus
+  ord_provider: string
+  error_message: string | null
+  created_at: string
+}
 
 // ============================================================
 // Reviews

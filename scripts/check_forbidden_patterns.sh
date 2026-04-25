@@ -254,7 +254,7 @@ run_check \
 
 run_check \
   "no PII type identifiers in mini_app/src/lib/types.ts" \
-  '^(export\s+)?(type|interface)\s+(LegalProfile|LegalProfileCreate|TaxRegime|LegalStatus|Contract|ContractType|ContractRole|ContractStatus|ContractSignatureInfo|SignatureMethod|OrdRegistration|OrdStatus|RequiredFields|Passport)\b' \
+  '^(export\s+)?(type|interface)\s+(LegalProfile|LegalProfileCreate|TaxRegime|LegalStatus|Contract|ContractType|ContractRole|ContractStatus|ContractSignatureInfo|SignatureMethod|RequiredFields|Passport)\b' \
   'mini_app/src/lib/types.ts'
 
 echo ""
