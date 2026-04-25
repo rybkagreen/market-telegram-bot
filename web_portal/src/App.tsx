@@ -9,6 +9,7 @@ import AdminGuard from '@/components/guards/AdminGuard'
 
 // ═══ Auth ═══
 const LoginPage = lazy(() => import('@/screens/auth/LoginPage'))
+const TicketLogin = lazy(() => import('@/screens/auth/TicketLogin'))
 
 // ═══ Common screens ═══
 const Cabinet = lazy(() => import('@/screens/common/Cabinet'))
@@ -95,6 +96,8 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   // ── Public routes ──
   { path: '/login', element: <LoginPage /> },
+  // Phase 1 §1.B.3 — bridge from mini_app's OpenInWebPortal lands here.
+  { path: '/login/ticket', element: <TicketLogin /> },
 
   // ── Protected routes ──
   {
