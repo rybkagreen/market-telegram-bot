@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/Text'
 import { useMyLegalProfile } from '@/hooks/useLegalProfileQueries'
 import styles from './LegalProfileSetup.module.css'
 
-const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://rekharbor.ru/portal'
+const PORTAL_URL = import.meta.env.VITE_PORTAL_URL
 
 export default function LegalProfileSetup() {
   const navigate = useNavigate()

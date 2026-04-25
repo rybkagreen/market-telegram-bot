@@ -123,7 +123,7 @@ class PublicationService:
             text = f"{base_text}\n\nРеклама. {advertiser_name}\nerid: {placement.erid}"
 
         if placement.tracking_short_code:
-            tracking_url = f"https://rekharbor.ru/t/{placement.tracking_short_code}"
+            tracking_url = f"{settings.tracking_base_url}/{placement.tracking_short_code}"
             text = f"{text}\n🔗 {tracking_url}"
 
         return text

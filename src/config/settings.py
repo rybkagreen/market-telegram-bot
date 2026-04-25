@@ -297,10 +297,10 @@ class Settings(BaseSettings):
     # Public URLs — single source of truth for frontend endpoints.
     # Do NOT hardcode rekharbor.ru anywhere in src/ or mini_app/src/.
     mini_app_url: str = Field("https://app.rekharbor.ru/", alias="MINI_APP_URL")
-    web_portal_url: str = Field("https://rekharbor.ru/portal", alias="WEB_PORTAL_URL")
+    web_portal_url: str = Field("https://portal.rekharbor.ru", alias="WEB_PORTAL_URL")
     landing_url: str = Field("https://rekharbor.ru", alias="LANDING_URL")
     api_public_url: str = Field("https://api.rekharbor.ru", alias="API_PUBLIC_URL")
-    tracking_base_url: str = Field("https://rekharbor.ru/t", alias="TRACKING_BASE_URL")
+    tracking_base_url: str = Field("https://t.rekharbor.ru", alias="TRACKING_BASE_URL")
     terms_url: str = Field("https://rekharbor.ru/terms", alias="TERMS_URL")
 
     # Mini_app → web_portal JWT bridge (Phase 0)

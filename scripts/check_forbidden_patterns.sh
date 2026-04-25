@@ -179,6 +179,38 @@ run_check_py \
   --exclude=_bot_factory.py \
   --exclude-dir=tests
 
+# Phase 0 (env-constants-jwt-aud): no hardcoded rekharbor.ru URLs anywhere in
+# src/ TypeScript source. Must flow through settings.* or import.meta.env.
+# Exceptions:
+#   - src/config/settings.py                 — the single source of truth.
+#   - src/templates/                          — Jinja templates, Phase 6 work.
+#   - src/constants/legal.py                  — static apex-URL messages; moved
+#     to render-time in Phase 6 when Jinja pipeline is reworked.
+run_check_py \
+  "no hardcoded rekharbor.ru URL in src/ (use settings.*)" \
+  'https?://[a-zA-Z0-9.\-]*rekharbor\.ru' \
+  'src' \
+  --exclude=settings.py \
+  --exclude=legal.py \
+  --exclude-dir=templates \
+  --exclude-dir=tests
+
+# Same rule on the TypeScript side — screens/components/hooks must not inline
+# a rekharbor.ru URL. Allowed only in the api module and the lib/types shims.
+run_check \
+  "no hardcoded rekharbor.ru URL in mini_app/src (use import.meta.env)" \
+  'https?://[a-zA-Z0-9.\-]*rekharbor\.ru' \
+  'mini_app/src' \
+  --exclude-dir=lib \
+  --exclude-dir=api
+
+run_check \
+  "no hardcoded rekharbor.ru URL in web_portal/src (use import.meta.env)" \
+  'https?://[a-zA-Z0-9.\-]*rekharbor\.ru' \
+  'web_portal/src' \
+  --exclude-dir=lib \
+  --exclude-dir=api
+
 # INV-2: direct transition to PlacementStatus.escrow is forbidden outside the repo.
 # All escrow-entry paths must flow through BillingService.freeze_escrow_for_placement
 # (called by PlacementRequestService._freeze_escrow_for_payment) so the Transaction,

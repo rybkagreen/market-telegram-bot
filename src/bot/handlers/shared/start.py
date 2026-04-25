@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.bot.keyboards.advertiser.adv_menu import adv_menu_kb
 from src.bot.keyboards.owner.own_menu import own_menu_kb
 from src.bot.keyboards.shared.main_menu import main_menu_kb, tos_kb
+from src.config.settings import settings
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -31,7 +32,7 @@ TOS_TEXT = (
     "🔹 Платформа не является налоговым агентом для владельцев каналов\n"
     "🔹 Вы самостоятельно несёте ответственность за уплату налогов\n"
     "🔹 Минимальный возраст: 18 лет\n\n"
-    "[Ознакомиться с полными условиями](https://rekharbor.ru/terms)"
+    f"[Ознакомиться с полными условиями]({settings.terms_url})"
 )
 
 WELCOME_TEXT = (
