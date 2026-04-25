@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking — Phase 1 §1.B.0a: legacy aud-less JWT rejected with 426 instead of 401 (2026-04-25)
+
+Phase 0 shipped 401 for aud-less JWT (`src/api/dependencies.py:67`). PF.2
+research found this semantically imprecise — RFC 7231 §6.5.15 426 Upgrade
+Required communicates "your token format is obsolete, re-authenticate"
+more precisely than 401 ("credentials missing or wrong"). Pre-prod
+fact-check (DB users / Redis sessions / api logs) confirmed zero active
+legacy-token holders, so the flip is a pure signal-correctness change.
+
+Bonus fix in the same commit: the aud-less branch previously omitted
+`WWW-Authenticate: Bearer`, while the missing-credentials branch at
+`dependencies.py:44-49` always set it. Both branches now match RFC 7235
+§3.1 SHOULD-include guidance.
+
+- `_resolve_user_for_audience` aud-less branch: `HTTP_401_UNAUTHORIZED`
+  → `HTTP_426_UPGRADE_REQUIRED` + `headers={"WWW-Authenticate": "Bearer"}`.
+- `tests/unit/api/test_jwt_aud_claim.py::test_case3_*` updated to assert
+  the new status + header.
+
 ### Added — Phase 0: ENABLE_E2E_AUTH flag, centralised URLs, JWT `aud` + ticket bridge (2026-04-25)
 
 Production-readiness Phase 0 (`feature/env-constants-jwt-aud`). Six

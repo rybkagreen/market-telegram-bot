@@ -62,10 +62,13 @@ async def _resolve_user_for_audience(
             detail="Invalid token audience",
         ) from e
     except pyjwt.MissingRequiredClaimError as e:
-        # legacy aud-less token — pre-prod policy: reject, force re-login
+        # Legacy aud-less token — pre-Phase-0 format. RFC 7231 §6.5.15 426
+        # Upgrade Required signals "your token format is obsolete, re-authenticate".
+        # WWW-Authenticate parity with the missing-credentials branch (line 44-49).
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_426_UPGRADE_REQUIRED,
             detail="Invalid token: missing audience claim",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from e
     except (pyjwt.InvalidTokenError, KeyError, ValueError) as e:
         raise HTTPException(
