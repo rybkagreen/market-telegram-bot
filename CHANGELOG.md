@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Phase 1 §1.B.0b: audit middleware refactor in place (PF.4) (2026-04-25)
+
+Closes Phase 0's `FIXME(security)` on `_extract_user_id_from_token`. The
+middleware no longer re-decodes the JWT (the previous pattern decoded
+without signature verification — safe in practice because the auth dep
+ran first, but a code smell). Identity now flows through `request.state`,
+populated by the auth dependency.
+
+- `src/api/dependencies.py::_resolve_user_for_audience` — accepts
+  `request: Request | None`; on success, writes `request.state.user_id`
+  and `request.state.user_aud` (the JWT `aud` claim).
+- Public deps `get_current_user`, `get_current_user_from_web_portal`,
+  `get_current_user_from_mini_app` now take `request: Request` as their
+  first parameter (auto-injected by FastAPI). Tests pass a stub.
+- `src/api/middleware/audit_middleware.py` — `_extract_user_id_from_token`
+  helper deleted. `dispatch` reads
+  `getattr(request.state, "user_id", None)` and adds the `aud` claim
+  to the audit-log `extra` dict.
+- `/api/acts/*` added to sensitive prefixes; `_path_to_resource_type`
+  now returns `"act"` for that prefix.
+- New test cases in `tests/unit/api/test_jwt_aud_claim.py`:
+  `test_resolve_writes_user_id_and_aud_to_request_state_mini_app`,
+  `test_resolve_writes_user_aud_web_portal`. `tests/integration/test_ticket_bridge_e2e.py`
+  step 4 also asserts the state contract.
+- `audit_middleware.py` removed from CLAUDE.md NEVER TOUCH (PF.4 lifted
+  the freeze for this refactor).
+
 ### Breaking — Phase 1 §1.B.0a: legacy aud-less JWT rejected with 426 instead of 401 (2026-04-25)
 
 Phase 0 shipped 401 for aud-less JWT (`src/api/dependencies.py:67`). PF.2

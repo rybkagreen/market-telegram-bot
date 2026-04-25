@@ -159,6 +159,20 @@ def _bearer(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
+def _req() -> Any:
+    """Lightweight Request stub with a fresh `state` namespace.
+
+    The auth dep writes `user_id` / `user_aud` to `request.state` (Phase 1
+    §1.B.0b, PF.4). Using a real namespace object instead of MagicMock so
+    `request.state.user_id` materialises as a real attribute (MagicMock
+    auto-creates attrs on access, which masks bugs where state writes don't
+    happen).
+    """
+    request = MagicMock()
+    request.state = type("S", (), {})()
+    return request
+
+
 def _legacy_token_without_aud(user_id: int = 42) -> str:
     """Simulate a token issued before Phase 0 — no `aud` claim."""
     payload = {
@@ -181,7 +195,7 @@ async def test_case1_mini_app_jwt_accepted_by_get_current_user(
 ) -> None:
     """Case 1: mini_app JWT in get_current_user → returns user."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
-    user = await get_current_user(_bearer(token))
+    user = await get_current_user(_req(), _bearer(token))
     assert user.id == fake_user.id
 
 
@@ -192,7 +206,7 @@ async def test_case2_web_portal_jwt_accepted_by_get_current_user(
 ) -> None:
     """Case 2: web_portal JWT in get_current_user → returns user."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
-    user = await get_current_user(_bearer(token))
+    user = await get_current_user(_req(), _bearer(token))
     assert user.id == fake_user.id
 
 
@@ -206,7 +220,7 @@ async def test_case3_legacy_jwt_without_aud_rejected_with_426() -> None:
     """
     token = _legacy_token_without_aud()
     with pytest.raises(HTTPException) as exc:
-        await get_current_user(_bearer(token))
+        await get_current_user(_req(), _bearer(token))
     assert exc.value.status_code == 426
     assert "audience" in exc.value.detail.lower()
     assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
@@ -220,7 +234,7 @@ async def test_case4_mini_app_jwt_rejected_by_web_portal_dep_with_403(
     """Case 4: mini_app JWT in get_current_user_from_web_portal → 403."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
     with pytest.raises(HTTPException) as exc:
-        await get_current_user_from_web_portal(_bearer(token))
+        await get_current_user_from_web_portal(_req(), _bearer(token))
     assert exc.value.status_code == 403
 
 
@@ -232,8 +246,43 @@ async def test_web_portal_jwt_rejected_by_mini_app_dep_with_403(
     """Symmetric guard: web_portal JWT in get_current_user_from_mini_app → 403."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
     with pytest.raises(HTTPException) as exc:
-        await get_current_user_from_mini_app(_bearer(token))
+        await get_current_user_from_mini_app(_req(), _bearer(token))
     assert exc.value.status_code == 403
+
+
+# ─── Phase 1 §1.B.0b: request.state contract (PF.4) ────────────
+
+
+@pytest.mark.asyncio
+async def test_resolve_writes_user_id_and_aud_to_request_state_mini_app(
+    stub_session_factory: Any,  # noqa: ARG001
+    fake_user: Any,
+) -> None:
+    """Phase 1 §1.B.0b: dep writes request.state.user_id + user_aud (PF.4).
+
+    `AuditMiddleware` reads these fields without re-decoding the JWT.
+    Contract: after a successful auth, both are populated. mini_app token →
+    user_aud == "mini_app".
+    """
+    token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
+    request = _req()
+    user = await get_current_user(request, _bearer(token))
+    assert user.id == fake_user.id
+    assert request.state.user_id == fake_user.id
+    assert request.state.user_aud == "mini_app"
+
+
+@pytest.mark.asyncio
+async def test_resolve_writes_user_aud_web_portal(
+    stub_session_factory: Any,  # noqa: ARG001
+    fake_user: Any,
+) -> None:
+    """web_portal token → user_aud == "web_portal" on request.state."""
+    token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
+    request = _req()
+    user = await get_current_user_from_web_portal(request, _bearer(token))
+    assert user.id == fake_user.id
+    assert request.state.user_aud == "web_portal"
 
 
 # ─── Cases 5-8: ticket bridge ──────────────────────────────────
