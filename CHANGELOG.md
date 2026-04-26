@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- `.github/workflows/deploy.yml` — never functional (0 successful runs
+  in history, placeholder paths, references nonexistent compose file
+  and service). BL-017.
+
+### Changed
+- `.github/workflows/contract-check.yml` → `contract-check.yml.disabled`.
+- `.github/workflows/frontend.yml` → `frontend.yml.disabled`.
+  Both inert since 2026-03-04 billing block; renamed to silence GH UI
+  failure spam. BL-017.
+
+### Added
+- `make ci-local` Makefile target — local lint + typecheck + tests
+  gate, documented in `CONTRIBUTING.md`. Replaces GH Actions as the
+  de-facto verification gate while billing remains unavailable. BL-017.
+
 ### Fixed — Pre-Phase-2 hotfixes (2026-04-26)
 
 - `expires_at` for placement `counter_offer` status now consistently +24h
