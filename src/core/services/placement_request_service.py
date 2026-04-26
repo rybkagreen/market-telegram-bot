@@ -513,10 +513,12 @@ class PlacementRequestService:
         if result is None:
             raise PlacementStatusConflictError("Counter offer limit reached")
 
-        # Устанавливаем срок действия контр-предложения (3 часа)
+        # Устанавливаем срок действия контр-предложения — +24h
+        # (T1-3 fix: prior +3h diverged from bot-path which uses +24h for the
+        # same status; helper unification work in Phase 2 picks 24h as canonical.)
         from datetime import UTC, timedelta
 
-        result.expires_at = datetime.now(UTC) + timedelta(hours=3)
+        result.expires_at = datetime.now(UTC) + timedelta(hours=24)
         await self.session.flush()
         await self.session.refresh(result)
 
@@ -563,6 +565,16 @@ class PlacementRequestService:
             final_price=placement.counter_price,
             final_schedule=placement.counter_schedule,
         )
+
+        # T1-3 fix: refresh expires_at to +24h on entry to pending_payment;
+        # repo.accept() does not touch expires_at, so without this the prior
+        # counter_offer deadline leaks into the payment window.
+        if result is not None:
+            from datetime import UTC, timedelta
+
+            result.expires_at = datetime.now(UTC) + timedelta(hours=24)
+            await self.session.flush()
+            await self.session.refresh(result)
 
         # Отправляем уведомление владельцу
         channel = await self.session.get(TelegramChat, placement.channel_id)
