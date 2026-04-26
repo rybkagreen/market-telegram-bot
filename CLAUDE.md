@@ -503,6 +503,40 @@ The split rule: if a future maintainer would shrug at the issue, defer it.
 If a future maintainer would have to redo significant work or hit a real
 incident, raise it.
 
+### Plan validation gate (MANDATORY before approving any Phase N plan)
+
+Before a phase's plan is approved for implementation — i.e. before the
+"research → STOP → implementation" handoff — run the following three
+checks. Any failure means the plan is reworked, not patched during
+implementation.
+
+- **(a) `tsc --noEmit` dry-run with the plan's strip-list applied to
+  `mini_app/` and `web_portal/`.** If the plan removes files / hooks /
+  api modules, simulate the deletion locally (or branch) and confirm
+  both frontends still build. A plan that ships a broken TS graph is
+  not a plan, it's a regression. (Origin: Phase 1 O.1 — plan said
+  "delete contracts.ts" but 6 portal screens still imported it.)
+- **(b) Per-endpoint PII classification for every endpoint the plan
+  switches to web_portal-only auth.** Read request schema + response
+  schema + service-side DB writes. An endpoint with no PII fields
+  requires explicit justification for web_portal-only (UX cost, not
+  legal cost) or a carve-out (e.g. `legal_acceptance.py`). File-name
+  heuristics are not a substitute. (Origin: Phase 1 A.2 — `accept-rules`
+  lived in `contracts.py` but is non-PII boolean ack.)
+- **(c) Audit of merged decisions from previous phases.** Diff the
+  current plan text against the codebase reality on `develop`.
+  Anything the plan says is already-true must actually be already-true,
+  or the plan needs an explicit "drift fix" commit as its first step.
+  (Origin: Phase 0 PF.2 — Phase 1 plan still said "401 for aud-less"
+  and "don't touch audit_middleware.py" after Phase 0 follow-up
+  reversed both.)
+
+The output of this gate is a short alignment commit (`docs(phase-N):
+align plan with PF.X / O.Y decisions`) on the feature branch *before*
+any implementation commit. Skipping the gate or rolling its findings
+into the first implementation commit defeats the purpose — drift stays
+invisible.
+
 ---
 
 ## Documentation & Changelog Sync (MANDATORY)
