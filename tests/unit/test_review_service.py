@@ -1,14 +1,13 @@
 """Tests for ReviewService."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 from decimal import Decimal
+from typing import Any
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.config.settings import settings
 from src.core.services.review_service import ReviewService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.review import Review
@@ -16,39 +15,21 @@ from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 
 # ---------------------------------------------------------------------------
-# Override event_loop at function scope to avoid conflict with conftest's
-# session-scoped event_loop + asyncio_default_fixture_loop_scope=function
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def event_loop():
-    """Function-scoped event loop, shadows conftest's session-scoped one."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-    asyncio.set_event_loop(None)
-
-
-# ---------------------------------------------------------------------------
-# Self-contained session fixture (tables already exist via migrations)
+# Override tests/unit/conftest.py's SQLite db_session with a Postgres-backed
+# session bound to the root postgres_container. ReviewService reaches into
+# placement_requests, reviews, telegram_chats and other tables that the
+# SQLite-based unit fixture doesn't materialise, so we need the real schema.
+# Until BL-022 moves this file under tests/integration/, the override is the
+# minimum-blast-radius bridge.
 # ---------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession]:
-    """Function-scoped session with rollback after each test.
-
-    Connects directly to the running application DB. Tables already exist.
-    No create_all/drop_all — avoids CircularDependencyError on teardown.
-    """
-    engine = create_async_engine(str(settings.database_url), echo=False)
-    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession]:
+    async_session = async_sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
     async with async_session() as session:
         yield session
         await session.rollback()
-    await engine.dispose()
 
 
 # ---------------------------------------------------------------------------
