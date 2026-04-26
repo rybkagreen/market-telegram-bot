@@ -160,7 +160,6 @@
 | Task | Name | Queue | Beat Schedule | Purpose |
 |------|------|-------|---------------|---------|
 | delete_old_logs | `cleanup:delete_old_logs` | cleanup | Weekly Sun 03:00 | Purge old log entries |
-| archive_old_campaigns | `cleanup:archive_old_campaigns` | cleanup | Monthly 1st 04:00 | Archive completed campaigns |
 
 ---
 
@@ -238,7 +237,6 @@
 | Weekly Mon 05:00 | update_weekly_toplists | rating | Top channel list updates |
 | Weekly Mon 10:00 | send_weekly_digest | gamification | Weekly digest to users |
 | Monthly 1st 00:00 | monthly_top_advertisers | gamification | Top advertiser badges |
-| Monthly 1st 04:00 | archive_old_campaigns | cleanup | Campaign archival |
 
 ### 3.2 Beat Schedule by Hour
 
