@@ -33,6 +33,7 @@ from src.db.models.placement_request import (
     PublicationFormat,
 )
 from src.db.models.telegram_chat import TelegramChat
+from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
 
 pytestmark = pytest.mark.asyncio
@@ -66,6 +67,16 @@ async def _seed(
     await db_session.flush()
     await db_session.refresh(channel)
 
+    # INV-1 (placement_escrow_integrity): status='escrow' requires
+    # escrow_transaction_id IS NOT NULL. Seed an escrow_freeze tx first.
+    escrow_tx = Transaction(
+        user_id=advertiser.id,
+        type=TransactionType.escrow_freeze,
+        amount=Decimal("1500"),
+    )
+    db_session.add(escrow_tx)
+    await db_session.flush()
+
     placement = PlacementRequest(
         advertiser_id=advertiser.id,
         owner_id=owner.id,
@@ -75,6 +86,7 @@ async def _seed(
         ad_text="Buy our product — only for testing.",
         proposed_price=Decimal("1500"),
         final_price=Decimal("1500"),
+        escrow_transaction_id=escrow_tx.id,
     )
     db_session.add(placement)
     await db_session.flush()
