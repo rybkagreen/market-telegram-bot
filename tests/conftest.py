@@ -335,7 +335,6 @@ def advertiser_test_data() -> dict[str, Any]:
         "telegram_id": 111111111,
         "username": "advertiser",
         "first_name": "Advertiser",
-        "current_role": "advertiser",
         "balance_rub": 5000,
         "referral_code": "adv_ref_001",
     }
@@ -348,7 +347,6 @@ def owner_test_data() -> dict[str, Any]:
         "telegram_id": 222222222,
         "username": "owner",
         "first_name": "Owner",
-        "current_role": "owner",
         "balance_rub": 1000,
         "referral_code": "own_ref_001",
     }
