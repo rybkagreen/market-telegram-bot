@@ -678,7 +678,7 @@ Helper docstring documents this explicitly.
 - `idempotency_key: str | None`
 - `correlation_id: str | None` — **STUB**. Per Промт-1 verify: no
   middleware sets it, no consumers. Docstring: "RESERVED — populated by
-  middleware in Phase 3 (see plan-08 backlog)". Field stays in schema to
+  middleware in Phase 3 (see BACKLOG BL-014)". Field stays in schema to
   avoid future schema bump (rippling tests/unit/test_contract_schemas.py
   snapshots).
 - `placement_id: int | None` — conditional on storage choice (see § 2.B.X).
