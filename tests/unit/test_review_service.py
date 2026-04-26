@@ -62,7 +62,6 @@ async def advertiser(db_session: AsyncSession) -> User:
         telegram_id=900111001,
         username="test_advertiser_rv",
         first_name="Advertiser",
-        current_role="advertiser",
         balance_rub=Decimal("1000"),
         referral_code="rv_adv_001",
     )
@@ -78,7 +77,6 @@ async def owner(db_session: AsyncSession) -> User:
         telegram_id=900111002,
         username="test_owner_rv",
         first_name="Owner",
-        current_role="owner",
         balance_rub=Decimal("500"),
         referral_code="rv_own_001",
     )
