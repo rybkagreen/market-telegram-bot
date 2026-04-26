@@ -606,6 +606,210 @@ Research уже выполнен в первой сессии. Ключевые 
 
 ## 2.B Implementation
 
+## § 2.B.0 — Alignment frozen 2026-04-26
+
+This subsection records all decisions taken in response to PHASE2_RESEARCH_2026-04-26.md.
+**Frozen.** Any deviation requires explicit research re-open before implementation.
+
+### Decision 1 — State machine spec (T1-2)
+
+**Authoritative status list:** ORM model is canonical — 10 statuses:
+`pending_owner`, `counter_offer`, `pending_payment`, `escrow`, `published`,
+`completed`, `failed`, `failed_permissions`, `refunded`, `cancelled`.
+
+`PlacementTransitionService.transition()` allow-list uses these 10 statuses.
+
+**Schema cleanup in same Phase 2 PR:** drop `ord_blocked` from DB enum
+(present in migration line 990-1005, declared nowhere in model nor in
+code). Separate alembic migration in same PR as `placement_status_history`
+table creation, ordered before history table migration to avoid touching
+both in one revision.
+
+**CLAUDE.md update:** state-machine doc currently lists 6 statuses
+(incomplete). Updated to 10 in this same alignment commit (Шаг 3).
+
+### Decision 2 — Repo-helper disposition (T1-1)
+
+**Delete six mutation helpers** from `placement_repo`:
+`accept`, `reject`, `counter_offer`, `set_escrow`, `set_published`,
+`update_status`. Repo retains read-only API
+(`find_by_id`, `list_for_user`, etc.) — clean read/write split.
+
+**11 in-scope callers** rewritten through `PlacementTransitionService`
+in implementation phase 2.B.X (enumeration in Agent A §1b).
+
+Thin-wrap rejected: leaves two parallel APIs forever, adds import-confusion
+("which to use?"), zero benefit.
+
+### Decision 3 — expires_at semantics (T1-3)
+
+Already fixed in pre-Phase-2 hotfix commit `c6123c1` — counter_offer +24h,
+pending_payment +24h, both paths. Helper `_sync_status_timestamps()`
+enforces this rule unconditionally.
+
+### Decision 4 — Conflict matrix (T1-5 + § 3 of research report)
+
+`_sync_status_timestamps()` clears `scheduled_delete_at` on
+`published → !completed` transitions (any of `failed`, `refunded`,
+`cancelled`, `failed_permissions`).
+
+`expires_at` cleared on transitions out of `pending_*` statuses where
+not strictly required for invariants (defensive null).
+
+**Append-only fields — NEVER cleared by helper:**
+`published_at`, `last_published_at`, `message_id`, `escrow_transaction_id`,
+`rejection_reason`, `counter_*`. These describe history, not current state.
+Helper docstring documents this explicitly.
+
+### Decision 5 — TransitionMetadata Pydantic schema
+
+**Closed model, `extra="forbid"`.** Frozen field list (per research § 5):
+
+- `task_name: str | None`
+- `error_code: Literal[...] | None` — Literal enum, NOT free-form str.
+  Starter list per research § 5; extensions require explicit code change
+  + review.
+- `gate_attempt: int | None`
+- `from_admin_id: int | None` — internal `users.id`, NEVER `telegram_id`.
+- `celery_task_id: str | None`
+- `from_status: PlacementStatus` (required)
+- `to_status: PlacementStatus` (required)
+- `trigger: Literal["api", "celery_beat", "celery_signal", "admin_api", "system"]` (required)
+- `idempotency_key: str | None`
+- `correlation_id: str | None` — **STUB**. Per Промт-1 verify: no
+  middleware sets it, no consumers. Docstring: "RESERVED — populated by
+  middleware in Phase 3 (see plan-08 backlog)". Field stays in schema to
+  avoid future schema bump (rippling tests/unit/test_contract_schemas.py
+  snapshots).
+- `placement_id: int | None` — conditional on storage choice (see § 2.B.X).
+- `attempted_at: datetime | None` — conditional.
+
+**Forbidden** (FZ-152 — see Agent C §3 PII table):
+`telegram_id`, `ip_address`, `user_agent`, `phone_number`, `email`, `inn`,
+`passport_*`, `bank_account`, `legal_name`, free-form
+`description`/`comment`, free-form `rejection_reason`-like text.
+
+**Documented overlap:** `from_admin_id` overlaps `audit_logs.user_id` for
+admin paths. KEEP because (a) audit_logs requires join to recover
+per-placement history; (b) audit_logs can be incomplete if admin path
+bypasses sensitive-prefix middleware. Documented in model docstring.
+
+### Decision 6 — Bulk transitions
+
+**`bulk_transition()` not part of Phase 2 scope.**
+
+After T1-7 deletion of `archive_old_campaigns`, no remaining bulk mutation
+points exist. Phase 2 ships single-row `transition()` only. If a future
+bulk use-case emerges, design separately with explicit per-row metadata
+semantics. Plan reflects this in § 2.B.3 (formerly mentioning
+`bulk_transition()` as option — now removed).
+
+### Decision 7 — Lint scope (forbidden patterns)
+
+`scripts/check_forbidden_patterns.sh` gains four new patterns, scope
+`src/{core,api,tasks,bot/handlers}/`, excluding `tests/`,
+`src/db/migrations/`, `scripts/`:
+
+- `placement\.status\s*=\s*[^=]` — direct attribute write
+- `PlacementRequest\(.*status=` — constructor with status arg
+  (test factories already excluded by scope)
+- `session\.execute(\s*update(PlacementRequest)` — bulk SQL update
+- `setattr\(.*,\s*["']status["']` — known escape-hatch
+- `placement\.published_at\s*=` — Decision 11 enforcement
+
+Whitelist: only `PlacementTransitionService` itself + the helper
+`_sync_status_timestamps()` may match. Whitelist enforced by
+file-path check, not by string match.
+
+### Decision 8 — Celery actor convention
+
+Per research § 6 — frozen.
+
+Only `dispute:resolve_financial` would gain `actor_user_id` parameter,
+but that task is **deleted** per Decision 11 (T1-6 sync resolution).
+Net result: no Celery task carries `actor_user_id`.
+
+Future Celery tasks that mutate placement.status from a request-scoped
+context must accept `actor_user_id: int | None` in signature; scheduler-
+driven tasks pass `None`. Convention documented in service docstring.
+
+### Decision 9 — Backfill spec
+
+Per research § 4 — empty migration. Zero rows in
+`placement_requests` confirmed via psql. Migration ships with table
+empty + indexes. Migration docstring includes synthetic-fallback design
+in case launch precedes merge (per Agent B § 3.3).
+
+### Decision 10 — placement_status_history PRIMARY KEY (T1-8)
+
+**`id` autoincrement BIGINT PRIMARY KEY.** NOT `(placement_id, status)`
+UNIQUE. Re-entry to `pending_owner` from `counter_offer` (advertiser
+counter-counter) legitimately creates two `→pending_owner` rows for
+one placement.
+
+Index `ix_psh_placement_changed` on `(placement_id, changed_at DESC)`
+for timeline queries. Foreign key `placement_id → placement_requests.id`
+ON DELETE CASCADE.
+
+### Decision 11 — Dispute path: SYNC (T1-6)
+
+Canonical path is **synchronous** via `disputes.py:639-706`.
+
+**Deletions in Phase 2 PR:**
+- `dispute:resolve_financial` Celery task (entire `dispute_tasks.py:18-120`).
+- Bot handler inline copy at `admin/disputes.py:200-253` rewritten to
+  call API endpoint.
+
+**Fix in same PR:** S-48 violation at `disputes.py:706` (`await session.commit()`
+inline) — remove, transaction owned by router middleware.
+
+Async rejected: opens window where dispute resolved but `placement.status`
+not yet updated → bug reports. Sync gives admin immediate result page.
+
+### Decision 12 — Two-step transition for publication failure (T1-9)
+
+`process_publication_failure` (placement_request_service.py:923-933)
+emits **two distinct transitions atomically** in same flush:
+`failed → refunded`. Both rows land in `placement_status_history`.
+
+Reflects reality: publication failure (event A) and refund (event B)
+are semantically distinct events. Folding into single `→refunded`
+masks event A and loses audit trail. Forward-compatible if refund
+becomes async in future.
+
+### Tier-2 Decisions (also frozen)
+
+- **T2-1, T2-2 — `retry_failed_publication`:** DELETE in Phase 2 PR.
+  Per Промт-1 verify artifact `VERIFY_T2_2_retry_failed_publication.md`,
+  task is dead (no dispatcher, not in Beat, 6.5 weeks in tree as stub).
+  Removal: task body 583-610, async helper 613-642, DEDUP_TTL line 56,
+  docstring line 10, AAA-06:85 reference.
+- **T2-3 — Bot handler preconditions:** `transition()` raises typed
+  `InvalidTransitionError` on illegal `(from, to)`. Bot handlers catch
+  and surface user-friendly error.
+- **T2-4 — Admin override policy:** **Two-mode API.**
+  `transition()` strict allow-list for organic transitions.
+  `transition_admin_override(reason: AdminOverrideReason, ...)` allows
+  arbitrary `(from, to)` pairs but requires explicit reason. Reason is
+  Literal enum (NOT free-form str) — starter values:
+  `dispute_resolution`, `escrow_force_release`, `manual_data_repair`,
+  `legal_takedown`. Extensions require explicit code change.
+  Reason landed in `TransitionMetadata` as new field
+  `admin_override_reason: AdminOverrideReason | None`.
+- **T2-5 — `failed_permissions` enum value:** WIRE UP.
+  `BotNotAdminError` / `InsufficientPermissionsError` →
+  `failed_permissions`; other publication errors → `failed`.
+  Mapping in `_sync_status_timestamps()` reflects distinction.
+- **T2-6 — `published_at` double-bookkeeping:** Docstring constraint
+  + lint rule (Decision 7 already includes `placement\.published_at\s*=`
+  pattern). Generated-column STORED option deferred — adds hidden
+  DB-level dependency on history table shape.
+
+### Tier-3 to BACKLOG
+
+T3-1 through T3-5 added to BACKLOG.md as BL-009, BL-010, BL-011, BL-012, BL-013
+in Шаг 4. Each carries explicit FZ-152 / process reasoning per research § 7.
+
 ### 2.B.1 Модель `PlacementStatusHistory`
 - Новый `src/db/models/placement_status_history.py`:
   ```python
