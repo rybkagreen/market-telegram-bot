@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Pre-Phase-2 hotfixes (2026-04-26)
+
+- `expires_at` for placement `counter_offer` status now consistently +24h
+  across service path and bot path (was 3h via service, 24h via bot — same
+  status, two semantics). T1-3.
+- `expires_at` refresh on `→pending_payment` transition now happens via
+  service path as well as bot path (was retained from prior `counter_offer`
+  on service path only). T1-3.
+- Regression guard added for `check_scheduled_deletions` filter against
+  non-published rows. Filter itself was added in 8c66a23a (2026-04-09);
+  Phase 2 research surfaced lack of test coverage. T1-5.
+
+### Removed — Pre-Phase-2 hotfixes (2026-04-26)
+
+- `cleanup:archive_old_campaigns` Celery task — rewrote `cancelled→failed`
+  and `refunded→failed` for old rows (data-loss-by-overwrite, not
+  archival). Task body, Beat schedule entry, and documentation references
+  removed. DB had zero rows when task was deleted (pre-launch); no
+  historical impact. T1-7.
+
 ### Breaking — Phase 1 §1.B.5: `POST /api/users/skip-legal-prompt` removed (2026-04-25)
 
 The endpoint was only ever called from `mini_app/src/screens/common/LegalProfilePrompt.tsx`,
