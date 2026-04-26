@@ -113,6 +113,57 @@ it back to the criterion.
 - **Deadline:** Phase 2 ship.
 - **Owner:** _unassigned_
 
+### BL-009 — audit_logs.ip_address / user_agent retention policy (FZ-152)
+
+- **Surfaced in:** PHASE2_RESEARCH_2026-04-26.md T3-2 (Agent C O-2).
+- **Why this matters:** PII (FZ-152), retained indefinitely (no purge job).
+- **Acceptance:** rolling-purge policy defined and implemented.
+- **Deadline:** Phase 3.
+- **Owner:** _unassigned_
+
+### BL-010 — Sentry breadcrumb PII scrub
+
+- **Surfaced in:** PHASE2_RESEARCH_2026-04-26.md T3-3 (Agent C O-3).
+- **Why this matters:** `auth.py` WARN logs include `user_id` + `ip` →
+  cross Sentry breadcrumb bar.
+- **Acceptance:** `before_send` hook reviewed and PII scrubbed.
+- **Deadline:** Phase 3.
+- **Owner:** _unassigned_
+
+### BL-011 — placement_requests.rejection_reason FZ-152 review
+
+- **Surfaced in:** PHASE2_RESEARCH_2026-04-26.md T3-4 (Agent C O-4 / F-3).
+- **Why this matters:** Free-form Russian text typed by owners — PII risk.
+  Phase 2 metadata_json explicitly does NOT duplicate (Decision 5).
+- **Acceptance:** retention policy + scrub-or-keep decision documented.
+- **Deadline:** Phase 3.
+- **Owner:** _unassigned_
+
+### BL-012 — Transaction.description free-form drift
+
+- **Surfaced in:** PHASE2_RESEARCH_2026-04-26.md T3-5 (Agent C O-5).
+- **Why this matters:** Same anti-pattern Phase 2 avoids for metadata_json.
+- **Acceptance:** review whether to migrate to enum / Literal.
+- **Deadline:** Phase 3.
+- **Owner:** _unassigned_
+
+### BL-013 — Stop-hook relay protocol in CLAUDE.md
+
+- **Surfaced in:** Промт-1.5 closure, 2026-04-26.
+  Promпт-1 stop-hook fired with CHANGES/CHANGELOG warning. BL-006 rule
+  ("relay to user, do not auto-fix") was followed correctly. User chose
+  option (b): bundle into next natural commit (alignment commit, this PR).
+- **Why this matters:** "natural bundle" choice should be explicit
+  protocol, not ad-hoc per session.
+- **Acceptance:** add subsection to CLAUDE.md "Phase mode discipline":
+  "Stop-hook relay outcomes are user-decided: (a) immediate fix-commit,
+  (b) bundle into next natural commit (default), (c) defer to phase
+  closure (only if no risk of CHANGES becoming stale relative to
+  documented commits)."
+- **Deadline:** Phase 3 closure (bundled with BL-006, BL-007 packaged
+  CLAUDE.md update — total 4 process-findings landed together).
+- **Owner:** _unassigned_
+
 ## Closed items
 
 _(none yet)_
