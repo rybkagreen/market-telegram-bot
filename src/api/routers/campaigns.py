@@ -12,6 +12,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import CurrentUser
+from src.core.services.placement_transition_service import (
+    InvalidTransitionError,
+    PlacementTransitionService,
+)
 from src.db.models.placement_request import PlacementRequest as Campaign
 from src.db.models.placement_request import PlacementStatus as CampaignStatus
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
@@ -322,8 +326,21 @@ async def start_placement_request(
                 detail=ACCESS_DENIED,
             )
 
-        # Обновляем статус
-        await placement_repo.update_status(placement_request_id, CampaignStatus.pending_payment)
+        transition_service = PlacementTransitionService(session)
+        try:
+            await transition_service.transition(
+                placement=placement_request,
+                to_status=CampaignStatus.pending_payment,
+                actor_user_id=current_user.id,
+                reason="user_action",
+                trigger="api",
+            )
+        except InvalidTransitionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        await session.commit()
 
         logger.info(f"Campaign {placement_request_id} started by user {current_user.id}")
 
@@ -375,10 +392,21 @@ async def cancel_placement_request(
                 detail=f"Cannot cancel placement_request with status {placement_request.status.value}",
             )
 
-        await placement_repo.update_status(
-            placement_request_id,
-            CampaignStatus.cancelled,
-        )
+        transition_service = PlacementTransitionService(session)
+        try:
+            await transition_service.transition(
+                placement=placement_request,
+                to_status=CampaignStatus.cancelled,
+                actor_user_id=current_user.id,
+                reason="user_action",
+                trigger="api",
+            )
+        except InvalidTransitionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        await session.commit()
 
         logger.info(f"Campaign {placement_request_id} cancelled by user {current_user.id}")
 

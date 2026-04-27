@@ -2,20 +2,25 @@
 
 import contextlib
 import logging
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routers.disputes import resolve_dispute_admin as api_resolve_dispute_admin
+from src.api.schemas.admin import DisputeResolveRequest
 from src.bot.filters.admin import AdminFilter
 from src.bot.handlers.shared.notifications import notify_dispute_resolved
 from src.constants.payments import OWNER_SHARE
-from src.core.services.billing_service import BillingService
-from src.db.models.dispute import DisputeResolution, DisputeStatus, PlacementDispute
-from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.core.services.placement_transition_service import (
+    InvalidTransitionError,
+    TransitionInvariantError,
+)
+from src.db.models.dispute import DisputeStatus, PlacementDispute
+from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
 from src.db.repositories.dispute_repo import DisputeRepository
 from src.db.repositories.user_repo import UserRepository
@@ -43,14 +48,6 @@ _RESOLUTION_LABELS = {
     "technical": "Техническая ошибка — 100% возврат рекламодателю",
     "partial": "Частичный возврат (50/50)",
 }
-
-_RESOLUTION_MAP = {
-    "owner_fault": DisputeResolution.owner_fault,
-    "advertiser_fault": DisputeResolution.advertiser_fault,
-    "technical": DisputeResolution.technical,
-    "partial": DisputeResolution.partial,
-}
-
 
 # ---------------------------------------------------------------------------
 # admin:disputes — список открытых споров
@@ -195,62 +192,48 @@ async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) 
         return
 
     price = req.final_price if req.final_price is not None else req.proposed_price
-    billing = BillingService()
 
-    try:
-        if verdict in ("owner_fault", "technical"):
-            # 100% возврат рекламодателю
-            await billing.refund_escrow(
-                session=session,
-                placement_id=req.id,
-                final_price=price,
-                advertiser_id=req.advertiser_id,
-                owner_id=req.owner_id,
-                scenario="before_escrow",
-            )
-            advertiser_outcome = f"✅ Возврат: *{price:.0f} ₽* (100%)"
-            owner_outcome = "❌ Средства возвращены рекламодателю"
-            new_status = PlacementStatus.refunded
-        elif verdict == "advertiser_fault":
-            # 85% владельцу
-            owner_amount = (price * OWNER_SHARE).quantize(Decimal("0.01"))
-            await billing.release_escrow(
-                session=session,
-                placement_id=req.id,
-                final_price=price,
-                advertiser_id=req.advertiser_id,
-                owner_id=req.owner_id,
-            )
-            advertiser_outcome = "❌ Жалоба признана необоснованной. Возврата нет."
-            owner_outcome = f"✅ Выплата: *{owner_amount:.0f} ₽* (85%)"
-            new_status = PlacementStatus.published
-        else:  # partial
-            # 50/50 — используем сценарий after_confirmation
-            await billing.refund_escrow(
-                session=session,
-                placement_id=req.id,
-                final_price=price,
-                advertiser_id=req.advertiser_id,
-                owner_id=req.owner_id,
-                scenario="after_confirmation",
-            )
-            half = (price * Decimal("0.5")).quantize(Decimal("0.01"))
-            advertiser_outcome = f"🔓 Частичный возврат: *{half:.0f} ₽* (~50%)"
-            owner_outcome = f"💰 Частичная выплата: ~*{half:.0f} ₽* (~50%)"
-            new_status = PlacementStatus.refunded
-    except Exception as exc:
-        logger.error("dispute resolve billing error: %s", exc)
-        await callback.answer("❌ Ошибка при финансовой операции", show_alert=True)
+    # Compute outcome strings for UI (independent of billing — same business rules).
+    if verdict in ("owner_fault", "technical"):
+        advertiser_outcome = f"✅ Возврат: *{price:.0f} ₽* (100%)"
+        owner_outcome = "❌ Средства возвращены рекламодателю"
+    elif verdict == "advertiser_fault":
+        owner_amount = (price * OWNER_SHARE).quantize(Decimal("0.01"))
+        advertiser_outcome = "❌ Жалоба признана необоснованной. Возврата нет."
+        owner_outcome = f"✅ Выплата: *{owner_amount:.0f} ₽* (85%)"
+    else:  # partial
+        half = (price * Decimal("0.5")).quantize(Decimal("0.01"))
+        advertiser_outcome = f"🔓 Частичный возврат: *{half:.0f} ₽* (~50%)"
+        owner_outcome = f"💰 Частичная выплата: ~*{half:.0f} ₽* (~50%)"
+
+    # Resolve admin user — required by API endpoint.
+    admin_user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if not admin_user:
+        await callback.answer("❌ Admin user not resolvable", show_alert=True)
         return
 
-    # Обновить спор
-    admin_user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    dispute.resolution = _RESOLUTION_MAP[verdict]
-    dispute.status = DisputeStatus.resolved
-    dispute.admin_id = admin_user.id if admin_user else None
-    dispute.resolved_at = datetime.now(UTC)
-    req.status = new_status
-    await session.commit()
+    # Delegate to API endpoint (Decision 11 — sync canonical path).
+    # Shares the session, so router-level commit applies to bot's mutations too.
+    body = DisputeResolveRequest(
+        resolution=verdict,
+        admin_comment=None,
+        custom_split_percent=50 if verdict == "partial" else None,
+    )
+    try:
+        await api_resolve_dispute_admin(
+            dispute_id=dispute_id,
+            body=body,
+            admin_user=admin_user,
+            session=session,
+        )
+    except HTTPException as exc:
+        logger.error("admin dispute resolve API error: %s", exc.detail)
+        await callback.answer(f"❌ {exc.detail}", show_alert=True)
+        return
+    except (InvalidTransitionError, TransitionInvariantError) as exc:
+        logger.error("admin dispute resolve transition error: %s", exc)
+        await callback.answer("❌ Не удалось обновить статус", show_alert=True)
+        return
 
     resolution_label = _RESOLUTION_LABELS[verdict]
 

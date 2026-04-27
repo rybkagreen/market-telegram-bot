@@ -45,7 +45,6 @@ def create_celery_app() -> Celery:
             "src.tasks.badge_tasks",
             "src.tasks.billing_tasks",
             "src.tasks.cleanup_tasks",
-            "src.tasks.dispute_tasks",
             "src.tasks.document_ocr_tasks",
             "src.tasks.gamification_tasks",
             "src.tasks.github_tasks",

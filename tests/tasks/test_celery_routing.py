@@ -10,15 +10,13 @@ Verifies that:
 
 import importlib.util
 
+import pytest
+
 import src.tasks.badge_tasks  # noqa: F401 — ensure tasks register
-import src.tasks.dispute_tasks  # noqa: F401
 import src.tasks.gamification_tasks  # noqa: F401
 import src.tasks.integrity_tasks  # noqa: F401
 import src.tasks.placement_tasks  # noqa: F401
-import pytest
-
-from src.tasks.celery_app import QUEUE_WORKER_CRITICAL, celery_app
-
+from src.tasks.celery_app import celery_app
 
 # ─── helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,13 +150,6 @@ def test_badges_tasks_routed_to_badges_queue(task_name):
 def test_integrity_task_routed_to_cleanup():
     q = _effective_queue("integrity:check_data_integrity")
     assert q == "cleanup", f"integrity:check_data_integrity must route to 'cleanup', got {q!r}"
-
-
-def test_dispute_task_routed_to_worker_critical():
-    q = _effective_queue("dispute:resolve_financial")
-    assert q == QUEUE_WORKER_CRITICAL, (
-        f"dispute:resolve_financial must route to {QUEUE_WORKER_CRITICAL!r}, got {q!r}"
-    )
 
 
 # ─── no task on default queue ───────────────────────────────────────────────────

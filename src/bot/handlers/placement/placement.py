@@ -612,7 +612,16 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
         )
         return
 
-    req.status = PlacementStatus.cancelled
+    from src.core.services.placement_transition_service import PlacementTransitionService
+
+    transition_service = PlacementTransitionService(session)
+    await transition_service.transition(
+        placement=req,
+        to_status=PlacementStatus.cancelled,
+        actor_user_id=user.id,
+        reason="advertiser_cancel_after_escrow",
+        trigger="api",
+    )
     await session.commit()
 
     builder = InlineKeyboardBuilder()

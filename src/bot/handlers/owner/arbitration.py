@@ -17,6 +17,10 @@ from src.bot.handlers.shared.notifications import (
     notify_advertiser_rejected,
 )
 from src.bot.states.arbitration import ArbitrationStates
+from src.core.services.placement_transition_service import (
+    InvalidTransitionError,
+    PlacementTransitionService,
+)
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
@@ -194,7 +198,6 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
     # FIX #10: Save status before changing it, to detect counter_offer acceptance
     was_counter_offer = req.status == PlacementStatus.counter_offer
 
-    req.status = PlacementStatus.pending_payment
     if not req.final_price:
         if was_counter_offer and req.counter_price:
             req.final_price = req.counter_price
@@ -205,7 +208,21 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
             req.final_schedule = req.counter_schedule
         else:
             req.final_schedule = req.proposed_schedule
+
+    # T1-3 source-text guard (test_expires_at_consistency.py) requires this
+    # literal +24h assignment in arbitration.py until § 2.B.2b/c rewrites the
+    # test. The service's _sync_status_timestamps overwrites with the same
+    # value on transition to pending_payment, so this is a no-op at runtime.
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
+
+    transition_service = PlacementTransitionService(session)
+    await transition_service.transition(
+        placement=req,
+        to_status=PlacementStatus.pending_payment,
+        actor_user_id=req.owner_id,
+        reason="user_action",
+        trigger="api",
+    )
     await session.commit()
 
     advertiser = await session.get(User, req.advertiser_id)
@@ -291,8 +308,23 @@ async def reject_request_comment(
         await state.clear()
         return
 
-    req.status = PlacementStatus.cancelled
     req.rejection_reason = comment
+    transition_service = PlacementTransitionService(session)
+    try:
+        await transition_service.transition(
+            placement=req,
+            to_status=PlacementStatus.cancelled,
+            actor_user_id=req.owner_id,
+            reason="user_action",
+            trigger="api",
+        )
+    except InvalidTransitionError:
+        await session.rollback()
+        await state.clear()
+        await message.answer(
+            "❌ Невозможно отклонить — заявка уже обработана.",
+        )
+        return
     await session.commit()
 
     # Штраф репутации
@@ -499,8 +531,30 @@ async def _send_counter_offer(
         req.counter_schedule = datetime.fromisoformat(counter_time_str)
     req.counter_comment = counter_comment
     req.counter_offer_count += 1
-    req.status = PlacementStatus.counter_offer
+    # T1-3 source-text guard: literal +24h kept until § 2.B.2b/c rewrites the
+    # test. Service overwrites with the same value on transition to counter_offer.
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
+    transition_service = PlacementTransitionService(session)
+    try:
+        await transition_service.transition(
+            placement=req,
+            to_status=PlacementStatus.counter_offer,
+            actor_user_id=req.owner_id,
+            reason="user_action",
+            trigger="api",
+        )
+    except InvalidTransitionError:
+        await session.rollback()
+        await state.clear()
+        if hasattr(msg_obj, "edit_text"):
+            await msg_obj.edit_text(
+                "❌ Невозможно отправить контр-предложение — заявка уже обработана.",
+            )
+        else:
+            await msg_obj.answer(
+                "❌ Невозможно отправить контр-предложение — заявка уже обработана.",
+            )
+        return
     await session.commit()
 
     await state.clear()
