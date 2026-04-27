@@ -97,3 +97,18 @@ above is the canonical reference.
 - This summary: `reports/docs-architect/typecheck_baseline.md`
 
 🔍 Verified against: `1fd0960` (post-Phase 0 develop) | 📅 Updated: 2026-04-25T00:00:00Z
+
+---
+
+## Note (added 2026-04-26)
+
+Original PF.1 baseline `10/5/272` was labelled "errors/notes/files" —
+incorrect. Correct semantics is **errors / files-with-errors /
+source-files-checked** matching standard mypy output `Found N errors
+in M files (checked K source files)`. Number values were correct;
+labels were wrong. Subsequent reads should use corrected labels.
+
+Current baseline (verified 2026-04-26 on main d5075ab):
+`Found 10 errors in 5 files (checked 273 source files)` →
+**10 / 5 / 273** under corrected semantics. The +1 in
+source-files-checked is one new file added to tree since 7fe748c.

@@ -19,6 +19,7 @@ from src.db.models.mailing_log import MailingLog, MailingStatus
 from src.db.models.ord_registration import OrdRegistration
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus, PublicationFormat
+from src.db.models.placement_status_history import PlacementStatusHistory
 from src.db.models.platform_account import PlatformAccount
 from src.db.models.platform_quarterly_revenue import PlatformQuarterlyRevenue
 from src.db.models.publication_log import PublicationLog
@@ -46,6 +47,7 @@ __all__ = [
     "ChannelMediakit",
     "PlacementRequest",
     "PlacementStatus",
+    "PlacementStatusHistory",
     "PublicationFormat",
     "Transaction",
     "TransactionType",
