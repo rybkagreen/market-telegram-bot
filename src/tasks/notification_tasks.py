@@ -1020,6 +1020,7 @@ def auto_approve_placements() -> dict:
 
         from sqlalchemy import select
 
+        from src.core.services.placement_transition_service import PlacementTransitionService
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         deadline = datetime.now(UTC) - timedelta(hours=24)
@@ -1038,10 +1039,16 @@ def auto_approve_placements() -> dict:
             result = await session.execute(stmt)
             placements = result.scalars().all()
 
+            transition_service = PlacementTransitionService(session)
             for placement in placements:
                 try:
-                    placement.status = PlacementStatus.pending_payment
-                    await session.flush()
+                    await transition_service.transition(
+                        placement=placement,
+                        to_status=PlacementStatus.pending_payment,
+                        actor_user_id=None,
+                        reason="auto_approve_24h",
+                        trigger="celery_beat",
+                    )
                     approved_count += 1
                     logger.info(
                         f"Auto-approved placement {placement.id} for channel {placement.channel_id}"

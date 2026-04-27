@@ -62,6 +62,9 @@ _ALLOW_LIST: dict[PlacementStatus, set[PlacementStatus]] = {
         PlacementStatus.failed,
         PlacementStatus.failed_permissions,
         PlacementStatus.refunded,
+        # Advertiser cancel-after-escrow path with 50% refund —
+        # bot/handlers/placement/placement.py:camp_cancel_after_escrow.
+        PlacementStatus.cancelled,
     },
     PlacementStatus.published: {
         PlacementStatus.completed,

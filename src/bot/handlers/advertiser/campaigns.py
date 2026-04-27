@@ -196,11 +196,18 @@ async def camp_counter_accept(callback: CallbackQuery, session: AsyncSession) ->
         req.final_price = req.counter_price
     if req.counter_schedule:
         req.final_schedule = req.counter_schedule
-    req.status = PlacementStatus.pending_payment
 
-    from datetime import UTC, datetime, timedelta
+    # expires_at +24h on pending_payment handled by _sync_status_timestamps.
+    from src.core.services.placement_transition_service import PlacementTransitionService
 
-    req.expires_at = datetime.now(UTC) + timedelta(hours=24)
+    transition_service = PlacementTransitionService(session)
+    await transition_service.transition(
+        placement=req,
+        to_status=PlacementStatus.pending_payment,
+        actor_user_id=req.advertiser_id,
+        reason="user_action",
+        trigger="api",
+    )
     await session.commit()
 
     price = req.final_price or req.proposed_price
@@ -291,11 +298,32 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
     # FIX #6: Use advertiser_counter_price to prevent data collision with owner's counter
     req.advertiser_counter_price = new_price
     req.counter_offer_count += 1
-    req.status = PlacementStatus.pending_owner
-
+    # expires_at refresh on pending_owner — service does not sync this timestamp,
+    # so set manually to mirror the prior behaviour.
     from datetime import UTC, datetime, timedelta
 
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
+
+    from src.core.services.placement_transition_service import (
+        InvalidTransitionError,
+        PlacementTransitionService,
+    )
+
+    transition_service = PlacementTransitionService(session)
+    try:
+        await transition_service.transition(
+            placement=req,
+            to_status=PlacementStatus.pending_owner,
+            actor_user_id=req.advertiser_id,
+            reason="user_action",
+            trigger="api",
+        )
+    except InvalidTransitionError:
+        await session.rollback()
+        await state.clear()
+        await message.answer("❌ Заявка уже обработана — встречное предложение отправить нельзя.")
+        return
+
     await session.commit()
     await state.clear()
 
