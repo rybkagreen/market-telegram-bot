@@ -545,6 +545,123 @@ invisible.
 
 ---
 
+## Process discipline (added from Phase 2 lessons)
+
+These rules were extracted from BACKLOG entries BL-006, BL-007, BL-013,
+BL-015, BL-016, BL-018, BL-024, BL-026, BL-028 (Phase 2 closure,
+2026-04-27). They extend — not replace — the "Phase mode discipline"
+section above.
+
+### Plan validation gate — extended (BL-015, BL-024, BL-026, BL-018)
+
+The original three checks (a/b/c) above are necessary but not
+sufficient. Before approving any phase plan, also run:
+
+- **(d) Ruff baseline diff.** Capture `make lint` output before any
+  edit and compare it after the alignment commit. Plans must not
+  regress the ruff baseline; if a phase plan adds new files or moves
+  code, baseline must hold within the documented tolerance.
+- **(e) Cross-artifact reference check (BL-015).** Every backlog
+  reference, ticket ID, file path, line number, and commit SHA in the
+  phase plan must resolve to an existing entity. Run
+  `grep -E '\b(BL-[0-9]+|plan-[0-9]+|FIXME|TODO\([^)]+\))\b' <plan>.md`
+  and verify each match exists in BACKLOG.md / repo / git log. Plan
+  authors hallucinate IDs (origin: `plan-08` propagated through three
+  artifacts before being caught).
+- **(f) Test infrastructure surface (BL-024).** Before any plan
+  touching test files is approved, run `grep -rn 'autouse=True' tests/`
+  and review the conftest.py hierarchy depth + override patterns.
+  Document all autouse fixtures and shadowing in the plan. Treat
+  `tests/integration/conftest.py` as load-bearing infra: its
+  NullPool + connection-rollback override is intentional, not a target
+  for "cleanup".
+- **(g) Mutation-audit completeness (BL-026).** When auditing field
+  writes, enumerate (1) calls to helpers whose name matches
+  `update_<field>|set_<field>|change_<field>` and (2) bulk SQLAlchemy
+  `.values(<field>=...)` writes — both accept a runtime value and
+  bypass static literal scans. Generic mutation helpers with a
+  parameter-driven RHS are blind spots in regex/AST literal scans.
+  Where possible, **delete** parameter-driven helpers rather than
+  lint-allowing them; the lint cannot reason about runtime parameters.
+
+Research-agent enumerations (Agent A/B/C output, deep-dive Explore
+catalogs) must be treated as **incomplete-by-default**. § B.1 of any
+phase plan begins with a "final mutation audit" step that re-greps the
+codebase for the relevant pattern; do not trust the research catalog
+alone. (Origin: Phase 2 § 2.B.2a found 6 callers of
+`PlacementRequestRepository.update_status` that the initial enumeration
+missed.)
+
+### Stop-hook relay protocol (BL-006, BL-013, BL-016)
+
+Stop-hook output is **informational** — its purpose is to surface
+documentation gaps to the user, not to authorise the agent to close
+them. The agent's correct response to a hook warning is:
+
+1. Relay the warning to the user, with the user's three-way choice:
+   - **(a) immediate fix-commit** (warning is load-bearing — public
+     contract changed and CHANGES is genuinely missing);
+   - **(b) bundle into next natural commit** (default — warning will
+     be addressed at the next commit boundary anyway);
+   - **(c) defer to phase closure** (only if no risk of CHANGES
+     becoming stale relative to documented commits — i.e. the work in
+     progress is itself the phase closure work).
+
+Loop-firing tolerance: if the **same** hook warning fires more than
+twice in succession on identical HEAD/transcript state, ack it twice
+non-trivially, then silent-ignore subsequent identical fires. Identical
+fires within a single decision point count as one ack, not multiple.
+This avoids the BL-016 anti-pattern where each agent turn after a
+commit re-issues the same warning, burning context and pressuring the
+agent into autonomous fix to "stop the alarm".
+
+The STOP gate (research → STOP → user "давай" → implementation)
+applies to **every commit**, including `docs(...)` /  `chore(...)` /
+process-rule commits, not only `feat(...)` / `fix(...)`. Auto-mode on
+docs today is auto-mode on code tomorrow — same anti-pattern.
+
+### Cross-artifact reference fabrication (BL-015)
+
+Before committing any plan / CHANGES / BACKLOG entry that cross-refs
+another doc by name, ID, or section: `grep` for the target and confirm
+it exists. Once a fabricated reference enters one artifact, copy-paste
+through prompt templates multiplies it. Same rule applies during
+research-artifact consolidation (Agent C-style review).
+
+### Stale plan vs reality (BL-007, BL-018)
+
+The implementation plan is allowed to drift from the codebase between
+sessions. Line numbers in the plan are HINTS, not absolutes. Sub-agent
+searches must work by signature/content, not by `L<N>`. If the plan
+describes a file/function/line that no longer matches reality, surface
+this explicitly in the report — do not silently adapt.
+
+The Phase 0 closure note "2 ruff warnings in
+`document_validation.py`" turning into "0 warnings on develop" by
+Phase 2 start is the canonical example: baseline drifts during
+unrelated work, not because anyone fixed it deliberately.
+
+### Verification gate language (BL-018, BL-028)
+
+GitHub Actions are permanently inert for this repository (BL-017
+ACCEPTED). The actual verification gate is `make ci-local`. All
+future phase plans must phrase verification gates as:
+
+> "Local `make ci-local` passes against baseline X (failed=N1,
+>  errored=N2, collection=N3, mypy=N4, ruff=N5)."
+
+— not "CI green" and not bare numbers like "76 failed". Baseline
+numbers must always be quoted with the **exact invocation** that
+produced them. `pytest --continue-on-collection-errors tests/` and
+`make ci-local` produce different counts on the same source tree
+(BL-028: 96+132 vs 76+17 on the same HEAD); without the invocation,
+the baseline is ambiguous and silent regressions slip past the gate.
+
+Baseline updates land per-phase as part of `CHANGES_*.md` rather than
+as standalone documents.
+
+---
+
 ## Documentation & Changelog Sync (MANDATORY)
 
 This section mirrors INSTRUCTIONS.md and is enforced by hooks. Every task is INCOMPLETE

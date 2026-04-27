@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(none yet — Phase 3 candidate selection pending)_
+
+## [Phase 2 complete — 2026-04-27]
+
+Administrative closure of Phase 2 (PlacementTransitionService unified
+mutation point). 16+ BACKLOG entries committed, 8 process-findings
+codified into CLAUDE.md as actionable rules, BL-028/029 added from
+the merge-unblock session. No code change in the closure commit
+itself — see Phase 2 sub-sections below for the substantive work.
+
 ### Phase 2 merge to develop (2026-04-27)
 
 - merge: phase 2 — PlacementTransitionService unified mutation, callers
