@@ -298,11 +298,6 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
     # FIX #6: Use advertiser_counter_price to prevent data collision with owner's counter
     req.advertiser_counter_price = new_price
     req.counter_offer_count += 1
-    # expires_at refresh on pending_owner — service does not sync this timestamp,
-    # so set manually to mirror the prior behaviour.
-    from datetime import UTC, datetime, timedelta
-
-    req.expires_at = datetime.now(UTC) + timedelta(hours=24)
 
     from src.core.services.placement_transition_service import (
         InvalidTransitionError,
