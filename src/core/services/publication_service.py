@@ -18,6 +18,7 @@ from src.config.settings import settings
 from src.constants.payments import FORMAT_DURATIONS_SECONDS
 from src.core.exceptions import BotNotAdminError, InsufficientPermissionsError, PostDeletionError
 from src.core.services.billing_service import BillingService
+from src.core.services.placement_transition_service import PlacementTransitionService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.placement_request_repo import PlacementRequestRepo
 from src.db.repositories.publication_log_repo import PublicationLogRepo
@@ -218,8 +219,18 @@ class PublicationService:
         try:
             await self.check_bot_permissions(bot, channel.telegram_id, require_pin=require_pin)
         except (BotNotAdminError, InsufficientPermissionsError) as e:
-            placement.status = PlacementStatus.failed
-            await session.flush()
+            # T2-5 / O-10: permission failures get a distinct status from
+            # technical failures — allows downstream filter for cases where
+            # admin re-grants permission and the placement could conceptually
+            # retry, vs failed (irrecoverable without rebuild).
+            transition_service = PlacementTransitionService(session)
+            await transition_service.transition(
+                placement=placement,
+                to_status=PlacementStatus.failed_permissions,
+                actor_user_id=None,
+                reason="publication_failure_permissions",
+                trigger="celery_signal",
+            )
             logger.error(f"Bot permissions check failed for placement {placement_id}: {e}")
             raise PostDeletionError(f"Bot permissions check failed: {e}") from e
 
@@ -257,7 +268,6 @@ class PublicationService:
                 session, placement, channel.telegram_id, sent_message.message_id
             )
         except TelegramBadRequest as e:
-            placement.status = PlacementStatus.failed
             placement.failed_count += 1
             await pub_log_repo.log_event(
                 placement_id=placement_id,
@@ -265,7 +275,14 @@ class PublicationService:
                 event_type="publish_failed",
                 extra={"error": str(e)},
             )
-            await session.flush()
+            transition_service = PlacementTransitionService(session)
+            await transition_service.transition(
+                placement=placement,
+                to_status=PlacementStatus.failed,
+                actor_user_id=None,
+                reason="publication_telegram_error",
+                trigger="celery_signal",
+            )
             logger.error(f"Failed to send message for placement {placement_id}: {e}")
             raise PostDeletionError(f"Failed to send message: {e}") from e
 
@@ -298,11 +315,16 @@ class PublicationService:
         ).scalar_one_or_none()
 
         if placement:
-            placement.status = PlacementStatus.published
-            placement.published_at = datetime.now(UTC)
             placement.sent_count += 1
-            placement.last_published_at = datetime.now(UTC)
-            await session.flush()  # Вызывающий код делает итоговый commit
+            # published_at + last_published_at handled by _sync_status_timestamps.
+            transition_service = PlacementTransitionService(session)
+            await transition_service.transition(
+                placement=placement,
+                to_status=PlacementStatus.published,
+                actor_user_id=None,
+                reason="publication_success",
+                trigger="celery_signal",
+            )
 
         logger.info(
             f"Placement {placement_id} published: message_id={sent_message.message_id}, "
@@ -398,7 +420,14 @@ class PublicationService:
         )
 
         # Переводим в completed после удаления + освобождения эскроу
-        placement.status = PlacementStatus.completed
+        transition_service = PlacementTransitionService(session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.completed,
+            actor_user_id=None,
+            reason="manual_publish_delete",
+            trigger="celery_signal",
+        )
 
         # Sprint A.2: автоматическая генерация акта выполненных работ
         try:

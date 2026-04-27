@@ -211,19 +211,38 @@ run_check \
   --exclude-dir=lib \
   --exclude-dir=api
 
-# INV-2: direct transition to PlacementStatus.escrow is forbidden outside the repo.
-# All escrow-entry paths must flow through BillingService.freeze_escrow_for_placement
-# (called by PlacementRequestService._freeze_escrow_for_payment) so the Transaction,
-# idempotency key and platform_account.escrow_reserved are updated atomically.
-# Other status transitions (cancelled, pending_payment, published, ...) are
-# allowed to be set directly for now — to be tightened in a follow-up refactor.
-# placement_tasks.py:637 is a legitimate internal retry path; exempt by file.
+# Phase 2 § 2.B.2 closure (Decision 7): every placement.status mutation must
+# flow through PlacementTransitionService.transition() or
+# transition_admin_override(). The service is the only legitimate writer.
+# This replaces the previous narrow escrow-only guard — after § 2.B.2a + 2.B.2b
+# every direct write outside the service is a regression.
+#
+# Pattern matches `<ident>.status = PlacementStatus.X` on a single line. RHS
+# is restricted to PlacementStatus.* to avoid docstring false positives such
+# as `placement.status='escrow' ⇒ ...` in INV invariant comments.
 run_check_py \
-  "no direct placement.status = PlacementStatus.escrow outside placement_request_repo.py" \
-  '\w+\.status\s*=\s*PlacementStatus\.escrow\b' \
+  "no direct <obj>.status = PlacementStatus.* outside placement_transition_service.py" \
+  '\w+\.status\s*=\s*PlacementStatus\.' \
   'src' \
-  --exclude=placement_request_repo.py \
-  --exclude=placement_tasks.py \
+  --exclude=placement_transition_service.py \
+  --exclude-dir=tests
+
+# setattr-style status mutation — same rule, different syntax.
+run_check_py \
+  "no setattr(<obj>, 'status', PlacementStatus.*) outside placement_transition_service.py" \
+  "setattr\([^,]+,\s*['\"]status['\"]\s*,\s*PlacementStatus\." \
+  'src' \
+  --exclude=placement_transition_service.py \
+  --exclude-dir=tests
+
+# Decision 4 (T1-3): placement.published_at is set exclusively by
+# PlacementTransitionService._sync_status_timestamps. Manual writes elsewhere
+# can desync with status transitions.
+run_check_py \
+  "no manual <obj>.published_at = ... outside placement_transition_service.py" \
+  '\w+\.published_at\s*=\s*[^=]' \
+  'src' \
+  --exclude=placement_transition_service.py \
   --exclude-dir=tests
 
 # Phase 1 §1.B.2 / §1.D — FZ-152 mini_app strip enforcement.

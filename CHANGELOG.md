@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 2 merge to develop (2026-04-27)
+
+- merge: phase 2 — PlacementTransitionService unified mutation, callers
+  migrated, audit table, forbidden-patterns lint, dead code removed.
+  Merge commit `9adaef2`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-27_phase2-merge-and-baseline-fix.md`
+  for the substantive-vs-literal `make ci-local` baseline correction.
+
+### Phase 2 § 2.B.2 — Caller integration + dead code cleanup (2026-04-27)
+
+#### Changed
+- All 22+ placement status mutation sites consolidated through
+  `PlacementTransitionService`. Repo `PlacementRequestRepository` is
+  now a read-only API.
+- Bot handler `admin/disputes.py:admin_resolve_dispute` now calls
+  internal API endpoint `POST /admin/disputes/{id}/resolve` (Decision
+  11 — sync canonical). Removed ~57 LOC of duplicated billing+status
+  logic.
+- Router `POST /admin/disputes/{id}/resolve` uses
+  `transition_admin_override(admin_override_reason="dispute_resolution")`
+  instead of direct `placement.status = ...`.
+- SLA timeouts (`check_owner_response_sla`, `check_counter_offer_sla`)
+  now transition to `cancelled` (was `failed`). Reserves `failed` for
+  technical publication errors.
+- Permission-related publication failures use `failed_permissions`
+  (was generic `failed`). Allows downstream filter for
+  recoverable-after-permission-grant cases.
+- `_sync_status_timestamps` extended to refresh `expires_at +24h` on
+  `pending_owner` transition (was missing — Surprise 5). Three
+  `pending_*` cases collapsed into one set-membership branch.
+- `_ALLOW_LIST` extended: `escrow → cancelled` (advertiser
+  cancel-after-escrow with 50% refund).
+
+#### Removed
+- `PlacementRequestRepository.{accept, reject, counter_offer,
+  set_escrow, set_published, update_status}` methods.
+- `src/tasks/dispute_tasks.py` — entire file (120 LOC). Dead code,
+  zero dispatchers.
+- `src/tasks/placement_tasks.py:retry_failed_publication` — dead per
+  T2-1/T2-2 + INV-1 violation per O-4.
+- `PlacementRequestService.process_publication_success` — DEPRECATED
+  v4.2 with zero callers.
+
+#### Added
+- `scripts/check_forbidden_patterns.sh` extended with three Python
+  guards: direct `<obj>.status = PlacementStatus.*`, setattr-style
+  status mutation, manual `<obj>.published_at = ...`. All scoped to
+  exempt `placement_transition_service.py`.
+- `make ci-local` runs forbidden-pattern lint as first step.
+- New active `AdminOverrideReason="dispute_resolution"` usage in API
+  + bot handlers.
+- New active `failed_permissions` placement status (allow-list was
+  pre-wired in skeleton; this set wired the publication failure
+  caller).
+
+#### BACKLOG (working tree)
+- BL-025 — DB-level CHECK constraint pinning INV-1.
+- BL-026 — Mutation-audit process gap for parameter-driven helpers.
+- BL-027 — `test_expires_at_consistency.py` source-text guard rewrite.
+
 ### Added (Phase 2 § 2.B.1 skeleton)
 
 - Database table `placement_status_history` — append-only audit trail
