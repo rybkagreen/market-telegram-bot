@@ -7,7 +7,6 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 - check_counter_offer_sla: Проверка истечения SLA контр-предложения (24ч)
 - check_escrow_sla: Проверка зависших размещений в эскроу
 - publish_placement: Публикация поста в запланированное время
-- retry_failed_publication: Повторная попытка публикации через 1ч
 - schedule_placement_publication: Планирование публикации (хелпер)
 """
 
@@ -54,7 +53,6 @@ DEDUP_TTL = {
     "check_payment_sla": 3600,
     "check_counter_offer_sla": 3600,
     "publish_placement": 300,
-    "retry_failed_publication": 600,
     # A.6: короткий TTL для защиты от одновременного диспатча на двух
     # pool-воркерах (task_acks_late + retry). 180 с покрывает окно
     # max_retries=5 с exponential backoff до retry_backoff_max=600.
@@ -608,73 +606,6 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = str(e)
 
     return result
-
-
-# =============================================================================
-# T5: RETRY FAILED PUBLICATION
-# =============================================================================
-
-
-@celery_app.task(
-    bind=True, base=BaseTask, name="placement:retry_failed_publication", queue=QUEUE_WORKER_CRITICAL
-)
-def retry_failed_publication(self, placement_id: int) -> dict[str, Any]:
-    """
-    Повторная попытка публикации через 1ч после неудачи.
-
-    Args:
-        placement_id: ID заявки.
-
-    Логика:
-    1. Проверить status == 'failed' и retry_count < 1
-    2. Повторить логику publish_placement
-    3. Если снова неудача → финальный 'failed', refund 50%
-
-    Returns:
-        Результат публикации.
-    """
-    logger.info(f"Retrying failed publication {placement_id}")
-
-    try:
-        result = asyncio.run(_retry_failed_publication_async(placement_id))
-        logger.info(f"Retry placement {placement_id}: {result}")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error retrying placement {placement_id}: {e}")
-        return {"error": str(e)}
-
-
-async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация повторной публикации."""
-    async with async_session_factory() as session:
-        repo = PlacementRequestRepository(session)
-        placement = await repo.get_by_id(placement_id)
-
-        if not placement:
-            return {"error": "Placement not found"}
-
-        # Проверка статуса
-        if placement.status != PlacementStatus.failed:
-            return {"skipped": "Status is not failed"}
-
-        # Проверка retry_count
-        retry_count = placement.meta_json.get("retry_count", 0) if placement.meta_json else 0
-        if retry_count >= 1:
-            return {"skipped": "Max retries reached"}
-
-        # Обновляем retry_count
-        if placement.meta_json is None:
-            placement.meta_json = {}
-        placement.meta_json["retry_count"] = retry_count + 1
-
-        # Восстанавливаем статус для повторной попытки
-        placement.status = PlacementStatus.escrow
-
-        await session.flush()
-
-    # Вызываем публикацию
-    return await _publish_placement_async(placement_id)
 
 
 # =============================================================================
