@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Phase 2 § 2.B.1 skeleton)
+
+- Database table `placement_status_history` — append-only audit trail
+  of placement status transitions. Service-only writes (callers wired
+  in § 2.B.2). § 2.B.0 Decision 10.
+- Pydantic schema `TransitionMetadata` — closed model (`extra="forbid"`,
+  `frozen=True`), Literal enums for `trigger`, `error_code`,
+  `admin_override_reason`. § 2.B.0 Decision 5.
+- Service class `PlacementTransitionService` with two public methods
+  (`transition()` strict allow-list, `transition_admin_override()`
+  for admin-driven exceptions). NOT YET WIRED to callers — § 2.B.2
+  work. § 2.B.0 Decisions 1, 2, 4, 5, 11, 12.
+- Exceptions: `InvalidTransitionError`, `TransitionInvariantError`.
+- 9 unit tests for PlacementTransitionService in
+  `tests/integration/test_placement_transition_service.py`.
+
+### Removed (Phase 2 § 2.B.0 schema cleanup)
+
+- Enum value `ord_blocked` from `placementstatus` — declared in DB
+  but never used by ORM model. Pre-prod 0 rows, safe removal. § 2.B.0
+  Decision 1.
+
+### Changed (Phase 2 § 2.B.0 + test infrastructure)
+
+- Root `tests/conftest.py` `test_engine` now uses testcontainer
+  Postgres (Pattern III completion). Previously hard-coded
+  `settings.database_url` to `localhost:5432` which had no host port
+  binding. 35 tests un-blocked.
+- 27 placement-related tests un-blocked across 3 selective fix commits
+  (User-builder cleanup, INV-1 fixture, MagicMock spec=).
+
+### Migration Notes
+
+After merge to `main`:
+1. `git pull origin main` on production server.
+2. `docker compose exec api poetry run alembic upgrade head` to apply
+   `placement_status_history` migration.
+3. `docker compose up -d --build` to rebuild containers from new image
+   layers.
+
+Migration applies to empty `placement_requests` (0 rows pre-prod);
+no backfill needed.
+
 ### Removed
 - `.github/workflows/deploy.yml` — never functional (0 successful runs
   in history, placeholder paths, references nonexistent compose file
