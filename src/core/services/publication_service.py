@@ -219,12 +219,16 @@ class PublicationService:
         try:
             await self.check_bot_permissions(bot, channel.telegram_id, require_pin=require_pin)
         except (BotNotAdminError, InsufficientPermissionsError) as e:
+            # T2-5 / O-10: permission failures get a distinct status from
+            # technical failures — allows downstream filter for cases where
+            # admin re-grants permission and the placement could conceptually
+            # retry, vs failed (irrecoverable without rebuild).
             transition_service = PlacementTransitionService(session)
             await transition_service.transition(
                 placement=placement,
-                to_status=PlacementStatus.failed,
+                to_status=PlacementStatus.failed_permissions,
                 actor_user_id=None,
-                reason="publication_failure",
+                reason="publication_failure_permissions",
                 trigger="celery_signal",
             )
             logger.error(f"Bot permissions check failed for placement {placement_id}: {e}")
