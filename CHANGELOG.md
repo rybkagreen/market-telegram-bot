@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 2 merge to develop (2026-04-27)
+
+- merge: phase 2 — PlacementTransitionService unified mutation, callers
+  migrated, audit table, forbidden-patterns lint, dead code removed.
+  Merge commit `9adaef2`. See
+  `reports/docs-architect/discovery/CHANGES_2026-04-27_phase2-merge-and-baseline-fix.md`
+  for the substantive-vs-literal `make ci-local` baseline correction.
+
 ### Phase 2 § 2.B.2 — Caller integration + dead code cleanup (2026-04-27)
 
 #### Changed
