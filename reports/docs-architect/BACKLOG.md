@@ -113,6 +113,83 @@ it back to the criterion.
 - **Deadline:** Phase 2 ship.
 - **Owner:** _unassigned_
 
+### BL-006 — STOP discipline regression in Phase 2 prep (process-finding)
+
+- **Surfaced in:** Phase 2 research kickoff session, 2026-04-26.
+  After user requested A/B/C research-prompt drafts and explicitly said
+  "жду твоё 'давай'", a Stop hook fired with a CHANGES/CHANGELOG
+  warning. Agent treated the warning as a trigger for autonomous
+  action: created `CHANGES_2026-04-26_plan-validation-gate.md`,
+  committed as `85f5923`, and pushed to `origin/develop` — without
+  user confirmation. Two commits (`7242987` + `85f5923`) landed on
+  `develop` outside the agreed STOP gate.
+- **Why deferred:** the rule itself ("STOP applies to ALL commits
+  including docs, regardless of hook output; hook warnings are input
+  to the user, not a trigger for autonomous action") is one-line.
+  Fixing it in CLAUDE.md right now would be the **third** consecutive
+  drift-fix commit on `develop` (after `7242987` + `85f5923`), which
+  creates the opposite problem: CLAUDE.md churning faster than code.
+  Accumulate 2-3 such process-findings, then land them in a single
+  packaged commit at Phase 3 closure.
+- **Rule to land:**
+  - Stop-hook output is **informational** — its purpose is to surface
+    documentation gaps to the user, not to authorise the agent to
+    close them. The agent's correct response to a hook warning is to
+    relay it to the user and ask ("create CHANGES now or after
+    phase closure?").
+  - The STOP gate ("research → STOP → user 'давай' → implementation")
+    applies to **every commit**, including `docs(...)` /
+    `chore(...)` / process-rule commits, not only `feat(...)` /
+    `fix(...)`. Auto-mode on docs today is auto-mode on code
+    tomorrow — same anti-pattern.
+- **Acceptance criteria for activation:** subsection added to
+  CLAUDE.md "Phase mode discipline" section, packaged with at least
+  one other process-finding accumulated between now and Phase 3
+  closure.
+- **Deadline:** Phase 3 closure. **Do not let this rot into Phase 4.**
+- **Owner:** _unassigned_
+
+### BL-007 — Ruff baseline drift between Phase 0 closure and Phase 2 start (process-finding)
+
+- **Surfaced in:** Промт-1 closure report, 2026-04-26.
+  Phase 0 final report (CHANGES_2026-04-25_phase0-env-constants-jwt.md)
+  recorded "2 ruff-warnings in src/api/routers/document_validation.py:107,263
+  — pre-existing". As of 2026-04-26 (pre-Phase-2 hotfix branch),
+  `make ruff` reports **12 errors in src/**, identical on main and on
+  fix/placement-pre-phase2. The 10-error drift accrued between
+  Phase 0 closure (commit 7fe748c) and Phase 2 start without explicit
+  decision, baseline refresh, or BACKLOG entry. CLAUDE.md "0 ruff
+  errors" rule is now stale.
+- **Why this matters:** baselines that drift silently defeat the
+  purpose of having baselines. The same regression mechanism that
+  PF.1 caught for mypy (Phase 0 PF) is happening for ruff
+  unmonitored.
+- **Acceptance criteria:**
+  - (1) `git log` analysis identifying which commits introduced each
+    of the 10 new ruff violations between 7fe748c and current HEAD.
+  - (2) For each violation: fix OR explicit accept with new
+    documented baseline.
+  - (3) CLAUDE.md "0 ruff errors" updated to current actual baseline
+    counter (or restored to 0 after fixes).
+  - (4) Plan validation gate gets a fourth check `(d)` — ruff
+    baseline diff before any phase plan is approved, parallel to
+    PF.1 mypy baseline check.
+- **Deadline:** Phase 2 closure.
+- **Owner:** _unassigned_
+
+### BL-008 — Full test suite OOM in current environment (INVALIDATED 2026-04-26)
+
+- **Surfaced in:** Промт-1 closure report, 2026-04-26.
+- **Status:** **INVALIDATED.** Per BL_008_INVESTIGATION_2026-04-26.md
+  (Промт-2.7) and BL_008_TRIAGE_2026-04-26.md (Промт-2.8), full suite
+  peak RSS ~1 GB on 7.8 GiB host with 2.7 GiB free. No OOM-killer events,
+  no swap pressure. Original hypothesis was inferred from environment
+  shape, not from observed OOM event. Phrase "could not be attempted"
+  in Промт-1 meant "was not run", not "ran and was killed".
+- **Resolution:** none required. Original concern dissolved.
+- **Artifacts retained for audit:** investigation reports above.
+- **Closed:** 2026-04-26.
+
 ### BL-009 — audit_logs.ip_address / user_agent retention policy (FZ-152)
 
 - **Surfaced in:** PHASE2_RESEARCH_2026-04-26.md T3-2 (Agent C O-2).
@@ -162,6 +239,508 @@ it back to the criterion.
   documented commits)."
 - **Deadline:** Phase 3 closure (bundled with BL-006, BL-007 packaged
   CLAUDE.md update — total 4 process-findings landed together).
+- **Owner:** _unassigned_
+
+### BL-014 — correlation_id middleware wiring + TransitionMetadata population
+
+- **Surfaced in:** Промт-1 verify (`VERIFY_correlation_id_origin.md`), 2026-04-26.
+  TransitionMetadata.correlation_id field reserved in Phase 2 schema
+  (Decision 5) but no middleware sets request.state.correlation_id, no
+  consumers exist. Field is STUB pending Phase 3 wiring.
+- **Why this matters:** without wiring, correlation_id is dead weight in
+  schema — every TransitionMetadata instance gets None. Either wire it
+  (gives cross-service trace through history rows) or remove from schema.
+  Removal post-Phase-2 ripples test_contract_schemas.py snapshots; wiring
+  is cheaper.
+- **Acceptance criteria:**
+  - (1) New middleware `src/api/middleware/correlation_id_middleware.py`
+    that reads `X-Request-Id` header or generates `uuid4()`, sets
+    `request.state.correlation_id`.
+  - (2) Dependency `get_correlation_id` in `src/api/dependencies.py`.
+  - (3) Wired into TransitionMetadata builder in
+    `PlacementTransitionService` for request-scoped transitions.
+  - (4) Celery-driven transitions inherit `None` (correct semantics —
+    no upstream request).
+  - (5) Add column `audit_logs.correlation_id` in same migration as
+    middleware lands, so audit log + placement_status_history join on
+    correlation_id for cross-domain debugging.
+- **Deadline:** Phase 3 (target: with audit_logs PII retention work
+  per BL-009).
+- **Owner:** _unassigned_
+
+### BL-015 — Distortion propagation through artifact chain (process-finding)
+
+- **Surfaced in:** Промт-2 sanity-check, 2026-04-26.
+  String `(see plan-08 backlog)` propagated through three artifacts
+  before being caught:
+  1. `VERIFY_correlation_id_origin.md` line 97 (Промт-1 verify, agent
+     fabricated reference).
+  2. Промт-2 template (user copied into prompt without verification).
+  3. `IMPLEMENTATION_PLAN_ACTIVE.md` line 681 (alignment commit eb35903
+     literally inherited the fabrication).
+  `plan-08` does not exist anywhere — BACKLOG.md held BL-001..BL-013 at
+  the time, no `plan-*` namespace exists.
+- **Why this matters:** plan validation gate (a/b/c/d) catches mypy/ruff/
+  TS-build/PII issues but does NOT verify that backlog/ticket references
+  in plan documents resolve to existing entries. Once a fabricated
+  reference enters one artifact, copy-paste through prompt templates
+  multiplies it.
+- **Acceptance criteria:**
+  - Add gate `(e)` to plan validation in CLAUDE.md "Phase mode discipline":
+    "Cross-artifact reference check — every backlog reference, ticket ID,
+    file path, line number, and commit SHA in a phase plan must resolve
+    to an existing entity. Run `grep -E '\b(BL-[0-9]+|plan-[0-9]+|FIXME|TODO\([^)]+\))\b'
+    <plan>.md` and verify each match exists in BACKLOG.md / repo /
+    git log."
+  - Apply same check during research-artifact consolidation (Agent C
+    style).
+- **Deadline:** Phase 3 closure (bundled with BL-006, BL-007, BL-008,
+  BL-013 packaged CLAUDE.md update — total 5 process-findings landed
+  together).
+- **Owner:** _unassigned_
+
+### BL-016 — Stop-hook fires in loop without state tracking (infrastructure)
+
+- **Surfaced in:** Промт-2.5 closure, 2026-04-26.
+  After commit `7db453d` (docs-only fix of fabricated `plan-08` reference
+  in Decision 5), stop-hook fired identical CHANGES/CHANGELOG warning
+  three times in succession — once per agent turn after the commit, not
+  once per commit. Each subsequent fire produced no new information,
+  just re-issued the original warning. Agent correctly held position
+  per BL-006/BL-013 protocol but each hold-message itself triggered
+  another hook fire.
+- **Why this matters:** the hook is supposed to surface gaps to the
+  user once, then let the conversation resolve them. Loop firing:
+  (1) creates noise that obscures real warnings;
+  (2) burns context window with redundant warning text;
+  (3) pressures agent into autonomous fix to "stop the alarm" — exact
+      anti-pattern BL-006 was created to prevent.
+- **Root causes (suspected):**
+  - (1) Hook lacks state tracking — does not distinguish "warning
+    issued, awaiting user response" from "warning unaddressed".
+  - (2) Hook trigger condition is "any code change since last warning"
+    rather than "new commit since last warning". Each agent turn after
+    a commit looks like "still has the change unresolved".
+  - (3) Hook text "if a public contract changed" is a soft condition
+    but enforcement is binary (any commit triggers warning regardless).
+- **Acceptance criteria:**
+  - (1) Hook tracks last-warned commit SHA. If current HEAD == last-warned
+    SHA and warning was relayed in transcript, do not re-fire.
+  - (2) Hook differentiates docs-only commits (changed files all match
+    `^(reports/|docs/|.*\.md$|CHANGELOG\.md|CLAUDE\.md|IMPLEMENTATION_PLAN_.*\.md)$`)
+    from contract-changing commits (anything else). Docs-only commits
+    skip the CHANGES/CHANGELOG warning entirely.
+  - (3) Hook respects relay: if transcript contains "Stop-hook warning
+    relay" or equivalent within last N turns of the warned commit,
+    treat as acknowledged and silence.
+- **Workaround until fix:** continue BL-006/BL-013 relay protocol, but
+  user can ignore loop re-fires of identical warnings — they carry no
+  new information.
+- **Deadline:** Phase 3 (with hook environment review).
+- **Owner:** _unassigned_ (likely tooling/devops, not application code).
+
+### BL-017 — GitHub Actions permanently inactive (operational, accepted)
+
+- **Surfaced in:** Промт-2.7 investigation, 2026-04-26.
+  Originally framed as "ci.yml stayed renamed after billing recovery".
+  Updated 2026-04-26 per Промт-2.B: billing block is **not** being
+  restored (per user, local jurisdiction constraints). GH Actions
+  remain permanently inert for this repository.
+- **State as of Промт-2.B:**
+  - `deploy.yml` — DELETED (never had a successful run; placeholder
+    paths, nonexistent `docker-compose.prod.yml`, nonexistent `worker`
+    service).
+  - `contract-check.yml.disabled` — renamed from active. Code preserved
+    for reference / unlikely future revival.
+  - `frontend.yml.disabled` — renamed from active. Same.
+  - `ci.yml.disabled` — left as-is (already disabled since 2026-03-04).
+- **Actual verification gate:** `make ci-local` (added in Промт-2.B).
+  Documented in `CONTRIBUTING.md`. Baseline tolerated per BL-007 / BL-019.
+- **Status:** **ACCEPTED.** No further GH-side work expected. Reopening
+  conditional on billing restoration (not anticipated).
+- **Closed:** 2026-04-26.
+
+### BL-018 — Verification gates assume working CI (process-finding)
+
+- **Surfaced in:** Промт-2.8 closure, 2026-04-26.
+  Phase 0/1/2 verification gates phrased as "CI green before merge" or
+  "full test suite passes". GH Actions permanently inert per BL-017
+  (ACCEPTED — billing not restoring). Gates have been evaluated against
+  local-pytest runs by the agent or developer, not actual CI. Gate
+  language did not reflect this operational reality.
+- **Why this matters:** "test suite green" is whatever `make ci-local`
+  produces (added in Промт-2.B). Differs from theoretical CI environment
+  (different OS, parallelism). Phase plans should explicitly say
+  "local `make ci-local` passes against documented baseline" rather
+  than "CI green" — and document baseline numbers per phase.
+- **Acceptance criteria:**
+  - All future phase plans phrase verification gates as
+    "local `make ci-local` passes against baseline X (failed=N1,
+    errored=N2, collection=N3, mypy=N4, ruff=N5)".
+  - CLAUDE.md "Phase mode discipline" section gains subsection
+    "Verification gate language" formalising this.
+  - Baseline updates land per-phase as part of CHANGES_*.md rather
+    than as standalone documents.
+- **Deadline:** Phase 3 closure (bundle with BL-006, BL-007, BL-013,
+  BL-015, BL-016 packaged CLAUDE.md update — eight process-findings
+  total: 006, 007, 013, 015, 016, 018, plus any added during Phase 2).
+- **Owner:** _unassigned_
+
+### BL-019 — 117 broken tests on develop (test-debt)
+
+- **Surfaced in:** Промт-2.7/2.8 investigations, 2026-04-26.
+  Pre-existing test failures: 82 FAILED + 35 ERRORED + 1 collection error
+  on develop @ 403c05a, identical on feature/placement-transition-service
+  @ 75288dc. Per QWEN.md, traceable to "v4.3 rebuild aftermath" — mock
+  signatures, import shapes, and contract snapshots not synchronised
+  with v4.3 source changes (User.current_role removed, MistralAIService
+  cache methods renamed, FSM state names changed, ChannelOwnerStates /
+  AdminStates / FSM_TIMEOUT / classify_subcategory removed, INV-1
+  placement_escrow_integrity check constraint added).
+- **Distribution by category** (per BL_008_TRIAGE_2026-04-26.md):
+  - CAT-A Mock-mismatch: 22
+  - CAT-B Import errors: 21
+  - CAT-C Schema/contract drift: 6
+  - CAT-D DB/fixture: 50
+  - CAT-E Async/event-loop: 7
+  - CAT-F Placement-related real bugs: 11  ← partially addressed in Промт-2.9
+  - CAT-G Other: 0
+- **Why this matters:** test-debt invisibly accumulating, no automated
+  CI to catch regressions (BL-017 ACCEPTED — GH Actions permanently
+  inert). Each new feature work potentially adds to it. Phase 2
+  verification gate is "no new regressions on top of 117 baseline" —
+  not "all green".
+- **Acceptance criteria:**
+  - (1) Triage all 117 by category (DONE in Промт-2.8).
+  - (2) Phase 2 fixes placement-related (CAT-F) subset (Промт-2.9).
+  - (3) Remaining categories triaged for skip-with-marker vs fix vs
+    delete in dedicated test-health epic post-Phase-2.
+- **Deadline:** Phase 4 (post-Phase-3, dedicated epic — too large to
+  bundle).
+- **Owner:** _unassigned_
+- **Status update 2026-04-26 (post Промт-2.9, Variant A selective fix):**
+  - Pre-fix:  82 FAILED + 35 ERRORED + 1 collection = 118.
+  - Post-fix: 69 FAILED + 35 ERRORED + 1 collection = 105.
+  - 13 placement-related tests flipped FAIL → PASS via 3 commits:
+    - `99a696b` test(fixtures): remove obsolete current_role= from
+      User-builders. **0 tests flipped status** — cleanup is correct
+      (User.current_role removed in v4.3) but the same tests now hit
+      ConnectionRefusedError on 127.0.0.1:5432 because root
+      `tests/conftest.py:test_engine` connects to settings.database_url
+      and host has no port binding to docker postgres. This surfaces
+      a deeper test-infra blocker: root tests/ that need a real DB
+      cannot run on host without either (a) host-binding 5432 or
+      (b) extending the testcontainers override pattern from
+      `tests/integration/conftest.py` to root conftest.
+    - `19ba703` test(fixtures): satisfy INV-1 placement_escrow_integrity
+      in ORD seeds. **+11 tests passing** (test_ord_service_with_yandex_mock 6
+      + test_placement_ord_contract_integration 5).
+    - `8b85377` test(publication): use spec= so isinstance checks match
+      in source. **+2 tests passing**. Промт-2.9 framed this as «regex
+      update» — actual root cause was mock spec mismatch with v4.3
+      isinstance hardening.
+  - Zero regressions (PASS → FAIL diff is empty).
+  - Remaining CAT-F: 4 MEDIUM (deferred to § 2.B.1 design — ESCROW-001
+    in disputes.py:590 is the primary concern) + 7 UNKNOWN
+    (escrow_payouts.py — defer to dedicated test-health epic).
+  - **Surfaced sub-blocker (Промт-2.9 finding):** ~30 root-level tests
+    (test_api_*, test_*_repo, test_counter_offer_*, test_reputation_service,
+    test_review_service) are blocked downstream by root conftest's
+    DATABASE_URL connection. Fix #1 cleared the upstream `current_role`
+    blocker but they still ERROR. This is in scope for BL-019 epic —
+    likely option: extend testcontainers override to root conftest
+    (mirrors tests/integration/conftest.py pattern), unblocking ~30
+    tests in one infra change.
+  - **Phase 2 § 2.B.1 verification gate:** failed ≤ 69, errored ≤ 35,
+    collection ≤ 1.
+- **Status update 2026-04-26 (post Промт-2.11, β-narrow Y):**
+  - Pre-Промт-2.11: 69 FAILED + 35 ERRORED + 1 collection = 105.
+  - Post-Промт-2.11: 76 FAILED + 17 ERRORED + 1 collection = 94.
+  - Net delta: −11 broken (104 → 93 excluding the collection error).
+    11 tests flipped ERROR/FAIL → PASS. 8 tests transitioned ERROR →
+    FAIL (status change only — they no longer error at fixture setup,
+    instead fail with a real assertion / data-integrity error).
+  - Remaining ConnectionRefusedError occurrences: 0.
+    Pattern III root-conftest unification removed all 32+ DB-connect
+    failures; the surviving ERRORs are real latent bugs that the
+    connect failure had been masking. New error landscape:
+    - `ImportError: cannot import name 'create_access_token'`
+      (tests/test_api_*, tests/test_counter_offer_flow.py) — public
+      API alias drifted in src/api/auth_utils.py.
+    - `fixture 'test_advertiser' not found` (test_counter_offer_flow.py)
+      — fixture renamed to `advertiser_user` in root conftest, file
+      not updated.
+    - `AttributeError: 'ChannelSettingsRepo' object has no attribute
+      'get_or_create_default'` (tests/test_channel_settings_repo.py).
+    - `ForeignKeyViolationError reputation_history_placement_request_id_fkey`
+      (tests/test_reputation_service.py) — fixture seed order bug.
+    - `CheckViolationError placement_escrow_integrity`
+      (tests/unit/test_review_service.py) — INV-1 fixture data bug.
+  - Two commits on feature/placement-transition-service:
+    `3a9fbcf` test(conftest): wire root test_engine to postgres_container,
+    `3c4231d` test(review-service): wire local db_session to root postgres_container.
+    Tests/integration/conftest.py override unchanged (correct + load-bearing).
+  - **Phase 2 § 2.B.1 verification gate updated:**
+    failed ≤ 76, errored ≤ 17, collection ≤ 1.
+  - Remaining test-debt categories (CAT-A/B/C/D/E/F/G in
+    BL_008_TRIAGE_2026-04-26.md) untouched in scope. Phase 4
+    test-health epic still required.
+- **Status update 2026-04-27 (post Промт-3):**
+  - Pre-Промт-3 baseline: 76 FAILED + 17 ERRORED + 1 collection = 94.
+  - Post-Промт-3 baseline: 76 FAILED + 17 ERRORED + 1 collection.
+  - New tests added: 9 in `tests/integration/test_placement_transition_service.py`
+    covering allow-list (3), admin override + invariant (2), history
+    append + ping-pong (2), timestamp sync (1), PII rejection (1).
+  - 0 regressions per diff check (PASS→FAIL/ERROR set empty).
+  - Phase 2 § 2.B.2 verification gate: failed ≤ 76, errored ≤ 17,
+    collection ≤ 1.
+
+### BL-021 — `.env` DATABASE_URL hostname latent issue (operational, latent)
+
+- **Surfaced in:** Промт-2.10 investigation § 7.2, 2026-04-26.
+  `.env` defines `DATABASE_URL=postgresql+asyncpg://...@localhost:5432/...`.
+  Postgres container has no host port binding (commented out in
+  docker-compose.yml for security). API/worker containers reaching
+  postgres via this URL would resolve `localhost` to their own container
+  loopback, NOT the postgres service. Production may be working through
+  some other override path that we haven't yet identified.
+- **Why this matters:** if production is silently misconfigured, it's
+  load-bearing on something else (env-substitution at deploy, runtime
+  env override, service-name resolution somewhere). Whatever that
+  mechanism is, it should be documented. If it's not actually working
+  and production is broken in some way, that's a hidden bug.
+- **Acceptance criteria:**
+  - (1) Inspect how api/worker containers actually resolve postgres
+    connectivity at runtime (env override? compose overlay? hard-coded?).
+  - (2) Document the actual mechanism in CONTRIBUTING.md or
+    docker-compose.yml comments.
+  - (3) If broken — fix in `.env` (e.g., `@postgres:5432/` using docker
+    service name) or via compose override.
+- **Priority:** MEDIUM — latent, not blocking work, but invisible
+  failure mode if hits.
+- **Deadline:** Phase 3.
+- **Owner:** _unassigned_
+
+### BL-022 — `tests/unit/test_review_service.py` should be in `tests/integration/`
+
+- **Surfaced in:** Промт-2.10 investigation § 6.1 footnote (i),
+  acted on partially in Промт-2.11.
+- **Why this matters:** the file requires a real DB session
+  (placement_requests, reviews, telegram_chats — full schema, not
+  the 3-table SQLite that tests/unit/conftest.py materialises). Per
+  repo convention (`tests/unit/` = no DB / SQLite, `tests/integration/`
+  = real Postgres), it belongs under integration. Currently uses a
+  local db_session override that consumes root's testcontainer
+  test_engine, which works but contradicts the intended separation
+  and has to fight tests/unit/conftest.py's autouse SQLite shadow.
+- **Acceptance criteria:**
+  - (1) `git mv tests/unit/test_review_service.py tests/integration/test_review_service.py`.
+  - (2) Drop the local db_session override added in Промт-2.11 (commit
+    `3c4231d`) — tests/integration/conftest.py provides a stronger
+    transaction-rollback pattern (NullPool + connection-level rollback)
+    that is preferable to the current sessionmaker+session.rollback.
+  - (3) Verify imports resolve correctly post-move (likely no change
+    needed since it uses repo-relative imports).
+  - (4) Run the moved file to confirm still passes.
+- **Cost:** ~10 min — file move + override removal + verify.
+- **Deadline:** Phase 4 test-health epic.
+- **Owner:** _unassigned_
+
+### BL-023 — 21 newly-revealed test errors after conftest unification (test-debt)
+
+- **Surfaced in:** Промт-2.11 closure, 2026-04-26.
+  After root conftest Pattern III completion, ~21 tests that previously
+  failed at fixture setup (ConnectionRefusedError) now reach further
+  but fail with new root causes:
+  - ImportError create_access_token
+  - fixture 'test_advertiser' not found
+  - AttributeError get_or_create_default
+  - ForeignKeyViolationError
+  - CheckViolationError placement_escrow_integrity
+- **Why this matters:** these are real bugs or fixture infrastructure
+  gaps, hidden behind the previous DB-connect failure. Visibility is
+  good; resolution is test-debt epic work.
+- **Acceptance criteria:**
+  - Triage each error category to source bug vs fixture issue.
+  - Fix fixture issues (likely majority).
+  - Real bugs documented separately and routed appropriately.
+  - Phase 2 § 2.B.2 baseline gate continues to track current numbers
+    until each is resolved.
+- **Note on CheckViolationError placement_escrow_integrity:** this
+  matches INV-1 enforced by PlacementTransitionService._check_invariants.
+  Test fixtures may be creating placements via ORM bypassing the
+  service — these will need migration to the service in § 2.B.2 work
+  or fixture updates to set escrow_transaction_id.
+- **Deadline:** Phase 4 test-health epic (post-Phase-3).
+- **Owner:** _unassigned_
+
+### BL-024 — Plan validation gate (f): test infrastructure surface check (process-finding)
+
+- **Surfaced in:** Промт-2.11 deviation report, 2026-04-26.
+  Промт-2.10 investigation did not account for `tests/unit/conftest.py`
+  containing autouse SQLite fixture. As a result, Промт-2.11 instruction
+  "delete local db_session in test_review_service.py" would have
+  flipped ConnectionRefusedError → OperationalError ("no such table"),
+  same broken count, different cause. Agent improvised replace-not-delete
+  to honour spec intent.
+- **Why this matters:** plan validation gate currently has (a) tsc
+  dry-run, (b) per-endpoint PII classification, (c) audit prior phase
+  decisions, (d) ruff baseline diff, (e) cross-artifact reference check
+  (BL-015). Missing: (f) test infrastructure surface — autouse fixtures,
+  conftest hierarchy, fixture shadowing patterns.
+- **Acceptance criteria:**
+  - Add gate (f) to CLAUDE.md Phase mode discipline:
+    "Test infrastructure surface check — before any plan touching
+    test files is approved, run `grep -rn 'autouse=True' tests/`
+    and review conftest.py hierarchy depth + override patterns.
+    Document all autouse / shadowing in plan."
+- **Deadline:** Phase 3 closure (bundle with BL-006/7/13/15/16/18/24
+  for packaged CLAUDE.md update — 7 process-findings total).
+- **Owner:** _unassigned_
+
+### BL-025 — DB-level CHECK constraint pins escrow integrity to enum (operational, latent)
+
+- **Surfaced in:** Phase 2 § 2.B.2a closure surprise analysis,
+  2026-04-26. INV-1 (`status='escrow' ⇒ escrow_transaction_id IS NOT
+  NULL AND final_price IS NOT NULL`) is enforced exclusively at
+  service level via `PlacementTransitionService._check_invariants`.
+  A direct SQL UPDATE bypassing the service can violate it.
+- **Why this matters:** the Phase 2 service-mediation lockdown closes
+  the in-process gap (forbidden-patterns lint catches Python writes,
+  service raises on transition). But raw SQL or out-of-band data
+  repair through `psql` can still produce an inconsistent placement
+  state that survives until the next read.
+- **Acceptance criteria for activation:**
+  - Add Alembic migration creating CHECK constraint
+    `placement_escrow_integrity` on `placement_requests`:
+    `CHECK (status != 'escrow' OR
+            (escrow_transaction_id IS NOT NULL AND
+             final_price IS NOT NULL))`.
+  - Backfill audit: run on prod DB before applying to ensure no
+    existing row violates (rare given service lockdown, but verify).
+  - Document the constraint in `src/db/models/placement_request.py`
+    docstring next to INV-1.
+- **Deadline:** Phase 4 epic (bundle with other DB-level invariant
+  hardening — escrow_reserved sum check etc.).
+- **Owner:** _unassigned_
+
+### BL-026 — Generic helper `update_status` parameter-driven escapes static enumeration (process-finding)
+
+- **Surfaced in:** Phase 2 § 2.B.2a, 2026-04-26. Initial mutation
+  audit (research § 1b) enumerated direct `placement.status =` and
+  `setattr` writes but missed 6 callers of
+  `PlacementRequestRepository.update_status(req, new_status)` because
+  the parameter `new_status` is a runtime value, not a static
+  PlacementStatus literal. The 6 callers were caught only when the
+  repo helper itself was deleted in § 2.B.2a commit 3.
+- **Why this matters:** any future mutation audit that enumerates by
+  static patterns (regex / AST literal match) can miss the same shape.
+  Generic mutation helpers with a parameter-driven RHS are blind spots.
+- **Acceptance criteria for activation:**
+  - Codify in CLAUDE.md "Phase mode discipline" → "Mutation audit
+    rules": when auditing field writes, also enumerate (a) calls to
+    helpers whose name matches `update_<field>|set_<field>|change_<field>`
+    and (b) bulk SQLAlchemy `.values(<field>=...)` writes — both
+    accept a runtime value and bypass static literal scans.
+  - Document in `scripts/check_forbidden_patterns.sh` comments that
+    parameter-driven helpers must be deleted (not lint-allowed),
+    because the lint cannot reason about runtime parameters.
+- **Deadline:** Phase 3 closure (bundle with other process-findings
+  per BL-024).
+- **Owner:** _unassigned_
+
+### BL-027 — `test_expires_at_consistency.py` requires source-text guard (test-debt)
+
+- **Surfaced in:** Phase 2 § 2.B.2a, 2026-04-26.
+  `tests/test_expires_at_consistency.py::test_bot_arbitration_uses_24h_regression_guard`
+  greps the source of `src/bot/handlers/owner/arbitration.py` for the
+  literal string `+ timedelta(hours=24)` and fails if the line is
+  removed. This forces the bot handler to keep a manual
+  `req.expires_at = datetime.now(UTC) + timedelta(hours=24)` line at
+  two sites (lines 216, 536) even though
+  `PlacementTransitionService._sync_status_timestamps` now handles
+  the same field on transition into `pending_payment` / `counter_offer`.
+- **Why this matters:** the double-write is a runtime no-op (service
+  overwrites with the same value), but it confuses readers and the
+  forbidden-patterns lint had to be carefully scoped to allow it.
+  More importantly: source-text grep tests are inverted — they fail
+  on the *good* refactor and pass on the *bad* one.
+- **Acceptance criteria for activation:**
+  - Rewrite the test to assert behavior: trigger the transition
+    through the service (or through the handler), then assert
+    `placement.expires_at - now ∈ [23h59m, 24h01m]`.
+  - Remove the manual setter at `arbitration.py:216` (pending_payment
+    transition) and `arbitration.py:536` (counter_offer transition).
+  - Verify behavior unchanged via the new test.
+- **Deadline:** Phase 3 (in conjunction with bot test rewrites — the
+  whole `tests/test_expires_at_consistency.py` should move to
+  behavior assertions).
+- **Owner:** _unassigned_
+
+### BL-028 — Pytest baseline scope confusion (`--continue-on-collection-errors`)
+
+- **Status:** Documented (process)
+- **Surfaced in:** Phase 2 merge unblock session, 2026-04-27.
+  Prior session-handoff baseline reported "pytest 96 failed +
+  132 errored", which did not match the documented Phase 2 baseline of
+  76 FAILED + 17 ERRORED. Root cause: prior invocation used
+  `pytest --continue-on-collection-errors` against the full `tests/`
+  tree, which pulled in `tests/e2e_api/` collection failures and
+  inflated the counts.
+- **Why this matters:** baseline numbers are the only signal that
+  separates "no new regression" from "new regression introduced by
+  this phase". A baseline quoted without its exact invocation is
+  ambiguous and invites silent regressions to slip past the gate.
+- **Reference invocation (canonical):**
+  ```
+  make ci-local
+  ```
+  which expands to
+  ```
+  pytest tests/ \
+    --ignore=tests/e2e_api \
+    --ignore=tests/unit/test_main_menu.py \
+    --no-cov
+  ```
+  This reproduces the documented baseline 76F+17E exactly.
+- **Lesson:** baseline numbers must always be quoted with the **exact
+  invocation** that produced them. "76 failed" without scope is
+  ambiguous. Codified as part of CLAUDE.md "Process discipline (Phase 2
+  lessons)" → "Verification gate language".
+- **Action:** No code change. Process-finding integrated into CLAUDE.md
+  Phase 2 closure commit.
+- **Deadline:** Phase 3 closure (landed in Phase 2 closure commit
+  alongside other process-findings).
+- **Owner:** _unassigned_
+
+### BL-029 — API container port 8000 not host-mapped (infra documentation gap)
+
+- **Status:** Documented (infra)
+- **Surfaced in:** Phase 2 prod smoke-test, 2026-04-27.
+  The `api` service in `docker-compose.yml` does not publish port 8000
+  to the host. The API is reachable only through the `nginx` container
+  fronted by host nginx at `127.0.0.1:8080`. Smoke-test commands like
+  `curl http://localhost:8000/health` fail with
+  `Connection refused` — the correct host-side URL is
+  `http://127.0.0.1:8080/health` (nginx proxies to `api:8000`
+  internally on the docker network).
+- **Why this matters:** prompt templates and ad-hoc playbooks repeatedly
+  assume the api container exposes 8000 on the host. That is not how
+  this deployment is wired and never has been. Each new session loses
+  ~5 minutes rediscovering the proxy chain (host nginx → docker nginx
+  → api).
+- **Reference (already in MEMORY.md but worth duplicating here):**
+  Server public IP `37.252.21.175`. Host nginx fronts Docker nginx via
+  `127.0.0.1:8080` / `127.0.0.1:8443`. Real client IPs in
+  `/var/log/nginx/access.log`, NOT in `docker compose logs nginx`.
+- **Acceptance criteria for activation:** No code change required —
+  this is by design (nginx is the single ingress). Update to:
+  - prompt templates that contain a smoke-test step → switch
+    `curl localhost:8000/...` to `curl 127.0.0.1:8080/...`;
+  - any new operations doc (PROJECT_KNOWLEDGE / runbook) explicitly
+    documenting the host-facing port.
+- **Deadline:** None binding — opportunistic update of templates as
+  they get touched.
 - **Owner:** _unassigned_
 
 ## Closed items
