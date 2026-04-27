@@ -604,8 +604,6 @@ class PlacementRequestService:
         Returns:
             Обновленная заявка.
         """
-        from datetime import UTC, datetime, timedelta
-
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
             raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
@@ -622,9 +620,6 @@ class PlacementRequestService:
         placement.advertiser_counter_price = counter_price
         placement.advertiser_counter_comment = comment
         placement.counter_offer_count += 1
-        # expires_at refresh on counter_offer -> pending_owner — service does not
-        # touch pending_owner timestamps in _sync_status_timestamps, so set here.
-        placement.expires_at = datetime.now(UTC) + timedelta(hours=24)
 
         transition_service = PlacementTransitionService(self.session)
         await transition_service.transition(

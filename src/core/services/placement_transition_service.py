@@ -215,9 +215,11 @@ class PlacementTransitionService:
         """
         now = datetime.now(timezone.utc)
 
-        if to_status == PlacementStatus.counter_offer:
-            placement.expires_at = now.replace(microsecond=0) + timedelta(hours=24)
-        elif to_status == PlacementStatus.pending_payment:
+        if to_status in {
+            PlacementStatus.pending_owner,
+            PlacementStatus.counter_offer,
+            PlacementStatus.pending_payment,
+        }:
             placement.expires_at = now.replace(microsecond=0) + timedelta(hours=24)
         elif to_status == PlacementStatus.published:
             if placement.published_at is None:
