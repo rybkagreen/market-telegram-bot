@@ -20,6 +20,7 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
+from src.core.services.placement_transition_service import PlacementTransitionService
 from src.core.services.reputation_service import ReputationService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.user import User
@@ -889,11 +890,18 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
                     await refund_session.commit()
 
                 # Mark as failed (per-item commit)
-                placement.status = PlacementStatus.failed
                 if placement.meta_json is None:
                     placement.meta_json = {}
                 placement.meta_json["sla_error"] = (
                     "Publication SLA violated: scheduled time passed without publication"
+                )
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.failed,
+                    actor_user_id=None,
+                    reason="escrow_sla_violation",
+                    trigger="celery_beat",
                 )
                 await session.commit()
 
@@ -1245,7 +1253,14 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                             scenario="after_escrow_before_confirmation",
                         )
                         await refund_session.commit()
-                    placement.status = PlacementStatus.failed
+                    transition_service = PlacementTransitionService(session)
+                    await transition_service.transition(
+                        placement=placement,
+                        to_status=PlacementStatus.failed,
+                        actor_user_id=None,
+                        reason="escrow_stuck_cleanup",
+                        trigger="celery_beat",
+                    )
                     stats["group_b_refunded"] += 1
 
                 # Commit per-item
