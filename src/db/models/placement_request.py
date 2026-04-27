@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from src.db.models.act import Act
     from src.db.models.dispute import PlacementDispute
     from src.db.models.mailing_log import MailingLog
+    from src.db.models.placement_status_history import PlacementStatusHistory
     from src.db.models.reputation_history import ReputationHistory
     from src.db.models.review import Review
     from src.db.models.telegram_chat import TelegramChat
@@ -185,6 +186,12 @@ class PlacementRequest(Base, TimestampMixin):
     )
     mailing_logs: Mapped[list[MailingLog]] = relationship(
         "MailingLog", back_populates="placement_request"
+    )
+    status_history: Mapped[list["PlacementStatusHistory"]] = relationship(
+        "PlacementStatusHistory",
+        back_populates="placement",
+        cascade=_CASCADE_ALL_DELETE,
+        order_by="PlacementStatusHistory.changed_at.desc()",
     )
 
     __table_args__ = (
