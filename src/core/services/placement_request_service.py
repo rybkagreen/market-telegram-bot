@@ -868,44 +868,20 @@ class PlacementRequestService:
         placement_id: int,
         published_at: datetime | None = None,
     ) -> PlacementRequest:
+        """DEPRECATED v4.2 — pending deletion in Phase 2 § 2.B.2b.
+
+        Escrow release happens exclusively in
+        ``publication_service.delete_published_post`` (ESCROW-001), and the
+        status transition into ``published`` is now driven by
+        ``PublicationService.publish_placement`` via
+        ``PlacementTransitionService``. No active caller remains; raising here
+        guards against silent regression.
         """
-        DEPRECATED v4.2: Публикация успешна.
-        Эскроу освобождается ТОЛЬКО в publication_service.delete_published_post() (ESCROW-001).
-        Этот метод больше не освобождает эскроу — только обновляет статус.
-
-        Args:
-            placement_id: ID заявки.
-            published_at: Время публикации.
-
-        Returns:
-            Обновленная заявка.
-        """
-        placement = await self.placement_repo.get_by_id(placement_id)
-        if not placement:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-
-        # v4.2: Эскроу НЕ освобождаем здесь — только в delete_published_post()
-        # Репутация +1 за публикацию
-        from src.core.services.reputation_service import ReputationService
-
-        rep_service = ReputationService(self.session, self.reputation_repo)
-        await rep_service.on_publication(
-            advertiser_id=placement.advertiser_id,
-            owner_id=(placement.channel.owner_id if placement.channel else 0) or 0,
-            placement_request_id=placement_id,
+        raise NotImplementedError(
+            "process_publication_success is deprecated v4.2 and pending deletion "
+            "in Phase 2 § 2.B.2b. Use PublicationService.publish_placement / "
+            "delete_published_post via PlacementTransitionService instead."
         )
-
-        # Обновляем статус
-        result = await self.placement_repo.set_published(
-            placement_id=placement_id,
-            published_at=published_at,
-        )
-
-        # Уведомления отправляются в placement_tasks.py
-
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
 
     async def process_publication_failure(
         self,

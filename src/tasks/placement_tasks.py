@@ -181,8 +181,16 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.failed)
+                # pending_owner -> cancelled per Decision 1 canonical state machine
+                # (pending_owner allow-list: counter_offer, pending_payment, cancelled).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="owner_response_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Возврат средств (100%, ещё не в эскроу)
                 from src.core.services.billing_service import BillingService
@@ -283,8 +291,15 @@ async def _check_payment_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.cancelled)
+                # pending_payment -> cancelled (Decision 1 allow-list).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="payment_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Штраф репутации
                 rep_service = ReputationService(session, ReputationRepo(session))
@@ -388,8 +403,16 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.failed)
+                # counter_offer -> cancelled per Decision 1 canonical state machine
+                # (counter_offer allow-list: pending_owner, pending_payment, cancelled).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="counter_offer_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Возврат средств
                 from src.core.services.billing_service import BillingService
@@ -564,7 +587,18 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                     f"after publish failure: {refund_err}"
                 )
 
-            await repo.update_status(placement_id, PlacementStatus.failed)
+            # Re-fetch placement after rollback so the transition runs on a
+            # session-tracked instance.
+            refreshed = await repo.get_by_id(placement_id)
+            if refreshed is not None:
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=refreshed,
+                    to_status=PlacementStatus.failed,
+                    actor_user_id=None,
+                    reason="publication_failure",
+                    trigger="celery_signal",
+                )
             await session.commit()
             await _notify_user(
                 placement.advertiser_id,
