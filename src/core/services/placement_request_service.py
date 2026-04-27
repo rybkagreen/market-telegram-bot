@@ -16,6 +16,7 @@ from src.core.exceptions import (
     PlacementStatusConflictError,
     PlacementValidationError,
 )
+from src.core.services.placement_transition_service import PlacementTransitionService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
@@ -184,7 +185,6 @@ class PlacementRequestService:
         advertiser_accept_counter: Рекламодатель принял контр
         advertiser_cancel: Рекламодатель отменил
         process_payment: Оплата
-        process_publication_success: Публикация успешна
         process_publication_failure: Ошибка публикации
         auto_expire: Авто-отклонение по истечении
         validate_rejection_reason: Валидация комментария
@@ -369,21 +369,25 @@ class PlacementRequestService:
         if resolved_final_schedule is None and placement.counter_schedule is not None:
             resolved_final_schedule = placement.counter_schedule
 
-        # Принимаем
-        result = await self.placement_repo.accept(
-            placement_id=placement_id,
-            final_price=resolved_final_price,
-            final_schedule=resolved_final_schedule,
+        if resolved_final_price is not None:
+            placement.final_price = resolved_final_price
+        if resolved_final_schedule is not None:
+            placement.final_schedule = resolved_final_schedule
+
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=owner_id,
+            reason="user_action",
+            trigger="api",
         )
 
-        # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
-        if advertiser and result:
-            await _notify_owner_accept(result, advertiser, channel)
+        if advertiser:
+            await _notify_owner_accept(placement, advertiser, channel)
 
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
+        return placement
 
     async def owner_reject(
         self,
@@ -440,20 +444,23 @@ class PlacementRequestService:
             )
             raise PlacementValidationError("Invalid rejection reason")
 
-        # Отклоняем
-        result = await self.placement_repo.reject(
-            placement_id=placement_id,
-            rejection_reason=rejection_reason,
+        if rejection_reason is not None:
+            placement.rejection_reason = rejection_reason
+
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.cancelled,
+            actor_user_id=owner_id,
+            reason="user_action",
+            trigger="api",
         )
 
-        # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
-        if advertiser and result:
-            await _notify_rejected(result, advertiser, channel)
+        if advertiser:
+            await _notify_rejected(placement, advertiser, channel)
 
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
+        return placement
 
     async def owner_counter_offer(
         self,
@@ -503,31 +510,25 @@ class PlacementRequestService:
         if proposed_price is None:
             raise PlacementValidationError("proposed_price is required for counter offer")
 
-        # Контр-предложение
-        result = await self.placement_repo.counter_offer(
-            placement_id=placement_id,
-            proposed_price=proposed_price,
-            proposed_schedule=proposed_schedule,
+        placement.counter_price = proposed_price
+        placement.counter_schedule = proposed_schedule
+        placement.counter_offer_count += 1
+
+        # expires_at +24h handled by _sync_status_timestamps (Decision 4).
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.counter_offer,
+            actor_user_id=owner_id,
+            reason="user_action",
+            trigger="api",
         )
 
-        if result is None:
-            raise PlacementStatusConflictError("Counter offer limit reached")
-
-        # Устанавливаем срок действия контр-предложения — +24h
-        # (T1-3 fix: prior +3h diverged from bot-path which uses +24h for the
-        # same status; helper unification work in Phase 2 picks 24h as canonical.)
-        from datetime import UTC, timedelta
-
-        result.expires_at = datetime.now(UTC) + timedelta(hours=24)
-        await self.session.flush()
-        await self.session.refresh(result)
-
-        # Отправляем уведомление рекламодателю
         advertiser = await self.session.get(User, placement.advertiser_id)
         if advertiser:
-            await _notify_counter_offer(result, advertiser, channel)
+            await _notify_counter_offer(placement, advertiser, channel)
 
-        return result
+        return placement
 
     async def advertiser_accept_counter(
         self,
@@ -558,34 +559,29 @@ class PlacementRequestService:
         if placement.status != PlacementStatus.counter_offer:
             raise PlacementStatusConflictError(f"Invalid status: {placement.status}")
 
-        # Принимаем контр-предложение → pending_payment
         # FIX #1: Pass counter_price and counter_schedule as final values
-        result = await self.placement_repo.accept(
-            placement_id=placement_id,
-            final_price=placement.counter_price,
-            final_schedule=placement.counter_schedule,
+        if placement.counter_price is not None:
+            placement.final_price = placement.counter_price
+        if placement.counter_schedule is not None:
+            placement.final_schedule = placement.counter_schedule
+
+        # expires_at +24h handled by _sync_status_timestamps (Decision 4).
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=advertiser_id,
+            reason="user_action",
+            trigger="api",
         )
 
-        # T1-3 fix: refresh expires_at to +24h on entry to pending_payment;
-        # repo.accept() does not touch expires_at, so without this the prior
-        # counter_offer deadline leaks into the payment window.
-        if result is not None:
-            from datetime import UTC, timedelta
-
-            result.expires_at = datetime.now(UTC) + timedelta(hours=24)
-            await self.session.flush()
-            await self.session.refresh(result)
-
-        # Отправляем уведомление владельцу
         channel = await self.session.get(TelegramChat, placement.channel_id)
         owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         advertiser = await self.session.get(User, advertiser_id)
-        if owner and advertiser and result and channel:
-            await _notify_counter_accepted(result, advertiser, owner, channel)
+        if owner and advertiser and channel:
+            await _notify_counter_accepted(placement, advertiser, owner, channel)
 
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
+        return placement
 
     async def advertiser_counter_offer(
         self,
@@ -607,8 +603,6 @@ class PlacementRequestService:
         Returns:
             Обновленная заявка.
         """
-        from datetime import UTC, datetime, timedelta
-
         placement = await self.placement_repo.get_by_id(placement_id)
         if not placement:
             raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
@@ -622,17 +616,19 @@ class PlacementRequestService:
         if placement.counter_offer_count >= 3:
             raise PlacementStatusConflictError("Достигнут лимит раундов переговоров (3/3)")
 
-        # Обновляем заявку
         placement.advertiser_counter_price = counter_price
         placement.advertiser_counter_comment = comment
         placement.counter_offer_count += 1
-        placement.status = PlacementStatus.pending_owner
-        placement.expires_at = datetime.now(UTC) + timedelta(hours=24)
 
-        await self.session.flush()
-        await self.session.refresh(placement)
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.pending_owner,
+            actor_user_id=advertiser_id,
+            reason="user_action",
+            trigger="api",
+        )
 
-        # Уведомляем владельца
         channel = await self.session.get(TelegramChat, placement.channel_id)
         owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         if owner and channel:
@@ -729,23 +725,24 @@ class PlacementRequestService:
         )
         await self._apply_systematic_cancellation_penalty(rep_service, advertiser_id, placement_id)
 
-        # Отменяем заявку
-        result = await self.placement_repo.reject(
-            placement_id=placement_id,
-            rejection_reason="Cancelled by advertiser",
+        placement.rejection_reason = "Cancelled by advertiser"
+
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.cancelled,
+            actor_user_id=advertiser_id,
+            reason="user_action",
+            trigger="api",
         )
 
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-
-        # Отправляем уведомление
         channel = await self.session.get(TelegramChat, placement.channel_id)
         owner = await self.session.get(User, placement.channel.owner_id if placement.channel else 0)
         advertiser = await self.session.get(User, advertiser_id)
         if owner and advertiser and channel:
-            await _notify_cancelled(result, advertiser, owner, channel, 0.0)
+            await _notify_cancelled(placement, advertiser, owner, channel, 0.0)
 
-        return result
+        return placement
 
     async def _freeze_escrow_for_payment(
         self,
@@ -782,20 +779,25 @@ class PlacementRequestService:
         if placement.final_price is None:
             placement.final_price = amount
 
-        result = await self.placement_repo.set_escrow(
-            placement_id=placement_id,
-            escrow_transaction_id=transaction.id,
-        )
+        # INV-1: escrow_transaction_id MUST be set before transition() to escrow.
+        placement.escrow_transaction_id = transaction.id
 
         # Ensure tracking_short_code exists before publication
-        if result and not result.tracking_short_code:
+        if not placement.tracking_short_code:
             import secrets
 
-            result.tracking_short_code = secrets.token_urlsafe(8)[:8]
-            await self.session.flush()
-            await self.session.refresh(result)  # reload expired updated_at after flush
+            placement.tracking_short_code = secrets.token_urlsafe(8)[:8]
 
-        return result
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.escrow,
+            actor_user_id=advertiser_id,
+            reason="payment_received",
+            trigger="celery_signal",
+        )
+
+        return placement
 
     @staticmethod
     def _schedule_publication_task(result: PlacementRequest) -> None:
@@ -855,50 +857,6 @@ class PlacementRequestService:
 
         return result
 
-    async def process_publication_success(
-        self,
-        placement_id: int,
-        published_at: datetime | None = None,
-    ) -> PlacementRequest:
-        """
-        DEPRECATED v4.2: Публикация успешна.
-        Эскроу освобождается ТОЛЬКО в publication_service.delete_published_post() (ESCROW-001).
-        Этот метод больше не освобождает эскроу — только обновляет статус.
-
-        Args:
-            placement_id: ID заявки.
-            published_at: Время публикации.
-
-        Returns:
-            Обновленная заявка.
-        """
-        placement = await self.placement_repo.get_by_id(placement_id)
-        if not placement:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-
-        # v4.2: Эскроу НЕ освобождаем здесь — только в delete_published_post()
-        # Репутация +1 за публикацию
-        from src.core.services.reputation_service import ReputationService
-
-        rep_service = ReputationService(self.session, self.reputation_repo)
-        await rep_service.on_publication(
-            advertiser_id=placement.advertiser_id,
-            owner_id=(placement.channel.owner_id if placement.channel else 0) or 0,
-            placement_request_id=placement_id,
-        )
-
-        # Обновляем статус
-        result = await self.placement_repo.set_published(
-            placement_id=placement_id,
-            published_at=published_at,
-        )
-
-        # Уведомления отправляются в placement_tasks.py
-
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
-
     async def process_publication_failure(
         self,
         placement_id: int,
@@ -932,20 +890,23 @@ class PlacementRequestService:
                 scenario="after_confirmation",
             )
 
-        # Статус failed
-        await self.placement_repo.update_status(
-            placement_id=placement_id,
-            new_status=PlacementStatus.failed,
+        # Decision 12: two-step transition failed -> refunded, atomic in same flush window.
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.failed,
+            actor_user_id=None,
+            reason="publication_failure",
+            trigger="celery_signal",
         )
-
-        # Статус refunded
-        result = await self.placement_repo.update_status(
-            placement_id=placement_id,
-            new_status=PlacementStatus.refunded,
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.refunded,
+            actor_user_id=None,
+            reason="publication_failure_refund",
+            trigger="celery_signal",
         )
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
+        return placement
 
     async def auto_expire(self, placement_id: int) -> PlacementRequest:
         """
@@ -976,14 +937,17 @@ class PlacementRequestService:
                 scenario="after_confirmation",
             )
 
-        # Отменяем
-        result = await self.placement_repo.reject(
-            placement_id=placement_id,
-            rejection_reason="Expired",
+        placement.rejection_reason = "Expired"
+
+        transition_service = PlacementTransitionService(self.session)
+        await transition_service.transition(
+            placement=placement,
+            to_status=PlacementStatus.cancelled,
+            actor_user_id=None,
+            reason="auto_expire_timeout",
+            trigger="celery_beat",
         )
-        if result is None:
-            raise PlacementNotFoundError(PLACEMENT_NOT_FOUND)
-        return result
+        return placement
 
     def validate_rejection_reason(self, reason: str) -> bool:
         """

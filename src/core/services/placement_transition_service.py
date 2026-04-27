@@ -62,6 +62,9 @@ _ALLOW_LIST: dict[PlacementStatus, set[PlacementStatus]] = {
         PlacementStatus.failed,
         PlacementStatus.failed_permissions,
         PlacementStatus.refunded,
+        # Advertiser cancel-after-escrow path with 50% refund —
+        # bot/handlers/placement/placement.py:camp_cancel_after_escrow.
+        PlacementStatus.cancelled,
     },
     PlacementStatus.published: {
         PlacementStatus.completed,
@@ -212,9 +215,11 @@ class PlacementTransitionService:
         """
         now = datetime.now(timezone.utc)
 
-        if to_status == PlacementStatus.counter_offer:
-            placement.expires_at = now.replace(microsecond=0) + timedelta(hours=24)
-        elif to_status == PlacementStatus.pending_payment:
+        if to_status in {
+            PlacementStatus.pending_owner,
+            PlacementStatus.counter_offer,
+            PlacementStatus.pending_payment,
+        }:
             placement.expires_at = now.replace(microsecond=0) + timedelta(hours=24)
         elif to_status == PlacementStatus.published:
             if placement.published_at is None:

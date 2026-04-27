@@ -35,6 +35,11 @@ from src.api.schemas.dispute import (
     DisputeUpdate,
 )
 from src.core.services.billing_service import billing_service
+from src.core.services.placement_transition_service import (
+    InvalidTransitionError,
+    PlacementTransitionService,
+    TransitionInvariantError,
+)
 from src.db.models.dispute import DisputeStatus as ModelDisputeStatus
 from src.db.models.dispute import PlacementDispute
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
@@ -700,9 +705,26 @@ async def resolve_dispute_admin(
     dispute.advertiser_refund_pct = advertiser_refund_pct
     dispute.owner_payout_pct = owner_payout_pct
 
-    # Update placement status
-    placement.status = new_status
+    # Update placement status via service (Decision 11 — sync canonical path).
+    # Admin-driven resolution legitimately bypasses organic allow-list
+    # (e.g. escrow -> published for advertiser_fault).
+    transition_service = PlacementTransitionService(session)
+    try:
+        await transition_service.transition_admin_override(
+            placement=placement,
+            to_status=new_status,
+            actor_user_id=admin_user.id,
+            reason=f"dispute_resolved:{body.resolution}",
+            admin_override_reason="dispute_resolution",
+        )
+    except (InvalidTransitionError, TransitionInvariantError) as exc:
+        logger.error("Dispute resolve transition error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Status transition failed: {exc}",
+        ) from exc
 
+    # Router owns the outermost transaction (S-48: service.flush() only).
     await session.commit()
     await session.refresh(dispute)
 

@@ -7,7 +7,6 @@ Celery задачи для SLA таймеров PlacementRequest флоу.
 - check_counter_offer_sla: Проверка истечения SLA контр-предложения (24ч)
 - check_escrow_sla: Проверка зависших размещений в эскроу
 - publish_placement: Публикация поста в запланированное время
-- retry_failed_publication: Повторная попытка публикации через 1ч
 - schedule_placement_publication: Планирование публикации (хелпер)
 """
 
@@ -20,6 +19,7 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
+from src.core.services.placement_transition_service import PlacementTransitionService
 from src.core.services.reputation_service import ReputationService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.user import User
@@ -53,7 +53,6 @@ DEDUP_TTL = {
     "check_payment_sla": 3600,
     "check_counter_offer_sla": 3600,
     "publish_placement": 300,
-    "retry_failed_publication": 600,
     # A.6: короткий TTL для защиты от одновременного диспатча на двух
     # pool-воркерах (task_acks_late + retry). 180 с покрывает окно
     # max_retries=5 с exponential backoff до retry_backoff_max=600.
@@ -180,8 +179,16 @@ async def _check_owner_response_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.failed)
+                # pending_owner -> cancelled per Decision 1 canonical state machine
+                # (pending_owner allow-list: counter_offer, pending_payment, cancelled).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="owner_response_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Возврат средств (100%, ещё не в эскроу)
                 from src.core.services.billing_service import BillingService
@@ -282,8 +289,15 @@ async def _check_payment_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.cancelled)
+                # pending_payment -> cancelled (Decision 1 allow-list).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="payment_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Штраф репутации
                 rep_service = ReputationService(session, ReputationRepo(session))
@@ -387,8 +401,16 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
                     logger.info(f"Placement {placement.id} already being processed, skipping")
                     continue
 
-                # Обновляем статус
-                await repo.update_status(placement.id, PlacementStatus.failed)
+                # counter_offer -> cancelled per Decision 1 canonical state machine
+                # (counter_offer allow-list: pending_owner, pending_payment, cancelled).
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.cancelled,
+                    actor_user_id=None,
+                    reason="counter_offer_sla_timeout",
+                    trigger="celery_beat",
+                )
 
                 # Возврат средств
                 from src.core.services.billing_service import BillingService
@@ -563,7 +585,18 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
                     f"after publish failure: {refund_err}"
                 )
 
-            await repo.update_status(placement_id, PlacementStatus.failed)
+            # Re-fetch placement after rollback so the transition runs on a
+            # session-tracked instance.
+            refreshed = await repo.get_by_id(placement_id)
+            if refreshed is not None:
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=refreshed,
+                    to_status=PlacementStatus.failed,
+                    actor_user_id=None,
+                    reason="publication_failure",
+                    trigger="celery_signal",
+                )
             await session.commit()
             await _notify_user(
                 placement.advertiser_id,
@@ -573,73 +606,6 @@ async def _publish_placement_async(placement_id: int) -> dict[str, Any]:
             result["message"] = str(e)
 
     return result
-
-
-# =============================================================================
-# T5: RETRY FAILED PUBLICATION
-# =============================================================================
-
-
-@celery_app.task(
-    bind=True, base=BaseTask, name="placement:retry_failed_publication", queue=QUEUE_WORKER_CRITICAL
-)
-def retry_failed_publication(self, placement_id: int) -> dict[str, Any]:
-    """
-    Повторная попытка публикации через 1ч после неудачи.
-
-    Args:
-        placement_id: ID заявки.
-
-    Логика:
-    1. Проверить status == 'failed' и retry_count < 1
-    2. Повторить логику publish_placement
-    3. Если снова неудача → финальный 'failed', refund 50%
-
-    Returns:
-        Результат публикации.
-    """
-    logger.info(f"Retrying failed publication {placement_id}")
-
-    try:
-        result = asyncio.run(_retry_failed_publication_async(placement_id))
-        logger.info(f"Retry placement {placement_id}: {result}")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error retrying placement {placement_id}: {e}")
-        return {"error": str(e)}
-
-
-async def _retry_failed_publication_async(placement_id: int) -> dict[str, Any]:
-    """Асинхронная реализация повторной публикации."""
-    async with async_session_factory() as session:
-        repo = PlacementRequestRepository(session)
-        placement = await repo.get_by_id(placement_id)
-
-        if not placement:
-            return {"error": "Placement not found"}
-
-        # Проверка статуса
-        if placement.status != PlacementStatus.failed:
-            return {"skipped": "Status is not failed"}
-
-        # Проверка retry_count
-        retry_count = placement.meta_json.get("retry_count", 0) if placement.meta_json else 0
-        if retry_count >= 1:
-            return {"skipped": "Max retries reached"}
-
-        # Обновляем retry_count
-        if placement.meta_json is None:
-            placement.meta_json = {}
-        placement.meta_json["retry_count"] = retry_count + 1
-
-        # Восстанавливаем статус для повторной попытки
-        placement.status = PlacementStatus.escrow
-
-        await session.flush()
-
-    # Вызываем публикацию
-    return await _publish_placement_async(placement_id)
 
 
 # =============================================================================
@@ -889,11 +855,18 @@ async def _check_escrow_sla_async() -> dict[str, Any]:
                     await refund_session.commit()
 
                 # Mark as failed (per-item commit)
-                placement.status = PlacementStatus.failed
                 if placement.meta_json is None:
                     placement.meta_json = {}
                 placement.meta_json["sla_error"] = (
                     "Publication SLA violated: scheduled time passed without publication"
+                )
+                transition_service = PlacementTransitionService(session)
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.failed,
+                    actor_user_id=None,
+                    reason="escrow_sla_violation",
+                    trigger="celery_beat",
                 )
                 await session.commit()
 
@@ -1245,7 +1218,14 @@ async def _check_escrow_stuck_async() -> dict[str, Any]:
                             scenario="after_escrow_before_confirmation",
                         )
                         await refund_session.commit()
-                    placement.status = PlacementStatus.failed
+                    transition_service = PlacementTransitionService(session)
+                    await transition_service.transition(
+                        placement=placement,
+                        to_status=PlacementStatus.failed,
+                        actor_user_id=None,
+                        reason="escrow_stuck_cleanup",
+                        trigger="celery_beat",
+                    )
                     stats["group_b_refunded"] += 1
 
                 # Commit per-item
