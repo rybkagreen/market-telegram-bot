@@ -185,7 +185,6 @@ class PlacementRequestService:
         advertiser_accept_counter: Рекламодатель принял контр
         advertiser_cancel: Рекламодатель отменил
         process_payment: Оплата
-        process_publication_success: Публикация успешна
         process_publication_failure: Ошибка публикации
         auto_expire: Авто-отклонение по истечении
         validate_rejection_reason: Валидация комментария
@@ -857,26 +856,6 @@ class PlacementRequestService:
             await _notify_payment_received(result, advertiser, owner, channel)
 
         return result
-
-    async def process_publication_success(
-        self,
-        placement_id: int,
-        published_at: datetime | None = None,
-    ) -> PlacementRequest:
-        """DEPRECATED v4.2 — pending deletion in Phase 2 § 2.B.2b.
-
-        Escrow release happens exclusively in
-        ``publication_service.delete_published_post`` (ESCROW-001), and the
-        status transition into ``published`` is now driven by
-        ``PublicationService.publish_placement`` via
-        ``PlacementTransitionService``. No active caller remains; raising here
-        guards against silent regression.
-        """
-        raise NotImplementedError(
-            "process_publication_success is deprecated v4.2 and pending deletion "
-            "in Phase 2 § 2.B.2b. Use PublicationService.publish_placement / "
-            "delete_published_post via PlacementTransitionService instead."
-        )
 
     async def process_publication_failure(
         self,
