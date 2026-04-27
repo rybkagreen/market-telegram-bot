@@ -1,4 +1,4 @@
-.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci check-forbidden test-e2e test-e2e-up test-e2e-down test-e2e-logs
+.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci ci-local check-forbidden test-e2e test-e2e-up test-e2e-down test-e2e-logs
 
 # Default target
 help:
@@ -128,6 +128,23 @@ check:
 	poetry run pytest tests/ --tb=short -v
 	@echo ""
 	@echo "✓ All checks passed!"
+
+# Local CI gate — equivalent to GH CI when GH Actions unavailable (BL-017).
+# See CONTRIBUTING.md for baseline tolerance (BL-007 ruff, BL-019 test debt).
+ci-local:
+	@echo "=== ci-local: Lint ==="
+	poetry run ruff check src/ tests/
+	@echo "=== ci-local: Format check ==="
+	poetry run ruff format --check src/ tests/
+	@echo "=== ci-local: Type check ==="
+	poetry run mypy src/
+	@echo "=== ci-local: Tests (excluding e2e_api due to docker-compose.test.yml requirement) ==="
+	poetry run pytest tests/ \
+		--ignore=tests/e2e_api \
+		--ignore=tests/unit/test_main_menu.py \
+		--no-cov \
+		--tb=short
+	@echo "=== ci-local: PASSED ==="
 
 # ══════════════════════════════════════════════════════════════
 # Web Portal (S-27)

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import ChatMemberAdministrator, ChatMemberMember
 
 from src.core.exceptions import BotNotAdminError, InsufficientPermissionsError
 from src.core.services.publication_service import PublicationService
@@ -20,7 +21,8 @@ class TestCheckBotPermissions:
         """bot.get_chat_member returns status='member' → raises BotNotAdminError."""
         # Mock bot
         bot = MagicMock()
-        member = MagicMock()
+        # spec= so isinstance(member, ChatMemberMember) matches in source
+        member = MagicMock(spec=ChatMemberMember)
         member.status = "member"
         bot.get_chat_member = AsyncMock(return_value=member)
 
@@ -34,7 +36,8 @@ class TestCheckBotPermissions:
         """status='administrator', can_delete_messages=False → raises InsufficientPermissionsError."""
         # Mock bot
         bot = MagicMock()
-        member = MagicMock()
+        # spec= so isinstance(member, ChatMemberAdministrator) matches in source
+        member = MagicMock(spec=ChatMemberAdministrator)
         member.status = "administrator"
         member.can_post_messages = True
         member.can_delete_messages = False
@@ -51,11 +54,14 @@ class TestCheckBotPermissions:
         """status='administrator', can_pin_messages=False, require_pin=True → raises InsufficientPermissionsError."""
         # Mock bot
         bot = MagicMock()
-        member = MagicMock()
+        # spec= so isinstance(member, ChatMemberAdministrator) matches in source
+        member = MagicMock(spec=ChatMemberAdministrator)
         member.status = "administrator"
         member.can_post_messages = True
         member.can_delete_messages = True
         member.can_pin_messages = False
+        # source checks (can_edit_messages or can_pin_messages) for channels
+        member.can_edit_messages = False
         bot.get_chat_member = AsyncMock(return_value=member)
 
         service = PublicationService()

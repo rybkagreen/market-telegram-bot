@@ -113,10 +113,16 @@ Aiogram Bot (polling)     FastAPI (port 8001)
 - **`PlacementStatus`** is aliased as `CampaignStatus` in `campaigns.py` router.
 - **`ReputationRepo`** is exported as `ReputationRepository` at the end of `reputation_repo.py`.
 
-### PlacementStatus State Machine
+### Placement state machine (10 statuses, ORM-canonical)
 
-`pending_owner` → `counter_offer` ↔ `pending_payment` → `escrow` → `published` → (done)
-Any state → `cancelled` / `refunded` / `failed` / `failed_permissions`
+`pending_owner`, `counter_offer`, `pending_payment`, `escrow`, `published`,
+`completed`, `failed`, `failed_permissions`, `refunded`, `cancelled`.
+
+Mutations exclusively through `PlacementTransitionService.transition()`
+or `transition_admin_override()`. Direct attribute writes blocked by
+forbidden-patterns lint (see § 2.B.0 Decision 7).
+
+Source: `IMPLEMENTATION_PLAN_ACTIVE.md` § 2.B.0 Decision 1.
 
 ### Celery Infrastructure Map (S-36)
 
