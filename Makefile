@@ -132,6 +132,8 @@ check:
 # Local CI gate — equivalent to GH CI when GH Actions unavailable (BL-017).
 # See CONTRIBUTING.md for baseline tolerance (BL-007 ruff, BL-019 test debt).
 ci-local:
+	@echo "=== ci-local: Forbidden patterns ==="
+	@bash scripts/check_forbidden_patterns.sh
 	@echo "=== ci-local: Lint ==="
 	poetry run ruff check src/ tests/
 	@echo "=== ci-local: Format check ==="
