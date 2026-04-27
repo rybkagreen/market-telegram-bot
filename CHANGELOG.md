@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Phase 2 § 2.B.1 skeleton)
+
+- Database table `placement_status_history` — append-only audit trail
+  of placement status transitions. Service-only writes (callers wired
+  in § 2.B.2). § 2.B.0 Decision 10.
+- Pydantic schema `TransitionMetadata` — closed model (`extra="forbid"`,
+  `frozen=True`), Literal enums for `trigger`, `error_code`,
+  `admin_override_reason`. § 2.B.0 Decision 5.
+- Service class `PlacementTransitionService` with two public methods
+  (`transition()` strict allow-list, `transition_admin_override()`
+  for admin-driven exceptions). NOT YET WIRED to callers — § 2.B.2
+  work. § 2.B.0 Decisions 1, 2, 4, 5, 11, 12.
+- Exceptions: `InvalidTransitionError`, `TransitionInvariantError`.
+- 9 unit tests for PlacementTransitionService in
+  `tests/integration/test_placement_transition_service.py`.
+
+### Removed (Phase 2 § 2.B.0 schema cleanup)
+
+- Enum value `ord_blocked` from `placementstatus` — declared in DB
+  but never used by ORM model. Pre-prod 0 rows, safe removal. § 2.B.0
+  Decision 1.
+
+### Changed (Phase 2 § 2.B.0 + test infrastructure)
+
+- Root `tests/conftest.py` `test_engine` now uses testcontainer
+  Postgres (Pattern III completion). Previously hard-coded
+  `settings.database_url` to `localhost:5432` which had no host port
+  binding. 35 tests un-blocked.
+- 27 placement-related tests un-blocked across 3 selective fix commits
+  (User-builder cleanup, INV-1 fixture, MagicMock spec=).
+
+### Migration Notes
+
+After merge to `main`:
+1. `git pull origin main` on production server.
+2. `docker compose exec api poetry run alembic upgrade head` to apply
+   `placement_status_history` migration.
+3. `docker compose up -d --build` to rebuild containers from new image
+   layers.
+
+Migration applies to empty `placement_requests` (0 rows pre-prod);
+no backfill needed.
+
+### Removed
+- `.github/workflows/deploy.yml` — never functional (0 successful runs
+  in history, placeholder paths, references nonexistent compose file
+  and service). BL-017.
+
+### Changed
+- `.github/workflows/contract-check.yml` → `contract-check.yml.disabled`.
+- `.github/workflows/frontend.yml` → `frontend.yml.disabled`.
+  Both inert since 2026-03-04 billing block; renamed to silence GH UI
+  failure spam. BL-017.
+
+### Added
+- `make ci-local` Makefile target — local lint + typecheck + tests
+  gate, documented in `CONTRIBUTING.md`. Replaces GH Actions as the
+  de-facto verification gate while billing remains unavailable. BL-017.
+
+### Fixed — Pre-Phase-2 hotfixes (2026-04-26)
+
+- `expires_at` for placement `counter_offer` status now consistently +24h
+  across service path and bot path (was 3h via service, 24h via bot — same
+  status, two semantics). T1-3.
+- `expires_at` refresh on `→pending_payment` transition now happens via
+  service path as well as bot path (was retained from prior `counter_offer`
+  on service path only). T1-3.
+- Regression guard added for `check_scheduled_deletions` filter against
+  non-published rows. Filter itself was added in 8c66a23a (2026-04-09);
+  Phase 2 research surfaced lack of test coverage. T1-5.
+
+### Removed — Pre-Phase-2 hotfixes (2026-04-26)
+
+- `cleanup:archive_old_campaigns` Celery task — rewrote `cancelled→failed`
+  and `refunded→failed` for old rows (data-loss-by-overwrite, not
+  archival). Task body, Beat schedule entry, and documentation references
+  removed. DB had zero rows when task was deleted (pre-launch); no
+  historical impact. T1-7.
+
 ### Breaking — Phase 1 §1.B.5: `POST /api/users/skip-legal-prompt` removed (2026-04-25)
 
 The endpoint was only ever called from `mini_app/src/screens/common/LegalProfilePrompt.tsx`,

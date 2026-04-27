@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from src.config.settings import settings
 from src.core.services.placement_request_service import PlacementRequestService
 from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
@@ -63,40 +62,51 @@ def postgres_container() -> Any:
         yield postgres
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_engine() -> Any:
-    """Движок для тестовой БД.
+def _dedupe_metadata_indexes() -> None:
+    """Drop duplicate-named indexes from Base.metadata in-place.
 
-    Если TEST_DATABASE_URL задан — создаёт/удаляет схему изолированно.
-    Если TEST_DATABASE_URL не задан — использует DATABASE_URL без drop_all
-    (схема уже существует от миграций, тесты работают с ней через rollback).
+    Some models (e.g. Act) declare the same index both via
+    ``Column(..., index=True)`` and an explicit ``Index(...)`` in
+    ``__table_args__``, so ``MetaData.create_all`` would raise
+    ``DuplicateTable`` on the second index. Mirror of the same helper in
+    ``tests/integration/conftest.py`` so root-suite tests can call
+    ``create_all`` cleanly.
     """
-    import warnings
+    seen: set[str] = set()
+    for table in Base.metadata.tables.values():
+        for ix in list(table.indexes):
+            if ix.name is not None and ix.name in seen:
+                table.indexes.discard(ix)
+            elif ix.name is not None:
+                seen.add(ix.name)
 
-    use_test_db = settings.test_database_url is not None
-    db_url = str(settings.test_database_url if use_test_db else settings.database_url)
 
-    if not use_test_db:
-        warnings.warn(
-            "TEST_DATABASE_URL not set — using DATABASE_URL. "
-            "create_all/drop_all skipped; tests rely on existing schema + rollback.",
-            UserWarning,
-            stacklevel=2,
-        )
+@pytest_asyncio.fixture(scope="function")
+async def test_engine(postgres_container: Any) -> AsyncGenerator[Any]:
+    """Function-scoped async engine bound to the session-wide postgres_container.
 
+    Each test starts with a freshly recreated ``public`` schema (DROP SCHEMA
+    CASCADE + CREATE SCHEMA + create_all). DROP-then-CREATE is used instead
+    of ``Base.metadata.drop_all`` because the model graph contains
+    unresolvable foreign-key cycles between ``acts``, ``contracts``,
+    ``invoices``, ``placement_requests`` and ``transactions`` — the same
+    reason ``tests/integration/conftest.py`` uses ``DROP SCHEMA CASCADE``.
+    """
+    from sqlalchemy import text
+
+    _dedupe_metadata_indexes()
+    db_url = postgres_container.get_connection_url()
     engine = create_async_engine(db_url, echo=False)
 
-    if use_test_db:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    async with engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.run_sync(Base.metadata.create_all)
 
-    yield engine
-
-    if use_test_db:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-
-    await engine.dispose()
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
 
 @pytest_asyncio.fixture
@@ -335,7 +345,6 @@ def advertiser_test_data() -> dict[str, Any]:
         "telegram_id": 111111111,
         "username": "advertiser",
         "first_name": "Advertiser",
-        "current_role": "advertiser",
         "balance_rub": 5000,
         "referral_code": "adv_ref_001",
     }
@@ -348,7 +357,6 @@ def owner_test_data() -> dict[str, Any]:
         "telegram_id": 222222222,
         "username": "owner",
         "first_name": "Owner",
-        "current_role": "owner",
         "balance_rub": 1000,
         "referral_code": "own_ref_001",
     }
