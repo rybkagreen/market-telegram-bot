@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **billing**: remove 10 dead service methods (`BillingService` × 8 —
+  `add_balance_rub`, `deduct_balance_rub`, `apply_referral_bonus`,
+  `apply_referral_signup_bonus`, `apply_referral_first_campaign_bonus`,
+  `get_referral_stats`, `freeze_campaign_funds`, `refund_escrow_credits`;
+  `YooKassaService` × 2 — `handle_webhook`, `_credit_user`), drop
+  module-level `billing_service` singleton, migrate `GET /api/billing/frozen`
+  and `GET /api/billing/history` to canonical `Depends(get_db_session)` DI.
+  Adds AST-level lint (`tests/unit/test_no_dead_methods.py`) preventing
+  revival. ~600 LOC removed. Items 4-5 of
+  `BILLING_REWRITE_PLAN_2026-04-28.md`. See BL-032.
+
 ### Fixed
 
 - **billing**: hotfix bundle — fix broken YooKassa topups (CRIT-1:
