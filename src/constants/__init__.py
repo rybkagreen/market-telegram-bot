@@ -20,6 +20,10 @@ from .content_filter import (
     LEVEL2_THRESHOLD,
     LEVEL3_THRESHOLD,
 )
+from .fees import (
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+)
 from .parser import (
     PARSER_POSTS_SAMPLE,
     PARSER_RATE_LIMIT_DELAY,
@@ -35,10 +39,8 @@ from .payments import (
     MIN_PAYOUT,
     MIN_PRICE_PER_POST,
     MIN_TOPUP,
-    OWNER_SHARE,
     PLAN_LIMITS,
     PLAN_PRICES,
-    PLATFORM_COMMISSION,
     QUICK_TOPUP_AMOUNTS,
 )
 from .tariffs import (
@@ -65,9 +67,10 @@ __all__ = [
     "TARIFF_MIN_RATING",
     "TARIFF_TOPICS",
     "PREMIUM_SUBSCRIBER_THRESHOLD",
+    # Fees (rates) — single source of truth in src.constants.fees
+    "PLATFORM_COMMISSION_RATE",
+    "OWNER_SHARE_RATE",
     # Payments
-    "PLATFORM_COMMISSION",
-    "OWNER_SHARE",
     "PLAN_PRICES",
     "PLAN_LIMITS",
     "MIN_TOPUP",

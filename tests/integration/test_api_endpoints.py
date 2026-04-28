@@ -100,7 +100,7 @@ class TestPayoutService:
     """Tests for payout service calculations."""
 
     def test_payout_fee_calculation(self):
-        """Payout fee is calculated as 15% platform commission."""
+        """Payout split: 80% owner, 20% platform commission (gross rates)."""
         from decimal import Decimal
 
         from src.core.services.payout_service import PayoutService
@@ -109,8 +109,8 @@ class TestPayoutService:
         price = Decimal("1000")
         payout_amount, platform_fee = service.calculate_payout(price)
 
-        assert platform_fee == Decimal("150")  # 15% of 1000
-        assert payout_amount == Decimal("850")  # 85% to owner
+        assert platform_fee == Decimal("200.00")  # 20% of 1000
+        assert payout_amount == Decimal("800.00")  # 80% to owner
 
     def test_payout_calculation_rounding(self):
         """Payout calculation rounds to 2 decimal places."""
@@ -122,9 +122,9 @@ class TestPayoutService:
         price = Decimal("999")
         payout_amount, platform_fee = service.calculate_payout(price)
 
-        # 999 * 0.85 = 849.15, 999 * 0.15 = 149.85
-        assert payout_amount == Decimal("849.15")
-        assert platform_fee == Decimal("149.85")
+        # 999 * 0.80 = 799.20, 999 * 0.20 = 199.80
+        assert payout_amount == Decimal("799.20")
+        assert platform_fee == Decimal("199.80")
 
     @pytest.mark.asyncio
     async def test_velocity_check_allows_under_80_percent(self, db_session):

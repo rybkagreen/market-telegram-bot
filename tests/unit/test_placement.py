@@ -6,12 +6,14 @@ Standalone tests - no conftest dependencies.
 import subprocess
 from decimal import Decimal
 
+from src.constants.fees import (
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+)
 from src.constants.payments import (
     FORMAT_MULTIPLIERS,
     MIN_CAMPAIGN_BUDGET,
     MIN_PRICE_PER_POST,
-    OWNER_SHARE,
-    PLATFORM_COMMISSION,
 )
 
 
@@ -43,23 +45,23 @@ class TestPlacementRequestServiceConstants:
 class TestSelfDealingPrevention:
     """Tests for self-dealing prevention."""
 
-    def test_owner_share_is_85_percent(self):
-        """OWNER_SHARE is 85% for escrow release."""
-        assert OWNER_SHARE == Decimal("0.85")
+    def test_owner_share_is_80_percent(self):
+        """OWNER_SHARE_RATE is 80% (gross) for escrow release."""
+        assert OWNER_SHARE_RATE == Decimal("0.80")
 
-    def test_platform_commission_is_15_percent(self):
-        """PLATFORM_COMMISSION is 15% for escrow release."""
-        assert PLATFORM_COMMISSION == Decimal("0.15")
+    def test_platform_commission_is_20_percent(self):
+        """PLATFORM_COMMISSION_RATE is 20% (gross) for escrow release."""
+        assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
 
-    def test_escrow_distribution_formula(self):
-        """Escrow: owner = price × 0.85, platform = price × 0.15."""
+    def test_escrow_gross_split_sums_to_price(self):
+        """Gross split: owner_gross = price × 0.80, platform = price × 0.20."""
         final_price = Decimal("10000")
-        owner_share = (final_price * OWNER_SHARE).quantize(Decimal("0.01"))
-        platform_fee = (final_price * PLATFORM_COMMISSION).quantize(Decimal("0.01"))
+        owner_gross = (final_price * OWNER_SHARE_RATE).quantize(Decimal("0.01"))
+        platform_fee = (final_price * PLATFORM_COMMISSION_RATE).quantize(Decimal("0.01"))
 
-        assert owner_share == Decimal("8500")
-        assert platform_fee == Decimal("1500")
-        assert owner_share + platform_fee == final_price
+        assert owner_gross == Decimal("8000")
+        assert platform_fee == Decimal("2000")
+        assert owner_gross + platform_fee == final_price
 
 
 class TestPublicationServiceEscrow001:

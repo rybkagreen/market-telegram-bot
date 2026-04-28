@@ -61,14 +61,18 @@ class TestReleaseEscrowNoLoss:
         ],
     )
     def test_owner_plus_platform_equals_final_price(self, final_price: Decimal) -> None:
-        """owner_amount + platform_fee == final_price (для нескольких значений)."""
-        from src.constants.payments import OWNER_SHARE
+        """owner_net + platform_fee == final_price (для нескольких значений)."""
+        from src.constants.fees import OWNER_SHARE_RATE, SERVICE_FEE_RATE
 
-        # owner_amount = final_price * OWNER_SHARE (округление)
-        owner_amount = (final_price * OWNER_SHARE).quantize(
+        # owner_gross = final_price * OWNER_SHARE_RATE (округление)
+        owner_gross = (final_price * OWNER_SHARE_RATE).quantize(
             Decimal("0.01"), rounding="ROUND_HALF_UP"
         )
-        # platform_fee = final_price - owner_amount (остаток)
+        service_fee = (owner_gross * SERVICE_FEE_RATE).quantize(
+            Decimal("0.01"), rounding="ROUND_HALF_UP"
+        )
+        owner_amount = owner_gross - service_fee
+        # platform_fee = final_price - owner_net (остаток ≈ 21.2%)
         platform_fee = final_price - owner_amount
 
         # Сумма должна быть точно равна final_price
