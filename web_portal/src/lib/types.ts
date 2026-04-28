@@ -329,3 +329,15 @@ export interface UserAdminResponse extends User {
 
 // ═══ ORD ═══
 export type OrdStatus = 'pending' | 'registered' | 'token_received' | 'reported' | 'failed'
+
+// ═══ Payment provider error (HTTP 503 from /api/billing/topup) ═══
+// Backend shape: { detail: { message, provider_error_code, provider_request_id } }.
+export interface PaymentProviderErrorDetail {
+  message: string
+  provider_error_code: string
+  provider_request_id: string
+}
+
+export interface PaymentProviderErrorResponse {
+  detail: PaymentProviderErrorDetail
+}

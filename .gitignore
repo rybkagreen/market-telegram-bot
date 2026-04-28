@@ -13,6 +13,7 @@ eggs/
 .eggs/
 lib/
 !web_portal/src/lib/
+!mini_app/src/lib/
 lib64/
 parts/
 sdist/
