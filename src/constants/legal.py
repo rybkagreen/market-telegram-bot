@@ -108,10 +108,10 @@ TERMS_SHORT = """📋 <b>Пользовательское соглашение</
 • Политика: https://rekharbor.ru/privacy"""
 
 # --- Tax rates ---
+# NPD_RATE_FROM_LEGAL / NPD_RATE_FROM_INDIVIDUAL moved to src.constants.fees
+# (single source of truth for all rate percentages).
 VAT_RATE = Decimal("0.22")  # 22% НДС с 01.01.2026 (ФЗ № 425-ФЗ от 28.11.2025)
 NDFL_RATE = Decimal("0.13")  # 13% НДФЛ базовая ставка
-NPD_RATE_FROM_LEGAL = Decimal("0.06")  # 6% НПД от юрлиц/ИП
-NPD_RATE_FROM_INDIVIDUAL = Decimal("0.04")  # 4% НПД от физлиц
 
 # --- Video constraints ---
 MAX_VIDEO_DURATION_SECONDS = 120

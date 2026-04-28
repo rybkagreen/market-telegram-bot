@@ -18,6 +18,7 @@ from src.bot.keyboards.billing.topup import (
 from src.bot.states.billing import TopupStates
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.config.settings import settings
+from src.constants.fees import YOOKASSA_FEE_RATE
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.repositories.user_repo import UserRepository
 
@@ -52,7 +53,9 @@ async def topup_select_amount(callback: CallbackQuery, state: FSMContext) -> Non
     amount = (callback.data or "").split(":")[-1]
     await state.update_data(amount=amount)
     await state.set_state(TopupStates.confirming)
-    text = f"Пополнение на {amount} ₽\nКомиссия: {Decimal(amount) * Decimal('0.035'):.2f} ₽\nК оплате: {Decimal(amount) * Decimal('1.035'):.2f} ₽"
+    fee = Decimal(amount) * YOOKASSA_FEE_RATE
+    gross = Decimal(amount) + fee
+    text = f"Пополнение на {amount} ₽\nКомиссия: {fee:.2f} ₽\nК оплате: {gross:.2f} ₽"
     await safe_callback_edit(callback, text, reply_markup=topup_confirm_kb())
 
 

@@ -14,7 +14,7 @@ from src.api.routers.disputes import resolve_dispute_admin as api_resolve_disput
 from src.api.schemas.admin import DisputeResolveRequest
 from src.bot.filters.admin import AdminFilter
 from src.bot.handlers.shared.notifications import notify_dispute_resolved
-from src.constants.payments import OWNER_SHARE
+from src.constants.fees import OWNER_SHARE_RATE
 from src.core.services.placement_transition_service import (
     InvalidTransitionError,
     TransitionInvariantError,
@@ -198,7 +198,7 @@ async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) 
         advertiser_outcome = f"✅ Возврат: *{price:.0f} ₽* (100%)"
         owner_outcome = "❌ Средства возвращены рекламодателю"
     elif verdict == "advertiser_fault":
-        owner_amount = (price * OWNER_SHARE).quantize(Decimal("0.01"))
+        owner_amount = (price * OWNER_SHARE_RATE).quantize(Decimal("0.01"))
         advertiser_outcome = "❌ Жалоба признана необоснованной. Возврата нет."
         owner_outcome = f"✅ Выплата: *{owner_amount:.0f} ₽* (85%)"
     else:  # partial
