@@ -1,10 +1,23 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
-import { BOT_URL, PLATFORM_COMMISSION } from '../lib/constants'
+import {
+  BOT_URL,
+  OWNER_SHARE_EFFECTIVE,
+  PLATFORM_COMMISSION_EFFECTIVE,
+  PLATFORM_COMMISSION_GROSS,
+  SERVICE_FEE,
+  YOOKASSA_FEE,
+  PAYOUT_FEE,
+  formatRatePct,
+} from '../lib/constants'
 
-const OWNER_SHARE = Math.round((1 - PLATFORM_COMMISSION) * 100)
-const COMMISSION_PCT = Math.round(PLATFORM_COMMISSION * 100)
+const COMMISSION_PCT = formatRatePct(PLATFORM_COMMISSION_EFFECTIVE)
+const OWNER_SHARE = formatRatePct(OWNER_SHARE_EFFECTIVE)
+const COMMISSION_GROSS_PCT = formatRatePct(PLATFORM_COMMISSION_GROSS, 0)
+const SERVICE_FEE_PCT = formatRatePct(SERVICE_FEE)
+const YOOKASSA_FEE_PCT = formatRatePct(YOOKASSA_FEE)
+const PAYOUT_FEE_PCT = formatRatePct(PAYOUT_FEE)
 
 const FAQ_ITEMS = [
   {
@@ -17,7 +30,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Сколько стоит комиссия платформы?',
-    a: `${COMMISSION_PCT}% от суммы сделки. Владелец канала получает ${OWNER_SHARE}% стоимости размещения. Дополнительная комиссия за вывод средств — 1.5%.`,
+    a: `${COMMISSION_PCT} от суммы сделки удерживает платформа (${COMMISSION_GROSS_PCT} комиссия + ${SERVICE_FEE_PCT} сервисный сбор из доли владельца). Владелец канала получает ${OWNER_SHARE} стоимости размещения. Дополнительно: пополнение баланса — ${YOOKASSA_FEE_PCT} (pass-through ЮKassa); комиссия за вывод — ${PAYOUT_FEE_PCT}.`,
   },
   {
     q: 'Как владелец канала получает выплаты?',

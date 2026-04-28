@@ -3,10 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Notification, Card, Button, Skeleton, StatusPill, Text } from '@/components/ui'
 import { formatCurrency, formatTime, formatDateTime } from '@/lib/formatters'
+import {
+  OWNER_NET_RATE,
+  PLATFORM_COMMISSION_GROSS,
+  PLATFORM_TOTAL_RATE,
+  SERVICE_FEE,
+  computePlacementSplit,
+  formatRatePct,
+} from '@/lib/constants'
 import { usePlacement } from '@/hooks/queries'
 import styles from './CampaignPublished.module.css'
-
-const PLATFORM_COMMISSION = 0.15
 
 export default function CampaignPublished() {
   const { id } = useParams<{ id: string }>()
@@ -44,8 +50,10 @@ export default function CampaignPublished() {
   }
 
   const price = parseFloat(placement.final_price ?? placement.counter_price ?? placement.proposed_price)
-  const ownerShare = price * (1 - PLATFORM_COMMISSION)
-  const platformShare = price * PLATFORM_COMMISSION
+  // Промт 15.7: derive split from shared constants (no hardcoded effective rates).
+  const split = computePlacementSplit(price)
+  const ownerShare = split.ownerNet
+  const platformShare = split.platformTotal
 
   const canDispute = isWithinDisputeWindow && !placement.has_dispute
 
@@ -67,11 +75,11 @@ export default function CampaignPublished() {
           <div className={styles.divider} />
 
           <div className={styles.row}>
-            <span className={styles.label}>Владельцу (85%)</span>
+            <span className={styles.label}>{`Владельцу (${formatRatePct(OWNER_NET_RATE)})`}</span>
             <span className={styles.value}>{formatCurrency(ownerShare)}</span>
           </div>
           <div className={styles.row}>
-            <span className={styles.labelMuted}>Комиссия платформы (15%)</span>
+            <span className={styles.labelMuted}>{`Платформа (${formatRatePct(PLATFORM_TOTAL_RATE)} — ${formatRatePct(PLATFORM_COMMISSION_GROSS, 0)} + ${formatRatePct(SERVICE_FEE)} сервисный сбор)`}</span>
             <span className={styles.valueMuted}>{formatCurrency(platformShare)}</span>
           </div>
 

@@ -8,7 +8,13 @@ import {
   ScreenHeader,
 } from '@shared/ui'
 import type { IconName } from '@shared/ui'
-import { formatCurrency, formatDateMSK, formatDateTimeMSK } from '@/lib/constants'
+import {
+  OWNER_NET_RATE,
+  formatCurrency,
+  formatDateMSK,
+  formatDateTimeMSK,
+  formatRatePct,
+} from '@/lib/constants'
 import { useMyPlacements } from '@/hooks/useCampaignQueries'
 
 type Filter = 'new' | 'active' | 'completed' | 'cancelled'
@@ -79,7 +85,8 @@ export default function OwnRequests() {
     const pendingOwnerEarn = requests
       .filter((r) => r.status === 'pending_owner')
       .reduce(
-        (s, r) => s + parseFloat(String(r.proposed_price ?? '0')) * 0.85,
+        // Промт 15.7: owner net derived from OWNER_NET_RATE (= 80% gross − 1.5% service fee).
+        (s, r) => s + parseFloat(String(r.proposed_price ?? '0')) * OWNER_NET_RATE,
         0,
       )
     return { newCount, activeCount, completedCount, cancelledCount, pendingOwnerEarn }
@@ -154,7 +161,7 @@ export default function OwnRequests() {
         <SummaryTile
           icon="ruble"
           tone="accent2"
-          label="Потенциал (85%)"
+          label={`Потенциал (${formatRatePct(OWNER_NET_RATE)})`}
           value={formatCurrency(counts.pendingOwnerEarn)}
           delta="По ожидающим заявкам"
         />

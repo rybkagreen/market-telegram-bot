@@ -56,3 +56,28 @@ NPD_RATE_FROM_LEGAL = Decimal("0.06")       # 6% if customer = ИП/ООО
 # Platform's УСН obligations — paid BY platform from its own commission,
 # NOT charged to user. Recorded for accounting only.
 PLATFORM_USN_RATE = Decimal("0.06")
+
+
+# ==================== DERIVED RATES & DISPLAY HELPERS ====================
+#
+# Effective rates MUST be derived from the gross constants above — никаких
+# hardcoded "0.788" / "0.212" / "78,8%" / "21,2%" в коде. AST-линт
+# `tests/unit/test_no_hardcoded_fees.py` блокирует литералы.
+
+OWNER_NET_RATE = OWNER_SHARE_RATE * (Decimal("1") - SERVICE_FEE_RATE)
+PLATFORM_TOTAL_RATE = Decimal("1") - OWNER_NET_RATE
+
+
+def format_rate_pct(
+    rate: Decimal | float, fraction_digits: int = 1, comma: bool = True
+) -> str:
+    """Format a fraction (0.788) as a localised percent string ("78,8%").
+
+    `comma=True` uses RU decimal comma; `False` keeps the dot.
+    """
+    pct = Decimal(str(rate)) * Decimal("100")
+    quant = Decimal("1") if fraction_digits <= 0 else Decimal("0." + "0" * fraction_digits)
+    formatted = f"{pct.quantize(quant):.{max(fraction_digits, 0)}f}"
+    if comma:
+        formatted = formatted.replace(".", ",")
+    return f"{formatted}%"
