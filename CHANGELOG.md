@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **billing**: move topup creation from `BillingService.create_payment`
+  to `YooKassaService.create_topup_payment` with caller-controlled
+  session (S-48). POST `/api/billing/topup` migrated to
+  `Depends(get_db_session)`. YooKassa SDK call kept OUTSIDE DB
+  transaction (charge integrity). PaymentProviderError → HTTP 503
+  translation (Промт-12D) preserved; ValueError → HTTP 400 added.
+  4 new integration tests; existing Промт-12D tests rewired to new
+  service path. AST lint extended to keep `BillingService.create_payment`
+  dead. Item 6 14a of `BILLING_REWRITE_PLAN_2026-04-28.md`. See BL-034.
 - **billing**: remove 10 dead service methods (`BillingService` × 8 —
   `add_balance_rub`, `deduct_balance_rub`, `apply_referral_bonus`,
   `apply_referral_signup_bonus`, `apply_referral_first_campaign_bonus`,
