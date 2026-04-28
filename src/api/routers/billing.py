@@ -13,12 +13,13 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser
+from src.api.dependencies import CurrentUser, get_db_session
 from src.config.settings import settings
 from src.constants.payments import PLAN_LIMITS
 from src.db.models.user import User
@@ -379,7 +380,10 @@ async def get_balance(current_user: CurrentUser) -> BalanceResponse:
 
 
 @router.get("/frozen")
-async def get_frozen_balance(current_user: CurrentUser) -> FrozenBalanceResponse:
+async def get_frozen_balance(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> FrozenBalanceResponse:
     """
     Заморозка средств рекламодателя — placements в escrow/pending_payment.
 
@@ -391,43 +395,42 @@ async def get_frozen_balance(current_user: CurrentUser) -> FrozenBalanceResponse
     """
     from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
-    async with async_session_factory() as session:
-        repo = PlacementRequestRepository(session)
-        placements = await repo.get_frozen_for_advertiser(advertiser_id=current_user.id)
+    repo = PlacementRequestRepository(session)
+    placements = await repo.get_frozen_for_advertiser(advertiser_id=current_user.id)
 
-        items: list[FrozenPlacementItem] = []
-        total_frozen = Decimal("0")
-        escrow_count = 0
-        pending_payment_count = 0
+    items: list[FrozenPlacementItem] = []
+    total_frozen = Decimal("0")
+    escrow_count = 0
+    pending_payment_count = 0
 
-        for p in placements:
-            amount = p.final_price if p.final_price is not None else p.proposed_price
-            total_frozen += amount
+    for p in placements:
+        amount = p.final_price if p.final_price is not None else p.proposed_price
+        total_frozen += amount
 
-            status_value = p.status.value if hasattr(p.status, "value") else str(p.status)
-            if status_value == "escrow":
-                escrow_count += 1
-            elif status_value == "pending_payment":
-                pending_payment_count += 1
+        status_value = p.status.value if hasattr(p.status, "value") else str(p.status)
+        if status_value == "escrow":
+            escrow_count += 1
+        elif status_value == "pending_payment":
+            pending_payment_count += 1
 
-            channel_title = p.channel.title if p.channel else f"Channel #{p.channel_id}"
-            items.append(
-                FrozenPlacementItem(
-                    placement_id=p.id,
-                    channel_title=channel_title,
-                    amount=amount,
-                    status=status_value,  # type: ignore[arg-type]
-                    scheduled_at=p.final_schedule or p.proposed_schedule,
-                    created_at=p.created_at,
-                )
+        channel_title = p.channel.title if p.channel else f"Channel #{p.channel_id}"
+        items.append(
+            FrozenPlacementItem(
+                placement_id=p.id,
+                channel_title=channel_title,
+                amount=amount,
+                status=status_value,  # type: ignore[arg-type]
+                scheduled_at=p.final_schedule or p.proposed_schedule,
+                created_at=p.created_at,
             )
-
-        return FrozenBalanceResponse(
-            total_frozen=total_frozen,
-            escrow_count=escrow_count,
-            pending_payment_count=pending_payment_count,
-            items=items,
         )
+
+    return FrozenBalanceResponse(
+        total_frozen=total_frozen,
+        escrow_count=escrow_count,
+        pending_payment_count=pending_payment_count,
+        items=items,
+    )
 
 
 # Типы транзакций, видимые пользователю в истории.
@@ -449,6 +452,7 @@ _VISIBLE_TX_TYPES = {
 @router.get("/history")
 async def get_history(
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> BillingHistoryResponse:
@@ -468,46 +472,45 @@ async def get_history(
     """
     from src.db.repositories.transaction_repo import TransactionRepository
 
-    async with async_session_factory() as session:
-        repo = TransactionRepository(session)
-        txs, total = await repo.list_by_user_id(
-            user_id=current_user.id,
-            types_filter=_VISIBLE_TX_TYPES,
-            page=page,
-            limit=limit,
-        )
+    repo = TransactionRepository(session)
+    txs, total = await repo.list_by_user_id(
+        user_id=current_user.id,
+        types_filter=_VISIBLE_TX_TYPES,
+        page=page,
+        limit=limit,
+    )
 
-        items = []
-        for tx in txs:
-            tx_type = tx.type.value if hasattr(tx.type, "value") else str(tx.type)
-            # refund_full с meta_json["type"]=="payout_request" — это фактически вывод средств
-            if tx_type == "refund_full" and isinstance(tx.meta_json, dict):
-                meta_type = tx.meta_json.get("type", "")
-                if meta_type == "payout_request":
-                    tx_type = "payout"
+    items = []
+    for tx in txs:
+        tx_type = tx.type.value if hasattr(tx.type, "value") else str(tx.type)
+        # refund_full с meta_json["type"]=="payout_request" — это фактически вывод средств
+        if tx_type == "refund_full" and isinstance(tx.meta_json, dict):
+            meta_type = tx.meta_json.get("type", "")
+            if meta_type == "payout_request":
+                tx_type = "payout"
 
-            items.append(
-                BillingHistoryItem(
-                    id=tx.id,
-                    type=tx_type,
-                    amount=tx.amount,
-                    description=tx.description,
-                    placement_request_id=tx.placement_request_id,
-                    status=tx.payment_status if tx.payment_status else "completed",
-                    created_at=tx.created_at.isoformat()
-                    if tx.created_at
-                    else datetime.now(UTC).isoformat(),
-                )
+        items.append(
+            BillingHistoryItem(
+                id=tx.id,
+                type=tx_type,
+                amount=tx.amount,
+                description=tx.description,
+                placement_request_id=tx.placement_request_id,
+                status=tx.payment_status if tx.payment_status else "completed",
+                created_at=tx.created_at.isoformat()
+                if tx.created_at
+                else datetime.now(UTC).isoformat(),
             )
-
-        pages = (total + limit - 1) // limit if total > 0 else 0
-
-        return BillingHistoryResponse(
-            items=items,
-            total=total,
-            page=page,
-            pages=pages,
         )
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    return BillingHistoryResponse(
+        items=items,
+        total=total,
+        page=page,
+        pages=pages,
+    )
 
 
 @router.post(
