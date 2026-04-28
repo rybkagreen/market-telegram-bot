@@ -966,6 +966,105 @@ After this commit:
 - YooKassa shop activation (live 403) still requires lk.yookassa.ru
   action — out of scope.
 
+### BL-034 — YookassaService consolidation 14a (RESOLVED)
+**Status:** Resolved
+**Found:** BILLING_REWRITE_PLAN_2026-04-28.md item 6 (split into 14a/14b).
+**Resolved:** 2026-04-28 (this session, Промт-15).
+
+Item 6 14a executed: topup creation logic moved from BillingService to
+YooKassaService with caller-controlled session (S-48).
+
+**Code changes:**
+- `YooKassaService.create_topup_payment` (new): caller-controlled session,
+  YooKassa SDK call kept OUTSIDE DB transaction, raises
+  `PaymentProviderError` on YK errors, persists `YookassaPayment` +
+  pending `Transaction` via session.flush.
+- `BillingService.create_payment` (deleted) — logic moved.
+- POST `/api/billing/topup` migrated to `Depends(get_db_session)` + new
+  service method. PaymentProviderError → HTTP 503 translation preserved.
+  Added explicit `ValueError → HTTP 400` translation.
+- `tests/unit/test_no_dead_methods.py` — `create_payment` added to
+  `DEAD_BILLING_METHODS`. Не добавлено в `DEAD_YOOKASSA_METHODS` (см.
+  open finding ниже).
+- `tests/integration/test_billing_hotfix_bundle.py` — two Промт-12D tests
+  rewired to mock `YooKassaService.create_topup_payment` and pass
+  `session` to endpoint call.
+- `tests/integration/test_yookassa_create_topup_payment.py` (new): 4
+  integration tests covering happy path, ForbiddenError translation,
+  user-not-found short-circuit, endpoint call shape.
+
+**Critical operational invariant** preserved: SDK `Payment.create()` runs
+**before** any DB write in `create_topup_payment`. Future modifications
+must not move the SDK call into `session.begin()` or after
+`session.flush()` — that would create a "real charge, no local record"
+footgun if rollback fires after SDK success.
+
+**NOT in this scope (deferred to 14b — Промт-16):**
+- Webhook consolidation: `BillingService.process_topup_webhook` →
+  `YooKassaService.process_webhook`.
+- `BillingService.check_payment` removal.
+- GET `/topup/{id}/status` migration to direct repo read.
+- POST `/webhooks/yookassa` rewiring.
+
+**Fix commit:** `<SHA>` (this session, branch
+`fix/billing-rewrite-item-6a-yookassa-consolidation`).
+
+After this commit:
+- BillingService method count: 13 → 12.
+- POST `/topup` on canonical `Depends(get_db_session)` DI pattern.
+- Frontend 503 modal (Промт-14) works unchanged on the same shape.
+
+#### Open findings surfaced during 14a (deferred — не trog в этом промте)
+
+**Finding 1 — bot/handlers/billing/billing.py:60 `topup_pay` is broken-but-reachable**
+
+`topup_pay` callback handler is registered live via
+`@router.callback_query(F.data == "topup:pay", ...)`. It calls
+`yookassa_service.create_payment(amount_rub=..., user_id=...)` which
+points at the dead `YooKassaService.create_payment` method. The dead
+method instantiates `YookassaPayment(amount_rub=..., credits=...,
+description=..., confirmation_url=..., idempotency_key=...)` — but the
+model has none of those fields (real fields: `gross_amount`,
+`desired_balance`, `fee_amount`, `payment_url`, etc.). Result: any
+Telegram user clicking "💰 Оплатить" hits a `TypeError`, caught by the
+handler's `except Exception`, gets a generic error message.
+
+Pre-existing (NOT introduced by 14a). Plan §0.5 classified `topup_pay`
+as "dead" and asked the agent to remove the underlying dead method.
+Empirical verification showed the handler is registered, so per plan
+instruction the agent stopped and surfaced the finding. Marina chose
+**Option A** (defer dead-method removal AND keep `tests/smoke_yookassa.py`).
+The dead `YooKassaService.create_payment` remains in the codebase.
+
+**Decision required (separate prompt):** either
+- (a) migrate `topup_pay` to `create_topup_payment(session=...)`
+  (handler already gets `session` via DI; would need to switch from
+  passing `gross` to passing `amount`, since new method computes fee
+  internally), or
+- (b) delete `topup_pay` + the entire bot topup flow (web_portal is the
+  primary topup path post-Промт-12D/14), or
+- (c) leave as-is and accept the latent bug until either of the above
+  is decided.
+
+**Finding 2 — Bot UI displays 3.5% fee but billing applies 6%**
+
+Pre-existing inconsistency. Bot keyboard text in
+`src/bot/handlers/billing/billing.py:55` shows
+`"Комиссия: {Decimal(amount) * Decimal('0.035'):.2f} ₽"` (3.5%), but
+`src/constants/payments.py` defines two separate constants:
+- `YOOKASSA_FEE_RATE = Decimal("0.035")` — actual YooKassa SDK fee.
+- `PLATFORM_TAX_RATE = Decimal("0.06")` — ИП УСН 6% added on top of
+  `desired_balance` to compute `gross`.
+
+Both removed `BillingService.create_payment` and new
+`YooKassaService.create_topup_payment` apply `PLATFORM_TAX_RATE` (6%).
+The 3.5% bot UI text was written for `YOOKASSA_FEE_RATE` semantics; the
+6% billing code was written for `PLATFORM_TAX_RATE` semantics. User-
+facing display ≠ what is actually charged. Out of scope for 14a; flagged
+for product/UX decision (which rate is the "real" fee, and what does the
+user see?). Same parity preserved in `create_topup_payment` to avoid
+silent behavior change in this prompt.
+
 ## Closed items
 
 _(none yet)_
