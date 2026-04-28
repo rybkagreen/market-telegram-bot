@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **frontend (mini_app + web_portal)**: handle HTTP 503
+  `PaymentProviderError` on `POST /api/billing/topup` with a graceful
+  modal showing the user-facing Russian message + the YooKassa
+  `provider_request_id` (copyable for support quoting). Backend already
+  emits this shape since the Промт-12D fix; this lands the symmetric
+  frontend so users no longer see silent failure (web_portal) or a
+  generic toast (mini_app). New helper
+  `extractPaymentProviderError(err)` in `mini_app/src/lib/errors.ts`
+  and `web_portal/src/lib/errors.ts`. New `PaymentErrorModal` in both
+  apps' UI exports. No public contract change. See BL-033.
+
 ### Changed
 
 - **billing**: remove 10 dead service methods (`BillingService` × 8 —

@@ -238,6 +238,18 @@ export interface ApiError {
   status_code: number
 }
 
+// HTTP 503 from /api/billing/topup when YooKassa upstream fails.
+// Backend shape: { detail: { message, provider_error_code, provider_request_id } }.
+export interface PaymentProviderErrorDetail {
+  message: string
+  provider_error_code: string
+  provider_request_id: string
+}
+
+export interface PaymentProviderErrorResponse {
+  detail: PaymentProviderErrorDetail
+}
+
 export interface AiTextResult {
   variants: string[]
 }
