@@ -920,6 +920,52 @@ After this commit:
   (was 1: only admin paths in admin.py from Промт-12).
 - ~600 LOC removed, ~30 LOC added.
 
+### BL-033 — Frontend 503 handling for PaymentProviderError (RESOLVED)
+**Status:** Resolved
+**Found:** Промт-12D — backend started returning structured 503 with
+`{detail: {message, provider_error_code, provider_request_id}}` on YooKassa
+upstream failures, but frontend either silently failed (web_portal) or
+showed only a generic toast (mini_app) → Marina saw "ничего не происходит".
+**Resolved:** 2026-04-28 (this session)
+
+`mini_app` and `web_portal` topup flows now distinguish HTTP 503
+PaymentProviderError from generic errors. User sees a graceful modal
+с user-readable Russian message + copyable `provider_request_id` for
+support quoting.
+
+**Code changes (frontend-only):**
+- `mini_app/src/lib/types.ts`: new `PaymentProviderErrorDetail` +
+  `PaymentProviderErrorResponse` types.
+- `mini_app/src/lib/errors.ts`: new `extractPaymentProviderError(err)`
+  helper — async, parses ky `HTTPError.response.clone().json()` for the
+  503 detail shape, returns `null` otherwise.
+- `mini_app/src/components/ui/PaymentErrorModal.tsx` + `.module.css`:
+  new modal built on existing `Modal` + `Notification` + `Button` (no
+  new UI deps).
+- `mini_app/src/components/ui/index.ts`: export added.
+- `mini_app/src/hooks/queries/useBillingQueries.ts`: `useCreateTopUp`
+  no longer attaches a generic-toast `onError`; the screen now owns
+  error UX (so payment-provider modal and generic toast don't double-fire).
+- `mini_app/src/screens/common/TopUpConfirm.tsx`: `onError` callback
+  extracts payment provider detail → modal; otherwise falls back to a
+  generic toast.
+- Symmetric set in `web_portal/src/`: types, `lib/errors.ts`,
+  `shared/ui/PaymentErrorModal.tsx`, `shared/ui/index.ts`,
+  `screens/shared/TopUp.tsx` (added inline `<Notification type="danger">`
+  for generic errors + modal mount). `useInitiateTopup` was already
+  bare — only screen wiring changed.
+
+**Fix commit:** `<SHA>` (this session, branch `fix/frontend-503-handling`).
+
+After this commit:
+- User on a 503 from `/api/billing/topup` sees a modal с translated
+  message ("Платёжный сервис временно недоступен…") + the YooKassa
+  `provider_request_id` (UUID) с кнопкой "📋 Копировать".
+- Backend already supplies this shape since Промт-12D
+  `PaymentProviderError → HTTP 503` mapping.
+- YooKassa shop activation (live 403) still requires lk.yookassa.ru
+  action — out of scope.
+
 ## Closed items
 
 _(none yet)_

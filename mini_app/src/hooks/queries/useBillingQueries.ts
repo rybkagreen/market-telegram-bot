@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits, getBillingHistory } from '@/api/billing'
 import { useUiStore } from '@/stores/uiStore'
+import type { TopUpResponse } from '@/lib/types'
 
 export const useBillingHistory = (page: number = 1) =>
   useQuery({
@@ -16,16 +17,10 @@ export const usePlans = () =>
     staleTime: 60 * 60_000,
   })
 
-export const useCreateTopUp = () => {
-  const addToast = useUiStore((s) => s.addToast)
-
-  return useMutation({
+export const useCreateTopUp = () =>
+  useMutation<TopUpResponse, unknown, number>({
     mutationFn: (desiredAmount: number) => createTopUp(desiredAmount),
-    onError: () => {
-      addToast('error', 'Ошибка при создании платежа')
-    },
   })
-}
 
 export const useTopUpStatus = (id: string | null) =>
   useQuery({
