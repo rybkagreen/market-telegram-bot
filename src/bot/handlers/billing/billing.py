@@ -63,10 +63,9 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
         return
     data = await state.get_data()
     amount = Decimal(str(data["amount"]))
-    gross = (amount * Decimal("1.035")).quantize(Decimal("0.01"))
 
     await callback.message.edit_text(
-        f"⏳ *Создаём платёж...*\n\nСумма к оплате: *{gross} ₽*",
+        f"⏳ *Создаём платёж...*\n\nСумма к зачислению: *{amount} ₽*",
         parse_mode="Markdown",
     )
 
@@ -75,22 +74,41 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
         await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
 
-    from src.core.services.yookassa_service import yookassa_service
+    from src.core.services.billing_service import PaymentProviderError
+    from src.core.services.yookassa_service import YooKassaService
 
     try:
-        record = await yookassa_service.create_payment(
-            amount_rub=gross,
+        result = await YooKassaService().create_topup_payment(
+            session=session,
             user_id=user.id,
+            desired_balance=amount,
         )
-        await state.update_data(payment_id=record.payment_id)
-        await state.set_state(TopupStates.waiting_payment)
+    except PaymentProviderError as exc:
+        logger.error(
+            "YooKassa PaymentProviderError for user %s: code=%s request_id=%s",
+            user.id,
+            exc.code,
+            exc.request_id,
+        )
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔙 Назад", callback_data="billing:topup_start")
         await callback.message.edit_text(
-            "💳 *Оплата*\n\nПерейдите по ссылке для оплаты.\n\n⏱ Ссылка действует 15 минут.",
-            reply_markup=topup_payment_kb(record.payment_url or "", record.payment_id),
-            parse_mode="Markdown",
+            "⚠️ Платёжный сервис временно недоступен.\n\n"
+            "Попробуйте позже или обратитесь в поддержку.\n"
+            f"Код запроса: {exc.request_id}",
+            reply_markup=builder.as_markup(),
         )
+        await callback.answer()
+        return
+    except ValueError as exc:
+        logger.warning("Topup ValueError for user %s: %s", user.id, exc)
+        await callback.message.edit_text(f"⚠️ Ошибка: {exc}")
+        await callback.answer()
+        return
     except Exception as e:
-        logger.error("YooKassa error for user %s: %s", user.id, e)
+        logger.error("YooKassa unexpected error for user %s: %s", user.id, e)
         import sentry_sdk
 
         sentry_sdk.capture_exception()
@@ -103,6 +121,17 @@ async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSe
             "Если проблема повторяется — обратитесь в поддержку.",
             reply_markup=builder.as_markup(),
         )
+        await callback.answer()
+        return
+
+    await state.update_data(payment_id=result["payment_id"])
+    await state.set_state(TopupStates.waiting_payment)
+    await callback.message.edit_text(
+        f"💳 *Оплата*\n\nСумма к оплате: *{result['amount']} ₽*\n"
+        f"Перейдите по ссылке для оплаты.\n\n⏱ Ссылка действует 15 минут.",
+        reply_markup=topup_payment_kb(result["payment_url"], result["payment_id"]),
+        parse_mode="Markdown",
+    )
     await callback.answer()
 
 
