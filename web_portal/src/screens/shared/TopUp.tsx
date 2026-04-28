@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Notification, Button, Icon, StepIndicator, ScreenHeader, Toggle, Skeleton } from '@shared/ui'
+import { Notification, Button, Icon, StepIndicator, ScreenHeader, Toggle, Skeleton, PaymentErrorModal } from '@shared/ui'
 import type { IconName } from '@shared/ui'
 import { useMe } from '@/hooks/queries'
 import { useInitiateTopup } from '@/hooks/useBillingQueries'
+import { extractPaymentProviderError } from '@/lib/errors'
+import type { PaymentProviderErrorDetail } from '@/lib/types'
 
 const CHIP_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000]
 const FEE_RATE = 0.035
@@ -36,6 +38,8 @@ export default function TopUp() {
   const [chipSelected, setChipSelected] = useState<number | null>(2000)
   const [method, setMethod] = useState<PaymentMethod>('card')
   const [auto, setAuto] = useState(false)
+  const [paymentError, setPaymentError] = useState<PaymentProviderErrorDetail | null>(null)
+  const [genericError, setGenericError] = useState<string | null>(null)
   const topup = useInitiateTopup()
 
   const handleChip = (v: number) => {
@@ -57,6 +61,8 @@ export default function TopUp() {
   const balanceRub = Number(user?.balance_rub ?? 0)
 
   const handleTopUp = () => {
+    setPaymentError(null)
+    setGenericError(null)
     topup.mutate(amount, {
       onSuccess: (data) => {
         window.open(data.payment_url, '_blank')
@@ -64,10 +70,19 @@ export default function TopUp() {
           state: { amount, paymentUrl: data.payment_url, paymentId: data.payment_id },
         })
       },
+      onError: async (err) => {
+        const provider = await extractPaymentProviderError(err)
+        if (provider) {
+          setPaymentError(provider)
+        } else {
+          setGenericError('Не удалось создать платёж. Попробуйте позже.')
+        }
+      },
     })
   }
 
   return (
+    <>
     <div className="max-w-[1120px] mx-auto grid gap-6 items-start grid-cols-1 md:gap-7 md:[grid-template-columns:minmax(0,1fr)_360px]">
       <div className="min-w-0">
         <ScreenHeader
@@ -204,6 +219,12 @@ export default function TopUp() {
             </Button>
           </div>
 
+          {genericError && (
+            <div className="mt-3">
+              <Notification type="danger">{genericError}</Notification>
+            </div>
+          )}
+
           <div className="mt-3 text-[11.5px] text-text-tertiary text-center leading-[1.5]">
             Нажимая «Перейти к оплате», вы соглашаетесь
             <br />с условиями сервиса и офертой
@@ -229,6 +250,13 @@ export default function TopUp() {
         </Notification>
       </aside>
     </div>
+
+    <PaymentErrorModal
+      open={paymentError !== null}
+      onClose={() => setPaymentError(null)}
+      error={paymentError}
+    />
+    </>
   )
 }
 
