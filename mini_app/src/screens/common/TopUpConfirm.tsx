@@ -1,10 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
-import { StepIndicator, FeeBreakdown, Notification, Button } from '@/components/ui'
+import { StepIndicator, FeeBreakdown, Notification, Button, PaymentErrorModal } from '@/components/ui'
 import { formatCurrency, calcTopUpFee } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
 import { useCreateTopUp } from '@/hooks/queries'
+import { useUiStore } from '@/stores/uiStore'
+import { extractPaymentProviderError } from '@/lib/errors'
+import type { PaymentProviderErrorDetail } from '@/lib/types'
 import styles from './TopUpConfirm.module.css'
 
 export default function TopUpConfirm() {
@@ -13,6 +16,8 @@ export default function TopUpConfirm() {
   const haptic = useHaptic()
   const amount: number | undefined = (location.state as { amount?: number })?.amount
   const createTopUp = useCreateTopUp()
+  const addToast = useUiStore((s) => s.addToast)
+  const [paymentError, setPaymentError] = useState<PaymentProviderErrorDetail | null>(null)
 
   useEffect(() => {
     if (!amount) navigate('/topup')
@@ -30,6 +35,14 @@ export default function TopUpConfirm() {
           window.Telegram.WebApp.openLink(data.payment_url)
         } else {
           window.open(data.payment_url, '_blank')
+        }
+      },
+      onError: async (err) => {
+        const provider = await extractPaymentProviderError(err)
+        if (provider) {
+          setPaymentError(provider)
+        } else {
+          addToast('error', 'Не удалось создать платёж. Попробуйте позже.')
         }
       },
     })
@@ -68,6 +81,12 @@ export default function TopUpConfirm() {
           🔙 Изменить сумму
         </Button>
       </div>
+
+      <PaymentErrorModal
+        open={paymentError !== null}
+        onClose={() => setPaymentError(null)}
+        error={paymentError}
+      />
     </ScreenShell>
   )
 }
