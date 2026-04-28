@@ -8,11 +8,12 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,7 @@ from src.db.models.feedback import UserFeedback
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
+from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 
@@ -741,16 +743,48 @@ async def topup_user_balance(
     body: BalanceTopUpRequest,
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    x_idempotency_key: Annotated[str | None, Header(alias="X-Idempotency-Key")] = None,
 ) -> UserAdminResponse:
     """Зачислить рубли на баланс пользователя (только для администраторов)."""
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
 
-    repo = UserRepository(session)
-    await repo.update_balance(user_id, Decimal(str(body.amount)))
+    amount = Decimal(str(body.amount))
+    idempotency_key = (
+        x_idempotency_key
+        or f"admin_topup:admin={admin_user.id}:user={user_id}:nonce={uuid.uuid4()}"
+    )
 
-    await session.refresh(user)
+    existing = await session.execute(
+        select(Transaction).where(Transaction.idempotency_key == idempotency_key)
+    )
+    if existing.scalar_one_or_none() is not None:
+        await session.refresh(user)
+    else:
+        repo = UserRepository(session)
+        await repo.update_balance(user_id, amount)
+        await session.refresh(user)
+
+        balance_after = user.balance_rub
+        balance_before = balance_after - amount
+        transaction = Transaction(
+            user_id=user_id,
+            amount=amount,
+            type=TransactionType.topup,
+            description=f"Admin top-up by admin #{admin_user.id}",
+            meta_json={
+                "method": "admin_topup",
+                "admin_id": admin_user.id,
+                "note": body.note,
+            },
+            balance_before=balance_before,
+            balance_after=balance_after,
+            idempotency_key=idempotency_key,
+            created_at=datetime.now(UTC),
+        )
+        session.add(transaction)
+        await session.flush()
 
     logger.info(
         f"Admin #{admin_user.id} topped up balance for user #{user_id}: "
