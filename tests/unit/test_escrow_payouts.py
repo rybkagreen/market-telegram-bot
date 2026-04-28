@@ -16,8 +16,10 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from src.core.services.billing_service import billing_service
+from src.core.services.billing_service import BillingService
 from src.db.models.mailing_log import MailingLog, MailingStatus
+
+billing_service = BillingService()
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.transaction import Transaction, TransactionType
