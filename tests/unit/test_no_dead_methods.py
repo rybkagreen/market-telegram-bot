@@ -32,6 +32,8 @@ DEAD_BILLING_METHODS = frozenset({
 DEAD_YOOKASSA_METHODS = frozenset({
     "handle_webhook",
     "_credit_user",
+    # Промт-15.5: bot handler migrated to create_topup_payment, dead method removed.
+    "create_payment",
 })
 
 
@@ -69,7 +71,9 @@ def test_no_dead_yookassa_methods_revived():
         f"Dead YooKassaService methods were re-added: {revived}. "
         f"Live webhook path is api/routers/billing.py::yookassa_webhook → "
         f"BillingService.process_topup_webhook. Do not re-add handle_webhook "
-        f"or _credit_user."
+        f"or _credit_user. Topup creation now goes through "
+        f"YooKassaService.create_topup_payment (Промт-15.5) — bot, mini_app, "
+        f"and web_portal all share this entry point."
     )
 
 
