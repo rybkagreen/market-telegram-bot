@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **billing**: centralized fee constants in `src/constants/fees.py`.
+  Placement split now 78.8% owner / 21.2% platform (was 85/15). Topup
+  fee 3.5% pass-through (was 6%). Cancel `after_confirmation` split
+  50/40/10 enforced via constants. New endpoint
+  `GET /api/billing/fee-config`. AST lint
+  (`tests/unit/test_no_hardcoded_fees.py`) forbids hardcoded fee
+  literals in `src/`. Public-facing rate change — frontend updates
+  follow in промтах 15.8-15.10. See BL-035.
 - **bot**: migrate `topup_pay` handler to
   `YooKassaService.create_topup_payment`. Bot, mini_app, and web_portal
   now share the canonical service entry point for topup creation.

@@ -16,7 +16,11 @@ from src.bot.keyboards.advertiser.placement import (
 )
 from src.bot.states.placement import PlacementStates
 from src.bot.utils.safe_callback import safe_callback_edit
-from src.constants.payments import OWNER_SHARE, PLATFORM_COMMISSION
+from src.constants.fees import (
+    CANCEL_REFUND_ADVERTISER_RATE,
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+)
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.repositories.user_repo import UserRepository
 
@@ -334,8 +338,8 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
     price = req.final_price or req.proposed_price
-    owner_amount = price * OWNER_SHARE
-    platform_amount = price * PLATFORM_COMMISSION
+    owner_amount = price * OWNER_SHARE_RATE
+    platform_amount = price * PLATFORM_COMMISSION_RATE
 
     fmt_name = FORMAT_NAMES.get(
         req.publication_format.value
@@ -589,7 +593,7 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
         return
 
     price = req.final_price or req.proposed_price
-    refund = price * Decimal("0.50")
+    refund = price * CANCEL_REFUND_ADVERTISER_RATE
 
     billing = BillingService()
     try:

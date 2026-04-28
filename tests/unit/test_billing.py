@@ -7,13 +7,16 @@ import subprocess
 from decimal import Decimal
 
 # Test constants directly without service dependencies
+from src.constants.fees import (
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+    SERVICE_FEE_RATE,
+    YOOKASSA_FEE_RATE,
+)
 from src.constants.payments import (
     calculate_topup_payment,
     calculate_payout,
     PAYOUT_FEE_RATE,
-    YOOKASSA_FEE_RATE,
-    OWNER_SHARE,
-    PLATFORM_COMMISSION,
     MIN_CAMPAIGN_BUDGET,
 )
 
@@ -130,33 +133,39 @@ class TestPayoutCalculation:
 
 
 class TestPlatformCommission:
-    """Tests for platform commission calculations."""
+    """Tests for platform commission calculations (post-15.7 fee model)."""
 
-    def test_owner_share_is_85_percent(self):
-        """OWNER_SHARE is 85% (v4.2)."""
-        assert OWNER_SHARE == Decimal("0.85")
+    def test_owner_share_is_80_percent(self):
+        """OWNER_SHARE_RATE is 80% (gross)."""
+        assert OWNER_SHARE_RATE == Decimal("0.80")
 
-    def test_platform_commission_is_15_percent(self):
-        """PLATFORM_COMMISSION is 15% (v4.2)."""
-        assert PLATFORM_COMMISSION == Decimal("0.15")
+    def test_platform_commission_is_20_percent(self):
+        """PLATFORM_COMMISSION_RATE is 20% (gross)."""
+        assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
 
     def test_release_escrow_distribution(self):
-        """release_escrow distributes 85% to owner, 15% to platform."""
+        """release_escrow: owner net 78.8%, platform total 21.2% (incl. service fee)."""
         final_price = Decimal("10000")
-        owner_share = final_price * OWNER_SHARE
-        platform_fee = final_price * PLATFORM_COMMISSION
-        
-        assert owner_share == Decimal("8500")
-        assert platform_fee == Decimal("1500")
-        assert owner_share + platform_fee == final_price
+        owner_gross = (final_price * OWNER_SHARE_RATE).quantize(Decimal("0.01"))
+        service_fee = (owner_gross * SERVICE_FEE_RATE).quantize(Decimal("0.01"))
+        owner_net = owner_gross - service_fee
+        platform_total = final_price - owner_net
 
-    def test_escrow_distribution_formula(self):
-        """Escrow distribution: owner = price × 0.85, platform = price × 0.15."""
+        assert owner_gross == Decimal("8000")
+        assert service_fee == Decimal("120")
+        assert owner_net == Decimal("7880.00")
+        assert platform_total == Decimal("2120.00")
+        assert owner_net + platform_total == final_price
+
+    def test_escrow_distribution_sums_to_price(self):
+        """Owner_net + platform total == final_price for several prices."""
         for price in [Decimal("1000"), Decimal("5000"), Decimal("10000")]:
-            owner_share = (price * OWNER_SHARE).quantize(Decimal("0.01"))
-            platform_fee = (price * PLATFORM_COMMISSION).quantize(Decimal("0.01"))
-            
-            assert owner_share + platform_fee == price
+            owner_gross = (price * OWNER_SHARE_RATE).quantize(Decimal("0.01"))
+            service_fee = (owner_gross * SERVICE_FEE_RATE).quantize(Decimal("0.01"))
+            owner_net = owner_gross - service_fee
+            platform_total = price - owner_net
+
+            assert owner_net + platform_total == price
 
 
 class TestVelocityCheckConstants:

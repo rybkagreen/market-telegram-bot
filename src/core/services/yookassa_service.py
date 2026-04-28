@@ -82,7 +82,7 @@ class YooKassaService:
         """
         from decimal import Decimal as Dec
 
-        from src.constants.payments import PLATFORM_TAX_RATE
+        from src.constants.fees import YOOKASSA_FEE_RATE
 
         # 1. Pre-flight user check
         user_repo = UserRepository(session)
@@ -93,7 +93,7 @@ class YooKassaService:
         # 2. Compute amounts (1:1 credits — legacy field)
         credits_amount = int(desired_balance)
         desired_balance_dec = Dec(str(desired_balance))
-        fee_amount = (desired_balance_dec * PLATFORM_TAX_RATE).quantize(Dec("0.01"))
+        fee_amount = (desired_balance_dec * YOOKASSA_FEE_RATE).quantize(Dec("0.01"))
         gross_amount = desired_balance_dec + fee_amount
 
         # 3. YooKassa SDK config

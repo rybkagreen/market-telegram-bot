@@ -363,6 +363,50 @@ async def get_plans() -> list[PlanDetail]:
     return plans
 
 
+@router.get("/fee-config")
+async def get_fee_config() -> dict[str, dict[str, str]]:
+    """
+    Возвращает все ставки/комиссии платформы единым JSON.
+
+    Frontend читает этот endpoint при загрузке приложения, чтобы
+    нигде не хардкодить проценты. Public — комиссии не секрет.
+    """
+    from src.constants.fees import (
+        CANCEL_REFUND_ADVERTISER_RATE,
+        CANCEL_REFUND_OWNER_RATE,
+        CANCEL_REFUND_PLATFORM_RATE,
+        OWNER_SHARE_RATE,
+        PLATFORM_COMMISSION_RATE,
+        SERVICE_FEE_RATE,
+        YOOKASSA_FEE_RATE,
+    )
+
+    owner_net_rate = (
+        OWNER_SHARE_RATE * (Decimal("1") - SERVICE_FEE_RATE)
+    ).quantize(Decimal("0.001"))
+    platform_total_rate = (
+        PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE * SERVICE_FEE_RATE
+    ).quantize(Decimal("0.001"))
+
+    return {
+        "topup": {
+            "yookassa_fee_rate": str(YOOKASSA_FEE_RATE),
+        },
+        "placement": {
+            "platform_commission_rate": str(PLATFORM_COMMISSION_RATE),
+            "owner_share_rate": str(OWNER_SHARE_RATE),
+            "service_fee_rate": str(SERVICE_FEE_RATE),
+            "owner_net_rate": str(owner_net_rate),
+            "platform_total_rate": str(platform_total_rate),
+        },
+        "cancel": {
+            "advertiser_rate": str(CANCEL_REFUND_ADVERTISER_RATE),
+            "owner_rate": str(CANCEL_REFUND_OWNER_RATE),
+            "platform_rate": str(CANCEL_REFUND_PLATFORM_RATE),
+        },
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # LEGACY ENDPOINTS (сохранены для обратной совместимости)
 # ═══════════════════════════════════════════════════════════════

@@ -206,9 +206,11 @@ class TestEscrowRelease:
         await db_session.refresh(mailing)
         assert mailing.status == MailingStatus.paid
 
-        # Verify owner received 85% (425 rub) - using OWNER_SHARE constant
+        # Owner net = price × OWNER_SHARE_RATE × (1 - SERVICE_FEE_RATE)
+        # 500 × 0.80 = 400 gross; service_fee = 400 × 0.015 = 6.00;
+        # owner_net = 400 - 6 = 394 (78.8% effective).
         await db_session.refresh(owner)
-        assert owner.earned_rub == Decimal("425")
+        assert owner.earned_rub == Decimal("394.00")
 
         # Verify transaction created
         result = await db_session.execute(
@@ -218,7 +220,7 @@ class TestEscrowRelease:
             )
         )
         transaction = result.scalar_one()
-        assert transaction.amount == Decimal("425")
+        assert transaction.amount == Decimal("394.00")
         assert transaction.meta_json.get("type") == "escrow_release"
 
     @pytest.mark.asyncio
@@ -293,9 +295,9 @@ class TestEscrowRelease:
             placement_request.owner_id,
         )
 
-        # Verify owner received earned_rub only once
+        # Verify owner received earned_rub only once (78.8% of 500 = 394, not 788)
         await db_session.refresh(owner)
-        assert owner.earned_rub == Decimal("425")  # Not 850
+        assert owner.earned_rub == Decimal("394.00")
 
 
 class TestRefundFailedPlacement:

@@ -11,12 +11,14 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.constants.fees import (
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+)
 from src.constants.payments import (
     COOLDOWN_HOURS,
     MIN_PAYOUT,
-    OWNER_SHARE,
     PAYOUT_FEE_RATE,
-    PLATFORM_COMMISSION,
     VELOCITY_MAX_RATIO,
     VELOCITY_WINDOW_DAYS,
 )
@@ -70,9 +72,8 @@ class PayoutService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-        # v4.2: используем константы из payments.py
-        self.payout_percentage = OWNER_SHARE  # 85% владельцу
-        self.platform_percentage = PLATFORM_COMMISSION  # 15% платформе
+        self.payout_percentage = OWNER_SHARE_RATE  # 80% владельцу
+        self.platform_percentage = PLATFORM_COMMISSION_RATE  # 20% платформе
 
     def calculate_payout(self, price_per_post: Decimal) -> tuple[Decimal, Decimal]:
         """
