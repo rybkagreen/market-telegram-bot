@@ -12,6 +12,12 @@ from src.bot.keyboards.advertiser.adv_menu import adv_menu_kb
 from src.bot.keyboards.owner.own_menu import own_menu_kb
 from src.bot.keyboards.shared.main_menu import main_menu_kb, tos_kb
 from src.config.settings import settings
+from src.constants.fees import (
+    PLATFORM_COMMISSION_RATE,
+    PLATFORM_TOTAL_RATE,
+    SERVICE_FEE_RATE,
+    format_rate_pct,
+)
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -35,12 +41,19 @@ TOS_TEXT = (
     f"[Ознакомиться с полными условиями]({settings.terms_url})"
 )
 
+# MarkdownV2 escapes the `%` decimal point separator (comma) implicitly,
+# but the `,` character itself is safe — only `.` would need escaping.
+_PLATFORM_TOTAL = format_rate_pct(PLATFORM_TOTAL_RATE)
+_PLATFORM_GROSS = format_rate_pct(PLATFORM_COMMISSION_RATE, 0)
+_SERVICE_FEE = format_rate_pct(SERVICE_FEE_RATE)
+
 WELCOME_TEXT = (
     "👋 Привет, *{first_name}*\\!\n\n"
     "Добро пожаловать в *RekHarborBot* — рекламную биржу Telegram\\-каналов\\.\n\n"
     "🔹 Рекламодатели размещают рекламу в каналах\n"
     "🔹 Владельцы каналов зарабатывают на публикациях\n"
-    "🔹 Платформа берёт 15% комиссии"
+    f"🔹 Комиссия платформы {_PLATFORM_TOTAL} "
+    f"\\({_PLATFORM_GROSS} \\+ сервисный сбор {_SERVICE_FEE}\\)"
 )
 
 

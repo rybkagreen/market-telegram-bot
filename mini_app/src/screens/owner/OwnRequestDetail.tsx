@@ -2,7 +2,12 @@ import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { ArbitrationPanel, Button, Card, Modal, Notification, Skeleton, Text, Flex } from '@/components/ui'
-import { PUBLICATION_FORMATS, MAX_COUNTER_OFFERS, MIN_REJECTION_COMMENT } from '@/lib/constants'
+import {
+  MAX_COUNTER_OFFERS,
+  MIN_REJECTION_COMMENT,
+  OWNER_NET_RATE,
+  PUBLICATION_FORMATS,
+} from '@/lib/constants'
 import { formatCurrency, formatDateTime } from '@/lib/formatters'
 import { useHaptic } from '@/hooks/useHaptic'
 import { usePlacement, useUpdatePlacement, useGetPlacementReviews, useCreateReview } from '@/hooks/queries'
@@ -271,7 +276,8 @@ export default function OwnRequestDetail() {
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Заработано</span>
             <span className={styles.infoEarned}>
-              {formatCurrency(parseFloat(request.final_price) * 0.85)}
+              {/* Промт 15.7: owner net derived from OWNER_NET_RATE (= 80% gross − 1.5% service fee). */}
+              {formatCurrency(parseFloat(request.final_price) * OWNER_NET_RATE)}
             </span>
           </div>
         </Card>

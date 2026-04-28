@@ -103,7 +103,7 @@
 **Invariants:**
 - `escrow_reserved` = SUM(final_price WHERE placement.status = 'escrow')
 - `payout_reserved` = SUM(gross_amount WHERE payout.status IN ('pending', 'processing'))
-- `profit_accumulated` = SUM(15% escrow releases + 1.5% payout fees)
+- `profit_accumulated` = SUM(21.2% escrow releases + 1.5% payout fees) — Промт 15.7 (20% commission + 1.5% service fee из 80% gross)
 
 **Source:** `src/db/models/platform_account.py`
 

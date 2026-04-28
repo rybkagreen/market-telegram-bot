@@ -30,7 +30,7 @@ RekHarborBot is a Telegram-based advertising exchange connecting channel owners 
 | Concept | Description |
 |---------|-------------|
 | **Placement** | A single ad placement request (advertiser → channel owner). Lifecycle: pending_owner → pending_payment → escrow → published → completed |
-| **Escrow** | Funds held by platform until post is deleted (ESCROW-001). Owner gets 85%, platform gets 15%. |
+| **Escrow** | Funds held by platform until post is deleted (ESCROW-001). Промт 15.7 split: owner net 78.8%, platform total 21.2% (20% commission + 1.5% service fee из 80% gross). |
 | **Payout** | Owner withdrawal request. 1.5% fee, manual admin approval, velocity check (80% ratio). |
 | **Tariff Plans** | free/starter/pro/business. Limits campaigns, AI uses, publication formats. |
 | **Legal Compliance** | ORD registration (Yandex), contracts, legal profiles with encrypted PII, audit logs. |
@@ -659,7 +659,7 @@ def log_sql(conn, cursor, statement, parameters, context, executemany):
 | Crediting `gross_amount` instead of `desired_balance` | Always credit `metadata["desired_balance"]` from webhook |
 | Using `PLAN_PRICES["business"]` | Key is `"agency"` in PLAN_PRICES (legacy), `"business"` in PLAN_LIMITS |
 | Calculating payout without fee | Always apply PAYOUT_FEE_RATE (0.015) |
-| Forgetting platform commission | Always apply PLATFORM_COMMISSION (0.15) on escrow release |
+| Forgetting platform commission | Always apply Промт 15.7 split via `PLATFORM_COMMISSION_RATE` (0.20) + `SERVICE_FEE_RATE` (0.015) on escrow release — total 21.2% to platform, 78.8% net to owner |
 | MIN_CAMPAIGN_BUDGET not checked | final_price must be >= 2000 |
 
 ### 8.3 Database Pitfalls
