@@ -105,21 +105,31 @@
 
 #### `release_escrow(session, placement_id) -> PlacementRequest` — **ESCROW-001**
 - **Preconditions:** Placement exists with `escrow` or `published` status
-- **Postconditions:**
-  - `owner.earned_rub += final_price × 0.85`
-  - `platform.profit_accumulated += final_price × 0.15`
+- **Postconditions** (Промт 15.7 split — 20% commission + 1.5% service fee):
+  - `gross_owner = final_price × OWNER_SHARE_RATE` (0.80)
+  - `service_fee = gross_owner × SERVICE_FEE_RATE` (0.015)
+  - `owner.earned_rub += gross_owner − service_fee` (≈ 78.8%)
+  - `platform.profit_accumulated += final_price − owner_net` (≈ 21.2%)
   - `platform.escrow_reserved -= final_price`
-  - Transaction(escrow_release) created
+  - Transaction(escrow_release) created with full split in `meta_json`
   - Placement status → `completed`
 - **Side Effects:** Notification to owner
 - **Failure Modes:** Not in escrow → ValueError
 - **⚠️ CRITICAL:** Called ONLY from `delete_published_post()` (after post deletion)
 - **Source:** `src/core/services/billing_service.py:release_escrow()`, `src/tasks/publication_tasks.py:delete_published_post()`
 
+#### Cancel split (Промт 15.7) — `after_confirmation` (post-escrow, pre-publish)
+- **Rule:** `final_price` распределяется как 50% возврат рекламодателю /
+  40% компенсация владельцу / 10% удержание платформы
+  (`CANCEL_REFUND_ADVERTISER_RATE`, `CANCEL_REFUND_OWNER_RATE`,
+  `CANCEL_REFUND_PLATFORM_RATE` из `src/constants/fees.py`).
+- **Pre-escrow** (cancel до фриза): 100% возврат рекламодателю.
+- **Post-publish:** 0% возврат (трактуется как выполненная услуга).
+
 #### `refund_failed_placement(session, placement_id) -> PlacementRequest`
 - **Preconditions:** Placement exists
 - **Postconditions:**
-  - If in escrow: `user.balance_rub += final_price × 0.50` (50% refund)
+  - If in escrow / advertiser-cancel after confirmation: applies 50/40/10 split via cancel constants
   - If not in escrow: full refund
   - Transaction(refund) created
 - **Side Effects:** Notification to advertiser
@@ -139,7 +149,9 @@
 **File:** `src/core/services/payout_service.py` (778 lines)
 
 #### `calculate_payout(price_per_post: Decimal) -> tuple[Decimal, Decimal]`
-- **Rule:** `payout = price × 0.85`, `platform_fee = price × 0.15`
+- **Rule (Промт 15.7):** owner net = `price × 0.788`,
+  platform total = `price × 0.212` (= 20% commission + 1.5% service fee
+  from the 80% owner gross share).
 - **Returns:** `(payout_amount, platform_fee)`
 
 #### `check_velocity(session, user_id, requested_amount: Decimal) -> None`
