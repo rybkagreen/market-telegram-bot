@@ -11,6 +11,8 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
+_Last updated: 2026-04-28 23:10_
+
 ## Active items
 
 ### BL-001 — Dispute flow E2E
@@ -1200,6 +1202,101 @@ effective rates (78.8% / 21.2%) — последние всегда выводя
   этим follow-up, остаётся только хардкоды `3.5%` / `6%` где не покрыто).
 
 **Fix commit:** see CHANGELOG / merge SHAs (this session).
+
+### BL-037 — Timeline должен tracking все sub-stages с fail-fast STOP
+**Status:** Open
+**Found:** 2026-04-28 (Claude.ai session, обсуждение flow diagram)
+**Category:** Architecture / Process discipline / Observability
+
+**Контекст.** Текущая визуализация placement+billing+legal flow
+показывает только high-level stages (8 этапов от регистрации до
+выплаты). Реальный flow включает множество sub-stages внутри каждого
+этапа — `ord_registration` SDK call, generation document'ов,
+acceptance gates, escrow freeze, notification dispatch, KUDIR record
+creation, и т.д.
+
+**Требование.** Система должна tracking каждый sub-stage жизненного
+цикла placement (не только основные этапы), и fail-fast STOP на любом
+сбое sub-stage. Никакого partial state advancement — если sub-step
+упал, весь flow останавливается на текущем шаге, состояние явно
+зафиксировано как `<stage>_failed:<reason>`, требует ручного /
+автоматического recovery либо rollback.
+
+Это противоположность текущему "best-effort" pattern'у где Celery
+task может частично выполниться, оставив flow в неопределённом
+состоянии (escrow frozen но Transaction не записана, ERID получен но
+publication не произошла, и т.д.).
+
+**Зачем.**
+1. Audit trail completeness — каждый sub-stage оставляет след
+   (Transaction row, status update, structured log).
+2. Recovery without forensics — явный state позволяет resume с
+   конкретного места без угадывания "а что уже произошло".
+3. Legal compliance — если flow остановился до получения ERID, мы
+   гарантированно НЕ опубликовали без маркировки.
+4. Money safety — silent partial flows главный источник ledger drift
+   (пример: CRIT-2 в Промте-12). Atomic STOP исключает класс таких
+   багов.
+
+**Sub-stage примеры (где требуется явная granularity).**
+
+Stage 4 (Принятие заявки): 4a. owner click accept; 4b.
+freeze_escrow_for_placement (lock + balance check + decrement
+advertiser → increment platform_account.escrow_reserved); 4c.
+Transaction(type=escrow_freeze) + idempotency_key; 4d.
+PlacementRequest status → escrow_frozen; 4e. act_placement.html
+generated; 4f. notification dispatched. Если 4b succeeded но 4c failed
+(e.g. DB constraint violation) — STOP, escrow rollback, status revert.
+Не continue к 4d.
+
+Stage 5 (ОРД регистрация): 5a. submit creative payload; 5b. receive
+ERID; 5c. persist ERID on PlacementRequest; 5d. verify ERID format.
+Если 5a timed out или 5b returned error — STOP. Не continue к
+publication. Status → erid_pending или erid_failed. Никогда publication
+без verified ERID.
+
+Stage 7 (Завершение): 7a. trigger condition met; 7b. release_escrow
+(advertiser unchanged, owner.earned_rub +788, platform escrow_reserved
+−1000, +212 commission + service fee); 7c. Transaction × 2; 7d.
+act_advertiser.html; 7e. act_owner_<status>.html (по
+owner.legal_status); 7f. KUDIR records appended; 7g. notifications.
+Любой из 7b-7g failed → STOP, status release_failed:<sub_stage>,
+PlacementRequest stays in published, manual review.
+
+**Implementation hints.**
+- State machine с явными transitions: PlacementTransitionService уже
+  задаёт паттерн. Расширить для всех stages, sub-stages как explicit
+  state transitions (не inline mutations внутри одной Celery task).
+- Atomic units: каждый sub-stage — caller-controlled session boundary
+  с явным commit / rollback.
+- Status enum gradacии: escrow_freeze_pending, escrow_frozen,
+  escrow_freeze_failed:<reason>, erid_pending, erid_received,
+  erid_failed:<reason>, published, release_pending, released,
+  release_failed:<sub_stage>. Текущий narrow enum (draft, submitted,
+  escrow_frozen, published, completed, cancelled) недостаточен.
+- Recovery jobs: Celery beat tasks per *_pending status, retry с
+  backoff + max attempts → escalate to admin.
+- Observability: structured logs с placement_id, stage, sub_stage,
+  status, error_class, error_message, retry_count.
+
+**Scope.** Placement lifecycle (extending PlacementTransitionService);
+ОРД integration; document generation pipeline; acceptance flows
+(re-accept loop on version bump); payout pipeline; dispute resolution
+(новый DisputeResolutionService — design сразу с этим pattern'ом).
+
+**Связанные.** Phase 2 PlacementTransitionService — baseline.
+Промт-12 CRIT-2 — пример класса багов которые pattern предотвратил бы.
+BILLING_REWRITE_PLAN_2026-04-28.md item 7 (PlanChangeService) + item
+16 (PlacementCancelService + DisputeResolutionService) — должны быть
+design'ed с sub-stage tracking сразу.
+
+**Resolution criteria.** Audit всех flows на atomicity sub-stages;
+granular status enums; каждый sub-stage как explicit transition с
+error handling; recovery jobs для *_pending statuses; documented
+invariants; smoke tests где sub-stage failure verified to STOP всё
+дальше. Realistic timeline — Phase 3+ после billing rewrite +
+legal templates + fee model consistency завершены. Должен быть разбит
+на под-промты.
 
 ## Closed items
 
