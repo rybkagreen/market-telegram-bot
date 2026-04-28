@@ -161,6 +161,7 @@ class FrozenBalanceResponse(BaseModel):
 async def create_unified_topup(
     body: TopupRequest,
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TopupResponse:
     """
     Создать единый запрос на пополнение баланса через ЮKassa.
@@ -171,17 +172,20 @@ async def create_unified_topup(
     Args:
         body: Данные пополнения (desired_amount, method).
         current_user: Текущий пользователь.
+        session: DB-сессия (caller-controlled, commits via dependency).
 
     Returns:
         TopupResponse: Данные платежа (payment_id, payment_url, status).
 
     Raises:
         HTTPException 400: Некорректная сумма или метод оплаты.
+        HTTPException 503: ЮKassa временно недоступна.
     """
     from decimal import Decimal
 
     from src.constants.payments import MAX_TOPUP, MIN_TOPUP
-    from src.core.services.billing_service import BillingService, PaymentProviderError
+    from src.core.services.billing_service import PaymentProviderError
+    from src.core.services.yookassa_service import YooKassaService
 
     # Валидация метода оплаты
     if body.method != "yookassa":
@@ -203,13 +207,13 @@ async def create_unified_topup(
             detail=f"Maximum topup amount is {MAX_TOPUP} RUB",
         )
 
-    # Создание платежа через billing_service
-    billing_service = BillingService()
+    # Создание платежа через YooKassaService (caller-controlled session, S-48)
+    yookassa_service = YooKassaService()
     try:
-        payment_data = await billing_service.create_payment(
+        payment_data = await yookassa_service.create_topup_payment(
+            session=session,
             user_id=current_user.id,
-            amount=desired_amount,
-            payment_method="yookassa",
+            desired_balance=desired_amount,
         )
     except PaymentProviderError as exc:
         raise HTTPException(
@@ -222,6 +226,11 @@ async def create_unified_topup(
                 "provider_error_code": exc.code,
                 "provider_request_id": exc.request_id,
             },
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
         ) from exc
 
     logger.info(f"Unified topup created: user={current_user.id}, amount={desired_amount}")

@@ -3,26 +3,13 @@ Billing Service для управления платежами и балансо
 Двухвалютная система: рубли (размещения) + кредиты (подписки).
 """
 
-import asyncio
 import logging
-import uuid
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from yookassa import Configuration, Payment
-from yookassa.domain.exceptions import (
-    ApiError,
-    BadRequestError,
-    ForbiddenError,
-    NotFoundError,
-    ResponseProcessingError,
-    TooManyRequestsError,
-    UnauthorizedError,
-)
 
-from src.config.settings import settings
 from src.constants.payments import (
     MAX_TOPUP,
     MIN_TOPUP,
@@ -137,161 +124,6 @@ class BillingService:
             logger.info(f"Plan payment: {amount_rub} ₽ by user {user_id}")
 
             return int(amount_rub), transaction, transaction
-
-    async def create_payment(
-        self,
-        user_id: int,
-        amount: Decimal,
-        payment_method: str = "yookassa",
-    ) -> dict[str, Any]:
-        """
-        Создать платёж.
-
-        Args:
-            user_id: ID пользователя.
-            amount: Сумма платежа в рублях (конвертируется в кредиты 1:1).
-            payment_method: Метод оплаты.
-
-        Returns:
-            Данные платежа (payment_id, payment_url).
-        """
-        from decimal import Decimal as Dec
-
-        from src.constants.payments import PLATFORM_TAX_RATE
-
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_id(user_id)
-
-            if not user:
-                raise ValueError(f"User {user_id} not found")
-
-            # Конвертируем рубли в кредиты (1:1)
-            credits_amount = int(amount)
-
-            # v4.2: Рассчитываем gross_amount и fee_amount
-            # desired_balance = amount (сколько пользователь хочет зачислить)
-            # fee_amount = amount * 0.035 (комиссия ЮKassa)
-            # gross_amount = amount + fee_amount (сколько платит пользователь)
-            desired_balance = Dec(str(amount))
-            fee_amount = (desired_balance * PLATFORM_TAX_RATE).quantize(Dec("0.01"))
-            gross_amount = desired_balance + fee_amount
-
-            # Создаём реальный платёж в ЮKassa и получаем confirmation_url
-            if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
-                raise RuntimeError(
-                    "YooKassa credentials are not configured "
-                    "(YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
-                )
-
-            Configuration.account_id = settings.yookassa_shop_id
-            Configuration.secret_key = settings.yookassa_secret_key
-
-            idempotency_key = str(uuid.uuid4())
-            payment_request = {
-                "amount": {"value": str(gross_amount), "currency": "RUB"},
-                "confirmation": {
-                    "type": "redirect",
-                    "return_url": settings.yookassa_return_url,
-                },
-                "capture": True,
-                "description": f"Пополнение баланса RekHarborBot: {desired_balance} ₽",
-                "metadata": {
-                    "user_id": str(user_id),
-                    "desired_balance": str(desired_balance),
-                    "fee_amount": str(fee_amount),
-                    "gross_amount": str(gross_amount),
-                },
-            }
-
-            try:
-                yk_payment = await asyncio.to_thread(
-                    Payment.create, payment_request, idempotency_key
-                )
-            except (
-                ApiError,
-                BadRequestError,
-                ForbiddenError,
-                NotFoundError,
-                ResponseProcessingError,
-                TooManyRequestsError,
-                UnauthorizedError,
-            ) as exc:
-                # YooKassa stores the response payload on .content (dict)
-                # and a parsed Error object on .error. .content has request_id,
-                # .error doesn't — prefer .content.
-                content = getattr(exc, "content", None) or {}
-                err_code = str(content.get("code") or "unknown")
-                err_description = str(content.get("description") or exc)
-                err_request_id = str(content.get("request_id") or "unknown")
-                logger.error(
-                    "YooKassa API error for user %s: code=%s, description=%s,"
-                    " request_id=%s",
-                    user_id,
-                    err_code,
-                    err_description,
-                    err_request_id,
-                )
-                raise PaymentProviderError(
-                    code=err_code,
-                    description=err_description,
-                    request_id=err_request_id,
-                ) from exc
-
-            payment_id = yk_payment.id
-            confirmation = yk_payment.confirmation
-            confirmation_url = (
-                confirmation.confirmation_url if confirmation is not None else None
-            )
-            if not confirmation_url:
-                raise RuntimeError(
-                    f"YooKassa did not return a confirmation URL for payment {payment_id}"
-                )
-
-            # Создаём запись YookassaPayment
-            from src.db.models.yookassa_payment import YookassaPayment
-
-            yookassa_record = YookassaPayment(
-                payment_id=payment_id,
-                user_id=user_id,
-                gross_amount=gross_amount,
-                desired_balance=desired_balance,
-                fee_amount=fee_amount,
-                status="pending",
-                payment_url=confirmation_url,
-            )
-            session.add(yookassa_record)
-            await session.commit()
-
-            # Создаём транзакцию со статусом pending
-            transaction_repo = TransactionRepository(session)
-            await transaction_repo.create({
-                "user_id": user_id,
-                "amount": gross_amount,
-                "type": TransactionType.topup,
-                "yookassa_payment_id": payment_id,
-                "meta_json": {
-                    "status": "pending",
-                    "method": payment_method,
-                    "credits": credits_amount,
-                    "desired_balance": str(desired_balance),
-                    "fee_amount": str(fee_amount),
-                    "gross_amount": str(gross_amount),
-                },
-            })
-
-            logger.info(
-                f"Payment {payment_id} created for user {user_id}: "
-                f"desired={desired_balance}, fee={fee_amount}, gross={gross_amount} RUB"
-            )
-
-            return {
-                "payment_id": payment_id,
-                "payment_url": yookassa_record.payment_url,
-                "amount": str(gross_amount),
-                "credits": credits_amount,
-                "status": "pending",
-            }
 
     async def check_payment(
         self,
