@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Notification, Button, Skeleton, Icon, ScreenHeader, FeeBreakdown } from '@shared/ui'
-import { formatCurrency, formatDateTimeMSK, formatTimeMSK } from '@/lib/constants'
+import {
+  OWNER_NET_RATE,
+  PLATFORM_COMMISSION_GROSS,
+  PLATFORM_TOTAL_RATE,
+  SERVICE_FEE,
+  computePlacementSplit,
+  formatCurrency,
+  formatDateTimeMSK,
+  formatRatePct,
+  formatTimeMSK,
+} from '@/lib/constants'
 import { usePlacement } from '@/hooks/useCampaignQueries'
 import { useMyDisputeByPlacement } from '@/hooks/useDisputeQueries'
 import { getRoleAwareStatusLabel } from '@/lib/disputeLabels'
-
-const PLATFORM_COMMISSION = 0.15
 
 export default function CampaignPublished() {
   const { id } = useParams<{ id: string }>()
@@ -43,8 +51,10 @@ export default function CampaignPublished() {
   const price = parseFloat(
     String(placement.final_price ?? placement.counter_price ?? placement.proposed_price),
   )
-  const ownerShare = price * (1 - PLATFORM_COMMISSION)
-  const platformShare = price * PLATFORM_COMMISSION
+  // Промт 15.7: derive split from shared constants (no hardcoded effective rates).
+  const split = computePlacementSplit(price)
+  const ownerShare = split.ownerNet
+  const platformShare = split.platformTotal
 
   const isWithinDisputeWindow = placement.published_at
     ? (now - new Date(placement.published_at).getTime()) / 3_600_000 < 48
@@ -94,8 +104,14 @@ export default function CampaignPublished() {
 
             <FeeBreakdown
               rows={[
-                { label: 'Владельцу (85%)', value: formatCurrency(ownerShare) },
-                { label: 'Комиссия платформы (15%)', value: formatCurrency(platformShare) },
+                {
+                  label: `Владельцу (${formatRatePct(OWNER_NET_RATE)})`,
+                  value: formatCurrency(ownerShare),
+                },
+                {
+                  label: `Платформа (${formatRatePct(PLATFORM_TOTAL_RATE)} — ${formatRatePct(PLATFORM_COMMISSION_GROSS, 0)} + ${formatRatePct(SERVICE_FEE)} сервисный сбор)`,
+                  value: formatCurrency(platformShare),
+                },
               ]}
               total={{ label: 'Итого с эскроу', value: formatCurrency(price) }}
             />

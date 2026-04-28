@@ -11,7 +11,16 @@ import {
   Textarea,
   FeeBreakdown,
 } from '@shared/ui'
-import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
+import {
+  OWNER_NET_RATE,
+  PLATFORM_COMMISSION_GROSS,
+  PLATFORM_TOTAL_RATE,
+  SERVICE_FEE,
+  computePlacementSplit,
+  formatCurrency,
+  formatDateTimeMSK,
+  formatRatePct,
+} from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useMyDisputeByPlacement } from '@/hooks/useDisputeQueries'
 import { getRoleAwareStatusLabel } from '@/lib/disputeLabels'
@@ -168,7 +177,12 @@ export default function OwnRequestDetail() {
   }
 
   const price = parseFloat(request.proposed_price)
-  const ownerShare = price * 0.85
+  // Промт 15.7: derive everything via computePlacementSplit (ED constants only).
+  const split = computePlacementSplit(price)
+  const platformGrossCommission = split.platformGross
+  const serviceFee = split.serviceFee
+  const platformTotal = split.platformTotal
+  const ownerShare = split.ownerNet
 
   return (
     <div className="max-w-[1080px] mx-auto">
@@ -340,9 +354,23 @@ export default function OwnRequestDetail() {
             <FeeBreakdown
               rows={[
                 { label: 'Цена рекламодателя', value: formatCurrency(price) },
-                { label: 'Комиссия платформы (15%)', value: formatCurrency(price * 0.15) },
+                {
+                  label: `Комиссия платформы (${formatRatePct(PLATFORM_COMMISSION_GROSS, 0)})`,
+                  value: formatCurrency(platformGrossCommission),
+                },
+                {
+                  label: `Сервисный сбор ${formatRatePct(SERVICE_FEE)} (из доли владельца)`,
+                  value: formatCurrency(serviceFee),
+                },
+                {
+                  label: `Итого удержано платформой (${formatRatePct(PLATFORM_TOTAL_RATE)})`,
+                  value: formatCurrency(platformTotal),
+                },
               ]}
-              total={{ label: 'Ваша выплата (85%)', value: formatCurrency(ownerShare) }}
+              total={{
+                label: `Ваша выплата (${formatRatePct(OWNER_NET_RATE)})`,
+                value: formatCurrency(ownerShare),
+              }}
             />
           </div>
 

@@ -53,10 +53,15 @@
 
 ## КРИТИЧЕСКИЕ ИЗМЕНЕНИЯ v4.2 (прочитай первым)
 
+> ⚠️ **Промт 15.7 (28.04.2026): комиссии переписаны.** Строки ниже
+> остаются как историческая справка — фактические значения в
+> `src/constants/fees.py` и в разделе «Financial Constants
+> (Промт 15.7)» ниже.
+
 | # | Параметр | v3.x | v4.2 | Файл |
 |---|----------|------|------|------|
-| 1 | `PLATFORM_COMMISSION` | 0.20 | **0.15** | payments.py |
-| 2 | `OWNER_SHARE` | 0.80 | **0.85** | payments.py |
+| 1 | `PLATFORM_COMMISSION_RATE` | 0.20 | **0.20** (Промт 15.7) | constants/fees.py |
+| 2 | `OWNER_SHARE_RATE` | 0.80 | **0.80** (Промт 15.7) | constants/fees.py |
 | 3 | `NPD_TAX_RATE` | 0.04 | **удалён** | — |
 | 4 | `PLATFORM_TAX_RATE` | — | **0.06** (УСН) | payments.py |
 | 5 | `PAYOUT_FEE_RATE` | — | **0.015** | payments.py |
@@ -118,18 +123,42 @@
 
 ---
 
-## Financial Constants v4.2
+## Financial Constants (Промт 15.7, 28.04.2026)
+
+> Источник правды: `src/constants/fees.py` (fee rates) +
+> `src/constants/payments.py` (operational constants). Хардкод тех же
+> значений в любом другом месте блокируется AST-линтом
+> `tests/unit/test_no_hardcoded_fees.py`.
 
 ```python
-# src/constants/payments.py — полная спецификация
+# src/constants/fees.py — комиссии и сплиты
 
 from decimal import Decimal
 
-PLATFORM_COMMISSION   = Decimal("0.15")   # 15% с размещений → не 0.20!
-OWNER_SHARE           = Decimal("0.85")   # 85% владельцу → не 0.80!
-YOOKASSA_FEE_RATE     = Decimal("0.035")  # платит пользователь поверх пополнения
-PLATFORM_TAX_RATE     = Decimal("0.06")   # УСН 6% → не NPD_TAX_RATE!
-PAYOUT_FEE_RATE       = Decimal("0.015")  # комиссия за вывод (новый v4.2)
+# Topup (YooKassa pass-through, платформа зарабатывает 0)
+YOOKASSA_FEE_RATE             = Decimal("0.035")  # 3.5% поверх desired_balance
+
+# Placement successful release: 20% / 80% gross + 1.5% service fee из 80%
+PLATFORM_COMMISSION_RATE      = Decimal("0.20")   # 20% валовая комиссия платформы
+OWNER_SHARE_RATE              = Decimal("0.80")   # 80% валовая доля владельца
+SERVICE_FEE_RATE              = Decimal("0.015")  # 1.5% сервисный сбор из доли владельца
+# Эффект: owner net = 78.8%, platform total = 21.2% от final_price.
+
+# Cancel after_confirmation (post-escrow, pre-publish): 50 / 40 / 10
+CANCEL_REFUND_ADVERTISER_RATE = Decimal("0.50")   # возврат рекламодателю
+CANCEL_REFUND_OWNER_RATE      = Decimal("0.40")   # компенсация владельцу
+CANCEL_REFUND_PLATFORM_RATE   = Decimal("0.10")   # удержание платформы
+
+# Налоги (НЕ комиссии — независимы от платежа пользователя)
+NPD_RATE_FROM_INDIVIDUAL      = Decimal("0.04")
+NPD_RATE_FROM_LEGAL           = Decimal("0.06")
+PLATFORM_USN_RATE             = Decimal("0.06")
+```
+
+```python
+# src/constants/payments.py — операционные константы (не fee-rate'ы)
+
+PAYOUT_FEE_RATE       = Decimal("0.015")  # 1.5% комиссия за вывод средств
 VELOCITY_MAX_RATIO    = Decimal("0.80")   # макс. вывод/пополнения за 30 дней
 VELOCITY_WINDOW_DAYS  = 30
 COOLDOWN_HOURS        = 24
@@ -210,7 +239,7 @@ class PlatformAccount(Base):
     id:                  int     # всегда 1
     escrow_reserved:     Decimal # = SUM(placements.final_price WHERE status='escrow')
     payout_reserved:     Decimal # = SUM(payouts.gross_amount WHERE pending/processing)
-    profit_accumulated:  Decimal # = SUM(15% эскроу + 1.5% payout fees)
+    profit_accumulated:  Decimal # = SUM(21.2% эскроу + 1.5% payout fees)
     total_topups:        Decimal # исторические desired_balance
     total_payouts:       Decimal # исторические net_amount
     updated_at:          datetime
@@ -434,8 +463,11 @@ async def freeze_escrow(session, user_id, placement_id, amount):
     # assert user.balance_rub >= amount
 
 async def release_escrow(session, placement_id):
-    # owner_amount = final_price × 0.85
-    # platform_fee = final_price × 0.15
+    # Промт 15.7: 20% commission + 1.5% service fee из owner gross.
+    # gross_owner   = final_price × OWNER_SHARE_RATE        # 0.80
+    # service_fee   = gross_owner × SERVICE_FEE_RATE        # 0.015 → 1.2% от final_price
+    # owner_amount  = gross_owner − service_fee             # эффективно 78.8%
+    # platform_fee  = final_price − owner_amount            # 21.2% (20% + 1.2%)
     # platform.profit_accumulated += platform_fee
 ```
 

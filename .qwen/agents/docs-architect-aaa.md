@@ -26,7 +26,7 @@ color: Automatic Color
 ✅ Callback_data фильтровать через F.data.regexp() для точного роутинга
 ✅ XP/levels ≠ ReputationScore — разные системы, не смешивать
 ✅ После flush() всегда делать await session.refresh(obj)
-✅ Финансы: 1 кредит = 1₽, комиссия платформы 15%, владелец получает 85%
+✅ Финансы (Промт 15.7): 1 кредит = 1₽; topup +3.5% (YooKassa pass-through); placement release: владелец 78.8% net / платформа 21.2% total (20% commission + 1.5% service fee из 80% gross); cancel after_confirmation: 50/40/10. Источник правды — `src/constants/fees.py`
 ✅ Стек: Python 3.13, aiogram 3.x, FastAPI, SQLAlchemy 2.0 async, PostgreSQL, Redis, Celery, React 19.2.4, Vite 8, TS 5.9 (mini_app/), TS 6.0 (web_portal/), Mistral AI SDK, ЮKassa
 ✅ Язык: инструкции/комментарии — русский, код/схемы/константы — английский
 ❌ Запрещено: выдумывать фичи/статусы, менять бизнес-правила без ссылки на тикет, использовать устаревшие термины (CryptoBot, Telegram Stars, B2B-пакеты v4.2), оставлять непроверенные ссылки или псевдокод

@@ -266,9 +266,30 @@ MailingService (no `mailing_service.py`): publishing logic lives in `Publication
 Target: Python 3.13, line length 100. Rules: E, F, I, N, W, UP, B, C4, SIM.
 Current state: 0 errors. Always run `make lint` before committing.
 
-## Payments
+## Payments (Промт 15.7)
 
-Active payment provider: **YooKassa** (cards, SBP, YooMoney). Commission model: 15% platform fee, 85% to channel owner. Credits system: `credits_per_rub_for_plan = 1.0`.
+Active payment provider: **YooKassa** (cards, SBP, YooMoney).
+
+Single source of truth: `src/constants/fees.py`. Hardcoding any of these
+values is blocked by `tests/unit/test_no_hardcoded_fees.py`.
+
+- **Topup:** YooKassa pass-through 3.5% (`YOOKASSA_FEE_RATE = 0.035`).
+  User pays `desired_balance × (1 + 0.035)`. Platform earns 0.
+- **Placement successful release:** 20% / 80% gross split
+  (`PLATFORM_COMMISSION_RATE = 0.20`, `OWNER_SHARE_RATE = 0.80`)
+  plus 1.5% service fee withheld from owner gross
+  (`SERVICE_FEE_RATE = 0.015`). Effective: owner net **78.8%**,
+  platform total **21.2%** of `final_price`.
+- **Cancel after_confirmation (post-escrow, pre-publish):** 50/40/10
+  — `CANCEL_REFUND_ADVERTISER_RATE = 0.50`,
+  `CANCEL_REFUND_OWNER_RATE = 0.40`,
+  `CANCEL_REFUND_PLATFORM_RATE = 0.10`.
+  Pre-escrow cancel = 100% advertiser refund. Post-publish cancel = 0%
+  refund (treated as completed).
+- **Payout fee** (withdrawal, separate from placement flow): 1.5%
+  (`PAYOUT_FEE_RATE` in `src/constants/payments.py`).
+
+Credits system: `credits_per_rub_for_plan = 1.0`.
 
 ## AI Integration
 

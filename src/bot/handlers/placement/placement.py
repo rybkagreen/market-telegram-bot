@@ -18,8 +18,14 @@ from src.bot.states.placement import PlacementStates
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.constants.fees import (
     CANCEL_REFUND_ADVERTISER_RATE,
+    CANCEL_REFUND_OWNER_RATE,
+    CANCEL_REFUND_PLATFORM_RATE,
+    OWNER_NET_RATE,
     OWNER_SHARE_RATE,
     PLATFORM_COMMISSION_RATE,
+    PLATFORM_TOTAL_RATE,
+    SERVICE_FEE_RATE,
+    format_rate_pct,
 )
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.repositories.user_repo import UserRepository
@@ -338,8 +344,11 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
 
     price = req.final_price or req.proposed_price
-    owner_amount = price * OWNER_SHARE_RATE
-    platform_amount = price * PLATFORM_COMMISSION_RATE
+    # Промт 15.7: 20% commission + 1.5% service fee из 80% gross → 21,2% / 78,8%.
+    owner_gross = price * OWNER_SHARE_RATE
+    service_fee = owner_gross * SERVICE_FEE_RATE
+    owner_amount = owner_gross - service_fee
+    platform_amount = price - owner_amount
 
     fmt_name = FORMAT_NAMES.get(
         req.publication_format.value
@@ -372,9 +381,16 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
         f"💰 Сумма эскроу: *{price:.0f} ₽*\n"
         f"🔒 Средства заморожены до авто-удаления поста\n\n"
         f"─── Распределение ───\n"
-        f"• Владельцу (после удаления): *{owner_amount:.0f} ₽* (85%)\n"
-        f"• Комиссия платформы: *{platform_amount:.0f} ₽* (15%)\n\n"
-        f"⚠️ Отмена после оплаты: возврат только 50%",
+        f"• Владельцу (после удаления): *{owner_amount:.0f} ₽* "
+        f"({format_rate_pct(OWNER_NET_RATE)})\n"
+        f"• Комиссия платформы: *{platform_amount:.0f} ₽* "
+        f"({format_rate_pct(PLATFORM_TOTAL_RATE)} — "
+        f"{format_rate_pct(PLATFORM_COMMISSION_RATE, 0)} + "
+        f"{format_rate_pct(SERVICE_FEE_RATE)} сервисный сбор)\n\n"
+        f"⚠️ Отмена после оплаты до публикации: "
+        f"возврат {format_rate_pct(CANCEL_REFUND_ADVERTISER_RATE, 0)} / "
+        f"владельцу {format_rate_pct(CANCEL_REFUND_OWNER_RATE, 0)} / "
+        f"платформе {format_rate_pct(CANCEL_REFUND_PLATFORM_RATE, 0)}",
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )

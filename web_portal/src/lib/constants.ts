@@ -7,6 +7,48 @@ export const PLAN_INFO: Record<string, { displayName: string; emoji: string; aiG
 
 export const MIN_PRICE_PER_POST = 1000
 
+// ──────────────── Financials (Промт 15.7) ────────────────
+// Single source of truth: src/constants/fees.py.
+// Effective rates MUST be derived from gross constants — никаких
+// hardcoded 0.788 / 0.212 в screen-коде.
+export const PLATFORM_COMMISSION_GROSS = 0.20
+export const OWNER_SHARE_GROSS = 0.80
+export const SERVICE_FEE = 0.015
+export const OWNER_NET_RATE = OWNER_SHARE_GROSS * (1 - SERVICE_FEE)
+export const PLATFORM_TOTAL_RATE = 1 - OWNER_NET_RATE
+export const YOOKASSA_FEE = 0.035
+export const PAYOUT_FEE = 0.015
+
+/** Cancel split (after_confirmation): 50 / 40 / 10. */
+export const CANCEL_REFUND_ADVERTISER = 0.50
+export const CANCEL_REFUND_OWNER = 0.40
+export const CANCEL_REFUND_PLATFORM = 0.10
+
+/** Format a fraction as a localised percent string ("78,8%"). */
+export function formatRatePct(rate: number, fractionDigits = 1): string {
+  return `${(rate * 100).toLocaleString('ru-RU', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}%`
+}
+
+/** Compute the placement-release split for a given price. */
+export interface PlacementSplit {
+  ownerGross: number
+  serviceFee: number
+  ownerNet: number
+  platformGross: number
+  platformTotal: number
+}
+export function computePlacementSplit(price: number): PlacementSplit {
+  const ownerGross = price * OWNER_SHARE_GROSS
+  const serviceFee = ownerGross * SERVICE_FEE
+  const ownerNet = ownerGross - serviceFee
+  const platformGross = price * PLATFORM_COMMISSION_GROSS
+  const platformTotal = price - ownerNet
+  return { ownerGross, serviceFee, ownerNet, platformGross, platformTotal }
+}
+
 export const CATEGORIES: { key: string; name: string; emoji: string }[] = [
   { key: 'business',      name: 'Бизнес',         emoji: '💼' },
   { key: 'it',            name: 'IT и технологии', emoji: '💻' },
