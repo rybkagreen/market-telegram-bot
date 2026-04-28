@@ -1,18 +1,28 @@
 """
-Константы платёжной системы RekHarborBot v4.2.
-Финансовая модель: ИП УСН 6%, комиссия платформы 15%, доля владельца 85%.
+Константы платёжной системы RekHarborBot.
+
+Fee/percentage rates (placement commission, owner share, YooKassa fee,
+service fee, cancel splits, NPD/USN tax rates) live in
+`src.constants.fees` — single source of truth, enforced by AST lint
+`tests/unit/test_no_hardcoded_fees.py`.
+
+This module keeps non-fee operational constants:
+- velocity checks, cooldowns
+- minimum amounts (topup, budget, payout)
+- referral bonus
+- format multipliers, plan prices and limits
+- payout-flow fee + helpers (вывод средств — separate from placement fees)
 """
 
 from decimal import Decimal
 
 # ══════════════════════════════════════════════════════════════
-# КОМИССИИ И ДОЛИ
+# PAYOUT FEE — комиссия за вывод средств с баланса owner на банк
 # ══════════════════════════════════════════════════════════════
-PLATFORM_COMMISSION = Decimal("0.15")  # Комиссия платформы (15%)
-OWNER_SHARE = Decimal("0.85")  # Доля владельца канала (85%)
-YOOKASSA_FEE_RATE = Decimal("0.035")  # Комиссия ЮKassa (3.5%)
-PLATFORM_TAX_RATE = Decimal("0.06")  # ИП УСН 6%
-PAYOUT_FEE_RATE = Decimal("0.015")  # Комиссия за вывод (1.5%)
+# 1.5% — фиксированная стоимость обработки вывода. Концептуально
+# не относится к placement-flow fees (никак не связана с публикацией);
+# взимается только при initiated payout request.
+PAYOUT_FEE_RATE = Decimal("0.015")
 
 # ══════════════════════════════════════════════════════════════
 # VELOCITY CHECK — защита от обналичивания
@@ -110,6 +120,8 @@ def calculate_topup_payment(desired: Decimal) -> dict:
             - fee_amount: комиссия ЮKassa (3.5%)
             - gross_amount: итоговая сумма к оплате
     """
+    from src.constants.fees import YOOKASSA_FEE_RATE
+
     desired = Decimal(str(desired))
     fee_amount = (desired * YOOKASSA_FEE_RATE).quantize(Decimal("0.01"))
     gross_amount = desired + fee_amount

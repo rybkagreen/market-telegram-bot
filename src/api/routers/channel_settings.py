@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, get_db_session
-from src.constants.payments import OWNER_SHARE
+from src.constants.fees import OWNER_SHARE_RATE
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ async def get_channel_settings(
     settings = await repo.get_or_create(channel_id)
 
     # Вычислить payout владельца
-    owner_payout = settings.price_per_post * OWNER_SHARE
+    owner_payout = settings.price_per_post * OWNER_SHARE_RATE
 
     return ChannelSettingsResponse(
         channel_id=settings.channel_id,
@@ -216,7 +216,7 @@ async def update_channel_settings(
     settings = await repo.update_settings(channel_id, **update_data)
 
     # Вычислить payout владельца
-    owner_payout = settings.price_per_post * OWNER_SHARE
+    owner_payout = settings.price_per_post * OWNER_SHARE_RATE
 
     return ChannelSettingsResponse(
         channel_id=settings.channel_id,
