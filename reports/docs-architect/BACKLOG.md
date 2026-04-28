@@ -1014,7 +1014,21 @@ After this commit:
 - POST `/topup` on canonical `Depends(get_db_session)` DI pattern.
 - Frontend 503 modal (Промт-14) works unchanged on the same shape.
 
-#### Open findings surfaced during 14a (deferred — не trog в этом промте)
+#### Open findings surfaced during 14a — status update (Промт-15.5, 2026-04-28)
+
+**Finding 1: RESOLVED** — bot `topup_pay` migrated to
+`YooKassaService.create_topup_payment` (Промт-15.5, Marina chose option a).
+Dead `YooKassaService.create_payment` removed. `tests/smoke_yookassa.py`
+removed. AST lint extended (`create_payment` added to
+`DEAD_YOOKASSA_METHODS`). 2 new integration tests in
+`tests/integration/test_bot_topup_handler.py`.
+
+**Finding 2: INVESTIGATED, decision pending Промт-15.7** — fee model
+investigation report in
+`CHANGES_2026-04-28_bot-topup-migration-fee-investigation.md`. Report is
+factual: lists every site that uses each constant, traces 100 ₽ topup
+through code, inventories all UI fee strings. No recommendation —
+Marina's product decision (option I/II/III/IV in CHANGES file).
 
 **Finding 1 — bot/handlers/billing/billing.py:60 `topup_pay` is broken-but-reachable**
 

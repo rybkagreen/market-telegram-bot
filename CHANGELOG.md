@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **bot**: migrate `topup_pay` handler to
+  `YooKassaService.create_topup_payment`. Bot, mini_app, and web_portal
+  now share the canonical service entry point for topup creation.
+  Removes dead `YooKassaService.create_payment` + obsolete
+  `tests/smoke_yookassa.py`. Bot users now see graceful "503"-style
+  message with provider request_id on YooKassa errors. AST lint
+  extended (`create_payment` added to `DEAD_YOOKASSA_METHODS`).
+  2 new integration tests in `tests/integration/test_bot_topup_handler.py`.
+  Promo-15.5; closes BL-034 Finding 1. Read-only fee-model investigation
+  report inline in CHANGES file (BL-034 Finding 2 — decision pending
+  Промт-15.7).
 - **billing**: move topup creation from `BillingService.create_payment`
   to `YooKassaService.create_topup_payment` with caller-controlled
   session (S-48). POST `/api/billing/topup` migrated to
