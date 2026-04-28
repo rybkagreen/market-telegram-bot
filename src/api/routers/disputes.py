@@ -34,7 +34,7 @@ from src.api.schemas.dispute import (
     DisputeStatus,
     DisputeUpdate,
 )
-from src.core.services.billing_service import billing_service
+from src.core.services.billing_service import BillingService
 from src.core.services.placement_transition_service import (
     InvalidTransitionError,
     PlacementTransitionService,
@@ -652,6 +652,7 @@ async def resolve_dispute_admin(
 
     price = placement.final_price if placement.final_price is not None else placement.proposed_price
     new_status: PlacementStatus = PlacementStatus.refunded
+    billing_service = BillingService()
 
     try:
         if body.resolution in ("owner_fault", "technical"):
