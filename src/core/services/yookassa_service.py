@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -15,7 +14,6 @@ from yookassa import Configuration, Payment
 from yookassa.domain.exceptions import ApiError
 
 from src.config.settings import settings
-from src.db.models.user import User
 from src.db.models.yookassa_payment import YookassaPayment as YooKassaPayment
 from src.db.session import async_session_factory
 
@@ -118,115 +116,6 @@ class YooKassaService:
         """
         payment = await asyncio.to_thread(Payment.find_one, payment_id)
         return payment.status  # pending / waiting_for_capture / succeeded / canceled
-
-    async def handle_webhook(self, event: dict) -> None:
-        """
-        Обработать webhook от ЮKassa.
-
-        Args:
-            event: Событие от ЮKassa.
-        """
-        event_type = event.get("event", "")
-        obj = event.get("object", {})
-        payment_id = obj.get("id", "")
-
-        if not payment_id:
-            self.logger.warning("Webhook: payment_id не найден в событии")
-            return
-
-        async with async_session_factory() as session:
-            from sqlalchemy import select
-
-            result = await session.execute(
-                select(YooKassaPayment).where(YooKassaPayment.payment_id == payment_id)
-            )
-            record = result.scalar_one_or_none()
-
-            if record is None:
-                self.logger.warning("Webhook: payment_id=%s не найден в БД", payment_id)
-                return
-
-            if record.status != "pending":
-                self.logger.info(
-                    "Webhook: payment_id=%s уже обработан (статус=%s)",
-                    payment_id,
-                    record.status,
-                )
-                return
-
-            if event_type == "payment.succeeded":
-                record.status = "succeeded"
-                record.processed_at = datetime.now(UTC)
-                await session.commit()
-                await self._credit_user(
-                    record.user_id, record.desired_balance, record.gross_amount, payment_id
-                )
-
-            elif event_type == "payment.canceled":
-                record.status = "canceled"
-                await session.commit()
-                self.logger.info("Webhook: payment_id=%s отменён", payment_id)
-
-    async def _credit_user(
-        self,
-        user_id: int,
-        amount_rub: Decimal,
-        gross_amount: Decimal,
-        payment_id: str,
-    ) -> None:
-        """
-        Начислить рубли пользователю и отправить уведомление.
-
-        Args:
-            user_id: ID пользователя.
-            amount_rub: Желаемая сумма пополнения.
-            gross_amount: Фактическая сумма платежа.
-            payment_id: UUID платежа.
-        """
-        try:
-            from sqlalchemy import select
-
-            # Начислить рубли напрямую через БД
-            async with async_session_factory() as session:
-                result = await session.execute(select(User).where(User.id == user_id))
-                user = result.scalar_one_or_none()
-
-                if not user:
-                    self.logger.error("User %s not found for balance update", user_id)
-                    return
-
-                # Начисление средств
-                balance_before = user.balance_rub
-                user.balance_rub += amount_rub
-                balance_after = user.balance_rub
-
-                # Создать транзакцию
-                from src.db.models.transaction import Transaction, TransactionType
-
-                transaction = Transaction(
-                    user_id=user_id,
-                    amount=amount_rub,
-                    type=TransactionType.topup,
-                    description=f"Пополнение ЮKassa #{payment_id[:8]}",
-                    yookassa_payment_id=payment_id,
-                    meta_json={"method": "yookassa", "source": "_credit_user"},
-                    balance_before=balance_before,
-                    balance_after=balance_after,
-                )
-                session.add(transaction)
-                await session.commit()
-
-                new_balance = float(user.balance_rub)  # noqa: F841 — passed to task below
-
-            # Dispatch notification via Celery — keeps webhook response non-blocking
-            if user:
-                from src.tasks.billing_tasks import notify_payment_success
-
-                notify_payment_success.delay(user_id, float(amount_rub), payment_id)
-                self.logger.info("Уведомление об оплате поставлено в очередь user_id=%s", user_id)
-
-        except Exception as e:
-            self.logger.error("Ошибка отправки уведомления user_id=%s: %s", user_id, e)
 
 
 # Singleton instance

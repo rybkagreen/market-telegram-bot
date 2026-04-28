@@ -370,8 +370,6 @@ async def verify_legal_profile(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
     """Verify a user's legal profile (admin only)."""
-    from datetime import UTC
-
     from sqlalchemy import update as sa_update
 
     from src.db.models.legal_profile import LegalProfile
