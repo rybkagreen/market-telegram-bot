@@ -25,6 +25,8 @@ DEAD_BILLING_METHODS = frozenset({
     "get_referral_stats",
     "freeze_campaign_funds",
     "refund_escrow_credits",
+    # Промт-15: moved to YooKassaService.create_topup_payment with caller-controlled session
+    "create_payment",
 })
 
 DEAD_YOOKASSA_METHODS = frozenset({
@@ -50,10 +52,12 @@ def test_no_dead_billing_methods_revived():
     revived = actual & DEAD_BILLING_METHODS
     assert not revived, (
         f"Dead BillingService methods were re-added: {revived}. "
-        f"See BILLING_REWRITE_PLAN_2026-04-28.md item 4 — these were deleted "
-        f"intentionally. If you need similar functionality, route through "
-        f"PlanChangeService (not yet introduced) or appropriate caller-controlled "
-        f"alternative. Do not re-add."
+        f"See BILLING_REWRITE_PLAN_2026-04-28.md items 4 and 6 — these were deleted "
+        f"intentionally. Topup creation now lives in "
+        f"YooKassaService.create_topup_payment with caller-controlled session "
+        f"(Промт-15). Other dead methods route through PlanChangeService "
+        f"(not yet introduced) or appropriate caller-controlled alternatives. "
+        f"Do not re-add."
     )
 
 

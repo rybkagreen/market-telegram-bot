@@ -247,15 +247,14 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
 ):
     """Regression: YooKassa ForbiddenError must surface as PaymentProviderError.
 
-    Before fix: `except ApiError: raise` re-raised the SDK exception
-    bare, bubbling up to FastAPI as HTTP 500. Now translated to
-    PaymentProviderError carrying code/description/request_id pulled
-    from `exc.content` (the raw response dict).
+    Промт-15: logic moved to YooKassaService.create_topup_payment with
+    caller-controlled session. SDK ForbiddenError is still translated to
+    PaymentProviderError carrying code/description/request_id pulled from
+    `exc.content` (the raw response dict).
     """
-    from contextlib import asynccontextmanager
-
     from src.config.settings import settings as app_settings
-    from src.core.services import billing_service as bs_module
+    from src.core.services import yookassa_service as yk_module
+    from src.core.services.yookassa_service import YooKassaService
 
     user = await _seed_user(db_session, balance=Decimal("0"))
     await db_session.flush()
@@ -271,12 +270,6 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
         raising=False,
     )
 
-    @asynccontextmanager
-    async def _fake_factory():
-        yield db_session
-
-    monkeypatch.setattr(bs_module, "async_session_factory", _fake_factory)
-
     fake_response = {
         "type": "error",
         "code": "forbidden",
@@ -286,14 +279,14 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
 
     with (
         patch.object(
-            bs_module.Payment, "create", side_effect=ForbiddenError(fake_response)
+            yk_module.Payment, "create", side_effect=ForbiddenError(fake_response)
         ),
         pytest.raises(PaymentProviderError) as exc_info,
     ):
-        await BillingService().create_payment(
+        await YooKassaService().create_topup_payment(
+            session=db_session,
             user_id=user.id,
-            amount=Decimal("100.00"),
-            payment_method="yookassa",
+            desired_balance=Decimal("100.00"),
         )
 
     assert exc_info.value.code == "forbidden"
@@ -302,20 +295,21 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
 
 
 async def test_topup_endpoint_returns_503_on_payment_provider_error(
-    monkeypatch,
+    db_session, monkeypatch
 ):
     """Regression: /api/billing/topup translates PaymentProviderError → 503.
 
-    Before fix: bare 500 / silent UI. Now structured 503 with Russian
-    user message, provider error code, and provider request_id for
-    support traceability.
+    Промт-12D contract: structured 503 with Russian user message, provider
+    error code, and provider request_id for support traceability.
+    Промт-15: endpoint now calls YooKassaService.create_topup_payment with
+    caller-controlled session, but error translation is unchanged.
     """
     from typing import cast
 
     from fastapi import HTTPException
 
     from src.api.routers.billing import TopupRequest, create_unified_topup
-    from src.core.services import billing_service as bs_module
+    from src.core.services import yookassa_service as yk_module
 
     fake_user = MagicMock()
     fake_user.id = 42
@@ -328,13 +322,15 @@ async def test_topup_endpoint_returns_503_on_payment_provider_error(
         )
 
     monkeypatch.setattr(
-        bs_module.BillingService, "create_payment", _raise_provider_error
+        yk_module.YooKassaService, "create_topup_payment", _raise_provider_error
     )
 
     body = TopupRequest(desired_amount=1000, method="yookassa")
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_unified_topup(body=body, current_user=fake_user)
+        await create_unified_topup(
+            body=body, current_user=fake_user, session=db_session
+        )
 
     assert exc_info.value.status_code == 503
     detail = cast(dict, exc_info.value.detail)
