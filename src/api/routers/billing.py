@@ -180,7 +180,7 @@ async def create_unified_topup(
     from decimal import Decimal
 
     from src.constants.payments import MAX_TOPUP, MIN_TOPUP
-    from src.core.services.billing_service import BillingService
+    from src.core.services.billing_service import BillingService, PaymentProviderError
 
     # Валидация метода оплаты
     if body.method != "yookassa":
@@ -204,11 +204,24 @@ async def create_unified_topup(
 
     # Создание платежа через billing_service
     billing_service = BillingService()
-    payment_data = await billing_service.create_payment(
-        user_id=current_user.id,
-        amount=desired_amount,
-        payment_method="yookassa",
-    )
+    try:
+        payment_data = await billing_service.create_payment(
+            user_id=current_user.id,
+            amount=desired_amount,
+            payment_method="yookassa",
+        )
+    except PaymentProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": (
+                    "Платёжный сервис временно недоступен."
+                    " Попробуйте позже или обратитесь в поддержку."
+                ),
+                "provider_error_code": exc.code,
+                "provider_request_id": exc.request_id,
+            },
+        ) from exc
 
     logger.info(f"Unified topup created: user={current_user.id}, amount={desired_amount}")
 

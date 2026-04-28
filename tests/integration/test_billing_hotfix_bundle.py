@@ -17,13 +17,17 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import select
+from yookassa.domain.exceptions import ForbiddenError
 
 from src.api.routers.admin import BalanceTopUpRequest, topup_user_balance
-from src.core.services.billing_service import BillingService
+from src.core.services.billing_service import (
+    BillingService,
+    PaymentProviderError,
+)
 from src.db.models.platform_account import PlatformAccount
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
@@ -233,3 +237,107 @@ async def test_admin_topup_idempotent(db_session):
     ).scalars().all()
     assert len(rows) == 1
     assert rows[0].idempotency_key == idem_key
+
+
+# ─── Промт-12D: PaymentProviderError translation ─────────────────────
+
+
+async def test_create_payment_translates_forbidden_to_payment_provider_error(
+    db_session, monkeypatch
+):
+    """Regression: YooKassa ForbiddenError must surface as PaymentProviderError.
+
+    Before fix: `except ApiError: raise` re-raised the SDK exception
+    bare, bubbling up to FastAPI as HTTP 500. Now translated to
+    PaymentProviderError carrying code/description/request_id pulled
+    from `exc.content` (the raw response dict).
+    """
+    from contextlib import asynccontextmanager
+
+    from src.config.settings import settings as app_settings
+    from src.core.services import billing_service as bs_module
+
+    user = await _seed_user(db_session, balance=Decimal("0"))
+    await db_session.flush()
+
+    monkeypatch.setattr(app_settings, "yookassa_shop_id", "test-shop", raising=False)
+    monkeypatch.setattr(
+        app_settings, "yookassa_secret_key", "test-secret", raising=False
+    )
+    monkeypatch.setattr(
+        app_settings,
+        "yookassa_return_url",
+        "https://test.example.com/return",
+        raising=False,
+    )
+
+    @asynccontextmanager
+    async def _fake_factory():
+        yield db_session
+
+    monkeypatch.setattr(bs_module, "async_session_factory", _fake_factory)
+
+    fake_response = {
+        "type": "error",
+        "code": "forbidden",
+        "description": "Transaction forbidden.",
+        "request_id": "test-req-019dd",
+    }
+
+    with (
+        patch.object(
+            bs_module.Payment, "create", side_effect=ForbiddenError(fake_response)
+        ),
+        pytest.raises(PaymentProviderError) as exc_info,
+    ):
+        await BillingService().create_payment(
+            user_id=user.id,
+            amount=Decimal("100.00"),
+            payment_method="yookassa",
+        )
+
+    assert exc_info.value.code == "forbidden"
+    assert exc_info.value.request_id == "test-req-019dd"
+    assert "forbidden" in exc_info.value.description.lower()
+
+
+async def test_topup_endpoint_returns_503_on_payment_provider_error(
+    monkeypatch,
+):
+    """Regression: /api/billing/topup translates PaymentProviderError → 503.
+
+    Before fix: bare 500 / silent UI. Now structured 503 with Russian
+    user message, provider error code, and provider request_id for
+    support traceability.
+    """
+    from typing import cast
+
+    from fastapi import HTTPException
+
+    from src.api.routers.billing import TopupRequest, create_unified_topup
+    from src.core.services import billing_service as bs_module
+
+    fake_user = MagicMock()
+    fake_user.id = 42
+
+    async def _raise_provider_error(self, *args, **kwargs):
+        raise PaymentProviderError(
+            code="forbidden",
+            description="Transaction forbidden.",
+            request_id="test-req-019dd",
+        )
+
+    monkeypatch.setattr(
+        bs_module.BillingService, "create_payment", _raise_provider_error
+    )
+
+    body = TopupRequest(desired_amount=1000, method="yookassa")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_unified_topup(body=body, current_user=fake_user)
+
+    assert exc_info.value.status_code == 503
+    detail = cast(dict, exc_info.value.detail)
+    assert "Платёжный сервис временно недоступен" in detail["message"]
+    assert detail["provider_error_code"] == "forbidden"
+    assert detail["provider_request_id"] == "test-req-019dd"
