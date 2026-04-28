@@ -10,11 +10,17 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.constants.fees import (
+    CANCEL_REFUND_ADVERTISER_RATE,
+    CANCEL_REFUND_OWNER_RATE,
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+    SERVICE_FEE_RATE,
+    YOOKASSA_FEE_RATE,
+)
 from src.constants.payments import (
     MAX_TOPUP,
     MIN_TOPUP,
-    OWNER_SHARE,
-    YOOKASSA_FEE_RATE,
 )
 from src.core.services.notification_service import notification_service
 from src.db.models.transaction import Transaction, TransactionType
@@ -667,8 +673,11 @@ class BillingService:
             owner_id: ID владельца канала.
 
         Note:
-            owner_amount = final_price * OWNER_SHARE (округление ROUND_HALF_UP)
-            platform_fee = final_price - owner_amount (остаток, НЕ final_price * 0.15)
+            Split: owner_net = final_price * OWNER_SHARE_RATE * (1 - SERVICE_FEE_RATE)
+                   platform_fee = final_price - owner_net (remainder).
+            Numerically: owner_net ≈ 78.8%, platform_fee ≈ 21.2% of final_price.
+            Service fee component (1.5% of owner gross) is tracked in meta_json
+            for accounting/audit; combined into platform_fee for ledger entry.
 
             Caller-controlled transaction: метод работает в рамках транзакции
             вызывающего, не открывает и не коммитит её.
@@ -698,12 +707,19 @@ class BillingService:
             )
             return
 
-        # Formula: owner_amount = final_price * OWNER_SHARE (rounded)
-        owner_amount = (final_price * OWNER_SHARE).quantize(
+        # owner_gross — gross 80%; service_fee withheld; owner_net is what owner gets.
+        owner_gross = (final_price * OWNER_SHARE_RATE).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
-        # Formula: platform_fee = final_price - owner_amount (remainder)
+        service_fee = (owner_gross * SERVICE_FEE_RATE).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        owner_amount = owner_gross - service_fee
+        # platform_fee = remainder of final_price (commission 20% + service_fee 1.5% × 80%).
         platform_fee = final_price - owner_amount
+        platform_commission = (final_price * PLATFORM_COMMISSION_RATE).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
         # UPDATE users SET earned_rub = earned_rub + owner_amount WHERE id = owner_id
         user_repo = UserRepository(session)
@@ -727,6 +743,10 @@ class BillingService:
                 "placement_id": placement_id,
                 "share": "owner",
                 "currency": "rub",
+                "final_price": str(final_price),
+                "owner_gross": str(owner_gross),
+                "service_fee": str(service_fee),
+                "owner_net": str(owner_amount),
             },
             balance_before=earned_before,
             balance_after=owner.earned_rub,
@@ -750,6 +770,10 @@ class BillingService:
                 "placement_id": placement_id,
                 "share": "platform",
                 "currency": "rub",
+                "final_price": str(final_price),
+                "platform_commission": str(platform_commission),
+                "service_fee": str(service_fee),
+                "platform_total": str(platform_fee),
             },
             balance_before=Decimal("0"),
             balance_after=platform_fee,
@@ -808,7 +832,8 @@ class BillingService:
         Scenarios:
             before_escrow: advertiser +100%, owner 0%, platform 0%
             after_escrow_before_confirmation: advertiser +100%, owner 0%, platform 0%, reputation -5
-            after_confirmation: advertiser +50%, owner +42.5%, platform +7.5%, reputation -20
+            after_confirmation: advertiser +50%, owner +40%, platform +10%, reputation -20
+              (rates from src.constants.fees.CANCEL_REFUND_*).
 
         Caller-controlled transaction: метод работает в рамках транзакции вызывающего.
 
@@ -843,14 +868,14 @@ class BillingService:
             platform_share = Decimal("0")
 
         elif scenario == "after_confirmation":
-            # advertiser +50%, owner +42.5%, platform +7.5%
-            advertiser_refund = (final_price * Decimal("0.50")).quantize(
+            # advertiser +50%, owner +40%, platform +10%
+            advertiser_refund = (final_price * CANCEL_REFUND_ADVERTISER_RATE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-            owner_compensation = (final_price * Decimal("0.425")).quantize(
+            owner_compensation = (final_price * CANCEL_REFUND_OWNER_RATE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-            # Formula: platform_share = final_price - advertiser_refund - owner_compensation
+            # platform_share = final_price - advertiser_refund - owner_compensation (≈10%).
             platform_share = final_price - advertiser_refund - owner_compensation
 
         else:

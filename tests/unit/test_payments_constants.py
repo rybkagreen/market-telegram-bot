@@ -6,7 +6,8 @@ Standalone tests - no conftest dependencies.
 import pytest
 from decimal import Decimal
 
-# Import directly from constants module (no app context needed)
+# Import directly from constants modules (no app context needed)
+from src.constants.fees import YOOKASSA_FEE_RATE
 from src.constants.payments import (
     calculate_topup_payment,
     calculate_payout,
@@ -14,10 +15,7 @@ from src.constants.payments import (
     is_format_allowed_for_plan,
     FORMAT_MULTIPLIERS,
     PLAN_LIMITS,
-    YOOKASSA_FEE_RATE,
     PAYOUT_FEE_RATE,
-    OWNER_SHARE,
-    PLATFORM_COMMISSION,
 )
 
 

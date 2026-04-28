@@ -1079,6 +1079,78 @@ for product/UX decision (which rate is the "real" fee, and what does the
 user see?). Same parity preserved in `create_topup_payment` to avoid
 silent behavior change in this prompt.
 
+### BL-035 — Centralized fee config + new fee model (RESOLVED)
+**Status:** Resolved
+**Found:** Промт 15.6 inventory (legal-template ↔ code drift) + Marina decision
+**Resolved:** 2026-04-28 (this session)
+
+Промт 15.7 (1 of 5 in PLAN_centralized_fee_model_consistency.md).
+
+**Code changes:**
+- New `src/constants/fees.py` — single source of truth for all fee rates.
+- Removed obsolete `PLATFORM_COMMISSION` (0.15), `OWNER_SHARE` (0.85),
+  `PLATFORM_TAX_RATE` (0.06) from `payments.py`. `YOOKASSA_FEE_RATE`
+  (0.035) and `NPD_RATE_FROM_*` moved to `fees.py`.
+- Renamed and re-valued: `PLATFORM_COMMISSION_RATE = 0.20`,
+  `OWNER_SHARE_RATE = 0.80`.
+- Added `SERVICE_FEE_RATE = 0.015` (1.5% withheld from owner share at
+  escrow release).
+- `BillingService.release_escrow` updated: owner gets 78.8%,
+  platform 21.2% of `final_price`; `meta_json` records full breakdown
+  (final_price / owner_gross / service_fee / owner_net /
+  platform_commission / platform_total).
+- `BillingService.refund_escrow` `after_confirmation` scenario:
+  was 50/42.5/7.5, now 50/40/10 via `CANCEL_REFUND_*_RATE` constants.
+- `YooKassaService.create_topup_payment` uses 3.5% YooKassa rate
+  (was 6% — old `PLATFORM_TAX_RATE`). Fixes BL-034 Finding 2 partially
+  (UI now matches reality on topup; frontend hardcodes are 15.10).
+- `PayoutService.payout_percentage` / `platform_percentage` now use new
+  20%/80% constants (was 15%/85%).
+- New endpoint `GET /api/billing/fee-config` for frontend consumption,
+  no auth (public knowledge).
+- AST lint `tests/unit/test_no_hardcoded_fees.py` — Decimal-literal
+  scan over `src/`; allowlists constants files plus tax/scoring/config
+  modules whose literals are non-fee semantic concepts.
+- Constants consistency test `tests/unit/test_fee_constants.py` —
+  invariants (sums == 1.00, computed rates, concrete 1000-₽ traces).
+
+**Public contract delta:**
+- Topup: user pays `desired × 1.035` (was `× 1.06`).
+- Placement release: owner gets 78.8% (was 85%), platform 21.2%
+  (was 15%).
+- Cancel `after_confirmation`: 50/40/10 (was 50/42.5/7.5).
+
+**Surfaced findings (deferred):**
+- `BillingService.refund_escrow` scenario `after_escrow_before_confirmation`
+  still gives 100/0/0 (matches `before_escrow`). Marina's "post-escrow
+  pre-publish = 50/40/10" rule is not yet wired here. Bot UI in
+  `placement.py:632` displays "Возврат 50%" but service credits 100%.
+  Pre-existing UI/backend drift — defer to BL or follow-up prompt.
+- `BillingService.refund_escrow` `after_confirmation` scenario semantically
+  is post-publish (per docstring: "after publication confirmation"). Marina's
+  rule says post-publish = 0% refund. Currently returns 50/40/10 — defer.
+- VAT rate `Decimal("0.22")` still hardcoded at billing_service.py:790
+  (`vat_amount = platform_fee * 0.22`) — separate concept (НДС). Lint
+  literal `0.22` not in forbidden set; defer.
+- Tax modules (`tax_repo.py`, `tax_aggregation_service.py`) use
+  `Decimal("0.15")` for income tax — different concept, allowlisted in
+  AST lint. Pending separate migration if/when fees.py grows tax constants.
+- Reputation/review scoring weights (0.15 etc.) and PDF coords (0.5
+  etc.) allowlisted to keep the lint signal-to-noise ratio high.
+- `analytics_service.py` aggregates historical `final_price *
+  OWNER_SHARE_RATE` — switching constant retroactively re-displays old
+  earnings at 80% instead of 85%. Acceptable pre-prod (no real users
+  per `MIGRATION STRATEGY` in CLAUDE.md). Surface for awareness only.
+
+**Out of scope (next prompts):**
+- 15.8 — Legal templates Jinja2 injection + version bump 1.0 → 1.1.
+- 15.9 — Acceptance infrastructure (re-accept on version bump).
+- 15.10 — Frontend updates (consume `/fee-config` endpoint; remove
+  hardcoded `3.5%`/`6%`).
+- 15.11 — Dead act-templates wire через `legal_status`.
+
+**Fix commit:** see CHANGELOG / merge SHAs (this session).
+
 ## Closed items
 
 _(none yet)_

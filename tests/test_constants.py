@@ -1,10 +1,16 @@
 """
-Tests для констант финансовой модели v4.2.
+Tests для констант финансовой модели.
 S-14: Регрессионная защита HOTFIX (PLAN_LIMITS['business']).
 """
 
 from decimal import Decimal
 
+from src.constants.fees import (
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+    PLATFORM_USN_RATE,
+    YOOKASSA_FEE_RATE,
+)
 from src.constants.payments import (
     FORMAT_DURATIONS_SECONDS,
     FORMAT_MULTIPLIERS,
@@ -12,30 +18,26 @@ from src.constants.payments import (
     MIN_PAYOUT,
     MIN_PRICE_PER_POST,
     MIN_TOPUP,
-    OWNER_SHARE,
-    PLATFORM_COMMISSION,
-    PLATFORM_TAX_RATE,
     PAYOUT_FEE_RATE,
     PLAN_LIMITS,
     VELOCITY_MAX_RATIO,
     VELOCITY_WINDOW_DAYS,
-    YOOKASSA_FEE_RATE,
 )
 
 
 def test_platform_commission_value() -> None:
-    """PLATFORM_COMMISSION == 0.15 (15%)."""
-    assert PLATFORM_COMMISSION == Decimal("0.15")
+    """PLATFORM_COMMISSION_RATE == 0.20 (20%)."""
+    assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
 
 
 def test_owner_share_value() -> None:
-    """OWNER_SHARE == 0.85 (85%)."""
-    assert OWNER_SHARE == Decimal("0.85")
+    """OWNER_SHARE_RATE == 0.80 (80%)."""
+    assert OWNER_SHARE_RATE == Decimal("0.80")
 
 
 def test_commission_plus_share_equals_one() -> None:
-    """PLATFORM_COMMISSION + OWNER_SHARE == 1.00 (без потерь)."""
-    assert PLATFORM_COMMISSION + OWNER_SHARE == Decimal("1.00")
+    """PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE == 1.00 (без потерь)."""
+    assert PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE == Decimal("1.00")
 
 
 def test_yookassa_fee_rate() -> None:
@@ -43,9 +45,9 @@ def test_yookassa_fee_rate() -> None:
     assert YOOKASSA_FEE_RATE == Decimal("0.035")
 
 
-def test_platform_tax_rate() -> None:
-    """PLATFORM_TAX_RATE == 0.06 (УСН 6%)."""
-    assert PLATFORM_TAX_RATE == Decimal("0.06")
+def test_platform_usn_rate() -> None:
+    """PLATFORM_USN_RATE == 0.06 (УСН 6%, paid by platform from commission)."""
+    assert PLATFORM_USN_RATE == Decimal("0.06")
 
 
 def test_payout_fee_rate() -> None:
