@@ -12,7 +12,15 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from yookassa import Configuration, Payment
-from yookassa.domain.exceptions import ApiError
+from yookassa.domain.exceptions import (
+    ApiError,
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+    ResponseProcessingError,
+    TooManyRequestsError,
+    UnauthorizedError,
+)
 
 from src.config.settings import settings
 from src.constants.payments import (
@@ -33,6 +41,23 @@ logger = logging.getLogger(__name__)
 
 class InsufficientFundsError(Exception):
     """Недостаточно средств на балансе."""
+
+
+class PaymentProviderError(Exception):
+    """Платёжный провайдер (YooKassa) вернул ошибку.
+
+    Несёт code/description/request_id для пользовательского сообщения
+    и трассировки в support. Caller (роутер) транслирует в HTTP 503
+    с user-friendly формулировкой.
+    """
+
+    def __init__(self, code: str, description: str, request_id: str) -> None:
+        self.code = code
+        self.description = description
+        self.request_id = request_id
+        super().__init__(
+            f"Payment provider error [{code}] {description} (req={request_id})"
+        )
 
 
 class BillingService:
@@ -240,9 +265,35 @@ class BillingService:
                 yk_payment = await asyncio.to_thread(
                     Payment.create, payment_request, idempotency_key
                 )
-            except ApiError as exc:
-                logger.error("YooKassa API error for user %s: %s", user_id, exc)
-                raise
+            except (
+                ApiError,
+                BadRequestError,
+                ForbiddenError,
+                NotFoundError,
+                ResponseProcessingError,
+                TooManyRequestsError,
+                UnauthorizedError,
+            ) as exc:
+                # YooKassa stores the response payload on .content (dict)
+                # and a parsed Error object on .error. .content has request_id,
+                # .error doesn't — prefer .content.
+                content = getattr(exc, "content", None) or {}
+                err_code = str(content.get("code") or "unknown")
+                err_description = str(content.get("description") or exc)
+                err_request_id = str(content.get("request_id") or "unknown")
+                logger.error(
+                    "YooKassa API error for user %s: code=%s, description=%s,"
+                    " request_id=%s",
+                    user_id,
+                    err_code,
+                    err_description,
+                    err_request_id,
+                )
+                raise PaymentProviderError(
+                    code=err_code,
+                    description=err_description,
+                    request_id=err_request_id,
+                ) from exc
 
             payment_id = yk_payment.id
             confirmation = yk_payment.confirmation
