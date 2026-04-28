@@ -611,6 +611,7 @@ class ContractSignRequest(BaseModel):
 | v4.3 | 2026-03-18 | B2B packages removed | No more B2B button/callback |
 | v4.3 | 2026-03-18 | `is_banned` → `is_active` | User model field renamed |
 | v4.2 | 2026-02-XX | `PLATFORM_COMMISSION` 0.20 → 0.15 | Financial calculation change |
+| 15.7 | 2026-04-28 | Промт 15.7: rates restructured to `PLATFORM_COMMISSION_RATE=0.20`, `OWNER_SHARE_RATE=0.80`, `SERVICE_FEE_RATE=0.015` (effective 21.2/78.8); cancel split 50/40/10; topup pure 3.5% YooKassa pass-through | Owner net 78.8% (was 85%), platform total 21.2% (was 15%) |
 | v4.2 | 2026-02-XX | `MIN_TOPUP` 100 → 500 | Minimum top-up increased |
 | v4.2 | 2026-02-XX | `MIN_PAYOUT` 500 → 1000 | Minimum payout increased |
 | v4.2 | 2026-02-XX | Stars/USDT removed | Only YooKassa supported |

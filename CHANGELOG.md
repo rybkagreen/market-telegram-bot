@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **consistency**: apply "no hardcoded fees" principle beyond backend
+  (15.7 extension). Frontend constants files (`mini_app/src/lib/constants.ts`,
+  `web_portal/src/lib/constants.ts`, `landing/src/lib/constants.ts`) get
+  computed helpers (`OWNER_NET_RATE`, `PLATFORM_TOTAL_RATE`,
+  `computePlacementSplit`, `formatRatePct`). Backend uses computed
+  helpers from `src/constants/fees.py` (`OWNER_NET_RATE`,
+  `PLATFORM_TOTAL_RATE`, `format_rate_pct`). Docs (CLAUDE.md, README.md,
+  AAA-01/02/03/04/08, .qwen/agents/*) sync'нуты на новую model.
+  Effective rates (78.8% / 21.2%) теперь всегда выводятся formula,
+  никогда не хардкодятся. Gross constants (20% / 80% / 1.5%) остаются
+  source of truth. No new public contracts.
 - **billing**: centralized fee constants in `src/constants/fees.py`.
   Placement split now 78.8% owner / 21.2% platform (was 85/15). Topup
   fee 3.5% pass-through (was 6%). Cancel `after_confirmation` split

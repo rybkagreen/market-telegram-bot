@@ -62,11 +62,54 @@ export const PLAN_INFO: Record<
   business: { displayName: 'Agency 🏢',   price: 4990, maxCampaigns: -1, aiGenerations: -1 },
 }
 
-// ---- Financials ----
+// ---- Financials (Промт 15.7) ----
+// Single source of truth: src/constants/fees.py. Hardcoding effective
+// rates (e.g. 0.788 / 0.212) anywhere else is a bug — derive them.
+//
+// Placement release split:
+//   gross_owner    = price × OWNER_SHARE_GROSS
+//   service_fee    = gross_owner × SERVICE_FEE
+//   owner_net      = gross_owner − service_fee
+//   platform_total = price − owner_net
+export const PLATFORM_COMMISSION_GROSS = 0.20
+export const OWNER_SHARE_GROSS = 0.80
+export const SERVICE_FEE = 0.015
+export const OWNER_NET_RATE = OWNER_SHARE_GROSS * (1 - SERVICE_FEE)
+export const PLATFORM_TOTAL_RATE = 1 - OWNER_NET_RATE
+// Legacy alias (some screens still import PLATFORM_COMMISSION) — points
+// to the effective platform total under Промт 15.7.
+export const PLATFORM_COMMISSION = PLATFORM_TOTAL_RATE
+export const YOOKASSA_FEE = 0.035  // pass-through, platform earns 0
+export const WITHDRAWAL_FEE = 0.015  // payout flow, separate from placement fees
 
-export const PLATFORM_COMMISSION = 0.15
-export const YOOKASSA_FEE = 0.035
-export const WITHDRAWAL_FEE = 0.015
+/** Cancel split (after_confirmation): 50 / 40 / 10. */
+export const CANCEL_REFUND_ADVERTISER = 0.50
+export const CANCEL_REFUND_OWNER = 0.40
+export const CANCEL_REFUND_PLATFORM = 0.10
+
+/** Helpers: format a fraction (0.788) as a localised percent string ("78,8%"). */
+export const formatRatePct = (rate: number, fractionDigits = 1): string =>
+  `${(rate * 100).toLocaleString('ru-RU', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}%`
+
+/** Compute the placement-release split for a given price. */
+export interface PlacementSplit {
+  ownerGross: number
+  serviceFee: number
+  ownerNet: number
+  platformGross: number
+  platformTotal: number
+}
+export const computePlacementSplit = (price: number): PlacementSplit => {
+  const ownerGross = price * OWNER_SHARE_GROSS
+  const serviceFee = ownerGross * SERVICE_FEE
+  const ownerNet = ownerGross - serviceFee
+  const platformGross = price * PLATFORM_COMMISSION_GROSS
+  const platformTotal = price - ownerNet
+  return { ownerGross, serviceFee, ownerNet, platformGross, platformTotal }
+}
 
 export const MIN_TOPUP = 500
 export const MAX_TOPUP = 300_000

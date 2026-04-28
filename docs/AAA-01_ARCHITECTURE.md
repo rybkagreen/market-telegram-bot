@@ -28,7 +28,7 @@ RekHarborBot is a Telegram-based advertising exchange platform connecting channe
 |-------------|-------|
 | **Advertisers** | Find channels, create campaigns, AI-assisted ad generation, escrow protection, analytics |
 | **Channel Owners** | Monetize channels, set prices/formats, receive payouts, manage reputation |
-| **Platform** | 15% commission on placements, 1.5% fee on payouts, tariff subscriptions |
+| **Platform** | 21.2% effective on placements (20% gross commission + 1.5% service fee from owner gross), 1.5% fee on payouts, tariff subscriptions |
 | **Admins** | Full oversight: users, disputes, feedback, legal profiles, platform settings |
 
 ### 1.2 Key Metrics
@@ -46,21 +46,27 @@ RekHarborBot is a Telegram-based advertising exchange platform connecting channe
 | Web Portal screens | 52 | `web_portal/src/screens/` |
 | Docker services | 11 | `docker-compose.yml` |
 
-### 1.3 Financial Model
+### 1.3 Financial Model (Промт 15.7, 28.04.2026)
 
 ```
 Advertiser pays 10,000₽ for placement
     │
-    ├── Platform commission: 15% = 1,500₽ → platform.profit_accumulated
+    ├── Platform commission (gross 20%):           = 2,000₽
+    ├── Owner gross share (80%):                   = 8,000₽
+    │     └── Service fee withheld (1.5% of 8,000) = 120₽ → platform
     │
-    └── Owner receives: 85% = 8,500₽ → owner.earned_rub
+    ├── Effective platform total (21.2%):          = 2,120₽ → platform.profit_accumulated
+    └── Effective owner net (78.8%):               = 7,880₽ → owner.earned_rub
          │
-         └── When owner requests payout (gross=8,500₽):
-              ├── Payout fee: 1.5% = 127.50₽ → platform.profit_accumulated
-              └── Net payout: 8,372.50₽ → owner receives manually
+         └── When owner requests payout (gross=7,880₽):
+              ├── Payout fee: 1.5% = 118.20₽ → platform.profit_accumulated
+              └── Net payout: 7,761.80₽ → owner receives manually
 ```
 
-**Constants:** `src/constants/payments.py` — PLATFORM_COMMISSION=0.15, OWNER_SHARE=0.85, PAYOUT_FEE_RATE=0.015
+**Constants:** `src/constants/fees.py` — `PLATFORM_COMMISSION_RATE=0.20`,
+`OWNER_SHARE_RATE=0.80`, `SERVICE_FEE_RATE=0.015`,
+`YOOKASSA_FEE_RATE=0.035`, `CANCEL_REFUND_*_RATE=0.50/0.40/0.10`. Payout
+flow: `PAYOUT_FEE_RATE=0.015` in `src/constants/payments.py`.
 
 ---
 
@@ -187,8 +193,8 @@ Advertiser                    System                      Channel Owner
     │                            │    unpin + delete message    │
     │                            │                             │
     │                            │ 8. ESCROW-001: release      │
-    │                            │    owner.earned_rub += 85%   │
-    │                            │    platform.profit += 15%    │
+    │                            │    owner.earned_rub += 78.8% │
+    │                            │    platform.profit += 21.2%  │
     │                            │    status → completed        │
     │                            │                             │
     │ 9. Notification ◀──────────│ 10. Payout request ◀────────│
@@ -270,8 +276,8 @@ Mini App                    API                       Telegram
        │                    │                    │                    │
        │  release_escrow()  │                    │                    │
        │  ◀─────────────────│                    │                    │
-       │  owner += 85%      │                    │                    │
-       │  platform += 15%   │                    │                    │
+       │  owner += 78.8%    │                    │                    │
+       │  platform += 21.2% │                    │                    │
        │  status→completed  │                    │                    │
        │                    │                    │                    │
        ▼                    ▼                    ▼                    ▼

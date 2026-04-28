@@ -1151,6 +1151,56 @@ silent behavior change in this prompt.
 
 **Fix commit:** see CHANGELOG / merge SHAs (this session).
 
+### BL-036 — Промт 15.7 follow-up: rate doc + frontend sync (RESOLVED)
+**Status:** Resolved
+**Found:** Marina directive «не хардкодить, использовать формулы» applied beyond Промт 15.7 backend scope.
+**Resolved:** 2026-04-28 (this session).
+
+Computed helpers (`OWNER_NET_RATE = 0.788`, `PLATFORM_TOTAL_RATE = 0.212`)
+добавлены в `src/constants/fees.py` рядом с `format_rate_pct()`. TS аналоги
+(`OWNER_NET_RATE`, `PLATFORM_TOTAL_RATE`, `computePlacementSplit`,
+`formatRatePct`, `CANCEL_REFUND_*`) добавлены в `mini_app/src/lib/constants.ts`,
+`web_portal/src/lib/constants.ts`, `landing/src/lib/constants.ts`. Frontend
+screens + docs обновлены чтобы использовать computed values вместо хардкодов.
+
+**Code/template changes:**
+- `src/constants/fees.py` — derived rates + `format_rate_pct()` helper.
+- 3× frontend constants files — TS analogues + helpers.
+- `src/bot/handlers/placement/placement.py`, `src/bot/handlers/admin/disputes.py`,
+  `src/bot/handlers/shared/start.py`, `src/api/routers/disputes.py`,
+  `src/core/services/tax_aggregation_service.py` — UI-strings + docstring через
+  `format_rate_pct(...)`.
+- 5× `mini_app/` and `web_portal/` screens — `computePlacementSplit` /
+  `OWNER_NET_RATE` instead of literal `0.85` / `0.788`.
+- `landing/src/components/{FAQ,HowItWorks}.tsx` — formula-derived strings.
+- Docs: `CLAUDE.md`, `QWEN.md`, `README.md`, `docs/AAA-01..04`, `AAA-08`,
+  `.qwen/agents/{backend-core,docs-architect-aaa}.md` — sync на новую model;
+  v4.2 «15/85» помечена как историческая.
+
+**Public contract delta:**
+- None. No new endpoints, no schema changes. Same fee numbers as BL-035.
+- UI displays теперь consistent (78,8% / 21,2% / 50% / 40% / 10%) — раньше
+  drift между gross-constants и effective rates показывал legacy 85%/15%.
+
+**Effect:** устраняет drift между gross constants (20% / 80% / 1.5%) и
+effective rates (78.8% / 21.2%) — последние всегда выводятся formula,
+никогда не хардкодятся. Reduces scope of upcoming Промт 15.10 (frontend) и
+Промт 15.12 (docs cleanup) — большая часть уже сделана.
+
+**Verification:**
+- `poetry run ruff check src/`: 0 errors.
+- `poetry run pytest tests/unit/test_no_hardcoded_fees.py
+   tests/unit/test_fee_constants.py`: 10 passed.
+- TS rebuild через `docker compose build nginx` — Vite собирает 3 фронта.
+
+**Out of scope:**
+- 15.8 — Legal templates Jinja2 injection (next).
+- 15.9 — Acceptance infrastructure.
+- 15.10 — Frontend `/fee-config` consumption (большая часть hardcode уже снята
+  этим follow-up, остаётся только хардкоды `3.5%` / `6%` где не покрыто).
+
+**Fix commit:** see CHANGELOG / merge SHAs (this session).
+
 ## Closed items
 
 _(none yet)_
