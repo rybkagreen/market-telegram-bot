@@ -796,6 +796,52 @@ Three independent production bugs landed as one minimal-invasive hotfix.
 removal, PlanChangeService extraction, YooKassa consolidation,
 credits cleanup, etc.) — separate prompts after this hotfix lands.
 
+### BL-031 — PaymentProviderError translation + bind-mount deploy hygiene (RESOLVED)
+
+- **Status:** Resolved
+- **Found:** Промт-12C / 12D diagnostic chain (2026-04-28).
+- **Resolved:** 2026-04-28 (this session, on top of `fix/billing-hotfix-bundle`).
+
+Two issues addressed in a single commit.
+
+**ForbiddenError surfaced as bare HTTP 500.**
+`BillingService.create_payment` caught `ApiError` only to log and
+re-`raise` — the SDK exception bubbled to FastAPI as a bare 500 with
+no structured detail, so frontends saw a silent failure on every
+YooKassa-side reject (sandbox or live shop). The intuition that
+`ForbiddenError` was a "sibling subclass not covered by `except
+ApiError`" was wrong: `ForbiddenError` inherits from `ApiError` and
+was already caught — but the catch only re-raised. Fix: catch the
+full YooKassa exception family explicitly (defensive against future
+hierarchy changes) and translate to a new `PaymentProviderError`
+carrying `code` / `description` / `request_id` extracted from
+`exc.content` (the SDK stores the response payload there, not as
+direct attributes). The endpoint `POST /api/billing/topup` translates
+`PaymentProviderError` → HTTP 503 with a Russian user-facing message
+plus the provider error code and request ID for support traceability.
+
+**Bind-mount deploy obscures running code.**
+The api container has `./src:/app/src` bind-mounted, so a `docker
+compose restart api` reloads working-tree code, not committed-image
+code. The previous session's redeploy used `restart`; while harmless
+when working tree equals committed `main`, this masks future drift.
+Operational note for this commit: redeploy via `docker compose up -d
+--build api` so the committed code is baked into the image.
+
+**Code:** `src/core/services/billing_service.py`,
+`src/api/routers/billing.py`.
+**Regression tests:** 2 added in
+`tests/integration/test_billing_hotfix_bundle.py`
+(`test_create_payment_translates_forbidden_to_payment_provider_error`,
+`test_topup_endpoint_returns_503_on_payment_provider_error`).
+
+**Does NOT fix:** YooKassa shop 1297633 returning 403 on every
+`Payment.create` against live credentials — that is a YooKassa-side
+shop-activation / KYC issue, resolved in `lk.yookassa.ru`, not via
+code. Post-fix, users see a graceful 503 ("Платёжный сервис временно
+недоступен") instead of silent 500; topups still won't complete on
+live creds until the shop activation issue is resolved.
+
 ## Closed items
 
 _(none yet)_
