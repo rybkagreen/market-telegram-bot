@@ -13,7 +13,7 @@ from typing import Any, Literal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants.payments import OWNER_SHARE
+from src.constants.fees import OWNER_SHARE_RATE
 from src.core.services.mistral_ai_service import MistralAIService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.transaction import Transaction, TransactionType
@@ -142,7 +142,7 @@ class AnalyticsService:
 
         earned_result = await session.execute(
             select(
-                func.coalesce(func.sum(PlacementRequest.final_price * OWNER_SHARE), Decimal("0"))
+                func.coalesce(func.sum(PlacementRequest.final_price * OWNER_SHARE_RATE), Decimal("0"))
             ).where(
                 PlacementRequest.owner_id == owner_id,
                 PlacementRequest.status == PlacementStatus.published,
@@ -318,7 +318,7 @@ class AnalyticsService:
                 TelegramChat.rating,
                 func.count(PlacementRequest.id).label("publications"),
                 func.coalesce(
-                    func.sum(PlacementRequest.final_price * OWNER_SHARE), Decimal("0")
+                    func.sum(PlacementRequest.final_price * OWNER_SHARE_RATE), Decimal("0")
                 ).label("earned"),
             )
             .outerjoin(

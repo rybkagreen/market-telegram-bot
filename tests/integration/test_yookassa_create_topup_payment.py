@@ -83,11 +83,9 @@ async def test_create_topup_payment_persists_records_via_caller_session(
     assert result["payment_id"] == "test-payment-15-001"
     assert result["payment_url"] == "https://yookassa.test/confirm"
     assert result["status"] == "pending"
-    # gross = 100 + (100 * PLATFORM_TAX_RATE=0.06) = 106.00
-    # NB: pre-existing inconsistency — bot UI/keyboard text shows 3.5% but
-    # billing applies 6% (PLATFORM_TAX_RATE). Preserved for parity with the
-    # removed BillingService.create_payment. See BACKLOG.
-    assert result["amount"] == "106.00"
+    # gross = 100 + (100 * YOOKASSA_FEE_RATE=0.035) = 103.50.
+    # Промт 15.7: switched from PLATFORM_TAX_RATE 6% to YOOKASSA_FEE_RATE 3.5%.
+    assert result["amount"] == "103.50"
     assert result["credits"] == 100
 
     yk = (
@@ -99,8 +97,8 @@ async def test_create_topup_payment_persists_records_via_caller_session(
     ).scalar_one()
     assert yk.user_id == user.id
     assert yk.desired_balance == Decimal("100.00")
-    assert yk.fee_amount == Decimal("6.00")
-    assert yk.gross_amount == Decimal("106.00")
+    assert yk.fee_amount == Decimal("3.50")
+    assert yk.gross_amount == Decimal("103.50")
     assert yk.status == "pending"
     assert yk.payment_url == "https://yookassa.test/confirm"
 
@@ -113,7 +111,7 @@ async def test_create_topup_payment_persists_records_via_caller_session(
     ).scalar_one()
     assert tx.type == TransactionType.topup
     assert tx.user_id == user.id
-    assert tx.amount == Decimal("106.00")
+    assert tx.amount == Decimal("103.50")
 
 
 async def test_create_topup_payment_translates_forbidden_to_provider_error(
