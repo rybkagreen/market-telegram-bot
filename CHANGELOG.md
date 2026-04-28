@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tests. No public contract changes except the optional
   `X-Idempotency-Key` header. Items 1-3 of
   `BILLING_REWRITE_PLAN_2026-04-28.md`; items 4-12 follow separately.
+- **billing**: translate YooKassa SDK errors to graceful HTTP 503 on
+  `POST /api/billing/topup`. Was: bare `raise` re-raised the SDK
+  exception, bubbling to FastAPI as a silent 500 on every YooKassa
+  reject (incl. live shop's 403). Now: catches the full YooKassa
+  exception family and raises a structured `PaymentProviderError`
+  with `code` / `description` / `request_id` from `exc.content`;
+  endpoint translates to HTTP 503 with a Russian user-facing message
+  plus `provider_error_code` + `provider_request_id` for support
+  traceability. Adds 2 regression tests. See BL-031.
+
+### Operational
+
+- **deploy**: future api redeploys go through `docker compose up -d
+  --build api`, not `restart`. The `./src:/app/src` bind-mount makes
+  `restart` reload working-tree code rather than committed-image
+  code, masking drift.
 
 ## [Phase 2 complete — 2026-04-27]
 
