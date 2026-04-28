@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(none yet — Phase 3 candidate selection pending)_
+### Fixed
+
+- **billing**: hotfix bundle — fix broken YooKassa topups (CRIT-1:
+  `Transaction(payment_id=...)` was an invalid kwarg, model field is
+  `yookassa_payment_id`; 4 call-sites repaired), fix silent ledger
+  drift in `platform_account_repo.release_from_escrow` (CRIT-2:
+  decrements `escrow_reserved` instead of `payout_reserved`), and
+  close the admin top-up audit trail gap (`POST
+  /admin/users/{uid}/balance` now writes a `Transaction` row keyed by
+  optional `X-Idempotency-Key` header). Adds 4 integration regression
+  tests. No public contract changes except the optional
+  `X-Idempotency-Key` header. Items 1-3 of
+  `BILLING_REWRITE_PLAN_2026-04-28.md`; items 4-12 follow separately.
 
 ## [Phase 2 complete — 2026-04-27]
 

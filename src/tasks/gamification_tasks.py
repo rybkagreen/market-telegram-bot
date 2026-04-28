@@ -247,7 +247,7 @@ async def _award_return_bonus(user_id: int) -> None:
             "user_id": user_id,
             "amount": Decimal(50),
             "type": TransactionType.bonus,
-            "reference_type": "return_bonus",
+            "meta_json": {"reason": "return_bonus"},
             "description": "Бонус за возвращение после недели неактивности",
         })
 

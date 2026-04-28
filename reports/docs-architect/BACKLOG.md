@@ -743,6 +743,59 @@ it back to the criterion.
   they get touched.
 - **Owner:** _unassigned_
 
+### BL-030 — Billing hotfix bundle: CRIT-1 + CRIT-2 + admin audit gap (RESOLVED)
+
+- **Status:** Resolved
+- **Found:** Phase 2 closure note + Промт-10A + Промт-11
+  (`BILLING_REWRITE_PLAN_2026-04-28.md`, items 1-3 of 12).
+- **Resolved:** 2026-04-28 (this session, branch `fix/billing-hotfix-bundle`).
+
+Three independent production bugs landed as one minimal-invasive hotfix.
+
+**CRIT-1 — broken topups:**
+- `Transaction(payment_id=...)` was an invalid kwarg — the model field
+  is `yookassa_payment_id`. `process_topup_webhook` raised `TypeError`
+  on every YooKassa webhook, so user balances never got credited
+  despite successful YooKassa-side payments.
+- Sites fixed:
+  - `src/core/services/billing_service.py::process_topup_webhook`
+  - `src/core/services/billing_service.py::add_balance_rub`
+  - `src/core/services/yookassa_service.py::_credit_user`
+    (also removed invalid `reference_id` / `reference_type` kwargs;
+    semantic content moved to `meta_json`)
+  - `src/tasks/gamification_tasks.py::_award_return_bonus`
+    (removed invalid `reference_type` kwarg; reason moved to
+    `meta_json["reason"]`)
+- After this fix: prod topups complete end-to-end.
+
+**CRIT-2 — silent ledger drift:**
+- `platform_account_repo.release_from_escrow` decremented
+  `payout_reserved` instead of `escrow_reserved`. Each successful
+  publication mistracked platform accounting; `escrow_reserved` grew
+  monotonically and `payout_reserved` could go negative under load.
+- Site fixed: `src/db/repositories/platform_account_repo.py::release_from_escrow`.
+- Docstring rewritten to clarify that `payout_reserved` is the
+  payout-pipeline counter and must not be touched by escrow release.
+- After this fix: ledger invariants hold post-publication.
+
+**Admin audit gap:**
+- `POST /admin/users/{uid}/balance` updated balance via
+  `repo.update_balance(...)` but wrote zero `Transaction` rows. Silent
+  admin top-ups left no audit trail.
+- Site fixed: `src/api/routers/admin.py::topup_user_balance` now
+  writes `Transaction(type=topup, meta_json={method: admin_topup,
+  admin_id, note}, idempotency_key)`. Optional `X-Idempotency-Key`
+  header is accepted; auto-generated when absent.
+- After this fix: every admin top-up has a stable audit trail and
+  is dedup-safe under client retry.
+
+**Regression tests:** `tests/integration/test_billing_hotfix_bundle.py`
+(4 tests, all passing).
+
+**Items 4-12** of `BILLING_REWRITE_PLAN_2026-04-28.md` (dead-code
+removal, PlanChangeService extraction, YooKassa consolidation,
+credits cleanup, etc.) — separate prompts after this hotfix lands.
+
 ## Closed items
 
 _(none yet)_
