@@ -208,8 +208,8 @@ class YooKassaService:
                     amount=amount_rub,
                     type=TransactionType.topup,
                     description=f"Пополнение ЮKassa #{payment_id[:8]}",
-                    reference_id=None,
-                    reference_type="yookassa_payment",
+                    yookassa_payment_id=payment_id,
+                    meta_json={"method": "yookassa", "source": "_credit_user"},
                     balance_before=balance_before,
                     balance_after=balance_after,
                 )

@@ -75,9 +75,16 @@ class PlatformAccountRepository(BaseRepository[PlatformAccount]):
     async def release_from_escrow(
         self, session, final_price: Decimal, platform_fee: Decimal
     ) -> None:
-        """Освободить эскроу — списать с payout_reserved и добавить к profit."""
+        """Release escrow reservation: decrement escrow_reserved by final_price,
+        accumulate platform_fee in profit_accumulated.
+
+        Called from BillingService.release_escrow (on publication) and
+        BillingService.refund_escrow (on cancel/dispute). Both operations
+        free funds previously locked by add_to_escrow; payout_reserved
+        tracks an independent payout pipeline and must not be touched here.
+        """
         account = await self.get_for_update()
-        account.payout_reserved -= final_price
+        account.escrow_reserved -= final_price
         account.profit_accumulated += platform_fee
         await session.flush()
 
