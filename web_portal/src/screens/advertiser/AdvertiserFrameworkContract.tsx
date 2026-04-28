@@ -46,8 +46,12 @@ export default function AdvertiserFrameworkContract() {
               подтверждения публикации поста.
             </p>
             <p>
-              Комиссия платформы составляет <strong className="text-text-primary">15%</strong> от
-              стоимости размещения. Оставшиеся 85% переводятся владельцу канала.
+              Комиссия платформы (Промт 15.7) — <strong className="text-text-primary">20%</strong> валовая
+              + <strong className="text-text-primary">1,5%</strong> сервисный сбор, удерживаемый из
+              80%-й доли владельца канала. Эффективно платформа удерживает{' '}
+              <strong className="text-text-primary">21,2%</strong>, а владельцу канала
+              переводится <strong className="text-text-primary">78,8%</strong> от стоимости
+              размещения.
             </p>
             <p>
               Рекламодатель обязуется предоставить контент, соответствующий требованиям

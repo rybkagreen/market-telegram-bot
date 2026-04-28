@@ -9,7 +9,20 @@ import {
   Icon,
   ScreenHeader,
 } from '@shared/ui'
-import { formatCurrency, formatDateTimeMSK, formatDateMSK } from '@/lib/constants'
+import {
+  CANCEL_REFUND_ADVERTISER,
+  CANCEL_REFUND_OWNER,
+  CANCEL_REFUND_PLATFORM,
+  OWNER_NET_RATE,
+  PLATFORM_COMMISSION_GROSS,
+  PLATFORM_TOTAL_RATE,
+  SERVICE_FEE,
+  computePlacementSplit,
+  formatCurrency,
+  formatDateMSK,
+  formatDateTimeMSK,
+  formatRatePct,
+} from '@/lib/constants'
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useContracts } from '@/hooks/queries'
 import { useToast } from '@/hooks/useToast'
@@ -48,8 +61,12 @@ export default function CampaignPayment() {
     return isNaN(n) ? 0 : n
   })()
   const price = priceNum
-  const platformCommission = priceNum * 0.15
-  const ownerPayout = priceNum * 0.85
+  // Промт 15.7: derive split via computePlacementSplit from shared constants.
+  const split = computePlacementSplit(priceNum)
+  const platformGrossCommission = split.platformGross
+  const serviceFee = split.serviceFee
+  const platformCommission = split.platformTotal
+  const ownerPayout = split.ownerNet
 
   useEffect(() => {
     if (!placement) return
@@ -214,8 +231,22 @@ export default function CampaignPayment() {
             <FeeBreakdown
               rows={[
                 { label: 'Стоимость размещения', value: formatCurrency(price) },
-                { label: 'Комиссия платформы (15%)', value: formatCurrency(platformCommission) },
-                { label: 'К выплате владельцу (85%)', value: formatCurrency(ownerPayout) },
+                {
+                  label: `Комиссия платформы (${formatRatePct(PLATFORM_COMMISSION_GROSS, 0)})`,
+                  value: formatCurrency(platformGrossCommission),
+                },
+                {
+                  label: `Сервисный сбор ${formatRatePct(SERVICE_FEE)} (из доли владельца)`,
+                  value: formatCurrency(serviceFee),
+                },
+                {
+                  label: `Итого удержано платформой (${formatRatePct(PLATFORM_TOTAL_RATE)})`,
+                  value: formatCurrency(platformCommission),
+                },
+                {
+                  label: `К выплате владельцу (${formatRatePct(OWNER_NET_RATE)})`,
+                  value: formatCurrency(ownerPayout),
+                },
               ]}
               total={{ label: 'Итого к оплате', value: formatCurrency(price) }}
             />
@@ -234,7 +265,10 @@ export default function CampaignPayment() {
           </Notification>
 
           <Notification type="warning">
-            Отмена после оплаты — возврат 50% от стоимости размещения.
+            Отмена после подтверждения и до публикации (Промт 15.7):{' '}
+            {formatRatePct(CANCEL_REFUND_ADVERTISER, 0)} возврат рекламодателю /{' '}
+            {formatRatePct(CANCEL_REFUND_OWNER, 0)} владельцу /{' '}
+            {formatRatePct(CANCEL_REFUND_PLATFORM, 0)} платформе.
           </Notification>
         </div>
 

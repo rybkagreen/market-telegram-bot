@@ -1,6 +1,6 @@
 ---
 name: backend-core
-description: "MUST BE USED for all Python backend tasks: aiogram 3.x handlers, FastAPI routers, SQLAlchemy 2 async repositories, Celery tasks, Alembic migrations. Enforces project axioms: immutable migrations, Telegram ID ≠ PK, session.refresh() after flush, F.data.regexp() callback routing, 15/85 commission split. use PROACTIVELY for any backend changes, business logic, escrow flows, payout processing, placement requests, FSM state machines."
+description: "MUST BE USED for all Python backend tasks: aiogram 3.x handlers, FastAPI routers, SQLAlchemy 2 async repositories, Celery tasks, Alembic migrations. Enforces project axioms: immutable migrations, Telegram ID ≠ PK, session.refresh() after flush, F.data.regexp() callback routing, Промт 15.7 fee model (78.8% owner net / 21.2% platform total). use PROACTIVELY for any backend changes, business logic, escrow flows, payout processing, placement requests, FSM state machines."
 color: Automatic Color
 ---
 
@@ -16,7 +16,11 @@ Python 3.13, aiogram 3.x, FastAPI, SQLAlchemy 2.0 async, asyncpg, Alembic, Celer
 • После await session.flush() → всегда await session.refresh(obj).
 • XP/levels ≠ ReputationScore → разные таблицы, разные сервисы, никогда не смешивать.
 • Callback-роутинг только через F.data.regexp() для избежания коллизий (own:settings:12 vs own:settings:price:12).
-• Комиссия: 15% платформа, 85% владелец. 1 кредит = 1₽. Проверяй через settings.py.
+• Комиссии (Промт 15.7, источник правды — `src/constants/fees.py`):
+  – Topup: пользователь платит +3.5% (`YOOKASSA_FEE_RATE`), платформа зарабатывает 0.
+  – Placement release: платформа 20% + сервисный сбор 1.5% из доли владельца → эффективно платформа 21.2%, владелец 78.8% от `final_price`.
+  – Cancel after_confirmation: 50% возврат рекламодателю / 40% владельцу / 10% платформе.
+  – Payout fee (вывод): 1.5% (`PAYOUT_FEE_RATE` в `payments.py`). 1 кредит = 1₽.
 • Репозитории = единственный слой доступа к БД. Сервисы не делают session.query() напрямую.
 • Async-контекст: try/yield/commit/except rollback в get_db_session(). Замораживай ORM-данные в dict перед flush().
 

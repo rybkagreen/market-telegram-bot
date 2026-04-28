@@ -590,10 +590,10 @@ async def resolve_dispute_admin(
     """
     Resolve a dispute with financial operations (admin only).
 
-    Financial logic mirrors the Telegram bot handler:
+    Financial logic mirrors the Telegram bot handler (Промт 15.7 split):
     - owner_fault / technical → refund_escrow(scenario="before_escrow") → 100% advertiser
-    - advertiser_fault → release_escrow() → 85% owner
-    - partial → refund_escrow(scenario="after_confirmation") → ~50/50 split
+    - advertiser_fault → release_escrow() → owner net 78.8% (20% commission + 1.5% service fee из 80% gross)
+    - partial → refund_escrow(scenario="after_confirmation") → 50/40/10 (advertiser/owner/platform)
 
     Args:
         dispute_id: Dispute ID
@@ -668,7 +668,7 @@ async def resolve_dispute_admin(
             new_status = PlacementStatus.refunded
 
         elif body.resolution == "advertiser_fault":
-            # 85% to owner
+            # Промт 15.7: owner net 78.8% (20% commission + 1.5% service fee из 80% gross)
             await billing_service.release_escrow(
                 session=session,
                 placement_id=placement.id,

@@ -24,8 +24,10 @@ class TaxAggregationService:
     """Сервис для налоговой агрегации (ИП УСН 6%).
 
     Вызывается при каждом поступлении дохода платформы:
-    - Топアップ (gross_amount от ЮKassa)
-    - Комиссия размещения (15% от final_price)
+    - Топап (gross_amount от ЮKassa)
+    - Комиссия размещения (Промт 15.7: 21,2% от final_price —
+      20% валовая + 1,5% сервисный сбор из 80% доли владельца;
+      см. PLATFORM_TOTAL_RATE в src/constants/fees.py)
 
     Методы:
         record_income_for_usn: записать доход в квартал и КУДиР

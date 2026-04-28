@@ -10,7 +10,19 @@ import {
   Banknote,
   ArrowRight,
 } from 'lucide-react'
-import { BOT_URL } from '../lib/constants'
+import {
+  BOT_URL,
+  OWNER_SHARE_EFFECTIVE,
+  PLATFORM_COMMISSION_EFFECTIVE,
+  PLATFORM_COMMISSION_GROSS,
+  SERVICE_FEE,
+  formatRatePct,
+} from '../lib/constants'
+
+const PLATFORM_PCT = formatRatePct(PLATFORM_COMMISSION_EFFECTIVE)
+const OWNER_PCT = formatRatePct(OWNER_SHARE_EFFECTIVE)
+const COMMISSION_GROSS = formatRatePct(PLATFORM_COMMISSION_GROSS, 0)
+const SERVICE_PCT = formatRatePct(SERVICE_FEE)
 
 type TabKey = 'advertiser' | 'owner'
 
@@ -63,7 +75,7 @@ const STEPS: Record<TabKey, { icon: typeof PlusSquare; title: string; descriptio
       icon: Banknote,
       title: 'Получай выплаты',
       description:
-        'После завершения размещения средства автоматически зачисляются на ваш баланс. Вывод через YooKassa. Комиссия платформы — 15%, вам — 85%.',
+        `После завершения размещения средства автоматически зачисляются на ваш баланс. Вывод через YooKassa. Платформа удерживает ${PLATFORM_PCT} (${COMMISSION_GROSS} комиссия + ${SERVICE_PCT} сервисный сбор из вашей доли), вам — ${OWNER_PCT}.`,
     },
   ],
 }
