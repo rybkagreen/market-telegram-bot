@@ -88,7 +88,7 @@ class BillingService:
                 user_id=user_id,
                 amount=amount_rub,
                 type=TransactionType.topup,
-                payment_id=payment_id,
+                yookassa_payment_id=payment_id,
                 description=f"Пополнение через {payment_method}",
                 meta_json={
                     "method": payment_method,
@@ -1162,7 +1162,7 @@ class BillingService:
             user_id=user_id,
             amount=desired_balance,
             type=TransactionType.topup,
-            payment_id=payment_id,
+            yookassa_payment_id=payment_id,
             payment_status="succeeded",
             description=f"Пополнение через ЮKassa (payment_id={payment_id})",
             meta_json={
