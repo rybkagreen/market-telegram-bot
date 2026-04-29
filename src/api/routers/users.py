@@ -191,14 +191,31 @@ async def get_current_user_stats(
     )
 
 
-@router.get("/needs-accept-rules")
-async def needs_accept_rules(current_user: CurrentUser) -> dict:
-    """Check if user needs to accept platform rules (152-ФЗ compliance)."""
-    needs_accept = (
-        current_user.platform_rules_accepted_at is None
-        or current_user.privacy_policy_accepted_at is None
-    )
-    return {"needs_accept": needs_accept}
+class NeedsAcceptRulesResponse(BaseModel):
+    """Reply for GET /api/users/needs-accept-rules — boolean version-aware flag."""
+
+    needs_accept: bool
+
+    model_config = {"frozen": True}
+
+
+@router.get("/needs-accept-rules", response_model=NeedsAcceptRulesResponse)
+async def needs_accept_rules(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> NeedsAcceptRulesResponse:
+    """True if user must (re-)accept platform rules at current CONTRACT_TEMPLATE_VERSION.
+
+    Returns True when (a) no prior signed acceptance OR (b) stored
+    template_version != current CONTRACT_TEMPLATE_VERSION (forced re-accept on
+    version bump). Both audiences (mini_app + web_portal) — non-PII boolean
+    flag, mirrors the carve-out for POST /api/contracts/accept-rules.
+    """
+    from src.core.services.contract_service import ContractService
+
+    svc = ContractService(session)
+    needs = await svc.needs_accept_rules(current_user.id)
+    return NeedsAcceptRulesResponse(needs_accept=needs)
 
 
 @router.get("/me/attention")

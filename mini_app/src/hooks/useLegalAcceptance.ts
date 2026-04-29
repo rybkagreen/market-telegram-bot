@@ -13,6 +13,7 @@ export function useAcceptRules() {
     mutationFn: () => legalAcceptanceApi.acceptRules(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['user', 'me'] })
+      qc.invalidateQueries({ queryKey: ['user', 'needs-accept-rules'] })
     },
   })
 }

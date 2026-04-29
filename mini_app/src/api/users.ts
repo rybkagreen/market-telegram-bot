@@ -12,3 +12,7 @@ export function getMyStats(): Promise<{ reputation: ReputationScore }> {
 export function getReferralStats(): Promise<ReferralStats> {
   return api.get('users/me/referrals').json<ReferralStats>()
 }
+
+export function checkNeedsAcceptRules(): Promise<{ needs_accept: boolean }> {
+  return api.get('users/needs-accept-rules').json<{ needs_accept: boolean }>()
+}
