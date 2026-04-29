@@ -39,6 +39,7 @@
 </div>
 
 <h1>Договор возмездного оказания услуг №{{ contract_id }}/ЮЛ</h1>
+<div class="edate" style="text-align:center;font-size:9.5pt;color:#666;margin-bottom:8px;">Редакция от {{ contract_edition_date }}, версия {{ contract_template_version }}</div>
 <div class="meta"><span>г. Москва</span><span>«{{ contract_date }}»</span></div>
 
 <div class="parties">
@@ -165,7 +166,7 @@
 
 <h2>7. Цена и порядок расчётов</h2>
 
-<p class="cl">7.1. Вознаграждение Владельца — <strong>80% стоимости задания</strong>. Комиссия Платформы — 20%.</p>
+<p class="cl">7.1. Вознаграждение Владельца — <strong>{{ owner_share_pct }}% стоимости задания</strong>. Комиссия Платформы — {{ platform_commission_pct }}%. При успешной разблокировке эскроу из вознаграждения Владельца удерживается сервисный сбор {{ service_fee_pct }}%; эффективная выплата — {{ owner_net_pct }}% стоимости.</p>
 
 <p class="cl">7.2. Услуги <strong class="hl">облагаются НДС 22%</strong> (с 01.01.2026, ФЗ № 425-ФЗ). Владелец самостоятельно исчисляет и уплачивает НДС. Платформа не является налоговым агентом.</p>
 

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings as _settings
+from src.core.services.contract_service import _build_fee_context
 from src.core.services.document_number_service import DocumentNumberService
 from src.db.models.act import Act
 from src.db.models.placement_request import PlacementRequest
@@ -222,6 +223,7 @@ class ActService:
             ),
             "erid": placement.erid or "",
             "ad_text": placement.ad_text[:200] if placement.ad_text else "",
+            **_build_fee_context(),
         }
         if platform_ctx:
             ctx.update({k: v for k, v in platform_ctx.items() if v is not None})
