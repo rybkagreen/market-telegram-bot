@@ -1298,6 +1298,84 @@ invariants; smoke tests где sub-stage failure verified to STOP всё
 legal templates + fee model consistency завершены. Должен быть разбит
 на под-промты.
 
+### BL-038 — Legal templates Jinja2 fee injection + version 1.1 (RESOLVED)
+
+**Status:** Resolved
+**Found:** PLAN_centralized_fee_model_consistency.md (Промт 15.8)
+**Resolved:** 2026-04-29 (this session)
+
+Промт 15.8 (2 of 5 in fee model consistency rewrite). Templates на
+старой fee modelи + хардкод процентов; backend на новой (Промт 15.7).
+
+**Code/template changes:**
+
+- `src/constants/legal.py`: `CONTRACT_TEMPLATE_VERSION` "1.0" → "1.1";
+  added `CONTRACT_EDITION_DATE = "28 апреля 2026 г."`.
+- `src/core/services/contract_service.py`: new module-level
+  `_format_pct()` + `_build_fee_context()` helpers inject fee
+  percentages, version, and edition date as Jinja2 vars. Both
+  `_render_template()` (contracts) and `render_platform_rules()`
+  (preview) wired.
+- `src/core/services/act_service.py`: imports `_build_fee_context`
+  and merges it into `_render_act_template` ctx (separate Jinja env
+  from ContractService — see CLAUDE.md drift report).
+- `src/templates/contracts/platform_rules.html`:
+  - Edition header "Редакция от 28 апреля 2026 г., версия 1.1".
+  - § 5 (Комиссия) переписан с упоминанием 1,5% сервисного сбора,
+    78,8% эффективной выплаты, и cancel splits 50/40/10.
+  - § 18 (115-ФЗ) добавлен — boilerplate placeholder.
+  - § 19 (юрисдикция) добавлен — boilerplate placeholder.
+- `src/templates/contracts/advertiser_campaign.html`:
+  - § 6.1 хардкод 80%/20% → Jinja vars + 1,5% сервисный сбор.
+  - § 5.1 cancel split → Jinja vars (cancel_advertiser_pct / owner_pct
+    / platform_pct).
+  - § 5.3 (legacy 80%/40% post-publication refund window) — оставлено
+    как есть с `noqa-fees` маркерами; reconciled в 15.11.5.
+  - Edition header добавлен.
+- 4× `src/templates/contracts/owner_service_*.html`: § 7.1 хардкод
+  80%/20% → Jinja vars + 1,5%/78,8% полная цепочка. Edition headers.
+- 6× `src/templates/acts/*.html`: edition headers added (только
+  act_placement.html активно используется; остальные dead до 15.11).
+- `tests/unit/test_no_hardcoded_fees.py`: extended новой функцией
+  `test_no_hardcoded_percentages_in_legal_templates` — scans HTML
+  templates на canonical-fee percentages outside Jinja expressions.
+  Per-line `noqa-fees` opt-out для документированных исключений.
+- `tests/integration/test_contract_service_fee_injection.py` (new):
+  4 integration tests — commission %, edition header, 115-ФЗ section,
+  jurisdiction section.
+
+**Public contract delta:**
+
+- `GET /api/contracts/platform-rules/text` — response shape
+  unchanged (`{html: ...}`). HTML content updated:
+  - Edition header.
+  - § 5 references 20%/80%/1,5%/78,8%/cancel splits.
+  - § 18 (115-ФЗ) и § 19 (юрисдикция) — placeholders, помечены для
+    legal review.
+
+**Critical caveats:**
+
+- Templates на новой fee model + backend (после 15.7) тоже на новой —
+  legal vs code consistent.
+- Frontend `mini_app/src/screens/advertiser/TopUpConfirm.tsx:66`
+  всё ещё хардкодит `0.035` — Промт 15.10.
+- Re-acceptance loop при version bump НЕ active в этом промте —
+  `CONTRACT_TEMPLATE_VERSION = "1.1"` но existing acceptance rows
+  (если есть) на v1.0 не invalidate. Dev DB пустая → impact zero
+  сейчас. Полная реализация — Промт 15.9.
+- 115-ФЗ + юрисдикция тексты — **placeholders**, требуют review
+  юристом до real prod launch.
+
+**Out of scope (next prompts in PLAN_centralized_fee_model_consistency.md):**
+
+- 15.9 — Acceptance infrastructure (re-accept loop при version
+  mismatch).
+- 15.10 — Frontend updates (consume `/fee-config` + fix
+  TopUpConfirm.tsx hardcode).
+- 15.11 — Dead act-templates wire через legal_status.
+- 15.11.5 — Backend cancel scenarios fix (legacy 80%/40%
+  post-publication refund window in advertiser_campaign.html § 5.3).
+
 ## Closed items
 
 _(none yet)_

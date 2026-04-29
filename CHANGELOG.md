@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **legal (templates)**: legal templates inject fee percentages, version,
+  and edition date through Jinja2 from `src/constants/fees.py` +
+  `src/constants/legal.py` via new `ContractService._build_fee_context()`
+  helper. `CONTRACT_TEMPLATE_VERSION` 1.0 → 1.1. New `CONTRACT_EDITION_DATE`
+  constant. Edition header "Редакция от 28 апреля 2026 г., версия 1.1"
+  added to all 12 legal templates (6 contracts + 6 acts). § 18 (115-ФЗ)
+  and § 19 (юрисдикция) sections added to `platform_rules.html` as
+  legally-reviewable placeholders. AST lint extended with
+  `test_no_hardcoded_percentages_in_legal_templates` (HTML scan +
+  per-line `noqa-fees` opt-out). 4 new integration tests verifying
+  rendered HTML. Re-acceptance flow remains inactive until Промт 15.9.
+  See BL-038.
+
 - **frontend (mini_app + web_portal)**: handle HTTP 503
   `PaymentProviderError` on `POST /api/billing/topup` with a graceful
   modal showing the user-facing Russian message + the YooKassa

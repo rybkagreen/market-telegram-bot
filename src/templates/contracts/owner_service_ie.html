@@ -39,6 +39,7 @@
 </div>
 
 <h1>Договор возмездного оказания услуг №{{ contract_id }}/ИП</h1>
+<div class="edate" style="text-align:center;font-size:9.5pt;color:#666;margin-bottom:8px;">Редакция от {{ contract_edition_date }}, версия {{ contract_template_version }}</div>
 <div class="meta"><span>г. Москва</span><span>«{{ contract_date }}»</span></div>
 
 <div class="parties">
@@ -83,7 +84,7 @@
 <p class="cl">6.1. Платформа полностью отвечает за взаимодействие с ОРД и ЕРИР. Владелец не взаимодействует с ОРД самостоятельно. erid вставляется Ботом автоматически; данные в ЕРИР передаются автоматически по логам Бота.</p>
 
 <h2>7. Цена и порядок расчётов</h2>
-<p class="cl">7.1. Вознаграждение Владельца — <strong>80% стоимости задания</strong>. Комиссия Платформы — 20%.</p>
+<p class="cl">7.1. Вознаграждение Владельца — <strong>{{ owner_share_pct }}% стоимости задания</strong>. Комиссия Платформы — {{ platform_commission_pct }}%. При успешной разблокировке эскроу из вознаграждения Владельца удерживается сервисный сбор {{ service_fee_pct }}%; эффективная выплата — {{ owner_net_pct }}% стоимости.</p>
 
 <p class="cl">7.2. <strong class="hl">Налогообложение (ИП, 2026):</strong> Владелец применяет режим — <strong>{{ tax_regime_label | default('указать: ОСНО / УСН / Патент') }}</strong>.</p>
 <ul>
