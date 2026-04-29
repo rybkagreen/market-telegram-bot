@@ -38,7 +38,8 @@ export function useNeedsAcceptRules() {
   return useQuery<{ needs_accept: boolean }>({
     queryKey: ['user', 'needs-accept-rules'],
     queryFn: checkNeedsAcceptRules,
-    staleTime: 5 * 60_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   })
 }
 
