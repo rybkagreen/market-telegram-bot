@@ -2,7 +2,7 @@
 fee percentages and edition header from constants/fees.py + legal.py.
 
 Promt 15.8 — verifies that rendered platform_rules HTML contains the
-current canonical fee percentages, edition header, version 1.1, and the
+current canonical fee percentages, edition header, version, and the
 new § 18 (115-FZ) / § 19 (jurisdiction) sections.
 """
 from __future__ import annotations
@@ -31,12 +31,14 @@ async def test_platform_rules_contains_current_commission_percentages(
 async def test_platform_rules_contains_edition_header(
     db_session: AsyncSession,
 ) -> None:
-    """Rendered platform_rules contains edition date + version 1.1."""
+    """Rendered platform_rules contains edition date + current version."""
+    from src.constants.legal import CONTRACT_TEMPLATE_VERSION
+
     service = ContractService(db_session)
     html = await service.render_platform_rules()
 
     assert "Редакция от 28 апреля 2026 г." in html
-    assert "версия 1.1" in html
+    assert f"версия {CONTRACT_TEMPLATE_VERSION}" in html
 
 
 async def test_platform_rules_contains_115fz_section(
