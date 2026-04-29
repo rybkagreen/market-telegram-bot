@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (15.11 + 15.12 — BL-040)
+
+- **billing (acts)**: `get_act_template(party, legal_status)` resolver
+  + `ACT_TEMPLATE_MAP_OWNER` in `src/core/services/act_service.py`.
+  Wires 5 previously dead act templates (`act_advertiser`,
+  `act_owner_fl`, `act_owner_np`, `act_owner_ie`, `act_owner_le`)
+  through one routing function; `act_placement.html` retained for the
+  default platform↔advertiser flow used by
+  `generate_for_completed_placement`. Owner templates select per
+  `LegalProfile.legal_status` (NDFL 13% / NPD / УСН-НДС / ОГРН-КПП).
+- **backlog**: BL-041 (process rule — verify CLAUDE.md before "fix
+  latent bug" promts), BL-042 (cancel scenario naming refactor —
+  deferred), BL-043 (bot middleware fail-mode review for prod —
+  deferred), BL-044 (PII audit gap closure — resolved by surfacing
+  BL-045..BL-051), BL-045..BL-051 (PII audit findings now individually
+  tracked for серия 16.x).
+
+### Changed (15.11 + 15.12)
+
+- **billing (acts)**: hardcoded `ACT_TEMPLATE = "acts/act_placement.html"`
+  module constant replaced with call to `get_act_template("platform")`
+  at the single render site. Behaviour unchanged for the existing
+  flow — `_render_act_template` still uses `act_placement.html` for
+  platform↔advertiser acts.
+- **docs (plan)**: `IMPLEMENTATION_PLAN_ACTIVE.md` Status overlay
+  reflects 15.x closure (15.5–15.12 ✅, 15.13 deferred to billing
+  rewrite plan). PII audit findings note flipped from "не записаны"
+  to "записаны как BL-044..BL-051".
+
+### Tests (15.11 + 15.12)
+
+- **`tests/unit/test_act_template_routing.py`** (new) — 10 tests:
+  party-resolution for advertiser/platform/owner, parametrized over 4
+  legal_status values, error paths (`None` / unknown legal_status /
+  unknown party), and a regression test ensuring
+  `ACT_TEMPLATE_MAP_OWNER` keys equal the `LegalStatus` enum values.
+- **`tests/unit/test_act_rendering.py`** (new) — 6 tests rendering
+  each of the 6 act templates with a minimal Jinja context (incl.
+  `_build_fee_context()`), asserting edition header presence and
+  legal_status-specific markers (НДФЛ / НПД / ИП-ОГРНИП / ОГРН-КПП).
+
+### Migration Notes (15.11 + 15.12)
+
+- No DB schema changes. No public API endpoint changes. New resolver
+  is internal-only; existing `ActService.generate_for_completed_placement`
+  callers (`publication_service.py:436`) unaffected.
+
 ### Added (15.10 + 15.11.5 — BL-040)
 
 - **frontend (billing)**: `useFeeConfig` hook fetches
