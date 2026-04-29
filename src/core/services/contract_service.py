@@ -6,6 +6,7 @@ PDF генерация через WeasyPrint (опционально), fallback 
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import insert, select
@@ -14,7 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings as _settings
-from src.constants.legal import CONTRACT_TEMPLATE_VERSION
+from src.constants.fees import (
+    CANCEL_REFUND_ADVERTISER_RATE,
+    CANCEL_REFUND_OWNER_RATE,
+    CANCEL_REFUND_PLATFORM_RATE,
+    OWNER_NET_RATE,
+    OWNER_SHARE_RATE,
+    PLATFORM_COMMISSION_RATE,
+    PLATFORM_TOTAL_RATE,
+    SERVICE_FEE_RATE,
+    YOOKASSA_FEE_RATE,
+)
+from src.constants.legal import CONTRACT_EDITION_DATE, CONTRACT_TEMPLATE_VERSION
 from src.db.models.contract import Contract
 from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
@@ -83,6 +95,50 @@ _CONTRACT_TEMPLATE_MAP: dict[str, dict[str, str]] = {
     "platform_rules": {"_default": PLATFORM_RULES_FILE},
     "privacy_policy": {"_default": PLATFORM_RULES_FILE},
 }
+
+
+def _format_pct(rate: Decimal, decimals: int = 0) -> str:
+    """Render Decimal rate as percent string (no '%' suffix) for templates.
+
+    Templates write `{{ var }}%` — helper returns the bare number.
+    Russian comma decimal separator when decimals > 0.
+
+    Examples:
+        _format_pct(Decimal('0.20'))         -> '20'
+        _format_pct(Decimal('0.015'), 1)     -> '1,5'
+        _format_pct(Decimal('0.788'), 1)     -> '78,8'
+    """
+    pct = rate * Decimal("100")
+    if decimals == 0:
+        return str(int(pct))
+    quant = Decimal("0." + "0" * decimals)
+    return f"{pct.quantize(quant):.{decimals}f}".replace(".", ",")
+
+
+def _build_fee_context() -> dict[str, str]:
+    """Build Jinja2 context dict with fee percentages + version + edition date.
+
+    Used by ContractService and ActService to inject identical fee/version
+    vars into all legal templates (contracts + acts). Single source of truth
+    is src/constants/fees.py + src/constants/legal.py.
+    """
+    return {
+        # Topup
+        "yookassa_fee_pct": _format_pct(YOOKASSA_FEE_RATE, decimals=1),
+        # Placement split
+        "platform_commission_pct": _format_pct(PLATFORM_COMMISSION_RATE),
+        "owner_share_pct": _format_pct(OWNER_SHARE_RATE),
+        "service_fee_pct": _format_pct(SERVICE_FEE_RATE, decimals=1),
+        "owner_net_pct": _format_pct(OWNER_NET_RATE, decimals=1),
+        "platform_total_pct": _format_pct(PLATFORM_TOTAL_RATE, decimals=1),
+        # Cancel splits (post-escrow pre-publish)
+        "cancel_advertiser_pct": _format_pct(CANCEL_REFUND_ADVERTISER_RATE),
+        "cancel_owner_pct": _format_pct(CANCEL_REFUND_OWNER_RATE),
+        "cancel_platform_pct": _format_pct(CANCEL_REFUND_PLATFORM_RATE),
+        # Versioning
+        "contract_template_version": CONTRACT_TEMPLATE_VERSION,
+        "contract_edition_date": CONTRACT_EDITION_DATE,
+    }
 
 
 class ContractService:
@@ -378,6 +434,7 @@ class ContractService:
             "contract_date": datetime.now(UTC).strftime("%d.%m.%Y"),
             "platform_name": "RekHarborBot",
             "contract_id": contract_id,
+            **_build_fee_context(),
         }
         if platform_ctx:
             ctx.update({k: v for k, v in platform_ctx.items() if v is not None})
@@ -433,6 +490,7 @@ class ContractService:
             "contract_date": datetime.now(UTC).strftime("%d.%m.%Y"),
             "platform_name": "RekHarborBot",
             "contract_id": 0,
+            **_build_fee_context(),
         }
         ctx.update({k: v for k, v in platform_ctx.items() if v is not None})
 
