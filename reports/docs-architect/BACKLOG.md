@@ -15,6 +15,27 @@ _Last updated: 2026-04-28 23:10_
 
 ## Active items
 
+### BL-053 — Legacy `credits` naming cleanup (deferred to series 17.x)
+
+После migration `credits → balance_rub` (январь-апрель 2026) backend методы и DB
+schema fields сохранили legacy `credits` имена. Имена врут про runtime поведение
+(списание rubles).
+
+**Inventory:** `reports/docs-architect/discovery/CREDITS_NAMING_INVENTORY_2026-04-29.md`.
+
+**Scope:** ~70+ touch points в 4 группах:
+- 17.1 — Backend service/router rename + dead settings cleanup (small).
+- 17.2 — DB schema + ORM + Pydantic + frontend types (medium, cross-stack).
+- 17.3 — API path renames (medium, breaking — atomic FE/BE).
+- 17.4 — Legal templates + UI strings + re-acceptance fire (medium, customer-facing).
+
+**Sequence:** after series 16.x (PII Hardening) closure.
+
+**Exception:** `platform_rules.html` legal text rewrite — отдельный мини-промт
+до 17.x, customer-visible legal lie has higher priority than internal naming.
+
+**Status:** NEW, deferred.
+
 ### BL-001 — Dispute flow E2E
 
 - **Surfaced in:** `web_portal/tests/specs/deep-flows.spec.ts`
