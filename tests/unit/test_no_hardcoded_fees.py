@@ -144,3 +144,95 @@ def test_no_hardcoded_fee_float_literals_in_python_src() -> None:
         "Hardcoded fee float literals in src/.\n\nViolations:\n"
         + "\n".join(violations)
     )
+
+
+# ==================== HTML TEMPLATE LINT (Промт 15.8) ====================
+
+import re  # noqa: E402
+
+TEMPLATES_ROOT = SRC_ROOT / "templates"
+
+# Canonical-fee percentages (from src/constants/fees.py). Hits in legal HTML
+# templates (outside Jinja `{{ ... }}` expressions) are forbidden — they
+# must be rendered through `_build_fee_context()` vars.
+#
+# Deliberately narrow set: only canonical 15.7 model values. Cancel splits
+# (50/40/10) and tax rates (6/15/85) appear in scenario-specific legacy
+# language too often to lint reliably; we cover them via Jinja injection
+# + integration tests, not regex.
+FORBIDDEN_PCT_PATTERNS_HTML: list[str] = [
+    r"\b20\s*%",         # PLATFORM_COMMISSION_RATE
+    r"\b80\s*%",         # OWNER_SHARE_RATE
+    r"\b1[.,]5\s*%",     # SERVICE_FEE_RATE / PAYOUT_FEE_RATE
+    r"\b78[.,][58]\s*%",  # OWNER_NET_RATE (78,8% or 78,5% legacy)
+    r"\b21[.,]2\s*%",    # PLATFORM_TOTAL_RATE
+    r"\b3[.,]5\s*%",     # YOOKASSA_FEE_RATE
+]
+
+# Files exempt entirely — reference tax law / accounting / NDFL rates that
+# fall outside platform's centralized fee model. They legitimately contain
+# things like "20% НДС", "НПД 6%", etc.
+TEMPLATE_EXEMPT_FILES: set[str] = {
+    "src/templates/acts/act_owner_fl.html",                       # NDFL
+    "src/templates/acts/act_owner_np.html",                       # NPD/НДФЛ fallback
+    "src/templates/acts/act_owner_ie.html",                       # USN/VAT
+    "src/templates/acts/act_owner_le.html",                       # VAT
+    "src/templates/contracts/owner_service_individual.html",      # NDFL scale
+    "src/templates/contracts/owner_service_self_employed.html",   # NPD
+    "src/templates/contracts/owner_service_ie.html",              # USN/VAT
+    "src/templates/invoices/invoice_b2b.html",                    # VAT
+    "src/templates/kudir/kudir_book.html",                        # accounting
+}
+
+# Per-line opt-out marker. When a line contains this string, the lint
+# skips it. Use sparingly with an inline reason — e.g. legacy cancel
+# scenarios pending a separate centralization.
+NOQA_MARKER = "noqa-fees"
+
+
+def _strip_jinja_expressions(content: str) -> str:
+    """Remove {{ ... }} and {% ... %} blocks so they don't trigger the lint."""
+    content = re.sub(r"\{\{.*?\}\}", "", content, flags=re.DOTALL)
+    content = re.sub(r"\{%.*?%\}", "", content, flags=re.DOTALL)
+    return content
+
+
+def test_no_hardcoded_percentages_in_legal_templates() -> None:
+    """Legal HTML templates must use Jinja2 vars for canonical fee percentages.
+
+    Skips:
+    - Files in TEMPLATE_EXEMPT_FILES (tax-law rates outside platform control).
+    - Content inside `{{ ... }}` / `{% ... %}` (Jinja expressions, by design).
+    - Lines containing `noqa-fees` (per-line opt-out for documented exceptions).
+    """
+    violations: list[str] = []
+
+    for tmpl in TEMPLATES_ROOT.rglob("*.html"):
+        rel = tmpl.relative_to(SRC_ROOT.parent)
+        rel_str = str(rel).replace("\\", "/")
+
+        if rel_str in TEMPLATE_EXEMPT_FILES:
+            continue
+
+        try:
+            raw = tmpl.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        for lineno, line in enumerate(raw.splitlines(), start=1):
+            if NOQA_MARKER in line:
+                continue
+            stripped = _strip_jinja_expressions(line)
+            for pattern in FORBIDDEN_PCT_PATTERNS_HTML:
+                m = re.search(pattern, stripped)
+                if m:
+                    violations.append(
+                        f"  {rel_str}:{lineno} — '{m.group()}' "
+                        f"(use {{{{ var }}}}% from ContractService._build_fee_context())"
+                    )
+
+    assert not violations, (
+        "Hardcoded canonical-fee percentages found in legal templates. "
+        "Use Jinja2 vars from ContractService._build_fee_context() instead.\n\n"
+        "Violations:\n" + "\n".join(violations)
+    )
