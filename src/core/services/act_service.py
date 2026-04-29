@@ -45,7 +45,59 @@ except ImportError:
 
 # Шаблон акта — рядом с шаблонами договоров
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
-ACT_TEMPLATE = "acts/act_placement.html"
+
+# Act templates routing per BL-040 / Промт 15.11.
+# Каждый template отражает один из трёх контрактных пар:
+#   - platform ↔ advertiser (act_placement.html / act_advertiser.html)
+#   - platform ↔ owner (act_owner_*.html, разделены по legal_status owner'а:
+#       individual           — НДФЛ 13% (act_owner_fl.html)
+#       self_employed        — НПД (act_owner_np.html)
+#       individual_entrepreneur — УСН/НДС (act_owner_ie.html)
+#       legal_entity         — ОГРН/КПП (act_owner_le.html))
+ACT_TEMPLATE_PLATFORM = "acts/act_placement.html"
+ACT_TEMPLATE_ADVERTISER = "acts/act_advertiser.html"
+ACT_TEMPLATE_MAP_OWNER: dict[str, str] = {
+    "individual": "acts/act_owner_fl.html",
+    "self_employed": "acts/act_owner_np.html",
+    "individual_entrepreneur": "acts/act_owner_ie.html",
+    "legal_entity": "acts/act_owner_le.html",
+}
+
+
+def get_act_template(party: str, legal_status: str | None = None) -> str:
+    """Resolve act template path по party + legal_status (BL-040 / Промт 15.11).
+
+    Sub-stages (BL-037 sub-stage tracking):
+        - 2a. Validate party value (advertiser / owner / platform).
+        - 2b. For owner: validate legal_status not None + key exists в map.
+        - 2c. Return template path.
+
+    Failure: any invalid combination → raise ValueError. Caller decides
+    whether to default или escalate.
+    """
+    if party == "advertiser":
+        return ACT_TEMPLATE_ADVERTISER
+
+    if party == "platform":
+        return ACT_TEMPLATE_PLATFORM
+
+    if party == "owner":
+        if legal_status is None:
+            raise ValueError(
+                "owner party requires legal_status, got None. "
+                "User.legal_status must be set for act generation."
+            )
+        if legal_status not in ACT_TEMPLATE_MAP_OWNER:
+            raise ValueError(
+                f"owner legal_status {legal_status!r} not in ACT_TEMPLATE_MAP_OWNER. "
+                f"Valid: {sorted(ACT_TEMPLATE_MAP_OWNER.keys())}."
+            )
+        return ACT_TEMPLATE_MAP_OWNER[legal_status]
+
+    raise ValueError(
+        f"Unknown party {party!r}. Valid: 'advertiser', 'owner', 'platform'."
+    )
+
 
 # Директория для хранения PDF актов
 ACTS_OUTPUT_DIR = Path(_settings.contracts_storage_path) / "acts"
@@ -234,7 +286,7 @@ class ActService:
                 autoescape=select_autoescape(["html", "xml"]),
             )
             try:
-                return env.get_template(ACT_TEMPLATE).render(**ctx)
+                return env.get_template(get_act_template("platform")).render(**ctx)
             except Exception:
                 logger.exception(f"Jinja2 template render failed for act {act_number}")
 
