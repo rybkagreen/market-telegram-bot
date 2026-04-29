@@ -40,8 +40,13 @@ export function useSignContract() {
 
 // ═══ Accept Rules ═══
 export function useAcceptRules() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: acceptRules,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', 'needs-accept-rules'] })
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] })
+    },
   })
 }
 
