@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (15.10 + 15.11.5 — BL-040)
+
+- **frontend (billing)**: `useFeeConfig` hook fetches
+  `/api/billing/fee-config` in `web_portal` and `mini_app` (5 min
+  staleTime, 30 min gcTime). Frontend constants in
+  `lib/constants.ts` (all three SPAs) become single sources for
+  display calculations; runtime canonical values flow through the
+  hook.
+- **lint (forbidden-patterns)**: 14 new TS fee-literal patterns
+  in `scripts/check_forbidden_patterns.sh` covering `0.035`,
+  `0.015` numerics and `3,5%`, `1,5%`, `78,8%`, `21,2%` strings
+  across `web_portal/src`, `mini_app/src`, `landing/src` (excludes
+  `lib/constants.ts`). Pattern count 17 → 31.
+- **api (contracts)**: inline carve-out comment on
+  `GET /api/contracts/platform-rules/text` documenting Phase 1
+  §1.B.2 (text-only legal content, both audiences consume).
+
+### Fixed (15.10 + 15.11.5 — BL-040)
+
+- **bot (billing)**: user-initiated cancel from `escrow` status
+  now passes `scenario="after_confirmation"` to
+  `BillingService.refund_escrow` (50/40/10 split) instead of
+  `scenario="after_escrow_before_confirmation"` (silent 100%
+  refund). UI text "Возврат 50%" and DB write are now consistent.
+  Auto-cancel paths (publish failure, SLA timeout, stuck escrow
+  recovery) and dispute "partial" verdicts unchanged — they
+  legitimately need their respective scenarios.
+- **bot (middleware)**: `AcceptanceMiddleware` now fail-closed
+  on `needs_accept_rules` exception — sends a "Технические
+  проблемы" notice and short-circuits the handler chain instead
+  of silently passing through. Sub-stages re-numbered 13a-13d.
+  Per Marina decision per BL-039 surfaced finding.
+- **frontend (display)**: `TopUpConfirm.tsx:66` priority finding
+  resolved (literal `0.035` → `YOOKASSA_FEE`). All other
+  hardcoded fee literals/percentages across `web_portal`,
+  `mini_app`, `landing` replaced with constant-derived values via
+  `formatRatePct(...)` and arithmetic from `lib/constants.ts`.
+
+### Changed (15.10 + 15.11.5 — BL-040)
+
+- **frontend (constants)**: `landing/src/lib/constants.ts` adds
+  `CANCEL_REFUND_ADVERTISER = 0.50`. Stale "Промт 15.7"
+  explanatory comments removed from `OwnRequests.tsx` and
+  `OwnRequestDetail.tsx` (conflicted with new lint rule).
+
+### Tests (15.10 + 15.11.5 — BL-040)
+
+- **`tests/test_bot_cancel_scenario_consistency.py`** (new) — 4
+  source-inspection tests locking in scenario routing across the
+  bot handler, auto-cancel tasks, and disputes router.
+- **`tests/test_acceptance_middleware_fail_closed.py`** (new) — 3
+  tests covering fail-closed branch, pass-through on
+  `needs=False`, and block on `needs=True` for non-exempt events.
+
+### Migration Notes (15.10 + 15.11.5)
+
+- No DB schema changes. Frontend display values are now
+  deterministic from `src/constants/fees.py` (mirrored in each
+  frontend's `lib/constants.ts` and verified at runtime via
+  `/api/billing/fee-config`). Updating fee constants requires
+  bumping both the Python source file AND the three TS constants
+  files; the forbidden-patterns lint catches drift in screen code.
+
 ### Added
 
 - **legal (acceptance)**: re-acceptance loop activates at

@@ -10,6 +10,7 @@ import {
 import type { IconName } from '@shared/ui'
 import { useMe } from '@/hooks/queries'
 import { useTopupStatus } from '@/hooks/useBillingQueries'
+import { YOOKASSA_FEE, formatRatePct } from '@/lib/constants'
 
 interface TopUpConfirmState {
   amount?: number
@@ -63,7 +64,7 @@ export default function TopUpConfirm() {
 
   if (!amount) return null
 
-  const fee = Math.round(amount * 0.035)
+  const fee = Math.round(amount * YOOKASSA_FEE)
   const total = amount + fee
   const balanceRub = Number(user?.balance_rub ?? 0)
 
@@ -190,7 +191,7 @@ export default function TopUpConfirm() {
           </div>
           <div className="flex flex-col gap-[9px]">
             <BreakdownRow label="Будет зачислено" value={`${fmt(amount)} ₽`} />
-            <BreakdownRow label="Комиссия ЮKassa (3,5%)" value={`+ ${fmt(fee)} ₽`} muted />
+            <BreakdownRow label={`Комиссия ЮKassa (${formatRatePct(YOOKASSA_FEE)})`} value={`+ ${fmt(fee)} ₽`} muted />
           </div>
           <div className="mt-3 pt-3 border-t border-dashed border-border flex justify-between items-baseline gap-4">
             <span className="font-display text-sm font-semibold text-text-primary whitespace-nowrap">

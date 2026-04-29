@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ScreenLayout } from '@/components/layout/ScreenLayout'
 import { Notification, Card, Button } from '@/components/ui'
 import { useHaptic } from '@/hooks/useHaptic'
+import { WITHDRAWAL_FEE, formatRatePct } from '@/lib/constants'
 import styles from './Help.module.css'
 
 interface FaqItem {
@@ -37,7 +38,7 @@ const OWNER_FAQ: FaqItem[] = [
   {
     question: 'Как получить выплату?',
     answer:
-      'Перейдите в «Выплаты» → «Запросить вывод». Укажите сумму (минимум 1 000 ₽) и реквизиты — номер карты или телефон для СБП. Выплаты обрабатываются в течение 24 часов в рабочее время (09:00–22:00 МСК). Комиссия платформы — 1,5%.',
+      `Перейдите в «Выплаты» → «Запросить вывод». Укажите сумму (минимум 1 000 ₽) и реквизиты — номер карты или телефон для СБП. Выплаты обрабатываются в течение 24 часов в рабочее время (09:00–22:00 МСК). Комиссия платформы — ${formatRatePct(WITHDRAWAL_FEE)}.`,
   },
 ]
 

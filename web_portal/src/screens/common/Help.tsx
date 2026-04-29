@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon, ScreenHeader } from '@shared/ui'
 import type { IconName } from '@shared/ui'
+import { PAYOUT_FEE, formatRatePct } from '@/lib/constants'
 
 interface CategoryConf {
   id: string
@@ -48,7 +49,7 @@ const FAQ: FaqItem[] = [
   {
     cat: 'owner',
     q: 'Как получить выплату?',
-    a: 'Раздел «Выплаты» → «Запросить вывод». Минимальная сумма — 1 000 ₽. Обработка происходит в рабочие часы 09:00–22:00 МСК и занимает до 24 часов. Комиссия платформы — 1,5% от суммы.',
+    a: `Раздел «Выплаты» → «Запросить вывод». Минимальная сумма — 1 000 ₽. Обработка происходит в рабочие часы 09:00–22:00 МСК и занимает до 24 часов. Комиссия платформы — ${formatRatePct(PAYOUT_FEE)} от суммы.`,
   },
   {
     cat: 'owner',
