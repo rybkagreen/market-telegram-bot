@@ -189,10 +189,15 @@ DbSession = Annotated[None, Depends(get_db_session)]
 
 
 async def get_current_admin_user(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_web_portal),
 ) -> User:
     """
     Dependency: проверить что текущий пользователь является администратором.
+
+    Wraps `get_current_user_from_web_portal` (16.1, BL-049): admin endpoints
+    обрабатывают ПД (legal-profiles, users, platform-settings, payouts) и
+    должны быть pinned к web_portal-only — mini_app JWT возвращает 403 на
+    audience-несовпадении до проверки is_admin (ФЗ-152).
 
     Использование:
         @router.get("/admin/stats")
@@ -200,13 +205,14 @@ async def get_current_admin_user(
             return {"admin_id": admin.id}
 
     Args:
-        current_user: Текущий пользователь из get_current_user
+        current_user: Текущий пользователь из get_current_user_from_web_portal
 
     Returns:
         Пользователь если is_admin = True
 
     Raises:
-        HTTPException 403: Пользователь не является администратором
+        HTTPException 403: mini_app JWT (audience mismatch) либо
+            пользователь не является администратором.
     """
     if not current_user.is_admin:
         raise HTTPException(
