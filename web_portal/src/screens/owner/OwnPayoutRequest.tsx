@@ -7,13 +7,13 @@ import {
   ScreenHeader,
   FeeBreakdown,
 } from '@shared/ui'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, PAYOUT_FEE, formatRatePct } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useCreatePayout } from '@/hooks/usePayoutQueries'
 
 const MIN_WITHDRAWAL = 1000
-const PAYOUT_FEE_RATE = 0.015
 const PRESET_AMOUNTS = [1000, 3000, 5000, 10000]
+const PAYOUT_FEE_LABEL = formatRatePct(PAYOUT_FEE)
 
 export default function OwnPayoutRequest() {
   const navigate = useNavigate()
@@ -24,7 +24,7 @@ export default function OwnPayoutRequest() {
   const [amount, setAmount] = useState(0)
   const [paymentDetails, setPaymentDetails] = useState('')
 
-  const fee = amount * PAYOUT_FEE_RATE
+  const fee = amount * PAYOUT_FEE
   const netAmount = amount - fee
 
   const isValid = amount >= MIN_WITHDRAWAL && amount <= earnedRub && paymentDetails.length >= 5
@@ -40,7 +40,7 @@ export default function OwnPayoutRequest() {
     <div className="max-w-[900px] mx-auto">
       <ScreenHeader
         title="Запросить вывод средств"
-        subtitle="Комиссия 1,5% · минимум 1 000 ₽ · обработка до 24 часов"
+        subtitle={`Комиссия ${PAYOUT_FEE_LABEL} · минимум 1 000 ₽ · обработка до 24 часов`}
         action={
           <Button
             variant="ghost"
@@ -153,7 +153,7 @@ export default function OwnPayoutRequest() {
               <FeeBreakdown
                 rows={[
                   { label: 'Запрос', value: formatCurrency(amount) },
-                  { label: 'Комиссия 1,5%', value: `−${formatCurrency(fee)}` },
+                  { label: `Комиссия ${PAYOUT_FEE_LABEL}`, value: `−${formatCurrency(fee)}` },
                 ]}
                 total={{ label: 'К зачислению', value: formatCurrency(netAmount) }}
               />

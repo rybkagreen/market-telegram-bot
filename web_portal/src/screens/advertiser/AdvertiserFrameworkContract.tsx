@@ -8,6 +8,14 @@ import {
   ScreenHeader,
   Notification,
 } from '@shared/ui'
+import {
+  PLATFORM_COMMISSION_GROSS,
+  OWNER_SHARE_GROSS,
+  SERVICE_FEE,
+  OWNER_NET_RATE,
+  PLATFORM_TOTAL_RATE,
+  formatRatePct,
+} from '@/lib/constants'
 
 export default function AdvertiserFrameworkContract() {
   const navigate = useNavigate()
@@ -46,11 +54,11 @@ export default function AdvertiserFrameworkContract() {
               подтверждения публикации поста.
             </p>
             <p>
-              Комиссия платформы (Промт 15.7) — <strong className="text-text-primary">20%</strong> валовая
-              + <strong className="text-text-primary">1,5%</strong> сервисный сбор, удерживаемый из
-              80%-й доли владельца канала. Эффективно платформа удерживает{' '}
-              <strong className="text-text-primary">21,2%</strong>, а владельцу канала
-              переводится <strong className="text-text-primary">78,8%</strong> от стоимости
+              Комиссия платформы (Промт 15.7) — <strong className="text-text-primary">{formatRatePct(PLATFORM_COMMISSION_GROSS, 0)}</strong> валовая
+              + <strong className="text-text-primary">{formatRatePct(SERVICE_FEE)}</strong> сервисный сбор, удерживаемый из
+              {' '}{formatRatePct(OWNER_SHARE_GROSS, 0)}-й доли владельца канала. Эффективно платформа удерживает{' '}
+              <strong className="text-text-primary">{formatRatePct(PLATFORM_TOTAL_RATE)}</strong>, а владельцу канала
+              переводится <strong className="text-text-primary">{formatRatePct(OWNER_NET_RATE)}</strong> от стоимости
               размещения.
             </p>
             <p>

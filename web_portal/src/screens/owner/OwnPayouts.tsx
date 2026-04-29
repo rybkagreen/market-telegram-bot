@@ -8,7 +8,7 @@ import {
   ScreenHeader,
 } from '@shared/ui'
 import type { IconName } from '@shared/ui'
-import { formatCurrency, formatDateTimeMSK } from '@/lib/constants'
+import { formatCurrency, formatDateTimeMSK, PAYOUT_FEE, formatRatePct } from '@/lib/constants'
 import { useMe } from '@/hooks/queries'
 import { useMyPayouts } from '@/hooks/usePayoutQueries'
 
@@ -108,7 +108,7 @@ export default function OwnPayouts() {
             </div>
             <div className="text-[12.5px] text-text-tertiary mt-1 flex items-center gap-2 flex-wrap">
               <Icon name="info" size={12} className="flex-shrink-0" />
-              <span>Минимум {formatCurrency(1000)} · комиссия 1,5% · кулдаун 24 ч</span>
+              <span>Минимум {formatCurrency(1000)} · комиссия {formatRatePct(PAYOUT_FEE)} · кулдаун 24 ч</span>
             </div>
             {isCooldownActive && (
               <div className="mt-2 text-[13px] text-warning flex items-center gap-1.5">

@@ -218,7 +218,13 @@ async def download_pdf(
 async def get_platform_rules_text(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
-    """Получить HTML-текст Правил платформы для экрана принятия."""
+    """Получить HTML-текст Правил платформы для экрана принятия.
+
+    Public per Phase 1 §1.B.2 carve-out — text-only legal content, no PII.
+    Both audiences (mini_app + web_portal) consume this for the AcceptRules
+    screen. Do not pin to web_portal-only without first removing the
+    mini_app AcceptRules dependency.
+    """
     svc = ContractService(session)
     html = await svc.render_platform_rules()
     return {"html": html}

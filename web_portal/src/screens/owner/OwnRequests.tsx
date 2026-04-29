@@ -85,7 +85,6 @@ export default function OwnRequests() {
     const pendingOwnerEarn = requests
       .filter((r) => r.status === 'pending_owner')
       .reduce(
-        // Промт 15.7: owner net derived from OWNER_NET_RATE (= 80% gross − 1.5% service fee).
         (s, r) => s + parseFloat(String(r.proposed_price ?? '0')) * OWNER_NET_RATE,
         0,
       )
