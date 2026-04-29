@@ -1596,6 +1596,231 @@ BillingService rewrite.
 
 **Fix commit:** see git log on `fix/fee-config-consume-and-cancel-scenarios`.
 
+### BL-041 — Process rule: verify CLAUDE.md before "fix latent bug" promts
+
+**Status:** Resolved (process rule codified)
+**Found:** Промт 15.10 STOP (Шаг 0 caught semantic conflict between prompt
+narrative and CLAUDE.md authoritative section)
+**Resolved:** 2026-04-29 (this session — process rule + entry)
+
+When a prompt instructs "fix latent bug" or "correct semantic mismatch",
+first step of Шаг 0 MUST be: cross-check authoritative source
+(`CLAUDE.md` / `PROJECT_KNOWLEDGE`) for canonical semantics. If the
+prompt and CLAUDE.md disagree → STOP, escalate Marina decision before
+any code change.
+
+**Why:** в Промте 15.10+15.11.5 combined I (Claude.ai) interpreted
+`after_confirmation` semantically as "after publication confirmation" →
+proposed 0% refund. Agent в Шаге 0 поднял CLAUDE.md — фактическая
+семантика "after [advertiser's cancellation] confirmation" с 50/40/10
+split (логика уже была correct в BillingService). Real bug — bot
+handler передавал wrong scenario string (UI lies). One-line fix vs
+proposed BillingService rewrite.
+
+**How to apply:**
+- Future "fix latent bug" promts: explicit step "verify CLAUDE.md
+  semantics for [topic]" before any code change.
+- If conflict — STOP gate, escalate Marina.
+- Empirical verification gate (h) extension — applies к "fix latent bug"
+  promts equally as к diagnostic findings.
+- BL-026 pattern (research enumeration пропускает callers) — agent
+  enumerated 4 callers `refund_escrow` в Шаге 0, prompt не упоминал.
+  Same blind-spot.
+
+### BL-042 — Cancel scenario naming refactor (deferred)
+
+**Status:** Deferred
+**Found:** Промт 15.10 surfaced finding (Шаг 0 inventory of
+`refund_escrow` callers)
+**Deferred for:** breaking change — touches `BillingService` + 4 callers
++ dispute flow.
+
+Current scenario names в `BillingService.refund_escrow` confuse
+semantically:
+- `before_escrow`: 100% advertiser refund (pre-escrow).
+- `after_escrow_before_confirmation`: 100% advertiser (= "system-initiated
+  cancel" — auto-recovery).
+- `after_confirmation`: 50/40/10 split (= "advertiser confirmed THEIR
+  cancellation").
+
+Naming suggests "before/after publication" semantics, but actual axis =
+"system vs advertiser actor". Future refactor — rename для clarity:
+- `before_escrow` → `pre_escrow` (no change).
+- `after_escrow_before_confirmation` → `system_auto_cancel` (e.g. owner
+  failed, SLA timeout, stuck escrow recovery).
+- `after_confirmation` → `advertiser_cancel_post_escrow` (advertiser
+  confirmed their decision).
+
+**Acceptance:**
+- Rename `CancelScenario` enum values consistently.
+- Update 4 callers + `disputes.py`.
+- Integration tests adapted.
+
+**Why deferred:**
+- Breaking change для existing callers.
+- Не блокирует real users (DB пустая).
+- Pattern works correctly с current naming, only confusing для future
+  readers.
+- Не приоритет vs Phase 3 / 16.x scoping.
+
+**Pickup:** во время Phase 3 cleanup или после real users появятся,
+когда necessitates more deliberate semantic clarity.
+
+### BL-043 — Bot AcceptanceMiddleware fail-mode review для prod (deferred)
+
+**Status:** Deferred (Marina decision before real users launch)
+**Found:** Промт 15.9 surfaced finding, 15.10 implemented fail-closed
+**Deferred for:** review timing — fail-closed appropriate for pre-prod,
+may need adjustment when real users появятся.
+
+Current state (post-15.10): `AcceptanceMiddleware` fails closed на DB
+error — blocks user, sends "Технические проблемы" message. Aligned с
+Marina decision (better than fail-open silent pass-through).
+
+**Trade-off:**
+- Fail-closed: safe (user не получает access во время transient issues),
+  но blocks user если DB temporarily unreachable.
+- Fail-open: robust к transient issues, но silently miss stale acceptance
+  detection.
+
+**Pre-prod (current):** fail-closed appropriate — DB пустая, no real
+load, errors visible.
+
+**Real prod considerations:**
+- Если DB issues become recurring → fail-closed может frustrate users.
+- Alternative: circuit breaker pattern (fail-closed первые N seconds,
+  fallback to fail-open after threshold).
+- Alternative: stale-while-revalidate (use cached needs_accept_rules
+  result на short TTL if query fails).
+
+**Pickup:** review pre real-users-launch (Phase 3 / 4 timeframe).
+
+### BL-044 — PII audit findings surfaced as BL entries (gap closure)
+
+**Status:** Resolved (this session — entries created BL-045..BL-051)
+**Found:** `PII_AUDIT_2026-04-28.md` (read-only audit during 15.x session)
+**Resolved:** 2026-04-29
+
+PII audit (2026-04-28, read-only) выявил CRIT/HIGH/MED findings которые
+**не были записаны** как BL entries — gap that this entry closes.
+
+Findings live в `reports/docs-architect/discovery/PII_AUDIT_2026-04-28.md`.
+After this session — surfaced как individual BL entries (BL-045..BL-051)
+для tracking при открытии серии 16.x (PII Hardening).
+
+DB пустая → findings latent сейчас, fix должен пройти до real users
+launch.
+
+### BL-045 — CRIT-1: Bot payout FSM accepts financial PII
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` § O.1
+**Severity:** Critical (FZ-152, three-way violation)
+
+Bot `src/bot/handlers/payout/payout.py:281-351` accepts 16-digit card /
+phone via `message.text`, echoes plaintext в Telegram chat (line 347),
+stores plaintext в БД. Triple violation: bot inbound, bot outbound,
+plaintext at rest.
+
+**Architectural decision pending Marina:** должен ли bot вообще принимать
+payout requisites? По правилу "mini_app never touches ПД" — bot тоже
+не должен. Predicted решение → bot payout flow удаляется, web_portal
+становится единственным местом для payout setup, в bot — кнопка
+"Открыть в портале" по образцу `OpenInWebPortal`.
+
+**Pickup:** серия 16.x.
+
+### BL-046 — CRIT-2: /api/payouts/* accepts mini_app JWT
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` § O.2
+**Severity:** Critical (FZ-152)
+
+`/api/payouts/*` endpoints используют `CurrentUser` (both audiences).
+`PayoutResponse.requisites` flows в mini_app JSON heap on `getPayouts()`.
+Screen не renders, но в payload есть.
+
+**Fix:** pin endpoints к web_portal-only auth (Phase 1 pattern,
+mechanical).
+
+**Pickup:** серия 16.x (mini-серия 16.1, mechanical fix).
+
+### BL-047 — HIGH-3: DocumentUpload.ocr_text plaintext at rest
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` § O.3
+**Severity:** High (FZ-152)
+
+`DocumentUpload.ocr_text` field stores 10K chars passport OCR text
+plaintext. Existing `EncryptedString` infrastructure (legal_profile) —
+applicable.
+
+**Fix:** migrate field type → `EncryptedString`.
+
+**Pickup:** серия 16.x.
+
+### BL-048 — HIGH-4: PayoutRequest.requisites plaintext at rest
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` (Часть 1.2 + § 2.2)
+**Severity:** High (FZ-152)
+
+`PayoutRequest.requisites` plaintext в БД. Bank details + card numbers.
+
+**Fix:** migrate field type → `EncryptedString`.
+
+**Pickup:** серия 16.x.
+
+### BL-049 — MED-5: /api/admin/* not pinned к web_portal
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` § O.4
+**Severity:** Medium (FZ-152)
+
+`/api/admin/legal-profiles`, `/users`, `/platform-settings`, `/payouts`
+authenticate через `AdminUser → get_current_user` (both audiences).
+Должны быть pinned к web_portal-only.
+
+**Fix:** Phase 1 mechanical pattern.
+
+**Pickup:** серия 16.x (mini-серия 16.1).
+
+### BL-050 — MED-6: UserResponse referral leak
+
+**Status:** Open (16.x territory)
+**Found:** `PII_AUDIT_2026-04-28.md` § 2.2 (line 115)
+**Severity:** Medium (FZ-152)
+
+`UserResponse.first_name/last_name` exposed обоим audiences. Own name
+OK, но `GET /api/users/me/referrals` returns other users'
+`first_name/last_name` = ПД leak.
+
+**Fix:** filtered serializer для referral context (return только
+анонимизированный display name либо username).
+
+**Pickup:** серия 16.x.
+
+### BL-051 — PII audit LOW findings batch
+
+**Status:** Open (16.x territory, low priority)
+**Found:** `PII_AUDIT_2026-04-28.md` §§ O.6-O.10
+**Severity:** Low
+
+LOW findings batch:
+- Dead `LegalProfileStates` (15 states, 0 handlers).
+- `mini_app/src/api/payouts.ts::createPayout` exported but unused
+  (loaded gun).
+- `log_sanitizer` (11 keys) ↔ Sentry scrub (16 keys) divergence.
+- `notify_admins_new_feedback` echoes user-typed feedback text.
+- YooKassa webhook stores full payload (over-collection).
+- `src/bot/handlers/shared/login_code.py:50` logs one-time login code
+  in plaintext (CRITICAL по строгости, но out-of-scope PII audit —
+  относится к auth, не к данным пользователя).
+
+**Fix:** batched cleanup в серии 16.x mini-task.
+
+**Pickup:** серия 16.x cleanup phase (16.5).
+
 ## Closed items
 
 _(none yet)_
