@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Legal text "кредиты" → "рубли" + version bump 1.2 (2026-04-29)
+
+- `src/templates/contracts/platform_rules.html:90` (section 5.3) —
+  "Валюта расчётов — кредиты (1 кредит = 1 ₽)" → "Валюта расчётов —
+  рубли (₽)" — aligned с реальной single-currency моделью post
+  `credits → balance_rub` migration.
+- `src/constants/legal.py` — module docstring переписан + bump
+  `CONTRACT_TEMPLATE_VERSION` 1.1 → 1.2 → 15.9 re-acceptance loop fires
+  для existing users (DB пустая → latent в production).
+- Audit finding: `TERMS_OF_SERVICE`, `TERMS_SHORT`, `PRIVACY_NOTICE`,
+  `WELCOME_MESSAGE` constants в `legal.py` — 0 callers в src/ или
+  tests/. Orphan dead code; "кредит" mentions внутри не render'ятся,
+  defer к series 17.x.
+- BL-053 partial closure: legal text done; bot UI strings, DB schema,
+  enum values, API paths остаются deferred.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-29_legal-rub-rewrite-v1-2.md
+
 ### Changed — Micro-cleanup after 15.13 (2026-04-29)
 
 - Renamed `InvalidSignatureError` → `WebhookAuthError` (semantic accuracy:

@@ -1,6 +1,9 @@
 """
 Константы пользовательского соглашения и политики конфиденциальности.
-Обновлено для двухвалютной системы: рубли + кредиты.
+Single-currency model (рубли); legacy "credits" terminology removed
+post `credits → balance_rub` migration. Orphan text constants
+(TERMS_OF_SERVICE, TERMS_SHORT, PRIVACY_NOTICE, WELCOME_MESSAGE)
+содержат stale "кредит" mentions — defer to BL-053 / series 17.x.
 """
 
 from decimal import Decimal
@@ -118,7 +121,7 @@ MAX_VIDEO_DURATION_SECONDS = 120
 MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
 
 # --- Contract ---
-CONTRACT_TEMPLATE_VERSION = "1.1"
+CONTRACT_TEMPLATE_VERSION = "1.2"
 CONTRACT_EDITION_DATE = "28 апреля 2026 г."
 
 # --- INN validation ---
