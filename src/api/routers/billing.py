@@ -576,7 +576,7 @@ async def buy_credits(
 
     try:
         billing_service = BillingService()
-        amount_paid, _, _ = await billing_service.buy_credits_for_plan(current_user.id, amount)
+        await billing_service.buy_credits_for_plan(current_user.id, amount)
     except InsufficientFundsError as e:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -684,7 +684,7 @@ async def yookassa_webhook(
     """
     from src.core.services.yookassa_service import (
         InvalidPayloadError,
-        InvalidSignatureError,
+        WebhookAuthError,
         YooKassaService,
     )
 
@@ -694,7 +694,7 @@ async def yookassa_webhook(
     yookassa_service = YooKassaService()
     try:
         event = await yookassa_service.process_webhook(body_bytes, client_ip)
-    except InvalidSignatureError as exc:
+    except WebhookAuthError as exc:
         logger.warning("YooKassa webhook auth failed: %s", exc)
         raise HTTPException(
             status_code=403,
