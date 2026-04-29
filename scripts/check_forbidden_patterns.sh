@@ -276,6 +276,99 @@ run_check \
   '^(export\s+)?(type|interface)\s+(LegalProfile|LegalProfileCreate|TaxRegime|LegalStatus|Contract|ContractType|ContractRole|ContractStatus|ContractSignatureInfo|SignatureMethod|RequiredFields|Passport)\b' \
   'mini_app/src/lib/types.ts'
 
+# Промт 15.10 — fee values must consume lib/constants.ts (single source of truth
+# mirroring src/constants/fees.py via /api/billing/fee-config endpoint).
+# Hardcoded numeric/percentage literals in screen/component code drift from
+# the backend constants (TopUpConfirm.tsx:66 was the priority finding).
+# Allowed only inside lib/constants.ts itself (the source of truth).
+
+# Numeric literals — clear fee values (0.20/0.80/0.40 are CSS-ambiguous, omitted).
+run_check \
+  "no hardcoded 0.035 (YooKassa fee) outside lib/constants.ts" \
+  '\b0\.035\b' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded 0.035 (YooKassa fee) outside mini_app/src/lib" \
+  '\b0\.035\b' \
+  'mini_app/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded 0.035 (YooKassa fee) outside landing/src/lib" \
+  '\b0\.035\b' \
+  'landing/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded 0.015 (service/payout fee) outside web_portal/src/lib" \
+  '\b0\.015\b' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded 0.015 (service/payout fee) outside mini_app/src/lib" \
+  '\b0\.015\b' \
+  'mini_app/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded 0.015 (service/payout fee) outside landing/src/lib" \
+  '\b0\.015\b' \
+  'landing/src' \
+  --exclude-dir=lib
+
+# String percentages — unambiguous fee labels (no false positives from
+# discounts/CSS gradients). Use formatRatePct(YOOKASSA_FEE) / etc instead.
+run_check \
+  "no hardcoded '3,5%' or '3.5%' string in web_portal/src" \
+  '3[.,]5\s*%' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '3,5%' or '3.5%' string in mini_app/src" \
+  '3[.,]5\s*%' \
+  'mini_app/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '3,5%' or '3.5%' string in landing/src" \
+  '3[.,]5\s*%' \
+  'landing/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '1,5%' or '1.5%' string in web_portal/src" \
+  '1[.,]5\s*%' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '1,5%' or '1.5%' string in mini_app/src" \
+  '1[.,]5\s*%' \
+  'mini_app/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '1,5%' or '1.5%' string in landing/src" \
+  '1[.,]5\s*%' \
+  'landing/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '78,8%' or '78.8%' string in web_portal/src" \
+  '78[.,]8\s*%' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
+run_check \
+  "no hardcoded '21,2%' or '21.2%' string in web_portal/src" \
+  '21[.,]2\s*%' \
+  'web_portal/src' \
+  --exclude-dir=lib
+
 echo ""
 if [[ "$FAIL" -ne 0 ]]; then
   echo "FAIL: forbidden pattern(s) detected ($CHECK_COUNT checks ran)."

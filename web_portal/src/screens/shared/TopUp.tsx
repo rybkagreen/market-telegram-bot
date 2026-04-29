@@ -6,11 +6,12 @@ import { useMe } from '@/hooks/queries'
 import { useInitiateTopup } from '@/hooks/useBillingQueries'
 import { extractPaymentProviderError } from '@/lib/errors'
 import type { PaymentProviderErrorDetail } from '@/lib/types'
+import { YOOKASSA_FEE, formatRatePct } from '@/lib/constants'
 
 const CHIP_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000]
-const FEE_RATE = 0.035
 const MIN_AMOUNT = 500
 const MAX_AMOUNT = 300_000
+const FEE_LABEL = formatRatePct(YOOKASSA_FEE)
 
 type PaymentMethod = 'card' | 'sbp' | 'wallet'
 
@@ -22,9 +23,9 @@ interface MethodRow {
 }
 
 const METHODS: MethodRow[] = [
-  { id: 'card', icon: 'card', name: 'Банковская карта', detail: 'Visa, Mastercard, МИР · комиссия 3,5%' },
-  { id: 'sbp', icon: 'zap', name: 'СБП', detail: 'По QR или номеру · комиссия 3,5%' },
-  { id: 'wallet', icon: 'wallet', name: 'ЮMoney / Кошелёк', detail: 'Комиссия 3,5%' },
+  { id: 'card', icon: 'card', name: 'Банковская карта', detail: `Visa, Mastercard, МИР · комиссия ${FEE_LABEL}` },
+  { id: 'sbp', icon: 'zap', name: 'СБП', detail: `По QR или номеру · комиссия ${FEE_LABEL}` },
+  { id: 'wallet', icon: 'wallet', name: 'ЮMoney / Кошелёк', detail: `Комиссия ${FEE_LABEL}` },
 ]
 
 function fmt(v: number) {
@@ -54,7 +55,7 @@ export default function TopUp() {
   }
 
   const isValid = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT
-  const fee = Math.round(amount * FEE_RATE)
+  const fee = Math.round(amount * YOOKASSA_FEE)
   const total = amount + fee
   const belowMin = amount > 0 && amount < MIN_AMOUNT
   const aboveMax = amount > MAX_AMOUNT
@@ -193,7 +194,7 @@ export default function TopUp() {
 
           <div className="flex flex-col gap-2.5">
             <SummaryRow label="Сумма" value={`${fmt(amount)} ₽`} strong />
-            <SummaryRow label="Комиссия (3,5%)" value={`+ ${fmt(fee)} ₽`} muted />
+            <SummaryRow label={`Комиссия (${FEE_LABEL})`} value={`+ ${fmt(fee)} ₽`} muted />
           </div>
 
           <div className="mt-3.5 pt-3.5 border-t border-dashed border-border flex items-baseline justify-between gap-2.5">
