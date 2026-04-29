@@ -11,6 +11,7 @@ from aiogram.types import MenuButtonWebApp, WebAppInfo
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
 from src.bot.handlers import main_router
+from src.bot.middlewares.acceptance_middleware import AcceptanceMiddleware
 from src.bot.middlewares.db_session import DBSessionMiddleware
 from src.bot.middlewares.fsm_timeout import FSMTimeoutMiddleware
 from src.bot.middlewares.role_check import RoleCheckMiddleware
@@ -49,6 +50,7 @@ async def main() -> None:
     dp.update.middleware(DBSessionMiddleware())
     dp.update.middleware(ThrottlingMiddleware())
     dp.update.middleware(RoleCheckMiddleware())
+    dp.update.middleware(AcceptanceMiddleware())
     dp.update.middleware(FSMTimeoutMiddleware())
 
     dp.include_router(main_router)

@@ -288,16 +288,44 @@ class ContractService:
 
         return signed
 
+    async def needs_accept_rules(self, user_id: int) -> bool:
+        """True if user must (re-)accept platform_rules at current CONTRACT_TEMPLATE_VERSION.
+
+        Sub-stages (BL-037, read-only — no side effects):
+            4a. Fetch latest signed acceptance of platform_rules.
+            4b. If none → True (never accepted).
+            4c. Compare stored template_version vs CONTRACT_TEMPLATE_VERSION.
+                Mismatch → True (forced re-accept on version bump).
+                Match → False (aligned).
+
+        Caller owns transaction (S-48). Failure propagates — never silently
+        return False on DB error.
+        """
+        latest = await ContractRepo(self.session).get_latest_acceptance(
+            user_id=user_id, contract_type="platform_rules"
+        )
+        if latest is None:
+            return True
+        return latest.template_version != CONTRACT_TEMPLATE_VERSION
+
     async def accept_platform_rules(self, user_id: int) -> None:
         """Принять правила платформы (единый документ: правила + конфиденциальность).
 
-        Создаёт/обновляет один контракт типа platform_rules.
-        Для обратной совместимости: если уже есть privacy_policy — обновляет и его.
+        Sub-stages (BL-037, fail-fast STOP — caller holds transaction per S-48):
+            5a. Capture current CONTRACT_TEMPLATE_VERSION + now().
+            5b. Upsert authoritative Contract row (status=signed, template_version=current).
+                On UPDATE branch: template_version is refreshed so re-accept on
+                version bump actually marks the new version (was a bug pre-15.9).
+            5c. Mirror onto privacy_policy row if it exists (legacy compat).
+            5d. Sync denormalized cache User.platform_rules_accepted_at.
+            5e. Flush. Caller commits.
         """
         repo = ContractRepo(self.session)
+        # 5a
         now = datetime.now(UTC)
+        current_version = CONTRACT_TEMPLATE_VERSION
 
-        # Единый контракт — platform_rules
+        # 5b — authoritative platform_rules row
         existing_rules = await repo.get_by_user_and_type(user_id, "platform_rules")
         if existing_rules:
             await self.session.execute(
@@ -307,6 +335,7 @@ class ContractService:
                     contract_status="signed",
                     signed_at=now,
                     signature_method="button_accept",
+                    template_version=current_version,
                 )
             )
         else:
@@ -317,11 +346,11 @@ class ContractService:
                     contract_status="signed",
                     signed_at=now,
                     signature_method="button_accept",
-                    template_version=CONTRACT_TEMPLATE_VERSION,
+                    template_version=current_version,
                 )
             )
 
-        # Обратная совместимость: обновляем privacy_policy если он есть
+        # 5c — legacy privacy_policy row mirror
         existing_privacy = await repo.get_by_user_and_type(user_id, "privacy_policy")
         if existing_privacy:
             await self.session.execute(
@@ -331,9 +360,11 @@ class ContractService:
                     contract_status="signed",
                     signed_at=now,
                     signature_method="button_accept",
+                    template_version=current_version,
                 )
             )
 
+        # 5d — denormalized cache on User
         await self.session.execute(
             sa_update(User)
             .where(User.id == user_id)
@@ -342,6 +373,7 @@ class ContractService:
                 privacy_policy_accepted_at=now,
             )
         )
+        # 5e — flush; caller commits.
         await self.session.flush()
 
     async def get_user_contracts(

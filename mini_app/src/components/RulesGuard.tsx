@@ -1,22 +1,21 @@
 import { useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useMe } from '@/hooks/queries/useUserQueries'
+import { useNeedsAcceptRules } from '@/hooks/queries/useUserQueries'
 
 const EXEMPT_ROUTES = ['/accept-rules', '/legal-profile-prompt', '/legal-profile']
 
 export function RulesGuard({ children }: { children: React.ReactNode }) {
-  const { data: user } = useMe()
+  const { data, isLoading } = useNeedsAcceptRules()
   const navigate = useNavigate()
   const location = useLocation()
 
   useEffect(() => {
-    if (!user) return
-    const needsRules = !user.platform_rules_accepted_at || !user.privacy_policy_accepted_at
+    if (isLoading || !data) return
     const isExempt = EXEMPT_ROUTES.some((r) => location.pathname.startsWith(r))
-    if (needsRules && !isExempt) {
+    if (data.needs_accept && !isExempt) {
       navigate('/accept-rules', { replace: true })
     }
-  }, [user, location.pathname, navigate])
+  }, [data, isLoading, location.pathname, navigate])
 
   return <>{children}</>
 }

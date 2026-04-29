@@ -1,17 +1,13 @@
 import { useEffect } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { useMediaQuery, breakpoints } from '@shared/hooks/useMediaQuery'
 import { usePortalUiStore } from '@/stores/portalUiStore'
-import { useNeedsAcceptRules } from '@/hooks/useUserQueries'
-import { Notification, Button } from '@shared/ui'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
 export function PortalShell() {
   const { sidebarMode, closeSidebar } = usePortalUiStore()
   const isDesktop = useMediaQuery(breakpoints.md)
-  const location = useLocation()
-  const navigate = useNavigate()
 
   const isOpen = sidebarMode === 'open'
 
@@ -21,10 +17,6 @@ export function PortalShell() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDesktop])
-
-  const { data: acceptRules } = useNeedsAcceptRules()
-  const showAcceptRulesBanner =
-    acceptRules?.needs_accept === true && !location.pathname.startsWith('/accept-rules')
 
   return (
     <div className="flex h-dvh overflow-hidden bg-harbor-bg">
@@ -51,18 +43,6 @@ export function PortalShell() {
         <Topbar />
         <main className="flex-1 overflow-x-hidden overflow-y-scroll scrollbar-thin bg-harbor-bg [scrollbar-gutter:stable] overscroll-contain">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
-            {showAcceptRulesBanner && (
-              <Notification type="warning">
-                <div className="flex items-center justify-between gap-3 w-full">
-                  <span className="text-sm">
-                    Примите правила платформы и политику конфиденциальности, чтобы продолжить работу.
-                  </span>
-                  <Button size="sm" variant="primary" onClick={() => navigate('/accept-rules')}>
-                    Принять
-                  </Button>
-                </div>
-              </Notification>
-            )}
             <Outlet />
           </div>
         </main>

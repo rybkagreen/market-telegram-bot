@@ -28,6 +28,27 @@ class ContractRepo(BaseRepository[Contract]):
         )
         return result.scalar_one_or_none()
 
+    async def get_latest_acceptance(
+        self, user_id: int, contract_type: str
+    ) -> Contract | None:
+        """Latest signed Contract row of given type for user, ordered by signed_at DESC.
+
+        Used by needs_accept_rules() to compare stored template_version against the
+        current CONTRACT_TEMPLATE_VERSION constant. Filters by contract_status='signed'
+        so unsigned drafts don't count as acceptance.
+        """
+        result = await self.session.execute(
+            select(Contract)
+            .where(
+                Contract.user_id == user_id,
+                Contract.contract_type == contract_type,
+                Contract.contract_status == "signed",
+            )
+            .order_by(Contract.signed_at.desc().nulls_last())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_user_and_placement(
         self, user_id: int, placement_request_id: int
     ) -> Contract | None:
