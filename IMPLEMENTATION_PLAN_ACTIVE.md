@@ -41,7 +41,7 @@ _Last updated: 2026-04-28 (post Phase 2 closure, серия 15.x active, BL-037 
 | Phase 0 | ✅ DONE | 2026-04-25 | merged develop+main | ENABLE_E2E_AUTH, JWT `aud`, ticket bridge, centralized URLs |
 | Phase 1 | ✅ DONE | 2026-04-25 | merged develop+main | ФЗ-152 hardening — 23 PII endpoints на web_portal-only auth, mini_app legal strip |
 | Phase 2 | ✅ DONE | 2026-04-27 | `9adaef2` merge | `PlacementTransitionService`, `placement_status_history`, forbidden-patterns lint, dead code cleanup |
-| **15.x серия** | 🟡 IN FLIGHT | 2026-04-28+ | rolling | Centralized Fee Model + Legal Consistency rewrite. См. отдельную секцию ниже |
+| **15.x серия** | ✅ DONE | 2026-04-29 | rolling, closed | Centralized fee model + legal templates aligned + frontend consumes /fee-config + acceptance loop + bot fail-closed + dead act-templates wired + AST lint TS literals + webhook consolidation 14b + WebhookAuthError rename + payment status type honesty. 9 промтов deployed (15.5–15.13 + 15.13.1) |
 | **16.x серия** | ⏸ Pending (open) | — | — | PII Hardening (closes findings из `PII_AUDIT_2026-04-28.md`). Не начата |
 | Phase 3 | ⏸ Pending | — | — | Legal Compliance Gates (18 точек) |
 | Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) |
@@ -369,7 +369,7 @@ completed, refunded, cancelled — terminal
 
 ---
 
-# Серия 15.x — Centralized Fee Model + Legal Consistency rewrite (🟡 IN FLIGHT)
+# Серия 15.x — Centralized Fee Model + Legal Consistency rewrite (✅ DONE 2026-04-29)
 
 **Origin:** `PLAN_centralized_fee_model_consistency.md` (2026-04-28).
 
@@ -392,7 +392,8 @@ completed, refunded, cancelled — terminal
 | 15.11 | ✅ Deployed (combined с 15.12) | Dead act-templates wire через `legal_status` — 5 templates routed via `get_act_template(party, legal_status)` |
 | 15.11.5 | ✅ Deployed (with 15.10) | Bot handler передавал wrong scenario string (UI lies) — one-line fix; BillingService logic was correct (semantic mismatch was prompt-side) |
 | 15.12 | ✅ Deployed (combined с 15.11) | Documentation cleanup — BACKLOG hygiene, PII findings surfaced (BL-041..BL-051), Status overlay aligned |
-| 15.13 | ⏸ Deferred | Webhook consolidation 14b — отдельная сессия в billing rewrite plan |
+| 15.13 | ✅ Deployed | Webhook consolidation 14b — `YooKassaService.process_webhook` (IP whitelist + JSON parse + structural validation), `BillingService.process_topup_webhook` (idempotency + balance), router → orchestrator |
+| 15.13.1 | ✅ Deployed | Micro-cleanup: `WebhookAuthError` rename, `get_payment_status` return type honesty (`str | None` + caller None-guards), unused `amount_paid` unpack removed in `buy_credits`. Closes серия 15.x |
 
 **Acceptance criterion:** после серии — `code ↔ legal templates ↔ frontend` consistent. AST lint forbids hardcoded fees in `src/`, `mini_app/src/`, `web_portal/src/`, `landing/src/`, `src/templates/`. `CONTRACT_TEMPLATE_VERSION = "1.1"` rendered, re-acceptance loop active.
 

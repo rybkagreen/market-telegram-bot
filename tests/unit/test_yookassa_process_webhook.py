@@ -15,7 +15,7 @@ import pytest
 
 from src.core.services.yookassa_service import (
     InvalidPayloadError,
-    InvalidSignatureError,
+    WebhookAuthError,
     WebhookEvent,
     YooKassaService,
 )
@@ -56,19 +56,19 @@ async def test_process_webhook_accepts_whitelisted_ip():
 
 async def test_process_webhook_rejects_off_whitelist_ip():
     service = YooKassaService()
-    with pytest.raises(InvalidSignatureError):
+    with pytest.raises(WebhookAuthError):
         await service.process_webhook(_valid_body(), "8.8.8.8")
 
 
 async def test_process_webhook_rejects_missing_ip():
     service = YooKassaService()
-    with pytest.raises(InvalidSignatureError):
+    with pytest.raises(WebhookAuthError):
         await service.process_webhook(_valid_body(), None)
 
 
 async def test_process_webhook_rejects_malformed_ip():
     service = YooKassaService()
-    with pytest.raises(InvalidSignatureError):
+    with pytest.raises(WebhookAuthError):
         await service.process_webhook(_valid_body(), "not-an-ip")
 
 

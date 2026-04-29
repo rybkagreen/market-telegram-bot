@@ -148,6 +148,13 @@ async def topup_check(callback: CallbackQuery, state: FSMContext, session: Async
 
     try:
         status = await yookassa_service.get_payment_status(payment_id)
+        if status is None:
+            logger.warning("YooKassa payment status unavailable for %s", payment_id)
+            await callback.answer(
+                "⏳ Статус платежа пока неизвестен. Попробуйте через минуту.",
+                show_alert=True,
+            )
+            return
         if status == "succeeded":
             user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
             await state.clear()
