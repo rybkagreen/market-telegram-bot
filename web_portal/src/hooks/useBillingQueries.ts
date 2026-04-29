@@ -8,6 +8,7 @@ import {
   getTransactionHistory,
   getTopupStatus,
   getFrozenBalance,
+  getFeeConfig,
   type TopupStatus,
 } from '@/api/billing'
 
@@ -95,6 +96,15 @@ export function useFrozenBalance() {
     queryKey: ['billing', 'frozen'],
     queryFn: getFrozenBalance,
     staleTime: 60_000,
+  })
+}
+
+export function useFeeConfig() {
+  return useQuery({
+    queryKey: ['billing', 'fee-config'],
+    queryFn: getFeeConfig,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 

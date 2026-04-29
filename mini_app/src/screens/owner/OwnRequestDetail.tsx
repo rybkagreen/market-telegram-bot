@@ -276,7 +276,6 @@ export default function OwnRequestDetail() {
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Заработано</span>
             <span className={styles.infoEarned}>
-              {/* Промт 15.7: owner net derived from OWNER_NET_RATE (= 80% gross − 1.5% service fee). */}
               {formatCurrency(parseFloat(request.final_price) * OWNER_NET_RATE)}
             </span>
           </div>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { StepIndicator, FeeBreakdown, Notification, Button, PaymentErrorModal } from '@/components/ui'
 import { formatCurrency, calcTopUpFee } from '@/lib/formatters'
+import { YOOKASSA_FEE, formatRatePct } from '@/lib/constants'
 import { useHaptic } from '@/hooks/useHaptic'
 import { useCreateTopUp } from '@/hooks/queries'
 import { useUiStore } from '@/stores/uiStore'
@@ -60,7 +61,7 @@ export default function TopUpConfirm() {
         <FeeBreakdown
           rows={[
             { label: 'Будет зачислено', value: formatCurrency(desired) },
-            { label: 'Комиссия ЮKassa (3,5%)', value: '+' + formatCurrency(fee), dim: true },
+            { label: `Комиссия ЮKassa (${formatRatePct(YOOKASSA_FEE)})`, value: '+' + formatCurrency(fee), dim: true },
           ]}
           total={{ label: 'Итого к оплате', value: formatCurrency(total) }}
         />

@@ -7,14 +7,13 @@ exists at all), every Telegram interaction is intercepted and replaced with a
 prompt to (re-)accept.
 
 Sub-stages (BL-037 fail-fast):
-    10a. Extract user_id from event_from_user.
-    10b. Open DB lookup; user exists? otherwise pass through to onboarding.
-    10c. Run service.needs_accept_rules — if True, send accept prompt + block.
-    10d. Otherwise pass through to handler.
-
-Failure handling: needs_accept_rules raises (DB unavailable, etc.) → log and
-pass through (fail-open). Surfaced finding for prod: fail-closed may be safer
-once a real user base exists.
+    13a. Extract user_id from event_from_user.
+    13b. Open DB lookup; user exists? otherwise pass through to onboarding.
+    13c. Run service.needs_accept_rules — if True, send accept prompt + block.
+    13d. Failure handling: needs_accept_rules raises → block + send technical
+         error message. Fail-closed (Промт 15.10, per BL-039 surfaced finding):
+         silent pass-through on DB failure could let a user transact without a
+         valid acceptance record once a real user base exists.
 
 Exempt event patterns (always passed through, even when needs_accept is True):
 - /start command — initial onboarding always allowed.
@@ -39,6 +38,10 @@ logger = logging.getLogger(__name__)
 ACCEPT_PROMPT_TEXT = (
     "📋 Платформа обновила правила. Чтобы продолжить пользоваться ботом, "
     "пожалуйста, примите актуальную редакцию."
+)
+
+TECHNICAL_ERROR_TEXT = (
+    "⚠️ Технические проблемы. Пожалуйста, попробуйте через минуту."
 )
 
 
@@ -77,7 +80,7 @@ class AcceptanceMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        # 10a — identify user
+        # 13a — identify user
         event_from_user = data.get("event_from_user")
         telegram_id = event_from_user.id if event_from_user else None
         if telegram_id is None:
@@ -87,20 +90,30 @@ class AcceptanceMiddleware(BaseMiddleware):
         if session is None:
             return await handler(event, data)
 
-        # 10b — DB user lookup; new users (no record yet) flow through to /start
+        # 13b — DB user lookup; new users (no record yet) flow through to /start
         db_user = await UserRepository(session).get_by_telegram_id(telegram_id)
         if db_user is None:
             return await handler(event, data)
 
-        # 10c — version-aware acceptance check (fail-open on errors)
+        # 13c/13d — version-aware acceptance check (fail-closed on errors)
         try:
             needs = await ContractService(session).needs_accept_rules(db_user.id)
         except Exception:
             logger.exception(
-                "AcceptanceMiddleware: needs_accept_rules failed for user_id=%s — passing through",
+                "AcceptanceMiddleware: needs_accept_rules failed for user_id=%s — blocking (fail-closed)",
                 db_user.id,
             )
-            return await handler(event, data)
+            try:
+                if isinstance(event, Message):
+                    await event.answer(TECHNICAL_ERROR_TEXT)
+                elif isinstance(event, CallbackQuery):
+                    await event.answer(TECHNICAL_ERROR_TEXT, show_alert=True)
+            except Exception:
+                logger.exception(
+                    "AcceptanceMiddleware: failed to deliver technical error notice for user_id=%s",
+                    db_user.id,
+                )
+            return None
 
         if not needs:
             return await handler(event, data)
@@ -111,7 +124,7 @@ class AcceptanceMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery) and _is_exempt_callback(event):
             return await handler(event, data)
 
-        # 10d (block) — surface accept prompt and stop the chain
+        # 13c (block) — surface accept prompt and stop the chain
         try:
             if isinstance(event, Message):
                 await event.answer(

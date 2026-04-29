@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, StatusPill, EmptyState, Skeleton } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/formatters'
+import { WITHDRAWAL_FEE, formatRatePct } from '@/lib/constants'
 import { useMe, usePayouts } from '@/hooks/queries'
 import styles from './OwnPayouts.module.css'
 
@@ -68,7 +69,7 @@ export default function OwnPayouts() {
     <ScreenShell>
       <Card title="Доступно к выводу">
         <p className={styles.balance}>{formatCurrency(earnedRub)}</p>
-        <p className={styles.hint}>Мин. 1 000 ₽ · Комиссия 1,5%</p>
+        <p className={styles.hint}>Мин. 1 000 ₽ · Комиссия {formatRatePct(WITHDRAWAL_FEE)}</p>
         {isCooldownActive && (
           <p className={styles.cooldown}>
             ⏱ Следующая выплата через <strong>{formatCountdown(cooldownRemaining)}</strong>
