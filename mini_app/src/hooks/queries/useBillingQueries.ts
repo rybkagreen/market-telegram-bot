@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits, getBillingHistory } from '@/api/billing'
+import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits, getBillingHistory, getFeeConfig } from '@/api/billing'
 import { useUiStore } from '@/stores/uiStore'
 import type { TopUpResponse } from '@/lib/types'
 
@@ -50,6 +50,14 @@ export const useBuyCredits = () => {
     },
   })
 }
+
+export const useFeeConfig = () =>
+  useQuery({
+    queryKey: ['billing', 'fee-config'],
+    queryFn: getFeeConfig,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+  })
 
 export const usePurchasePlan = () => {
   const qc = useQueryClient()

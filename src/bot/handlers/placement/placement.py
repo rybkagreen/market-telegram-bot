@@ -619,7 +619,7 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
             final_price=price,
             advertiser_id=user.id,
             owner_id=req.owner_id,
-            scenario="after_escrow_before_confirmation",
+            scenario="after_confirmation",
         )
     except Exception as e:
         _logger = logging.getLogger(__name__)

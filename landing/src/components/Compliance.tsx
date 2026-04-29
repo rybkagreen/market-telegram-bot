@@ -1,4 +1,5 @@
 import { ShieldCheck, Lock, Banknote, Star } from 'lucide-react'
+import { CANCEL_REFUND_ADVERTISER, PAYOUT_FEE, formatRatePct } from '../lib/constants'
 
 const BLOCKS = [
   {
@@ -17,7 +18,7 @@ const BLOCKS = [
     icon: Banknote,
     title: 'Эскроу и возвраты',
     text:
-      'После оплаты средства блокируются на платформе и не поступают владельцу канала до подтверждения публикации (ESCROW-001). Возврат: 100% до начала публикации, 50% после — согласно правилам платформы. Выплаты через YooKassa, комиссия за вывод 1.5%.',
+      `После оплаты средства блокируются на платформе и не поступают владельцу канала до подтверждения публикации (ESCROW-001). Возврат: 100% до начала публикации, ${formatRatePct(CANCEL_REFUND_ADVERTISER, 0)} после — согласно правилам платформы. Выплаты через YooKassa, комиссия за вывод ${formatRatePct(PAYOUT_FEE)}.`,
   },
   {
     icon: Star,

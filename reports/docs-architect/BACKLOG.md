@@ -1480,6 +1480,122 @@ silently игнорировался.
 
 **Fix commit:** see git log on `fix/acceptance-infrastructure`.
 
+### BL-040 — Frontend fee-config consume + bot handler scenario fix + middleware fail-closed (RESOLVED)
+**Status:** Resolved
+**Found:** PLAN_centralized_fee_model_consistency.md (combined Промт 15.10 + 15.11.5)
+**Resolved:** 2026-04-29 (combined deployable checkpoint)
+
+Combined промт closing three related findings as a single PR. Marina
+chose option (A) for Часть B after inventory surfaced that the
+prompt-as-written would break 4 callers (auto-cancel paths +
+disputes "partial" flow). The actual cancel-scenarios bug was a
+single-character mis-routing in the bot handler, **not** a
+BillingService rewrite.
+
+1. **Часть A (15.10) — Frontend /fee-config consume.** Constants in
+   `web_portal/src/lib/constants.ts`, `mini_app/src/lib/constants.ts`
+   and `landing/src/lib/constants.ts` now consumed by all screens
+   that previously hardcoded `0.035` / `0.015` / `1,5%` / `3,5%` /
+   `78,8%` / `21,2%`. Priority finding `TopUpConfirm.tsx:66`
+   resolved (literal `0.035` → `YOOKASSA_FEE`). New `useFeeConfig`
+   hook in both frontends fetches `/api/billing/fee-config` for
+   runtime sync. Carve-out inline comment added to
+   `src/api/routers/contracts.py::get_platform_rules_text` (Phase 1
+   §1.B.2 — text-only legal content, both audiences consume).
+2. **Часть B (15.11.5) — Bot handler scenario string corrected.**
+   `src/bot/handlers/placement/placement.py` `camp_cancel_after_escrow`
+   was passing `scenario="after_escrow_before_confirmation"` (100%
+   advertiser refund) while UI promised "Возврат 50%". Replaced with
+   `scenario="after_confirmation"` (50/40/10 split — matches UI).
+   **Not a billing rewrite**: BillingService logic unchanged,
+   auto-cancel tasks (placement_tasks.py — owner-fault refunds at
+   100%) and dispute "partial" verdicts (50/40/10) untouched. The
+   "should refund 50/40/10 in this scenario" semantics already
+   lived in `after_confirmation`, the bot handler was simply
+   mis-pointing.
+3. **Часть C (mini-fix) — AcceptanceMiddleware fail-closed.** Per
+   Marina decision per BL-039 surfaced finding: `needs_accept_rules`
+   exception → block + send "Технические проблемы" notice (was: log
+   + pass through). Sub-stages re-numbered 13a-13d.
+
+**Code changes:**
+- `web_portal/src/api/billing.ts` + `mini_app/src/api/billing.ts`:
+  new `getFeeConfig()` + `FeeConfigResponse` types.
+- `web_portal/src/hooks/useBillingQueries.ts` +
+  `mini_app/src/hooks/queries/useBillingQueries.ts`: new
+  `useFeeConfig()` hook (5min staleTime, 30min gcTime).
+- Frontend screens consuming constants: `TopUpConfirm.tsx`
+  (web_portal + mini_app), `TopUp.tsx`, `OwnPayoutRequest.tsx`,
+  `OwnPayouts.tsx` (web_portal + mini_app), `Help.tsx` (web_portal
+  + mini_app), `AdvertiserFrameworkContract.tsx`, `Compliance.tsx`.
+- `landing/src/lib/constants.ts`: added
+  `CANCEL_REFUND_ADVERTISER = 0.50`.
+- Removed two stale "Промт 15.7" explanatory comments
+  (`OwnRequests.tsx`, `OwnRequestDetail.tsx`) which contained
+  hardcoded "1.5%" inside an explanation of `OWNER_NET_RATE` —
+  conflicting with the new lint rule.
+- `src/api/routers/contracts.py`: inline carve-out comment.
+- `src/bot/handlers/placement/placement.py:622`: scenario string
+  changed (one-line edit).
+- `src/bot/middlewares/acceptance_middleware.py`: fail-closed branch
+  + `TECHNICAL_ERROR_TEXT` constant.
+- `scripts/check_forbidden_patterns.sh`: 14 new patterns
+  (forbidden-patterns count 17 → 31).
+- `tests/test_bot_cancel_scenario_consistency.py`: 4 new
+  source-inspection tests locking in scenario routing.
+- `tests/test_acceptance_middleware_fail_closed.py`: 3 new
+  middleware tests (fail-closed, pass-through, block-on-needs).
+
+**Public contract delta:**
+- Bot user-cancel-from-escrow now refunds 50% (was: 100% silent
+  bonus). UI text and DB write are aligned.
+- Bot middleware blocks user with technical-error notice on DB
+  error (was: silent pass-through, handler called).
+- Auto-cancel paths (publish failure, SLA timeout, stuck escrow
+  recovery) UNCHANGED — still 100% advertiser refund, owner is at
+  fault. Disputes "partial" verdict UNCHANGED — still 50/40/10.
+
+**Sub-stage tracking (BL-037 application):**
+- `AcceptanceMiddleware`: 13a (extract user) → 13b (DB lookup) →
+  13c (needs check, block-with-prompt) → 13d (fail-closed branch
+  on exception, send technical notice).
+
+**Critical caveats:**
+- DB пустая → bot scenario fix has zero impact on existing data.
+- Real users появятся → user-initiated cancels из escrow get 50%
+  refund instead of 100%. UI matched DB before the fix at the
+  user's expense; now they match honestly.
+- Middleware fail-closed: users may be blocked during transient
+  DB issues. Trade-off accepted per Marina (better than silent
+  fail-open in pre-prod).
+
+**Surfaced finding (informational):**
+- The semantic naming `after_escrow_before_confirmation` vs
+  `after_confirmation` in `BillingService.refund_escrow` is
+  confusing — `after_confirmation` actually means "after the
+  advertiser confirmed THEIR cancellation" (= post-escrow
+  pre-publish), not "after publication confirmation". Two callers
+  use each scenario correctly given the actual semantics; the bug
+  was purely in the bot handler. Renaming the scenarios for
+  clarity is deferred — out of scope here, would touch
+  BillingService + 4 callers + dispute flow.
+
+**Gate baseline (pre → post):**
+- Forbidden-patterns: 17/17 → 31/31 (+14).
+- Ruff src/: 21 → 21 (at ceiling, no regression).
+- Mypy: 10 → 10 (at ceiling, no regression).
+- Pytest substantive: 76F + 17E + 661P → 76F + 17E + 668P (+7
+  new — 4 cancel scenario + 3 middleware).
+
+**Out of scope (next prompts):**
+- 15.11 — Dead act-templates wire (5 templates: act_advertiser,
+  act_owner_{fl,ie,le,np}).
+- 15.12 — Documentation cleanup.
+- 15.13 — Webhook consolidation 14b.
+- 16.x series — PII Hardening (separate epic).
+
+**Fix commit:** see git log on `fix/fee-config-consume-and-cancel-scenarios`.
+
 ## Closed items
 
 _(none yet)_
