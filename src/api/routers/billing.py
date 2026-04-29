@@ -32,17 +32,7 @@ router = APIRouter(tags=["billing"])
 
 # ─── Константы ──────────────────────────────────────────────────
 
-# YooKassa IP ranges for webhook verification
-# https://yookassa.ru/developers/api/notifications#ip-address
-YOOKASSA_IPS: list[str] = [
-    "185.71.76.0/27",
-    "185.71.77.0/27",
-    "77.75.153.0/25",
-    "77.75.156.11/32",
-    "77.75.156.35/32",
-    "77.75.154.128/25",
-    "2a02:5180::/32",
-]
+# YooKassa IP whitelist moved to YooKassaService.YOOKASSA_IP_NETWORKS (15.13).
 
 PLAN_COSTS = {
     "free": 0,
@@ -687,35 +677,39 @@ async def yookassa_webhook(
     ЮKassa требует ответ 200 при любом исходе — иначе будет ретрай.
 
     v4.2: Зачислять metadata['desired_balance'] в balance_rub (НЕ gross_amount).
-    """
-    # Верификация IP-адреса YooKassa
-    from ipaddress import ip_address, ip_network
 
-    client_ip = request.client.host if request.client else ""
-    if not client_ip:
-        logger.warning("YooKassa webhook with no client IP")
+    Промт-15.13 (14b): signature verification + payload parsing вынесены
+    в YooKassaService.process_webhook. Router остаётся orchestrator —
+    идемпотентность + credit balance делает BillingService.process_topup_webhook.
+    """
+    from src.core.services.yookassa_service import (
+        InvalidPayloadError,
+        InvalidSignatureError,
+        YooKassaService,
+    )
+
+    body_bytes = await request.body()
+    client_ip = request.client.host if request.client else None
+
+    yookassa_service = YooKassaService()
+    try:
+        event = await yookassa_service.process_webhook(body_bytes, client_ip)
+    except InvalidSignatureError as exc:
+        logger.warning("YooKassa webhook auth failed: %s", exc)
         raise HTTPException(
             status_code=403,
             detail="Forbidden: request not from YooKassa IP",
-        )
-    if not any(ip_address(client_ip) in ip_network(net) for net in YOOKASSA_IPS):
-        logger.warning(f"YooKassa webhook from unknown IP: {client_ip}")
-        raise HTTPException(
-            status_code=403,
-            detail="Forbidden: request not from YooKassa IP",
-        )
+        ) from exc
+    except InvalidPayloadError as exc:
+        logger.error("Invalid webhook payload from YooKassa: %s", exc)
+        return {"status": "error", "detail": "Invalid webhook payload"}
+
+    logger.info("ЮKassa webhook event: %s", event.event_type)
 
     try:
         from src.core.services.billing_service import BillingService
 
-        body = await request.json()
-        logger.info("ЮKassa webhook event: %s", body.get("event", "unknown"))
-
-        event_type = body.get("event", "")
-        obj = body.get("object", {})
-        payment_id = obj.get("id", "")
-
-        if event_type == "payment.succeeded" and payment_id:
+        if event.event_type == "payment.succeeded":
             # v4.2: Использовать billing_service.process_topup_webhook
             # который зачисляет metadata['desired_balance'] в balance_rub
             billing_service = BillingService()
@@ -723,18 +717,18 @@ async def yookassa_webhook(
                 from src.db.repositories.yookassa_payment_repo import YookassaPaymentRepository
 
                 repo = YookassaPaymentRepository(session)
-                record = await repo.get_by_payment_id(payment_id)
+                record = await repo.get_by_payment_id(event.payment_id)
 
                 if record:
                     # Sprint A.2: извлечь и сохранить payment_method и receipt
-                    payment_method = obj.get("payment_method", {})
-                    receipt = obj.get("receipt", {})
+                    payment_method = event.payload.get("payment_method", {})
+                    receipt = event.payload.get("receipt", {})
 
                     record.payment_method_type = (
                         payment_method.get("type") if payment_method else None
                     )
                     record.receipt_id = receipt.get("id") if receipt else None
-                    record.yookassa_metadata = obj  # сохраняем полный payload
+                    record.yookassa_metadata = event.payload  # сохраняем полный payload
 
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
@@ -747,7 +741,7 @@ async def yookassa_webhook(
 
                     await billing_service.process_topup_webhook(
                         session=session,
-                        payment_id=payment_id,
+                        payment_id=event.payment_id,
                         gross_amount=gross_amount,
                         metadata=metadata,
                     )
@@ -758,12 +752,14 @@ async def yookassa_webhook(
                     await session.commit()
 
                     logger.info(
-                        f"Topup processed: payment_id={payment_id}, "
+                        f"Topup processed: payment_id={event.payment_id}, "
                         f"desired={metadata['desired_balance']}, gross={gross_amount}, "
                         f"method={record.payment_method_type}, receipt={record.receipt_id}"
                     )
                 else:
-                    logger.warning(f"YooKassaPayment record not found for {payment_id}")
+                    logger.warning(
+                        f"YooKassaPayment record not found for {event.payment_id}"
+                    )
 
     except (ValueError, KeyError, TypeError) as e:
         logger.error("Invalid webhook payload from YooKassa: %s", e)

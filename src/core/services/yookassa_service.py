@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
+from dataclasses import dataclass
 from decimal import Decimal
+from ipaddress import ip_address, ip_network
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +34,45 @@ from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
+
+
+YOOKASSA_IP_NETWORKS: tuple[str, ...] = (
+    "185.71.76.0/27",
+    "185.71.77.0/27",
+    "77.75.153.0/25",
+    "77.75.156.11/32",
+    "77.75.156.35/32",
+    "77.75.154.128/25",
+    "2a02:5180::/32",
+)
+
+
+@dataclass(frozen=True)
+class WebhookEvent:
+    """Parsed YooKassa webhook event.
+
+    Service-level DTO. Не attached к ORM, не coupled к БД.
+    Caller (router) использует поля для бизнес-диспатча.
+    """
+
+    event_type: str
+    payment_id: str
+    payload: dict[str, Any]
+
+
+class InvalidSignatureError(Exception):
+    """Webhook авторизация не прошла.
+
+    YooKassa использует IP whitelist (не HMAC) — see
+    https://yookassa.ru/developers/api/notifications#ip-address.
+    Имя сохранено для соответствия общему protocol-vocabulary
+    (auth-failure → 403). Raises когда client_ip отсутствует или
+    не входит в YOOKASSA_IP_NETWORKS.
+    """
+
+
+class InvalidPayloadError(Exception):
+    """Webhook body не парсится или структурно невалиден."""
 
 
 class YooKassaService:
@@ -210,6 +252,72 @@ class YooKassaService:
             "credits": credits_amount,
             "status": "pending",
         }
+
+    async def process_webhook(
+        self,
+        body: bytes,
+        client_ip: str | None,
+    ) -> WebhookEvent:
+        """Verify источник + распарсить YooKassa webhook payload.
+
+        S-48 contract: метод НЕ трогает БД, не открывает session,
+        не commit'ит. Возвращает DTO; caller (router) распоряжается
+        бизнес-логикой и lifecycle транзакции.
+
+        Authorization: YooKassa аутентифицирует webhook'и по IP
+        whitelist (а не HMAC). Источник публичен:
+        https://yookassa.ru/developers/api/notifications#ip-address
+
+        Args:
+            body: Raw request body (bytes).
+            client_ip: request.client.host от FastAPI; None если
+                request пришёл без peer info.
+
+        Returns:
+            WebhookEvent с event_type, payment_id, payload (full
+            ``object`` payload — caller может извлечь
+            payment_method/receipt/metadata по необходимости).
+
+        Raises:
+            InvalidSignatureError: client_ip отсутствует или вне
+                YOOKASSA_IP_NETWORKS.
+            InvalidPayloadError: body не parseable как JSON, либо
+                отсутствует обязательное поле ``event`` /
+                ``object.id``.
+        """
+        if not client_ip:
+            raise InvalidSignatureError("client IP is missing")
+        try:
+            ip = ip_address(client_ip)
+        except ValueError as exc:
+            raise InvalidSignatureError(f"client IP is malformed: {client_ip}") from exc
+        if not any(ip in ip_network(net) for net in YOOKASSA_IP_NETWORKS):
+            raise InvalidSignatureError(f"client IP {client_ip} not in YooKassa whitelist")
+
+        try:
+            data = json.loads(body)
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            raise InvalidPayloadError(f"webhook body is not valid JSON: {exc}") from exc
+
+        if not isinstance(data, dict):
+            raise InvalidPayloadError("webhook body must be a JSON object")
+
+        event_type = data.get("event")
+        obj = data.get("object")
+        if not isinstance(event_type, str) or not event_type:
+            raise InvalidPayloadError("webhook payload missing 'event' field")
+        if not isinstance(obj, dict):
+            raise InvalidPayloadError("webhook payload missing 'object' field")
+
+        payment_id = obj.get("id")
+        if not isinstance(payment_id, str) or not payment_id:
+            raise InvalidPayloadError("webhook payload missing 'object.id' field")
+
+        return WebhookEvent(
+            event_type=event_type,
+            payment_id=payment_id,
+            payload=obj,
+        )
 
     async def get_payment_status(self, payment_id: str) -> str:
         """
