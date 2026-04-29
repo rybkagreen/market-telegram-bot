@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **legal (acceptance)**: re-acceptance loop activates at
+  `CONTRACT_TEMPLATE_VERSION` mismatch (Промт 15.9 / BL-039).
+  `ContractService.needs_accept_rules()` (new) compares stored
+  `template_version` vs current constant; `accept_platform_rules()`
+  upserts the authoritative Contract row + syncs the User cache atomically
+  in caller-owned transaction (S-48), with the UPDATE branch now
+  refreshing `template_version` (silent bug pre-15.9). New repo helper
+  `ContractRepo.get_latest_acceptance`. `GET /api/users/needs-accept-rules`
+  rewired from inline truthy check to the version-aware service, response
+  shape unchanged (`{needs_accept: bool}`, now Pydantic
+  `NeedsAcceptRulesResponse`). Frontend hard-redirect on both surfaces:
+  `web_portal/src/components/guards/RulesGuard.tsx` and
+  `mini_app/src/components/RulesGuard.tsx` switched to the new hook;
+  `useNeedsAcceptRules` staleTime 0 + `refetchOnWindowFocus`; accept
+  mutations invalidate the `['user', 'needs-accept-rules']` query.
+  Removed redundant `PortalShell` accept-rules banner. New bot
+  `AcceptanceMiddleware` blocks interactions with accept prompt
+  (callback button + WebApp deep link); fail-open on DB errors;
+  exempts `/start`, `terms:*`, and `contract:accept_rules`. 6 new
+  integration tests (5 service + 1 endpoint via
+  `app.dependency_overrides`). Sub-stage tracking (BL-037) first
+  applied: 4a-4c, 5a-5e, 10a-10d. See BL-039.
+
 - **legal (templates)**: legal templates inject fee percentages, version,
   and edition date through Jinja2 from `src/constants/fees.py` +
   `src/constants/legal.py` via new `ContractService._build_fee_context()`
