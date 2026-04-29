@@ -1,6 +1,6 @@
 # CHANGES — Frontend fee-config consume + bot scenario fix + middleware fail-closed (combined 15.10 + 15.11.5)
 
-🔍 Verified against: `<commit-pending>` | 📅 Updated: 2026-04-29
+🔍 Verified against: `c95908e` | 📅 Updated: 2026-04-29
 
 ## What
 
@@ -169,4 +169,4 @@ Dead act-templates wire через legal_status. 5 templates without
 callers: `act_advertiser`, `act_owner_fl`, `act_owner_ie`,
 `act_owner_le`, `act_owner_np` — wire через legal_status branching.
 
-🔍 Verified against: `<commit-pending>` | 📅 Updated: 2026-04-29
+🔍 Verified against: `c95908e` | 📅 Updated: 2026-04-29
