@@ -386,13 +386,13 @@ completed, refunded, cancelled — terminal
 | 15.5 | ✅ Deployed | Bot `topup_pay` migration на `YooKassaService.create_topup_payment` |
 | 15.6 | ✅ Closed | Read-only legal templates inventory (14 HTML templates) |
 | 15.7 | ✅ Deployed | `src/constants/fees.py` + `/api/billing/fee-config` endpoint |
-| 15.8 | ⏳ Next | Legal templates Jinja2 injection + version bump 1.0 → 1.1, `§ 18 (115-ФЗ)` + `§ 19 (юрисдикция)` placeholders в `platform_rules.html` |
-| 15.9 | ⏸ Pending | Acceptance infrastructure — re-accept loop при `CONTRACT_TEMPLATE_VERSION` bump (sub-stage tracking per BL-037) |
-| 15.10 | ⏸ Pending | Frontend updates — consume `/fee-config`, убрать оставшиеся hardcodes |
-| 15.11 | ⏸ Pending | Dead act-templates wire через `legal_status` (5 templates без callers) |
-| 15.11.5 | ⏸ Pending | Backend cancel scenarios fix (refund_escrow `after_escrow_before_confirmation` → 50/40/10; `after_confirmation` → 0% refund) — surfaced finding из 15.7 |
-| 15.12 | ⏸ Pending | Documentation cleanup (CLAUDE.md, BACKLOG, README) |
-| 15.13 | ⏸ Pending | Webhook consolidation 14b (deferred Промт-16 в billing rewrite plan) |
+| 15.8 | ✅ Deployed | Legal templates Jinja2 injection + version bump 1.0 → 1.1, `§ 18 (115-ФЗ)` + `§ 19 (юрисдикция)` |
+| 15.9 | ✅ Deployed | Acceptance infrastructure — re-accept loop при `CONTRACT_TEMPLATE_VERSION` bump |
+| 15.10 | ✅ Deployed (combined с 15.11.5) | Frontend `/fee-config` consume + bot UI cancel scenario fix + middleware fail-closed |
+| 15.11 | ✅ Deployed (combined с 15.12) | Dead act-templates wire через `legal_status` — 5 templates routed via `get_act_template(party, legal_status)` |
+| 15.11.5 | ✅ Deployed (with 15.10) | Bot handler передавал wrong scenario string (UI lies) — one-line fix; BillingService logic was correct (semantic mismatch was prompt-side) |
+| 15.12 | ✅ Deployed (combined с 15.11) | Documentation cleanup — BACKLOG hygiene, PII findings surfaced (BL-041..BL-051), Status overlay aligned |
+| 15.13 | ⏸ Deferred | Webhook consolidation 14b — отдельная сессия в billing rewrite plan |
 
 **Acceptance criterion:** после серии — `code ↔ legal templates ↔ frontend` consistent. AST lint forbids hardcoded fees in `src/`, `mini_app/src/`, `web_portal/src/`, `landing/src/`, `src/templates/`. `CONTRACT_TEMPLATE_VERSION = "1.1"` rendered, re-acceptance loop active.
 
@@ -407,7 +407,7 @@ completed, refunded, cancelled — terminal
 
 **Why:** PII audit (read-only, 2026-04-28) выявил CRIT/HIGH/MED findings в payouts, admin endpoints, bot FSM. Phase 1 закрывал legal_profile/contracts/acts (23 endpoints), но pay-out path и admin endpoints в enumeration не попали.
 
-**Findings (НЕ записаны как BL entries — gap, surface при открытии серии):**
+**Findings (записаны как BL-044..BL-051 после 15.12 — см. BACKLOG.md):**
 
 **Группа A — Pin endpoints к web_portal (повтор Phase 1 паттерна):**
 - CRIT-2: `/api/payouts/*` принимает mini_app JWT, `requisites` уходит в mini_app heap.
