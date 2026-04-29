@@ -60,14 +60,14 @@ class WebhookEvent:
     payload: dict[str, Any]
 
 
-class InvalidSignatureError(Exception):
-    """Webhook авторизация не прошла.
+class WebhookAuthError(Exception):
+    """Raised when webhook source authentication fails.
 
-    YooKassa использует IP whitelist (не HMAC) — see
-    https://yookassa.ru/developers/api/notifications#ip-address.
-    Имя сохранено для соответствия общему protocol-vocabulary
-    (auth-failure → 403). Raises когда client_ip отсутствует или
-    не входит в YOOKASSA_IP_NETWORKS.
+    For YooKassa: IP whitelist check failed (request from unauthorized IP,
+    or client_ip header missing/malformed).
+    See https://yookassa.ru/developers/api/notifications#ip-address.
+
+    Future-proof: same exception fits HMAC-based providers if added later.
     """
 
 
@@ -279,20 +279,20 @@ class YooKassaService:
             payment_method/receipt/metadata по необходимости).
 
         Raises:
-            InvalidSignatureError: client_ip отсутствует или вне
+            WebhookAuthError: client_ip отсутствует или вне
                 YOOKASSA_IP_NETWORKS.
             InvalidPayloadError: body не parseable как JSON, либо
                 отсутствует обязательное поле ``event`` /
                 ``object.id``.
         """
         if not client_ip:
-            raise InvalidSignatureError("client IP is missing")
+            raise WebhookAuthError("client IP is missing")
         try:
             ip = ip_address(client_ip)
         except ValueError as exc:
-            raise InvalidSignatureError(f"client IP is malformed: {client_ip}") from exc
+            raise WebhookAuthError(f"client IP is malformed: {client_ip}") from exc
         if not any(ip in ip_network(net) for net in YOOKASSA_IP_NETWORKS):
-            raise InvalidSignatureError(f"client IP {client_ip} not in YooKassa whitelist")
+            raise WebhookAuthError(f"client IP {client_ip} not in YooKassa whitelist")
 
         try:
             data = json.loads(body)
@@ -319,18 +319,23 @@ class YooKassaService:
             payload=obj,
         )
 
-    async def get_payment_status(self, payment_id: str) -> str:
+    async def get_payment_status(self, payment_id: str) -> str | None:
         """
         Получить статус платежа.
+
+        SDK без type stubs возвращает Any → return type honest str | None.
+        Каждый caller обязан handle None case.
 
         Args:
             payment_id: UUID платежа от ЮKassa.
 
         Returns:
-            str: Статус платежа (pending/succeeded/canceled/failed).
+            Статус платежа (pending/waiting_for_capture/succeeded/canceled),
+            либо None если SDK не вернул status field.
         """
         payment = await asyncio.to_thread(Payment.find_one, payment_id)
-        return payment.status  # pending / waiting_for_capture / succeeded / canceled
+        status = getattr(payment, "status", None)
+        return status if isinstance(status, str) else None
 
 
 # Singleton instance
