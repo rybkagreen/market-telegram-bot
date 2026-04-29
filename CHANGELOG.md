@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (15.13 — YooKassa webhook consolidation, 14b)
+
+- **billing (webhook)**: `YooKassaService.process_webhook(body, client_ip)
+  -> WebhookEvent` — new method. Authorisation (IP whitelist) + payload
+  parsing вынесены из router'а в сервис. Returns frozen DTO с полями
+  `event_type`, `payment_id`, `payload`. Метод не трогает БД, не открывает
+  session, не commit'ит (S-48). New typed exceptions:
+  `InvalidSignatureError`, `InvalidPayloadError`.
+- **billing (router)**: `POST /api/billing/webhooks/yookassa` стал thin
+  delegator — вызывает `process_webhook`, ловит typed exceptions и
+  переводит в HTTP 403 / 200+error-payload. Локальный `YOOKASSA_IPS`
+  удалён (теперь `YooKassaService.YOOKASSA_IP_NETWORKS`). Business logic
+  (record updates → `BillingService.process_topup_webhook` → status mark
+  → commit) не изменена.
+- **public contract preserved**: same URL, same response shape
+  (`{"status": "ok"}` / `{"status": "error", "detail": "..."}`), same
+  idempotency mechanism (`Transaction.yookassa_payment_id` +
+  `meta_json["processed"]`), same "always 200 to disable YooKassa retries
+  on bad payloads" behaviour.
+- **closes 14b** (deferred from BL-034 / 14a series). Серия 15.x
+  closed окончательно.
+
+### Tests (15.13)
+
+- **`tests/unit/test_yookassa_process_webhook.py`** (new) — 12 unit
+  tests: IP whitelist (whitelisted IPv4 / off-list / missing / malformed
+  / IPv6), payload validation (invalid JSON / non-object body / missing
+  event / missing object / missing payment_id / pass-through other event
+  types), and frozen-DTO immutability.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-29_yookassa-webhook-consolidation.md
+
 ### Added (15.11 + 15.12 — BL-040)
 
 - **billing (acts)**: `get_act_template(party, legal_status)` resolver
