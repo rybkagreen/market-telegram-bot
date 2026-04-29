@@ -23,7 +23,12 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from src.api.dependencies import get_current_admin_user, get_current_user, get_db_session
+from src.api.dependencies import (
+    get_current_admin_user,
+    get_current_user,
+    get_current_user_from_web_portal,
+    get_db_session,
+)
 from src.api.main import app
 from src.core.exceptions import PayoutAlreadyFinalizedError, PayoutNotFoundError
 from src.core.services.payout_service import payout_service
@@ -98,9 +103,15 @@ def fake_payout_rejected() -> PayoutRequest:
 
 @pytest_asyncio.fixture
 async def admin_client(admin_user: User) -> AsyncGenerator[AsyncClient]:
-    """HTTP-клиент с админом, подставленным через dependency_overrides."""
+    """HTTP-клиент с админом, подставленным через dependency_overrides.
+
+    16.1: `get_current_admin_user` теперь wraps `get_current_user_from_web_portal`
+    (BL-049), поэтому при тестировании non-admin path (`advertiser_client`)
+    необходимо переопределять оба dep'а.
+    """
     app.dependency_overrides[get_current_admin_user] = lambda: admin_user
     app.dependency_overrides[get_current_user] = lambda: admin_user
+    app.dependency_overrides[get_current_user_from_web_portal] = lambda: admin_user
 
     async def _stub_session() -> AsyncGenerator[Any]:
         session = MagicMock()
@@ -121,8 +132,14 @@ async def admin_client(admin_user: User) -> AsyncGenerator[AsyncClient]:
 async def advertiser_client(
     advertiser_user: User,
 ) -> AsyncGenerator[AsyncClient]:
-    """HTTP-клиент с не-админом, подставленным через get_current_user."""
+    """HTTP-клиент с не-админом, подставленным через web_portal-only dep.
+
+    16.1: `get_current_admin_user` ныне wraps `get_current_user_from_web_portal`
+    — для проверки 403-on-non-admin переопределяем именно его (mini_app
+    audience уже отбит на уровне dep).
+    """
     app.dependency_overrides[get_current_user] = lambda: advertiser_user
+    app.dependency_overrides[get_current_user_from_web_portal] = lambda: advertiser_user
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

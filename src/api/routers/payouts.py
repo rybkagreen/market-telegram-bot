@@ -15,10 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, get_db_session
+from src.api.dependencies import get_current_user_from_web_portal, get_db_session
 from src.api.schemas.payout import PayoutCreate, PayoutResponse, PayoutStatus
 from src.constants.payments import MIN_PAYOUT, PAYOUT_FEE_RATE
 from src.db.models.payout import PayoutRequest
+from src.db.models.user import User
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.user_repo import UserRepository
 
@@ -33,7 +34,7 @@ router = APIRouter(tags=["Payouts"])
 async def _get_payout_or_404(
     payout_id: int,
     session: AsyncSession,
-    current_user: CurrentUser,
+    current_user: User,
 ) -> PayoutRequest:
     """
     Получить заявку на выплату по ID или вернуть 404.
@@ -61,7 +62,7 @@ async def _get_payout_or_404(
 
 @router.get("/")
 async def get_my_payouts(
-    current_user: CurrentUser,
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[PayoutResponse]:
     """
@@ -88,7 +89,7 @@ async def get_my_payouts(
 )
 async def get_payout(
     payout_id: int,
-    current_user: CurrentUser,
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PayoutResponse:
     """
@@ -121,7 +122,7 @@ async def get_payout(
 )
 async def create_payout(
     payout_data: PayoutCreate,
-    current_user: CurrentUser,
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PayoutResponse:
     """
