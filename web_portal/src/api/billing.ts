@@ -82,3 +82,23 @@ export interface FrozenBalanceResponse {
 export async function getFrozenBalance() {
   return api.get('billing/frozen').json<FrozenBalanceResponse>()
 }
+
+export interface FeeConfigResponse {
+  topup: { yookassa_fee_rate: string }
+  placement: {
+    platform_commission_rate: string
+    owner_share_rate: string
+    service_fee_rate: string
+    owner_net_rate: string
+    platform_total_rate: string
+  }
+  cancel: {
+    advertiser_rate: string
+    owner_rate: string
+    platform_rate: string
+  }
+}
+
+export async function getFeeConfig() {
+  return api.get('billing/fee-config').json<FeeConfigResponse>()
+}
