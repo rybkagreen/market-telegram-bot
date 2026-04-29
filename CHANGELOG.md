@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — PII pinning: /api/payouts/* + /api/admin/* → web_portal-only (2026-04-29)
+
+- `/api/payouts/*` endpoints (3) переключены с `Depends(get_current_user)`
+  на `Depends(get_current_user_from_web_portal)`. Mini_app JWT → 403.
+- `/api/admin/*` endpoints (20 в admin.py + 4 в feedback.py + 2 в
+  disputes.py) pinned через изменение `get_current_admin_user` —
+  теперь wraps `get_current_user_from_web_portal` (Strategy A).
+  Mini_app JWT отбивается до проверки `is_admin`.
+- Closes BL-046 (CRIT-2: payouts mini_app JWT leak, ФЗ-152) и
+  BL-049 (MED-5: admin endpoints без `aud` pin, ФЗ-152). § O.5
+  PlatformSettings plaintext bank exposure также закрыт через
+  audience pin.
+- 10 regression-тестов в `tests/unit/api/test_pii_audience_pinning.py`
+  (3 payouts × mini_app, 4 admin × mini_app, 3 sanity).
+- Серия 16.x Group A kickoff. Encryption at rest (16.2), bot payout
+  flow removal (16.3), `UserResponse` schema cleanup (16.4) остаются
+  pending.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-29_pii-pinning-payouts-admin.md
+
 ### Changed — Legal text "кредиты" → "рубли" + version bump 1.2 (2026-04-29)
 
 - `src/templates/contracts/platform_rules.html:90` (section 5.3) —
