@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Micro-cleanup after 15.13 (2026-04-29)
+
+- Renamed `InvalidSignatureError` → `WebhookAuthError` (semantic accuracy:
+  YooKassa использует IP whitelist, not HMAC; new name future-proof).
+- `YookassaService.get_payment_status` return type: `str` → `str | None`
+  + caller-side None-guard в `bot/handlers/billing/billing.py` (type
+  honesty; SDK без stubs возвращал Any, mypy молчал).
+- Removed unused `amount_paid` unpack в billing `buy_credits` endpoint
+  (verified не money-bug — service deducts ровно `amount_rub` или raises).
+- 4 new unit tests для `get_payment_status` None handling.
+- Серия 15.x окончательно closed (15.13.1 = последний промт).
+
+No baseline reduction claimed (both type/unused issues были below mypy
+detection threshold). Defensive cleanup + type honesty.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-29_micro-cleanup-after-15-13.md
+
 ### Changed (15.13 — YooKassa webhook consolidation, 14b)
 
 - **billing (webhook)**: `YooKassaService.process_webhook(body, client_ip)

@@ -1823,4 +1823,33 @@ LOW findings batch:
 
 ## Closed items
 
-_(none yet)_
+### BL-052 — 15.13.1 micro-cleanup (CLOSED 2026-04-29)
+
+3 surface'нутых из 15.13 closure отчёта, scope-bounded follow-up:
+
+- Renamed `InvalidSignatureError` → `WebhookAuthError`. YooKassa использует
+  IP whitelist (not HMAC); previous name implied cryptographic signature,
+  misleading future maintainers.
+- `YookassaService.get_payment_status` return type honesty: `str` →
+  `str | None`. SDK без type stubs возвращал `Any` (mypy молчал, Pyright
+  flag'ал после edit). Single caller (`bot/handlers/billing/billing.py`)
+  обрабатывает None case явно (warning + "статус неизвестен" UX).
+- `amount_paid` unused unpack в `buy_credits` endpoint removed. Verified
+  semantics: `BillingService.buy_credits_for_plan` deducts ровно `amount_rub`
+  или raises `InsufficientFundsError` — нет partial credit / discount /
+  promo logic. Не money-bug; redundant unpack убран целиком (return value
+  не нужен, только side effect).
+
+**No baseline reductions claimed** — оба type/unused issues были below
+mypy detection threshold (Any-pollution / tuple-unpack F841 gap). Defensive
+cleanup + type honesty, not baseline improvement.
+
+**Distortion source:** v1 промта 15.13.1 интерпретировал code observations
+из 15.13 closure отчёта как tool-flagged baseline issues и заявлял
+`mypy: 10 → 9`, `ruff: 21 → 20`. Шаг 0 empirical verification surface'ил
+mismatch; v1 прерван на Шаг 0, v2 переписан без false claims. BL-015
+паттерн.
+
+Closed series 15.x окончательно — 9 промтов deployed (15.5–15.13 + 15.13.1).
+
+Closed in commit <sha after Шаг 6>.
