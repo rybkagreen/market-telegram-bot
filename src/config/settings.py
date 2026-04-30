@@ -209,7 +209,7 @@ class Settings(BaseSettings):
     tariff_min_rating_business: float = Field(0.0, alias="TARIFF_MIN_RATING_BUSINESS")
     tariff_min_rating_admin: float = Field(0.0, alias="TARIFF_MIN_RATING_ADMIN")
 
-    # Стоимость тарифов в кредитах (v4.2)
+    # Стоимость тарифов в рублях
     tariff_cost_free: int = Field(0, alias="TARIFF_COST_FREE")
     tariff_cost_starter: int = Field(490, alias="TARIFF_COST_STARTER")
     tariff_cost_pro: int = Field(1490, alias="TARIFF_COST_PRO")
@@ -243,10 +243,6 @@ class Settings(BaseSettings):
         alias="PREMIUM_SUBSCRIBER_THRESHOLD",
         description="Порог premium каналов (подписчиков)",
     )
-
-    # Package bonuses
-    bonus_credits_standard: int = Field(100, alias="BONUS_CREDITS_STANDARD")
-    bonus_credits_business: int = Field(500, alias="BONUS_CREDITS_BUSINESS")
 
     # Plan renewal
     plan_renewal_check_hour: int = Field(3, alias="PLAN_RENEWAL_CHECK_HOUR")
