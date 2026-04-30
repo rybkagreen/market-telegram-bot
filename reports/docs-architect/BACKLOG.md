@@ -1858,7 +1858,7 @@ Regression coverage: `tests/unit/api/test_pii_audience_pinning.py`
 
 ### BL-050 — MED-6: UserResponse referral leak
 
-**Status:** Open (16.x territory)
+**Status:** Closed 2026-04-30 (16.4)
 **Found:** `PII_AUDIT_2026-04-28.md` § 2.2 (line 115)
 **Severity:** Medium (FZ-152)
 
@@ -1866,10 +1866,15 @@ Regression coverage: `tests/unit/api/test_pii_audience_pinning.py`
 OK, но `GET /api/users/me/referrals` returns other users'
 `first_name/last_name` = ПД leak.
 
-**Fix:** filtered serializer для referral context (return только
-анонимизированный display name либо username).
-
-**Pickup:** серия 16.x.
+**Resolution:** actual leak surface was `ReferralItem` (separate schema
+in `src/api/routers/users.py`), not `UserResponse` itself.
+`UserResponse` is only used for self-context endpoints (`/me`, `/auth/me`,
+`/auth/login`) — own data, not a leak. Fix dropped `first_name` from
+`ReferralItem`, renamed `joined_at` → `created_at` (align with frontend
+convention), updated frontend type + display fallback (`User #{r.id}`
+вместо never-returned `telegram_id`). Regression test in
+`tests/unit/test_pii_referral_isolation.py`. Detail в
+`CHANGES_2026-04-30_userresponse-referral-leak-fix.md`.
 
 ### BL-054 — Pre-existing test failures: bot-side suite + main_menu collection error
 
@@ -1921,6 +1926,39 @@ LOW findings batch:
 **Fix:** batched cleanup в серии 16.x mini-task.
 
 **Pickup:** серия 16.x cleanup phase (16.5).
+
+### BL-055 — Direct bot-to-portal ticket exchange (avoid mini_app intermediate)
+
+**Status:** NEW, deferred (post-series 16.x)
+**Surfaced in:** 16.3 closure отчёт; re-confirmed в 16.4 inventory.
+**Severity:** Low (architectural improvement, not a fix)
+
+**Context:** В 16.3 bot payout entry deeplink поведение было:
+
+1. Bot inline button → `WebAppInfo(url=mini_app_url + "/own/payouts/request")`.
+2. Mini_app screen `OwnPayoutRequest` (Phase 1 placeholder, no PII) →
+   existing `exchange-miniapp-to-portal` call → portal redirect.
+
+Это работает functionally, но добавляет mini_app в payout-setup flow как
+intermediate redirect. Cleaner architecture: direct bot → portal path
+через новый endpoint `/api/auth/exchange-bot-token-to-portal` который
+verifies Telegram bot user_id (через bot token signing) и возвращает
+ticket напрямую.
+
+**Acceptance:**
+- New endpoint `/api/auth/exchange-bot-token-to-portal` с Telegram-bot
+  authentication (verify init data signature or bot context).
+- Bot keyboard helper `build_portal_deeplink` calls this endpoint
+  server-side, возвращает direct URL
+  `<portal>/login/ticket?ticket=<jwt>&redirect=<path>`.
+- Mini_app `OwnPayoutRequest` placeholder больше не required в payout flow.
+- New endpoint pinned through аналогичный audit (Phase 1 PII rules).
+
+**Why deferred:** не блокирует launch. Текущая реализация functionally
+correct, mini_app в этом flow — pure redirect, no PII surface. Direct
+exchange — это improvement, не fix.
+
+**Pickup:** post-series 16.x.
 
 ## Closed items
 
