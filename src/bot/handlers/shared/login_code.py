@@ -47,7 +47,7 @@ async def cmd_login(message: Message) -> None:
     try:
         redis_key = f"login_code:{code}"
         await r.setex(redis_key, 300, str(telegram_id))  # 5 min TTL
-        logger.info(f"Generated login code {code} for telegram_id={telegram_id}")
+        logger.info(f"Generated login code for telegram_id={telegram_id}")
     except Exception as e:
         logger.error(f"Redis error generating login code: {e}")
         await message.answer(
