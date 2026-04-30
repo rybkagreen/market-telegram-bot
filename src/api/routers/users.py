@@ -78,12 +78,15 @@ class AttentionFeedResponse(BaseModel):
 
 
 class ReferralItem(BaseModel):
-    """Элемент списка рефералов."""
+    """Элемент списка рефералов.
+
+    PII-safe: NO first_name/last_name (BL-050). Display layer renders
+    `@username` if present else anonymized `User #{id}`.
+    """
 
     id: int
     username: str | None = None
-    first_name: str
-    joined_at: str
+    created_at: str
     is_active: bool
 
     model_config = {"from_attributes": True}
@@ -299,8 +302,7 @@ async def get_my_referrals(
             ReferralItem(
                 id=ref.id,
                 username=ref.username,
-                first_name=ref.first_name,
-                joined_at=ref.created_at.isoformat() if ref.created_at else "",
+                created_at=ref.created_at.isoformat() if ref.created_at else "",
                 is_active=is_active,
             )
         )
