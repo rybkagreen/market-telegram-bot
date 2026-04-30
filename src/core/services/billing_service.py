@@ -162,16 +162,15 @@ class BillingService:
 
             # В production здесь проверяем статус в YooKassa
             # Если paid, то зачисляем кредиты на баланс
-            credited = meta.get("credited") if meta else None
-            if status == "succeeded" and credited is not True:
+            applied = meta.get("applied") if meta else None
+            if status == "succeeded" and applied is not True:
                 # Зачисляем рубли на баланс
                 user_repo = UserRepository(session)
                 amount_rub = transaction.amount
                 await user_repo.update_balance_rub(user_id, amount_rub)
 
                 # Обновляем транзакцию
-                meta["credited"] = True
-                meta["rub_credited"] = float(amount_rub)
+                meta["applied"] = True
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
                 logger.info(f"Payment {payment_id} credited: {amount_rub} ₽ to user {user_id}")
@@ -186,7 +185,7 @@ class BillingService:
                 "payment_id": payment_id,
                 "status": status,
                 "amount": str(transaction.amount),
-                "credited": meta.get("credited", False),
+                "applied": meta.get("applied", False),
             }
 
     async def activate_plan(self, user_id: int, plan: str) -> bool:
