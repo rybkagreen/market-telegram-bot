@@ -90,4 +90,26 @@ reading это retroactively через honest semantic, claim был partially
 misleading (lint baseline holds, тесты бежали manually и passed). Behavioral
 correctness не под вопросом — just naming hygiene.
 
+## Follow-up — standalone test target alignment
+
+Initial split exposed second naming inconsistency: standalone `make test`
+ran `pytest tests/ -v --tb=short` без ignores, в то время как `ci-local`
+inline pytest skip'ал `tests/e2e_api` + `tests/unit/test_main_menu.py`
+(BL-054 cluster) plus `--no-cov`. Two source-of-truth для одного
+behavioral signal.
+
+Aligned: standalone `test` target теперь использует identical flags
+(`--ignore=tests/e2e_api`, `--ignore=tests/unit/test_main_menu.py`,
+`--no-cov`, plus existing `-v --tb=short`). `ci-local` aggregator зовёт
+`$(MAKE) --no-print-directory test` recursively вместо inline pytest.
+Zero divergence surface.
+
+Verification: `make test` standalone и `make ci-local` test stage now
+produce identical output (BL-054 cluster baseline: 76 failed, 725 passed,
+7 skipped, 17 errors, modulo timing).
+
+Это closes second виток того же naming hygiene issue что motivated
+initial split. Forward, обновления pytest invocation делаются в одной
+точке (test target).
+
 🔍 Verified against: 4802b64 | 📅 Updated: 2026-04-30T00:00:00Z

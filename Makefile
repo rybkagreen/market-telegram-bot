@@ -31,7 +31,12 @@ run:
 
 # Testing
 test:
-	poetry run pytest tests/ -v --tb=short
+	poetry run pytest tests/ \
+		--ignore=tests/e2e_api \
+		--ignore=tests/unit/test_main_menu.py \
+		--no-cov \
+		-v \
+		--tb=short
 
 test-cov:
 	poetry run pytest tests/ -v --tb=short --cov=src --cov-report=html
@@ -149,10 +154,10 @@ check:
 # behavioral test signal. Tests catch regressions; lint catches style.
 # Independence — обе важны, ни одна не subordinate.
 #
-# Pytest invocation внутри ci-local preserved verbatim from previous
-# version (ignores e2e_api which требует docker-compose.test.yml,
-# и test_main_menu.py legacy skip). The standalone `test` target
-# preserves its own historical invocation (-v --tb=short, full suite).
+# Test stage delegates to standalone `test` target via $(MAKE), single
+# source of truth for pytest invocation (ignores e2e_api which требует
+# docker-compose.test.yml, и test_main_menu.py legacy skip; --no-cov;
+# -v --tb=short).
 # ============================================================
 ci-local:
 	@set +e; \
@@ -170,11 +175,7 @@ ci-local:
 	$(MAKE) --no-print-directory typecheck || failed=1; \
 	echo ""; \
 	echo "=== ci-local: test ==="; \
-	poetry run pytest tests/ \
-		--ignore=tests/e2e_api \
-		--ignore=tests/unit/test_main_menu.py \
-		--no-cov \
-		--tb=short || failed=1; \
+	$(MAKE) --no-print-directory test || failed=1; \
 	echo ""; \
 	if [ $$failed -ne 0 ]; then \
 		echo "=== ci-local: FAILED — один или несколько gates not clean. См. output выше. ==="; \
