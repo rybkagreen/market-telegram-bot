@@ -313,7 +313,9 @@ async def _notify_user_checked(
         return False
 
     if not user.notifications_enabled:
-        logger.info("_notify_user_checked: notifications disabled for user_id=%s, skipping", user_id)
+        logger.info(
+            "_notify_user_checked: notifications disabled for user_id=%s, skipping", user_id
+        )
         return False
 
     try:

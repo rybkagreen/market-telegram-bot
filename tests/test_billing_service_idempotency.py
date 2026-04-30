@@ -25,18 +25,22 @@ class TestCallerControlledTransactionContract:
 
     def test_release_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+
         self._assert_no_session_begin(BillingService.release_escrow)
 
     def test_refund_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+
         self._assert_no_session_begin(BillingService.refund_escrow)
 
     def test_freeze_escrow_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+
         self._assert_no_session_begin(BillingService.freeze_escrow_for_placement)
 
     def test_process_topup_webhook_has_no_session_begin(self):
         from src.core.services.billing_service import BillingService
+
         self._assert_no_session_begin(BillingService.process_topup_webhook)
 
 
@@ -50,6 +54,7 @@ class TestIdempotencyKeyFormat:
 
     def test_release_escrow_uses_owner_and_platform_keys(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.release_escrow)
         assert "escrow_release:placement=" in source
         assert ":owner" in source
@@ -57,11 +62,13 @@ class TestIdempotencyKeyFormat:
 
     def test_freeze_escrow_uses_freeze_key(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "escrow_freeze:placement=" in source
 
     def test_refund_escrow_uses_scenario_specific_keys(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.refund_escrow)
         assert "refund:placement=" in source
         assert ":scenario=" in source
@@ -77,18 +84,21 @@ class TestIdempotencyKeyFormat:
 class TestIdempotencyShortCircuit:
     def test_release_escrow_early_exits_on_exists(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.release_escrow)
         assert "exists" in source.lower()
         assert "idempotency hit" in source.lower()
 
     def test_refund_escrow_early_exits_on_exists(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.refund_escrow)
         assert "exists" in source.lower()
         assert "idempotency hit" in source.lower()
 
     def test_freeze_escrow_early_exits_on_exists(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "exists" in source.lower()
         assert "idempotency hit" in source.lower()
@@ -104,17 +114,20 @@ class TestIntegrityErrorHandling:
 
     def test_release_escrow_catches_integrity_error(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.release_escrow)
         assert "IntegrityError" in source
         assert "idempotency race" in source
 
     def test_refund_escrow_catches_integrity_error(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.refund_escrow)
         assert "IntegrityError" in source
 
     def test_freeze_escrow_catches_integrity_error(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "IntegrityError" in source
 
@@ -127,16 +140,19 @@ class TestIntegrityErrorHandling:
 class TestPlacementLinkage:
     def test_release_escrow_links_owner_txn_to_placement(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.release_escrow)
         assert "placement_request_id=placement_id" in source
 
     def test_refund_escrow_links_advertiser_txn_to_placement(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.refund_escrow)
         assert "placement_request_id=placement_id" in source
 
     def test_freeze_escrow_links_txn_to_placement(self):
         from src.core.services.billing_service import BillingService
+
         source = inspect.getsource(BillingService.freeze_escrow_for_placement)
         assert "placement_request_id=placement_id" in source
 
@@ -279,6 +295,6 @@ class TestCheckEscrowStuckGroupC:
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
-        assert 'group_c_dispatched' in source
-        assert 'STUCK PUBLISHED' in source
-        assert 'PlacementStatus.published' in source
+        assert "group_c_dispatched" in source
+        assert "STUCK PUBLISHED" in source
+        assert "PlacementStatus.published" in source

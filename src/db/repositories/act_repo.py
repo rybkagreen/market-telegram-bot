@@ -88,9 +88,7 @@ class ActRepository(BaseRepository[Act]):
         if placement_request_id is not None:
             query = query.where(Act.placement_request_id == placement_request_id)
 
-        result = await self.session.execute(
-            query.order_by(Act.created_at.desc()).limit(limit)
-        )
+        result = await self.session.execute(query.order_by(Act.created_at.desc()).limit(limit))
         return list(result.scalars().all())
 
     async def list_pending_signing(self, limit: int = 50) -> list[Act]:

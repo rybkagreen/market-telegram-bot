@@ -48,7 +48,9 @@ class TestNotifyOwnerNewRequest:
         bot = _make_bot()
         await notify_owner_new_request(bot, owner_telegram_id=222, request_id=42)
         call_kwargs = bot.send_message.call_args
-        text = call_kwargs.kwargs.get("text", "") or (call_kwargs.args[1] if len(call_kwargs.args) > 1 else "")
+        text = call_kwargs.kwargs.get("text", "") or (
+            call_kwargs.args[1] if len(call_kwargs.args) > 1 else ""
+        )
         assert "42" in text
 
     @pytest.mark.asyncio
@@ -312,6 +314,8 @@ class TestNotifySlaExpired:
     pass
 
 
-@pytest.mark.skip(reason="private helpers _format_datetime, _format_owner_payout, _send_notification, _truncate_text not exposed")
+@pytest.mark.skip(
+    reason="private helpers _format_datetime, _format_owner_payout, _send_notification, _truncate_text not exposed"
+)
 class TestPrivateHelpers:
     pass

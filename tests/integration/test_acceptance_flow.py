@@ -4,6 +4,7 @@ Promt 15.9 — verifies ContractService.needs_accept_rules + accept_platform_rul
 across the four states: never accepted, accepted current, accepted older, and
 the version-bump simulation.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -100,9 +101,7 @@ async def test_accept_platform_rules_atomic_update(db_session: AsyncSession) -> 
             )
         )
     ).scalar_one()
-    refreshed_user = (
-        await db_session.execute(select(User).where(User.id == user.id))
-    ).scalar_one()
+    refreshed_user = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
 
     assert contract_row.template_version == CONTRACT_TEMPLATE_VERSION
     assert contract_row.contract_status == "signed"

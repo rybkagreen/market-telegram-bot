@@ -196,12 +196,11 @@ class TestNoDirectMutations:
 
         source = inspect.getsource(module)
         bad_lines = [
-            line for line in source.splitlines()
+            line
+            for line in source.splitlines()
             if "balance_rub +=" in line and not line.strip().startswith("#")
         ]
-        assert len(bad_lines) == 0, (
-            "Direct balance_rub += found:\n" + "\n".join(bad_lines)
-        )
+        assert len(bad_lines) == 0, "Direct balance_rub += found:\n" + "\n".join(bad_lines)
 
     def test_autoretry_present_in_module(self):
         import inspect
@@ -279,7 +278,9 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
         with (
             patch("src.tasks.placement_tasks.async_session_factory", return_value=mock_session),
             patch("src.tasks.placement_tasks.delete_published_post") as mock_task,
-            patch("src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund),
+            patch(
+                "src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund
+            ),
             patch("src.tasks._bot_factory.get_bot", return_value=mock_bot),
             patch("src.tasks.placement_tasks.settings") as mock_settings,
         ):
@@ -335,7 +336,9 @@ def test_publish_placement_failure_calls_refund_escrow():
             patch("src.tasks._bot_factory.get_bot", return_value=AsyncMock()),
             patch("src.tasks.placement_tasks._check_dedup", return_value=False),
             patch("src.core.services.publication_service.PublicationService") as mock_pub_cls,
-            patch("src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund),
+            patch(
+                "src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund
+            ),
             patch("src.tasks.placement_tasks._notify_user", new=AsyncMock()),
         ):
             mock_pub_cls.return_value.publish_placement = AsyncMock(
@@ -395,7 +398,9 @@ def test_publish_placement_success_does_not_refund():
             patch("src.tasks.placement_tasks._check_dedup", return_value=False),
             patch("src.core.services.publication_service.PublicationService") as mock_pub_cls,
             patch("src.tasks.placement_tasks.ReputationService", return_value=mock_rep),
-            patch("src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund),
+            patch(
+                "src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund
+            ),
             patch("src.tasks.placement_tasks._notify_user", new=AsyncMock()),
         ):
             mock_pub_cls.return_value.publish_placement = AsyncMock()

@@ -80,9 +80,7 @@ def upgrade() -> None:
     # The placement_escrow_integrity CHECK constraint references
     # 'escrow'::placementstatus literal; drop it before the type swap
     # (it cannot be re-typed across the rename) and recreate after.
-    op.execute(
-        "ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity"
-    )
+    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity")
     op.execute("ALTER TYPE placementstatus RENAME TO placementstatus_old")
     op.execute(
         """
@@ -129,9 +127,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # 1. Recreate ord_blocked enum value.
-    op.execute(
-        "ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity"
-    )
+    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity")
     op.execute("ALTER TYPE placementstatus RENAME TO placementstatus_new")
     op.execute(
         """

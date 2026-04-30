@@ -45,9 +45,7 @@ class MockYooKassaPayment:
         self.metadata = metadata or {"user_id": "1", "amount_rub": "100"}
 
 
-def mock_payment_create(
-    payment_data: dict[str, Any], idempotency_key: str
-) -> MockYooKassaPayment:
+def mock_payment_create(payment_data: dict[str, Any], idempotency_key: str) -> MockYooKassaPayment:
     """
     Mock функции Payment.create.
 

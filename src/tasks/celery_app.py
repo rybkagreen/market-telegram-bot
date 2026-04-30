@@ -275,6 +275,7 @@ app = celery_app
 def on_worker_process_init(**kwargs: Any) -> None:
     """Initialize shared Bot on worker fork."""
     from src.tasks._bot_factory import init_bot
+
     init_bot()
 
 
@@ -282,6 +283,7 @@ def on_worker_process_init(**kwargs: Any) -> None:
 def on_worker_process_shutdown(**kwargs: Any) -> None:
     """Close Bot session on worker exit."""
     from src.tasks._bot_factory import close_bot
+
     asyncio.run(close_bot())
 
 

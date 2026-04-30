@@ -2,7 +2,6 @@
 Unit-тесты ReputationService.
 """
 
-
 import pytest
 
 from src.db.models.reputation_history import ReputationAction

@@ -29,12 +29,8 @@ async def test_me_with_token_returns_current_user(
 async def test_e2e_login_returns_same_user_for_same_telegram_id(
     anonymous_client: httpx.AsyncClient,
 ) -> None:
-    r1 = await anonymous_client.post(
-        "/api/auth/e2e-login", json={"telegram_id": 9001}
-    )
-    r2 = await anonymous_client.post(
-        "/api/auth/e2e-login", json={"telegram_id": 9001}
-    )
+    r1 = await anonymous_client.post("/api/auth/e2e-login", json={"telegram_id": 9001})
+    r2 = await anonymous_client.post("/api/auth/e2e-login", json={"telegram_id": 9001})
     assert r1.status_code == 200
     assert r2.status_code == 200
     # User id must be stable (seed produced one row per telegram_id).
@@ -44,9 +40,7 @@ async def test_e2e_login_returns_same_user_for_same_telegram_id(
 async def test_e2e_login_unknown_telegram_id_returns_404(
     anonymous_client: httpx.AsyncClient,
 ) -> None:
-    resp = await anonymous_client.post(
-        "/api/auth/e2e-login", json={"telegram_id": 999_999}
-    )
+    resp = await anonymous_client.post("/api/auth/e2e-login", json={"telegram_id": 999_999})
     # Test-only endpoint returns 404 instead of silently creating a user.
     assert resp.status_code == 404, resp.text
 

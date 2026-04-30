@@ -1,6 +1,7 @@
 """Unit tests for `get_act_template`: resolver returns correct template
 path per (party, legal_status) combination (Промт 15.11 / BL-040).
 """
+
 from __future__ import annotations
 
 import pytest

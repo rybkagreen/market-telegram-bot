@@ -128,9 +128,7 @@ class TestConcurrentApprove:
     """Without FOR UPDATE this class would catch a double-debit on the
     first attempt — `payout_reserved` would land at `-gross` instead of `0`."""
 
-    async def test_three_concurrent_approves_yield_one_success(
-        self, bound_factory: Any
-    ) -> None:
+    async def test_three_concurrent_approves_yield_one_success(self, bound_factory: Any) -> None:
         from src.core.services.payout_service import payout_service
 
         admin_id, _owner_id, payout_id, gross = await _seed_pending_payout(bound_factory)
@@ -148,9 +146,9 @@ class TestConcurrentApprove:
 
         assert len(successes) == 1, f"Expected exactly 1 success, got {results}"
         assert len(failures) == 2, f"Expected 2 failures, got {results}"
-        assert all(
-            isinstance(r, tuple) and "already finalized" in r[1] for r in failures
-        ), f"Unexpected failure messages: {failures}"
+        assert all(isinstance(r, tuple) and "already finalized" in r[1] for r in failures), (
+            f"Unexpected failure messages: {failures}"
+        )
 
         async with bound_factory() as session:
             payout = await session.get(PayoutRequest, payout_id)
@@ -169,9 +167,7 @@ class TestConcurrentApprove:
                 f"likely concurrent approve double-debit"
             )
 
-    async def test_concurrent_approve_then_reject_one_wins(
-        self, bound_factory: Any
-    ) -> None:
+    async def test_concurrent_approve_then_reject_one_wins(self, bound_factory: Any) -> None:
         """approve and reject hit the same payout simultaneously — exactly one wins,
         and finance state is consistent with whichever did."""
         from src.core.services.payout_service import payout_service
@@ -220,18 +216,14 @@ class TestConcurrentApprove:
 
 
 class TestConcurrentReject:
-    async def test_three_concurrent_rejects_yield_one_success(
-        self, bound_factory: Any
-    ) -> None:
+    async def test_three_concurrent_rejects_yield_one_success(self, bound_factory: Any) -> None:
         from src.core.services.payout_service import payout_service
 
         admin_id, owner_id, payout_id, gross = await _seed_pending_payout(bound_factory)
 
         async def _reject() -> str | tuple[str, str]:
             try:
-                await payout_service.reject_request(
-                    payout_id, admin_id, reason="Test reject race"
-                )
+                await payout_service.reject_request(payout_id, admin_id, reason="Test reject race")
                 return "ok"
             except PayoutAlreadyFinalizedError as e:
                 return ("err", str(e))

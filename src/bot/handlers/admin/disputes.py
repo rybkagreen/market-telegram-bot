@@ -208,10 +208,7 @@ async def admin_resolve_dispute(callback: CallbackQuery, session: AsyncSession) 
         service_fee = owner_gross * SERVICE_FEE_RATE
         owner_amount = (owner_gross - service_fee).quantize(Decimal("0.01"))
         advertiser_outcome = "❌ Жалоба признана необоснованной. Возврата нет."
-        owner_outcome = (
-            f"✅ Выплата: *{owner_amount:.0f} ₽* "
-            f"({format_rate_pct(OWNER_NET_RATE)})"
-        )
+        owner_outcome = f"✅ Выплата: *{owner_amount:.0f} ₽* ({format_rate_pct(OWNER_NET_RATE)})"
     else:  # partial
         half = (price * Decimal("0.5")).quantize(Decimal("0.01"))
         advertiser_outcome = f"🔓 Частичный возврат: *{half:.0f} ₽* (~50%)"

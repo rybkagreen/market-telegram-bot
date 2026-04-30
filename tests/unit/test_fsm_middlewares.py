@@ -204,8 +204,7 @@ class TestNoBotPayoutFlow:
 
         handlers_dir = Path(__file__).resolve().parents[2] / "src" / "bot" / "handlers"
         assert not (handlers_dir / "payout").exists(), (
-            "src/bot/handlers/payout/ exists; "
-            "bot payout setup flow must be removed (BL-045)"
+            "src/bot/handlers/payout/ exists; bot payout setup flow must be removed (BL-045)"
         )
 
     def test_payout_states_module_absent(self):
@@ -216,6 +215,5 @@ class TestNoBotPayoutFlow:
         from src.bot import states
 
         assert not hasattr(states, "PayoutStates"), (
-            "PayoutStates still exported from src.bot.states; "
-            "must be deleted (BL-045)"
+            "PayoutStates still exported from src.bot.states; must be deleted (BL-045)"
         )

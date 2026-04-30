@@ -27,11 +27,13 @@ class TestBillingServiceInit:
     def test_billing_service_imports(self):
         """BillingService can be imported."""
         from src.core.services.billing_service import BillingService
+
         assert BillingService is not None
 
     def test_billing_service_init_no_args(self):
         """BillingService.__init__ takes no arguments."""
         from src.core.services.billing_service import BillingService
+
         service = BillingService()
         assert service is not None
 
@@ -75,27 +77,22 @@ class TestEscrowReleaseLocation:
     def test_release_escrow_only_in_delete_published_post(self):
         """ESCROW-001: release_escrow() is ONLY called in delete_published_post()."""
         result = subprocess.run(
-            [
-                "poetry", "run", "grep", "-rn",
-                "release_escrow(",
-                "src/"
-            ],
+            ["poetry", "run", "grep", "-rn", "release_escrow(", "src/"],
             capture_output=True,
             text=True,
-            cwd="/opt/market-telegram-bot"
+            cwd="/opt/market-telegram-bot",
         )
 
         # Filter out function definitions and binary files
         lines = [
-            line for line in result.stdout.split('\n')
-            if line
-            and 'def release_escrow' not in line
-            and '.pyc' not in line
+            line
+            for line in result.stdout.split("\n")
+            if line and "def release_escrow" not in line and ".pyc" not in line
         ]
 
         # Should only appear in publication_service.py
         for line in lines:
-            assert 'publication_service.py' in line, (
+            assert "publication_service.py" in line, (
                 f"ESCROW-001 VIOLATION: release_escrow() found outside publication_service.py: {line}"
             )
 
@@ -174,9 +171,11 @@ class TestVelocityCheckConstants:
     def test_velocity_max_ratio_is_80_percent(self):
         """VELOCITY_MAX_RATIO is 0.80 (80%)."""
         from src.constants.payments import VELOCITY_MAX_RATIO
+
         assert Decimal("0.80") == VELOCITY_MAX_RATIO
 
     def test_velocity_window_days_is_30(self):
         """VELOCITY_WINDOW_DAYS is 30 days."""
         from src.constants.payments import VELOCITY_WINDOW_DAYS
+
         assert VELOCITY_WINDOW_DAYS == 30
