@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Admin grant API rename (17.2 Commit 3, BL-053) (2026-05-01)
+
+- Pydantic request schema `PlatformCreditRequest` → `AdminGrantRequest`
+  (`src/api/routers/admin.py:827`). OpenAPI `components.schemas` now
+  exposes `AdminGrantRequest` instead of `PlatformCreditRequest`.
+- Handler function `create_platform_credit` → `create_admin_grant`
+  (`src/api/routers/admin.py:840`). FastAPI default `operation_id`
+  follows the function name.
+- URL path `/admin/credits/platform-credit` **unchanged** — deferred
+  to series 17.3 (atomic bundle with FE deploy).
+- Wire format (request body fields `user_id` / `amount` / `comment`,
+  response body fields `success` / `transaction_id` / `new_platform_balance`
+  / `new_user_balance`) **unchanged**. Hand-coded FE TS interfaces
+  (`PlatformCreditResponse` in `web_portal/src/api/admin.ts`) not
+  affected.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_17-2-pydantic-schema-rename.md
+
 ### Changed — YooKassa webhook over-collection trim (16.5c, BL-051 closure) (2026-04-30)
 
 - New module `src/utils/yookassa_payload.py` — canonical projection
