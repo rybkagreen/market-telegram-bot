@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-04-29 (16.1 — BL-046 + BL-049 closed)_
+_Last updated: 2026-04-30 (16.2 — BL-047 + BL-048 closed; BL-054 added)_
 
 ## Active items
 
@@ -1787,29 +1787,37 @@ Regression coverage: `tests/unit/api/test_pii_audience_pinning.py`
 
 ### BL-047 — HIGH-3: DocumentUpload.ocr_text plaintext at rest
 
-**Status:** Open (16.x territory)
+**Status:** CLOSED 2026-04-30 (серия 16.2 / Group B)
 **Found:** `PII_AUDIT_2026-04-28.md` § O.3
 **Severity:** High (FZ-152)
 
-`DocumentUpload.ocr_text` field stores 10K chars passport OCR text
-plaintext. Existing `EncryptedString` infrastructure (legal_profile) —
-applicable.
+`DocumentUpload.ocr_text` field stored 10K chars passport OCR text
+plaintext.
 
-**Fix:** migrate field type → `EncryptedString`.
+**Fix:** column type `Text` → `EncryptedString(50000)` в
+`src/db/models/document_upload.py:47`. Migration column kept `sa.Text()`
+(unbounded — encryption ORM-level only, per existing
+`legal_profile`/`platform_account` convention).
 
-**Pickup:** серия 16.x.
+**Closure detail:** `CHANGES_2026-04-30_pii-encryption-at-rest.md`.
+Regression coverage: `tests/integration/test_pii_encryption_at_rest.py`
+(`test_document_upload_ocr_text_encrypted_at_rest`).
 
 ### BL-048 — HIGH-4: PayoutRequest.requisites plaintext at rest
 
-**Status:** Open (16.x territory)
+**Status:** CLOSED 2026-04-30 (серия 16.2 / Group B)
 **Found:** `PII_AUDIT_2026-04-28.md` (Часть 1.2 + § 2.2)
 **Severity:** High (FZ-152)
 
-`PayoutRequest.requisites` plaintext в БД. Bank details + card numbers.
+`PayoutRequest.requisites` stored bank details + card numbers plaintext.
 
-**Fix:** migrate field type → `EncryptedString`.
+**Fix:** column type `String(512)` → `EncryptedString(2048)` в
+`src/db/models/payout.py:41`. Migration column `sa.String(512)` →
+`sa.String(2048)` to fit Fernet token (~ 4/3 base64 expansion).
 
-**Pickup:** серия 16.x.
+**Closure detail:** `CHANGES_2026-04-30_pii-encryption-at-rest.md`.
+Regression coverage: `tests/integration/test_pii_encryption_at_rest.py`
+(`test_payout_request_requisites_encrypted_at_rest`).
 
 ### BL-049 — MED-5: /api/admin/* not pinned к web_portal
 
@@ -1851,6 +1859,36 @@ OK, но `GET /api/users/me/referrals` returns other users'
 анонимизированный display name либо username).
 
 **Pickup:** серия 16.x.
+
+### BL-054 — Pre-existing test failures: bot-side suite + main_menu collection error
+
+**Status:** NEW, deferred (out of scope for series 16.x security work)
+**Surfaced in:** 16.1 closure отчёт (verified pre-existing via `git stash`)
++ 16.2 closure (re-verified `test_escrow_payouts.py` failure pre-existing
+on `develop`, identical signature: `sqlite3.OperationalError: no such
+table: placement_requests`).
+
+**What:** test infrastructure debt accumulating in three buckets:
+
+1. `tests/unit/test_main_menu.py` — collection error (cannot import).
+2. `tests/unit/test_start_and_role.py` + several other bot-handler
+   files — ~62 failures (precise count from 16.1 closure observations).
+3. `tests/unit/test_escrow_payouts.py` — SQLite-backed unit tests
+   missing schema initialisation (`no such table` on INSERT). Fix likely
+   requires switching to `tests/integration/conftest.py`-style
+   testcontainers + `Base.metadata.create_all`, OR explicit DDL in the
+   unit-test fixture.
+
+**Why deferred:** out of PII / fee model / legal scope. Tests are
+broken at infrastructure level, not runtime — production behaviour
+unaffected. Accumulating → surface for dedicated test infra cleanup
+prompt.
+
+**Acceptance:** all three buckets either pass or are deleted as dead
+code if the underlying handler/menu module is no longer wired.
+
+**Pickup:** post-16.x or as a standalone "test infra hardening"
+mini-promt.
 
 ### BL-051 — PII audit LOW findings batch
 
