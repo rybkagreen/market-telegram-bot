@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — PII encryption at rest: PayoutRequest.requisites + DocumentUpload.ocr_text (2026-04-30)
+
+- `PayoutRequest.requisites`: `String(512)` → `EncryptedString(2048)`
+  (Fernet TypeDecorator). Migration column `sa.String(512)` →
+  `sa.String(2048)` to fit encrypted bytes.
+- `DocumentUpload.ocr_text`: `Text` → `EncryptedString(50000)`. Migration
+  column kept `sa.Text()` (unbounded, already accommodates encrypted
+  output).
+- `0001_initial_schema.py` updated directly (pre-prod policy: no new
+  Alembic revision while DB is empty). Docstring extended to list the
+  two new encrypted columns.
+- 2 new regression tests in `tests/integration/test_pii_encryption_at_rest.py`
+  verify ORM read/write transparency and that raw SQL `SELECT` returns
+  a Fernet token (never plaintext).
+- Existing 16 payout tests pass without modification.
+- Closes BL-047 (HIGH-3: `DocumentUpload.ocr_text` plaintext) and
+  BL-048 (HIGH-4: `PayoutRequest.requisites` plaintext).
+- Series 16.x Group B done. 16.3 (bot payout flow architectural
+  removal — BL-045 CRIT-1), 16.4 (`UserResponse` referral leak —
+  BL-050 MED-6), 16.5 (LOW batch — BL-051) remain pending.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_pii-encryption-at-rest.md
+
 ### Changed — PII pinning: /api/payouts/* + /api/admin/* → web_portal-only (2026-04-29)
 
 - `/api/payouts/*` endpoints (3) переключены с `Depends(get_current_user)`
