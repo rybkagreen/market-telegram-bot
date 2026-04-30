@@ -485,7 +485,7 @@ _VISIBLE_TX_TYPES = {
     "topup",
     "escrow_freeze",
     "escrow_release",
-    "credits_buy",
+    "plan_purchase",
     "spend",
     "payout_fee",
     "refund_full",

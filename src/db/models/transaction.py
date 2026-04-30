@@ -31,7 +31,7 @@ class TransactionType(str, Enum):
     owner_cancel_compensation = "owner_cancel_compensation"
     payout = "payout"
     payout_fee = "payout_fee"
-    credits_buy = "credits_buy"
+    plan_purchase = "plan_purchase"
     failed_permissions_refund = "failed_permissions_refund"
     spend = "spend"
     bonus = "bonus"
@@ -42,7 +42,7 @@ class TransactionType(str, Enum):
     # Sprint D.2: storno/reversal
     storno = "storno"
     # Admin balance top-up and gamification rewards
-    admin_credit = "admin_credit"
+    admin_grant = "admin_grant"
     gamification_bonus = "gamification_bonus"
 
 
