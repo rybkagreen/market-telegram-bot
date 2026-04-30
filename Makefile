@@ -1,4 +1,4 @@
-.PHONY: help run test lint typecheck migrate shell clean install update protect-branches ci ci-local check-forbidden test-e2e test-e2e-up test-e2e-down test-e2e-logs
+.PHONY: help run test lint format-check typecheck migrate shell clean install update protect-branches ci ci-local check-forbidden test-e2e test-e2e-up test-e2e-down test-e2e-logs
 
 # Default target
 help:
@@ -31,7 +31,12 @@ run:
 
 # Testing
 test:
-	poetry run pytest tests/ -v --tb=short
+	poetry run pytest tests/ \
+		--ignore=tests/e2e_api \
+		--ignore=tests/unit/test_main_menu.py \
+		--no-cov \
+		-v \
+		--tb=short
 
 test-cov:
 	poetry run pytest tests/ -v --tb=short --cov=src --cov-report=html
@@ -42,6 +47,9 @@ lint:
 
 format:
 	poetry run ruff format src/ tests/
+
+format-check:
+	poetry run ruff format --check src/ tests/
 
 lint-fix:
 	poetry run ruff check src/ tests/ --fix
@@ -129,24 +137,51 @@ check:
 	@echo ""
 	@echo "✓ All checks passed!"
 
-# Local CI gate — equivalent to GH CI when GH Actions unavailable (BL-017).
-# See CONTRIBUTING.md for baseline tolerance (BL-007 ruff, BL-019 test debt).
+# ============================================================
+# Local CI gate (BL-057) — equivalent to GH CI when GH Actions
+# unavailable (BL-017). See CONTRIBUTING.md for baseline tolerance
+# (BL-007 ruff, BL-019 test debt).
+#
+# lint, format-check, typecheck, check-forbidden, test — независимые
+# gates. Каждый exit'ит non-zero on own failure, but each runs
+# regardless of сосед's outcome inside `ci-local`.
+#
+# `ci-local` aggregates exit codes: runs all gates, exits non-zero
+# если хоть один gate failed. Не halts on first failure — все signals
+# видны в одном run.
+#
+# Rationale: lint baseline (style noise) не должен блокировать
+# behavioral test signal. Tests catch regressions; lint catches style.
+# Independence — обе важны, ни одна не subordinate.
+#
+# Test stage delegates to standalone `test` target via $(MAKE), single
+# source of truth for pytest invocation (ignores e2e_api which требует
+# docker-compose.test.yml, и test_main_menu.py legacy skip; --no-cov;
+# -v --tb=short).
+# ============================================================
 ci-local:
-	@echo "=== ci-local: Forbidden patterns ==="
-	@bash scripts/check_forbidden_patterns.sh
-	@echo "=== ci-local: Lint ==="
-	poetry run ruff check src/ tests/
-	@echo "=== ci-local: Format check ==="
-	poetry run ruff format --check src/ tests/
-	@echo "=== ci-local: Type check ==="
-	poetry run mypy src/
-	@echo "=== ci-local: Tests (excluding e2e_api due to docker-compose.test.yml requirement) ==="
-	poetry run pytest tests/ \
-		--ignore=tests/e2e_api \
-		--ignore=tests/unit/test_main_menu.py \
-		--no-cov \
-		--tb=short
-	@echo "=== ci-local: PASSED ==="
+	@set +e; \
+	failed=0; \
+	echo "=== ci-local: check-forbidden ==="; \
+	$(MAKE) --no-print-directory check-forbidden || failed=1; \
+	echo ""; \
+	echo "=== ci-local: lint ==="; \
+	$(MAKE) --no-print-directory lint || failed=1; \
+	echo ""; \
+	echo "=== ci-local: format-check ==="; \
+	$(MAKE) --no-print-directory format-check || failed=1; \
+	echo ""; \
+	echo "=== ci-local: typecheck ==="; \
+	$(MAKE) --no-print-directory typecheck || failed=1; \
+	echo ""; \
+	echo "=== ci-local: test ==="; \
+	$(MAKE) --no-print-directory test || failed=1; \
+	echo ""; \
+	if [ $$failed -ne 0 ]; then \
+		echo "=== ci-local: FAILED — один или несколько gates not clean. См. output выше. ==="; \
+		exit 1; \
+	fi; \
+	echo "=== ci-local: PASSED — all gates clean. ==="
 
 # ══════════════════════════════════════════════════════════════
 # Web Portal (S-27)
