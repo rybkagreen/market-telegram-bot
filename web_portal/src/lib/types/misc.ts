@@ -22,7 +22,6 @@ export interface ReferralStats {
 export interface ReferralItem {
   id: number
   username: string | null
-  telegram_id: number
   is_active: boolean
   created_at: string
 }

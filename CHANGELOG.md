@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — UserResponse referral leak fix (2026-04-30)
+
+- `ReferralItem` schema in `src/api/routers/users.py` no longer exposes
+  other users' `first_name`. Field dropped; `joined_at` renamed to
+  `created_at` to align with frontend convention (frontend was already
+  reading `r.created_at`, silently undefined under the previous shape).
+- `UserResponse` (own-data, used only by `/api/users/me`,
+  `/api/auth/me`, `/api/auth/login`) untouched — own data is not a leak.
+- Frontend `web_portal/src/lib/types/misc.ts` `ReferralItem`: dropped
+  `telegram_id` (was never returned by backend, silent type drift).
+- Frontend `web_portal/src/screens/common/Referral.tsx` display fallback:
+  `User #{r.telegram_id}` → `User #{r.id}` (anonymous internal id).
+- 9 new regression tests in `tests/unit/test_pii_referral_isolation.py`
+  assert `ReferralItem` has no `first_name`/`last_name`/`telegram_id`,
+  and that `ReferralStatsResponse.referrals[*]` dump carries no PII keys.
+- mypy / ruff baselines unchanged (10 / 21 errors, all pre-existing).
+- Closes BL-050 (MED-6: UserResponse referral leak).
+- BL-055 added (deferred: direct bot-to-portal exchange — architectural
+  improvement surfaced in 16.3 closure deviation, not a fix).
+- Series 16.x Group D done. 16.5 (LOW batch — BL-051) remains.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_userresponse-referral-leak-fix.md
+
 ### Removed — Bot payout flow, replaced by web_portal deeplink (2026-04-30)
 
 - Deleted `src/bot/handlers/payout/payout.py` (351 LOC, 7 functions)
