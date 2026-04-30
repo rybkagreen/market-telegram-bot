@@ -49,31 +49,16 @@ from src.core.middleware.rate_limit import (
     init_limiter,
     rate_limit_exceeded_handler,
 )
+from src.utils.pii_keys import SENTRY_PII_KEYS
 
 logger = logging.getLogger(__name__)
-
-_SENTRY_PII_KEYS = {
-    "passport_series",
-    "passport_number",
-    "passport_issued_by",
-    "bank_account",
-    "bank_corr_account",
-    "yoomoney_wallet",
-    "inn_scan_file_id",
-    "passport_scan_file_id",
-    "file_id",
-    "authorization",
-    "x-api-key",
-    "password",
-    "token",
-}
 
 
 def _scrub_pii(event: dict, _hint: dict) -> dict:
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
             return {
-                k: "***" if k.lower() in _SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()
+                k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()
             }
         if isinstance(obj, list):
             return [_clean(i) for i in obj]
