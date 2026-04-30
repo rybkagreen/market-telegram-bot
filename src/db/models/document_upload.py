@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.security.field_encryption import EncryptedString
 from src.db.base import Base
 
 
@@ -44,7 +45,9 @@ class DocumentUpload(Base):
     )
 
     # OCR results
-    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Full extracted text
+    ocr_text: Mapped[str | None] = mapped_column(
+        EncryptedString(50000), nullable=True
+    )  # Full extracted text — encrypted at rest (BL-048)
     ocr_confidence: Mapped[float | None] = mapped_column(Numeric(3, 2), nullable=True)  # 0.00–1.00
 
     # Extracted structured data

@@ -8,9 +8,9 @@ NOTE: This migration was created by consolidating all previous migrations into a
 single file. The schema was derived from pg_dump of the live database.
 
 Encrypted columns (inn, kpp, bank_account, etc. in legal_profiles and
-platform_account) are stored as plain VARCHAR/TEXT in PostgreSQL.  Encryption is
-handled at the ORM level via EncryptedString in
-src/core/security/field_encryption.py.
+platform_account; payout_requests.requisites; document_uploads.ocr_text) are
+stored as plain VARCHAR/TEXT in PostgreSQL.  Encryption is handled at the ORM
+level via EncryptedString in src/core/security/field_encryption.py.
 
 Fix applied: legal_profiles.user_id changed from BigInteger → Integer to match
 users.id, eliminating the pre-existing FK type mismatch.
@@ -691,7 +691,7 @@ def upgrade() -> None:  # noqa: PLR0915
             ),
             nullable=False,
         ),
-        sa.Column("requisites", sa.String(512), nullable=False),
+        sa.Column("requisites", sa.String(2048), nullable=False),
         sa.Column("admin_id", sa.Integer(), nullable=True),
         sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("rejection_reason", sa.Text(), nullable=True),
