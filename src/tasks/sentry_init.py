@@ -7,28 +7,9 @@ from sentry_sdk.integrations.celery import CeleryIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 from src.config.settings import settings
+from src.utils.pii_keys import SENTRY_PII_KEYS
 
 logger = logging.getLogger(__name__)
-
-# PII keys that must never be sent to Sentry/GlitchTip
-_CELERY_SENTRY_PII_KEYS = {
-    "inn",
-    "passport_series",
-    "passport_number",
-    "passport_issued_by",
-    "bank_account",
-    "bank_corr_account",
-    "yoomoney_wallet",
-    "inn_scan_file_id",
-    "passport_scan_file_id",
-    "phone",
-    "email",
-    "full_name",
-    "address",
-    "file_id",
-    "authorization",
-    "token",
-}
 
 
 def _scrub_pii(event: dict, hint: dict) -> dict:  # noqa: ARG001
@@ -37,7 +18,7 @@ def _scrub_pii(event: dict, hint: dict) -> dict:  # noqa: ARG001
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
             return {
-                k: "***" if k.lower() in _CELERY_SENTRY_PII_KEYS else _clean(v)
+                k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v)
                 for k, v in obj.items()
             }
         if isinstance(obj, (list, tuple)):
