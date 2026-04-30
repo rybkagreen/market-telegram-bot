@@ -5,6 +5,8 @@ from decimal import Decimal
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.bot.utils.portal_deeplink import portal_webapp
+
 
 def cabinet_kb(earned_rub: Decimal) -> InlineKeyboardMarkup:
     """Клавиатура кабинета — без role gating."""
@@ -16,7 +18,9 @@ def cabinet_kb(earned_rub: Decimal) -> InlineKeyboardMarkup:
 
     if earned_rub >= Decimal("1000"):
         builder.row(
-            InlineKeyboardButton(text="💸 Запросить вывод", callback_data="payout:request_start")
+            InlineKeyboardButton(
+                text="💸 Запросить вывод", web_app=portal_webapp("/own/payouts/request")
+            )
         )
 
     builder.row(InlineKeyboardButton(text="⭐ Изменить тариф", callback_data="billing:plans"))
