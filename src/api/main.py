@@ -30,10 +30,10 @@ from src.api.routers.categories import router as categories_router
 from src.api.routers.channel_settings import router as channel_settings_router
 from src.api.routers.channels import router as channels_router
 from src.api.routers.contracts import router as contracts_router
-from src.api.routers.legal_acceptance import router as legal_acceptance_router
 from src.api.routers.disputes import router as disputes_router
 from src.api.routers.document_validation import router as document_validation_router
 from src.api.routers.feedback import router as feedback_router  # ДОБАВЛЕНО (2026-03-18)
+from src.api.routers.legal_acceptance import router as legal_acceptance_router
 from src.api.routers.legal_profile import router as legal_profile_router
 from src.api.routers.ord import router as ord_router
 from src.api.routers.payouts import router as payouts_router

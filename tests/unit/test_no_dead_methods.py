@@ -6,7 +6,6 @@ get re-added by mistake.
 import ast
 from pathlib import Path
 
-
 BILLING_SERVICE_PATH = (
     Path(__file__).parent.parent.parent
     / "src" / "core" / "services" / "billing_service.py"

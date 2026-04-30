@@ -5,7 +5,7 @@ These tests validate that the fixed schemas can round-trip correctly with
 the actual field names present on the ORM models. They run without DB.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -18,7 +18,7 @@ class TestCampaignResponseSTOP1:
         """CampaignResponse must use model fields: ad_text, meta_json, proposed_schedule."""
         from src.api.routers.campaigns import CampaignResponse
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         resp = CampaignResponse(
             id=1,
             ad_text="Test ad text",
@@ -78,8 +78,8 @@ class TestCampaignResponseSTOP1:
             status = "pending_owner"
             meta_json = None
             proposed_schedule = None
-            created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
-            updated_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
+            created_at = datetime(2026, 1, 1, tzinfo=UTC)
+            updated_at = datetime(2026, 1, 2, tzinfo=UTC)
 
         resp = CampaignResponse.model_validate(FakePlacementRequest())
         assert resp.id == 42
@@ -105,7 +105,6 @@ class TestCampaignUpdateSTOP1:
 
     def test_campaign_update_model_dump_returns_correct_keys(self):
         """model_dump(exclude_unset=True) must return keys matching PlacementRequest attrs."""
-        from datetime import datetime, timezone
 
         from src.api.routers.campaigns import CampaignUpdate
 
@@ -220,7 +219,7 @@ class TestPlacementCreateRequestP31:
 
     def test_proposed_price_accepts_decimal_string(self):
         """PlacementCreateRequest must accept Decimal-compatible JSON number."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.api.routers.placements import PlacementCreateRequest
 
@@ -228,14 +227,14 @@ class TestPlacementCreateRequestP31:
             channel_id=1,
             proposed_price=Decimal("1500.00"),
             ad_text="Test ad text here",
-            proposed_schedule=datetime.now(timezone.utc).isoformat(),
+            proposed_schedule=datetime.now(UTC).isoformat(),
         )
         assert isinstance(req.proposed_price, Decimal)
         assert req.proposed_price == Decimal("1500.00")
 
     def test_proposed_price_coerces_integer(self):
         """PlacementCreateRequest.proposed_price must coerce int to Decimal."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.api.routers.placements import PlacementCreateRequest
 
@@ -243,6 +242,6 @@ class TestPlacementCreateRequestP31:
             channel_id=1,
             proposed_price=1000,
             ad_text="Test ad text here",
-            proposed_schedule=datetime.now(timezone.utc).isoformat(),
+            proposed_schedule=datetime.now(UTC).isoformat(),
         )
         assert isinstance(req.proposed_price, Decimal)

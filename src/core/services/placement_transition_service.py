@@ -18,7 +18,7 @@ owns the session lifecycle.
 11 callers will be migrated to this service in § 2.B.2 (separate work).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -213,7 +213,7 @@ class PlacementTransitionService:
         deliberately do not write a per-status timestamp here. Add
         fields + sync logic together if required later.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if to_status in {
             PlacementStatus.pending_owner,
