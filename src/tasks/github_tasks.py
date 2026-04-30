@@ -28,6 +28,7 @@ def create_github_issue(self, title: str, body: str, labels: list[str] | None = 
     payload = GitHubIssuePayload(title=title, body=body, labels=labels)
 
     import asyncio
+
     result = asyncio.run(service.create_issue(payload))
     return result or {}
 
@@ -53,6 +54,7 @@ def create_github_pr(
     payload = GitHubPRPayload(title=title, body=body, head=head, base=base, draft=draft)
 
     import asyncio
+
     result = asyncio.run(service.create_pull_request(payload))
     return result or {}
 
@@ -72,6 +74,7 @@ def add_github_comment(self, issue_number: int, comment: str) -> dict:
     service = GitHubService()
 
     import asyncio
+
     result = asyncio.run(service.add_issue_comment(issue_number, comment))
     return result or {}
 
@@ -91,4 +94,5 @@ def close_github_issue(self, issue_number: int, comment: str | None = None) -> b
     service = GitHubService()
 
     import asyncio
+
     return asyncio.run(service.close_issue(issue_number, comment))

@@ -41,6 +41,7 @@ Adding a key
 3. Update count in tests/unit/test_pii_keys_canonical.py.
 4. Confirm both Sentry processes pick it up (drift impossible by import).
 """
+
 from __future__ import annotations
 
 # Tuple для immutability + Sentry SDK iteration compatibility.

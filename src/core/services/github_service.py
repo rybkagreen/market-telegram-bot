@@ -58,6 +58,7 @@ class GitHubService:
         if self._client is None and self.token:
             try:
                 from github import Github
+
                 self._client = Github(self.token)
             except ImportError:
                 logger.error("PyGithub not installed: pip install PyGithub")
@@ -244,14 +245,12 @@ class GitHubService:
             for i, issue in enumerate(issues):
                 if i >= limit:
                     break
-                result.append(
-                    {
-                        "number": issue.number,
-                        "title": issue.title,
-                        "state": issue.state,
-                        "url": issue.html_url,
-                    }
-                )
+                result.append({
+                    "number": issue.number,
+                    "title": issue.title,
+                    "state": issue.state,
+                    "url": issue.html_url,
+                })
             return result
         except Exception as e:
             logger.error(f"Failed to list issues: {e}")

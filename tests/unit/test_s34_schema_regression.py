@@ -65,8 +65,12 @@ class TestCampaignResponseSTOP1:
 
         created_at_annotation = CampaignResponse.model_fields["created_at"].annotation
         updated_at_annotation = CampaignResponse.model_fields["updated_at"].annotation
-        assert created_at_annotation is datetime, f"created_at must be datetime, got {created_at_annotation}"
-        assert updated_at_annotation is datetime, f"updated_at must be datetime, got {updated_at_annotation}"
+        assert created_at_annotation is datetime, (
+            f"created_at must be datetime, got {created_at_annotation}"
+        )
+        assert updated_at_annotation is datetime, (
+            f"updated_at must be datetime, got {updated_at_annotation}"
+        )
 
     def test_campaign_response_from_orm_like_object(self):
         """CampaignResponse.model_validate must succeed on an ORM-like object."""
@@ -204,7 +208,9 @@ class TestUserResponseP23:
         from src.api.schemas.user import UserResponse
 
         field = UserResponse.model_fields["first_name"]
-        assert field.is_required(), "first_name must be required — model User.first_name is NOT NULL"
+        assert field.is_required(), (
+            "first_name must be required — model User.first_name is NOT NULL"
+        )
 
     def test_user_response_first_name_annotation(self):
         """UserResponse.first_name annotation must be str, not str | None."""

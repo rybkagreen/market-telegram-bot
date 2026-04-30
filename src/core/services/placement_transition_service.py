@@ -110,9 +110,7 @@ class PlacementTransitionService:
                 f"Use transition_admin_override() for admin-driven exceptions."
             )
 
-        return await self._apply(
-            placement, to_status, actor_user_id, reason, trigger, metadata
-        )
+        return await self._apply(placement, to_status, actor_user_id, reason, trigger, metadata)
 
     async def transition_admin_override(
         self,
@@ -168,10 +166,14 @@ class PlacementTransitionService:
         """
         from_status = placement.status
 
-        final_metadata: TransitionMetadata = metadata if metadata is not None else TransitionMetadata(
-            from_status=from_status,
-            to_status=to_status,
-            trigger=trigger,
+        final_metadata: TransitionMetadata = (
+            metadata
+            if metadata is not None
+            else TransitionMetadata(
+                from_status=from_status,
+                to_status=to_status,
+                trigger=trigger,
+            )
         )
 
         self._sync_status_timestamps(placement, to_status)
@@ -227,19 +229,16 @@ class PlacementTransitionService:
             placement.last_published_at = now
 
         # Clear scheduled_delete_at on published -> !completed/!published.
-        if (
-            placement.status == PlacementStatus.published
-            and to_status not in {PlacementStatus.completed, PlacementStatus.published}
-        ):
+        if placement.status == PlacementStatus.published and to_status not in {
+            PlacementStatus.completed,
+            PlacementStatus.published,
+        }:
             placement.scheduled_delete_at = None
 
     def _check_invariants(self, placement: PlacementRequest) -> None:
         """Raise TransitionInvariantError if placement violates invariants."""
         # INV-1: status='escrow' requires escrow_transaction_id
-        if (
-            placement.status == PlacementStatus.escrow
-            and not placement.escrow_transaction_id
-        ):
+        if placement.status == PlacementStatus.escrow and not placement.escrow_transaction_id:
             raise TransitionInvariantError(
                 "INV-1 violated: status='escrow' requires escrow_transaction_id to be set."
             )

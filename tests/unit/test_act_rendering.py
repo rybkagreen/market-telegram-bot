@@ -6,6 +6,7 @@ required vars присутствуют в _build_fee_context / minimal ctx).
 
 Также проверяем что edition header (15.8) присутствует в каждом template.
 """
+
 from __future__ import annotations
 
 import pytest

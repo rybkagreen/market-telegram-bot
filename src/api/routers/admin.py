@@ -1094,9 +1094,7 @@ async def list_all_contracts(
 _PAYOUT_NOT_FOUND = "PayoutRequest not found"
 
 
-def _payout_to_admin_response(
-    payout: PayoutRequest, owner: User | None
-) -> AdminPayoutResponse:
+def _payout_to_admin_response(payout: PayoutRequest, owner: User | None) -> AdminPayoutResponse:
     """Build AdminPayoutResponse from ORM row + owner eager-loaded."""
     return AdminPayoutResponse(
         id=payout.id,

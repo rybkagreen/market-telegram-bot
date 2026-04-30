@@ -48,9 +48,7 @@ class PaymentProviderError(Exception):
         self.code = code
         self.description = description
         self.request_id = request_id
-        super().__init__(
-            f"Payment provider error [{code}] {description} (req={request_id})"
-        )
+        super().__init__(f"Payment provider error [{code}] {description} (req={request_id})")
 
 
 class BillingService:
@@ -505,8 +503,7 @@ class BillingService:
             await session.flush()
         except IntegrityError as exc:
             logger.warning(
-                f"freeze_escrow_for_placement: idempotency race for "
-                f"placement {placement_id}: {exc}"
+                f"freeze_escrow_for_placement: idempotency race for placement {placement_id}: {exc}"
             )
             raise
         await session.refresh(transaction)
@@ -695,11 +692,7 @@ class BillingService:
 
         # Idempotency: если ключ уже есть — релиз уже выполнен, no-op.
         already = await session.scalar(
-            select(
-                exists().where(
-                    Transaction.idempotency_key.in_([owner_key, platform_key])
-                )
-            )
+            select(exists().where(Transaction.idempotency_key.in_([owner_key, platform_key])))
         )
         if already:
             logger.info(
@@ -786,9 +779,7 @@ class BillingService:
             # так как caller получит ту же ошибку и откатит свою транзакцию.
             # Логируем и пробрасываем — retry на уровне Celery подхватит и
             # на следующей итерации EXISTS-проверка вверху сработает.
-            logger.warning(
-                f"release_escrow: idempotency race for placement {placement_id}: {exc}"
-            )
+            logger.warning(f"release_escrow: idempotency race for placement {placement_id}: {exc}")
             raise
 
         # Sprint A.3: записать комиссию размещения в УСН и КУДиР
@@ -848,11 +839,7 @@ class BillingService:
 
         # Idempotency: если один из ключей уже есть — refund уже выполнен, no-op.
         already = await session.scalar(
-            select(
-                exists().where(
-                    Transaction.idempotency_key.in_([advertiser_key, owner_key])
-                )
-            )
+            select(exists().where(Transaction.idempotency_key.in_([advertiser_key, owner_key])))
         )
         if already:
             logger.info(

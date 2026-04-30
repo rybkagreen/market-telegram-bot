@@ -112,12 +112,11 @@ def test_no_hardcoded_fee_decimal_literals_in_python_src() -> None:
         for literal, lineno in _find_decimal_literals(tree):
             if literal in FORBIDDEN_DECIMAL_LITERALS:
                 rel = py_file.relative_to(SRC_ROOT.parent)
-                violations.append(f"  {rel}:{lineno} — Decimal(\"{literal}\")")
+                violations.append(f'  {rel}:{lineno} — Decimal("{literal}")')
 
     assert not violations, (
         "Hardcoded fee Decimal literals found in src/. Use imports from "
-        "src/constants/fees.py instead.\n\nViolations:\n"
-        + "\n".join(violations)
+        "src/constants/fees.py instead.\n\nViolations:\n" + "\n".join(violations)
     )
 
 
@@ -140,9 +139,8 @@ def test_no_hardcoded_fee_float_literals_in_python_src() -> None:
                 rel = py_file.relative_to(SRC_ROOT.parent)
                 violations.append(f"  {rel}:{node.lineno} — {node.value}")
 
-    assert not violations, (
-        "Hardcoded fee float literals in src/.\n\nViolations:\n"
-        + "\n".join(violations)
+    assert not violations, "Hardcoded fee float literals in src/.\n\nViolations:\n" + "\n".join(
+        violations
     )
 
 
@@ -161,27 +159,27 @@ TEMPLATES_ROOT = SRC_ROOT / "templates"
 # language too often to lint reliably; we cover them via Jinja injection
 # + integration tests, not regex.
 FORBIDDEN_PCT_PATTERNS_HTML: list[str] = [
-    r"\b20\s*%",         # PLATFORM_COMMISSION_RATE
-    r"\b80\s*%",         # OWNER_SHARE_RATE
-    r"\b1[.,]5\s*%",     # SERVICE_FEE_RATE / PAYOUT_FEE_RATE
+    r"\b20\s*%",  # PLATFORM_COMMISSION_RATE
+    r"\b80\s*%",  # OWNER_SHARE_RATE
+    r"\b1[.,]5\s*%",  # SERVICE_FEE_RATE / PAYOUT_FEE_RATE
     r"\b78[.,][58]\s*%",  # OWNER_NET_RATE (78,8% or 78,5% legacy)
-    r"\b21[.,]2\s*%",    # PLATFORM_TOTAL_RATE
-    r"\b3[.,]5\s*%",     # YOOKASSA_FEE_RATE
+    r"\b21[.,]2\s*%",  # PLATFORM_TOTAL_RATE
+    r"\b3[.,]5\s*%",  # YOOKASSA_FEE_RATE
 ]
 
 # Files exempt entirely — reference tax law / accounting / NDFL rates that
 # fall outside platform's centralized fee model. They legitimately contain
 # things like "20% НДС", "НПД 6%", etc.
 TEMPLATE_EXEMPT_FILES: set[str] = {
-    "src/templates/acts/act_owner_fl.html",                       # NDFL
-    "src/templates/acts/act_owner_np.html",                       # NPD/НДФЛ fallback
-    "src/templates/acts/act_owner_ie.html",                       # USN/VAT
-    "src/templates/acts/act_owner_le.html",                       # VAT
-    "src/templates/contracts/owner_service_individual.html",      # NDFL scale
-    "src/templates/contracts/owner_service_self_employed.html",   # NPD
-    "src/templates/contracts/owner_service_ie.html",              # USN/VAT
-    "src/templates/invoices/invoice_b2b.html",                    # VAT
-    "src/templates/kudir/kudir_book.html",                        # accounting
+    "src/templates/acts/act_owner_fl.html",  # NDFL
+    "src/templates/acts/act_owner_np.html",  # NPD/НДФЛ fallback
+    "src/templates/acts/act_owner_ie.html",  # USN/VAT
+    "src/templates/acts/act_owner_le.html",  # VAT
+    "src/templates/contracts/owner_service_individual.html",  # NDFL scale
+    "src/templates/contracts/owner_service_self_employed.html",  # NPD
+    "src/templates/contracts/owner_service_ie.html",  # USN/VAT
+    "src/templates/invoices/invoice_b2b.html",  # VAT
+    "src/templates/kudir/kudir_book.html",  # accounting
 }
 
 # Per-line opt-out marker. When a line contains this string, the lint

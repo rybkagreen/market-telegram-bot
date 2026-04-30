@@ -13,7 +13,7 @@ print("=" * 60)
 
 from src.db.models.user import User
 
-assert hasattr(User, 'notifications_enabled'), "❌ У User нет поля notifications_enabled"
+assert hasattr(User, "notifications_enabled"), "❌ У User нет поля notifications_enabled"
 print(f"✅ Поле notifications_enabled существует: {User.notifications_enabled}")
 print(f"   Default: {User.notifications_enabled.default.arg}")
 print(f"   Server default: {User.notifications_enabled.server_default.arg}")
@@ -25,8 +25,10 @@ print("=" * 60)
 
 from src.db.repositories.user_repo import UserRepository
 
-assert hasattr(UserRepository, 'toggle_notifications'), "❌ Нет метода toggle_notifications"
-assert hasattr(UserRepository, 'toggle_notifications_by_db_id'), "❌ Нет метода toggle_notifications_by_db_id"
+assert hasattr(UserRepository, "toggle_notifications"), "❌ Нет метода toggle_notifications"
+assert hasattr(UserRepository, "toggle_notifications_by_db_id"), (
+    "❌ Нет метода toggle_notifications_by_db_id"
+)
 print("✅ Метод toggle_notifications существует")
 print("✅ Метод toggle_notifications_by_db_id существует")
 
@@ -120,6 +122,7 @@ async def check_migration():
     async with async_session_factory() as session:
         # Проверка что колонка существует через raw SQL
         from sqlalchemy import text
+
         result = await session.execute(
             text("""
                 SELECT column_name, data_type, column_default 
@@ -154,6 +157,7 @@ async def test_toggle():
         from sqlalchemy import select
 
         from src.db.models.user import User as UserModel
+
         result = await session.execute(select(UserModel).limit(1))
         user = result.scalar_one_or_none()
 

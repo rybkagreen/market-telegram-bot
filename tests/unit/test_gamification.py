@@ -48,7 +48,9 @@ class TestBadgeAchievementModel:
         await db_session.commit()
 
         # Verify
-        result = await db_session.execute(select(BadgeAchievement).where(BadgeAchievement.badge_id == badge.id))
+        result = await db_session.execute(
+            select(BadgeAchievement).where(BadgeAchievement.badge_id == badge.id)
+        )
         saved = result.scalar_one()
 
         assert saved is not None

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 def _reset_factory() -> None:
     """Reset the module-level _bot singleton between tests."""
     import src.tasks._bot_factory as factory
+
     factory._bot = None
 
 
@@ -29,6 +30,7 @@ class TestGetBotSingleton:
             mock_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import get_bot
+
             first = get_bot()
             second = get_bot()
 
@@ -42,6 +44,7 @@ class TestGetBotSingleton:
             mock_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import init_bot
+
             init_bot()
             init_bot()
 
@@ -62,6 +65,7 @@ class TestGetBotSingleton:
 
             # After close, _bot is None
             import src.tasks._bot_factory as factory
+
             assert factory._bot is None
 
             # get_bot() creates a new instance
@@ -75,6 +79,7 @@ class TestGetBotSingleton:
             mock_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import get_bot
+
             result = get_bot()
 
             assert result is mock_instance

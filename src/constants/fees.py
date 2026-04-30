@@ -51,7 +51,7 @@ CANCEL_REFUND_PLATFORM_RATE = Decimal("0.10")
 # Self-employed contractor (НПД) tax obligations — paid BY the contractor,
 # not charged on top of placement_price.
 NPD_RATE_FROM_INDIVIDUAL = Decimal("0.04")  # 4% if customer = ФЛ
-NPD_RATE_FROM_LEGAL = Decimal("0.06")       # 6% if customer = ИП/ООО
+NPD_RATE_FROM_LEGAL = Decimal("0.06")  # 6% if customer = ИП/ООО
 
 # Platform's УСН obligations — paid BY platform from its own commission,
 # NOT charged to user. Recorded for accounting only.
@@ -68,9 +68,7 @@ OWNER_NET_RATE = OWNER_SHARE_RATE * (Decimal("1") - SERVICE_FEE_RATE)
 PLATFORM_TOTAL_RATE = Decimal("1") - OWNER_NET_RATE
 
 
-def format_rate_pct(
-    rate: Decimal | float, fraction_digits: int = 1, comma: bool = True
-) -> str:
+def format_rate_pct(rate: Decimal | float, fraction_digits: int = 1, comma: bool = True) -> str:
     """Format a fraction (0.788) as a localised percent string ("78,8%").
 
     `comma=True` uses RU decimal comma; `False` keeps the dot.

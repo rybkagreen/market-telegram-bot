@@ -985,9 +985,7 @@ async def get_recommended_channels(
             .join(PlacementRequest, PlacementRequest.channel_id == TelegramChat.id)
             .where(
                 PlacementRequest.advertiser_id == current_user.id,
-                PlacementRequest.status.in_(
-                    [PlacementStatus.published, PlacementStatus.completed]
-                ),
+                PlacementRequest.status.in_([PlacementStatus.published, PlacementStatus.completed]),
                 TelegramChat.category.isnot(None),
             )
             .distinct()

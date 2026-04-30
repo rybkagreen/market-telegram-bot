@@ -102,7 +102,9 @@ class TestMinCampaignBudget:
 
         if calculated_price < MIN_CAMPAIGN_BUDGET:
             with pytest.raises(ValueError, match="Итоговая цена.*меньше минимального бюджета"):
-                raise ValueError(f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽")
+                raise ValueError(
+                    f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽"
+                )
 
     def test_min_campaign_budget_ok(self) -> None:
         """base_price=2000, format='post_24h' → 2000 == MIN_CAMPAIGN_BUDGET → no exception."""

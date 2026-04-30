@@ -314,7 +314,9 @@ class TestPriceResolutionLogic:
         assert price == Decimal("1500.00")  # Must use final_price
 
     @pytest.mark.asyncio
-    async def test_payment_falls_back_to_proposed_price(self, db_session, test_advertiser, test_owner, test_channel):
+    async def test_payment_falls_back_to_proposed_price(
+        self, db_session, test_advertiser, test_owner, test_channel
+    ):
         """When final_price is None, must fall back to proposed_price."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 

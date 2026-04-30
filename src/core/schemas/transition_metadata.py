@@ -69,7 +69,9 @@ class TransitionMetadata(BaseModel):
     from_admin_id: int | None = None  # internal users.id, NEVER telegram_id
     celery_task_id: str | None = None
     idempotency_key: str | None = None
-    correlation_id: str | None = None  # RESERVED — populated by middleware in Phase 3 (see BACKLOG BL-014)
+    correlation_id: str | None = (
+        None  # RESERVED — populated by middleware in Phase 3 (see BACKLOG BL-014)
+    )
     placement_id: int | None = None  # conditional — for cross-table denormalisation if needed
     attempted_at: datetime | None = None
     admin_override_reason: AdminOverrideReason | None = None

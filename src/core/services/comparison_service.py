@@ -32,9 +32,7 @@ class ComparisonService:
             for chat in chats:
                 subscribers = chat.member_count or 0
                 price_per_post: float = float(
-                    chat.channel_settings.price_per_post
-                    if chat.channel_settings
-                    else Decimal(0)
+                    chat.channel_settings.price_per_post if chat.channel_settings else Decimal(0)
                 )
                 price_per_1k = price_per_post / (subscribers / 1000) if subscribers > 0 else 0.0
                 channels.append({

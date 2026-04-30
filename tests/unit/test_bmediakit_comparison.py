@@ -47,7 +47,9 @@ class TestChannelMediakitModel:
         await db_session.commit()
 
         # Verify
-        result = await db_session.execute(select(ChannelMediakit).where(ChannelMediakit.channel_id == chat.id))
+        result = await db_session.execute(
+            select(ChannelMediakit).where(ChannelMediakit.channel_id == chat.id)
+        )
         saved = result.scalar_one()
 
         assert saved is not None

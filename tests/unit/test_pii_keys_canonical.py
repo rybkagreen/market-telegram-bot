@@ -5,6 +5,7 @@ from here). These tests verify canonical list itself remains structurally
 sound — count correct, no duplicates, deterministic order, critical PII
 categories present.
 """
+
 from __future__ import annotations
 
 from src.utils.pii_keys import SENTRY_PII_KEYS

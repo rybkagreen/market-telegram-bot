@@ -94,9 +94,7 @@ def get_act_template(party: str, legal_status: str | None = None) -> str:
             )
         return ACT_TEMPLATE_MAP_OWNER[legal_status]
 
-    raise ValueError(
-        f"Unknown party {party!r}. Valid: 'advertiser', 'owner', 'platform'."
-    )
+    raise ValueError(f"Unknown party {party!r}. Valid: 'advertiser', 'owner', 'platform'.")
 
 
 # Директория для хранения PDF актов

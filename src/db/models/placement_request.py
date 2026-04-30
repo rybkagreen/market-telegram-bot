@@ -199,8 +199,7 @@ class PlacementRequest(Base, TimestampMixin):
         # INV-1 (see /root/.claude/plans/optimized-brewing-music.md):
         # status='escrow' ⇒ escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL.
         CheckConstraint(
-            "status != 'escrow' OR "
-            "(escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
+            "status != 'escrow' OR (escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
             name="placement_escrow_integrity",
         ),
     )

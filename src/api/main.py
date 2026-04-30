@@ -57,9 +57,7 @@ logger = logging.getLogger(__name__)
 def _scrub_pii(event: dict, _hint: dict) -> dict:
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
-            return {
-                k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()
-            }
+            return {k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [_clean(i) for i in obj]
         return obj
