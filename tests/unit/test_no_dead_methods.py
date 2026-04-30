@@ -15,6 +15,10 @@ YOOKASSA_SERVICE_PATH = (
     Path(__file__).parent.parent.parent
     / "src" / "core" / "services" / "yookassa_service.py"
 )
+NOTIFICATIONS_PATH = (
+    Path(__file__).parent.parent.parent
+    / "src" / "bot" / "handlers" / "shared" / "notifications.py"
+)
 
 DEAD_BILLING_METHODS = frozenset({
     "add_balance_rub",
@@ -36,6 +40,12 @@ DEAD_YOOKASSA_METHODS = frozenset({
     "create_payment",
 })
 
+DEAD_NOTIFICATION_FUNCTIONS = frozenset({
+    # 16.5a: orphaned loaded-gun — defined but never called; comment in
+    # feedback.py referenced non-existent tasks/feedback_tasks.py wiring.
+    "notify_admins_new_feedback",
+})
+
 
 def _get_method_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -46,6 +56,15 @@ def _get_method_names(path: Path) -> set[str]:
                 if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     methods.add(item.name)
     return methods
+
+
+def _get_module_function_names(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    }
 
 
 def test_no_dead_billing_methods_revived():
@@ -74,6 +93,21 @@ def test_no_dead_yookassa_methods_revived():
         f"or _credit_user. Topup creation now goes through "
         f"YooKassaService.create_topup_payment (Промт-15.5) — bot, mini_app, "
         f"and web_portal all share this entry point."
+    )
+
+
+def test_no_dead_notification_functions_revived():
+    """Dead notification helpers must stay dead."""
+    actual = _get_module_function_names(NOTIFICATIONS_PATH)
+    revived = actual & DEAD_NOTIFICATION_FUNCTIONS
+    assert not revived, (
+        f"Dead notification functions were re-added: {revived}. "
+        f"`notify_admins_new_feedback` was a loaded gun — defined but "
+        f"never called (feedback router had a comment referencing a "
+        f"non-existent tasks/feedback_tasks.py wiring). If admin "
+        f"notification is ever needed, build it via Celery dispatch "
+        f"(see notify_payment_success pattern), not by re-adding this "
+        f"function unchanged."
     )
 
 

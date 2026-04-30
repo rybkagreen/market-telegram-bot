@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — LOW batch 16.5a (BL-051 partial) (2026-04-30)
+
+- `login_code` log statement redacted: plaintext one-time code dropped
+  from `logger.info` (auth-bypass surface через log access closed). Bot
+  reply to user unchanged.
+- Removed mini_app dead exports `createPayout` (api/payouts.ts) +
+  `useCreatePayout` (hooks/queries/usePayoutQueries.ts) — loaded-gun
+  pattern, no callers since Phase 1 strip.
+- Removed dead `LegalProfileStates` (15 states, 0 handlers verified).
+- Removed dead `notify_admins_new_feedback` function + dangling 2-line
+  comment in `feedback.py` referencing non-existent `feedback_tasks.py`.
+  Added AST-based grep guard in `tests/unit/test_no_dead_methods.py`.
+- mypy / ruff baselines unchanged (10 errors / 21 errors).
+- 4 of 6 BL-051 sub-tasks closed. Remaining 2 split per Marina decision:
+  16.5b (sanitizer/Sentry parity, option (c) Sentry-only merge per
+  CLAUDE.md NEVER TOUCH on `log_sanitizer.py`) и 16.5c (YooKassa
+  webhook trim — persist site router-level, requires readers audit).
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_low-batch-16-5a.md
+
 ### Changed — UserResponse referral leak fix (2026-04-30)
 
 - `ReferralItem` schema in `src/api/routers/users.py` no longer exposes

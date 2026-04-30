@@ -50,8 +50,6 @@ async def create_feedback(
             user_repo = UserRepository(notif_session)
             user = await user_repo.get_by_id(current_user.id)
             if user:
-                # Note: notify_admins_new_feedback требует Bot объект, который не доступен в API
-                # Уведомление будет отправлено через Celery task (см. tasks/feedback_tasks.py)
                 logger.info(f"Feedback #{feedback.id} created by user {current_user.id}")
     except Exception as e:
         logger.warning(f"Failed to log feedback notification: {e}")
