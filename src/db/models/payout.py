@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.security.field_encryption import EncryptedString
 from src.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ class PayoutRequest(Base, TimestampMixin):
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     status: Mapped[PayoutStatus] = mapped_column(default=PayoutStatus.pending, index=True)
-    requisites: Mapped[str] = mapped_column(String(512), nullable=False)
+    requisites: Mapped[str] = mapped_column(EncryptedString(2048), nullable=False)
     admin_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
