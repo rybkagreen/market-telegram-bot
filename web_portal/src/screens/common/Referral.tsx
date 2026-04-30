@@ -364,11 +364,11 @@ function RefRow({ r, isLast }: { r: ReferralItem; isLast: boolean }) {
             : 'bg-harbor-elevated text-text-tertiary'
         }`}
       >
-        {avatarChar(r.username, r.telegram_id)}
+        {avatarChar(r.username, r.id)}
       </div>
       <div className="min-w-0">
         <div className="text-[13px] font-semibold text-text-primary truncate">
-          {r.username ? '@' + r.username : `User #${r.telegram_id}`}
+          {r.username ? '@' + r.username : `User #${r.id}`}
         </div>
         <div className="text-[11px] text-text-tertiary mt-0.5">
           Присоединился {fmtDate(r.created_at)}
