@@ -8,7 +8,10 @@ from decimal import Decimal
 from typing import Any
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from src.bot.utils.portal_deeplink import portal_webapp
 
 logger = logging.getLogger(__name__)
 
@@ -241,9 +244,14 @@ async def notify_owner_post_completed(
 ) -> None:
     """Владельцу: оплата поступила на баланс."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="💸 Запросить вывод", callback_data="payout:request_start")
-    builder.button(text="📊 Статистика", callback_data="main:owner_analytics")
-    builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(
+            text="💸 Запросить вывод", web_app=portal_webapp("/own/payouts/request")
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(text="📊 Статистика", callback_data="main:owner_analytics")
+    )
     with contextlib.suppress(Exception):
         await bot.send_message(
             chat_id=owner_telegram_id,

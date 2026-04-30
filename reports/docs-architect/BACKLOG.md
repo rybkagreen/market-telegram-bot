@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-04-30 (16.2 — BL-047 + BL-048 closed; BL-054 added)_
+_Last updated: 2026-04-30 (16.3 — BL-045 closed; bot payout flow removed)_
 
 ## Active items
 
@@ -1750,7 +1750,7 @@ launch.
 
 ### BL-045 — CRIT-1: Bot payout FSM accepts financial PII
 
-**Status:** Open (16.x territory)
+**Status:** CLOSED 2026-04-30 (серия 16.3 / Group C)
 **Found:** `PII_AUDIT_2026-04-28.md` § O.1
 **Severity:** Critical (FZ-152, three-way violation)
 
@@ -1759,13 +1759,24 @@ phone via `message.text`, echoes plaintext в Telegram chat (line 347),
 stores plaintext в БД. Triple violation: bot inbound, bot outbound,
 plaintext at rest.
 
-**Architectural decision pending Marina:** должен ли bot вообще принимать
-payout requisites? По правилу "mini_app never touches ПД" — bot тоже
-не должен. Predicted решение → bot payout flow удаляется, web_portal
-становится единственным местом для payout setup, в bot — кнопка
-"Открыть в портале" по образцу `OpenInWebPortal`.
+**Architectural decision (Marina, 2026-04-30):** Полное удаление
+bot payout flow. Web_portal — единственное место для payout setup.
 
-**Pickup:** серия 16.x.
+**Fix:** Удалены `src/bot/handlers/payout/` (351 LOC, 7 функций),
+`src/bot/states/payout.py` (PayoutStates FSM), `src/bot/keyboards/payout/`
+(dead helpers). Entry-point кнопки в `own_menu.py`, `cabinet.py`,
+`notifications.py` переключены на `WebAppInfo` → mini_app
+placeholder `/own/payouts/request` → `OpenInWebPortal` → web_portal.
+
+Архитектурное отклонение от промта: вместо нового server-side
+`build_portal_deeplink` (требовал бы parallel "bot-to-portal" exchange,
+поскольку `/exchange-miniapp-to-portal` требует mini_app JWT) —
+переиспользована существующая Phase 1 цепочка через mini_app
+placeholder. Net effect identical, audit surface не расширен.
+
+**Closure detail:** `CHANGES_2026-04-30_remove-bot-payout-flow.md`.
+Regression coverage: `tests/unit/test_fsm_middlewares.py::TestNoBotPayoutFlow`
+(`test_payout_handler_module_absent`, `test_payout_states_module_absent`).
 
 ### BL-046 — CRIT-2: /api/payouts/* accepts mini_app JWT
 
