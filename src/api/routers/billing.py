@@ -25,6 +25,7 @@ from src.constants.payments import PLAN_LIMITS
 from src.db.models.user import User
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
+from src.utils.yookassa_payload import extract_persistable_metadata
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["billing"])
@@ -371,12 +372,12 @@ async def get_fee_config() -> dict[str, dict[str, str]]:
         YOOKASSA_FEE_RATE,
     )
 
-    owner_net_rate = (
-        OWNER_SHARE_RATE * (Decimal("1") - SERVICE_FEE_RATE)
-    ).quantize(Decimal("0.001"))
-    platform_total_rate = (
-        PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE * SERVICE_FEE_RATE
-    ).quantize(Decimal("0.001"))
+    owner_net_rate = (OWNER_SHARE_RATE * (Decimal("1") - SERVICE_FEE_RATE)).quantize(
+        Decimal("0.001")
+    )
+    platform_total_rate = (PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE * SERVICE_FEE_RATE).quantize(
+        Decimal("0.001")
+    )
 
     return {
         "topup": {
@@ -728,7 +729,7 @@ async def yookassa_webhook(
                         payment_method.get("type") if payment_method else None
                     )
                     record.receipt_id = receipt.get("id") if receipt else None
-                    record.yookassa_metadata = event.payload  # сохраняем полный payload
+                    record.yookassa_metadata = extract_persistable_metadata(event.payload)
 
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
@@ -757,9 +758,7 @@ async def yookassa_webhook(
                         f"method={record.payment_method_type}, receipt={record.receipt_id}"
                     )
                 else:
-                    logger.warning(
-                        f"YooKassaPayment record not found for {event.payment_id}"
-                    )
+                    logger.warning(f"YooKassaPayment record not found for {event.payment_id}")
 
     except (ValueError, KeyError, TypeError) as e:
         logger.error("Invalid webhook payload from YooKassa: %s", e)
