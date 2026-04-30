@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — YooKassa webhook over-collection trim (16.5c, BL-051 closure) (2026-04-30)
+
+- New module `src/utils/yookassa_payload.py` — canonical projection
+  function `extract_persistable_metadata()` with FISCAL / PII /
+  TRANSPORT / ROUNDTRIP categorization. Pattern mirrors
+  `src/utils/pii_keys.py` (16.5b).
+- `src/api/routers/billing.py:731` write callsite now persists only
+  the projected subset to `YookassaPayment.yookassa_metadata` JSONB:
+  - **Retained** (FISCAL): `id`, `status`, `amount`, `income_amount`,
+    `paid`, `captured_at`, `created_at`, `expires_at`, `description`,
+    `refundable`, `refunded_amount`, `receipt_registration`,
+    `cancellation_details`, `authorization_details`, `transfers`,
+    `deal`. Inside `receipt`: `id`, `items`, `tax_system_code`,
+    `registered_at`, fiscal-* fields, `type`, `status`.
+  - **Retained** (ROUNDTRIP / TRANSPORT): `metadata`, `test`.
+  - **Dropped** (PII): `receipt.customer.{full_name, inn, email, phone}`.
+  - **Dropped** (PCI / transport): `payment_method` subtree (card
+    fragments, account_number), `recipient` subtree (YK internal IDs),
+    `confirmation` subtree (consumed pre-success), `merchant_customer_id`.
+- Normalized columns `YookassaPayment.payment_method_type` and
+  `YookassaPayment.receipt_id` continue to receive their values from
+  `event.payload` BEFORE the projection — no information loss for the
+  flat-column accessors.
+- 17 new unit tests in `tests/unit/utils/test_yookassa_payload.py`
+  (FISCAL retain, PII/TRANSPORT drop, edge cases including None /
+  non-dict / receipt-PII-only, immutability).
+- `make ci-local` baseline: 76 failed / 753 passed / 7 skipped /
+  17 errors (was 736 passed; +17 from new tests). No regressions.
+- Closes BL-051 sub-task 6, completing the BL-051 batch (6/6).
+- Surfaced BL-059 (deferred): YookassaPayment retroactive PII
+  minimization for rows persisted pre-2026-04-30 — Phase 3 candidate.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_16-5c-yookassa-canonical-projection.md
+
+### Internal — Makefile lint/test split (BL-057) (2026-04-30)
+
+- `make ci-local` split into 5 independent stages (check-forbidden,
+  lint, format-check, typecheck, test) aggregated through a shell
+  loop. Exit code is non-zero if any stage failed, but stages no
+  longer halt on first failure — all signals visible per run.
+- Standalone `make test` aligned via DRY recursion: ci-local invokes
+  `$(MAKE) --no-print-directory test`. Identical output on both
+  paths (76 failed / 725 passed / 7 skipped / 17 errors at the
+  baseline of split day).
+- Rationale: prior ci-local halted at the lint stage on the 128-error
+  baseline (BL-058) and never reached the test phase. Verify gates
+  for series 16.x were de-facto lint-only — behavioral coverage
+  relied on manual `pytest` runs per sub-promt. Process-finding
+  closed inline; lesson captured in BACKLOG (plan validation gate
+  (g) — verify command does what naming implies, use `make -n`
+  dry-run).
+- Surfaced BL-058 (deferred): ruff/format baseline cleanup batch
+  (128 ruff errors + 82 files needing format) — recommended next
+  mini-promt, mechanical scope.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_makefile-split.md
+
+### Changed — Canonical PII keys for Sentry init parity (16.5b, BL-056) (2026-04-30)
+
+- New module `src/utils/pii_keys.py` — 18-key canonical denylist with
+  category docstring (auth credentials / identity PII / documents /
+  payment).
+- `src/api/main.py` (FastAPI Sentry init) and `src/tasks/sentry_init.py`
+  (Celery worker Sentry init) both import the canonical list; local
+  literals removed (Case A — full removal). Drift between the two
+  inits is now impossible by construction.
+- `src/api/middleware/log_sanitizer.py` is intentionally **not**
+  consolidated — it remains on its own 12-key list per CLAUDE.md
+  NEVER TOUCH directive. Sanitizer ↔ Sentry asymmetry is a
+  known-allowed condition (documented in the new module's docstring).
+- 8 structure tests + 3 behavioural smoke tests added.
+- mypy / ruff baselines unchanged. Closes BL-056 (surfaced inline)
+  and BL-051 sub-task 4.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_16-5b-pii-keys-canonical.md
+
 ### Changed — LOW batch 16.5a (BL-051 partial) (2026-04-30)
 
 - `login_code` log statement redacted: plaintext one-time code dropped

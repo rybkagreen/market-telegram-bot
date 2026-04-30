@@ -402,7 +402,20 @@ completed, refunded, cancelled — terminal
 
 ---
 
-# Серия 16.x — PII Hardening (⏸ Pending, не начата)
+# Серия 16.x — PII Hardening (✅ DONE 2026-04-30)
+
+**Status overlay (closure 2026-04-30):**
+
+- 16.1 ✅ Группа A — pin `/api/payouts/*` + `/api/admin/*` к web_portal-only (BL-046, BL-049).
+- 16.2 ✅ Группа B — encrypt `PayoutRequest.requisites` + `DocumentUpload.ocr_text` (BL-047, BL-048).
+- 16.3 ✅ Группа C — bot payout flow removal + `OpenInWebPortal` redirect (BL-045).
+- 16.4 ✅ Группа D — `ReferralItem` PII leak fix (BL-050; `UserResponse` itself was OK — own-data only).
+- 16.5a ✅ LOW batch (BL-051 partial — 4/6 sub-tasks: dead states, unused export, dead notify, plaintext code).
+- 16.5b ✅ Canonical PII keys (BL-051 sub-task 4 + BL-056 surfaced+closed inline).
+- 16.5c ✅ YooKassa webhook over-collection trim (BL-051 sub-task 6 — closes BL-051 batch 6/6).
+- BL-057 ✅ Makefile lint/test split (process-finding from 16.5b verify gate sweep — surfaced+closed inline).
+- BL-058 ⏳ Surfaced — ruff/format baseline cleanup batch (deferred, recommended next mini-promt).
+- BL-059 ⏳ Surfaced — YookassaPayment retroactive PII minimization (Phase 3 candidate).
 
 **Origin:** `reports/docs-architect/discovery/PII_AUDIT_2026-04-28.md`.
 
