@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Direct bot-to-portal ticket exchange (BL-055 Commit 1) (2026-05-01)
+
+- New API endpoint `POST /api/auth/exchange-bot-token-to-portal`
+  (`src/api/routers/auth.py`). Authenticated via HMAC-SHA256 of
+  `<timestamp_ms>.<raw_body>` keyed by `BOT_TOKEN`, carried in
+  `X-Bot-Auth-Timestamp` + `X-Bot-Auth-Signature` headers
+  (`src/api/auth_bot_hmac.py`). Replay window enforced
+  (`BOT_AUTH_TIMESTAMP_TOLERANCE_SEC`, default 60s); constant-time
+  compare via `hmac.compare_digest`.
+- Allowed redirect-path whitelist
+  (`BOT_PORTAL_EXCHANGE_ALLOWED_PATHS`, default
+  `("/own/payouts/request",)`).
+- Internal API base URL setting `INTERNAL_API_BASE_URL`
+  (default `http://api:8001`) so bot calls API via Docker DNS,
+  not through public nginx/Cloudflare.
+- Response shape `BotPortalExchangeResponse{ticket_url}` —
+  pre-built portal URL `${web_portal_url}/login/ticket?ticket=…&redirect=…`,
+  consumable by the existing
+  `POST /api/auth/consume-ticket` handler (no FE/portal change).
+- Existing `exchange_miniapp_to_portal` refactored to share a
+  `_issue_portal_ticket()` helper — same ticket payload shape,
+  no behaviour change.
+- Tests:
+  `tests/unit/api/test_bot_hmac.py` (12 cases — sign/verify, tamper,
+  replay window, header parsing, case-insensitive hex);
+  `tests/unit/api/test_exchange_bot_token_to_portal.py`
+  (7 cases — happy path, PII-bound payload, 400/401/404 negatives).
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_BL-055-1-bot-portal-exchange-endpoint.md
+
 ### Changed — Admin grant API rename (17.2 Commit 3, BL-053) (2026-05-01)
 
 - Pydantic request schema `PlatformCreditRequest` → `AdminGrantRequest`
