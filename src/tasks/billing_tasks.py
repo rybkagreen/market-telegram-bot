@@ -156,8 +156,8 @@ def notify_payment_success(user_id: int, amount_rub: float, payment_id: str) -> 
     """
     Send payment success notification to user via notifications queue.
 
-    Dispatched by yookassa_service._credit_user — keeps service layer
-    free of Bot() instantiation and makes webhook response non-blocking.
+    Dispatched by BillingService.process_topup_webhook — keeps service
+    layer free of Bot() instantiation and makes webhook response non-blocking.
 
     Args:
         user_id: Internal DB user.id.

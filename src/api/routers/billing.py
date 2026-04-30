@@ -577,7 +577,7 @@ async def buy_credits(
 
     try:
         billing_service = BillingService()
-        await billing_service.buy_credits_for_plan(current_user.id, amount)
+        await billing_service.charge_balance_for_plan(current_user.id, amount)
     except InsufficientFundsError as e:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -733,9 +733,7 @@ async def yookassa_webhook(
 
                     # Извлечь desired_balance из metadata (строка)
                     metadata = {
-                        "desired_balance": str(
-                            record.desired_balance
-                        ),  # credits = desired_balance в v4.2
+                        "desired_balance": str(record.desired_balance),
                         "user_id": str(record.user_id),
                     }
                     gross_amount = record.gross_amount
