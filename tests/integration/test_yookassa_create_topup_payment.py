@@ -82,7 +82,7 @@ async def test_create_topup_payment_persists_records_via_caller_session(db_sessi
     # gross = 100 + (100 * YOOKASSA_FEE_RATE=0.035) = 103.50.
     # Промт 15.7: switched from PLATFORM_TAX_RATE 6% to YOOKASSA_FEE_RATE 3.5%.
     assert result["amount"] == "103.50"
-    assert result["credits"] == 100
+    assert result["amount_rub"] == 100
 
     yk = (
         await db_session.execute(
@@ -183,7 +183,7 @@ async def test_topup_endpoint_calls_create_topup_payment(db_session, monkeypatch
         "payment_id": "test-pid-endpoint",
         "payment_url": "https://yookassa.test/endpoint-url",
         "amount": "1035.00",
-        "credits": 1000,
+        "amount_rub": 1000,
         "status": "pending",
     }
 
