@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — Bot payout flow, replaced by web_portal deeplink (2026-04-30)
+
+- Deleted `src/bot/handlers/payout/payout.py` (351 LOC, 7 functions)
+  including the BL-045 sink at lines 281–351 that accepted card / phone
+  via `message.text` and echoed plaintext back to the chat.
+- Deleted `src/bot/states/payout.py` (`PayoutStates` FSM).
+- Deleted `src/bot/keyboards/payout/` (dead helpers `payout_amounts_kb`,
+  `payout_confirm_kb` — defined but never imported).
+- Unregistered `payout_router` from `src/bot/handlers/__init__.py`.
+- Bot entry-point buttons replaced with `WebAppInfo` opening the
+  mini_app at `/own/payouts/request`:
+  - `src/bot/keyboards/owner/own_menu.py:16` ("💸 Выплаты")
+  - `src/bot/keyboards/shared/cabinet.py:17-22` ("💸 Запросить вывод")
+  - `src/bot/handlers/shared/notifications.py:244-250` (post-completion
+    "💸 Запросить вывод")
+- New helper `src/bot/utils/portal_deeplink.py` — `portal_webapp(target)`
+  returns `WebAppInfo(url=mini_app_url + target)`. The mini_app
+  placeholder screen wraps `OpenInWebPortal` (Phase 1 §1.B.2), which
+  exchanges the mini_app JWT for a one-shot ticket and bridges into the
+  web portal — no new server-side helper, no bypass of audience model.
+- Web portal becomes the sole surface for payout setup; backend
+  `/api/payouts/*` (16.1 web_portal-only audience) and
+  `PayoutRequest.requisites` encryption (16.2) untouched.
+- 2 new regression tests in `tests/unit/test_fsm_middlewares.py`
+  (`TestNoBotPayoutFlow`) assert the handler dir and the FSM module are
+  absent.
+- mypy / ruff baselines unchanged (10 / 21 errors, all pre-existing).
+- Closes BL-045 (CRIT-1: bot payout FSM accepts financial PII).
+- Series 16.x Group C done. 16.4 (`UserResponse` referral leak —
+  BL-050 MED-6) and 16.5 (LOW batch — BL-051) remain pending.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-04-30_remove-bot-payout-flow.md
+
 ### Changed — PII encryption at rest: PayoutRequest.requisites + DocumentUpload.ocr_text (2026-04-30)
 
 - `PayoutRequest.requisites`: `String(512)` → `EncryptedString(2048)`
