@@ -14,7 +14,6 @@ from src.bot.handlers.owner.analytics import router as owner_analytics_router
 from src.bot.handlers.owner.arbitration import router as arbitration_router
 from src.bot.handlers.owner.channel_owner import router as channel_owner_router
 from src.bot.handlers.owner.channel_settings import router as channel_settings_router
-from src.bot.handlers.payout.payout import router as payout_router
 from src.bot.handlers.placement.placement import router as placement_router
 from src.bot.handlers.shared.cabinet import router as cabinet_router
 from src.bot.handlers.shared.contract_signing import contract_signing_router
@@ -26,7 +25,9 @@ from src.bot.handlers.shared.start import router as start_router
 
 main_router = Router()
 
-# Router order: shared → billing → payout → advertiser → placement → owner → admin → dispute
+# Router order: shared → billing → advertiser → placement → owner → admin → dispute
+# Payout setup flow removed in 16.3 — bot now opens mini_app at /own/payouts/request,
+# which redirects via OpenInWebPortal to the web portal (PII never enters bot).
 main_router.include_router(start_router)
 main_router.include_router(login_code_router)
 main_router.include_router(cabinet_router)
@@ -35,7 +36,6 @@ main_router.include_router(feedback_router)
 main_router.include_router(legal_profile_router)
 main_router.include_router(contract_signing_router)
 main_router.include_router(billing_router)
-main_router.include_router(payout_router)
 main_router.include_router(advertiser_analytics_router)
 main_router.include_router(campaigns_router)
 main_router.include_router(placement_router)

@@ -5,6 +5,8 @@ Standalone tests - no conftest dependencies.
 
 import subprocess
 
+import pytest
+
 
 class TestFSMStates:
     """Tests for FSM states."""
@@ -41,15 +43,6 @@ class TestFSMStates:
         states = ChannelSettingsStates.__dict__
         assert "waiting_price_per_post" in states
         assert "waiting_start_time" in states
-
-    def test_payout_states_defined(self):
-        """PayoutStates has 3 states: entering_amount, confirming, entering_requisites."""
-        from src.bot.states.payout import PayoutStates
-
-        states = PayoutStates.__dict__
-        assert "entering_amount" in states
-        assert "confirming" in states
-        assert "entering_requisites" in states
 
     def test_channel_owner_states_defined(self):
         """ChannelOwnerStates has 2 states."""
@@ -96,7 +89,6 @@ class TestFSMStates:
             DisputeStates,
             FeedbackStates,
             PlacementStates,
-            PayoutStates,
             TopupStates,
         )
 
@@ -109,7 +101,6 @@ class TestFSMStates:
         assert DisputeStates is not None
         assert FeedbackStates is not None
         assert PlacementStates is not None
-        assert PayoutStates is not None
         assert TopupStates is not None
 
 
@@ -197,3 +188,33 @@ class TestCallbackRegistry:
         # Should find 0 matches (excluding comments)
         lines = [line for line in result.stdout.split("\n") if line and ".pyc" not in line]
         assert len(lines) == 0, f"B2B callbacks found: {lines}"
+
+
+class TestNoBotPayoutFlow:
+    """BL-045 / 16.3: bot must not accept payout requisites (PII).
+
+    Setup lives in the web portal; the bot only opens the mini_app at
+    `/own/payouts/request`, which redirects via OpenInWebPortal.
+    """
+
+    def test_payout_handler_module_absent(self):
+        """src/bot/handlers/payout/ removed in 16.3."""
+        from pathlib import Path
+
+        handlers_dir = Path(__file__).resolve().parents[2] / "src" / "bot" / "handlers"
+        assert not (handlers_dir / "payout").exists(), (
+            "src/bot/handlers/payout/ exists; "
+            "bot payout setup flow must be removed (BL-045)"
+        )
+
+    def test_payout_states_module_absent(self):
+        """src/bot/states/payout.py removed; PayoutStates not importable."""
+        with pytest.raises(ImportError):
+            __import__("src.bot.states.payout", fromlist=["PayoutStates"])
+
+        from src.bot import states
+
+        assert not hasattr(states, "PayoutStates"), (
+            "PayoutStates still exported from src.bot.states; "
+            "must be deleted (BL-045)"
+        )
