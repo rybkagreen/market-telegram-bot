@@ -982,13 +982,12 @@ class BillingService:
         transaction = Transaction(
             user_id=user_id,
             amount=amount,
-            type=TransactionType.admin_credit,
+            type=TransactionType.admin_grant,
             yookassa_payment_id=None,
             description=f"Зачисление администратором: {comment}"
             if comment
             else "Зачисление администратором",
             meta_json={
-                "type": "admin_credit",
                 "admin_id": admin_id,
                 "comment": comment,
             },
