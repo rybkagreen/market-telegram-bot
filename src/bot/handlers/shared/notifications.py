@@ -560,31 +560,3 @@ def format_yookassa_payment_success(
         f"💰 Баланс: <b>{new_balance:.2f} ₽</b>\n\n"
         f"Спасибо за пополнение!"
     )
-
-
-async def notify_admins_new_feedback(
-    bot: Bot,
-    feedback_id: int,
-    user_id: int,
-    text: str,
-) -> None:
-    """Notify all admins about new feedback."""
-    from src.config.settings import settings
-
-    message = (
-        f"📬 <b>Новый feedback #</b>{feedback_id}\n\n"
-        f"👤 User ID: <code>{user_id}</code>\n\n"
-        f"📝 <b>Текст:</b>\n"
-        f"{text[:500]}{'...' if len(text) > 500 else ''}\n\n"
-        f"/admin/feedback — просмотр"
-    )
-
-    for admin_id in settings.admin_ids:
-        try:
-            await bot.send_message(
-                admin_id,
-                message,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error(f"Failed to notify admin {admin_id} about feedback {feedback_id}: {e}")
