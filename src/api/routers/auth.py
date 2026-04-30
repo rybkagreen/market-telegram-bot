@@ -1,10 +1,11 @@
 """
 Auth router для JWT авторизации через Telegram initData.
 
-POST /api/auth/telegram                   — JWT по initData (mini_app)
-POST /api/auth/exchange-miniapp-to-portal — обменять mini_app JWT на ticket
-POST /api/auth/consume-ticket             — обменять ticket на web_portal JWT
-GET  /api/auth/me                         — данные текущего пользователя
+POST /api/auth/telegram                       — JWT по initData (mini_app)
+POST /api/auth/exchange-miniapp-to-portal     — обменять mini_app JWT на ticket
+POST /api/auth/exchange-bot-token-to-portal   — bot → portal ticket via HMAC (BL-055)
+POST /api/auth/consume-ticket                 — обменять ticket на web_portal JWT
+GET  /api/auth/me                             — данные текущего пользователя
 """
 
 import json
@@ -12,12 +13,14 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
+from urllib.parse import quote
 
 import jwt as pyjwt
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from src.api.auth_bot_hmac import verify_bot_request_signature
 from src.api.auth_utils import create_jwt_token, validate_telegram_init_data
 from src.api.dependencies import (
     CurrentUser,
@@ -105,6 +108,60 @@ async def _record_user_fail(redis: aioredis.Redis, user_id: int) -> None:
     count = await redis.incr(key)
     if count == 1:
         await redis.expire(key, _TICKET_FAIL_USER_WINDOW_S)
+
+
+async def _issue_portal_ticket(
+    *,
+    user: User,
+    redis: aioredis.Redis,
+    ip: str,
+) -> tuple[str, str]:
+    """Mint a ``aud="web_portal"`` ticket-JWT and stamp its jti in Redis.
+
+    Both ``exchange-miniapp-to-portal`` (mini_app JWT auth) and
+    ``exchange-bot-token-to-portal`` (HMAC auth, BL-055) call into here so
+    the ticket payload + Redis bookkeeping stay identical and the existing
+    ``consume-ticket`` handler accepts both without modification.
+
+    Returns ``(ticket_jwt, jti)``. The caller wraps it into the response
+    shape its endpoint contract demands.
+    """
+    jti = str(uuid.uuid4())
+    issued_at = datetime.now(UTC)
+    expire = issued_at + timedelta(seconds=settings.ticket_jwt_ttl_seconds)
+    plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+
+    payload = {
+        "sub": str(user.id),
+        "tg": user.telegram_id,
+        "plan": plan_value,
+        "jti": jti,
+        "aud": "web_portal",
+        "exp": expire,
+        "iat": issued_at,
+    }
+    ticket = pyjwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+    await redis.setex(
+        f"auth:ticket:jti:{jti}",
+        settings.ticket_jwt_ttl_seconds,
+        json.dumps({
+            "user_id": user.id,
+            "issued_at": issued_at.isoformat(),
+            "ip": ip,
+        }),
+    )
+
+    logger.info(
+        "ticket_issued",
+        extra={
+            "event": "ticket_issued",
+            "user_id": user.id,
+            "jti_prefix": jti[:8],
+            "ip": ip,
+        },
+    )
+    return ticket, jti
 
 
 # ─── Схемы ──────────────────────────────────────────────────────
@@ -239,50 +296,119 @@ async def exchange_miniapp_to_portal(
       - jti в Redis — one-shot consume, защита от replay.
       - Короткий TTL (по умолчанию 300с) ограничивает окно атаки.
     """
-    jti = str(uuid.uuid4())
-    issued_at = datetime.now(UTC)
-    expire = issued_at + timedelta(seconds=settings.ticket_jwt_ttl_seconds)
-    ip = _client_ip(request)
-    plan_value = (
-        current_user.plan.value if hasattr(current_user.plan, "value") else str(current_user.plan)
+    ticket, _jti = await _issue_portal_ticket(
+        user=current_user,
+        redis=redis,
+        ip=_client_ip(request),
     )
-
-    payload = {
-        "sub": str(current_user.id),
-        "tg": current_user.telegram_id,
-        "plan": plan_value,
-        "jti": jti,
-        "aud": "web_portal",
-        "exp": expire,
-        "iat": issued_at,
-    }
-    ticket = pyjwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-
-    await redis.setex(
-        f"auth:ticket:jti:{jti}",
-        settings.ticket_jwt_ttl_seconds,
-        json.dumps({
-            "user_id": current_user.id,
-            "issued_at": issued_at.isoformat(),
-            "ip": ip,
-        }),
-    )
-
-    logger.info(
-        "ticket_issued",
-        extra={
-            "event": "ticket_issued",
-            "user_id": current_user.id,
-            "jti_prefix": jti[:8],
-            "ip": ip,
-        },
-    )
-
     return TicketResponse(
         ticket=ticket,
         portal_url=settings.web_portal_url,
         expires_in=settings.ticket_jwt_ttl_seconds,
     )
+
+
+# ─── Bot → portal direct exchange (BL-055) ─────────────────────
+
+
+class BotPortalExchangeRequest(BaseModel):
+    """Body of POST /api/auth/exchange-bot-token-to-portal.
+
+    Bot signs the *raw bytes* of this body with HMAC-SHA256 keyed by
+    BOT_TOKEN; signature lands in ``X-Bot-Auth-Signature`` header,
+    timestamp in ``X-Bot-Auth-Timestamp``.
+    """
+
+    telegram_id: int = Field(..., description="Telegram user id of the bot's interlocutor")
+    redirect_path: str = Field(
+        ...,
+        description="Same-origin path to land on after portal login (must match whitelist)",
+    )
+
+
+class BotPortalExchangeResponse(BaseModel):
+    """Successful response for the bot → portal exchange.
+
+    The ticket is already wrapped into the full portal URL — the bot just
+    drops it onto an InlineKeyboardButton ``url=`` and is done.
+    """
+
+    ticket_url: str
+
+
+@router.post("/exchange-bot-token-to-portal")
+async def exchange_bot_token_to_portal(
+    request: Request,
+    body: BotPortalExchangeRequest,
+    redis: Annotated[aioredis.Redis, Depends(get_redis)],
+) -> BotPortalExchangeResponse:
+    """Mint a portal-login URL on behalf of a bot caller (BL-055).
+
+    Auth: HMAC-SHA256(BOT_TOKEN, ``"<timestamp_ms>." + raw_body``) carried
+    in ``X-Bot-Auth-Signature`` (hex), with ``X-Bot-Auth-Timestamp``
+    (ms-since-epoch) inside ``±bot_auth_timestamp_tolerance_sec`` of
+    server clock. Failures all collapse to a single 401 with no detail
+    leakage — the caller is server-side, not a human.
+
+    The minted ticket has the same shape as the one issued by
+    ``/api/auth/exchange-miniapp-to-portal`` and is consumed by the same
+    ``/api/auth/consume-ticket`` endpoint.
+    """
+    ip = _client_ip(request)
+
+    raw_body = await request.body()
+    if not verify_bot_request_signature(
+        timestamp_header=request.headers.get("x-bot-auth-timestamp"),
+        body_bytes=raw_body,
+        signature_header=request.headers.get("x-bot-auth-signature"),
+        bot_token=settings.bot_token,
+        tolerance_sec=settings.bot_auth_timestamp_tolerance_sec,
+    ):
+        logger.warning(
+            "bot_exchange_unauthorized",
+            extra={"event": "bot_exchange_unauthorized", "ip": ip},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bot auth",
+        )
+
+    if body.redirect_path not in settings.bot_portal_exchange_allowed_paths:
+        logger.warning(
+            "bot_exchange_disallowed_redirect",
+            extra={
+                "event": "bot_exchange_disallowed_redirect",
+                "ip": ip,
+                "redirect_path": body.redirect_path,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_path not allowed",
+        )
+
+    async with async_session_factory() as session:
+        user = await UserRepository(session).get_by_telegram_id(body.telegram_id)
+        if user is None:
+            logger.warning(
+                "bot_exchange_user_not_found",
+                extra={
+                    "event": "bot_exchange_user_not_found",
+                    "ip": ip,
+                    "telegram_id": body.telegram_id,
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        ticket, _jti = await _issue_portal_ticket(user=user, redis=redis, ip=ip)
+
+    redirect_encoded = quote(body.redirect_path, safe="")
+    portal_base = settings.web_portal_url.rstrip("/")
+    ticket_url = f"{portal_base}/login/ticket?ticket={ticket}&redirect={redirect_encoded}"
+    return BotPortalExchangeResponse(ticket_url=ticket_url)
 
 
 class ConsumeTicketRequest(BaseModel):

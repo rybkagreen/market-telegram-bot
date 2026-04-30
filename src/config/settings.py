@@ -302,6 +302,38 @@ class Settings(BaseSettings):
     # Mini_app → web_portal JWT bridge (Phase 0)
     ticket_jwt_ttl_seconds: int = Field(300, alias="TICKET_JWT_TTL_SECONDS")
 
+    # Bot → portal direct exchange (BL-055).
+    # Internal Docker DNS lets bot call API without traversing nginx/Cloudflare.
+    # Override to http://localhost:8001 for host-side dev runs.
+    internal_api_base_url: str = Field(
+        "http://api:8001",
+        alias="INTERNAL_API_BASE_URL",
+        description="In-cluster base URL for server-to-server API calls (bot → API)",
+    )
+    bot_portal_exchange_allowed_paths: tuple[str, ...] = Field(
+        ("/own/payouts/request",),
+        alias="BOT_PORTAL_EXCHANGE_ALLOWED_PATHS",
+        description="Whitelist of redirect_path values accepted by /api/auth/exchange-bot-token-to-portal",
+    )
+    bot_auth_timestamp_tolerance_sec: int = Field(
+        60,
+        alias="BOT_AUTH_TIMESTAMP_TOLERANCE_SEC",
+        description="Replay-window tolerance (±sec) for X-Bot-Auth-Timestamp",
+    )
+
+    @field_validator("bot_portal_exchange_allowed_paths", mode="before")
+    @classmethod
+    def _parse_allowed_paths(cls, value: object) -> object:
+        # Default Pydantic-Settings parses list/tuple env vars as JSON. Accept
+        # CSV ("/a,/b") as well so ops can override via plain .env without
+        # quoting brackets.
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return value  # let JSON parser handle
+            return tuple(p.strip() for p in stripped.split(",") if p.strip())
+        return value
+
     # Optional sandbox Telegram channel id for test-mode routing (Phase 5).
     sandbox_telegram_channel_id: int | None = Field(None, alias="SANDBOX_TELEGRAM_CHANNEL_ID")
 
