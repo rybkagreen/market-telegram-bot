@@ -82,8 +82,8 @@ class TestFSMStates:
         from src.bot.states import (
             AdminStates,
             ArbitrationStates,
-            CampaignStates,
             CampaignCreateState,
+            CampaignStates,
             ChannelOwnerStates,
             ChannelSettingsStates,
             DisputeStates,
@@ -144,8 +144,9 @@ class TestMiddlewareStructure:
 
     def test_throttling_middleware_has_redis_param(self):
         """ThrottlingMiddleware.__init__ accepts redis parameter."""
-        from src.bot.middlewares.throttling import ThrottlingMiddleware
         import inspect
+
+        from src.bot.middlewares.throttling import ThrottlingMiddleware
 
         sig = inspect.signature(ThrottlingMiddleware.__init__)
         params = list(sig.parameters.keys())

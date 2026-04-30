@@ -6,7 +6,7 @@ Queue: background | Worker: worker_background
 import logging
 
 from src.core.services.github_service import GitHubIssuePayload, GitHubPRPayload, GitHubService
-from src.tasks.celery_app import celery_app, QUEUE_BACKGROUND
+from src.tasks.celery_app import QUEUE_BACKGROUND, celery_app
 
 logger = logging.getLogger(__name__)
 

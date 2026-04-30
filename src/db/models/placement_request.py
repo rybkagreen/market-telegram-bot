@@ -187,7 +187,7 @@ class PlacementRequest(Base, TimestampMixin):
     mailing_logs: Mapped[list[MailingLog]] = relationship(
         "MailingLog", back_populates="placement_request"
     )
-    status_history: Mapped[list["PlacementStatusHistory"]] = relationship(
+    status_history: Mapped[list[PlacementStatusHistory]] = relationship(
         "PlacementStatusHistory",
         back_populates="placement",
         cascade=_CASCADE_ALL_DELETE,

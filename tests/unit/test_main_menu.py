@@ -1,6 +1,5 @@
 """Unit тесты клавиатур главного меню."""
 
-import pytest
 from aiogram.types import InlineKeyboardMarkup
 
 from src.bot.keyboards.shared.main_menu import main_menu_kb, role_select_kb, tos_kb

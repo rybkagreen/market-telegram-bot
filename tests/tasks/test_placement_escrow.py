@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # =============================================================================
 # check_escrow_sla — source inspection (sync)
 # =============================================================================
@@ -23,6 +22,7 @@ import pytest
 class TestCheckEscrowSlaSrc:
     def test_calls_billing_service_refund_escrow(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_sla_async
 
         source = inspect.getsource(_check_escrow_sla_async)
@@ -31,6 +31,7 @@ class TestCheckEscrowSlaSrc:
 
     def test_no_direct_transaction_creation(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_sla_async
 
         source = inspect.getsource(_check_escrow_sla_async)
@@ -38,6 +39,7 @@ class TestCheckEscrowSlaSrc:
 
     def test_per_item_commit(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_sla_async
 
         source = inspect.getsource(_check_escrow_sla_async)
@@ -45,6 +47,7 @@ class TestCheckEscrowSlaSrc:
 
     def test_uses_after_escrow_before_confirmation_scenario(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_sla_async
 
         source = inspect.getsource(_check_escrow_sla_async)
@@ -52,6 +55,7 @@ class TestCheckEscrowSlaSrc:
 
     def test_has_session_rollback_on_error(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_sla_async
 
         source = inspect.getsource(_check_escrow_sla_async)
@@ -66,6 +70,7 @@ class TestCheckEscrowSlaSrc:
 class TestCheckEscrowStuckSrc:
     def test_group_a_dispatches_delete(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -73,6 +78,7 @@ class TestCheckEscrowStuckSrc:
 
     def test_group_b_calls_refund(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -80,6 +86,7 @@ class TestCheckEscrowStuckSrc:
 
     def test_commits_per_item(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -87,6 +94,7 @@ class TestCheckEscrowStuckSrc:
 
     def test_sends_admin_alert(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -95,6 +103,7 @@ class TestCheckEscrowStuckSrc:
 
     def test_meta_json_records_stuck_detected(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -102,6 +111,7 @@ class TestCheckEscrowStuckSrc:
 
     def test_has_session_rollback_on_error(self):
         import inspect
+
         from src.tasks.placement_tasks import _check_escrow_stuck_async
 
         source = inspect.getsource(_check_escrow_stuck_async)
@@ -127,6 +137,7 @@ class TestDeletePublishedPostSrc:
 
     def test_no_bare_except_in_async(self):
         import inspect
+
         from src.tasks.placement_tasks import _delete_published_post_async
 
         source = inspect.getsource(_delete_published_post_async)
@@ -134,6 +145,7 @@ class TestDeletePublishedPostSrc:
 
     def test_no_error_return_dict(self):
         import inspect
+
         from src.tasks.placement_tasks import _delete_published_post_async
 
         source = inspect.getsource(_delete_published_post_async)
@@ -148,6 +160,7 @@ class TestDeletePublishedPostSrc:
 class TestPublishPlacementFailureSrc:
     def test_calls_refund_escrow_on_failure(self):
         import inspect
+
         from src.tasks.placement_tasks import _publish_placement_async
 
         source = inspect.getsource(_publish_placement_async)
@@ -155,6 +168,7 @@ class TestPublishPlacementFailureSrc:
 
     def test_no_hardcoded_pct_promise(self):
         import inspect
+
         from src.tasks.placement_tasks import _publish_placement_async
 
         source = inspect.getsource(_publish_placement_async)
@@ -162,6 +176,7 @@ class TestPublishPlacementFailureSrc:
 
     def test_uses_after_escrow_before_confirmation(self):
         import inspect
+
         from src.tasks.placement_tasks import _publish_placement_async
 
         source = inspect.getsource(_publish_placement_async)
@@ -176,6 +191,7 @@ class TestPublishPlacementFailureSrc:
 class TestNoDirectMutations:
     def test_no_direct_balance_mutation(self):
         import inspect
+
         import src.tasks.placement_tasks as module
 
         source = inspect.getsource(module)
@@ -189,6 +205,7 @@ class TestNoDirectMutations:
 
     def test_autoretry_present_in_module(self):
         import inspect
+
         import src.tasks.placement_tasks as module
 
         source = inspect.getsource(module)
@@ -279,8 +296,8 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
 
 def test_publish_placement_failure_calls_refund_escrow():
     """При ошибке публикации refund_escrow вызывается с scenario=after_escrow_before_confirmation."""
-    from src.tasks.placement_tasks import _publish_placement_async
     from src.db.models.placement_request import PlacementStatus as PS
+    from src.tasks.placement_tasks import _publish_placement_async
 
     async def _run():
         placement = MagicMock()
@@ -336,8 +353,8 @@ def test_publish_placement_failure_calls_refund_escrow():
 
 def test_publish_placement_success_does_not_refund():
     """Happy path не вызывает refund_escrow."""
-    from src.tasks.placement_tasks import _publish_placement_async
     from src.db.models.placement_request import PlacementStatus as PS
+    from src.tasks.placement_tasks import _publish_placement_async
 
     async def _run():
         placement = MagicMock()

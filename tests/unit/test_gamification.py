@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import select
 
 from src.core.services.badge_service import badge_service
-from src.db.models.badge import UserBadge
 from src.db.models.user import User
 
 

@@ -4,7 +4,7 @@ Unit тесты уведомлений PlacementRequest.
 """
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -14,7 +14,6 @@ from src.bot.handlers.shared.notifications import (
     notify_advertiser_published,
     notify_advertiser_rejected,
     notify_owner_new_request,
-    notify_owner_post_completed,
     notify_payment_received,
 )
 

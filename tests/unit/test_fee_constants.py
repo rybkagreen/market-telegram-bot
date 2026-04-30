@@ -19,16 +19,16 @@ from src.constants.fees import (
 
 def test_placement_split_sums_to_one() -> None:
     """20% + 80% = 100%."""
-    assert PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE == Decimal("1.00")
+    assert Decimal("1.00") == PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE
 
 
 def test_cancel_splits_sum_to_one() -> None:
     """50% + 40% + 10% = 100%."""
-    assert (
+    assert Decimal("1.00") == (
         CANCEL_REFUND_ADVERTISER_RATE
         + CANCEL_REFUND_OWNER_RATE
         + CANCEL_REFUND_PLATFORM_RATE
-    ) == Decimal("1.00")
+    )
 
 
 def test_owner_net_rate_computation() -> None:
@@ -62,7 +62,7 @@ def test_owner_plus_platform_equals_one() -> None:
 
 def test_topup_fee_rate_correct() -> None:
     """3.5% YooKassa pass-through."""
-    assert YOOKASSA_FEE_RATE == Decimal("0.035")
+    assert Decimal("0.035") == YOOKASSA_FEE_RATE
 
 
 def test_release_escrow_split_on_1000_rub() -> None:

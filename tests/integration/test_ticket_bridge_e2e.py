@@ -47,7 +47,6 @@ from src.api.dependencies import get_current_user, get_redis
 from src.api.main import app
 from src.config.settings import settings
 
-
 # ─── Minimal in-memory stubs ───────────────────────────────────────
 
 

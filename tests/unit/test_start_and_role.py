@@ -21,6 +21,7 @@ from aiogram.fsm.context import FSMContext
 # Fixtures
 # ─────────────────────────────────────────────
 
+
 @pytest.fixture
 def tg_user_new():
     """Telegram юзер которого нет в БД."""
