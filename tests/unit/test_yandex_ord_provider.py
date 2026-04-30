@@ -123,9 +123,7 @@ async def test_register_platform_sends_deterministic_id() -> None:
         return httpx.Response(200, json=_load("register_platform_success.json"))
 
     provider = _build_provider(handler)
-    platform_id = await provider.register_platform(
-        101, "https://t.me/test_channel", "Test Channel"
-    )
+    platform_id = await provider.register_platform(101, "https://t.me/test_channel", "Test Channel")
     assert platform_id == "platform-101"
 
 
@@ -166,9 +164,7 @@ async def test_register_contract_sends_deterministic_id() -> None:
         ("text", "text_block"),
     ],
 )
-async def test_register_creative_form_depends_on_media(
-    media_type: str, expected_form: str
-) -> None:
+async def test_register_creative_form_depends_on_media(media_type: str, expected_form: str) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         assert req.url.path == "/api/v7/creative"
         body = json.loads(req.content)

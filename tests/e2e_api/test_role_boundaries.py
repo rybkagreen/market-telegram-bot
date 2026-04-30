@@ -16,7 +16,6 @@ from __future__ import annotations
 import httpx
 import pytest
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -101,8 +100,7 @@ async def test_common_paths_ok_for_advertiser(
     # when the advertiser has no relevant entity (e.g. /legal-profile/me
     # before the advertiser filled legal data). Reject 500 regardless.
     assert resp.status_code != 500, (
-        f"GET {path} as advertiser returned 500 — backend bug.\n"
-        f"Body: {resp.text[:500]}"
+        f"GET {path} as advertiser returned 500 — backend bug.\nBody: {resp.text[:500]}"
     )
     assert resp.status_code in (200, 204, 404), (
         f"GET {path} as advertiser: unexpected {resp.status_code}: {resp.text[:200]}"
@@ -117,25 +115,17 @@ async def test_admin_paths_reject_non_admin(
     # Non-admin accessing admin routes → 403 (forbidden), or 401/404
     # depending on dependency style. Never 200 (privilege escalation)
     # and never 500 (crash).
-    assert resp.status_code != 200, (
-        f"Privilege escalation: advertiser got 200 on admin path {path}"
-    )
-    assert resp.status_code != 500, (
-        f"Admin path {path} crashed with 500: {resp.text[:200]}"
-    )
+    assert resp.status_code != 200, f"Privilege escalation: advertiser got 200 on admin path {path}"
+    assert resp.status_code != 500, f"Admin path {path} crashed with 500: {resp.text[:200]}"
     assert resp.status_code in (401, 403, 404), (
         f"Admin path {path} as advertiser: {resp.status_code}: {resp.text[:200]}"
     )
 
 
 @pytest.mark.parametrize("path", ADMIN_ONLY_GETS)
-async def test_admin_paths_accept_admin(
-    admin_client: httpx.AsyncClient, path: str
-) -> None:
+async def test_admin_paths_accept_admin(admin_client: httpx.AsyncClient, path: str) -> None:
     resp = await admin_client.get(path)
-    assert resp.status_code != 500, (
-        f"GET {path} as admin returned 500: {resp.text[:500]}"
-    )
+    assert resp.status_code != 500, f"GET {path} as admin returned 500: {resp.text[:500]}"
     # Accept 200/204 (happy paths), 404 (empty datasets), and 422 (endpoints
     # with required query params we didn't supply — confirms handler lives).
     # Reject 401/403 (admin auth should work) and 500 (crash).

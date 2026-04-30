@@ -59,8 +59,8 @@ class PlacementStatusHistory(Base):
         server_default="{}",
     )
 
-    placement: Mapped["PlacementRequest"] = relationship(back_populates="status_history")
-    actor: Mapped["User | None"] = relationship()
+    placement: Mapped[PlacementRequest] = relationship(back_populates="status_history")
+    actor: Mapped[User | None] = relationship()
 
     __table_args__ = (
         Index(

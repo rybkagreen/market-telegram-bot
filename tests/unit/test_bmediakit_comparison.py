@@ -13,8 +13,8 @@ from sqlalchemy import select
 
 from src.core.services.comparison_service import comparison_service
 from src.core.services.mediakit_service import mediakit_service
-from src.db.models.telegram_chat import TelegramChat
 from src.db.models.channel_mediakit import ChannelMediakit
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 
 
@@ -47,7 +47,9 @@ class TestChannelMediakitModel:
         await db_session.commit()
 
         # Verify
-        result = await db_session.execute(select(ChannelMediakit).where(ChannelMediakit.channel_id == chat.id))
+        result = await db_session.execute(
+            select(ChannelMediakit).where(ChannelMediakit.channel_id == chat.id)
+        )
         saved = result.scalar_one()
 
         assert saved is not None

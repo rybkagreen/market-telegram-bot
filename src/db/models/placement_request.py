@@ -187,7 +187,7 @@ class PlacementRequest(Base, TimestampMixin):
     mailing_logs: Mapped[list[MailingLog]] = relationship(
         "MailingLog", back_populates="placement_request"
     )
-    status_history: Mapped[list["PlacementStatusHistory"]] = relationship(
+    status_history: Mapped[list[PlacementStatusHistory]] = relationship(
         "PlacementStatusHistory",
         back_populates="placement",
         cascade=_CASCADE_ALL_DELETE,
@@ -199,8 +199,7 @@ class PlacementRequest(Base, TimestampMixin):
         # INV-1 (see /root/.claude/plans/optimized-brewing-music.md):
         # status='escrow' ⇒ escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL.
         CheckConstraint(
-            "status != 'escrow' OR "
-            "(escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
+            "status != 'escrow' OR (escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
             name="placement_escrow_integrity",
         ),
     )

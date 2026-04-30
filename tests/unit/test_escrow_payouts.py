@@ -47,6 +47,7 @@ class TestEscrowFreeze:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1001234567890,
             title="Test Channel",
@@ -88,7 +89,9 @@ class TestEscrowFreeze:
         assert result.meta_json.get("placement_id") == placement.id
 
     @pytest.mark.asyncio
-    async def test_freeze_placement_funds_insufficient_balance_rub(self, db_session, advertiser_test_data):
+    async def test_freeze_placement_funds_insufficient_balance_rub(
+        self, db_session, advertiser_test_data
+    ):
         """Test fund freezing with insufficient balance_rub."""
         # Create advertiser with insufficient balance_rub
         advertiser_data = advertiser_test_data.copy()
@@ -100,6 +103,7 @@ class TestEscrowFreeze:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1001234567890,
             title="Test Channel",
@@ -144,6 +148,7 @@ class TestEscrowRelease:
         """Test successful escrow release."""
         # Create platform account (singleton id=1)
         from src.db.models.platform_account import PlatformAccount
+
         platform_account = PlatformAccount(id=1)
         db_session.add(platform_account)
         await db_session.flush()
@@ -158,6 +163,7 @@ class TestEscrowRelease:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1009876543210,
             title="Test Channel",
@@ -228,6 +234,7 @@ class TestEscrowRelease:
         """Test that release_escrow_funds is idempotent."""
         # Create platform account (singleton id=1)
         from src.db.models.platform_account import PlatformAccount
+
         platform_account = PlatformAccount(id=1)
         db_session.add(platform_account)
         await db_session.flush()
@@ -242,6 +249,7 @@ class TestEscrowRelease:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1009876543210,
             title="Test Channel",
@@ -316,6 +324,7 @@ class TestRefundFailedPlacement:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1001234567890,
             title="Test Channel",
@@ -375,7 +384,9 @@ class TestRefundFailedPlacement:
         assert transaction.meta_json["type"] == "refund"
 
     @pytest.mark.asyncio
-    async def test_refund_failed_placement_only_failed_status(self, db_session, advertiser_test_data):
+    async def test_refund_failed_placement_only_failed_status(
+        self, db_session, advertiser_test_data
+    ):
         """Test refund only works for FAILED status."""
         # Create advertiser user
         advertiser_data = advertiser_test_data.copy()
@@ -387,6 +398,7 @@ class TestRefundFailedPlacement:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1001234567890,
             title="Test Channel",
@@ -444,6 +456,7 @@ class TestPayoutRequest:
 
         # Create channel
         from src.db.models.telegram_chat import TelegramChat
+
         channel = TelegramChat(
             telegram_id=-1009876543210,
             title="Test Channel",
@@ -492,7 +505,9 @@ class TestPayoutRequest:
         await db_session.commit()
 
         # Verify payout request created
-        result = await db_session.execute(select(PayoutRequest).where(PayoutRequest.owner_id == owner.id))
+        result = await db_session.execute(
+            select(PayoutRequest).where(PayoutRequest.owner_id == owner.id)
+        )
         payouts = list(result.scalars().all())
 
         assert len(payouts) == 1

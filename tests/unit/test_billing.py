@@ -14,10 +14,10 @@ from src.constants.fees import (
     YOOKASSA_FEE_RATE,
 )
 from src.constants.payments import (
-    calculate_topup_payment,
-    calculate_payout,
-    PAYOUT_FEE_RATE,
     MIN_CAMPAIGN_BUDGET,
+    PAYOUT_FEE_RATE,
+    calculate_payout,
+    calculate_topup_payment,
 )
 
 
@@ -27,11 +27,13 @@ class TestBillingServiceInit:
     def test_billing_service_imports(self):
         """BillingService can be imported."""
         from src.core.services.billing_service import BillingService
+
         assert BillingService is not None
 
     def test_billing_service_init_no_args(self):
         """BillingService.__init__ takes no arguments."""
         from src.core.services.billing_service import BillingService
+
         service = BillingService()
         assert service is not None
 
@@ -51,7 +53,7 @@ class TestCalculateTopupPreview:
         desired = Decimal("10000")
         expected_fee = desired * YOOKASSA_FEE_RATE
         expected_gross = desired + expected_fee
-        
+
         result = calculate_topup_payment(desired)
         assert result["fee_amount"] == expected_fee.quantize(Decimal("0.01"))
         assert result["gross_amount"] == expected_gross.quantize(Decimal("0.01"))
@@ -62,11 +64,11 @@ class TestFreezeEscrowConstants:
 
     def test_min_campaign_budget_is_2000(self):
         """MIN_CAMPAIGN_BUDGET is 2000 ₽."""
-        assert MIN_CAMPAIGN_BUDGET == Decimal("2000")
+        assert Decimal("2000") == MIN_CAMPAIGN_BUDGET
 
     def test_yookassa_fee_rate_is_3_5_percent(self):
         """YOOKASSA_FEE_RATE is 3.5%."""
-        assert YOOKASSA_FEE_RATE == Decimal("0.035")
+        assert Decimal("0.035") == YOOKASSA_FEE_RATE
 
 
 class TestEscrowReleaseLocation:
@@ -75,27 +77,22 @@ class TestEscrowReleaseLocation:
     def test_release_escrow_only_in_delete_published_post(self):
         """ESCROW-001: release_escrow() is ONLY called in delete_published_post()."""
         result = subprocess.run(
-            [
-                "poetry", "run", "grep", "-rn",
-                "release_escrow(",
-                "src/"
-            ],
+            ["poetry", "run", "grep", "-rn", "release_escrow(", "src/"],
             capture_output=True,
             text=True,
-            cwd="/opt/market-telegram-bot"
+            cwd="/opt/market-telegram-bot",
         )
-        
+
         # Filter out function definitions and binary files
         lines = [
-            line for line in result.stdout.split('\n')
-            if line 
-            and 'def release_escrow' not in line
-            and '.pyc' not in line
+            line
+            for line in result.stdout.split("\n")
+            if line and "def release_escrow" not in line and ".pyc" not in line
         ]
-        
+
         # Should only appear in publication_service.py
         for line in lines:
-            assert 'publication_service.py' in line, (
+            assert "publication_service.py" in line, (
                 f"ESCROW-001 VIOLATION: release_escrow() found outside publication_service.py: {line}"
             )
 
@@ -119,14 +116,14 @@ class TestPayoutCalculation:
 
     def test_payout_fee_rate(self):
         """Payout fee rate is 1.5%."""
-        assert PAYOUT_FEE_RATE == Decimal("0.015")
+        assert Decimal("0.015") == PAYOUT_FEE_RATE
 
     def test_payout_formula(self):
         """Payout formula: fee = gross × 0.015, net = gross - fee."""
         gross = Decimal("10000")
         expected_fee = gross * PAYOUT_FEE_RATE
         expected_net = gross - expected_fee
-        
+
         result = calculate_payout(gross)
         assert result["fee"] == expected_fee.quantize(Decimal("0.01"))
         assert result["net"] == expected_net.quantize(Decimal("0.01"))
@@ -137,11 +134,11 @@ class TestPlatformCommission:
 
     def test_owner_share_is_80_percent(self):
         """OWNER_SHARE_RATE is 80% (gross)."""
-        assert OWNER_SHARE_RATE == Decimal("0.80")
+        assert Decimal("0.80") == OWNER_SHARE_RATE
 
     def test_platform_commission_is_20_percent(self):
         """PLATFORM_COMMISSION_RATE is 20% (gross)."""
-        assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
+        assert Decimal("0.20") == PLATFORM_COMMISSION_RATE
 
     def test_release_escrow_distribution(self):
         """release_escrow: owner net 78.8%, platform total 21.2% (incl. service fee)."""
@@ -174,9 +171,11 @@ class TestVelocityCheckConstants:
     def test_velocity_max_ratio_is_80_percent(self):
         """VELOCITY_MAX_RATIO is 0.80 (80%)."""
         from src.constants.payments import VELOCITY_MAX_RATIO
-        assert VELOCITY_MAX_RATIO == Decimal("0.80")
+
+        assert Decimal("0.80") == VELOCITY_MAX_RATIO
 
     def test_velocity_window_days_is_30(self):
         """VELOCITY_WINDOW_DAYS is 30 days."""
         from src.constants.payments import VELOCITY_WINDOW_DAYS
+
         assert VELOCITY_WINDOW_DAYS == 30

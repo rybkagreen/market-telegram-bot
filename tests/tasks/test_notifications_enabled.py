@@ -27,6 +27,7 @@ class TestNotifyUserChecked:
         """Patch Bot factory to avoid real network calls."""
         with patch("src.tasks._bot_factory.Bot"):
             import src.tasks._bot_factory as fac
+
             fac._bot = MagicMock()
             yield
             fac._bot = None
@@ -145,6 +146,7 @@ class TestMailingNotifyUser:
     def _patch_factory(self):
         with patch("src.tasks._bot_factory.Bot"):
             import src.tasks._bot_factory as fac
+
             fac._bot = MagicMock()
             yield
             fac._bot = None
@@ -218,6 +220,7 @@ class TestNotifyPaymentSuccess:
     def _patch_factory(self):
         with patch("src.tasks._bot_factory.Bot"):
             import src.tasks._bot_factory as fac
+
             fac._bot = MagicMock()
             yield
             fac._bot = None
@@ -249,9 +252,7 @@ class TestNotifyPaymentSuccess:
             mock_repo_cls.return_value = mock_repo_instance
 
             # Also patch notification_tasks session factory
-            with patch(
-                "src.tasks.notification_tasks.async_session_factory"
-            ) as mock_notif_sf:
+            with patch("src.tasks.notification_tasks.async_session_factory") as mock_notif_sf:
                 notif_session = AsyncMock()
                 mock_notif_sf.return_value.__aenter__ = AsyncMock(return_value=notif_session)
                 mock_notif_sf.return_value.__aexit__ = AsyncMock(return_value=False)

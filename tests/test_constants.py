@@ -27,37 +27,37 @@ from src.constants.payments import (
 
 def test_platform_commission_value() -> None:
     """PLATFORM_COMMISSION_RATE == 0.20 (20%)."""
-    assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
+    assert Decimal("0.20") == PLATFORM_COMMISSION_RATE
 
 
 def test_owner_share_value() -> None:
     """OWNER_SHARE_RATE == 0.80 (80%)."""
-    assert OWNER_SHARE_RATE == Decimal("0.80")
+    assert Decimal("0.80") == OWNER_SHARE_RATE
 
 
 def test_commission_plus_share_equals_one() -> None:
     """PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE == 1.00 (без потерь)."""
-    assert PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE == Decimal("1.00")
+    assert Decimal("1.00") == PLATFORM_COMMISSION_RATE + OWNER_SHARE_RATE
 
 
 def test_yookassa_fee_rate() -> None:
     """YOOKASSA_FEE_RATE == 0.035 (3.5%)."""
-    assert YOOKASSA_FEE_RATE == Decimal("0.035")
+    assert Decimal("0.035") == YOOKASSA_FEE_RATE
 
 
 def test_platform_usn_rate() -> None:
     """PLATFORM_USN_RATE == 0.06 (УСН 6%, paid by platform from commission)."""
-    assert PLATFORM_USN_RATE == Decimal("0.06")
+    assert Decimal("0.06") == PLATFORM_USN_RATE
 
 
 def test_payout_fee_rate() -> None:
     """PAYOUT_FEE_RATE == 0.015 (1.5%)."""
-    assert PAYOUT_FEE_RATE == Decimal("0.015")
+    assert Decimal("0.015") == PAYOUT_FEE_RATE
 
 
 def test_velocity_max_ratio() -> None:
     """VELOCITY_MAX_RATIO == 0.80 (80%)."""
-    assert VELOCITY_MAX_RATIO == Decimal("0.80")
+    assert Decimal("0.80") == VELOCITY_MAX_RATIO
 
 
 def test_velocity_window_days() -> None:
@@ -67,22 +67,22 @@ def test_velocity_window_days() -> None:
 
 def test_min_topup() -> None:
     """MIN_TOPUP == 500."""
-    assert MIN_TOPUP == Decimal("500")
+    assert Decimal("500") == MIN_TOPUP
 
 
 def test_min_payout() -> None:
     """MIN_PAYOUT == 1000."""
-    assert MIN_PAYOUT == Decimal("1000")
+    assert Decimal("1000") == MIN_PAYOUT
 
 
 def test_min_campaign_budget() -> None:
     """MIN_CAMPAIGN_BUDGET == 2000."""
-    assert MIN_CAMPAIGN_BUDGET == Decimal("2000")
+    assert Decimal("2000") == MIN_CAMPAIGN_BUDGET
 
 
 def test_min_price_per_post() -> None:
     """MIN_PRICE_PER_POST == 1000."""
-    assert MIN_PRICE_PER_POST == Decimal("1000")
+    assert Decimal("1000") == MIN_PRICE_PER_POST
 
 
 def test_plan_limits_has_business_key() -> None:

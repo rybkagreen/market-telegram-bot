@@ -5,7 +5,7 @@ These tests validate that the fixed schemas can round-trip correctly with
 the actual field names present on the ORM models. They run without DB.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -18,7 +18,7 @@ class TestCampaignResponseSTOP1:
         """CampaignResponse must use model fields: ad_text, meta_json, proposed_schedule."""
         from src.api.routers.campaigns import CampaignResponse
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         resp = CampaignResponse(
             id=1,
             ad_text="Test ad text",
@@ -65,8 +65,12 @@ class TestCampaignResponseSTOP1:
 
         created_at_annotation = CampaignResponse.model_fields["created_at"].annotation
         updated_at_annotation = CampaignResponse.model_fields["updated_at"].annotation
-        assert created_at_annotation is datetime, f"created_at must be datetime, got {created_at_annotation}"
-        assert updated_at_annotation is datetime, f"updated_at must be datetime, got {updated_at_annotation}"
+        assert created_at_annotation is datetime, (
+            f"created_at must be datetime, got {created_at_annotation}"
+        )
+        assert updated_at_annotation is datetime, (
+            f"updated_at must be datetime, got {updated_at_annotation}"
+        )
 
     def test_campaign_response_from_orm_like_object(self):
         """CampaignResponse.model_validate must succeed on an ORM-like object."""
@@ -78,8 +82,8 @@ class TestCampaignResponseSTOP1:
             status = "pending_owner"
             meta_json = None
             proposed_schedule = None
-            created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
-            updated_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
+            created_at = datetime(2026, 1, 1, tzinfo=UTC)
+            updated_at = datetime(2026, 1, 2, tzinfo=UTC)
 
         resp = CampaignResponse.model_validate(FakePlacementRequest())
         assert resp.id == 42
@@ -105,7 +109,6 @@ class TestCampaignUpdateSTOP1:
 
     def test_campaign_update_model_dump_returns_correct_keys(self):
         """model_dump(exclude_unset=True) must return keys matching PlacementRequest attrs."""
-        from datetime import datetime, timezone
 
         from src.api.routers.campaigns import CampaignUpdate
 
@@ -205,7 +208,9 @@ class TestUserResponseP23:
         from src.api.schemas.user import UserResponse
 
         field = UserResponse.model_fields["first_name"]
-        assert field.is_required(), "first_name must be required — model User.first_name is NOT NULL"
+        assert field.is_required(), (
+            "first_name must be required — model User.first_name is NOT NULL"
+        )
 
     def test_user_response_first_name_annotation(self):
         """UserResponse.first_name annotation must be str, not str | None."""
@@ -220,7 +225,7 @@ class TestPlacementCreateRequestP31:
 
     def test_proposed_price_accepts_decimal_string(self):
         """PlacementCreateRequest must accept Decimal-compatible JSON number."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.api.routers.placements import PlacementCreateRequest
 
@@ -228,14 +233,14 @@ class TestPlacementCreateRequestP31:
             channel_id=1,
             proposed_price=Decimal("1500.00"),
             ad_text="Test ad text here",
-            proposed_schedule=datetime.now(timezone.utc).isoformat(),
+            proposed_schedule=datetime.now(UTC).isoformat(),
         )
         assert isinstance(req.proposed_price, Decimal)
         assert req.proposed_price == Decimal("1500.00")
 
     def test_proposed_price_coerces_integer(self):
         """PlacementCreateRequest.proposed_price must coerce int to Decimal."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.api.routers.placements import PlacementCreateRequest
 
@@ -243,6 +248,6 @@ class TestPlacementCreateRequestP31:
             channel_id=1,
             proposed_price=1000,
             ad_text="Test ad text here",
-            proposed_schedule=datetime.now(timezone.utc).isoformat(),
+            proposed_schedule=datetime.now(UTC).isoformat(),
         )
         assert isinstance(req.proposed_price, Decimal)

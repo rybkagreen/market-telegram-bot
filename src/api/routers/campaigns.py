@@ -606,6 +606,4 @@ async def duplicate_placement_request(
             ) from e
         await session.refresh(new_placement_request)
 
-    return DuplicateResponse(
-        id=new_placement_request.id, ad_text=new_ad_text or ""
-    )
+    return DuplicateResponse(id=new_placement_request.id, ad_text=new_ad_text or "")

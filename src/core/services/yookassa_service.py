@@ -141,8 +141,7 @@ class YooKassaService:
         # 3. YooKassa SDK config
         if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
             raise RuntimeError(
-                "YooKassa credentials are not configured "
-                "(YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
+                "YooKassa credentials are not configured (YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
             )
 
         Configuration.account_id = settings.yookassa_shop_id
@@ -171,9 +170,7 @@ class YooKassaService:
         # inside session.begin() / after flush would create a
         # "real charge, no local record" footgun on rollback.
         try:
-            yk_payment = await asyncio.to_thread(
-                Payment.create, payment_request, idempotency_key
-            )
+            yk_payment = await asyncio.to_thread(Payment.create, payment_request, idempotency_key)
         except (
             ApiError,
             BadRequestError,
@@ -188,8 +185,7 @@ class YooKassaService:
             err_description = str(content.get("description") or exc)
             err_request_id = str(content.get("request_id") or "unknown")
             logger.error(
-                "YooKassa API error for user %s: code=%s, description=%s,"
-                " request_id=%s",
+                "YooKassa API error for user %s: code=%s, description=%s, request_id=%s",
                 user_id,
                 err_code,
                 err_description,
@@ -203,9 +199,7 @@ class YooKassaService:
 
         payment_id = yk_payment.id
         confirmation = yk_payment.confirmation
-        confirmation_url = (
-            confirmation.confirmation_url if confirmation is not None else None
-        )
+        confirmation_url = confirmation.confirmation_url if confirmation is not None else None
         if not confirmation_url:
             raise RuntimeError(
                 f"YooKassa did not return a confirmation URL for payment {payment_id}"

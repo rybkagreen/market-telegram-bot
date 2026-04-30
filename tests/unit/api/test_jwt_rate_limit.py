@@ -96,14 +96,10 @@ async def test_eleventh_consume_from_same_ip_in_one_minute_returns_429(
     junk = "not-a-real-jwt"
 
     for i in range(10):
-        r = await client.post(
-            "/api/auth/consume-ticket", json={"ticket": junk}, headers=headers
-        )
+        r = await client.post("/api/auth/consume-ticket", json={"ticket": junk}, headers=headers)
         assert r.status_code == 401, f"call {i} unexpectedly returned {r.status_code}"
 
-    r11 = await client.post(
-        "/api/auth/consume-ticket", json={"ticket": junk}, headers=headers
-    )
+    r11 = await client.post("/api/auth/consume-ticket", json={"ticket": junk}, headers=headers)
     assert r11.status_code == 429, r11.text
     assert "too many requests" in r11.json()["detail"].lower()
 

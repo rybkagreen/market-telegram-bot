@@ -40,9 +40,7 @@ ACCEPT_PROMPT_TEXT = (
     "пожалуйста, примите актуальную редакцию."
 )
 
-TECHNICAL_ERROR_TEXT = (
-    "⚠️ Технические проблемы. Пожалуйста, попробуйте через минуту."
-)
+TECHNICAL_ERROR_TEXT = "⚠️ Технические проблемы. Пожалуйста, попробуйте через минуту."
 
 
 def _accept_prompt_keyboard() -> InlineKeyboardMarkup:

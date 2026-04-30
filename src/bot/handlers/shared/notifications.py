@@ -249,9 +249,7 @@ async def notify_owner_post_completed(
             text="💸 Запросить вывод", web_app=portal_webapp("/own/payouts/request")
         )
     )
-    builder.row(
-        InlineKeyboardButton(text="📊 Статистика", callback_data="main:owner_analytics")
-    )
+    builder.row(InlineKeyboardButton(text="📊 Статистика", callback_data="main:owner_analytics"))
     with contextlib.suppress(Exception):
         await bot.send_message(
             chat_id=owner_telegram_id,

@@ -266,9 +266,10 @@ class PlacementRequestRepository(BaseRepository[PlacementRequest]):
             .options(selectinload(PlacementRequest.channel))
             .where(
                 PlacementRequest.advertiser_id == advertiser_id,
-                PlacementRequest.status.in_(
-                    [PlacementStatus.escrow, PlacementStatus.pending_payment]
-                ),
+                PlacementRequest.status.in_([
+                    PlacementStatus.escrow,
+                    PlacementStatus.pending_payment,
+                ]),
             )
             .order_by(PlacementRequest.created_at.desc())
             .limit(limit)

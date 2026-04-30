@@ -47,7 +47,6 @@ from src.api.dependencies import get_current_user, get_redis
 from src.api.main import app
 from src.config.settings import settings
 
-
 # ─── Minimal in-memory stubs ───────────────────────────────────────
 
 
@@ -159,9 +158,7 @@ async def client(
 
     app.dependency_overrides[get_redis] = _override_redis
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c
     finally:
         app.dependency_overrides.clear()
@@ -183,9 +180,7 @@ async def test_bridge_happy_path_token_authenticates(
     token back into the auth dependency and assert it resolves the same user.
     """
     # Step 1: mini_app JWT
-    mini_token = create_jwt_token(
-        fake_user.id, fake_user.telegram_id, "free", source="mini_app"
-    )
+    mini_token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
 
     # Step 2: exchange → ticket
     r1 = await client.post(

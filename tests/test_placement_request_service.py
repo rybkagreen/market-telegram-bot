@@ -7,7 +7,11 @@ from decimal import Decimal
 
 import pytest
 
-from src.constants.payments import FORMAT_MULTIPLIERS, MIN_CAMPAIGN_BUDGET, MIN_PRICE_PER_POST, PLAN_LIMITS
+from src.constants.payments import (
+    FORMAT_MULTIPLIERS,
+    MIN_CAMPAIGN_BUDGET,
+    PLAN_LIMITS,
+)
 from src.core.exceptions import PlanLimitError, SelfDealingError
 from src.db.models.user import UserPlan
 
@@ -97,8 +101,10 @@ class TestMinCampaignBudget:
         assert calculated_price < MIN_CAMPAIGN_BUDGET
 
         if calculated_price < MIN_CAMPAIGN_BUDGET:
-            with pytest.raises(ValueError, match=f"Итоговая цена.*меньше минимального бюджета"):
-                raise ValueError(f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽")
+            with pytest.raises(ValueError, match="Итоговая цена.*меньше минимального бюджета"):
+                raise ValueError(
+                    f"Итоговая цена {calculated_price} ₽ меньше минимального бюджета {MIN_CAMPAIGN_BUDGET} ₽"
+                )
 
     def test_min_campaign_budget_ok(self) -> None:
         """base_price=2000, format='post_24h' → 2000 == MIN_CAMPAIGN_BUDGET → no exception."""

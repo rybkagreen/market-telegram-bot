@@ -21,10 +21,10 @@ class TestCounterOfferServiceFix1:
         test_channel,
     ):
         """When advertiser accepts counter-offer, final_price must be set from counter_price."""
-        from src.db.models.placement_request import PlacementRequest, PlacementStatus
-        from src.db.repositories.placement_request_repo import PlacementRequestRepository
         from src.core.services.placement_request_service import PlacementRequestService
+        from src.db.models.placement_request import PlacementRequest, PlacementStatus
         from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+        from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
         # Create placement with pending_owner status
         placement = PlacementRequest(
@@ -77,10 +77,10 @@ class TestCounterOfferServiceFix1:
         test_channel,
     ):
         """When advertiser accepts counter-offer, final_schedule must be set."""
-        from src.db.models.placement_request import PlacementRequest, PlacementStatus
-        from src.db.repositories.placement_request_repo import PlacementRequestRepository
         from src.core.services.placement_request_service import PlacementRequestService
+        from src.db.models.placement_request import PlacementRequest, PlacementStatus
         from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+        from src.db.repositories.placement_request_repo import PlacementRequestRepository
 
         counter_schedule = datetime(2026, 4, 15, 14, 0, 0, tzinfo=UTC)
 
@@ -314,7 +314,9 @@ class TestPriceResolutionLogic:
         assert price == Decimal("1500.00")  # Must use final_price
 
     @pytest.mark.asyncio
-    async def test_payment_falls_back_to_proposed_price(self, db_session, test_advertiser, test_owner, test_channel):
+    async def test_payment_falls_back_to_proposed_price(
+        self, db_session, test_advertiser, test_owner, test_channel
+    ):
         """When final_price is None, must fall back to proposed_price."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 

@@ -17,10 +17,7 @@ def _scrub_pii(event: dict, hint: dict) -> dict:  # noqa: ARG001
 
     def _clean(obj: object) -> object:
         if isinstance(obj, dict):
-            return {
-                k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v)
-                for k, v in obj.items()
-            }
+            return {k: "***" if k.lower() in SENTRY_PII_KEYS else _clean(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
             return type(obj)(_clean(i) for i in obj)
         return obj
