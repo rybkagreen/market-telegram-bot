@@ -1908,7 +1908,7 @@ mini-promt.
 
 ### BL-051 — PII audit LOW findings batch
 
-**Status:** PARTIAL — 4/6 closed in 16.5a (2026-04-30); 2 split out.
+**Status:** Closed 2026-04-30 (series 16.x — sub-tasks split across 16.5a/b/c)
 **Found:** `PII_AUDIT_2026-04-28.md` §§ O.6-O.10
 **Severity:** Low
 
@@ -1916,26 +1916,34 @@ LOW findings batch:
 - ✅ Dead `LegalProfileStates` (15 states, 0 handlers) — closed 16.5a.
 - ✅ `mini_app/src/api/payouts.ts::createPayout` exported but unused
   (loaded gun) — closed 16.5a.
-- ⏳ `log_sanitizer` ↔ Sentry scrub divergence — split to 16.5b (Шаг 0
+- ✅ `log_sanitizer` ↔ Sentry scrub divergence — closed 16.5b. Шаг 0
   inventory found 3 lists, не 2: log_sanitizer 12 keys, api/main Sentry
-  13 keys, tasks/sentry_init Celery Sentry 16 keys). Decision: option
+  13 keys, tasks/sentry_init Celery Sentry 16 keys. Decision: option
   (c) Sentry-only merge — log_sanitizer untouched per CLAUDE.md NEVER
-  TOUCH.
+  TOUCH. Resolution: canonical 18-key list в `src/utils/pii_keys.py`
+  imported by both Sentry inits (BL-056 surfaced and closed inline).
 - ✅ `notify_admins_new_feedback` — surface'нулась как dead code (0
   callers); deleted целиком в 16.5a + grep guard.
-- ⏳ YooKassa webhook over-collection — split to 16.5c. Inventory found
-  persist site router-level (`api/routers/billing.py:731` →
-  `YookassaPayment.yookassa_metadata`), не service-level. Requires
-  readers audit before whitelist.
+- ✅ YooKassa webhook over-collection — closed 16.5c. Persist site
+  router-level (`api/routers/billing.py:731` →
+  `YookassaPayment.yookassa_metadata`). Resolution: canonical projection
+  via `src/utils/yookassa_payload.py`; PII (customer email/phone, card
+  fragments) и transport fields (recipient, payment_method, confirmation,
+  merchant_customer_id) no longer persist.
 - ✅ `src/bot/handlers/shared/login_code.py:50` plaintext one-time
   code logging — closed 16.5a (HIGH within LOW; auth-bypass surface).
 
-**Partial closure 2026-04-30** (commit будет добавлен post-merge): 4
-of 6 sub-tasks done in 16.5a. Detail в
-`CHANGES_2026-04-30_low-batch-16-5a.md`. Inventory note в
-`tmp/16-5_step0_inventory.md` (deleted at session end).
+**Closure summary (2026-04-30, series 16.x):** все 6 sub-tasks done.
+- 16.5a: 4 sub-tasks (dead states, unused export, dead notify, plaintext code).
+- 16.5b: 1 sub-task (Sentry parity, BL-056 surfaced + closed inline).
+- 16.5c: 1 sub-task (YooKassa over-collection trim).
 
-**Pickup для остатка:** 16.5b (sanitizer parity), 16.5c (webhook trim).
+Backfill для existing rows pre-2026-04-30 surfaced как BL-059 (Phase 3
+candidate, not blocking).
+
+CHANGES reports: `CHANGES_2026-04-30_low-batch-16-5a.md`,
+`CHANGES_2026-04-30_16-5b-pii-keys-canonical.md`,
+`CHANGES_2026-04-30_16-5c-yookassa-canonical-projection.md`.
 
 ### BL-055 — Direct bot-to-portal ticket exchange (avoid mini_app intermediate)
 
@@ -1969,6 +1977,111 @@ correct, mini_app в этом flow — pure redirect, no PII surface. Direct
 exchange — это improvement, не fix.
 
 **Pickup:** post-series 16.x.
+
+### BL-056 — Sentry init PII keys: divergence between FastAPI and Celery
+
+**Status:** Closed 2026-04-30 (16.5b, materialized inline)
+**Surfaced:** 2026-04-29 (during 16.5b plan validation gate)
+**Severity:** Low (operational hygiene; no live PII leak)
+
+Two separate Sentry init callsites (`src/api/main.py` и
+`src/tasks/sentry_init.py`) declared local PII keys literals для
+denylist. Symmetric diff = 7 keys (5 missing in FastAPI + 2 extra:
+`password`, `x-api-key` — legitimate HTTP-layer creds Celery не
+имеет). Independent edits over time → unintentional drift.
+
+**Resolution:** canonical extraction в `src/utils/pii_keys.py` —
+18-key superset с category docstring (auth credentials / identity PII /
+documents / payment). Both inits import canonical; local literals
+removed (Case A — full removal). `log_sanitizer.py` оставлен с own
+12-key list per CLAUDE.md NEVER TOUCH (sanitizer↔sentry asymmetry —
+known-allowed condition, не drift).
+
+**Tests:** 8 structure tests (`tests/unit/test_pii_keys_canonical.py`)
++ 3 behavioral smoke tests (`tests/unit/test_sentry_inits_use_canonical.py`).
+
+CHANGES: `CHANGES_2026-04-30_16-5b-pii-keys-canonical.md`.
+
+### BL-057 — Makefile lint/test split: verify gates де-факто были lint-only
+
+**Status:** Closed 2026-04-30 (materialized inline)
+**Surfaced:** 2026-04-30 (during 16.5b verify gate sweep)
+**Severity:** Process-finding (no production impact, но verification
+discipline gap)
+
+`make ci-local` halted on 128 ruff baseline. Test phase **никогда не
+выполнялся в CI gate** на этом repo. Все 16.x verify gates были
+de-facto lint-only — claim "ci-local clean (only pre-existing
+failures)" был misnomer. Behavioral coverage держался на manual
+pytest каждой серии.
+
+**Resolution:** split `ci-local` в 5 stages aggregate (check-forbidden,
+lint, format-check, typecheck, test) через shell pattern. Exit code
+non-zero если any stage failed, но не halts on first. Test phase
+actually runs.
+
+Standalone `make test` aligned via DRY recursion: ci-local зовёт
+`$(MAKE) --no-print-directory test`. Identical output на обоих paths
+(76 failed / 725 passed / 7 skipped / 17 errors baseline at time
+of split, 736 passed после 16.5b merge, 753 passed после 16.5c merge).
+
+**Lesson (process):** plan validation gate (g) — verify command
+actually does what naming implies. Use `make -n` dry-run перед
+declaring команду как gate.
+
+CHANGES: `CHANGES_2026-04-30_makefile-split.md`.
+
+### BL-058 — Ruff/format baseline cleanup batch
+
+**Status:** SURFACED — deferred until series 16.x closure (recommended next mini-promt)
+**Surfaced:** 2026-04-30 (visible после BL-057 split made baselines explicit)
+**Severity:** Low (code hygiene, not behavioral)
+
+После BL-057 ci-local actually exposed lint/format baselines:
+
+- 128 ruff errors (mostly UP017, simple lint rules).
+- 82 files needing `ruff format` (post-16.5c: was 83, billing.py
+  incidental clean during 16.5c).
+
+**Estimate:** ~1-2 hours mechanical. `ruff check --fix --select
+<safe rules>` + `ruff format` сделают большую часть автоматически.
+Manual review остатков.
+
+**Why deferred:** mechanical scope, no domain decisions. After cleanup,
+ci-local gates real clean (not "noisy baseline holds"). Cheap mechanical
+win — recommended next step после series 16.x closure.
+
+**Pickup:** standalone mini-promt; post-series 16.x.
+
+### BL-059 — YookassaPayment retroactive PII minimization (backfill)
+
+**Status:** SURFACED — Phase 3 candidate (legal compliance gates)
+**Surfaced:** 2026-04-30 (during 16.5c implementation)
+**Severity:** Medium (ФЗ-152 retroactive scope; depends on prod data state)
+
+16.5c обрезает only **new** writes к
+`YookassaPayment.yookassa_metadata` (BL-051 sub-task 6). Existing rows
+persisted pre-2026-04-30 содержат полный YooKassa webhook payload
+включая `receipt.customer.{full_name,inn,email,phone}`, card fragments
+(`payment_method.card.{first6,last4}`), `recipient`/`payment_method`
+internal IDs.
+
+ФЗ-152 minimization recommends backfill для already-collected PII
+once new collection is curtailed.
+
+**Scope:** one-shot migration script через
+`extract_persistable_metadata()` over all existing `YookassaPayment`
+rows. ~20 min implementation.
+
+**Pre-step requirement (Phase 3):** audit DB state — real customer
+rows vs test/sandbox only. If only test rows — может skip с
+documentation note. If real — backfill blocking Phase 3 legal gate.
+
+**Why deferred:** natural fit с Phase 3 retention/legal review
+(other PII data lifecycles will be assessed simultaneously). Avoiding
+piecemeal backfill scripts.
+
+**Refs:** BL-051 sub-task 6, 16.5c, ФЗ-152.
 
 ## Closed items
 
