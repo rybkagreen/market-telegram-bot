@@ -7,7 +7,6 @@ from src.bot.states.channel_settings import ChannelSettingsStates
 from src.bot.states.contract_signing import ContractSigningStates
 from src.bot.states.dispute import DisputeStates
 from src.bot.states.feedback import FeedbackStates
-from src.bot.states.legal_profile import LegalProfileStates
 from src.bot.states.placement import PlacementStates
 
 __all__ = [
@@ -18,7 +17,6 @@ __all__ = [
     "AddChannelStates",
     "FeedbackStates",
     "DisputeStates",
-    "LegalProfileStates",
     "ContractSigningStates",
     "AdminFeedbackStates",
 ]

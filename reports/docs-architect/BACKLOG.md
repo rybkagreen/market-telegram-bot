@@ -1908,24 +1908,34 @@ mini-promt.
 
 ### BL-051 — PII audit LOW findings batch
 
-**Status:** Open (16.x territory, low priority)
+**Status:** PARTIAL — 4/6 closed in 16.5a (2026-04-30); 2 split out.
 **Found:** `PII_AUDIT_2026-04-28.md` §§ O.6-O.10
 **Severity:** Low
 
 LOW findings batch:
-- Dead `LegalProfileStates` (15 states, 0 handlers).
-- `mini_app/src/api/payouts.ts::createPayout` exported but unused
-  (loaded gun).
-- `log_sanitizer` (11 keys) ↔ Sentry scrub (16 keys) divergence.
-- `notify_admins_new_feedback` echoes user-typed feedback text.
-- YooKassa webhook stores full payload (over-collection).
-- `src/bot/handlers/shared/login_code.py:50` logs one-time login code
-  in plaintext (CRITICAL по строгости, но out-of-scope PII audit —
-  относится к auth, не к данным пользователя).
+- ✅ Dead `LegalProfileStates` (15 states, 0 handlers) — closed 16.5a.
+- ✅ `mini_app/src/api/payouts.ts::createPayout` exported but unused
+  (loaded gun) — closed 16.5a.
+- ⏳ `log_sanitizer` ↔ Sentry scrub divergence — split to 16.5b (Шаг 0
+  inventory found 3 lists, не 2: log_sanitizer 12 keys, api/main Sentry
+  13 keys, tasks/sentry_init Celery Sentry 16 keys). Decision: option
+  (c) Sentry-only merge — log_sanitizer untouched per CLAUDE.md NEVER
+  TOUCH.
+- ✅ `notify_admins_new_feedback` — surface'нулась как dead code (0
+  callers); deleted целиком в 16.5a + grep guard.
+- ⏳ YooKassa webhook over-collection — split to 16.5c. Inventory found
+  persist site router-level (`api/routers/billing.py:731` →
+  `YookassaPayment.yookassa_metadata`), не service-level. Requires
+  readers audit before whitelist.
+- ✅ `src/bot/handlers/shared/login_code.py:50` plaintext one-time
+  code logging — closed 16.5a (HIGH within LOW; auth-bypass surface).
 
-**Fix:** batched cleanup в серии 16.x mini-task.
+**Partial closure 2026-04-30** (commit будет добавлен post-merge): 4
+of 6 sub-tasks done in 16.5a. Detail в
+`CHANGES_2026-04-30_low-batch-16-5a.md`. Inventory note в
+`tmp/16-5_step0_inventory.md` (deleted at session end).
 
-**Pickup:** серия 16.x cleanup phase (16.5).
+**Pickup для остатка:** 16.5b (sanitizer parity), 16.5c (webhook trim).
 
 ### BL-055 — Direct bot-to-portal ticket exchange (avoid mini_app intermediate)
 
