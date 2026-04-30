@@ -41,7 +41,7 @@ class TransactionType(str, Enum):
     ndfl_withholding = "ndfl_withholding"
     # Sprint D.2: storno/reversal
     storno = "storno"
-    # Admin credits and gamification
+    # Admin balance top-up and gamification rewards
     admin_credit = "admin_credit"
     gamification_bonus = "gamification_bonus"
 

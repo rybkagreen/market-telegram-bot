@@ -1,6 +1,6 @@
 """
 Billing Service для управления платежами и балансом.
-Двухвалютная система: рубли (размещения) + кредиты (подписки).
+Единая валюта: рубли (размещения и подписки).
 """
 
 import logging
@@ -58,7 +58,7 @@ class BillingService:
     Методы:
         create_payment: Создать платёж (пополняет balance_rub)
         check_payment: Проверить статус платежа
-        buy_credits_for_plan: Купить кредиты для тарифа (с balance_rub → credits)
+        charge_balance_for_plan: Списать рубли с баланса за тариф
         freeze_escrow: Заморозить рубли для размещения
         release_escrow: Освободить эскроу после удаления поста (ESCROW-001)
         refund_escrow: Возврат средств при отмене
@@ -67,11 +67,11 @@ class BillingService:
     def __init__(self) -> None:
         """Инициализация сервиса."""
 
-    async def buy_credits_for_plan(
+    async def charge_balance_for_plan(
         self,
         user_id: int,
         amount_rub: Decimal,
-    ) -> tuple[int, Transaction, Transaction]:
+    ) -> Transaction:
         """
         Оплатить тариф с рублёвого баланса.
 
@@ -82,7 +82,7 @@ class BillingService:
             amount_rub: Сумма в рублях.
 
         Returns:
-            Кортеж (amount_int, transaction, transaction) — дубли для обратной совместимости.
+            Созданная транзакция списания.
 
         Raises:
             InsufficientFundsError: Если недостаточно balance_rub.
@@ -127,7 +127,7 @@ class BillingService:
 
             logger.info(f"Plan payment: {amount_rub} ₽ by user {user_id}")
 
-            return int(amount_rub), transaction, transaction
+            return transaction
 
     async def check_payment(
         self,
