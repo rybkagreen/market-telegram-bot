@@ -272,7 +272,7 @@ async def buy_plan(callback: CallbackQuery, session: AsyncSession) -> None:
     session.add(
         Transaction(
             user_id=user.id,
-            type=TransactionType.credits_buy,
+            type=TransactionType.plan_purchase,
             amount=Decimal(str(price)),
             description=f"Покупка тарифа {_PLAN_NAMES[plan]}",
         )

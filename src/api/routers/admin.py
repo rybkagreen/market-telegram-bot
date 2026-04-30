@@ -824,7 +824,7 @@ async def topup_user_balance(
 # ─── Platform Credit & Gamification Bonus ──────────────────────────────────
 
 
-class PlatformCreditRequest(BaseModel):
+class AdminGrantRequest(BaseModel):
     user_id: int = Field(..., gt=0, description="ID пользователя")
     amount: float = Field(..., gt=0, le=1_000_000, description="Сумма зачисления из комиссий")
     comment: str = Field("", max_length=500, description="Комментарий администратора")
@@ -837,8 +837,8 @@ class PlatformCreditRequest(BaseModel):
         400: {"description": "Invalid amount or insufficient platform balance"},
     },
 )
-async def create_platform_credit(
-    body: PlatformCreditRequest,
+async def create_admin_grant(
+    body: AdminGrantRequest,
     admin_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:

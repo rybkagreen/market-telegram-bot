@@ -227,7 +227,7 @@ class YooKassaService:
             "meta_json": {
                 "status": "pending",
                 "method": "yookassa",
-                "credits": amount_int,
+                "amount_rub": amount_int,
                 "desired_balance": str(desired_balance_dec),
                 "fee_amount": str(fee_amount),
                 "gross_amount": str(gross_amount),
@@ -243,7 +243,7 @@ class YooKassaService:
             "payment_id": payment_id,
             "payment_url": confirmation_url,
             "amount": str(gross_amount),
-            "credits": amount_int,
+            "amount_rub": amount_int,
             "status": "pending",
         }
 
