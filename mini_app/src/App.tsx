@@ -17,7 +17,7 @@ const Plans              = lazy(() => import('@/screens/common/Plans'))
 // Phase 1 §1.B.2: legal-profile / contracts / acts screens removed from
 // mini_app (ФЗ-152 strip). Their portal counterparts are reachable via
 // the OpenInWebPortal bridge (see Cabinet, MainMenu, and the per-flow
-// placeholder screens — AdvertiserFrameworkContract, OwnPayoutRequest,
+// placeholder screens — AdvertiserFrameworkContract,
 // CampaignPayment, LegalProfileView).
 const LegalProfileView   = lazy(() => import('@/screens/common/LegalProfileView'))
 const AcceptRules        = lazy(() => import('@/screens/common/AcceptRules'))
@@ -61,7 +61,6 @@ const OwnChannelSettings = lazy(() => import('@/screens/owner/OwnChannelSettings
 const OwnRequests        = lazy(() => import('@/screens/owner/OwnRequests'))
 const OwnRequestDetail   = lazy(() => import('@/screens/owner/OwnRequestDetail'))
 const OwnPayouts         = lazy(() => import('@/screens/owner/OwnPayouts'))
-const OwnPayoutRequest   = lazy(() => import('@/screens/owner/OwnPayoutRequest'))
 const DisputeResponse    = lazy(() => import('@/screens/owner/DisputeResponse'))
 
 // ═══ Admin ═══ (PHASE-5)
@@ -152,7 +151,6 @@ const router = createBrowserRouter([
       { path: 'own/requests/:id',                       element: <OwnRequestDetail /> },
       { path: 'own/disputes',                           element: <MyDisputes /> },
       { path: 'own/payouts',                            element: <OwnPayouts /> },
-      { path: 'own/payouts/request',                    element: <OwnPayoutRequest /> },
       { path: 'own/disputes/:id',                       element: <DisputeResponse /> },
 
       // ── Admin ── (PHASE-5) — guarded by AdminGuard
