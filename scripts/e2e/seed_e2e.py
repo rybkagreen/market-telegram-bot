@@ -90,7 +90,9 @@ async def _upsert_user(
 
 
 async def _upsert_channel(session, owner: User) -> TelegramChat:
-    q = await session.execute(select(TelegramChat).where(TelegramChat.username == "e2e_test_channel"))
+    q = await session.execute(
+        select(TelegramChat).where(TelegramChat.username == "e2e_test_channel")
+    )
     chat = q.scalar_one_or_none()
     if chat:
         chat.owner_id = owner.id

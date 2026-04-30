@@ -3,21 +3,18 @@
 Fail loudly if any of the methods deleted in fix/billing-rewrite-items-4-5
 get re-added by mistake.
 """
+
 import ast
 from pathlib import Path
 
-
 BILLING_SERVICE_PATH = (
-    Path(__file__).parent.parent.parent
-    / "src" / "core" / "services" / "billing_service.py"
+    Path(__file__).parent.parent.parent / "src" / "core" / "services" / "billing_service.py"
 )
 YOOKASSA_SERVICE_PATH = (
-    Path(__file__).parent.parent.parent
-    / "src" / "core" / "services" / "yookassa_service.py"
+    Path(__file__).parent.parent.parent / "src" / "core" / "services" / "yookassa_service.py"
 )
 NOTIFICATIONS_PATH = (
-    Path(__file__).parent.parent.parent
-    / "src" / "bot" / "handlers" / "shared" / "notifications.py"
+    Path(__file__).parent.parent.parent / "src" / "bot" / "handlers" / "shared" / "notifications.py"
 )
 
 DEAD_BILLING_METHODS = frozenset({
@@ -61,9 +58,7 @@ def _get_method_names(path: Path) -> set[str]:
 def _get_module_function_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return {
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        node.name for node in tree.body if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
     }
 
 
@@ -115,7 +110,8 @@ def test_billing_singleton_not_at_module_level():
     """The module-level singleton was dropped — verify it's not back."""
     src = BILLING_SERVICE_PATH.read_text(encoding="utf-8")
     lines = [
-        line for line in src.splitlines()
+        line
+        for line in src.splitlines()
         if line.strip().startswith("billing_service = BillingService(")
     ]
     assert not lines, (

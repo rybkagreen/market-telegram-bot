@@ -2,7 +2,6 @@
 Integration-тесты API /api/v1/channels/{id}/settings.
 """
 
-
 import pytest
 
 
@@ -17,9 +16,7 @@ class TestAPIChannelSettings:
         owner_user,
     ):
         """GET создаёт настройки с defaults если их нет."""
-        response = await api_client_with_auth.get(
-            f"/api/v1/channels/{test_channel.id}/settings/"
-        )
+        response = await api_client_with_auth.get(f"/api/v1/channels/{test_channel.id}/settings/")
 
         assert response.status_code == 200
         data = response.json()
@@ -35,9 +32,7 @@ class TestAPIChannelSettings:
     ):
         """PATCH обновляет цену."""
         # Сначала создаём настройки
-        await api_client_with_auth.get(
-            f"/api/v1/channels/{test_channel.id}/settings/"
-        )
+        await api_client_with_auth.get(f"/api/v1/channels/{test_channel.id}/settings/")
 
         # Обновляем цену
         response = await api_client_with_auth.patch(

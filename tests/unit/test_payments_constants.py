@@ -3,19 +3,18 @@ Unit tests for payment constants (P01).
 Standalone tests - no conftest dependencies.
 """
 
-import pytest
 from decimal import Decimal
 
 # Import directly from constants modules (no app context needed)
 from src.constants.fees import YOOKASSA_FEE_RATE
 from src.constants.payments import (
-    calculate_topup_payment,
+    FORMAT_MULTIPLIERS,
+    PAYOUT_FEE_RATE,
+    PLAN_LIMITS,
     calculate_payout,
+    calculate_topup_payment,
     get_format_price,
     is_format_allowed_for_plan,
-    FORMAT_MULTIPLIERS,
-    PLAN_LIMITS,
-    PAYOUT_FEE_RATE,
 )
 
 
@@ -52,7 +51,7 @@ class TestCalculateTopupPayment:
 
     def test_fee_rate_is_3_5_percent(self):
         """Verify YOOKASSA_FEE_RATE is 3.5%."""
-        assert YOOKASSA_FEE_RATE == Decimal("0.035")
+        assert Decimal("0.035") == YOOKASSA_FEE_RATE
 
 
 class TestCalculatePayout:
@@ -74,7 +73,7 @@ class TestCalculatePayout:
 
     def test_payout_fee_rate_is_1_5_percent(self):
         """Verify PAYOUT_FEE_RATE is 1.5%."""
-        assert PAYOUT_FEE_RATE == Decimal("0.015")
+        assert Decimal("0.015") == PAYOUT_FEE_RATE
 
 
 class TestGetFormatPrice:

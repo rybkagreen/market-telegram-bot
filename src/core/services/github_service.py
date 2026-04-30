@@ -5,7 +5,6 @@ Provides methods to interact with GitHub API using PyGithub.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from src.config.settings import settings
 
@@ -18,8 +17,8 @@ class GitHubIssuePayload:
 
     title: str
     body: str
-    labels: Optional[list[str]] = None
-    assignees: Optional[list[str]] = None
+    labels: list[str] | None = None
+    assignees: list[str] | None = None
 
 
 @dataclass
@@ -59,6 +58,7 @@ class GitHubService:
         if self._client is None and self.token:
             try:
                 from github import Github
+
                 self._client = Github(self.token)
             except ImportError:
                 logger.error("PyGithub not installed: pip install PyGithub")
@@ -76,7 +76,7 @@ class GitHubService:
             logger.error(f"Failed to get repo {self.repo_owner}/{self.repo_name}: {e}")
             return None
 
-    async def create_issue(self, payload: GitHubIssuePayload) -> Optional[dict]:
+    async def create_issue(self, payload: GitHubIssuePayload) -> dict | None:
         """
         Create GitHub issue.
 
@@ -108,7 +108,7 @@ class GitHubService:
             logger.error(f"Failed to create issue: {e}")
             return None
 
-    async def create_pull_request(self, payload: GitHubPRPayload) -> Optional[dict]:
+    async def create_pull_request(self, payload: GitHubPRPayload) -> dict | None:
         """
         Create GitHub pull request.
 
@@ -142,7 +142,7 @@ class GitHubService:
             logger.error(f"Failed to create PR: {e}")
             return None
 
-    async def add_issue_comment(self, issue_number: int, comment: str) -> Optional[dict]:
+    async def add_issue_comment(self, issue_number: int, comment: str) -> dict | None:
         """
         Add comment to GitHub issue.
 
@@ -170,7 +170,7 @@ class GitHubService:
             logger.error(f"Failed to add comment: {e}")
             return None
 
-    async def close_issue(self, issue_number: int, comment: Optional[str] = None) -> bool:
+    async def close_issue(self, issue_number: int, comment: str | None = None) -> bool:
         """
         Close GitHub issue.
 
@@ -196,7 +196,7 @@ class GitHubService:
             logger.error(f"Failed to close issue: {e}")
             return False
 
-    async def get_issue(self, issue_number: int) -> Optional[dict]:
+    async def get_issue(self, issue_number: int) -> dict | None:
         """
         Get GitHub issue details.
 
@@ -245,14 +245,12 @@ class GitHubService:
             for i, issue in enumerate(issues):
                 if i >= limit:
                     break
-                result.append(
-                    {
-                        "number": issue.number,
-                        "title": issue.title,
-                        "state": issue.state,
-                        "url": issue.html_url,
-                    }
-                )
+                result.append({
+                    "number": issue.number,
+                    "title": issue.title,
+                    "state": issue.state,
+                    "url": issue.html_url,
+                })
             return result
         except Exception as e:
             logger.error(f"Failed to list issues: {e}")

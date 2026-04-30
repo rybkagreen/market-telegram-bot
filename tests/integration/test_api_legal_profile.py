@@ -30,9 +30,7 @@ async def test_user(db_session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
-async def authed_client(
-    db_session: AsyncSession, test_user: User
-) -> AsyncGenerator[AsyncClient]:
+async def authed_client(db_session: AsyncSession, test_user: User) -> AsyncGenerator[AsyncClient]:
     """httpx client with dependency_overrides wired to the per-test DB session
     and a synthetic authenticated user."""
 
@@ -50,9 +48,7 @@ async def authed_client(
     app.dependency_overrides[get_db_session] = _session_override
     app.dependency_overrides[get_current_user_from_web_portal] = _user_override
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
     finally:
         app.dependency_overrides.pop(get_db_session, None)
@@ -152,9 +148,7 @@ async def test_validate_inn_invalid_checksum(authed_client: AsyncClient) -> None
 
 
 async def test_validate_inn_non_numeric(authed_client: AsyncClient) -> None:
-    r = await authed_client.post(
-        "/api/legal-profile/validate-inn", json={"inn": "7707X83893"}
-    )
+    r = await authed_client.post("/api/legal-profile/validate-inn", json={"inn": "7707X83893"})
     assert r.status_code == 200
     assert r.json() == {"valid": False, "type": "invalid"}
 
@@ -165,9 +159,7 @@ async def test_validate_inn_non_numeric(authed_client: AsyncClient) -> None:
 
 
 @pytest.mark.parametrize("status", ALL_STATUSES)
-async def test_required_fields_per_status(
-    authed_client: AsyncClient, status: str
-) -> None:
+async def test_required_fields_per_status(authed_client: AsyncClient, status: str) -> None:
     r = await authed_client.get(
         "/api/legal-profile/required-fields", params={"legal_status": status}
     )

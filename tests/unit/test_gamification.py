@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import select
 
 from src.core.services.badge_service import badge_service
-from src.db.models.badge import UserBadge
 from src.db.models.user import User
 
 
@@ -49,7 +48,9 @@ class TestBadgeAchievementModel:
         await db_session.commit()
 
         # Verify
-        result = await db_session.execute(select(BadgeAchievement).where(BadgeAchievement.badge_id == badge.id))
+        result = await db_session.execute(
+            select(BadgeAchievement).where(BadgeAchievement.badge_id == badge.id)
+        )
         saved = result.scalar_one()
 
         assert saved is not None

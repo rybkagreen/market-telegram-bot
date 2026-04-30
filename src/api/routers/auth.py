@@ -261,13 +261,11 @@ async def exchange_miniapp_to_portal(
     await redis.setex(
         f"auth:ticket:jti:{jti}",
         settings.ticket_jwt_ttl_seconds,
-        json.dumps(
-            {
-                "user_id": current_user.id,
-                "issued_at": issued_at.isoformat(),
-                "ip": ip,
-            }
-        ),
+        json.dumps({
+            "user_id": current_user.id,
+            "issued_at": issued_at.isoformat(),
+            "ip": ip,
+        }),
     )
 
     logger.info(

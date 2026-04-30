@@ -5,6 +5,7 @@ Promt 15.8 — verifies that rendered platform_rules HTML contains the
 current canonical fee percentages, edition header, version, and the
 new § 18 (115-FZ) / § 19 (jurisdiction) sections.
 """
+
 from __future__ import annotations
 
 import pytest

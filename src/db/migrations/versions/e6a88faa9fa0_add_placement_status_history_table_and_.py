@@ -11,7 +11,7 @@ Implements Phase 2 § 2.B.0 Decisions 1 (state-machine spec) + 10 (PK).
   but not in ORM model — Decision 1 schema cleanup).
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -19,9 +19,9 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "e6a88faa9fa0"
-down_revision: Union[str, None] = "0001_initial_schema"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0001_initial_schema"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -80,9 +80,7 @@ def upgrade() -> None:
     # The placement_escrow_integrity CHECK constraint references
     # 'escrow'::placementstatus literal; drop it before the type swap
     # (it cannot be re-typed across the rename) and recreate after.
-    op.execute(
-        "ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity"
-    )
+    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity")
     op.execute("ALTER TYPE placementstatus RENAME TO placementstatus_old")
     op.execute(
         """
@@ -129,9 +127,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # 1. Recreate ord_blocked enum value.
-    op.execute(
-        "ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity"
-    )
+    op.execute("ALTER TABLE placement_requests DROP CONSTRAINT placement_escrow_integrity")
     op.execute("ALTER TYPE placementstatus RENAME TO placementstatus_new")
     op.execute(
         """

@@ -28,9 +28,7 @@ class ContractRepo(BaseRepository[Contract]):
         )
         return result.scalar_one_or_none()
 
-    async def get_latest_acceptance(
-        self, user_id: int, contract_type: str
-    ) -> Contract | None:
+    async def get_latest_acceptance(self, user_id: int, contract_type: str) -> Contract | None:
         """Latest signed Contract row of given type for user, ordered by signed_at DESC.
 
         Used by needs_accept_rules() to compare stored template_version against the

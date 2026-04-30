@@ -277,7 +277,9 @@ async def check_passport_completeness(
                     "id": u.id,
                     "page_group": u.passport_page_group,
                     "status": u.validation_status,
-                    "quality_score": float(u.image_quality_score) if u.image_quality_score else None,
+                    "quality_score": float(u.image_quality_score)
+                    if u.image_quality_score
+                    else None,
                 }
                 for u in uploads
             ],

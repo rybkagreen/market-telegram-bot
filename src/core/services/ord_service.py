@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 def _init_ord_provider_from_settings() -> OrdProvider:
     from src.config.settings import settings
+
     if settings.ord_provider == "yandex":
         if not settings.ord_api_key or not settings.ord_api_url:
             raise RuntimeError("ORD_PROVIDER=yandex, but ORD_API_KEY or ORD_API_URL not set")

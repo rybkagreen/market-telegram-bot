@@ -184,7 +184,11 @@ async def validate_entity(
         field = "ogrnip" if data.ogrnip else ("ogrn" if data.ogrn else "documents")
         return FnsValidationResponse(
             is_valid=False,
-            errors=[FnsValidationError(field=field, message=docs_error or "Документы не соответствуют статусу")],
+            errors=[
+                FnsValidationError(
+                    field=field, message=docs_error or "Документы не соответствуют статусу"
+                )
+            ],
         )
 
     # Quick INN check

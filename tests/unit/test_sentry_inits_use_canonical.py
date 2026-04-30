@@ -8,6 +8,7 @@ Behavioral check: pass a payload with every canonical key into each
 ``_scrub_pii`` and confirm all keys get masked. Any divergence (a key
 in canonical but missing from a module's scrub set) breaks the test.
 """
+
 from __future__ import annotations
 
 from src.api.main import _scrub_pii as fastapi_scrub
@@ -38,6 +39,4 @@ def test_celery_scrub_masks_all_canonical_keys_in_breadcrumbs() -> None:
     event = {"breadcrumbs": _payload_with_all_canonical_keys()}
     result = celery_scrub(event, {})
     for key in SENTRY_PII_KEYS:
-        assert result["breadcrumbs"][key] == "***", (
-            f"Celery breadcrumbs did not scrub {key}"
-        )
+        assert result["breadcrumbs"][key] == "***", f"Celery breadcrumbs did not scrub {key}"

@@ -48,9 +48,7 @@ class Settings(BaseSettings):
             return None
         allowed = ("socks5://", "socks4://", "http://", "https://")
         if not value.startswith(allowed):
-            raise ValueError(
-                f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}"
-            )
+            raise ValueError(f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}")
         return value
 
     # PostgreSQL
@@ -167,7 +165,9 @@ class Settings(BaseSettings):
     # GitHub Integration
     # ══════════════════════════════════════════════════════════════
     github_token: str | None = Field(None, alias="GITHUB_TOKEN", description="GitHub PAT токен")
-    github_repo_owner: str = Field("", alias="GITHUB_REPO_OWNER", description="GitHub репо владелец")
+    github_repo_owner: str = Field(
+        "", alias="GITHUB_REPO_OWNER", description="GitHub репо владелец"
+    )
     github_repo_name: str = Field("", alias="GITHUB_REPO_NAME", description="GitHub репо название")
 
     # ══════════════════════════════════════════════════════════════
