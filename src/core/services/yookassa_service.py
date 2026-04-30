@@ -114,7 +114,7 @@ class YooKassaService:
 
         Returns:
             dict с полями payment_id, payment_url, amount (gross),
-            credits (= int(desired_balance)), status="pending".
+            credits (int rubles for YooKassa metadata), status="pending".
 
         Raises:
             ValueError: пользователь не найден или некорректная сумма.
@@ -132,8 +132,8 @@ class YooKassaService:
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        # 2. Compute amounts (1:1 credits — legacy field)
-        credits_amount = int(desired_balance)
+        # 2. Compute amounts — int rubles for YooKassa metadata
+        amount_int = int(desired_balance)
         desired_balance_dec = Dec(str(desired_balance))
         fee_amount = (desired_balance_dec * YOOKASSA_FEE_RATE).quantize(Dec("0.01"))
         gross_amount = desired_balance_dec + fee_amount
@@ -227,7 +227,7 @@ class YooKassaService:
             "meta_json": {
                 "status": "pending",
                 "method": "yookassa",
-                "credits": credits_amount,
+                "credits": amount_int,
                 "desired_balance": str(desired_balance_dec),
                 "fee_amount": str(fee_amount),
                 "gross_amount": str(gross_amount),
@@ -243,7 +243,7 @@ class YooKassaService:
             "payment_id": payment_id,
             "payment_url": confirmation_url,
             "amount": str(gross_amount),
-            "credits": credits_amount,
+            "credits": amount_int,
             "status": "pending",
         }
 
