@@ -1,5 +1,6 @@
 """Shared start handler."""
 
+import logging
 from datetime import UTC, datetime
 
 from aiogram import F, Router
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.bot.keyboards.advertiser.adv_menu import adv_menu_kb
 from src.bot.keyboards.owner.own_menu import own_menu_kb
 from src.bot.keyboards.shared.main_menu import main_menu_kb, tos_kb
+from src.bot.utils.portal_deeplink import PortalDeeplinkError, build_portal_deeplink
 from src.config.settings import settings
 from src.constants.fees import (
     PLATFORM_COMMISSION_RATE,
@@ -21,6 +23,7 @@ from src.constants.fees import (
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.user_repo import UserRepository
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 USER_NOT_FOUND = "Пользователь не найден."
@@ -201,9 +204,21 @@ async def go_to_own_menu(callback: CallbackQuery, session: AsyncSession) -> None
         await callback.answer(USER_NOT_FOUND, show_alert=True)
         return
     pending = await PlacementRequestRepository(session).get_pending_for_owner(user.id)
+    payout_url: str | None = None
+    try:
+        payout_url = await build_portal_deeplink(
+            telegram_id=user.telegram_id,
+            redirect_path="/own/payouts/request",
+        )
+    except PortalDeeplinkError as exc:
+        logger.warning(
+            "own_menu_payout_button_skipped",
+            extra={"event": "own_menu_payout_button_skipped", "error": str(exc)},
+        )
+
     await callback.message.edit_text(
         "📺 *Меню владельца канала*",
-        reply_markup=own_menu_kb(pending_count=len(pending)),
+        reply_markup=own_menu_kb(pending_count=len(pending), payout_url=payout_url),
         parse_mode="Markdown",
     )
     await callback.answer()
