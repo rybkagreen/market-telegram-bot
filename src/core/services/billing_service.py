@@ -98,7 +98,7 @@ class BillingService:
             status = meta.get("status", "pending")
 
             # В production здесь проверяем статус в YooKassa
-            # Если paid, то зачисляем кредиты на баланс
+            # Если paid, то зачисляем средства на баланс
             applied = meta.get("applied") if meta else None
             if status == "succeeded" and applied is not True:
                 # Зачисляем рубли на баланс

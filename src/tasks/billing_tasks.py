@@ -112,7 +112,7 @@ async def _check_plan_renewals() -> dict:
                 except Exception as e:
                     logger.error(f"Failed to renew plan for user {user.telegram_id}: {e}")
             else:
-                # Недостаточно кредитов — понижаем до FREE
+                # Недостаточно средств — понижаем до FREE
                 from sqlalchemy import update as _update
 
                 await session.execute(
