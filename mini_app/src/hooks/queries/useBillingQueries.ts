@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlans, createTopUp, getTopUpStatus, purchasePlan, buyCredits, getBillingHistory, getFeeConfig } from '@/api/billing'
+import { getPlans, createTopUp, getTopUpStatus, purchasePlan, getBillingHistory, getFeeConfig } from '@/api/billing'
 import { useUiStore } from '@/stores/uiStore'
 import type { TopUpResponse } from '@/lib/types'
 
@@ -29,27 +29,6 @@ export const useTopUpStatus = (id: string | null) =>
     enabled: !!id,
     refetchInterval: 3000,
   })
-
-export const useBuyCredits = () => {
-  const qc = useQueryClient()
-  const addToast = useUiStore((s) => s.addToast)
-
-  return useMutation({
-    mutationFn: (amountRub: number) => buyCredits(amountRub),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['user', 'me'] })
-      addToast('success', `Оплачено ${data.amount_rub} ₽`)
-    },
-    onError: (err: unknown) => {
-      const httpStatus = (err as { response?: { status?: number } })?.response?.status
-      if (httpStatus === 402) {
-        addToast('error', 'Недостаточно средств на балансе')
-      } else {
-        addToast('error', 'Ошибка при оплате тарифа')
-      }
-    },
-  })
-}
 
 export const useFeeConfig = () =>
   useQuery({

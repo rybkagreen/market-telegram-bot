@@ -84,14 +84,6 @@ export function getPlans(): Promise<PlanDetail[]> {
   return api.get('billing/plans').json<PlanDetail[]>()
 }
 
-export interface BuyCreditsResponse {
-  amount_rub: number
-}
-
-export function buyCredits(amountRub: number): Promise<BuyCreditsResponse> {
-  return api.post('billing/credits', { json: { desired_amount: amountRub } }).json<BuyCreditsResponse>()
-}
-
 export interface FeeConfigResponse {
   topup: { yookassa_fee_rate: string }
   placement: {
