@@ -949,7 +949,7 @@ None currently defined. Recommended for future:
 
 **Total migrations:** 33
 **Tool:** Alembic
-**Config:** `alembic.ini` (local), `alembic.docker.ini` (Docker), `alembic_sync.ini` (sync operations)
+**Config:** `alembic.ini` (local + Docker), `alembic_sync.ini` (sync operations)
 
 ### 8.2 Migration Categories
 
@@ -976,7 +976,7 @@ None currently defined. Recommended for future:
 poetry run alembic upgrade head
 
 # Docker
-docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+docker compose exec api poetry run alembic -c alembic.ini upgrade head
 
 # Check status
 poetry run alembic current

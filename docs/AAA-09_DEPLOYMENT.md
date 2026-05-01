@@ -257,10 +257,10 @@ poetry run alembic current
 
 ```bash
 # Apply migrations in production
-docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+docker compose exec api poetry run alembic -c alembic.ini upgrade head
 
 # Check status
-docker compose exec api poetry run alembic -c alembic.docker.ini current
+docker compose exec api poetry run alembic -c alembic.ini current
 ```
 
 ### 3.3 Migration Validation
@@ -447,7 +447,7 @@ docker compose stop bot api worker_critical worker_background worker_game celery
 gunzip -c backups/db_20260408.sql.gz | docker compose exec -T postgres psql -U market_bot market_bot_db
 
 # 3. Apply any pending migrations
-docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+docker compose exec api poetry run alembic -c alembic.ini upgrade head
 
 # 4. Restart all services
 docker compose up -d
