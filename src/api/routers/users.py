@@ -133,7 +133,6 @@ async def get_current_user_data(current_user: CurrentUser) -> UserResponse:
         plan_expires_at=current_user.plan_expires_at,
         balance_rub=str(current_user.balance_rub),
         earned_rub=str(current_user.earned_rub),
-        credits=current_user.credits,
         advertiser_xp=current_user.advertiser_xp,
         advertiser_level=current_user.advertiser_level,
         owner_xp=current_user.owner_xp,

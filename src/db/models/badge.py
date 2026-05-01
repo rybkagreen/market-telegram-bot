@@ -44,7 +44,6 @@ class Badge(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     icon_emoji: Mapped[str] = mapped_column(String(8), nullable=False)
     xp_reward: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    credits_reward: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     category: Mapped[str] = mapped_column(String(16), nullable=False)
     condition_type: Mapped[str] = mapped_column(String(32), nullable=False)
     condition_value: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")

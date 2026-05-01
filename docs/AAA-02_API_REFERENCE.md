@@ -225,7 +225,6 @@ Admin endpoints require:
 | GET | `/api/billing/plans` | None | List available plans | `billing.py:196` |
 | GET | `/api/billing/balance` | JWT | Get balance | `billing.py:259` |
 | GET | `/api/billing/history` | JWT | Transaction history | `billing.py:290` |
-| POST | `/api/billing/credits` | JWT | Buy credits (for plans) | `billing.py:340` |
 | POST | `/api/billing/plan` | JWT | Change plan | `billing.py:371` |
 | GET | `/api/billing/invoice/{invoice_id}` | JWT | Get invoice (⚠️ returns 404 — legacy) | `billing.py:421` |
 | POST | `/api/billing/webhooks/yookassa` | IP whitelist | YooKassa webhook | `billing.py:437` |

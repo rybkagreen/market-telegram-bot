@@ -134,14 +134,6 @@
   - Transaction(refund) created
 - **Side Effects:** Notification to advertiser
 
-#### `buy_credits_for_plan(user_id, amount_rub) -> User`
-- **Preconditions:** `user.balance_rub >= amount_rub`
-- **Postconditions:**
-  - `user.balance_rub -= amount_rub`
-  - `user.credits += amount_rub` (1:1 conversion)
-  - Transaction(spend) created
-- **Side Effects:** None
-
 ---
 
 ### 2.2 PayoutService
@@ -620,7 +612,6 @@ PermissionError
 | Service | Method | Notes |
 |---------|--------|-------|
 | BillingService | calculate_topup_payment | Pure calculation |
-| BillingService | buy_credits_for_plan | Has its own session |
 | MistralAIService | generate_ad_text | External API call |
 | NotificationService | send_notification | External API call |
 | AnalyticsService | all get_* methods | Read-only |

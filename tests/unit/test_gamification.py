@@ -48,25 +48,25 @@ class TestStreakBonus:
         result = await xp_service.award_streak_bonus(user.id, 7)
         assert result["success"] is True
         assert result["xp_awarded"] == 50
-        assert result["credits_awarded"] == 10
+        assert result["balance_rub_awarded"] == 10
 
         # Test 14 days streak
         result = await xp_service.award_streak_bonus(user.id, 14)
         assert result["success"] is True
         assert result["xp_awarded"] == 100
-        assert result["credits_awarded"] == 25
+        assert result["balance_rub_awarded"] == 25
 
         # Test 30 days streak
         result = await xp_service.award_streak_bonus(user.id, 30)
         assert result["success"] is True
         assert result["xp_awarded"] == 300
-        assert result["credits_awarded"] == 100
+        assert result["balance_rub_awarded"] == 100
 
         # Test 100 days streak
         result = await xp_service.award_streak_bonus(user.id, 100)
         assert result["success"] is True
         assert result["xp_awarded"] == 1000
-        assert result["credits_awarded"] == 500
+        assert result["balance_rub_awarded"] == 500
 
     @pytest.mark.asyncio
     async def test_streak_bonus_below_threshold(self, db_session, user_test_data):

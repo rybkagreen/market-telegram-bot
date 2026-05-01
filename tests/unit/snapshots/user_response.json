@@ -20,11 +20,6 @@
       "title": "Balance Rub",
       "type": "string"
     },
-    "credits": {
-      "default": 0,
-      "title": "Credits",
-      "type": "integer"
-    },
     "earned_rub": {
       "title": "Earned Rub",
       "type": "string"

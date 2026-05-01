@@ -531,8 +531,8 @@ docker compose ps
 # 2. Check logs
 docker compose logs -f <service_name>
 
-# 3. Restart service
-docker compose restart <service_name>
+# 3. Recreate service (note: 'restart' does not re-read env_file; 'up -d' recreates with refreshed env)
+docker compose up -d <service_name>
 
 # 4. Verify recovery
 curl http://localhost:8001/health
@@ -551,8 +551,8 @@ docker compose exec postgres psql -U market_bot -c "SELECT count(*) FROM pg_stat
 # 3. Check disk space
 docker compose exec postgres df -h /var/lib/postgresql/data
 
-# 4. Restart if needed
-docker compose restart postgres
+# 4. Recreate if needed
+docker compose up -d postgres
 ```
 
 ### 7.3 Celery Worker Stuck
@@ -570,8 +570,8 @@ celery -A src.tasks.celery_app inspect reserved
 # 4. Purge stuck tasks (if needed)
 celery -A src.tasks.celery_app purge -Q celery
 
-# 5. Restart worker
-docker compose restart worker_critical
+# 5. Recreate worker
+docker compose up -d worker_critical
 ```
 
 ### 7.4 Bot Not Responding
@@ -586,8 +586,8 @@ docker compose exec bot env | grep BOT_TOKEN
 # 3. Check Telegram API connectivity
 docker compose exec bot curl -s https://api.telegram.org/bot$BOT_TOKEN/getMe
 
-# 4. Restart bot
-docker compose restart bot
+# 4. Recreate bot
+docker compose up -d bot
 
 # 5. Check webhook status (if using webhooks)
 curl "https://api.telegram.org/bot$BOT_TOKEN/getWebhookInfo"
