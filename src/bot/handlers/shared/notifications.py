@@ -11,7 +11,7 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.utils.portal_deeplink import portal_webapp
+from src.bot.utils.portal_deeplink import PortalDeeplinkError, build_portal_deeplink
 
 logger = logging.getLogger(__name__)
 
@@ -244,11 +244,17 @@ async def notify_owner_post_completed(
 ) -> None:
     """Владельцу: оплата поступила на баланс."""
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(
-            text="💸 Запросить вывод", web_app=portal_webapp("/own/payouts/request")
+    try:
+        payout_url = await build_portal_deeplink(
+            telegram_id=owner_telegram_id,
+            redirect_path="/own/payouts/request",
         )
-    )
+        builder.row(InlineKeyboardButton(text="💸 Запросить вывод", url=payout_url))
+    except PortalDeeplinkError as exc:
+        logger.warning(
+            "post_completed_payout_button_skipped",
+            extra={"event": "post_completed_payout_button_skipped", "error": str(exc)},
+        )
     builder.row(InlineKeyboardButton(text="📊 Статистика", callback_data="main:owner_analytics"))
     with contextlib.suppress(Exception):
         await bot.send_message(
