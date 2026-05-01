@@ -137,7 +137,7 @@ def _signed_post(
     *,
     telegram_id: int,
     redirect_path: str,
-    bot_token: str | None = None,
+    hmac_secret: str | None = None,
 ):
     body_bytes = (
         b'{"telegram_id": ' + str(telegram_id).encode() + b", "
@@ -145,7 +145,7 @@ def _signed_post(
     )
     ts, sig = sign_bot_request(
         body_bytes=body_bytes,
-        bot_token=bot_token if bot_token is not None else settings.bot_token,
+        hmac_secret=hmac_secret if hmac_secret is not None else settings.bot_api_hmac_secret,
     )
     return client.post(
         "/api/auth/exchange-bot-token-to-portal",
@@ -207,7 +207,7 @@ async def test_invalid_signature_returns_401(client: AsyncClient, fake_user: Any
         + str(fake_user.telegram_id).encode()
         + b', "redirect_path": "/own/payouts/request"}'
     )
-    ts, sig = sign_bot_request(body_bytes=body, bot_token=settings.bot_token)
+    ts, sig = sign_bot_request(body_bytes=body, hmac_secret=settings.bot_api_hmac_secret)
     # tamper signature
     tampered_sig = "0" * len(sig)
     r = await client.post(
@@ -262,11 +262,11 @@ async def test_unknown_user_returns_404(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_wrong_bot_token_returns_401(client: AsyncClient, fake_user: Any) -> None:
+async def test_wrong_hmac_secret_returns_401(client: AsyncClient, fake_user: Any) -> None:
     r = await _signed_post(
         client,
         telegram_id=fake_user.telegram_id,
         redirect_path="/own/payouts/request",
-        bot_token="not-the-real-bot-token",
+        hmac_secret="not-the-real-hmac-secret",
     )
     assert r.status_code == 401

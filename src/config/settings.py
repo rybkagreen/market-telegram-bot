@@ -117,6 +117,23 @@ class Settings(BaseSettings):
         24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)"
     )
 
+    # ══════════════════════════════════════════════════════════════
+    # Bot → API HMAC-SHA256 secret (BL-066) — separate from BOT_TOKEN.
+    # Generate: openssl rand -hex 32
+    # Defence-in-depth: BOT_TOKEN auths bot ↔ Telegram (compromise =
+    # Telegram-side); BOT_API_HMAC_SECRET auths bot ↔ API
+    # (compromise = infrastructure-side). Splitting the two means a
+    # leak in one channel does not unlock the other.
+    # ══════════════════════════════════════════════════════════════
+    bot_api_hmac_secret: str = Field(
+        ...,
+        alias="BOT_API_HMAC_SECRET",
+        description=(
+            "HMAC-SHA256 secret for server-to-server bot → API authentication. "
+            "Generate via: openssl rand -hex 32. Distinct from BOT_TOKEN."
+        ),
+    )
+
     # S9: Persistent storage for generated PDF contracts
     contracts_storage_path: str = Field(
         "/data/contracts",

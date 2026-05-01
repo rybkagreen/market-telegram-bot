@@ -60,7 +60,7 @@ async def build_portal_deeplink(
     body_bytes = _serialize_body(telegram_id=telegram_id, redirect_path=redirect_path)
     timestamp_header, signature_header = sign_bot_request(
         body_bytes=body_bytes,
-        bot_token=settings.bot_token,
+        hmac_secret=settings.bot_api_hmac_secret,
     )
     headers = {
         "X-Bot-Auth-Timestamp": timestamp_header,

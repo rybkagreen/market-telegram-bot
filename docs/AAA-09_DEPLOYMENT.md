@@ -130,6 +130,7 @@ All services are on the same Docker network. External access is only through:
 | `JWT_SECRET` | ✅ | — | JWT signing secret (32-byte hex) |
 | `JWT_ALGORITHM` | — | `HS256` | JWT signing algorithm |
 | `JWT_EXPIRE_HOURS` | — | `24` | JWT token expiry (hours) |
+| `BOT_API_HMAC_SECRET` | ✅ | — | HMAC secret for bot ↔ API server-to-server auth (32-byte hex). Distinct from `BOT_TOKEN`. |
 
 #### Payments (YooKassa)
 
@@ -213,6 +214,9 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 # JWT_SECRET (32-byte hex)
 python -c "import secrets; print(secrets.token_hex(32))"
+
+# BOT_API_HMAC_SECRET (32-byte hex) — separate from BOT_TOKEN (BL-066)
+openssl rand -hex 32
 ```
 
 ### 2.3 Environment-Specific Config

@@ -1,10 +1,12 @@
 """Unit tests for ``src.bot.utils.portal_deeplink.build_portal_deeplink`` (BL-055).
 
-The helper signs a body with HMAC-SHA256(BOT_TOKEN, …), POSTs it to the
-internal API, and returns the ``ticket_url`` from the response. Tests
+The helper signs a body with HMAC-SHA256(BOT_API_HMAC_SECRET, …), POSTs it
+to the internal API, and returns the ``ticket_url`` from the response. Tests
 verify the wire format (headers, body), success path, and that every
 HTTP-layer failure mode collapses to ``PortalDeeplinkError`` (so callers
 can blanket-catch and skip the button).
+
+The HMAC key was split from BOT_TOKEN in BL-066 (defence-in-depth).
 """
 
 from __future__ import annotations
@@ -92,7 +94,7 @@ async def test_signature_matches_signed_body() -> None:
     import hashlib
 
     message = f"{int(ts_header)}.".encode() + body
-    expected = hmac.new(settings.bot_token.encode(), message, hashlib.sha256).hexdigest()
+    expected = hmac.new(settings.bot_api_hmac_secret.encode(), message, hashlib.sha256).hexdigest()
     assert hmac.compare_digest(expected, sig_header)
 
 
