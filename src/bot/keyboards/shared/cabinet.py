@@ -5,23 +5,27 @@ from decimal import Decimal
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.utils.portal_deeplink import portal_webapp
 
+def cabinet_kb(
+    earned_rub: Decimal,
+    *,
+    payout_url: str | None = None,
+) -> InlineKeyboardMarkup:
+    """Клавиатура кабинета — без role gating.
 
-def cabinet_kb(earned_rub: Decimal) -> InlineKeyboardMarkup:
-    """Клавиатура кабинета — без role gating."""
+    ``payout_url`` is the pre-minted portal-login URL (BL-055). The button
+    appears only when ``earned_rub >= 1000`` AND a URL was minted —
+    falsy URL silently hides the button so the rest of the cabinet
+    still renders even if the API is briefly unreachable.
+    """
     builder = InlineKeyboardBuilder()
 
     builder.row(
         InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start")
     )
 
-    if earned_rub >= Decimal("1000"):
-        builder.row(
-            InlineKeyboardButton(
-                text="💸 Запросить вывод", web_app=portal_webapp("/own/payouts/request")
-            )
-        )
+    if earned_rub >= Decimal("1000") and payout_url:
+        builder.row(InlineKeyboardButton(text="💸 Запросить вывод", url=payout_url))
 
     builder.row(InlineKeyboardButton(text="⭐ Изменить тариф", callback_data="billing:plans"))
     builder.row(
