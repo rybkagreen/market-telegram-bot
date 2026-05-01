@@ -22,7 +22,6 @@ class UserResponse(BaseModel):
     plan_expires_at: datetime | None = None
     balance_rub: str
     earned_rub: str
-    credits: int = 0
     advertiser_xp: int = 0
     advertiser_level: int = 1
     owner_xp: int = 0

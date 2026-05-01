@@ -51,7 +51,6 @@ def upgrade() -> None:  # noqa: PLR0915
             server_default=sa.text("0"),
             nullable=False,
         ),
-        sa.Column("credits", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("referral_code", sa.String(32), nullable=False),
         sa.Column("referred_by_id", sa.Integer(), nullable=True),
         sa.Column("advertiser_xp", sa.Integer(), server_default=sa.text("0"), nullable=False),
@@ -106,7 +105,6 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("icon_emoji", sa.String(8), nullable=False),
         sa.Column("xp_reward", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("credits_reward", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("category", sa.String(16), nullable=False),
         sa.Column("condition_type", sa.String(32), nullable=False),
         sa.Column(
