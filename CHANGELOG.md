@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Credits removal + admin URL split sprint closure (17.3a + 17.3b + 17.3c) (2026-05-01)
+
+Single sprint-closure entry covering all three sub-batches landed on
+`feat/17.3-credits-rename`. End-state described from the user-observable
+public surface (URL, schema, FE).
+
+#### Removed
+
+- `User.credits: Mapped[int]` field (DB column + ORM + Pydantic
+  `UserResponse.credits`) — единая валюта = ₽ (`balance_rub`).
+- `Badge.credits_reward: Mapped[int]` field (DB column + ORM + 12
+  `seed_badges.py` entries) — gamification-bonus payouts now XP-only;
+  `notify_badge_earned` task signature trimmed accordingly.
+- `POST /api/billing/credits` endpoint — debit-only ghost (deducted
+  balance without activating plan). Real plan purchases go through
+  `POST /api/billing/plan` (unchanged). Service method
+  `BillingService.charge_balance_for_plan` removed (orphan; sole caller
+  was the dropped handler).
+- FE `mini_app/src/api/billing.ts::buyCredits`,
+  `useBuyCredits` hook, and `BuyCreditsResponse` interface — dead
+  consumers of the removed endpoint (hook defined but never imported by
+  any screen).
+
+#### Changed
+
+- Admin URL split (mirrors internal semantic split — commission grant
+  ≠ gamification bonus):
+  - `POST /api/admin/credits/platform-credit` → `POST /api/admin/grants/platform`
+  - `POST /api/admin/credits/gamification-bonus` → `POST /api/admin/bonuses/gamification`
+- FE TS interface rename for consistency:
+  `PlatformCreditResponse` → `PlatformGrantResponse`
+  (`web_portal/src/api/admin.ts`). Cascaded:
+  `createPlatformCredit` / `useCreatePlatformCredit` / `platformCredit`
+  / `handlePlatformCredit` → `*Grant` variants in api / hook / screen.
+  `GamificationBonusResponse` and its surrounding identifiers kept
+  as-is (semantic split preserved).
+- Notification copy: `notification_tasks.py` and `billing_tasks.py`
+  now read `user.balance_rub` for balance display (was reading the
+  dropped `user.credits` which was always 0). `billing_tasks.py`
+  insufficient-funds heading changed to «Недостаточно средств»
+  (currency-honest).
+
+#### Fixed
+
+- `notification_tasks.py:1231` balance-message bug — showed `0` always
+  due to dropped `credits` field.
+- `billing_tasks.py:138` plan-extension insufficient-funds bug —
+  same root cause.
+- `tests/unit/test_gamification.py` stale assertion key
+  (`credits_awarded` → `balance_rub_awarded`) to match
+  `xp_service.award_streak_bonus` actual return key.
+
+#### Internal
+
+- Cleanup of credits-naming residues in code comments, docstrings, and
+  documentation (`docs/AAA-02_API_REFERENCE.md`,
+  `docs/AAA-04_SERVICE_REFERENCE.md`).
+- Snapshot regen: `tests/unit/snapshots/user_response.json` (drops the
+  removed `credits` property).
+
+#### Migration notes
+
+- Pre-prod migration policy applied: edited `0001_initial_schema.py`
+  directly (no incremental migration). DB recreated locally with
+  `DROP / CREATE DATABASE market_bot_db` + `alembic upgrade head`;
+  `alembic check` clean.
+- **Atomic FE+BE deploy required.** Old admin URLs return 404 after
+  this batch is deployed; web_portal callsites have been updated in
+  lockstep within the same branch. No deprecation aliases or dual code
+  paths.
+
+#### Verify gates (final)
+
+- pytest (`make ci-local`): **76 failed / 780 passed / 6 skipped /
+  17 errored** — baseline preserved exactly across all three batches.
+- ruff (`src/ tests/`): **20 errors** — baseline preserved.
+- alembic check: clean (`No new upgrade operations detected`).
+- TS typecheck (`mini_app/`, `web_portal/`): clean.
+
+#### Detail
+
+- `reports/docs-architect/discovery/CHANGES_2026-05-01_17-3a_credits_sweep.md`
+- `reports/docs-architect/discovery/CHANGES_2026-05-01_17-3b_backend_url_renames.md`
+- `reports/docs-architect/discovery/CHANGES_2026-05-01_17-3c_fe_cleanup.md`
+
 ### Changed — Split bot-to-API HMAC secret from BOT_TOKEN (BL-066) (2026-05-01)
 
 - Bot-to-portal HMAC authentication moved from `BOT_TOKEN` to a dedicated
