@@ -557,37 +557,6 @@ async def get_history(
     )
 
 
-@router.post(
-    "/credits",
-    responses={400: {"description": "Bad request"}, 402: {"description": "Insufficient balance"}},
-)
-async def buy_credits(
-    body: TopupRequest,
-    current_user: CurrentUser,
-) -> dict:
-    """Оплатить тариф с рублёвого баланса (кредиты удалены, единая валюта ₽)."""
-    from src.core.services.billing_service import BillingService, InsufficientFundsError
-
-    amount = Decimal(str(body.desired_amount))
-    if current_user.balance_rub < amount:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Недостаточно средств на балансе: {current_user.balance_rub} < {amount}",
-        )
-
-    try:
-        billing_service = BillingService()
-        await billing_service.charge_balance_for_plan(current_user.id, amount)
-    except InsufficientFundsError as e:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Недостаточно средств на балансе",
-        ) from e
-
-    logger.info(f"User #{current_user.id} paid {amount} ₽ for plan")
-    return {"amount_rub": body.desired_amount}
-
-
 @router.post("/plan", responses={400: {"description": "Bad request"}})
 async def change_plan(
     body: PlanRequest,

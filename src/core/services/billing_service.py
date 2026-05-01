@@ -58,7 +58,6 @@ class BillingService:
     Методы:
         create_payment: Создать платёж (пополняет balance_rub)
         check_payment: Проверить статус платежа
-        charge_balance_for_plan: Списать рубли с баланса за тариф
         freeze_escrow: Заморозить рубли для размещения
         release_escrow: Освободить эскроу после удаления поста (ESCROW-001)
         refund_escrow: Возврат средств при отмене
@@ -66,67 +65,6 @@ class BillingService:
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
-
-    async def charge_balance_for_plan(
-        self,
-        user_id: int,
-        amount_rub: Decimal,
-    ) -> Transaction:
-        """
-        Оплатить тариф с рублёвого баланса.
-
-        Кредиты удалены — используется единая валюта balance_rub.
-
-        Args:
-            user_id: ID пользователя.
-            amount_rub: Сумма в рублях.
-
-        Returns:
-            Созданная транзакция списания.
-
-        Raises:
-            InsufficientFundsError: Если недостаточно balance_rub.
-        """
-        from src.db.models.transaction import Transaction
-
-        async with async_session_factory() as session:
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_id(user_id)
-
-            if not user:
-                raise ValueError(f"User {user_id} not found")
-
-            # Проверка баланса
-            if user.balance_rub < amount_rub:
-                raise InsufficientFundsError(
-                    f"Insufficient balance_rub: {user.balance_rub} < {amount_rub}"
-                )
-
-            # Списываем рубли
-            balance_rub_before = user.balance_rub
-            user.balance_rub -= amount_rub
-
-            transaction = Transaction(
-                user_id=user_id,
-                amount=amount_rub,
-                type=TransactionType.plan_purchase,
-                yookassa_payment_id=None,
-                description=f"Оплата тарифа: {amount_rub} ₽",
-                meta_json={
-                    "currency": "rub",
-                },
-                balance_before=balance_rub_before,
-                balance_after=user.balance_rub,
-                created_at=datetime.now(UTC),
-            )
-            session.add(transaction)
-
-            await session.commit()
-            await session.refresh(transaction)
-
-            logger.info(f"Plan payment: {amount_rub} ₽ by user {user_id}")
-
-            return transaction
 
     async def check_payment(
         self,
