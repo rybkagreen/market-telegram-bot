@@ -79,22 +79,22 @@ export async function rejectAdminPayout(payoutId: number, reason: string) {
   return api.post(`admin/payouts/${payoutId}/reject`, { json: { reason } }).json<AdminPayoutResponse>()
 }
 
-export interface PlatformCreditResponse {
+export interface PlatformGrantResponse {
   success: boolean
   transaction_id: number
   new_platform_balance: string
   new_user_balance: string
 }
 
-export async function createPlatformCredit(payload: {
+export async function createPlatformGrant(payload: {
   user_id: number
   amount: number
   comment?: string
 }) {
-  return api.post('admin/credits/platform-credit', { json: payload }).json<PlatformCreditResponse>()
+  return api.post('admin/grants/platform', { json: payload }).json<PlatformGrantResponse>()
 }
 
-export interface GamificationBonusResponse extends PlatformCreditResponse {
+export interface GamificationBonusResponse extends PlatformGrantResponse {
   new_user_xp: number
 }
 
@@ -105,7 +105,7 @@ export async function createGamificationBonus(payload: {
   comment?: string
 }) {
   return api
-    .post('admin/credits/gamification-bonus', { json: payload })
+    .post('admin/bonuses/gamification', { json: payload })
     .json<GamificationBonusResponse>()
 }
 

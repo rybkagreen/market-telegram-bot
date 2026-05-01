@@ -8,7 +8,7 @@ import {
   getAdminPayouts,
   approveAdminPayout,
   rejectAdminPayout,
-  createPlatformCredit,
+  createPlatformGrant,
   createGamificationBonus,
   getPlatformSettings,
   updatePlatformSettings,
@@ -101,11 +101,11 @@ export function useRejectAdminPayout() {
   })
 }
 
-export function useCreatePlatformCredit() {
+export function useCreatePlatformGrant() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: { user_id: number; amount: number; comment?: string }) =>
-      createPlatformCredit(payload),
+      createPlatformGrant(payload),
     onSuccess: (_data, { user_id }) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'user', user_id] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'platform-stats'] })
