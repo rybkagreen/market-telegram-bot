@@ -266,6 +266,7 @@ _EXPENSE_TX_TYPES = {
     "cancel_penalty",
     "commission",
     "ndfl_withholding",
+    "plan_purchase",
 }
 
 
