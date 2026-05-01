@@ -109,11 +109,10 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.spend,
+                type=TransactionType.plan_purchase,
                 yookassa_payment_id=None,
                 description=f"Оплата тарифа: {amount_rub} ₽",
                 meta_json={
-                    "type": "plan_payment",
                     "currency": "rub",
                 },
                 balance_before=balance_rub_before,
