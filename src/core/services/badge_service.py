@@ -7,7 +7,6 @@ PRD §9.2: значки за действия — Первый запуск, 100
 
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
 from src.db.session import async_session_factory
@@ -173,9 +172,9 @@ class BadgeService:
         )
         session.add(user_badge)
 
-        # Добавляем XP и баланс за значок
+        # Добавляем XP за значок
         badge = await session.get(Badge, badge_id)
-        rewards = {"xp": 0, "balance_rub": Decimal("0")}
+        rewards: dict[str, Any] = {"xp": 0}
 
         if badge:
             # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
@@ -185,19 +184,11 @@ class BadgeService:
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
 
-            if user:
-                if badge.xp_reward > 0:
-                    user.advertiser_xp += badge.xp_reward
-                    rewards["xp"] = badge.xp_reward
+            if user and badge.xp_reward > 0:
+                user.advertiser_xp += badge.xp_reward
+                rewards["xp"] = badge.xp_reward
 
-                if badge.credits_reward > 0:
-                    reward_amount = Decimal(str(badge.credits_reward))
-                    user.balance_rub += reward_amount
-                    rewards["balance_rub"] = reward_amount
-
-        logger.info(
-            f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']}, Balance: {rewards['balance_rub']} ₽)"
-        )
+        logger.info(f"Awarded badge {badge_id} to user {user_id} (XP: {rewards['xp']})")
         return rewards
 
     async def award_badge(
@@ -382,7 +373,6 @@ class BadgeService:
                             "name": badge.name,
                             "icon_emoji": badge.icon_emoji,
                             "xp_reward": badge.xp_reward,
-                            "credits_reward": badge.credits_reward,
                             "description": badge.description,
                         })
 

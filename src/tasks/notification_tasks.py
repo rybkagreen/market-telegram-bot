@@ -1228,7 +1228,7 @@ async def _notify_expiring_user(user: Any, bot: Any, session: Any, now: Any) -> 
         f"⚠️ <b>Ваш тариф {plan_name} истекает через {days_left} дн.</b>\n\n"
         f"Дата окончания: {expires_str}\n"
         f"Стоимость продления: {renewal_cost} ₽\n"
-        f"Текущий баланс: {user.credits} ₽\n\n"
+        f"Текущий баланс: {user.balance_rub} ₽\n\n"
         f"Продлите тариф чтобы не потерять доступ к функциям.\n"
         f"Кабинет → Сменить тариф"
     )

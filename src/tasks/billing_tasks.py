@@ -112,7 +112,7 @@ async def _check_plan_renewals() -> dict:
                 except Exception as e:
                     logger.error(f"Failed to renew plan for user {user.telegram_id}: {e}")
             else:
-                # Недостаточно кредитов — понижаем до FREE
+                # Недостаточно средств — понижаем до FREE
                 from sqlalchemy import update as _update
 
                 await session.execute(
@@ -135,7 +135,7 @@ async def _check_plan_renewals() -> dict:
                     message = (
                         f"⚠️ <b>Тариф не продлён</b>\n\n"
                         f"Ваш тариф <b>{plan_name}</b> истёк.\n"
-                        f"Недостаточно кредитов для продления (нужно {plan_cost}, было {user.credits}).\n\n"
+                        f"Недостаточно средств для продления (нужно {plan_cost} ₽, было {user.balance_rub} ₽).\n\n"
                         f"Тариф сброшен на <b>FREE</b>.\n"
                         f"Пополните баланс и продлите тариф в разделе /tariffs."
                     )

@@ -831,7 +831,7 @@ class AdminGrantRequest(BaseModel):
 
 
 @router.post(
-    "/credits/platform-credit",
+    "/grants/platform",
     responses={
         404: {"description": _USER_NOT_FOUND},
         400: {"description": "Invalid amount or insufficient platform balance"},
@@ -887,7 +887,7 @@ class GamificationBonusRequest(BaseModel):
 
 
 @router.post(
-    "/credits/gamification-bonus",
+    "/bonuses/gamification",
     responses={
         404: {"description": _USER_NOT_FOUND},
         400: {"description": "Invalid amount or insufficient platform balance"},
