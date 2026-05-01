@@ -34,7 +34,7 @@ make migrate-downgrade # Rollback one step
 make docker-up        # Start all services
 make docker-down      # Stop all services
 make docker-logs      # Follow logs
-docker compose restart api   # Restart specific service
+docker compose up -d api     # Recreate specific service (note: 'restart' does not re-read env_file; 'up -d' recreates container with refreshed environment)
 docker compose logs api --tail=20
 ```
 
