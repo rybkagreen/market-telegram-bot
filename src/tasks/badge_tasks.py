@@ -43,7 +43,6 @@ def check_user_achievements(self, user_id: int) -> dict:
                     badge_name=badge["name"],
                     badge_emoji=badge["icon_emoji"],
                     xp_reward=badge["xp_reward"],
-                    credits_reward=badge["credits_reward"],
                 )
 
         return {
@@ -191,7 +190,6 @@ def monthly_top_advertisers(self) -> dict:
                             badge_name=badge.name,
                             badge_emoji=badge.icon_emoji,
                             xp_reward=badge.xp_reward,
-                            credits_reward=badge.credits_reward,
                         )
                 except Exception as e:
                     logger.error(f"Failed to award top advertiser badge to user {user_id}: {e}")
@@ -216,7 +214,6 @@ def notify_badge_earned(
     badge_name: str,
     badge_emoji: str,
     xp_reward: int,
-    credits_reward: int,
 ) -> bool:
     """
     Отправить уведомление о получении значка.
@@ -226,7 +223,6 @@ def notify_badge_earned(
         badge_name: Название значка.
         badge_emoji: Emoji значка.
         xp_reward: Награда XP.
-        credits_reward: Награда кредитами.
 
     Returns:
         True если уведомление отправлено.
@@ -241,8 +237,6 @@ def notify_badge_earned(
 
     if xp_reward > 0:
         message_parts.append(f"+{xp_reward} XP\n")
-    if credits_reward > 0:
-        message_parts.append(f"+{credits_reward} кр\n")
 
     message_parts.append("\nПоздравляем с достижением!")
 

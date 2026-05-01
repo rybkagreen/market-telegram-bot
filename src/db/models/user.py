@@ -66,7 +66,6 @@ class User(Base, TimestampMixin):
     earned_rub: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0"), server_default="0"
     )
-    credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     language_code: Mapped[str | None] = mapped_column(String(10), nullable=True, default=None)
     referral_code: Mapped[str] = mapped_column(
         String(32), unique=True, nullable=False, default=_default_referral_code
