@@ -237,12 +237,12 @@ Key format (in use today):
 ```bash
 docker compose exec db psql -U postgres \
   -c "DROP DATABASE market_bot_db; CREATE DATABASE market_bot_db;" \
-  && docker compose exec api poetry run alembic -c alembic.docker.ini upgrade head
+  && docker compose exec api poetry run alembic -c alembic.ini upgrade head
 ```
 
 **Verify sync after every model change:**
 ```bash
-docker compose exec api poetry run alembic -c alembic.docker.ini check
+docker compose exec api poetry run alembic -c alembic.ini check
 # Must output: "No new upgrade operations detected."
 ```
 
