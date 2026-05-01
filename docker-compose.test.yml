@@ -53,7 +53,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./scripts:/app/scripts
-      - ./alembic.docker.ini:/app/alembic.ini:ro
+      - ./alembic.ini:/app/alembic.ini:ro
       - ./alembic_sync.ini:/app/alembic_sync.ini:ro
     depends_on:
       postgres-test:
