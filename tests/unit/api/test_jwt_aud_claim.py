@@ -294,9 +294,7 @@ async def test_case5_full_ticket_flow_returns_web_portal_token(
     fake_user: Any,
 ) -> None:
     """Case 5: exchange → consume → AuthTokenResponse with source=web_portal."""
-    mini_token = create_jwt_token(
-        fake_user.id, fake_user.telegram_id, "free", source="mini_app"
-    )
+    mini_token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
     r1 = await client.post(
         "/api/auth/exchange-miniapp-to-portal",
         headers={"Authorization": f"Bearer {mini_token}"},
@@ -331,9 +329,7 @@ async def test_case6_expired_ticket_consumed_returns_401(
         "exp": datetime.now(UTC) - timedelta(seconds=10),
         "iat": datetime.now(UTC) - timedelta(seconds=600),
     }
-    expired = pyjwt.encode(
-        expired_payload, settings.jwt_secret, algorithm=settings.jwt_algorithm
-    )
+    expired = pyjwt.encode(expired_payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     # Even if jti is present in Redis, expired token must be rejected first.
     await fake_redis.setex(
         f"auth:ticket:jti:{expired_payload['jti']}",
@@ -351,9 +347,7 @@ async def test_case7_replay_consume_same_ticket_twice_first_ok_second_401(
     fake_user: Any,
 ) -> None:
     """Case 7: 1st consume → 200, 2nd consume of same ticket → 401."""
-    mini_token = create_jwt_token(
-        fake_user.id, fake_user.telegram_id, "free", source="mini_app"
-    )
+    mini_token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
     r_exchange = await client.post(
         "/api/auth/exchange-miniapp-to-portal",
         headers={"Authorization": f"Bearer {mini_token}"},

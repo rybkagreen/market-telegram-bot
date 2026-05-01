@@ -248,7 +248,7 @@ async def get_activity(
 _INCOME_TX_TYPES = {
     "topup",
     "bonus",
-    "admin_credit",
+    "admin_grant",
     "escrow_release",
     "refund_full",
     "refund_partial",
@@ -266,6 +266,7 @@ _EXPENSE_TX_TYPES = {
     "cancel_penalty",
     "commission",
     "ndfl_withholding",
+    "plan_purchase",
 }
 
 

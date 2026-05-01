@@ -12,7 +12,7 @@ Decision 7 lint enforcement, deferred to § 2.B.X).
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -59,14 +59,14 @@ class PlacementStatusHistory(Base):
         server_default="{}",
     )
 
-    placement: Mapped["PlacementRequest"] = relationship(back_populates="status_history")
-    actor: Mapped["User | None"] = relationship()
+    placement: Mapped[PlacementRequest] = relationship(back_populates="status_history")
+    actor: Mapped[User | None] = relationship()
 
     __table_args__ = (
         Index(
             "ix_psh_placement_changed",
             "placement_id",
-            "changed_at",
+            text("changed_at DESC"),
             postgresql_using="btree",
         ),
     )

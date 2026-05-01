@@ -201,27 +201,19 @@ def _register_and_token(
 class TestPayoutsRejectMiniAppJwt:
     """`/api/payouts/*` (CRIT-2 / BL-046) — pinned к web_portal-only."""
 
-    async def test_get_my_payouts_with_mini_app_jwt_returns_403(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_get_my_payouts_with_mini_app_jwt_returns_403(self, client: AsyncClient) -> None:
         token = _register_and_token(client, 7001, is_admin=False, source="mini_app")
-        resp = await client.get(
-            "/api/payouts/", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/payouts/", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
 
     async def test_get_payout_by_id_with_mini_app_jwt_returns_403(
         self, client: AsyncClient
     ) -> None:
         token = _register_and_token(client, 7002, is_admin=False, source="mini_app")
-        resp = await client.get(
-            "/api/payouts/123", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/payouts/123", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
 
-    async def test_create_payout_with_mini_app_jwt_returns_403(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_create_payout_with_mini_app_jwt_returns_403(self, client: AsyncClient) -> None:
         token = _register_and_token(client, 7003, is_admin=False, source="mini_app")
         resp = await client.post(
             "/api/payouts/",
@@ -244,18 +236,14 @@ class TestAdminRejectMiniAppJwt:
     ) -> None:
         # Даже если is_admin=True — audience-несовпадение бьёт раньше.
         token = _register_and_token(client, 9001, is_admin=True, source="mini_app")
-        resp = await client.get(
-            "/api/admin/users", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
 
     async def test_admin_payouts_list_with_mini_app_jwt_returns_403(
         self, client: AsyncClient
     ) -> None:
         token = _register_and_token(client, 9002, is_admin=True, source="mini_app")
-        resp = await client.get(
-            "/api/admin/payouts", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/admin/payouts", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
 
     async def test_admin_platform_settings_with_mini_app_jwt_returns_403(
@@ -290,9 +278,7 @@ class TestWebPortalJwtPassesAudienceGate:
         self, client: AsyncClient
     ) -> None:
         token = _register_and_token(client, 7100, is_admin=False, source="web_portal")
-        resp = await client.get(
-            "/api/payouts/", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/payouts/", headers={"Authorization": f"Bearer {token}"})
         # 200/204/4xx-by-business-logic, но не 403 от audience.
         # У не-admin user'а GET /api/payouts/ возвращает свой список → 200.
         assert resp.status_code != 403, resp.text
@@ -304,9 +290,7 @@ class TestWebPortalJwtPassesAudienceGate:
         # Endpoint может вернуть 200 либо 5xx из-за заглушенной DB —
         # главное не 403.
         token = _register_and_token(client, 9100, is_admin=True, source="web_portal")
-        resp = await client.get(
-            "/api/admin/users", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code != 403, resp.text
 
     async def test_web_portal_non_admin_jwt_admin_users_returns_403_admin_gate(
@@ -315,8 +299,6 @@ class TestWebPortalJwtPassesAudienceGate:
         # web_portal aud → audience pass → is_admin=False → 403 от
         # is_admin gate (а не от audience). Сообщение должно сослаться на admin.
         token = _register_and_token(client, 7101, is_admin=False, source="web_portal")
-        resp = await client.get(
-            "/api/admin/users", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
         assert "admin" in resp.json().get("detail", "").lower()

@@ -122,26 +122,32 @@ def test_dead_publication_route_removed():
 # ─── P3: explicit queue in decorators ──────────────────────────────────────────
 
 
-@pytest.mark.parametrize("task_name", [
-    "gamification:update_streaks_daily",
-    "gamification:send_weekly_digest",
-    "gamification:check_seasonal_events",
-    "gamification:award_daily_login_bonus",
-])
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "gamification:update_streaks_daily",
+        "gamification:send_weekly_digest",
+        "gamification:check_seasonal_events",
+        "gamification:award_daily_login_bonus",
+    ],
+)
 def test_gamification_tasks_routed_to_gamification_queue(task_name):
     q = _effective_queue(task_name)
     assert q == "gamification", f"{task_name} must route to 'gamification', got {q!r}"
 
 
-@pytest.mark.parametrize("task_name", [
-    "badges:check_user_achievements",
-    "badges:daily_badge_check",
-    "badges:monthly_top_advertisers",
-    "badges:notify_badge_earned",
-    "badges:trigger_after_campaign_launch",
-    "badges:trigger_after_campaign_complete",
-    "badges:trigger_after_streak_update",
-])
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "badges:check_user_achievements",
+        "badges:daily_badge_check",
+        "badges:monthly_top_advertisers",
+        "badges:notify_badge_earned",
+        "badges:trigger_after_campaign_launch",
+        "badges:trigger_after_campaign_complete",
+        "badges:trigger_after_streak_update",
+    ],
+)
 def test_badges_tasks_routed_to_badges_queue(task_name):
     q = _effective_queue(task_name)
     assert q == "badges", f"{task_name} must route to 'badges', got {q!r}"
@@ -172,15 +178,18 @@ def test_no_task_on_default_celery_queue():
 # ─── P6: colon patterns match real task names (S-37) ───────────────────────────
 
 
-@pytest.mark.parametrize("task_name,expected_queue", [
-    ("mailing:check_low_balance", "mailing"),
-    ("mailing:notify_user", "mailing"),
-    ("notifications:notify_badge_earned", "notifications"),
-    ("notifications:notify_level_up", "notifications"),
-    ("billing:check_plan_renewals", "billing"),
-    ("placement:publish_placement", "worker_critical"),
-    ("integrity:check_data_integrity", "cleanup"),
-])
+@pytest.mark.parametrize(
+    "task_name,expected_queue",
+    [
+        ("mailing:check_low_balance", "mailing"),
+        ("mailing:notify_user", "mailing"),
+        ("notifications:notify_badge_earned", "notifications"),
+        ("notifications:notify_level_up", "notifications"),
+        ("billing:check_plan_renewals", "billing"),
+        ("placement:publish_placement", "worker_critical"),
+        ("integrity:check_data_integrity", "cleanup"),
+    ],
+)
 def test_task_routes_colon_patterns_match_real_names(task_name, expected_queue):
     """Colon-prefixed task names must resolve via task_routes (not fall to default)."""
     routes = celery_app.conf.task_routes or {}
@@ -202,6 +211,7 @@ def test_task_routes_colon_patterns_match_real_names(task_name, expected_queue):
 def test_dot_patterns_do_not_match_colon_names():
     """Prove that old dot-patterns would NOT have matched real colon task names."""
     from fnmatch import fnmatch
+
     assert not fnmatch("mailing:check_low_balance", "mailing.*"), (
         "dot-pattern 'mailing.*' must NOT match 'mailing:check_low_balance'"
     )

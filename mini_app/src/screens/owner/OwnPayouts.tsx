@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ScreenShell } from '@/components/layout/ScreenShell'
 import { Card, Button, StatusPill, EmptyState, Skeleton } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { WITHDRAWAL_FEE, formatRatePct } from '@/lib/constants'
 import { useMe, usePayouts } from '@/hooks/queries'
+import { useOpenInWebPortal } from '@/hooks/useOpenInWebPortal'
 import styles from './OwnPayouts.module.css'
 
 const PAYOUT_STATUS_PILL: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral'; label: string }> = {
@@ -24,9 +24,12 @@ function formatCountdown(ms: number): string {
 }
 
 export default function OwnPayouts() {
-  const navigate = useNavigate()
   const { data: me } = useMe()
   const { data: payouts = [], isLoading, refetch } = usePayouts()
+  // BL-055: payout-request flow lives only in the web portal (PII).
+  // Mint a one-shot ticket and open the external browser — same hook
+  // every other portal-bridge screen uses (Cabinet, MainMenu).
+  const openPayoutRequest = useOpenInWebPortal('/own/payouts/request')
   
   // GAP-02: Cooldown state
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0)
@@ -77,12 +80,16 @@ export default function OwnPayouts() {
         )}
       </Card>
 
-      <Button 
-        fullWidth 
-        disabled={isCooldownActive}
-        onClick={() => navigate('/own/payouts/request')}
+      <Button
+        fullWidth
+        disabled={isCooldownActive || openPayoutRequest.isPending}
+        onClick={() => openPayoutRequest.mutate()}
       >
-        {isCooldownActive ? '🔒 Вывод временно недоступен' : '💸 Запросить вывод'}
+        {isCooldownActive
+          ? '🔒 Вывод временно недоступен'
+          : openPayoutRequest.isPending
+            ? 'Открываем…'
+            : '💸 Запросить вывод'}
       </Button>
 
       <p className={styles.sectionTitle}>История выплат</p>

@@ -4,6 +4,7 @@ Promt 15.9 — both audiences (mini_app + web_portal) hit the same carve-out
 endpoint. We exercise the web_portal audience here; the service-level coverage
 in test_acceptance_flow.py validates the underlying logic for both.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator

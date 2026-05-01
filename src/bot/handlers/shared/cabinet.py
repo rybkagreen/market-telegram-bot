@@ -1,6 +1,8 @@
 """Shared cabinet handler."""
 
+import logging
 from datetime import datetime
+from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
@@ -8,10 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.keyboards.shared.cabinet import cabinet_kb, gamification_kb, referral_kb
+from src.bot.utils.portal_deeplink import PortalDeeplinkError, build_portal_deeplink
 from src.db.models.badge import UserBadge
 from src.db.models.reputation_score import ReputationScore
 from src.db.repositories.user_repo import UserRepository
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 USER_NOT_FOUND = "Пользователь не найден."
@@ -61,9 +65,22 @@ async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
         f"{tax_block}"
     )
 
+    payout_url: str | None = None
+    if user.earned_rub >= Decimal("1000"):
+        try:
+            payout_url = await build_portal_deeplink(
+                telegram_id=user.telegram_id,
+                redirect_path="/own/payouts/request",
+            )
+        except PortalDeeplinkError as exc:
+            logger.warning(
+                "cabinet_payout_button_skipped",
+                extra={"event": "cabinet_payout_button_skipped", "error": str(exc)},
+            )
+
     await callback.message.edit_text(
         text,
-        reply_markup=cabinet_kb(user.earned_rub),
+        reply_markup=cabinet_kb(user.earned_rub, payout_url=payout_url),
         parse_mode="Markdown",
     )
     await callback.answer()

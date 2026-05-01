@@ -16,7 +16,6 @@ from __future__ import annotations
 import httpx
 import pytest
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -83,9 +82,7 @@ async def test_placements_invalid_status_returns_400_not_500(
 
 
 @pytest.mark.parametrize("view", ["advertiser", "owner"])
-async def test_placements_view_valid(
-    advertiser_client: httpx.AsyncClient, view: str
-) -> None:
+async def test_placements_view_valid(advertiser_client: httpx.AsyncClient, view: str) -> None:
     resp = await advertiser_client.get("/api/placements/", params={"view": view})
     assert resp.status_code == 200
 
@@ -102,9 +99,7 @@ async def test_placements_no_view_returns_union(
 async def test_placements_invalid_view_returns_400(
     advertiser_client: httpx.AsyncClient,
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/placements/", params={"view": "bogus"}
-    )
+    resp = await advertiser_client.get("/api/placements/", params={"view": "bogus"})
     assert resp.status_code == 400, resp.text
 
 
@@ -125,18 +120,14 @@ async def test_placements_limit_out_of_range_returns_422(
 async def test_placements_limit_non_integer_returns_422(
     advertiser_client: httpx.AsyncClient,
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/placements/", params={"limit": "abc"}
-    )
+    resp = await advertiser_client.get("/api/placements/", params={"limit": "abc"})
     assert resp.status_code == 422, resp.text
 
 
 async def test_placements_offset_negative_returns_422(
     advertiser_client: httpx.AsyncClient,
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/placements/", params={"offset": -1}
-    )
+    resp = await advertiser_client.get("/api/placements/", params={"offset": -1})
     assert resp.status_code == 422, resp.text
 
 
@@ -145,8 +136,7 @@ async def test_placements_offset_negative_returns_422(
 
 def _not_500(resp: httpx.Response) -> None:
     assert resp.status_code < 500, (
-        f"Router must never 500 on a bad query param — got "
-        f"{resp.status_code}: {resp.text[:200]}"
+        f"Router must never 500 on a bad query param — got {resp.status_code}: {resp.text[:200]}"
     )
 
 
@@ -163,9 +153,7 @@ def _not_500(resp: httpx.Response) -> None:
 async def test_campaigns_invalid_status_is_not_500(
     advertiser_client: httpx.AsyncClient, bad_status: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/campaigns", params={"status": bad_status}
-    )
+    resp = await advertiser_client.get("/api/campaigns", params={"status": bad_status})
     _not_500(resp)
     assert resp.status_code in {200, 422}, resp.text
 
@@ -177,9 +165,7 @@ async def test_campaigns_invalid_status_is_not_500(
 async def test_campaigns_valid_status_200(
     advertiser_client: httpx.AsyncClient, concrete_status: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/campaigns", params={"status": concrete_status}
-    )
+    resp = await advertiser_client.get("/api/campaigns", params={"status": concrete_status})
     assert resp.status_code == 200, resp.text
 
 
@@ -197,9 +183,7 @@ async def test_campaigns_valid_status_200(
 async def test_campaigns_list_invalid_status_is_not_500(
     advertiser_client: httpx.AsyncClient, bad_status: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/campaigns/list", params={"status": bad_status}
-    )
+    resp = await advertiser_client.get("/api/campaigns/list", params={"status": bad_status})
     _not_500(resp)
 
 
@@ -213,9 +197,7 @@ async def test_campaigns_list_invalid_status_is_not_500(
 async def test_admin_payouts_invalid_status_is_not_500(
     admin_client: httpx.AsyncClient, bad_status: str
 ) -> None:
-    resp = await admin_client.get(
-        "/api/admin/payouts", params={"status": bad_status}
-    )
+    resp = await admin_client.get("/api/admin/payouts", params={"status": bad_status})
     _not_500(resp)
 
 
@@ -230,9 +212,7 @@ async def test_admin_payouts_invalid_status_is_not_500(
 async def test_admin_contracts_bad_status_is_not_500(
     admin_client: httpx.AsyncClient, bad: str
 ) -> None:
-    resp = await admin_client.get(
-        "/api/admin/contracts", params={"status_filter": bad}
-    )
+    resp = await admin_client.get("/api/admin/contracts", params={"status_filter": bad})
     _not_500(resp)
     assert resp.status_code in {200, 422}
 
@@ -249,9 +229,7 @@ async def test_admin_contracts_bad_status_is_not_500(
 async def test_disputes_any_status_is_not_500(
     advertiser_client: httpx.AsyncClient, status: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/disputes/", params={"status_filter": status}
-    )
+    resp = await advertiser_client.get("/api/disputes/", params={"status_filter": status})
     _not_500(resp)
 
 
@@ -261,21 +239,15 @@ async def test_disputes_any_status_is_not_500(
 async def test_admin_disputes_invalid_status_returns_400(
     admin_client: httpx.AsyncClient,
 ) -> None:
-    resp = await admin_client.get(
-        "/api/disputes/admin/disputes", params={"status": "nope"}
-    )
+    resp = await admin_client.get("/api/disputes/admin/disputes", params={"status": "nope"})
     assert resp.status_code == 400, resp.text
 
 
-@pytest.mark.parametrize(
-    "valid_status", ["open", "owner_explained", "resolved", "all"]
-)
+@pytest.mark.parametrize("valid_status", ["open", "owner_explained", "resolved", "all"])
 async def test_admin_disputes_valid_status_200(
     admin_client: httpx.AsyncClient, valid_status: str
 ) -> None:
-    resp = await admin_client.get(
-        "/api/disputes/admin/disputes", params={"status": valid_status}
-    )
+    resp = await admin_client.get("/api/disputes/admin/disputes", params={"status": valid_status})
     assert resp.status_code == 200, resp.text
 
 
@@ -285,9 +257,7 @@ async def test_admin_disputes_valid_status_200(
 async def test_admin_feedback_invalid_status_returns_400(
     admin_client: httpx.AsyncClient,
 ) -> None:
-    resp = await admin_client.get(
-        "/api/feedback/admin/", params={"status_filter": "bogus"}
-    )
+    resp = await admin_client.get("/api/feedback/admin/", params={"status_filter": "bogus"})
     assert resp.status_code == 400, resp.text
 
 
@@ -298,9 +268,7 @@ async def test_admin_feedback_invalid_status_returns_400(
 async def test_cashflow_valid_days_200(
     advertiser_client: httpx.AsyncClient, valid_days: int
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/analytics/cashflow", params={"days": valid_days}
-    )
+    resp = await advertiser_client.get("/api/analytics/cashflow", params={"days": valid_days})
     assert resp.status_code == 200, resp.text
 
 
@@ -308,9 +276,7 @@ async def test_cashflow_valid_days_200(
 async def test_cashflow_invalid_days_is_not_500(
     advertiser_client: httpx.AsyncClient, bad_days: int | str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/analytics/cashflow", params={"days": bad_days}
-    )
+    resp = await advertiser_client.get("/api/analytics/cashflow", params={"days": bad_days})
     _not_500(resp)
     assert resp.status_code == 422, resp.text
 
@@ -322,9 +288,7 @@ async def test_cashflow_invalid_days_is_not_500(
 async def test_analytics_summary_bad_days_is_not_500(
     advertiser_client: httpx.AsyncClient, bad_days: int | str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/analytics/summary", params={"days": bad_days}
-    )
+    resp = await advertiser_client.get("/api/analytics/summary", params={"days": bad_days})
     _not_500(resp)
     assert resp.status_code == 422
 
@@ -336,9 +300,7 @@ async def test_analytics_summary_bad_days_is_not_500(
 async def test_channels_compare_preview_bad_ids_is_not_500(
     advertiser_client: httpx.AsyncClient, bad: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/channels/compare/preview", params={"ids": bad}
-    )
+    resp = await advertiser_client.get("/api/channels/compare/preview", params={"ids": bad})
     _not_500(resp)
     # Either a 400 (csv parse) or 422 (empty required) — never 500.
     assert resp.status_code in {400, 422}
@@ -347,15 +309,11 @@ async def test_channels_compare_preview_bad_ids_is_not_500(
 # ─── /api/reputation/* ?role= (free-text string passed to repo) ───────
 
 
-@pytest.mark.parametrize(
-    "role", ["advertiser", "owner", "nonsense", "", "Advertiser"]
-)
+@pytest.mark.parametrize("role", ["advertiser", "owner", "nonsense", "", "Advertiser"])
 async def test_reputation_any_role_is_not_500(
     advertiser_client: httpx.AsyncClient, role: str
 ) -> None:
-    resp = await advertiser_client.get(
-        "/api/reputation/leaderboard", params={"role": role}
-    )
+    resp = await advertiser_client.get("/api/reputation/leaderboard", params={"role": role})
     _not_500(resp)
 
 

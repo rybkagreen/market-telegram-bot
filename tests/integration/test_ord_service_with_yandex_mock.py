@@ -87,9 +87,7 @@ def ord_mock_handler() -> list[httpx.Request]:
     return handler
 
 
-async def _seed_placement(
-    db_session: AsyncSession, legal_profile_data
-) -> PlacementRequest:
+async def _seed_placement(db_session: AsyncSession, legal_profile_data) -> PlacementRequest:
     """Seed an advertiser + owner + channel + placement_request."""
     advertiser = User(telegram_id=990_000_001, username="adv", first_name="Adv")
     owner = User(telegram_id=990_000_002, username="own", first_name="Own")
@@ -228,13 +226,9 @@ async def test_register_creative_media_type_affects_creative_form(
     placement = await _seed_placement(db_session, legal_profile_data)
     provider = _make_provider(ord_mock_handler)
 
-    await OrdService(db_session, provider=provider).register_creative(
-        placement.id, "Ad", "video"
-    )
+    await OrdService(db_session, provider=provider).register_creative(placement.id, "Ad", "video")
 
-    creative_req = next(
-        r for r in ord_mock_handler._recorded if r.url.path == "/api/v7/creative"
-    )
+    creative_req = next(r for r in ord_mock_handler._recorded if r.url.path == "/api/v7/creative")
     body = json.loads(creative_req.content)
     assert body["form"] == "text_video_block"
 
@@ -247,13 +241,9 @@ async def test_register_creative_writes_advertiser_inn_into_payload(
     placement = await _seed_placement(db_session, legal_profile_data)
     provider = _make_provider(ord_mock_handler)
 
-    await OrdService(db_session, provider=provider).register_creative(
-        placement.id, "Ad", "photo"
-    )
+    await OrdService(db_session, provider=provider).register_creative(placement.id, "Ad", "photo")
 
-    org_req = next(
-        r for r in ord_mock_handler._recorded if r.url.path == "/api/v7/organization"
-    )
+    org_req = next(r for r in ord_mock_handler._recorded if r.url.path == "/api/v7/organization")
     body = json.loads(org_req.content)
     # Advertiser's INN from LegalProfile ended up in the org-registration payload
     from tests.conftest import VALID_INN10
@@ -282,9 +272,7 @@ async def test_registration_row_persists_in_db(
 ) -> None:
     placement = await _seed_placement(db_session, legal_profile_data)
     provider = _make_provider(ord_mock_handler)
-    await OrdService(db_session, provider=provider).register_creative(
-        placement.id, "Ad", "photo"
-    )
+    await OrdService(db_session, provider=provider).register_creative(placement.id, "Ad", "photo")
 
     result = await db_session.execute(
         select(OrdRegistration).where(OrdRegistration.placement_request_id == placement.id)

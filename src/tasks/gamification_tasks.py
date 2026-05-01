@@ -63,7 +63,9 @@ async def _update_user_streak(
         _process_streak_reset(user, stats)
 
 
-@celery_app.task(bind=True, base=BaseTask, name="gamification:update_streaks_daily", queue="gamification")
+@celery_app.task(
+    bind=True, base=BaseTask, name="gamification:update_streaks_daily", queue="gamification"
+)
 def update_streaks_daily(self) -> dict[str, Any]:
     """
     Обновить стрики активности пользователей.
@@ -116,7 +118,9 @@ def update_streaks_daily(self) -> dict[str, Any]:
         return {"error": str(e)}
 
 
-@celery_app.task(bind=True, base=BaseTask, name="gamification:send_weekly_digest", queue="gamification")
+@celery_app.task(
+    bind=True, base=BaseTask, name="gamification:send_weekly_digest", queue="gamification"
+)
 def send_weekly_digest(self) -> dict[str, Any]:
     """
     Отправить еженедельный дайджест неактивным пользователям.
@@ -252,7 +256,9 @@ async def _award_return_bonus(user_id: int) -> None:
         })
 
 
-@celery_app.task(bind=True, base=BaseTask, name="gamification:check_seasonal_events", queue="gamification")
+@celery_app.task(
+    bind=True, base=BaseTask, name="gamification:check_seasonal_events", queue="gamification"
+)
 def check_seasonal_events(self) -> dict[str, Any]:
     """
     Проверить и активировать сезонные события.
@@ -309,7 +315,9 @@ def check_seasonal_events(self) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(bind=True, base=BaseTask, name="gamification:award_daily_login_bonus", queue="gamification")
+@celery_app.task(
+    bind=True, base=BaseTask, name="gamification:award_daily_login_bonus", queue="gamification"
+)
 def award_daily_login_bonus(self, user_id: int) -> dict[str, Any]:
     """
     Начислить бонус за ежедневный вход.

@@ -155,9 +155,7 @@ async def test_encrypted_fields_round_trip(
     await db_session.flush()
 
     # Re-fetch from DB via fresh query to force decryption path
-    result = await db_session.execute(
-        select(LegalProfile).where(LegalProfile.user_id == user.id)
-    )
+    result = await db_session.execute(select(LegalProfile).where(LegalProfile.user_id == user.id))
     fetched = result.scalar_one()
     assert fetched.inn == data["inn"]
     assert fetched.bank_account == data["bank_account"]
@@ -210,9 +208,7 @@ async def test_upload_scan_sets_file_id(
     await svc.upload_scan(user.id, scan_type, "TELEGRAM_FILE_ID_123")
     await db_session.flush()
 
-    result = await db_session.execute(
-        select(LegalProfile).where(LegalProfile.user_id == user.id)
-    )
+    result = await db_session.execute(select(LegalProfile).where(LegalProfile.user_id == user.id))
     profile = result.scalar_one()
     assert getattr(profile, field) == "TELEGRAM_FILE_ID_123"
 

@@ -772,11 +772,7 @@ class PayoutService:
         """
         async with async_session_factory() as session:
             async with session.begin():
-                stmt = (
-                    select(PayoutRequest)
-                    .where(PayoutRequest.id == payout_id)
-                    .with_for_update()
-                )
+                stmt = select(PayoutRequest).where(PayoutRequest.id == payout_id).with_for_update()
                 payout = (await session.execute(stmt)).scalar_one_or_none()
                 if payout is None:
                     raise PayoutNotFoundError(
@@ -830,11 +826,7 @@ class PayoutService:
         """
         async with async_session_factory() as session:
             async with session.begin():
-                stmt = (
-                    select(PayoutRequest)
-                    .where(PayoutRequest.id == payout_id)
-                    .with_for_update()
-                )
+                stmt = select(PayoutRequest).where(PayoutRequest.id == payout_id).with_for_update()
                 payout = (await session.execute(stmt)).scalar_one_or_none()
                 if payout is None:
                     raise PayoutNotFoundError(
@@ -859,9 +851,7 @@ class PayoutService:
                 payout.admin_id = admin_id
 
             await session.refresh(payout)
-            logger.info(
-                f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}"
-            )
+            logger.info(f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}")
             return payout
 
     async def calculate_payout_with_tax(self, user_id: int, gross_amount: Decimal) -> dict:

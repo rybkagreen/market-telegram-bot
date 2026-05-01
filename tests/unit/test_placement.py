@@ -22,11 +22,11 @@ class TestPlacementRequestServiceConstants:
 
     def test_min_price_per_post(self):
         """MIN_PRICE_PER_POST is 1000 ₽."""
-        assert MIN_PRICE_PER_POST == Decimal("1000")
+        assert Decimal("1000") == MIN_PRICE_PER_POST
 
     def test_min_campaign_budget(self):
         """MIN_CAMPAIGN_BUDGET is 2000 ₽."""
-        assert MIN_CAMPAIGN_BUDGET == Decimal("2000")
+        assert Decimal("2000") == MIN_CAMPAIGN_BUDGET
 
     def test_format_multipliers_all_defined(self):
         """All 5 format multipliers are defined."""
@@ -47,11 +47,11 @@ class TestSelfDealingPrevention:
 
     def test_owner_share_is_80_percent(self):
         """OWNER_SHARE_RATE is 80% (gross) for escrow release."""
-        assert OWNER_SHARE_RATE == Decimal("0.80")
+        assert Decimal("0.80") == OWNER_SHARE_RATE
 
     def test_platform_commission_is_20_percent(self):
         """PLATFORM_COMMISSION_RATE is 20% (gross) for escrow release."""
-        assert PLATFORM_COMMISSION_RATE == Decimal("0.20")
+        assert Decimal("0.20") == PLATFORM_COMMISSION_RATE
 
     def test_escrow_gross_split_sums_to_price(self):
         """Gross split: owner_gross = price × 0.80, platform = price × 0.20."""

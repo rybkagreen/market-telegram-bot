@@ -8,54 +8,9 @@ Tests cover:
 """
 
 import pytest
-from sqlalchemy import select
 
 from src.core.services.badge_service import badge_service
-from src.db.models.badge import UserBadge
 from src.db.models.user import User
-
-
-@pytest.mark.skip(reason="Badge model refactored in v4.3, only UserBadge exists")
-class TestBadgeAchievementModel:
-    """Tests for BadgeAchievement model."""
-
-    @pytest.mark.asyncio
-    async def test_badge_achievement_creation(self, db_session):
-        """Test creating a badge achievement."""
-        # Create badge
-        badge = Badge(
-            code="first_campaign",
-            name="Первая кампания",
-            description="Запуск первой рекламной кампании",
-            icon_emoji="🚀",
-            xp_reward=200,
-            credits_reward=50,
-            category=BadgeCategory.ADVERTISER,
-            condition_type=BadgeConditionType.CAMPAIGNS_COUNT,
-            condition_value=1,
-        )
-        db_session.add(badge)
-        await db_session.flush()
-
-        # Create achievement
-        achievement = BadgeAchievement(
-            badge_id=badge.id,
-            achievement_type="campaign_count",
-            threshold=1,
-            description="Запуск первой кампании",
-            is_active=True,
-        )
-        db_session.add(achievement)
-        await db_session.commit()
-
-        # Verify
-        result = await db_session.execute(select(BadgeAchievement).where(BadgeAchievement.badge_id == badge.id))
-        saved = result.scalar_one()
-
-        assert saved is not None
-        assert saved.achievement_type == "campaign_count"
-        assert saved.threshold == 1
-        assert saved.is_active is True
 
 
 class TestBadgeService:

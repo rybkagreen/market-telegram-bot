@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-04-30 (16.3 — BL-045 closed; bot payout flow removed)_
+_Last updated: 2026-05-01 (BL-064/066/067/068/069/070 closed; BL-071 process finding added)_
 
 ## Active items
 
@@ -2115,3 +2115,192 @@ mismatch; v1 прерван на Шаг 0, v2 переписан без false cl
 Closed series 15.x окончательно — 9 промтов deployed (15.5–15.13 + 15.13.1).
 
 Closed in commit <sha after Шаг 6>.
+
+### BL-064 — `charge_balance_for_plan` canonical enum alignment + expense analytics fix (CLOSED 2026-05-01)
+
+API path `/api/billing/credits` (`charge_balance_for_plan`) writes
+Transaction rows для plan purchases. До этого fix писал
+`type=spend` + `meta_json["type"]="plan_payment"` (orphan
+discriminator, 0 functional consumers). Bot path
+(`bot/handlers/billing/billing.py:275`) уже использовал canonical
+`TransactionType.plan_purchase` без meta discriminator — две writer-side
+ветки писали один и тот же бизнес-факт по-разному.
+
+Fix:
+- Switch enum к `TransactionType.plan_purchase` (match bot path).
+- Drop orphan `meta_json["type"]="plan_payment"` key.
+  `meta_json["currency"]="rub"` preserved.
+- Add `"plan_purchase"` к `_EXPENSE_TX_TYPES` в `analytics.py` —
+  раньше plan purchases (как bot- так и API-originated) silently
+  invisible cashflow expense reporting (set listed только `"spend"`).
+
+Pre-prod state: `transactions` row count = 0 → no data migration.
+
+Out of scope (deferred): `activate_plan` dead code (lines 191-284) —
+аналогичный misfit pattern, 0 callers, slated for deletion в Промт-15
+со введением `PlanChangeService`.
+
+Commit: `c9a44d6` (merge `b924e7d`).
+
+### BL-066 — Split bot↔API HMAC secret из BOT_TOKEN (CLOSED 2026-05-01)
+
+Defence-in-depth — раздельные trust boundaries чтобы leak в одном
+канале не unlock'ил другой:
+
+- `BOT_TOKEN` — auth между bot и Telegram (aiogram + init_data verify).
+  Compromise → attacker speaks к Telegram as the bot.
+- `BOT_API_HMAC_SECRET` — auth между bot и local API для
+  exchange-bot-token-to-portal call. Compromise → attacker mints
+  portal-login URLs.
+
+Scope:
+- New required Settings field `bot_api_hmac_secret`.
+- Parameter rename `bot_token → hmac_secret` в
+  `src/api/auth_bot_hmac.py` (`verify_bot_request_signature`,
+  `sign_bot_request`).
+- Call-site updates: `src/api/routers/auth.py`,
+  `src/bot/utils/portal_deeplink.py`.
+- Test refresh, `.env.example` / `.env.test.example` /
+  `docs/AAA-09` extended.
+
+**Breaking change для deployment:** production `.env` must provision
+`BOT_API_HMAC_SECRET` (`openssl rand -hex 32`) before bot restart;
+no fallback to `BOT_TOKEN`.
+
+**Deploy verification (2026-05-01):** production secret provisioned;
+bot container Required `docker compose up -d bot` (NOT `restart bot`)
+to pick up env_file change. См. BL-071 — process finding o restart vs
+up -d divergence.
+
+Commit: `89d0c12` (BL-055 merge `2c0d799`).
+
+### BL-067 — Remove `routers/__init__.py` re-exports (CLOSED 2026-05-01)
+
+Background: re-exporting `from .auth import router as auth` shadowed
+submodule path `src.api.routers.auth` — name resolved к APIRouter
+object, не к module. Surfaced во время BL-055 implementation когда
+integration test нуждался `importlib.import_module(
+"src.api.routers.auth")` workaround for monkeypatch resolution.
+
+Scope:
+- `src/api/routers/__init__.py` emptied (только module docstring
+  explaining convention).
+- BL-055 test workaround replaced с idiomatic `from src.api.routers
+  import auth as auth_module`.
+- Production callers уже использовали explicit imports (verified via
+  grep — zero shadowed-name consumers в `src/main.py` и др.).
+
+Module resolution proof: `import src.api.routers.auth; type(...)`
+теперь возвращает `<class 'module'>` (был APIRouter перед fix).
+
+Baselines: pytest 76 failed / 780 passed / 6 skipped / 17 errored
+exact match с post-BL-066. Ruff/format clean. App startup: 144 routes
+registered.
+
+Commit: `379fe8e` (merge `69dbc79`).
+
+### BL-068 — Docs fix: `alembic.docker.ini` → `alembic.ini` references в .md (CLOSED 2026-05-01)
+
+Surfaced во время BL-067 implementation: запуск
+`alembic -c alembic.docker.ini upgrade head` внутри api container
+fail'нул "script_location not found" — потому что внутри container
+file mounted as `/app/alembic.ini` (rename-via-bind-mount), не
+`alembic.docker.ini`. Active .md документация (CLAUDE.md, QWEN.md,
+docs/AAA-03, docs/AAA-09) misled user относительно правильной
+in-container invocation.
+
+Scope (4 files, 10 active instruction replacements):
+- `CLAUDE.md`, `QWEN.md`, `docs/AAA-03_DATABASE_REFERENCE.md`,
+  `docs/AAA-09_DEPLOYMENT.md`.
+- 2 HISTORICAL occurrences оставлены (factual references к существованию
+  файла — на тот момент файл всё ещё existed).
+
+Out of scope (handled later):
+- BL-069 — docker-compose mount source consolidation.
+- BL-070 — `alembic.docker.ini` file deletion + inventory update.
+- `.qwen/PROJECT_SKILLS.md:127` missed hit (outside .md glob scope of
+  this prompt) — plugged в BL-069.
+
+Commit: `cdc2f7f` (merge `742b9b4`).
+
+### BL-069 — docker-compose mount consolidation на canonical `alembic.ini` (CLOSED 2026-05-01)
+
+PR1 of 2 в alembic config consolidation. Repo had two functionally
+identical alembic config files (`alembic.ini` local-dev canonical,
+`alembic.docker.ini` Docker mount source) differ только single
+comment line near `sqlalchemy.url`. 3 docker-compose mounts (bot, api,
+seed-test) bind-mounted `alembic.docker.ini` as `/app/alembic.ini` в
+containers (rename-via-mount).
+
+Scope:
+- 3 docker-compose mount sources switched: `./alembic.docker.ini` →
+  `./alembic.ini` (`docker-compose.yml:60` bot,
+  `docker-compose.yml:220` api, `docker-compose.test.yml:56`
+  seed-test).
+- `alembic.ini` comment uplifted к combined precise: "DATABASE_URL
+  from environment, fallback к settings.database_url_sync".
+- `.qwen/PROJECT_SKILLS.md:127` plugged (missed hit от BL-068
+  cdc2f7f).
+
+Empirical safety:
+- `docker compose config --quiet` validation passed both files
+  post-edit.
+- `ConfigParser` parses `alembic.ini` cleanly (10 sections).
+- Container internal path `/app/alembic.ini` unchanged → in-container
+  alembic команды не affected source switch.
+
+Aborted-attempt context: ранее в session attempted прямое удаление
+`alembic.docker.ini`; Type 4 HARD STOP'нут в research phase когда
+discovered file was load-bearing bind-mount source. PR1+PR2 (BL-069 +
+BL-070) decoupled path был correct: PR1 makes file legitimately
+not-load-bearing, PR2 deletes после empirical post-deploy verification.
+
+Commit: `e577c7d` (merge `6ca5141`).
+
+### BL-070 — Remove orphaned `alembic.docker.ini` + file inventory update (CLOSED 2026-05-01)
+
+PR2 of 2 в alembic config consolidation. После BL-069 production
+deploy + смок-проверка in-container alembic
+(`alembic -c alembic.ini current` → `e6a88faa9fa0 (head)`,
+`alembic -c alembic.ini check` → `No new upgrade operations detected.`),
+`alembic.docker.ini` orphaned — no remaining tracked non-.md
+references. Safe to delete.
+
+Scope:
+- `alembic.docker.ini` deleted (`git rm`); 647 bytes, tracked since
+  `97bb7b4` (S-01 initial public stage).
+- `01_file_inventory.md:406-407` — row removed (D2 approach (i) —
+  flat table, standalone row); `alembic.ini` description uplifted к
+  упомянуть "mounted into Docker containers as `/app/alembic.ini`".
+
+Post-deletion verified: только два historical CHANGES files
+(`CHANGES_2026-05-01_docker-compose-alembic-ini-consolidation.md`,
+`CHANGES_2026-05-01_docs-alembic-ini-fix.md`) ссылаются на имя —
+legitimate immutable historical records.
+
+Commit: `5bb291b` (merge `c93cc3c`).
+
+### BL-071 — Process finding: `docker compose restart` does NOT re-read env_file (process-finding)
+
+**Surface:** BL-066 production deploy (2026-05-01) — после
+`docker compose restart bot` контейнер всё ещё crash-loop'ил с
+`BOT_API_HMAC_SECRET missing`, хотя `.env` корректно содержал secret и
+`docker run --env-file .env` (alpine probe) loading'ал переменную
+правильно. `docker compose up -d bot` (recreate container) сразу
+зафиксил — env_file перечитывается только при создании контейнера, не
+при restart существующего.
+
+**Implication для CLAUDE.md и AAA-09 deployment runbook:** правило
+"restart bot picks up env_file changes" является false. Корректный
+паттерн для env_file changes — `docker compose up -d <service>`
+(который recreate'ит контейнер если конфиг изменился).
+
+**Acceptance criteria for closure:**
+- AAA-09 / CLAUDE.md deployment section updated с правилом.
+- Дополнительный note добавлен к `.env` editing workflow в
+  contributor docs.
+
+**Status:** OPEN, low-priority docs fix. Не financial/security
+блокер.
+
+**Refs:** BL-066, deploy session 2026-05-01.

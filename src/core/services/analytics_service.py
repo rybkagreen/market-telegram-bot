@@ -142,7 +142,9 @@ class AnalyticsService:
 
         earned_result = await session.execute(
             select(
-                func.coalesce(func.sum(PlacementRequest.final_price * OWNER_SHARE_RATE), Decimal("0"))
+                func.coalesce(
+                    func.sum(PlacementRequest.final_price * OWNER_SHARE_RATE), Decimal("0")
+                )
             ).where(
                 PlacementRequest.owner_id == owner_id,
                 PlacementRequest.status == PlacementStatus.published,
