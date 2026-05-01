@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Split bot-to-API HMAC secret from BOT_TOKEN (BL-066) (2026-05-01)
+
+- Bot-to-portal HMAC authentication moved from `BOT_TOKEN` to a dedicated
+  `BOT_API_HMAC_SECRET` for defence-in-depth. `BOT_TOKEN` keeps its
+  Telegram-API role (aiogram + Mini App init_data verification);
+  `BOT_API_HMAC_SECRET` is the new server-to-server credential between
+  bot process and API process.
+- New required Settings field
+  `bot_api_hmac_secret` (`src/config/settings.py`).
+- Callers updated:
+  `src/api/auth_bot_hmac.py` (`verify_bot_request_signature` and
+  `sign_bot_request` parameter renamed `bot_token` → `hmac_secret`),
+  `src/api/routers/auth.py` (`exchange_bot_token_to_portal` reads
+  `settings.bot_api_hmac_secret`), `src/bot/utils/portal_deeplink.py`
+  (`build_portal_deeplink` reads the same).
+- **Breaking change for deployment:** production `.env` must provision
+  `BOT_API_HMAC_SECRET` **before** restart; the field is required with
+  no fallback. Generate via `openssl rand -hex 32`.
+- Docs: `docs/AAA-09_DEPLOYMENT.md` Security table + key-generation
+  recipe extended; `.env.example` and `.env.test.example` updated.
+- Tests refreshed: `tests/unit/api/test_bot_hmac.py`,
+  `tests/unit/api/test_exchange_bot_token_to_portal.py`,
+  `tests/unit/test_bot_portal_deeplink.py`.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_BL-066-split-bot-api-hmac-secret.md
+
 ### Added — Direct bot-to-portal ticket exchange (BL-055 Commit 1) (2026-05-01)
 
 - New API endpoint `POST /api/auth/exchange-bot-token-to-portal`

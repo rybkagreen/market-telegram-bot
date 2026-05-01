@@ -315,8 +315,9 @@ class BotPortalExchangeRequest(BaseModel):
     """Body of POST /api/auth/exchange-bot-token-to-portal.
 
     Bot signs the *raw bytes* of this body with HMAC-SHA256 keyed by
-    BOT_TOKEN; signature lands in ``X-Bot-Auth-Signature`` header,
-    timestamp in ``X-Bot-Auth-Timestamp``.
+    BOT_API_HMAC_SECRET (split from BOT_TOKEN in BL-066); signature
+    lands in ``X-Bot-Auth-Signature`` header, timestamp in
+    ``X-Bot-Auth-Timestamp``.
     """
 
     telegram_id: int = Field(..., description="Telegram user id of the bot's interlocutor")
@@ -344,11 +345,15 @@ async def exchange_bot_token_to_portal(
 ) -> BotPortalExchangeResponse:
     """Mint a portal-login URL on behalf of a bot caller (BL-055).
 
-    Auth: HMAC-SHA256(BOT_TOKEN, ``"<timestamp_ms>." + raw_body``) carried
-    in ``X-Bot-Auth-Signature`` (hex), with ``X-Bot-Auth-Timestamp``
+    Auth: HMAC-SHA256(BOT_API_HMAC_SECRET, ``"<timestamp_ms>." + raw_body``)
+    carried in ``X-Bot-Auth-Signature`` (hex), with ``X-Bot-Auth-Timestamp``
     (ms-since-epoch) inside ``±bot_auth_timestamp_tolerance_sec`` of
     server clock. Failures all collapse to a single 401 with no detail
     leakage — the caller is server-side, not a human.
+
+    The HMAC key is intentionally separate from BOT_TOKEN (BL-066): the
+    bot's Telegram-API credential and its server-to-server credential
+    have independent compromise surfaces.
 
     The minted ticket has the same shape as the one issued by
     ``/api/auth/exchange-miniapp-to-portal`` and is consumed by the same
@@ -361,7 +366,7 @@ async def exchange_bot_token_to_portal(
         timestamp_header=request.headers.get("x-bot-auth-timestamp"),
         body_bytes=raw_body,
         signature_header=request.headers.get("x-bot-auth-signature"),
-        bot_token=settings.bot_token,
+        hmac_secret=settings.bot_api_hmac_secret,
         tolerance_sec=settings.bot_auth_timestamp_tolerance_sec,
     ):
         logger.warning(
