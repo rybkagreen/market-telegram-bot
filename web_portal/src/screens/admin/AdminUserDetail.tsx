@@ -11,7 +11,7 @@ import type { IconName } from '@shared/ui'
 import { formatCurrency } from '@/lib/constants'
 import {
   useUserById,
-  useCreatePlatformCredit,
+  useCreatePlatformGrant,
   useCreateGamificationBonus,
   useTopupUserBalance,
 } from '@/hooks/useAdminQueries'
@@ -36,7 +36,7 @@ export default function AdminUserDetail() {
   const [creditFeedback, setCreditFeedback] = useState<
     { type: 'success' | 'danger'; text: string } | null
   >(null)
-  const platformCredit = useCreatePlatformCredit()
+  const platformGrant = useCreatePlatformGrant()
 
   const [bonusAmount, setBonusAmount] = useState('')
   const [bonusXp, setBonusXp] = useState('')
@@ -67,14 +67,14 @@ export default function AdminUserDetail() {
     )
   }
 
-  const handlePlatformCredit = () => {
+  const handlePlatformGrant = () => {
     const parsed = parseFloat(creditAmount)
     if (!parsed || parsed <= 0) {
       setCreditFeedback({ type: 'danger', text: 'Введите корректную сумму' })
       return
     }
     setCreditFeedback(null)
-    platformCredit.mutate(
+    platformGrant.mutate(
       { user_id: userId, amount: parsed, comment: creditComment },
       {
         onSuccess: (data) => {
@@ -274,9 +274,9 @@ export default function AdminUserDetail() {
                   variant="primary"
                   fullWidth
                   iconLeft="coin"
-                  loading={platformCredit.isPending}
-                  disabled={!creditAmount || platformCredit.isPending}
-                  onClick={handlePlatformCredit}
+                  loading={platformGrant.isPending}
+                  disabled={!creditAmount || platformGrant.isPending}
+                  onClick={handlePlatformGrant}
                 >
                   Выдать кредиты
                 </Button>
