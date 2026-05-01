@@ -75,7 +75,7 @@ async def test_bot_topup_pay_uses_create_topup_payment(db_session) -> None:
         "payment_id": "test-bot-pid-001",
         "payment_url": "https://yookassa.test/bot-url",
         "amount": "106.00",
-        "credits": 100,
+        "amount_rub": 100,
         "status": "pending",
     }
 

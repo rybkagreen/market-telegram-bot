@@ -36,9 +36,7 @@ async def _login_and_client(role: str) -> httpx.AsyncClient:
     """Call /api/auth/e2e-login to get a JWT, build an authenticated client."""
     telegram_id = ROLE_IDS[role]
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=10.0) as bootstrap:
-        resp = await bootstrap.post(
-            "/api/auth/e2e-login", json={"telegram_id": telegram_id}
-        )
+        resp = await bootstrap.post("/api/auth/e2e-login", json={"telegram_id": telegram_id})
         resp.raise_for_status()
         token = resp.json()["access_token"]
 

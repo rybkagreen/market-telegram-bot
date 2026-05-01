@@ -1,6 +1,6 @@
 """
 Billing Service для управления платежами и балансом.
-Двухвалютная система: рубли (размещения) + кредиты (подписки).
+Единая валюта: рубли (размещения и подписки).
 """
 
 import logging
@@ -48,9 +48,7 @@ class PaymentProviderError(Exception):
         self.code = code
         self.description = description
         self.request_id = request_id
-        super().__init__(
-            f"Payment provider error [{code}] {description} (req={request_id})"
-        )
+        super().__init__(f"Payment provider error [{code}] {description} (req={request_id})")
 
 
 class BillingService:
@@ -60,7 +58,7 @@ class BillingService:
     Методы:
         create_payment: Создать платёж (пополняет balance_rub)
         check_payment: Проверить статус платежа
-        buy_credits_for_plan: Купить кредиты для тарифа (с balance_rub → credits)
+        charge_balance_for_plan: Списать рубли с баланса за тариф
         freeze_escrow: Заморозить рубли для размещения
         release_escrow: Освободить эскроу после удаления поста (ESCROW-001)
         refund_escrow: Возврат средств при отмене
@@ -69,11 +67,11 @@ class BillingService:
     def __init__(self) -> None:
         """Инициализация сервиса."""
 
-    async def buy_credits_for_plan(
+    async def charge_balance_for_plan(
         self,
         user_id: int,
         amount_rub: Decimal,
-    ) -> tuple[int, Transaction, Transaction]:
+    ) -> Transaction:
         """
         Оплатить тариф с рублёвого баланса.
 
@@ -84,7 +82,7 @@ class BillingService:
             amount_rub: Сумма в рублях.
 
         Returns:
-            Кортеж (amount_int, transaction, transaction) — дубли для обратной совместимости.
+            Созданная транзакция списания.
 
         Raises:
             InsufficientFundsError: Если недостаточно balance_rub.
@@ -111,11 +109,10 @@ class BillingService:
             transaction = Transaction(
                 user_id=user_id,
                 amount=amount_rub,
-                type=TransactionType.spend,
+                type=TransactionType.plan_purchase,
                 yookassa_payment_id=None,
                 description=f"Оплата тарифа: {amount_rub} ₽",
                 meta_json={
-                    "type": "plan_payment",
                     "currency": "rub",
                 },
                 balance_before=balance_rub_before,
@@ -129,7 +126,7 @@ class BillingService:
 
             logger.info(f"Plan payment: {amount_rub} ₽ by user {user_id}")
 
-            return int(amount_rub), transaction, transaction
+            return transaction
 
     async def check_payment(
         self,
@@ -164,16 +161,15 @@ class BillingService:
 
             # В production здесь проверяем статус в YooKassa
             # Если paid, то зачисляем кредиты на баланс
-            credited = meta.get("credited") if meta else None
-            if status == "succeeded" and credited is not True:
+            applied = meta.get("applied") if meta else None
+            if status == "succeeded" and applied is not True:
                 # Зачисляем рубли на баланс
                 user_repo = UserRepository(session)
                 amount_rub = transaction.amount
                 await user_repo.update_balance_rub(user_id, amount_rub)
 
                 # Обновляем транзакцию
-                meta["credited"] = True
-                meta["rub_credited"] = float(amount_rub)
+                meta["applied"] = True
                 await transaction_repo.update(transaction.id, {"meta_json": meta})
 
                 logger.info(f"Payment {payment_id} credited: {amount_rub} ₽ to user {user_id}")
@@ -188,7 +184,7 @@ class BillingService:
                 "payment_id": payment_id,
                 "status": status,
                 "amount": str(transaction.amount),
-                "credited": meta.get("credited", False),
+                "applied": meta.get("applied", False),
             }
 
     async def activate_plan(self, user_id: int, plan: str) -> bool:
@@ -505,8 +501,7 @@ class BillingService:
             await session.flush()
         except IntegrityError as exc:
             logger.warning(
-                f"freeze_escrow_for_placement: idempotency race for "
-                f"placement {placement_id}: {exc}"
+                f"freeze_escrow_for_placement: idempotency race for placement {placement_id}: {exc}"
             )
             raise
         await session.refresh(transaction)
@@ -695,11 +690,7 @@ class BillingService:
 
         # Idempotency: если ключ уже есть — релиз уже выполнен, no-op.
         already = await session.scalar(
-            select(
-                exists().where(
-                    Transaction.idempotency_key.in_([owner_key, platform_key])
-                )
-            )
+            select(exists().where(Transaction.idempotency_key.in_([owner_key, platform_key])))
         )
         if already:
             logger.info(
@@ -786,9 +777,7 @@ class BillingService:
             # так как caller получит ту же ошибку и откатит свою транзакцию.
             # Логируем и пробрасываем — retry на уровне Celery подхватит и
             # на следующей итерации EXISTS-проверка вверху сработает.
-            logger.warning(
-                f"release_escrow: idempotency race for placement {placement_id}: {exc}"
-            )
+            logger.warning(f"release_escrow: idempotency race for placement {placement_id}: {exc}")
             raise
 
         # Sprint A.3: записать комиссию размещения в УСН и КУДиР
@@ -848,11 +837,7 @@ class BillingService:
 
         # Idempotency: если один из ключей уже есть — refund уже выполнен, no-op.
         already = await session.scalar(
-            select(
-                exists().where(
-                    Transaction.idempotency_key.in_([advertiser_key, owner_key])
-                )
-            )
+            select(exists().where(Transaction.idempotency_key.in_([advertiser_key, owner_key])))
         )
         if already:
             logger.info(
@@ -996,13 +981,12 @@ class BillingService:
         transaction = Transaction(
             user_id=user_id,
             amount=amount,
-            type=TransactionType.admin_credit,
+            type=TransactionType.admin_grant,
             yookassa_payment_id=None,
             description=f"Зачисление администратором: {comment}"
             if comment
             else "Зачисление администратором",
             meta_json={
-                "type": "admin_credit",
                 "admin_id": admin_id,
                 "comment": comment,
             },

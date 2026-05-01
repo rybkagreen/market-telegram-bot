@@ -75,7 +75,6 @@ class TestDeleteTelegramBadRequest:
 
     def test_telegram_bad_request_exception_exists(self) -> None:
         """TelegramBadRequest exception exists and can be caught."""
-        from aiogram.exceptions import TelegramBadRequest
 
         # Тест подтверждает что исключение существует
         assert TelegramBadRequest is not None

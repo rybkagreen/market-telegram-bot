@@ -48,9 +48,7 @@ class Settings(BaseSettings):
             return None
         allowed = ("socks5://", "socks4://", "http://", "https://")
         if not value.startswith(allowed):
-            raise ValueError(
-                f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}"
-            )
+            raise ValueError(f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}")
         return value
 
     # PostgreSQL
@@ -119,6 +117,23 @@ class Settings(BaseSettings):
         24, alias="JWT_EXPIRE_HOURS", description="Время жизни JWT токена (часы)"
     )
 
+    # ══════════════════════════════════════════════════════════════
+    # Bot → API HMAC-SHA256 secret (BL-066) — separate from BOT_TOKEN.
+    # Generate: openssl rand -hex 32
+    # Defence-in-depth: BOT_TOKEN auths bot ↔ Telegram (compromise =
+    # Telegram-side); BOT_API_HMAC_SECRET auths bot ↔ API
+    # (compromise = infrastructure-side). Splitting the two means a
+    # leak in one channel does not unlock the other.
+    # ══════════════════════════════════════════════════════════════
+    bot_api_hmac_secret: str = Field(
+        ...,
+        alias="BOT_API_HMAC_SECRET",
+        description=(
+            "HMAC-SHA256 secret for server-to-server bot → API authentication. "
+            "Generate via: openssl rand -hex 32. Distinct from BOT_TOKEN."
+        ),
+    )
+
     # S9: Persistent storage for generated PDF contracts
     contracts_storage_path: str = Field(
         "/data/contracts",
@@ -167,7 +182,9 @@ class Settings(BaseSettings):
     # GitHub Integration
     # ══════════════════════════════════════════════════════════════
     github_token: str | None = Field(None, alias="GITHUB_TOKEN", description="GitHub PAT токен")
-    github_repo_owner: str = Field("", alias="GITHUB_REPO_OWNER", description="GitHub репо владелец")
+    github_repo_owner: str = Field(
+        "", alias="GITHUB_REPO_OWNER", description="GitHub репо владелец"
+    )
     github_repo_name: str = Field("", alias="GITHUB_REPO_NAME", description="GitHub репо название")
 
     # ══════════════════════════════════════════════════════════════
@@ -209,7 +226,7 @@ class Settings(BaseSettings):
     tariff_min_rating_business: float = Field(0.0, alias="TARIFF_MIN_RATING_BUSINESS")
     tariff_min_rating_admin: float = Field(0.0, alias="TARIFF_MIN_RATING_ADMIN")
 
-    # Стоимость тарифов в кредитах (v4.2)
+    # Стоимость тарифов в рублях
     tariff_cost_free: int = Field(0, alias="TARIFF_COST_FREE")
     tariff_cost_starter: int = Field(490, alias="TARIFF_COST_STARTER")
     tariff_cost_pro: int = Field(1490, alias="TARIFF_COST_PRO")
@@ -243,10 +260,6 @@ class Settings(BaseSettings):
         alias="PREMIUM_SUBSCRIBER_THRESHOLD",
         description="Порог premium каналов (подписчиков)",
     )
-
-    # Package bonuses
-    bonus_credits_standard: int = Field(100, alias="BONUS_CREDITS_STANDARD")
-    bonus_credits_business: int = Field(500, alias="BONUS_CREDITS_BUSINESS")
 
     # Plan renewal
     plan_renewal_check_hour: int = Field(3, alias="PLAN_RENEWAL_CHECK_HOUR")
@@ -305,6 +318,38 @@ class Settings(BaseSettings):
 
     # Mini_app → web_portal JWT bridge (Phase 0)
     ticket_jwt_ttl_seconds: int = Field(300, alias="TICKET_JWT_TTL_SECONDS")
+
+    # Bot → portal direct exchange (BL-055).
+    # Internal Docker DNS lets bot call API without traversing nginx/Cloudflare.
+    # Override to http://localhost:8001 for host-side dev runs.
+    internal_api_base_url: str = Field(
+        "http://api:8001",
+        alias="INTERNAL_API_BASE_URL",
+        description="In-cluster base URL for server-to-server API calls (bot → API)",
+    )
+    bot_portal_exchange_allowed_paths: tuple[str, ...] = Field(
+        ("/own/payouts/request",),
+        alias="BOT_PORTAL_EXCHANGE_ALLOWED_PATHS",
+        description="Whitelist of redirect_path values accepted by /api/auth/exchange-bot-token-to-portal",
+    )
+    bot_auth_timestamp_tolerance_sec: int = Field(
+        60,
+        alias="BOT_AUTH_TIMESTAMP_TOLERANCE_SEC",
+        description="Replay-window tolerance (±sec) for X-Bot-Auth-Timestamp",
+    )
+
+    @field_validator("bot_portal_exchange_allowed_paths", mode="before")
+    @classmethod
+    def _parse_allowed_paths(cls, value: object) -> object:
+        # Default Pydantic-Settings parses list/tuple env vars as JSON. Accept
+        # CSV ("/a,/b") as well so ops can override via plain .env without
+        # quoting brackets.
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return value  # let JSON parser handle
+            return tuple(p.strip() for p in stripped.split(",") if p.strip())
+        return value
 
     # Optional sandbox Telegram channel id for test-mode routing (Phase 5).
     sandbox_telegram_channel_id: int | None = Field(None, alias="SANDBOX_TELEGRAM_CHANNEL_ID")

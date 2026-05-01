@@ -21,6 +21,7 @@ from aiogram.fsm.context import FSMContext
 # Fixtures
 # ─────────────────────────────────────────────
 
+
 @pytest.fixture
 def tg_user_new():
     """Telegram юзер которого нет в БД."""
@@ -127,6 +128,7 @@ def mock_async_session():
 def mock_user_repo():
     """Мок UserRepository."""
     from src.db.repositories.user_repo import UserRepository
+
     repo = AsyncMock(spec=UserRepository)
     repo.get_by_telegram_id = AsyncMock()
     repo.create = AsyncMock()
@@ -138,12 +140,19 @@ def mock_user_repo():
 # Тесты команды /start
 # ─────────────────────────────────────────────
 
+
 class TestStartCommandNewUser:
     """/start для нового пользователя."""
 
     @pytest.mark.asyncio
     async def test_new_user_created_in_db(
-        self, mock_message, mock_state, tg_user_new, db_user_new_role, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_new,
+        db_user_new_role,
+        mock_user_repo,
+        mock_async_session,
     ):
         """Новый пользователь создаётся в БД при первом /start."""
         mock_message.from_user = tg_user_new
@@ -153,17 +162,27 @@ class TestStartCommandNewUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             mock_user_repo.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_new_user_receives_welcome_message(
-        self, mock_message, mock_state, tg_user_new, db_user_new_role, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_new,
+        db_user_new_role,
+        mock_user_repo,
+        mock_async_session,
     ):
         """Новый пользователь получает приветственное сообщение."""
         mock_message.from_user = tg_user_new
@@ -173,18 +192,29 @@ class TestStartCommandNewUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             from src.bot.handlers.shared.start import send_banner_with_menu
+
             send_banner_with_menu.assert_called()
 
     @pytest.mark.asyncio
     async def test_new_user_fsm_cleared(
-        self, mock_message, mock_state, tg_user_new, db_user_new_role, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_new,
+        db_user_new_role,
+        mock_user_repo,
+        mock_async_session,
     ):
         """При /start FSM состояние сбрасывается."""
         mock_message.from_user = tg_user_new
@@ -194,10 +224,14 @@ class TestStartCommandNewUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             mock_state.clear.assert_called()
@@ -219,14 +253,17 @@ class TestStartCommandNewUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
 
             await asyncio.gather(
                 _handle_start(mock_message, mock_state, None),
-                _handle_start(mock_message, mock_state, None)
+                _handle_start(mock_message, mock_state, None),
             )
 
             assert mock_user_repo.create.call_count == 1
@@ -237,7 +274,13 @@ class TestStartCommandExistingUser:
 
     @pytest.mark.asyncio
     async def test_existing_user_not_recreated(
-        self, mock_message, mock_state, tg_user_existing, db_user_advertiser, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_existing,
+        db_user_advertiser,
+        mock_user_repo,
+        mock_async_session,
     ):
         """Существующий пользователь не создаётся повторно."""
         mock_message.from_user = tg_user_existing
@@ -246,17 +289,27 @@ class TestStartCommandExistingUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             mock_user_repo.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_existing_user_gets_main_menu(
-        self, mock_message, mock_state, tg_user_existing, db_user_advertiser, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_existing,
+        db_user_advertiser,
+        mock_user_repo,
+        mock_async_session,
     ):
         """Существующий пользователь получает главное меню."""
         mock_message.from_user = tg_user_existing
@@ -265,13 +318,18 @@ class TestStartCommandExistingUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             from src.bot.handlers.shared.start import send_banner_with_menu
+
             send_banner_with_menu.assert_called()
 
     @pytest.mark.asyncio
@@ -286,17 +344,27 @@ class TestStartCommandExistingUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
             assert mock_message.answer.called
 
     @pytest.mark.asyncio
     async def test_start_with_active_fsm_state_clears_it(
-        self, mock_message, mock_state, tg_user_existing, db_user_advertiser, mock_user_repo, mock_async_session
+        self,
+        mock_message,
+        mock_state,
+        tg_user_existing,
+        db_user_advertiser,
+        mock_user_repo,
+        mock_async_session,
     ):
         """Если пользователь застрял в FSM — /start его сбрасывает."""
         mock_message.from_user = tg_user_existing
@@ -306,16 +374,21 @@ class TestStartCommandExistingUser:
 
         with (
             patch("src.bot.handlers.shared.start.UserRepository", return_value=mock_user_repo),
-            patch("src.bot.handlers.shared.start.async_session_factory", return_value=mock_async_session),
+            patch(
+                "src.bot.handlers.shared.start.async_session_factory",
+                return_value=mock_async_session,
+            ),
             patch("src.bot.handlers.shared.start.send_banner_with_menu"),
         ):
             from src.bot.handlers.shared.start import _handle_start
+
             await _handle_start(mock_message, mock_state, None)
 
 
 # ─────────────────────────────────────────────
 # Тесты выбора роли
 # ─────────────────────────────────────────────
+
 
 class TestRoleSelection:
     """Выбор роли через callback."""
@@ -330,6 +403,7 @@ class TestRoleSelection:
 
         with patch("src.bot.handlers.shared.start.safe_callback_edit") as mock_edit:
             from src.bot.handlers.shared.start import change_role
+
             await change_role(mock_callback, mock_state)
 
             mock_edit.assert_called_once()
@@ -345,6 +419,7 @@ class TestRoleSelection:
 
         with patch("src.bot.handlers.shared.start.safe_callback_edit"):
             from src.bot.handlers.shared.start import change_role
+
             await change_role(mock_callback, mock_state)
 
             mock_state.clear.assert_called()
@@ -359,6 +434,7 @@ class TestRoleSelection:
 
         with patch("src.bot.handlers.shared.start.safe_callback_edit"):
             from src.bot.handlers.shared.start import change_role
+
             await change_role(mock_callback, mock_state)
 
             mock_callback.answer.assert_called()
@@ -377,6 +453,7 @@ class TestRoleSelection:
 # ─────────────────────────────────────────────
 # Тесты валидации ролей
 # ─────────────────────────────────────────────
+
 
 class TestRoleValidation:
     """Валидация ролей пользователей."""

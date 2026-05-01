@@ -84,8 +84,7 @@ _KNOWN_LEGAL_STATUSES: frozenset[str] = frozenset(_REQUIRED_FIELDS_MAP.keys())
 def _require_known_status(legal_status: str) -> None:
     if legal_status not in _KNOWN_LEGAL_STATUSES:
         raise ValueError(
-            f"Unknown legal_status: {legal_status!r} "
-            f"(known: {sorted(_KNOWN_LEGAL_STATUSES)})"
+            f"Unknown legal_status: {legal_status!r} (known: {sorted(_KNOWN_LEGAL_STATUSES)})"
         )
 
 

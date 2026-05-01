@@ -27,9 +27,7 @@ class TestOwnerServiceMap:
             ("individual", "owner_service_individual.html"),
         ],
     )
-    def test_template_file_matches_status(
-        self, legal_status: str, expected_file: str
-    ) -> None:
+    def test_template_file_matches_status(self, legal_status: str, expected_file: str) -> None:
         assert _CONTRACT_TEMPLATE_MAP["owner_service"][legal_status] == expected_file
 
     @pytest.mark.parametrize("legal_status", ALL_OWNER_STATUSES)

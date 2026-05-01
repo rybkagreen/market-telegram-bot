@@ -163,17 +163,77 @@ def upgrade() -> None:  # noqa: PLR0915
     op.bulk_insert(
         categories_table,
         [
-            {"slug": "business", "name_ru": "Бизнес", "emoji": "💼", "is_active": True, "sort_order": 1},
-            {"slug": "it", "name_ru": "IT и технологии", "emoji": "💻", "is_active": True, "sort_order": 2},
-            {"slug": "marketing", "name_ru": "Маркетинг", "emoji": "📢", "is_active": True, "sort_order": 3},
-            {"slug": "crypto", "name_ru": "Криптовалюта", "emoji": "₿", "is_active": True, "sort_order": 4},
-            {"slug": "psychology", "name_ru": "Психология", "emoji": "🧠", "is_active": True, "sort_order": 5},
-            {"slug": "health", "name_ru": "Здоровье", "emoji": "🏥", "is_active": True, "sort_order": 6},
-            {"slug": "entertainment", "name_ru": "Развлечения", "emoji": "🎭", "is_active": True, "sort_order": 7},
-            {"slug": "travel", "name_ru": "Путешествия", "emoji": "✈️", "is_active": True, "sort_order": 8},
+            {
+                "slug": "business",
+                "name_ru": "Бизнес",
+                "emoji": "💼",
+                "is_active": True,
+                "sort_order": 1,
+            },
+            {
+                "slug": "it",
+                "name_ru": "IT и технологии",
+                "emoji": "💻",
+                "is_active": True,
+                "sort_order": 2,
+            },
+            {
+                "slug": "marketing",
+                "name_ru": "Маркетинг",
+                "emoji": "📢",
+                "is_active": True,
+                "sort_order": 3,
+            },
+            {
+                "slug": "crypto",
+                "name_ru": "Криптовалюта",
+                "emoji": "₿",
+                "is_active": True,
+                "sort_order": 4,
+            },
+            {
+                "slug": "psychology",
+                "name_ru": "Психология",
+                "emoji": "🧠",
+                "is_active": True,
+                "sort_order": 5,
+            },
+            {
+                "slug": "health",
+                "name_ru": "Здоровье",
+                "emoji": "🏥",
+                "is_active": True,
+                "sort_order": 6,
+            },
+            {
+                "slug": "entertainment",
+                "name_ru": "Развлечения",
+                "emoji": "🎭",
+                "is_active": True,
+                "sort_order": 7,
+            },
+            {
+                "slug": "travel",
+                "name_ru": "Путешествия",
+                "emoji": "✈️",
+                "is_active": True,
+                "sort_order": 8,
+            },
             {"slug": "food", "name_ru": "Еда", "emoji": "🍕", "is_active": True, "sort_order": 9},
-            {"slug": "fashion", "name_ru": "Мода и стиль", "emoji": "👗", "is_active": True, "sort_order": 10},
-            {"slug": "other", "name_ru": "Другое", "emoji": "🔹", "is_active": True, "sort_order": 11},
+            {
+                "slug": "fashion",
+                "name_ru": "Мода и стиль",
+                "emoji": "👗",
+                "is_active": True,
+                "sort_order": 10,
+            },
+            {
+                "slug": "other",
+                "name_ru": "Другое",
+                "emoji": "🔹",
+                "is_active": True,
+                "sort_order": 11,
+            },
         ],
     )
 
@@ -888,7 +948,7 @@ def upgrade() -> None:  # noqa: PLR0915
                 "owner_cancel_compensation",
                 "payout",
                 "payout_fee",
-                "credits_buy",
+                "plan_purchase",
                 "failed_permissions_refund",
                 "bonus",
                 "spend",
@@ -896,7 +956,7 @@ def upgrade() -> None:  # noqa: PLR0915
                 "refund",
                 "ndfl_withholding",
                 "storno",
-                "admin_credit",
+                "admin_grant",
                 "gamification_bonus",
                 name="transactiontype",
             ),
@@ -1097,8 +1157,7 @@ def upgrade() -> None:  # noqa: PLR0915
         # Enforced at DB level so no code path (is_test, handler, migration) can create
         # a broken escrow state. See /root/.claude/plans/optimized-brewing-music.md.
         sa.CheckConstraint(
-            "status != 'escrow' OR "
-            "(escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
+            "status != 'escrow' OR (escrow_transaction_id IS NOT NULL AND final_price IS NOT NULL)",
             name="placement_escrow_integrity",
         ),
     )
@@ -1757,7 +1816,11 @@ def upgrade() -> None:  # noqa: PLR0915
 
     # users self-reference
     op.create_foreign_key(
-        "users_referred_by_id_fkey", "users", "users", ["referred_by_id"], ["id"],
+        "users_referred_by_id_fkey",
+        "users",
+        "users",
+        ["referred_by_id"],
+        ["id"],
         ondelete="SET NULL",
     )
 

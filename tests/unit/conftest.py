@@ -19,11 +19,11 @@ asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
 from collections.abc import AsyncGenerator
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from unittest.mock import patch
 
 
 class MockAsyncSessionContextManager:
@@ -42,10 +42,10 @@ class MockAsyncSessionContextManager:
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession]:
     """In-memory SQLite session — only test-relevant tables, no JSONB columns."""
+    from src.db.base import Base
     from src.db.models.channel_mediakit import ChannelMediakit  # noqa: F401
     from src.db.models.telegram_chat import TelegramChat  # noqa: F401
     from src.db.models.user import User  # noqa: F401
-    from src.db.base import Base
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",

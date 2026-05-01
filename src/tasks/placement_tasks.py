@@ -986,9 +986,7 @@ def delete_published_post(self, placement_id: int) -> dict[str, Any]:
     когда один task_id попадает на два pool-воркера одновременно.
     """
     if asyncio.run(_check_dedup_async("delete_published_post", placement_id)):
-        logger.info(
-            f"Placement {placement_id} deletion already in-flight (dedup hit), skipping"
-        )
+        logger.info(f"Placement {placement_id} deletion already in-flight (dedup hit), skipping")
         return {"success": True, "skipped": True, "reason": "dedup"}
 
     logger.info(f"Deleting placement post {placement_id}")
@@ -1010,9 +1008,7 @@ async def _delete_published_post_async(placement_id: int) -> dict[str, Any]:
 
     async with ephemeral_bot() as bot, async_session_factory() as session:
         pub_service = PublicationService()
-        await pub_service.delete_published_post(
-            bot=bot, session=session, placement_id=placement_id
-        )
+        await pub_service.delete_published_post(bot=bot, session=session, placement_id=placement_id)
         await session.commit()
 
     return {"success": True, "message": "Success"}

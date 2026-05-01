@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Split bot-to-API HMAC secret from BOT_TOKEN (BL-066) (2026-05-01)
+
+- Bot-to-portal HMAC authentication moved from `BOT_TOKEN` to a dedicated
+  `BOT_API_HMAC_SECRET` for defence-in-depth. `BOT_TOKEN` keeps its
+  Telegram-API role (aiogram + Mini App init_data verification);
+  `BOT_API_HMAC_SECRET` is the new server-to-server credential between
+  bot process and API process.
+- New required Settings field
+  `bot_api_hmac_secret` (`src/config/settings.py`).
+- Callers updated:
+  `src/api/auth_bot_hmac.py` (`verify_bot_request_signature` and
+  `sign_bot_request` parameter renamed `bot_token` → `hmac_secret`),
+  `src/api/routers/auth.py` (`exchange_bot_token_to_portal` reads
+  `settings.bot_api_hmac_secret`), `src/bot/utils/portal_deeplink.py`
+  (`build_portal_deeplink` reads the same).
+- **Breaking change for deployment:** production `.env` must provision
+  `BOT_API_HMAC_SECRET` **before** restart; the field is required with
+  no fallback. Generate via `openssl rand -hex 32`.
+- Docs: `docs/AAA-09_DEPLOYMENT.md` Security table + key-generation
+  recipe extended; `.env.example` and `.env.test.example` updated.
+- Tests refreshed: `tests/unit/api/test_bot_hmac.py`,
+  `tests/unit/api/test_exchange_bot_token_to_portal.py`,
+  `tests/unit/test_bot_portal_deeplink.py`.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_BL-066-split-bot-api-hmac-secret.md
+
+### Added — Direct bot-to-portal ticket exchange (BL-055 Commit 1) (2026-05-01)
+
+- New API endpoint `POST /api/auth/exchange-bot-token-to-portal`
+  (`src/api/routers/auth.py`). Authenticated via HMAC-SHA256 of
+  `<timestamp_ms>.<raw_body>` keyed by `BOT_TOKEN`, carried in
+  `X-Bot-Auth-Timestamp` + `X-Bot-Auth-Signature` headers
+  (`src/api/auth_bot_hmac.py`). Replay window enforced
+  (`BOT_AUTH_TIMESTAMP_TOLERANCE_SEC`, default 60s); constant-time
+  compare via `hmac.compare_digest`.
+- Allowed redirect-path whitelist
+  (`BOT_PORTAL_EXCHANGE_ALLOWED_PATHS`, default
+  `("/own/payouts/request",)`).
+- Internal API base URL setting `INTERNAL_API_BASE_URL`
+  (default `http://api:8001`) so bot calls API via Docker DNS,
+  not through public nginx/Cloudflare.
+- Response shape `BotPortalExchangeResponse{ticket_url}` —
+  pre-built portal URL `${web_portal_url}/login/ticket?ticket=…&redirect=…`,
+  consumable by the existing
+  `POST /api/auth/consume-ticket` handler (no FE/portal change).
+- Existing `exchange_miniapp_to_portal` refactored to share a
+  `_issue_portal_ticket()` helper — same ticket payload shape,
+  no behaviour change.
+- Tests:
+  `tests/unit/api/test_bot_hmac.py` (12 cases — sign/verify, tamper,
+  replay window, header parsing, case-insensitive hex);
+  `tests/unit/api/test_exchange_bot_token_to_portal.py`
+  (7 cases — happy path, PII-bound payload, 400/401/404 negatives).
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_BL-055-1-bot-portal-exchange-endpoint.md
+
+### Changed — Admin grant API rename (17.2 Commit 3, BL-053) (2026-05-01)
+
+- Pydantic request schema `PlatformCreditRequest` → `AdminGrantRequest`
+  (`src/api/routers/admin.py:827`). OpenAPI `components.schemas` now
+  exposes `AdminGrantRequest` instead of `PlatformCreditRequest`.
+- Handler function `create_platform_credit` → `create_admin_grant`
+  (`src/api/routers/admin.py:840`). FastAPI default `operation_id`
+  follows the function name.
+- URL path `/admin/credits/platform-credit` **unchanged** — deferred
+  to series 17.3 (atomic bundle with FE deploy).
+- Wire format (request body fields `user_id` / `amount` / `comment`,
+  response body fields `success` / `transaction_id` / `new_platform_balance`
+  / `new_user_balance`) **unchanged**. Hand-coded FE TS interfaces
+  (`PlatformCreditResponse` in `web_portal/src/api/admin.ts`) not
+  affected.
+
+Detail: reports/docs-architect/discovery/CHANGES_2026-05-01_17-2-pydantic-schema-rename.md
+
 ### Changed — YooKassa webhook over-collection trim (16.5c, BL-051 closure) (2026-04-30)
 
 - New module `src/utils/yookassa_payload.py` — canonical projection

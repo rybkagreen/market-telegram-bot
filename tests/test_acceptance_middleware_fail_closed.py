@@ -7,6 +7,7 @@ exists. This module locks in fail-closed behaviour: on any exception from
 needs_accept_rules, the handler chain is short-circuited and the user is
 shown a "technical issue, try again later" notice.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch

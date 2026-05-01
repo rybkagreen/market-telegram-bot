@@ -179,10 +179,10 @@ async def test_admin_topup_creates_transaction_record(db_session):
     assert target.balance_rub == Decimal("250.00")
 
     rows = (
-        await db_session.execute(
-            select(Transaction).where(Transaction.user_id == target.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Transaction).where(Transaction.user_id == target.id)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
 
     txn = rows[0]
@@ -231,10 +231,10 @@ async def test_admin_topup_idempotent(db_session):
     assert target.balance_rub == Decimal("300.00")  # credited only once
 
     rows = (
-        await db_session.execute(
-            select(Transaction).where(Transaction.user_id == target.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Transaction).where(Transaction.user_id == target.id)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     assert rows[0].idempotency_key == idem_key
 
@@ -260,9 +260,7 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
     await db_session.flush()
 
     monkeypatch.setattr(app_settings, "yookassa_shop_id", "test-shop", raising=False)
-    monkeypatch.setattr(
-        app_settings, "yookassa_secret_key", "test-secret", raising=False
-    )
+    monkeypatch.setattr(app_settings, "yookassa_secret_key", "test-secret", raising=False)
     monkeypatch.setattr(
         app_settings,
         "yookassa_return_url",
@@ -278,9 +276,7 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
     }
 
     with (
-        patch.object(
-            yk_module.Payment, "create", side_effect=ForbiddenError(fake_response)
-        ),
+        patch.object(yk_module.Payment, "create", side_effect=ForbiddenError(fake_response)),
         pytest.raises(PaymentProviderError) as exc_info,
     ):
         await YooKassaService().create_topup_payment(
@@ -294,9 +290,7 @@ async def test_create_payment_translates_forbidden_to_payment_provider_error(
     assert "forbidden" in exc_info.value.description.lower()
 
 
-async def test_topup_endpoint_returns_503_on_payment_provider_error(
-    db_session, monkeypatch
-):
+async def test_topup_endpoint_returns_503_on_payment_provider_error(db_session, monkeypatch):
     """Regression: /api/billing/topup translates PaymentProviderError → 503.
 
     Промт-12D contract: structured 503 with Russian user message, provider
@@ -321,16 +315,12 @@ async def test_topup_endpoint_returns_503_on_payment_provider_error(
             request_id="test-req-019dd",
         )
 
-    monkeypatch.setattr(
-        yk_module.YooKassaService, "create_topup_payment", _raise_provider_error
-    )
+    monkeypatch.setattr(yk_module.YooKassaService, "create_topup_payment", _raise_provider_error)
 
     body = TopupRequest(desired_amount=1000, method="yookassa")
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_unified_topup(
-            body=body, current_user=fake_user, session=db_session
-        )
+        await create_unified_topup(body=body, current_user=fake_user, session=db_session)
 
     assert exc_info.value.status_code == 503
     detail = cast(dict, exc_info.value.detail)

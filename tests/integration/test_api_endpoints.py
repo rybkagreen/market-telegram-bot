@@ -53,18 +53,14 @@ class TestAuthEndpoints:
     @pytest.mark.asyncio
     async def test_auth_missing_init_data_returns_422(self, api_client_no_auth):
         """Auth endpoint returns 422 when initData is missing."""
-        response = await api_client_no_auth.post(
-            "/api/auth/telegram",
-            json={}
-        )
+        response = await api_client_no_auth.post("/api/auth/telegram", json={})
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_auth_invalid_init_data_returns_400(self, api_client_no_auth):
         """Auth endpoint returns 400 for invalid initData."""
         response = await api_client_no_auth.post(
-            "/api/auth/telegram",
-            json={"initData": "invalid_data"}
+            "/api/auth/telegram", json={"initData": "invalid_data"}
         )
         # Should return 400 (invalid signature) or 422 (validation)
         assert response.status_code in [400, 422]

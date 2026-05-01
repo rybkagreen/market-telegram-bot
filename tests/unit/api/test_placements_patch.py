@@ -473,9 +473,7 @@ class TestPatchNotFound:
 class TestPatchAcceptCounter:
     """PATCH {action: 'accept-counter'} → advertiser_accept_counter, status=pending_payment."""
 
-    async def test_advertiser_accepts_counter(
-        self, client_as_advertiser: AsyncClient
-    ) -> None:
+    async def test_advertiser_accepts_counter(self, client_as_advertiser: AsyncClient) -> None:
         placement = _make_placement(
             status=PlacementStatus.counter_offer,
             counter_price=Decimal("2000"),
@@ -519,9 +517,7 @@ class TestPatchAcceptCounter:
         assert "counter_offer" in resp.json()["detail"]
         service.advertiser_accept_counter.assert_not_awaited()
 
-    async def test_accept_counter_by_owner_returns_403(
-        self, client_as_owner: AsyncClient
-    ) -> None:
+    async def test_accept_counter_by_owner_returns_403(self, client_as_owner: AsyncClient) -> None:
         # owner.id=7001 == channel.owner_id, и НЕ advertiser → 403 от _action_accept_counter
         placement = _make_placement(status=PlacementStatus.counter_offer)
         channel = _make_channel(owner_id=7001)
@@ -599,9 +595,7 @@ class TestPatchCounterReply:
         assert "price required" in resp.json()["detail"]
         service.advertiser_counter_offer.assert_not_awaited()
 
-    async def test_counter_reply_by_owner_returns_403(
-        self, client_as_owner: AsyncClient
-    ) -> None:
+    async def test_counter_reply_by_owner_returns_403(self, client_as_owner: AsyncClient) -> None:
         placement = _make_placement(status=PlacementStatus.counter_offer)
         channel = _make_channel(owner_id=7001)
         p1, p2, p3, service = _patch_router_repos(
@@ -622,9 +616,7 @@ class TestPatchCounterReply:
 class TestPatchRejectReasonCode:
     """`reason_text or reason_code or "rejected"` fallback chain (placements.py:58)."""
 
-    async def test_reason_code_used_when_text_missing(
-        self, client_as_owner: AsyncClient
-    ) -> None:
+    async def test_reason_code_used_when_text_missing(self, client_as_owner: AsyncClient) -> None:
         placement = _make_placement()
         channel = _make_channel(owner_id=7001)
         p1, p2, p3, service = _patch_router_repos(
@@ -663,9 +655,7 @@ class TestChannelNotFound:
                 return_value=channel_repo,
             ),
         ):
-            resp = await client_as_owner.patch(
-                "/api/placements/4242", json={"action": "accept"}
-            )
+            resp = await client_as_owner.patch("/api/placements/4242", json={"action": "accept"})
         assert resp.status_code == 404, resp.text
         assert "channel not found" in resp.json()["detail"].lower()
 

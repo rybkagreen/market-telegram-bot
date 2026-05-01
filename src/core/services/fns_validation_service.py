@@ -312,6 +312,7 @@ def validate_entity_documents(
     Returns the first violation it finds; prefers "missing required" over
     "forbidden field present" when both apply.
     """
+
     def _has(value: str | None) -> bool:
         return bool(value and str(value).strip())
 

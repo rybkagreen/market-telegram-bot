@@ -114,7 +114,7 @@ class YooKassaService:
 
         Returns:
             dict с полями payment_id, payment_url, amount (gross),
-            credits (= int(desired_balance)), status="pending".
+            credits (int rubles for YooKassa metadata), status="pending".
 
         Raises:
             ValueError: пользователь не найден или некорректная сумма.
@@ -132,8 +132,8 @@ class YooKassaService:
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        # 2. Compute amounts (1:1 credits — legacy field)
-        credits_amount = int(desired_balance)
+        # 2. Compute amounts — int rubles for YooKassa metadata
+        amount_int = int(desired_balance)
         desired_balance_dec = Dec(str(desired_balance))
         fee_amount = (desired_balance_dec * YOOKASSA_FEE_RATE).quantize(Dec("0.01"))
         gross_amount = desired_balance_dec + fee_amount
@@ -141,8 +141,7 @@ class YooKassaService:
         # 3. YooKassa SDK config
         if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
             raise RuntimeError(
-                "YooKassa credentials are not configured "
-                "(YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
+                "YooKassa credentials are not configured (YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY)"
             )
 
         Configuration.account_id = settings.yookassa_shop_id
@@ -171,9 +170,7 @@ class YooKassaService:
         # inside session.begin() / after flush would create a
         # "real charge, no local record" footgun on rollback.
         try:
-            yk_payment = await asyncio.to_thread(
-                Payment.create, payment_request, idempotency_key
-            )
+            yk_payment = await asyncio.to_thread(Payment.create, payment_request, idempotency_key)
         except (
             ApiError,
             BadRequestError,
@@ -188,8 +185,7 @@ class YooKassaService:
             err_description = str(content.get("description") or exc)
             err_request_id = str(content.get("request_id") or "unknown")
             logger.error(
-                "YooKassa API error for user %s: code=%s, description=%s,"
-                " request_id=%s",
+                "YooKassa API error for user %s: code=%s, description=%s, request_id=%s",
                 user_id,
                 err_code,
                 err_description,
@@ -203,9 +199,7 @@ class YooKassaService:
 
         payment_id = yk_payment.id
         confirmation = yk_payment.confirmation
-        confirmation_url = (
-            confirmation.confirmation_url if confirmation is not None else None
-        )
+        confirmation_url = confirmation.confirmation_url if confirmation is not None else None
         if not confirmation_url:
             raise RuntimeError(
                 f"YooKassa did not return a confirmation URL for payment {payment_id}"
@@ -233,7 +227,7 @@ class YooKassaService:
             "meta_json": {
                 "status": "pending",
                 "method": "yookassa",
-                "credits": credits_amount,
+                "amount_rub": amount_int,
                 "desired_balance": str(desired_balance_dec),
                 "fee_amount": str(fee_amount),
                 "gross_amount": str(gross_amount),
@@ -249,7 +243,7 @@ class YooKassaService:
             "payment_id": payment_id,
             "payment_url": confirmation_url,
             "amount": str(gross_amount),
-            "credits": credits_amount,
+            "amount_rub": amount_int,
             "status": "pending",
         }
 
