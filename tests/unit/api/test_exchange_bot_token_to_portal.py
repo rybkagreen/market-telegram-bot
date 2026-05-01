@@ -11,7 +11,6 @@ same in-memory user the test owns. Ensures:
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -27,14 +26,8 @@ from httpx import ASGITransport, AsyncClient
 from src.api.auth_bot_hmac import sign_bot_request
 from src.api.dependencies import get_redis
 from src.api.main import app
+from src.api.routers import auth as auth_module
 from src.config.settings import settings
-
-# `src/api/routers/__init__.py` does `from .auth import router as auth`, which
-# shadows attribute access `src.api.routers.auth` with an APIRouter instance.
-# `importlib.import_module` returns the module object directly from
-# `sys.modules`, bypassing the shadow.
-auth_module = importlib.import_module("src.api.routers.auth")
-
 
 # ─── Stubs ────────────────────────────────────────────────────────
 
@@ -112,9 +105,6 @@ async def client(
     async def _factory() -> AsyncIterator[Any]:
         yield MagicMock()  # session is unused — repo is patched
 
-    # Use module-object form: `from src.api.routers import auth as router-shadow`
-    # in src/api/routers/__init__.py shadows `src.api.routers.auth` with the
-    # APIRouter instance, which breaks `monkeypatch.setattr("src.api.routers.auth.X")`.
     monkeypatch.setattr(auth_module, "async_session_factory", _factory)
     monkeypatch.setattr(auth_module, "UserRepository", _UserRepo)
 
