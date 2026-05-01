@@ -403,8 +403,7 @@
 | `docker/Dockerfile.api` | API container | HIGH |
 | `docker/Dockerfile.worker` | Worker container | HIGH |
 | `docker/Dockerfile.nginx` | Nginx + Mini App build | HIGH |
-| `alembic.ini` | Alembic config (migrations path: `src/db/migrations`) | **HIGH** |
-| `alembic.docker.ini` | Docker-specific Alembic config | HIGH |
+| `alembic.ini` | Alembic config (migrations path: `src/db/migrations`, mounted into Docker containers as `/app/alembic.ini`) | **HIGH** |
 | `alembic_sync.ini` | Sync Alembic config | MED |
 | `run_migrations.py` | Migration runner script | HIGH |
 | `pyproject.toml` | Poetry deps, Ruff/MyPy/Pytest config | **HIGH** |
