@@ -7,27 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added — Phase 3a Block 1 (schema foundation, 2026-05-02)
+### Added — Phase 3a Foundation (Blocks 1, 1.5, 2, 3, 4 — 2026-05-02)
 
-In-flight; full Phase 3a closure entry will land at Block 4.1 alongside
-the comprehensive CHANGES doc. This Block-1-only entry exists to keep
-the changelog in lockstep with the per-batch CHANGES file.
+Comprehensive Phase 3a Foundation bundle. Replaces the in-flight Block-1-only
+stub with the full closure entry covering all five blocks. Per-block CHANGES
+files in `reports/docs-architect/discovery/` document each block in detail;
+`CHANGES_2026-05-02_phase3a-foundation-closure.md` provides the comprehensive
+overview.
 
-- Phase 3 Legal Compliance Gates — schema vocabulary landed.
-  9 new DB columns across 4 tables (`legal_profiles`,
-  `payout_requests`, `placement_requests`, `ord_registrations`)
-  feeding gates G03/G06/G11/G12/G16/G17.
-- `PlacementGate` StrEnum (18 values) and `GateResult` dataclass
-  + `GateResultResponse` Pydantic schema in `src/core/`.
+- Phase 3a Foundation schema scaffolding for legal compliance gating:
+  9 DB columns across 4 tables (`legal_profiles`, `payout_requests`,
+  `placement_requests`, `ord_registrations`) feeding gates
+  G03/G06/G11/G12/G16/G17.
+- `PlacementGate` StrEnum (18 values, G03=`LEGAL_STATUS_COMPLIANT` post-1.5
+  correction); `GateResult` dataclass + `GateResultResponse` Pydantic schema.
+- New `src/core/enums/` package for cross-cutting service-domain enums.
 - `LegalProfileResponse` exposes 4 verification-state flags
-  (`fns_verification_status`, `fns_verified_at`,
-  `egrul_snapshot_at`, `inn_checksum_valid`).
-  Backwards compatible (all optional).
-- New `src/core/enums/` package for cross-cutting service-domain
-  enums.
+  (`fns_verification_status`, `fns_verified_at`, `egrul_snapshot_at`,
+  `inn_checksum_valid`). Backwards compatible (all optional).
+- `LegalComplianceService` dispatch skeleton with `_GATE_CHECKERS` registry
+  over 6 gate-checker modules (18 `NotImplementedError` stubs; logic =
+  Phase 3b).
+- 2 custom exceptions: `TransitionBlockedError` (409),
+  `ChannelAddDeclinedError` (403).
+- 4 repository methods: `ContractRepo.has_signed_framework`,
+  `LegalProfileRepo.get_verification_status`,
+  `PayoutRepository.get_valid_for_owner`,
+  `UserRepository.get_with_legal_profile`.
+- Audit log emission on 5 compliance-sensitive service methods
+  (`LegalProfileService` × 3, `PayoutService` × 2) reusing existing
+  `AuditLogRepo`.
+- S-48 three-pattern taxonomy in CLAUDE.md (Caller-owns / Self-contained /
+  External-boundary) with canonical inline markers.
 
-No business logic yet; gate-checker logic ships in Phase 3b,
-transition wiring in Phase 3c, API endpoint in Phase 3d.
+### Changed — Phase 3a Foundation (2026-05-02)
+
+- `OwnPayoutRequest.tsx` placeholder restored (deeplink target for 16.3).
+- Plan § 3 terminology aligned: `legal_type` → `legal_status`.
+- `channels.py` router: 1 redundant `session.commit()` removal
+  (`get_db_session` auto-commits); 3 `commit()` → `flush()` refactors at
+  lines 423, 1139, 1191 (preserve `IntegrityError → 409` UX). After
+  Block 4, `channels.py` contains zero `session.commit()` calls.
+- `contracts.py` router: 3 redundant `session.commit()` removals.
+- `badge_service.py`, `publication_service.py`: S-48 carve-out markers
+  added on 4 commit() sites (Pattern 2 self-contained × 3, Pattern 3
+  external-boundary × 1).
+
+### Fixed — Phase 3a Foundation (2026-05-02)
+
+- ORD deadline drift (Block 1.5): plan claim *"72h per ФЗ-38"* replaced
+  with correct *"end of month following publication month per ФЗ-38
+  ст. 18.1 + ПП-1427"*; ERRATUM headers applied to 3 research artifacts;
+  schema/code comments corrected. `deadline_at` value formula correction
+  deferred to Phase 3b.
+
+### Notes
+
+- Phase 3a Foundation ships scaffolding only — no business logic, no
+  Yandex provider, no transition→gates table. All gate-checker bodies
+  and transition resolution remain Phase 3b territory.
+- Lessons L8-L13 surfaced; L12 codified in CLAUDE.md by
+  `chore/clarify-s48-patterns`; L8/L9/L10/L11/L13 + architectural debt
+  accumulating for Phase 3 closure batch.
+- Branch `feature/legal-compliance-gates`, 18 commits ahead of develop,
+  ready for Marina's merge-timing decision (default per consolidation =
+  hold for atomic Phase 3 merge).
 
 ## [v0.2.0] - 2026-05-01
 
