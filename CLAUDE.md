@@ -188,8 +188,28 @@ async def _delete_published_post_async(placement_id: int) -> None:
 
 ### Service Transaction Contract (S-48)
 
-Transaction ownership rests with the **outermost caller** (Celery task or
-FastAPI endpoint). Service methods accepting `session: AsyncSession`:
+S-48 establishes that **transactions belong to the highest layer that knows
+the unit of work**. In this codebase, three patterns coexist; each is correct
+for its situation. New code MUST identify which pattern it follows and (for
+patterns 2 and 3) MUST mark the `commit()` call inline.
+
+#### Pattern 1 — Caller-owns (default)
+
+Service receives `session: AsyncSession` (via `__init__` or method parameter)
+and NEVER calls `session.commit()`, `session.flush()`, or `session.rollback()`.
+The caller — typically a FastAPI router using `Depends(get_db_session)` —
+owns the transaction lifecycle. `get_db_session` auto-commits on success
+path, rolls back on exception.
+
+This is the **default**. Use this pattern unless there is a specific reason
+not to.
+
+Examples in code:
+- `ContractService`, `LegalProfileService`, `PlacementTransitionService`,
+  `PlacementRequestService`, `ChannelService` (session-in-constructor)
+- `BillingService`, `PayoutService` (older session-as-method-param)
+
+Service methods following this pattern:
 
 - **MUST NOT** call `async with session.begin()` — it poisons any session
   that already has an active autobegin transaction (first SELECT starts one).
@@ -199,9 +219,78 @@ FastAPI endpoint). Service methods accepting `session: AsyncSession`:
   sub-block must roll back independently without aborting the outer
   transaction.
 
-Methods that open their own session (e.g. `async with async_session_factory()
-as session, session.begin():`) are fine — they own that transaction
+No marker required.
+
+#### Pattern 2 — Self-contained
+
+Method opens its own session via `async with async_session_factory() as
+session: ...`. The session never crosses the method boundary. The method
+MUST commit within its own scope before the `async with` block exits —
+without commit, the implicit rollback at exit reverts all writes.
+
+Use this pattern only for **leaf operations called from contexts that don't
+hold a session** — typically Celery tasks that receive primitive arguments
+(`user_id: int`, `badge_code: str`) rather than a live session.
+
+Marker (inline comment on the commit line):
+
+```python
+await session.commit()  # S-48: self-contained pattern
+```
+
+Examples in code:
+
+- `badge_service.check_and_award_badges` — called from `tasks/badge_tasks.py`
+- `badge_service.award_badge`
+- `badge_service.check_achievements`
+
+Methods that open their own session via `async with async_session_factory()
+as session, session.begin():` are also fine — they own that transaction
 end-to-end.
+
+#### Pattern 3 — External-boundary
+
+Service receives `session: AsyncSession` from caller AND commits within the
+service body at a well-defined point that pairs with an external-system
+interaction. Used only when:
+
+- The service has just performed an irreversible side-effect on an external
+  system (Telegram send, payment-provider call, etc.)
+- The DB state confirming that side-effect MUST be visible to retry workers
+  before any further work can fail and roll back
+- `flush()` is insufficient because writes inside an open transaction are
+  invisible to other workers / processes; only `commit()` makes them durable
+  across process boundaries
+
+Replacing `commit()` with `flush()` in this pattern reintroduces a known
+double-execution risk (e.g., double-publish to Telegram).
+
+Marker (inline comment on the commit line):
+
+```python
+await session.commit()  # S-48: external-boundary (<short description>)
+```
+
+Examples in code:
+
+- `publication_service.publish_placement` (after Telegram send) — Telegram
+  message_id must be durable before status transition or further work
+
+This pattern is **rare**. Default to Pattern 1; use Pattern 3 only when
+external idempotency demands it.
+
+#### When auditing
+
+A `session.commit()` in `src/core/services/` is **not** automatically a
+violation. Classify by session ownership:
+
+1. Does the method receive `session` as an argument? → Pattern 1 (commit is
+   wrong; remove) OR Pattern 3 (commit is correct; mark)
+2. Does the method open `async with async_session_factory()`? → Pattern 2
+   (commit is required; mark)
+
+`grep` alone cannot distinguish a Pattern 1 violation from a Pattern 3
+carve-out. Verify session ownership before classifying.
 
 **Business-level idempotency.** Financial events carry stable keys on
 `Transaction.idempotency_key` (UNIQUE index). EXISTS-check early-exit covers
