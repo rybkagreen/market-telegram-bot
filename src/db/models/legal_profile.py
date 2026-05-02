@@ -1,9 +1,10 @@
 """LegalProfile model for user legal/tax data."""
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.security.field_encryption import EncryptedString, HashableEncryptedString
@@ -65,6 +66,7 @@ class LegalProfile(Base, TimestampMixin):
     egrul_snapshot_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    egrul_egrip_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     inn_checksum_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # Relationships
