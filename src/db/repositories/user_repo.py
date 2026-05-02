@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
 from src.db.models.user import User
@@ -215,3 +216,13 @@ class UserRepository(BaseRepository[User]):
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
+
+    async def get_with_legal_profile(self, user_id: int) -> User | None:
+        """Return User with eagerly-loaded legal_profile relationship.
+
+        Uses selectinload(User.legal_profile) to avoid N+1 in compliance gate checks.
+        """
+        result = await self.session.execute(
+            select(User).where(User.id == user_id).options(selectinload(User.legal_profile))
+        )
+        return result.scalar_one_or_none()

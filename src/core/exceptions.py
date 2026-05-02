@@ -225,3 +225,26 @@ class PlacementValidationError(ValidationError):
     пустое reason при reject, и т.п.)."""
 
     error_code = "placement_validation_error"
+
+
+# ── Phase 3 legal compliance ───────────────────────────────
+class TransitionBlockedError(ConflictError):
+    """Placement state transition blocked by failing compliance gate(s).
+
+    Raised by PlacementTransitionService when one or more required
+    gates are not satisfied. The remediation_data dict carries the list
+    of failing gates with their reason codes for client-side surfacing.
+    """
+
+    error_code = "transition_blocked"
+
+
+class ChannelAddDeclinedError(ForbiddenError):
+    """Channel-add request declined by legal compliance preconditions.
+
+    Raised when the prospective owner has not completed legal profile
+    setup or signed the framework contract. The remediation_url field
+    points the user to the next required step.
+    """
+
+    error_code = "channel_add_declined"

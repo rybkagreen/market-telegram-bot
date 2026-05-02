@@ -76,7 +76,7 @@ class BadgeService:
                         "xp_reward": badge.xp_reward,
                     })
 
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
 
         return awarded_badges
 
@@ -226,7 +226,7 @@ class BadgeService:
 
             # Выдаём значок
             await self._award_badge_internal(session, user_id, badge.id)
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
 
             return {
                 "success": True,
@@ -376,7 +376,7 @@ class BadgeService:
                             "description": badge.description,
                         })
 
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
 
         return awarded_badges
 
