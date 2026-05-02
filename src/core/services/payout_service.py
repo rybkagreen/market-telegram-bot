@@ -30,6 +30,7 @@ from src.core.exceptions import (
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.transaction import TransactionType
 from src.db.models.user import User
+from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.platform_account_repo import PlatformAccountRepository
 from src.db.repositories.transaction_repo import TransactionRepository
@@ -792,6 +793,17 @@ class PayoutService:
 
                 await self.complete_payout(session, payout_id)
                 payout.admin_id = admin_id
+                await AuditLogRepo(session).log(
+                    action="payout_approve",
+                    resource_type="payout_request",
+                    user_id=admin_id,
+                    resource_id=payout.id,
+                    target_user_id=payout.owner_id,
+                    extra={
+                        "amount": str(payout.gross_amount),
+                        "method": payout.payout_method_type,
+                    },
+                )
                 # commit — неявный, на выходе из session.begin()
 
             await session.refresh(payout)
@@ -849,6 +861,14 @@ class PayoutService:
                 # ставим финальный rejected (cancelled = отмена пользователем).
                 payout.status = PayoutStatus.rejected
                 payout.admin_id = admin_id
+                await AuditLogRepo(session).log(
+                    action="payout_reject",
+                    resource_type="payout_request",
+                    user_id=admin_id,
+                    resource_id=payout.id,
+                    target_user_id=payout.owner_id,
+                    extra={"reason": reason},
+                )
 
             await session.refresh(payout)
             logger.info(f"PayoutRequest {payout_id} rejected by admin {admin_id}: {reason}")

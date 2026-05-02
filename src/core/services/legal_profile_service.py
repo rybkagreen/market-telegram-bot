@@ -14,6 +14,7 @@ from src.core.security.field_encryption import HashableEncryptedString
 from src.core.services.fns_validation_service import validate_entity_documents
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.user import User
+from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.legal_profile_repo import LegalProfileRepo
 
 logger = logging.getLogger(__name__)
@@ -129,10 +130,18 @@ class LegalProfileService:
             data["inn_hash"] = HashableEncryptedString.hash_value(data["inn"])
         profile = await LegalProfileRepo(self.session).create(user_id=user_id, **data)
         await self.check_completeness(user_id)
+        await AuditLogRepo(self.session).log(
+            action="legal_profile_create",
+            resource_type="legal_profile",
+            user_id=user_id,
+            resource_id=profile.id,
+            extra={"legal_status": profile.legal_status},
+        )
         return profile
 
     async def update_profile(self, user_id: int, data: dict) -> LegalProfile:
         """Обновить юридический профиль пользователя."""
+        updated_fields = list(data.keys())
         # Only validate legal_status if the caller explicitly changes it;
         # partial updates that don't touch the status must still work.
         if "legal_status" in data and data["legal_status"] is not None:
@@ -142,6 +151,13 @@ class LegalProfileService:
             data["inn_hash"] = HashableEncryptedString.hash_value(data["inn"])
         profile = await LegalProfileRepo(self.session).update(user_id=user_id, **data)
         await self.check_completeness(user_id)
+        await AuditLogRepo(self.session).log(
+            action="legal_profile_update",
+            resource_type="legal_profile",
+            user_id=user_id,
+            resource_id=profile.id,
+            extra={"updated_fields": updated_fields},
+        )
         return profile
 
     async def upload_scan(self, user_id: int, scan_type: str, file_id: str) -> None:
@@ -155,7 +171,17 @@ class LegalProfileService:
         if scan_type not in scan_field_map:
             raise ValueError(f"Unknown scan_type: {scan_type}")
         field_name = scan_field_map[scan_type]
-        await LegalProfileRepo(self.session).update_scan(user_id, field_name, file_id)
+        repo = LegalProfileRepo(self.session)
+        await repo.update_scan(user_id, field_name, file_id)
+        profile = await repo.get_by_user_id(user_id)
+        if profile is not None:
+            await AuditLogRepo(self.session).log(
+                action="legal_profile_scan_upload",
+                resource_type="legal_profile",
+                user_id=user_id,
+                resource_id=profile.id,
+                extra={"scan_type": scan_type},
+            )
 
     async def get_required_fields(self, legal_status: str) -> dict:
         """Вернуть список обязательных полей для данного правового статуса.
