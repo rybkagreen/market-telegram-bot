@@ -675,6 +675,16 @@ def upgrade() -> None:  # noqa: PLR0915
             nullable=False,
         ),
         sa.Column("inn_hash", sa.String(64), nullable=True),
+        # Phase 3: legal compliance gate inputs (G03/G06/G16/G17).
+        sa.Column(
+            "fns_verification_status",
+            sa.String(20),
+            server_default=sa.text("'unchecked'"),
+            nullable=True,
+        ),
+        sa.Column("fns_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("egrul_snapshot_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("inn_checksum_valid", sa.Boolean(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="legal_profiles_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", name="legal_profiles_user_id_key"),
@@ -779,6 +789,8 @@ def upgrade() -> None:  # noqa: PLR0915
             server_default=sa.text("'pending'"),
             nullable=False,
         ),
+        # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
+        sa.Column("payout_method_type", sa.String(16), nullable=True),
         sa.ForeignKeyConstraint(["admin_id"], ["users.id"], name="payout_requests_admin_id_fkey"),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], name="payout_requests_owner_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
@@ -1133,6 +1145,14 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("erid", sa.String(100), nullable=True, comment="ad marking token from ORD"),
         sa.Column("escrow_transaction_id", sa.Integer(), nullable=True),
         sa.Column("meta_json", postgresql.JSONB(), nullable=True),
+        # Phase 3: G11 post-publication verification gate.
+        sa.Column(
+            "publication_verified",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column("publication_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["advertiser_id"],
             ["users.id"],
@@ -1461,6 +1481,9 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("yandex_request_id", sa.String(128), nullable=True),
         sa.Column("platform_ord_id", sa.String(128), nullable=True),
         sa.Column("contract_ord_id", sa.String(128), nullable=True),
+        # Phase 3: G12 ФЗ-38 72h reporting window tracking.
+        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deadline_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["contract_id"],
             ["contracts.id"],

@@ -157,6 +157,14 @@ class PlacementRequest(Base, TimestampMixin):
     # Meta
     meta_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
 
+    # Phase 3: G11 post-publication verification gate.
+    publication_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    publication_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
     advertiser: Mapped[User] = relationship(
         "User", foreign_keys=[advertiser_id], back_populates="placement_requests_advertiser"

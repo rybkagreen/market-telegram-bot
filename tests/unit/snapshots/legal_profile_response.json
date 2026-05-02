@@ -90,6 +90,44 @@
       "title": "Created At",
       "type": "string"
     },
+    "egrul_snapshot_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Egrul Snapshot At"
+    },
+    "fns_verification_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fns Verification Status"
+    },
+    "fns_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fns Verified At"
+    },
     "has_company_doc": {
       "default": false,
       "title": "Has Company Doc",
@@ -130,6 +168,18 @@
       ],
       "default": null,
       "title": "Inn"
+    },
+    "inn_checksum_valid": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Inn Checksum Valid"
     },
     "is_complete": {
       "default": false,

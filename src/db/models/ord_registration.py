@@ -45,6 +45,10 @@ class OrdRegistration(Base, TimestampMixin):
     platform_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contract_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # Phase 3: G12 ФЗ-38 72h reporting window tracking.
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     placement_request: Mapped[PlacementRequest] = relationship(
         "PlacementRequest", foreign_keys=[placement_request_id]
