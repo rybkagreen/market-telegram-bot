@@ -56,6 +56,9 @@ class PayoutRequest(Base, TimestampMixin):
         String(20), nullable=False, default="pending", server_default="pending"
     )
 
+    # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
+    payout_method_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
     # Relationships
     owner: Mapped[User] = relationship(
         "User", foreign_keys=[owner_id], back_populates="payout_requests"

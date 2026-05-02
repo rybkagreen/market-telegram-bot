@@ -420,7 +420,7 @@ async def create_channel(
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1136,7 +1136,7 @@ async def delete_channel(
     # Soft-delete
     channel.is_active = False
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1188,7 +1188,7 @@ async def activate_channel(
 
     channel.is_active = True
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1242,7 +1242,6 @@ async def update_channel_category(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная категория")
 
     channel.category = cat.slug
-    await session.commit()
     await session.refresh(channel)
 
     return ChannelResponse(

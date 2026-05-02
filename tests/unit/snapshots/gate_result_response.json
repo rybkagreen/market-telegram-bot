@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "PlacementGate": {
+      "enum": [
+        "G01_ADVERTISER_LEGAL_PROFILE_COMPLETE",
+        "G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED",
+        "G03_ADVERTISER_LEGAL_STATUS_COMPLIANT",
+        "G04_OWNER_LEGAL_PROFILE_COMPLETE",
+        "G05_OWNER_FRAMEWORK_CONTRACT_SIGNED",
+        "G06_OWNER_PAYOUT_METHOD_VALID",
+        "G07_SUPPLEMENTARY_AGREEMENT_SIGNED",
+        "G08_ERID_REGISTERED",
+        "G09_ORD_CONTRACT_REPORTED",
+        "G10_PLACEMENT_TEXT_MARKED",
+        "G11_PUBLICATION_VERIFIED",
+        "G12_PUBLICATION_REPORTED_TO_ORD",
+        "G13_PUBLICATION_PERIOD_ELAPSED",
+        "G14_ACT_GENERATED",
+        "G15_ACT_SIGNED_BOTH_SIDES",
+        "G16_TAX_RECEIPT_ISSUED",
+        "G17_VAT_OBLIGATION_HANDLED",
+        "G18_PAYOUT_REPORTED_TO_ORD"
+      ],
+      "title": "PlacementGate",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "blocker": {
+      "title": "Blocker",
+      "type": "boolean"
+    },
+    "gate": {
+      "$ref": "#/$defs/PlacementGate"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "reason_code": {
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "remediation_data": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remediation Data"
+    },
+    "remediation_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remediation Url"
+    }
+  },
+  "required": [
+    "gate",
+    "passed",
+    "blocker",
+    "reason_code"
+  ],
+  "title": "GateResultResponse",
+  "type": "object"
+}

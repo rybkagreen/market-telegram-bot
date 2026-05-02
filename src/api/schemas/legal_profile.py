@@ -157,6 +157,11 @@ class LegalProfileResponse(BaseModel):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+    # Phase 3: legal compliance gate inputs (G03/G06/G16/G17).
+    fns_verification_status: str | None = None
+    fns_verified_at: datetime | None = None
+    egrul_snapshot_at: datetime | None = None
+    inn_checksum_valid: bool | None = None
     # Computed flags — populated by router
     has_passport_data: bool = False
     has_inn_scan: bool = False
