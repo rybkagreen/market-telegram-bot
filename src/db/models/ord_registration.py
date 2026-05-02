@@ -45,7 +45,8 @@ class OrdRegistration(Base, TimestampMixin):
     platform_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contract_ord_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
-    # Phase 3: G12 ФЗ-38 72h reporting window tracking.
+    # Phase 3: G12 — ORD reporting deadline = end of month following publication month
+    # (ФЗ-38 ст. 18.1 / ПП-1427).
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

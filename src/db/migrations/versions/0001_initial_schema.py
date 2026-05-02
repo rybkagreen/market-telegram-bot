@@ -1481,7 +1481,8 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("yandex_request_id", sa.String(128), nullable=True),
         sa.Column("platform_ord_id", sa.String(128), nullable=True),
         sa.Column("contract_ord_id", sa.String(128), nullable=True),
-        # Phase 3: G12 ФЗ-38 72h reporting window tracking.
+        # Phase 3: G12 — ORD reporting deadline = end of month following publication month
+        # (ФЗ-38 ст. 18.1 / ПП-1427).
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deadline_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(

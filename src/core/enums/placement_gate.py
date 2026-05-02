@@ -35,7 +35,10 @@ class PlacementGate(StrEnum):
 
     # ── Post-publication (published → completed) ────────────────────────
     G11_PUBLICATION_VERIFIED = "G11_PUBLICATION_VERIFIED"
-    G12_PUBLICATION_REPORTED_TO_ORD = "G12_PUBLICATION_REPORTED_TO_ORD"  # ФЗ-38 72h
+    G12_PUBLICATION_REPORTED_TO_ORD = (
+        # ORD report by end of next month per ФЗ-38 ст. 18.1 + ПП-1427
+        "G12_PUBLICATION_REPORTED_TO_ORD"
+    )
 
     # ── Pre-payout (completed → payout_processing) ──────────────────────
     G13_PUBLICATION_PERIOD_ELAPSED = "G13_PUBLICATION_PERIOD_ELAPSED"
