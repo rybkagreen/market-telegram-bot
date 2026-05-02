@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Phase 3a Block 1 (schema foundation, 2026-05-02)
+
+In-flight; full Phase 3a closure entry will land at Block 4.1 alongside
+the comprehensive CHANGES doc. This Block-1-only entry exists to keep
+the changelog in lockstep with the per-batch CHANGES file.
+
+- Phase 3 Legal Compliance Gates — schema vocabulary landed.
+  9 new DB columns across 4 tables (`legal_profiles`,
+  `payout_requests`, `placement_requests`, `ord_registrations`)
+  feeding gates G03/G06/G11/G12/G16/G17.
+- `PlacementGate` StrEnum (18 values) and `GateResult` dataclass
+  + `GateResultResponse` Pydantic schema in `src/core/`.
+- `LegalProfileResponse` exposes 4 verification-state flags
+  (`fns_verification_status`, `fns_verified_at`,
+  `egrul_snapshot_at`, `inn_checksum_valid`).
+  Backwards compatible (all optional).
+- New `src/core/enums/` package for cross-cutting service-domain
+  enums.
+
+No business logic yet; gate-checker logic ships in Phase 3b,
+transition wiring in Phase 3c, API endpoint in Phase 3d.
+
 ## [v0.2.0] - 2026-05-01
 
 ### Changed — Credits removal + admin URL split sprint closure (17.3a + 17.3b + 17.3c) (2026-05-01)
