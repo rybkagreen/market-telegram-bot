@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.2 gate resolution methods (2026-05-02)
+
+- `LegalComplianceService.gates_for_transition(from, to)` — returns
+  compliance gates required for a placement state transition (resolution
+  layer). Module-level `_TRANSITION_GATES` table with 19 entries mirrors
+  `PlacementTransitionService._ALLOW_LIST` exactly; explicit empty
+  frozenset where no gates apply. Unknown pair raises plain `ValueError`
+  (no cross-service import — Q3 decision). G13-G18 intentionally absent
+  (payout-side gates belong to `PayoutRequest` lifecycle — Q1 decision).
+- `LegalComplianceService.gates_for_user_role(role)` — returns compliance
+  gates for a user role (`"owner"` / `"advertiser"`); pure role lookup,
+  no `user` param (Q4 decision). `Literal["owner", "advertiser"]`
+  signature; runtime `ValueError` for unknown role as defence-in-depth
+  (Q5 decision). Owner returns {G04, G05, G06} per plan §3.B.6 verbatim;
+  advertiser returns {G01, G02, G03} (Q2 decision — symmetric design).
+- `tests/unit/test_legal_compliance_service.py` — 27 test cases
+  including a consistency invariant (`test_table_keys_match_allow_list`)
+  catching future drift between gates table and placement allow-list.
+
 ### Added — Phase 3b 5b.1 schema additives (2026-05-02)
 
 - `legal_profile.egrul_egrip_snapshot` JSONB nullable column — populates from
