@@ -26,6 +26,15 @@ class PayoutStatus(str, Enum):
     cancelled = "cancelled"
 
 
+class PayoutMethodType(str, Enum):
+    """Типы методов выплаты (Phase 3b minimal subset; Phase 5 may extend)."""
+
+    bank_card = "bank_card"
+    yoomoney = "yoomoney"
+    sbp = "sbp"
+    bank_transfer = "bank_transfer"
+
+
 class PayoutRequest(Base, TimestampMixin):
     """Модель заявки на выплату владельцу канала."""
 
@@ -57,7 +66,9 @@ class PayoutRequest(Base, TimestampMixin):
     )
 
     # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
-    payout_method_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Phase 3b 5b.1.4 (M3=a): String(16) → enum (mirrors PayoutStatus pattern —
+    # Mapped[Enum] shortcut auto-creates the postgres type via create_all()).
+    payout_method_type: Mapped[PayoutMethodType | None] = mapped_column(nullable=True)
 
     # Phase 3b 5b.1.3: business-level idempotency guard for payout events.
     # UNIQUE + nullable mirrors transactions.idempotency_key pattern; service-level
