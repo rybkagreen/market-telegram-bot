@@ -54,3 +54,8 @@ class LegalProfileRepo(BaseRepository[LegalProfile]):
             .values({scan_field: file_id})
         )
         await self.session.flush()
+
+    async def get_verification_status(self, user_id: int) -> str | None:
+        """Return fns_verification_status for user's legal profile, or None if no profile."""
+        profile = await self.get_by_user_id(user_id)
+        return profile.fns_verification_status if profile is not None else None

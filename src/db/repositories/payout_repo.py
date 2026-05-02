@@ -74,3 +74,21 @@ class PayoutRepository(BaseRepository[PayoutRequest]):
             )
         )
         return result.scalar_one() or Decimal("0")
+
+    async def get_valid_for_owner(self, owner_id: int) -> PayoutRequest | None:
+        """Return the most recent valid payout request for owner.
+
+        "Valid" = status NOT IN (rejected, cancelled) AND payout_method_type IS NOT NULL.
+        Returns the most recent matching record (created_at DESC), or None.
+        """
+        result = await self.session.execute(
+            select(PayoutRequest)
+            .where(
+                PayoutRequest.owner_id == owner_id,
+                PayoutRequest.payout_method_type.is_not(None),
+                PayoutRequest.status.notin_([PayoutStatus.rejected, PayoutStatus.cancelled]),
+            )
+            .order_by(PayoutRequest.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
