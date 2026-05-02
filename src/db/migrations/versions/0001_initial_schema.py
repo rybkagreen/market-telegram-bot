@@ -791,7 +791,18 @@ def upgrade() -> None:  # noqa: PLR0915
             nullable=False,
         ),
         # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
-        sa.Column("payout_method_type", sa.String(16), nullable=True),
+        # Phase 3b 5b.1.4 (M3=a): String(16) → Enum (lossless; column was unwritten).
+        sa.Column(
+            "payout_method_type",
+            sa.Enum(
+                "bank_card",
+                "yoomoney",
+                "sbp",
+                "bank_transfer",
+                name="payoutmethodtype",
+            ),
+            nullable=True,
+        ),
         # Phase 3b 5b.1.3: payout-level idempotency guard (mirrors transactions.idempotency_key).
         sa.Column("idempotency_key", sa.String(128), nullable=True),
         sa.ForeignKeyConstraint(["admin_id"], ["users.id"], name="payout_requests_admin_id_fkey"),
@@ -1968,6 +1979,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS publicationformat")
     op.execute("DROP TYPE IF EXISTS placementstatus")
     op.execute("DROP TYPE IF EXISTS payoutstatus")
+    op.execute("DROP TYPE IF EXISTS payoutmethodtype")
     op.execute("DROP TYPE IF EXISTS disputestatus")
     op.execute("DROP TYPE IF EXISTS disputeresolution")
     op.execute("DROP TYPE IF EXISTS disputereason")
