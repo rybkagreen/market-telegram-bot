@@ -59,6 +59,13 @@ class PayoutRequest(Base, TimestampMixin):
     # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
     payout_method_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Phase 3b 5b.1.3: business-level idempotency guard for payout events.
+    # UNIQUE + nullable mirrors transactions.idempotency_key pattern; service-level
+    # keying convention deferred to 5b.7 (payout-side gates).
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), unique=True, nullable=True, index=True
+    )
+
     # Relationships
     owner: Mapped[User] = relationship(
         "User", foreign_keys=[owner_id], back_populates="payout_requests"
