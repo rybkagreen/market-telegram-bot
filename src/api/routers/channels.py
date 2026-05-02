@@ -420,7 +420,7 @@ async def create_channel(
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
