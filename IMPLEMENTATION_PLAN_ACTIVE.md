@@ -502,7 +502,7 @@ completed, refunded, cancelled — terminal
 
 **Post-publication (published → completed):**
 - G11_PUBLICATION_VERIFIED
-- G12_PUBLICATION_REPORTED_TO_ORD *(в течение 72ч per ФЗ-38)*
+- G12_PUBLICATION_REPORTED_TO_ORD *(до конца месяца, следующего за месяцем публикации; per ФЗ-38 ст. 18.1 + ПП-1427)*
 
 **Pre-payout (completed → payout_processing):**
 - G13_PUBLICATION_PERIOD_ELAPSED
