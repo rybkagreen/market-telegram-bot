@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.1 schema additives (2026-05-02)
+
+- `legal_profile.egrul_egrip_snapshot` JSONB nullable column — populates from
+  Phase 5 EGRUL provider; adjacent to existing `egrul_snapshot_at` timestamp
+  (Marina M1.2).
+- `payout_requests.idempotency_key` `String(128)` UNIQUE-indexed nullable
+  column — mirrors `Transaction.idempotency_key` pattern (S-48 A.2). Index
+  `ix_payout_requests_idempotency_key`. Service-level keying convention
+  deferred to 5b.7 (Marina M5).
+
+### Changed — Phase 3b 5b.1 schema additives (2026-05-02)
+
+- `payout_requests.payout_method_type` converted from `String(16)` to enum
+  `payoutmethodtype` with 4 values (`bank_card`, `yoomoney`, `sbp`,
+  `bank_transfer`). Lossless conversion — column was never written by any
+  code path. Migration owns type creation; model uses `Mapped[Enum]`
+  shortcut matching `PayoutStatus` precedent (Marina M3=a). Phase 5 may
+  extend the enum (e.g. split `bank_transfer` per LE/IE bank account types).
+
 ### Added — Phase 3a Foundation (Blocks 1, 1.5, 2, 3, 4 — 2026-05-02)
 
 Comprehensive Phase 3a Foundation bundle. Replaces the in-flight Block-1-only
