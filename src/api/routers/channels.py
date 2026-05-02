@@ -1136,7 +1136,7 @@ async def delete_channel(
     # Soft-delete
     channel.is_active = False
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1188,7 +1188,7 @@ async def activate_channel(
 
     channel.is_active = True
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
