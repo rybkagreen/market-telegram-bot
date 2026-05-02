@@ -48,6 +48,55 @@ _GATE_CHECKERS: dict[PlacementGate, GateCheckerFn] = {
 }
 
 
+# Resolution table: which gates apply to each placement state transition.
+# Keys mirror placement_transition_service._ALLOW_LIST exactly — every
+# allow-listed (from, to) pair has an entry here. Empty frozenset means
+# the transition has no compliance preconditions.
+#
+# G13-G18 are payout-side gates and intentionally absent — they belong to
+# PayoutRequest lifecycle, not placement transitions (Phase 5 territory).
+# G07/G15/G16 (Phase 4) ARE included; their bodies raise NotImplementedError
+# until those phases land.
+_TRANSITION_GATES: dict[
+    tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]
+] = {
+    (PlacementStatus.pending_owner, PlacementStatus.counter_offer): frozenset(),
+    (PlacementStatus.pending_owner, PlacementStatus.pending_payment): frozenset(
+        {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED}
+    ),
+    (PlacementStatus.pending_owner, PlacementStatus.cancelled): frozenset(),
+    (PlacementStatus.counter_offer, PlacementStatus.pending_owner): frozenset(),
+    (PlacementStatus.counter_offer, PlacementStatus.pending_payment): frozenset(
+        {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED}
+    ),
+    (PlacementStatus.counter_offer, PlacementStatus.cancelled): frozenset(),
+    (PlacementStatus.pending_payment, PlacementStatus.escrow): frozenset(),
+    (PlacementStatus.pending_payment, PlacementStatus.cancelled): frozenset(),
+    (PlacementStatus.escrow, PlacementStatus.published): frozenset(
+        {
+            PlacementGate.G08_ERID_REGISTERED,
+            PlacementGate.G09_ORD_CONTRACT_REPORTED,
+            PlacementGate.G10_PLACEMENT_TEXT_MARKED,
+        }
+    ),
+    (PlacementStatus.escrow, PlacementStatus.failed): frozenset(),
+    (PlacementStatus.escrow, PlacementStatus.failed_permissions): frozenset(),
+    (PlacementStatus.escrow, PlacementStatus.refunded): frozenset(),
+    (PlacementStatus.escrow, PlacementStatus.cancelled): frozenset(),
+    (PlacementStatus.published, PlacementStatus.completed): frozenset(
+        {
+            PlacementGate.G11_PUBLICATION_VERIFIED,
+            PlacementGate.G12_PUBLICATION_REPORTED_TO_ORD,
+        }
+    ),
+    (PlacementStatus.published, PlacementStatus.failed): frozenset(),
+    (PlacementStatus.published, PlacementStatus.refunded): frozenset(),
+    (PlacementStatus.published, PlacementStatus.cancelled): frozenset(),
+    (PlacementStatus.failed, PlacementStatus.refunded): frozenset(),
+    (PlacementStatus.failed_permissions, PlacementStatus.refunded): frozenset(),
+}
+
+
 class LegalComplianceService:
     """Coordinator for placement gate evaluation.
 
@@ -63,13 +112,30 @@ class LegalComplianceService:
         from_status: PlacementStatus,
         to_status: PlacementStatus,
     ) -> list[PlacementGate]:
-        """Return the list of gates required to move from `from_status` to `to_status`.
+        """Return the compliance gates required for this placement state transition.
 
-        Phase 3b: declarative transition→gates table goes here.
+        The resolution table mirrors PlacementTransitionService._ALLOW_LIST —
+        every allow-listed (from, to) pair has an entry. Empty list means
+        the transition has no compliance preconditions.
+
+        G13-G18 (payout-side) intentionally absent — those gates belong to
+        PayoutRequest lifecycle and will be resolved by a separate (Phase 5)
+        payout-compliance service.
+
+        Raises:
+            ValueError: if (from_status, to_status) is not in the resolution
+                table. Indicates either an unknown transition (caller bug)
+                or drift between this table and the placement allow-list
+                (covered by test_table_keys_match_allow_list).
         """
-        raise NotImplementedError(
-            "Phase 3b: declarative transition→gates table not yet populated"
-        )
+        key = (from_status, to_status)
+        if key not in _TRANSITION_GATES:
+            raise ValueError(
+                f"Transition {from_status.value} -> {to_status.value} "
+                f"is not in the gates resolution table. "
+                f"Either it is not in the placement allow-list, or the table is incomplete."
+            )
+        return list(_TRANSITION_GATES[key])
 
     async def check_gate(
         self,
