@@ -8,6 +8,7 @@ S-48: methods do NOT open or commit transactions. Caller owns lifecycle.
 """
 
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,6 +98,30 @@ _TRANSITION_GATES: dict[
 }
 
 
+# Resolution table: which gates apply to a user acting in a given role,
+# in non-transition contexts (channel-add for owner, placement-creation
+# for advertiser).
+#
+# G06 included for "owner" per plan §3.B.6 verbatim (Marina decision Q2 lean).
+# All gate bodies remain NotImplementedError until 5b.3+ ships logic.
+_USER_ROLE_GATES: dict[str, frozenset[PlacementGate]] = {
+    "owner": frozenset(
+        {
+            PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+            PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
+            PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+        }
+    ),
+    "advertiser": frozenset(
+        {
+            PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+            PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
+            PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+        }
+    ),
+}
+
+
 class LegalComplianceService:
     """Coordinator for placement gate evaluation.
 
@@ -136,6 +161,33 @@ class LegalComplianceService:
                 f"Either it is not in the placement allow-list, or the table is incomplete."
             )
         return list(_TRANSITION_GATES[key])
+
+    def gates_for_user_role(
+        self,
+        role: Literal["owner", "advertiser"],
+    ) -> list[PlacementGate]:
+        """Return the compliance gates required for a user acting in `role`.
+
+        Used by non-transition contexts (channel-add for owner, placement
+        creation for advertiser) where the precondition is determined by
+        the user's role alone, not by a placement state transition.
+
+        The `user` parameter is intentionally absent — resolution is pure
+        role lookup. The downstream check_gates_for_user_role (future)
+        will take session+user+role for dispatch into check_gate. This
+        mirrors the gates_for_transition / check_gates_for_transition
+        resolution-vs-check split.
+
+        Raises:
+            ValueError: if `role` is not "owner" or "advertiser". The
+                Literal annotation already prevents this at type-check
+                time; the runtime check is defence-in-depth.
+        """
+        if role not in _USER_ROLE_GATES:
+            raise ValueError(
+                f"Unknown role: {role!r}. Expected one of: 'owner', 'advertiser'."
+            )
+        return list(_USER_ROLE_GATES[role])
 
     async def check_gate(
         self,

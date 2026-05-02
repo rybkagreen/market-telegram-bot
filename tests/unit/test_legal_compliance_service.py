@@ -132,3 +132,39 @@ def test_table_keys_match_allow_list() -> None:
     extra = actual_pairs - expected_pairs
     assert not missing, f"Allow-list pairs missing from gates table: {missing}"
     assert not extra, f"Gates table has stale pairs not in allow-list: {extra}"
+
+
+# ============================================================================
+# gates_for_user_role — role lookup
+# ============================================================================
+
+
+def test_gates_for_user_role_owner_returns_g04_g05_g06(
+    service: LegalComplianceService,
+) -> None:
+    result = service.gates_for_user_role("owner")
+    assert set(result) == {
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+    }
+
+
+def test_gates_for_user_role_advertiser_returns_g01_g02_g03(
+    service: LegalComplianceService,
+) -> None:
+    result = service.gates_for_user_role("advertiser")
+    assert set(result) == {
+        PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+    }
+
+
+@pytest.mark.parametrize("bad_role", ["admin", "random"])
+def test_gates_for_user_role_unknown_raises(
+    service: LegalComplianceService,
+    bad_role: str,
+) -> None:
+    with pytest.raises(ValueError, match="Unknown role"):
+        service.gates_for_user_role(bad_role)  # type: ignore[arg-type]
