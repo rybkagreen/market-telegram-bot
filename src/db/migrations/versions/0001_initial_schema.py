@@ -684,6 +684,7 @@ def upgrade() -> None:  # noqa: PLR0915
         ),
         sa.Column("fns_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("egrul_snapshot_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("egrul_egrip_snapshot", postgresql.JSONB(), nullable=True),
         sa.Column("inn_checksum_valid", sa.Boolean(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="legal_profiles_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
