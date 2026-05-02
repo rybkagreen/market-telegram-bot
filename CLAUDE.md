@@ -547,6 +547,139 @@ matching BL entry — silent skips defeat the point of the suite.
 
 ---
 
+## Engineering Principles
+
+These principles govern how the agent approaches non-trivial work. They override
+time-saving heuristics elsewhere in this document where conflict arises within
+the current sub-block scope. They do NOT override safety rules, S-48, or
+explicit Marina decisions.
+
+### Principle 1 — Architectural cleanliness over schedule (within sub-block scope)
+
+When facing a choice between a quick patch and a clean structural solution
+**within the current sub-block**, choose clean. Time spent on cleanliness is
+not waste — it is the work. Workarounds compound; clean code does not.
+
+If achieving cleanliness requires changes that **expand beyond the current
+sub-block** (touch upcoming-block plan, modify already-shipped CHANGES,
+require schema/migration revision), STOP and surface to planner. Do not
+expand scope autonomously across sub-block boundaries.
+
+### Principle 2 — Three-phase workflow for non-trivial tasks
+
+Non-trivial = ANY of these markers:
+- Touches more than 2 files
+- Crosses module boundary (e.g., `db/` → `core/services/`, `core/services/` → `api/`)
+- Has more than one plausible architectural approach
+- Plan as written contains concrete unresolved ambiguity
+
+Trivial work (single-file edit, signature copy, mechanical refactor with
+established pattern, fixing obvious typo) skips phases 1-2.
+
+For non-trivial work:
+
+**Phase A — Investigate.** Build full picture before any mutation: existing
+patterns, all callers, related code, constraints, types, naming conventions.
+No mutations during Phase A. Output investigation notes to
+`tmp/<task>_investigation.md` if non-trivial enough to warrant artifact;
+otherwise inline reasoning is sufficient. Investigation is read-only.
+
+**Phase B — Re-evaluate.** Given the investigation: is the original plan
+still right? Are there better approaches that emerged from new information?
+- If yes (better approach exists, fits within sub-block): adopt it.
+- If yes but it crosses sub-block boundary: STOP, surface to planner.
+- If no: proceed to Phase C with original plan.
+
+**Phase C — Execute.** Only after Phases A and B complete. Implementation
+follows the (potentially revised) plan. Per-commit gates as specified in
+prompt.
+
+The order matters: investigate before deciding, re-evaluate before
+executing. Skipping Phase A produces shotgun fixes; skipping Phase B
+produces work on stale plans.
+
+### Principle 3 — No workarounds
+
+A workaround is any of:
+
+- Inline fix that a future developer reading this code wouldn't understand
+  without `git blame` (i.e., the rationale is in the commit message but
+  not in the code)
+- New code containing `TODO`, `FIXME`, `HACK`, `temporary`, or "for now"
+  comments (existing such comments may remain; this rule is about
+  introduction of new ones)
+- Code handling a symptom rather than root cause (e.g.,
+  `try: x() except: pass` to hide an error instead of fixing why it
+  occurs)
+- Special-case branch for one call site instead of correct generalization
+- Magic number or hardcoded path duplicating an existing named constant
+- Copy-paste of similar logic instead of extracted shared helper, when
+  the logic actually is the same (vs. coincidentally similar)
+
+If a workaround appears to be forming during execution:
+
+1. Investigate root cause (return to Phase A briefly)
+2. Propose proper fix
+3. If proper fix fits within sub-block: do it
+4. If proper fix expands sub-block scope: STOP, surface to planner
+
+Do not commit the workaround "for now" intending to fix later. The
+"for now" version is what ships.
+
+### Principle 4 — Once-correctly over twice-iteratively
+
+Prefer the harder, slower, correct path over the easier, faster path
+that requires future revision. Specifically:
+
+- If two solutions exist and one is "good enough but I'd want to revisit
+  later", choose the other one (the one that doesn't require revisit)
+- If the right approach takes 3x longer but eliminates a follow-up
+  cleanup commit, take the longer approach
+- If a refactor is justified by current work, do it now in the same
+  commit (within sub-block scope per Principle 1) — do not defer to
+  "later cleanup pass"
+
+This applies within the agent's autonomous decision space. Cross-sub-block
+or cross-phase decisions remain Marina's territory.
+
+### Principle 5 — Conflict handling
+
+When these principles conflict with elsewhere-stated rules:
+
+- **Safety rules** (S-72, ПД discipline, no-secrets-in-commits): always
+  win, no exception
+- **S-48 contract**: wins; principles do not override session-lifecycle
+  rules
+- **Explicit Marina decisions** in current prompt: win
+- **BL-013 stop-hook relay defer options (b)/(c)**: apply to documentation
+  bundling only; do NOT defer code-quality decisions or proper-fix-vs-
+  workaround judgments
+- **"No autonomous multi-phase delegation" memo**: superseded by sub-block
+  autonomy boundaries when those are explicit in current prompt; default
+  remains "stop at sub-block boundary"
+- **Time / token budget heuristics** elsewhere: lose to these principles
+  within sub-block scope
+
+When uncertain whether a conflict exists, surface to planner rather than
+resolve autonomously.
+
+### Auditing self against these principles
+
+Before each commit, the agent should pass this self-check:
+
+1. Did I investigate before executing? (Principle 2)
+2. Did I re-evaluate plan against findings? (Principle 2)
+3. Is anything I'm shipping a workaround per Principle 3 definition?
+4. Is there a once-correctly version of this I'm declining for time
+   reasons? (Principle 4)
+5. If I diverged from prompt, is the divergence within sub-block scope?
+   (Principle 1)
+
+If self-check fails on any point, return to investigation or surface
+to planner. Do not commit through a failed self-check.
+
+---
+
 ## Research reports — Objections section (MANDATORY)
 
 When producing a research / consolidation report before any implementation
@@ -716,6 +849,11 @@ them. The agent's correct response to a hook warning is:
    - **(c) defer to phase closure** (only if no risk of CHANGES
      becoming stale relative to documented commits — i.e. the work in
      progress is itself the phase closure work).
+
+Note (per Engineering Principles § 5): defer options (b) and (c) apply to
+documentation bundling decisions only. Do not use BL-013 defer to postpone
+code-quality decisions or to ship a workaround "for now" intending to fix
+later — see Principle 3.
 
 Loop-firing tolerance: if the **same** hook warning fires more than
 twice in succession on identical HEAD/transcript state, ack it twice
