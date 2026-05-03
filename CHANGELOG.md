@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.7a channel-add compliance hooks + G06 разморозка (2026-05-03)
+
+- Channel-add compliance hook (API `POST /api/channels/` + bot
+  `add_channel_confirm` callback handler). Both surfaces invoke
+  `LegalComplianceService.check_gates_for_user_role(user, role="owner")`
+  before any Telegram API round-trip. Failures raise
+  `ChannelAddDeclinedError` (HTTP 403) on the API path; bot path edits
+  callback message with remediation lines + clears FSM state. Closes
+  BL-037 channel-add fail-fast precondition gap.
+- `LegalComplianceService.check_gate_for_user` /
+  `check_gates_for_user_role` dispatchers — parallel to placement-side
+  `check_gate` / `check_gates_for_transition`. New module-level
+  `_USER_GATE_CHECKERS` registry maps G01-G06 to user-side checker
+  variants. Downstream gates (G07+) operate on placement state and
+  remain unmapped (`NotImplementedError` on dispatch).
+- G01-G06 user-side gate-checker variants (`check_gXX_user(session, user)`)
+  in `src/core/services/gates/owner_gates.py` and `advertiser_gates.py`.
+  Shared body via `_check_gXX_for_user_id(session, user_id)` helpers —
+  placement-side and user-side both delegate; placement signatures
+  preserved.
+- Admin test-mode carve-out for channel-add: when
+  `current_user.is_admin and body.is_test=True` the compliance hook
+  is bypassed entirely (Marina Q3=(а), mirrors plan §3.B.4 admin
+  spirit). Bot path has no carve-out — bot UX hardcodes
+  `is_active=True` and lacks the parameter (O.7 deferred).
+- `GateReason` +1 entry: `PAYOUT_METHOD_INVALID` for G06 real-now fail.
+- AuditLog entry on declined channel-add attempts
+  (`action="channel_add_declined"`, `resource_type="channel"`,
+  `extra={"blockers": [...]}`).
+- 14 new unit tests (6 API, 4 bot, 4 dispatcher) + 12 refactored
+  owner_gates tests = +24 pass over 5b.6 baseline; 0 new failures.
+
+### Changed — Phase 3b 5b.7a (2026-05-03)
+
+- G06 (`OWNER_PAYOUT_METHOD_VALID`) body: unconditional `PHASE5_PENDING`
+  marker (5b.4) replaced with real-now lookup via
+  `payout_repo.get_valid_for_owner` + `get_by_owner`. Logic:
+  - Owner with at least one valid PayoutRequest (`payout_method_type
+    IS NOT NULL` + status NOT IN rejected/cancelled) → PASS.
+  - Owner with zero PayoutRequest records → PASS (pre-payout-setup
+    state; channel-add valid before owner attempts payout setup).
+  - Owner with PayoutRequest records but none valid → FAIL with
+    `payout_method_invalid` reason code.
+  Phase 5 swap will tighten "valid" to "provider-confirmed valid"
+  (YooKassa recipient-check, SBP registration, BIK validation per
+  Marina M4/M6) — semantics complementary, no contract change.
+
+### Fixed — Phase 3b 5b.7a (2026-05-03)
+
+- Bot `add_channel_confirm` S-48 contract marker (O.4): explicit
+  `await session.commit()` removed. `DBSessionMiddleware` autocommits
+  on handler success — explicit call was redundant double-commit
+  (no-op but blurred Pattern 1 contract for handlers).
+
 ### Added — Phase 3b 5b.6 payout-side gate bodies G13/G14 + G17/G18 markers (2026-05-03)
 
 - `LegalComplianceService` G13/G14 real bodies + G17/G18 Phase 5 pending
