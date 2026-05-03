@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0-phase3b] - 2026-05-03
+
 ### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)
 
 - 5b.7d gate marker uniformization: G07/G15/G16 NotImplementedError raisers
