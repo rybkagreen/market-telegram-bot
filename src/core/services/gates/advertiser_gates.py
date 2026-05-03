@@ -11,6 +11,10 @@ from src.constants import portal_routes
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
 from src.core.schemas.gate_result import GateResult
+from src.core.services.fns_validation_service import (
+    validate_inn_checksum,
+    validate_ogrn_checksum,
+)
 from src.db.models.placement_request import PlacementRequest
 from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.user_repo import UserRepository
@@ -94,8 +98,100 @@ async def check_g02(session: AsyncSession, placement: PlacementRequest) -> GateR
     )
 
 
-async def check_g03(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G03_ADVERTISER_LEGAL_STATUS_COMPLIANT — Phase 3b stub."""
-    raise NotImplementedError(
-        f"Phase 3b: {PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT.name}"
+def _g03_pass() -> GateResult:
+    return GateResult(
+        gate=PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+        passed=True,
+        blocker=True,
+        reason_code=GateReason.OK.value,
     )
+
+
+def _g03_fail_blocker(reason: GateReason) -> GateResult:
+    return GateResult(
+        gate=PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+        passed=False,
+        blocker=True,
+        reason_code=reason.value,
+        remediation_url=portal_routes.LEGAL_PROFILE,
+    )
+
+
+def _g03_fail_informational(reason: GateReason) -> GateResult:
+    """Informational: G01 fires as actual blocker for missing-data root cause.
+
+    Avoids two redundant blocker signals on the same condition.
+    """
+    return GateResult(
+        gate=PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+        passed=False,
+        blocker=False,
+        reason_code=reason.value,
+        remediation_url=portal_routes.LEGAL_PROFILE,
+    )
+
+
+async def check_g03(session: AsyncSession, placement: PlacementRequest) -> GateResult:
+    """G03_ADVERTISER_LEGAL_STATUS_COMPLIANT — interim (5b.3 / pre-5b.8).
+
+    Per Marina decision Q1=(a): checksum-only validation. Full FNS path
+    deferred to:
+    - 5b.8 — FNS provider real (writes fns_verification_status, adds
+      check inside this same gate body for self_employed)
+    - Phase 5 — EGRUL provider real (writes egrul_egrip_snapshot, adds
+      freshness check inside this same gate body for IE/LE)
+
+    The 5b.3 body is NOT a stub — ships a real validator (rejects junk
+    INNs/OGRNs/OGRNIPs). 5b.8 / Phase 5 work is *additional* layered
+    on top, not a replacement.
+
+    Per-status logic (synthesized from plan §3.B.3 + LegalProfileService
+    _REQUIRED_FIELDS_MAP):
+    - individual: passport-only; INN optional
+    - self_employed: INN + 12-digit checksum
+    - individual_entrepreneur: INN + OGRNIP both required + checksums
+    - legal_entity: INN + OGRN both required + checksums
+
+    Pattern 1 (S-48): receives session, no commit/flush/rollback.
+    """
+    user = await UserRepository(session).get_with_legal_profile(placement.advertiser_id)
+    if user is None or user.legal_profile is None:
+        return _g03_fail_informational(GateReason.LEGAL_PROFILE_MISSING)
+
+    profile = user.legal_profile
+    status = profile.legal_status
+
+    # individual — passport-based; INN optional
+    if status == "individual":
+        if profile.inn and not validate_inn_checksum(profile.inn):
+            return _g03_fail_blocker(GateReason.INN_CHECKSUM_INVALID)
+        return _g03_pass()
+
+    # All other statuses require INN
+    if not profile.inn:
+        return _g03_fail_informational(GateReason.INN_MISSING)
+    if not validate_inn_checksum(profile.inn):
+        return _g03_fail_blocker(GateReason.INN_CHECKSUM_INVALID)
+
+    if status == "self_employed":
+        # 5b.8 will add: FNS NPD active status check
+        return _g03_pass()
+
+    if status == "individual_entrepreneur":
+        if not profile.ogrnip:
+            return _g03_fail_informational(GateReason.OGRNIP_MISSING)
+        if not validate_ogrn_checksum(profile.ogrnip):
+            return _g03_fail_blocker(GateReason.OGRNIP_CHECKSUM_INVALID)
+        # Phase 5 will add: EGRIP snapshot freshness check
+        return _g03_pass()
+
+    if status == "legal_entity":
+        if not profile.ogrn:
+            return _g03_fail_informational(GateReason.OGRN_MISSING)
+        if not validate_ogrn_checksum(profile.ogrn):
+            return _g03_fail_blocker(GateReason.OGRN_CHECKSUM_INVALID)
+        # Phase 5 will add: EGRUL snapshot freshness check
+        return _g03_pass()
+
+    # Defensive — column is String(30), no DB enum constraint
+    return _g03_fail_blocker(GateReason.UNKNOWN_LEGAL_STATUS)
