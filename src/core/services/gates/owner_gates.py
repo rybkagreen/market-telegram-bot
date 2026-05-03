@@ -98,7 +98,27 @@ async def check_g05(session: AsyncSession, placement: PlacementRequest) -> GateR
 
 
 async def check_g06(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G06_OWNER_PAYOUT_METHOD_VALID — Phase 3b stub."""
-    raise NotImplementedError(
-        f"Phase 3b: {PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID.name}"
+    """G06_OWNER_PAYOUT_METHOD_VALID — Phase 5 pending marker.
+
+    Per Marina M4 (payout method matrix) + M6 (per-method tax receipts):
+    real per-method validation is Phase 5 territory. Phase 5 will fill
+    this body with:
+
+    - bank_card: YooKassa Payouts recipient-check verification
+    - sbp: SBP bank selector + recipient-check
+    - bank_transfer: BIK + corresponding-account validation (IE / LE)
+
+    Interim 5b.4 marker semantics: ``blocker=True`` so the channel-add
+    hook (5b.7) sees the gate as a decline reason and surfaces the
+    ``PHASE5_PENDING`` reason_code to the owner. Channel-add can integrate
+    end-to-end now; Phase 5 swaps the body without touching call sites.
+
+    Pattern 1 (S-48): receives session (unused), no commit/flush/rollback.
+    """
+    return GateResult(
+        gate=PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.PHASE5_PENDING.value,
+        remediation_url=None,
     )

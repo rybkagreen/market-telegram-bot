@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants import portal_routes
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
-from src.core.services.gates.owner_gates import check_g04, check_g05
+from src.core.services.gates.owner_gates import check_g04, check_g05, check_g06
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
@@ -225,3 +225,32 @@ async def test_g05_calls_repo_with_owner_role(
     mock_repo.has_signed_framework.assert_awaited_once_with(
         user_id=42, role="owner"
     )
+
+
+# ============================================================================
+# G06 — Owner payout method valid (Phase 5 marker)
+# ============================================================================
+
+
+async def test_g06_returns_phase5_marker(
+    mock_session: MagicMock, placement: PlacementRequest
+) -> None:
+    """5b.4 ships G06 as Phase 5 pending marker; body fills in Phase 5."""
+    result = await check_g06(mock_session, placement)
+
+    assert result.gate == PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID
+    assert result.passed is False
+    assert result.blocker is True
+    assert result.reason_code == GateReason.PHASE5_PENDING.value
+    assert result.remediation_url is None
+
+
+async def test_g06_does_not_call_repos(
+    mock_session: MagicMock, placement: PlacementRequest
+) -> None:
+    """G06 marker must not touch session/repos — pure return."""
+    await check_g06(mock_session, placement)
+
+    assert not mock_session.execute.called
+    assert not mock_session.commit.called
+    assert not mock_session.flush.called
