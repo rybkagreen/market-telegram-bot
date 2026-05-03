@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.3 advertiser gate bodies (2026-05-02)
+
+- `src/core/enums/gate_reason.py` — `GateReason(StrEnum)` with 13 reason
+  code values (`ok`, `phase4_pending`, `phase5_pending`, `user_not_found`,
+  `legal_profile_missing`, `legal_profile_incomplete`,
+  `framework_contract_unsigned`, `inn_missing`, `inn_checksum_invalid`,
+  `ogrn_missing`, `ogrn_checksum_invalid`, `ogrnip_missing`,
+  `ogrnip_checksum_invalid`, `unknown_legal_status`).
+- `src/constants/portal_routes.py` — static web-portal path constants
+  (`LEGAL_PROFILE`, `LEGAL_PROFILE_VIEW`, `CONTRACTS`) used by
+  `GateResult.remediation_url`. Per ФЗ-152 + plan §3.D, gates surface
+  to web_portal only.
+- `LegalComplianceService` G01-G03 advertiser gate bodies replacing
+  Foundation `NotImplementedError` stubs:
+  - **G01** legal profile complete: reads `User.legal_status_completed`
+    (cached projection of `LegalProfileService.check_completeness`).
+  - **G02** framework contract signed: `ContractRepo.has_signed_framework`
+    with `role="advertiser"`. Expiry not checked (deferred — no renewal
+    flow today).
+  - **G03 interim** legal status compliance via INN/OGRN/OGRNIP checksum
+    validation through `validate_inn_checksum` / `validate_ogrn_checksum`.
+    Per-status logic: `individual` (INN optional), `self_employed` (INN
+    required), `individual_entrepreneur` (INN+OGRNIP required),
+    `legal_entity` (INN+OGRN required). Unknown status → blocker.
+    Missing-data cases return `blocker=False` informational (G01 fires
+    as blocker for the same root cause). FNS verification → 5b.8;
+    EGRUL/EGRIP snapshot freshness → Phase 5.
+- `tests/unit/test_advertiser_gates.py` — 25 test cases (G01: 5;
+  G02: 3; G03: 17 = 15 parametrized + 2 informational). Pure mocked
+  using `MagicMock(spec=AsyncSession)` + `monkeypatch` on repo classes.
+
 ### Added — Phase 3b 5b.2 gate resolution methods (2026-05-02)
 
 - `LegalComplianceService.gates_for_transition(from, to)` — returns
