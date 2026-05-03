@@ -448,7 +448,6 @@ async def delete_channel(callback: CallbackQuery, session: AsyncSession) -> None
     ch = await session.get(TelegramChat, channel_id)
     if ch:
         ch.is_active = False
-        await session.commit()
 
     builder = InlineKeyboardBuilder()
     builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
@@ -469,7 +468,6 @@ async def restore_channel(callback: CallbackQuery, session: AsyncSession) -> Non
     ch = await session.get(TelegramChat, channel_id)
     if ch:
         ch.is_active = True
-        await session.commit()
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:channel:{channel_id}")
