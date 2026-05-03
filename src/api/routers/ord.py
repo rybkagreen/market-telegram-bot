@@ -52,5 +52,4 @@ async def register_creative(
     ad_text = getattr(placement, "ad_text", "") or ""
     media_type = getattr(placement, "media_type", "none") or "none"
     registration = await svc.register_creative(data.placement_request_id, ad_text, media_type)
-    await session.commit()
     return OrdRegistrationResponse.model_validate(registration)
