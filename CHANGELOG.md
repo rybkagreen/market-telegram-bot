@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Phase 3b 5b.7c S-48 hygiene sweep across 43 sites (2026-05-03)
+
+- 5b.7c S-48 hygiene sweep: removed 31 redundant explicit `session.commit()` calls across routers (9 sites in 4 files: `legal_acceptance.py:73`, `admin.py:347/392/422/561`, `legal_profile.py:79/92/111`, `ord.py:55`) and bot handlers (22 sites in 9 files: `contract_signing.py`, `legal_profile.py`, `arbitration.py`, `channel_owner.py`, `channel_settings.py`, `placement.py`, `advertiser/campaigns.py`, `dispute.py`, `billing.py`); `get_db_session` and `DBSessionMiddleware` autocommit on handler success making explicit commits redundant double-commits. Mirrors 5b.7a O.4 + 5b.7b CL-1 precedents.
+- `routers/disputes.py:299/356`: `commit()` → `flush()` switch preserves IntegrityError → 409 mapping (mirror 5b.7b CL-1 precedent).
+- `routers/disputes.py:729`: removed pure Pattern 1 commit + L728 paranoia comment (reclassified Class i from audit D1.1 mis-classification per Q6=(а)).
+- 9 routers using `async_session_factory()` directly: added `# S-48: self-contained pattern` marker for Pattern 2 hygiene (`billing.py:610/720`, `analytics.py:571`, `auth_login_widget.py:98`, `campaigns.py:343/409/600`, `auth_login_code.py:120`, `auth.py:227`).
+- `contract_signing.py:111` stale "Reload after commit" comment updated to "Reload to get fresh attribute values from DB after service mutations" (Q5=(а); freshness comes from SQLAlchemy autoflush + SELECT, not commit ordering).
+
 ### Added — Phase 3b 5b.7b PayoutComplianceService skeleton + idempotency keying + P4 cleanups (2026-05-03)
 
 - `PayoutComplianceService` skeleton (`src/core/services/payout_compliance_service.py`) — Phase 5 boundary for payout-side gate dispatch. Option A design (Marina Q1=(а)): three empty registries (`_PAYOUT_GATE_CHECKERS`, `_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`) + four fully-wired dispatcher methods (`gates_for_payout_transition`, `gates_for_payout_create`, `check_gate`, `check_gates_for_payout_transition`). `check_gates_for_payout_create` raises `NotImplementedError` by design (signature impedance per O.I — Phase 5 chooses dispatch path). Service partition (Q6=(а)): owns ONLY payout-specific gates G13-G18; user-role gates G04-G06 remain `LegalComplianceService` territory.
