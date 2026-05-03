@@ -16,6 +16,13 @@ if TYPE_CHECKING:
     from src.db.models.user import User
 
 
+# 5b.7b CL-2: constraint name for the UNIQUE index on idempotency_key column.
+# Mirrors src/db/migrations/versions/0001_initial_schema.py:816 literal.
+# Production code (routers/payouts.py error handling) and tests import this
+# constant — single source of truth for runtime constraint introspection.
+IDEMPOTENCY_KEY_CONSTRAINT_NAME = "ix_payout_requests_idempotency_key"
+
+
 class PayoutStatus(str, Enum):
     """Статусы заявок на выплату."""
 
@@ -72,7 +79,9 @@ class PayoutRequest(Base, TimestampMixin):
 
     # Phase 3b 5b.1.3: business-level idempotency guard for payout events.
     # UNIQUE + nullable mirrors transactions.idempotency_key pattern; service-level
-    # keying convention deferred to 5b.7 (payout-side gates).
+    # keying convention landed in 5b.7b (POST /api/payouts/ — X-Idempotency-Key).
+    # IDEMPOTENCY_KEY_CONSTRAINT_NAME below mirrors the migration literal —
+    # production code AND tests import it for runtime constraint introspection.
     idempotency_key: Mapped[str | None] = mapped_column(
         String(128), unique=True, nullable=True, index=True
     )
