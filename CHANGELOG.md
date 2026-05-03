@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.5 publication + post-publication gate bodies (2026-05-02)
+
+- `LegalComplianceService` G08-G12 gate bodies replacing Foundation
+  `NotImplementedError` stubs (escrow→published + published→completed
+  transitions):
+  - **G08** ERID registered: reads `OrdRegistration.erid` via
+    `OrdRegistrationRepo.get_by_placement(placement.id)`. Pass iff
+    row exists AND `erid` is set.
+  - **G09** ORD contract reported: reads
+    `OrdRegistration.contract_ord_id` (provider-side ID, NOT the local
+    `Contract` FK). Pass iff row exists AND `contract_ord_id` is set.
+  - **G10** placement text marked: reads `placement.erid` directly
+    (in-memory). Marker rendering precondition — marker is computed
+    JIT at publish time by `_build_marked_text`.
+  - **G11** publication verified: reads `placement.message_id`
+    (durable Telegram-acceptance signal committed via S-48
+    external-boundary commit in `publish_placement`). Phase 6
+    hardening will switch to `placement.publication_verified`
+    once that Block 1 hook gets a writer.
+  - **G12** publication reported to ORD: reads
+    `OrdRegistration.status`. Pass iff `status == "reported"`
+    (set by `OrdService.report_publication`).
+- `src/core/enums/gate_reason.py` — 5 new entries:
+  `ERID_NOT_REGISTERED`, `ORD_CONTRACT_NOT_REPORTED`,
+  `PLACEMENT_TEXT_NOT_MARKED`, `PUBLICATION_NOT_VERIFIED`,
+  `PUBLICATION_NOT_REPORTED_TO_ORD`.
+- `tests/unit/test_publication_gates.py` (NEW) — 11 cases (G08: 4,
+  G09: 4, G10: 3). Inline `_fake_ord_registration` / `_fake_placement`
+  helpers per 5b.3/5b.4 precedent.
+- `tests/unit/test_post_publication_gates.py` (NEW) — 9 cases (G11: 4,
+  G12: 5). Same inline helper pattern.
+- All gate bodies S-48 Pattern 1 — receive `session: AsyncSession`,
+  no `commit/flush/rollback`. Gate failure → `TransitionBlockedError`
+  raised by transition service caller.
+- Block 1 hooks (`placement.publication_verified`,
+  `OrdRegistration.published_at`, `OrdRegistration.deadline_at`)
+  intentionally NOT read — await Phase 6 writer per plan §6.B.3.
+
 ### Added — Phase 3b 5b.4 owner gate bodies (2026-05-02)
 
 - `LegalComplianceService` G04-G05 owner gate bodies (symmetric mirror
