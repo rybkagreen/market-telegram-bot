@@ -684,6 +684,7 @@ def upgrade() -> None:  # noqa: PLR0915
         ),
         sa.Column("fns_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("egrul_snapshot_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("egrul_egrip_snapshot", postgresql.JSONB(), nullable=True),
         sa.Column("inn_checksum_valid", sa.Boolean(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="legal_profiles_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
@@ -790,13 +791,33 @@ def upgrade() -> None:  # noqa: PLR0915
             nullable=False,
         ),
         # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
-        sa.Column("payout_method_type", sa.String(16), nullable=True),
+        # Phase 3b 5b.1.4 (M3=a): String(16) → Enum (lossless; column was unwritten).
+        sa.Column(
+            "payout_method_type",
+            sa.Enum(
+                "bank_card",
+                "yoomoney",
+                "sbp",
+                "bank_transfer",
+                name="payoutmethodtype",
+            ),
+            nullable=True,
+        ),
+        # Phase 3b 5b.1.3: payout-level idempotency guard (mirrors transactions.idempotency_key).
+        sa.Column("idempotency_key", sa.String(128), nullable=True),
         sa.ForeignKeyConstraint(["admin_id"], ["users.id"], name="payout_requests_admin_id_fkey"),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], name="payout_requests_owner_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_payout_requests_owner_id", "payout_requests", ["owner_id"])
     op.create_index("ix_payout_requests_status", "payout_requests", ["status"])
+    # Phase 3b 5b.1.3: unique index doubles as idempotency constraint for payout events.
+    op.create_index(
+        "ix_payout_requests_idempotency_key",
+        "payout_requests",
+        ["idempotency_key"],
+        unique=True,
+    )
 
     # ── Table 16: user_badges ─────────────────────────────────────────────────
     op.create_table(
@@ -1958,6 +1979,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS publicationformat")
     op.execute("DROP TYPE IF EXISTS placementstatus")
     op.execute("DROP TYPE IF EXISTS payoutstatus")
+    op.execute("DROP TYPE IF EXISTS payoutmethodtype")
     op.execute("DROP TYPE IF EXISTS disputestatus")
     op.execute("DROP TYPE IF EXISTS disputeresolution")
     op.execute("DROP TYPE IF EXISTS disputereason")

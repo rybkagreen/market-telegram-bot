@@ -7,6 +7,287 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0-phase3b] - 2026-05-03
+
+### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)
+
+- 5b.7d gate marker uniformization: G07/G15/G16 NotImplementedError raisers
+  converted to PHASE4_PENDING markers (mirror G17/G18 PHASE5_PENDING from 5b.6).
+  Forward-looking uniformization — no production callsite exercises G07
+  today; transition-time gate enforcement wiring is Phase 3c territory.
+  Result: zero NotImplementedError raisers in production gate body code.
+- 7 stale docstring/comment alignments across gate framework files
+  (`agreement_gates.py`, `payout_gates.py` module docstrings; `placement_gate.py`,
+  `gate_result.py`, `gate_reason.py`, `legal_compliance_service.py` table comment
+  + `check_gate` docstring).
+- `gate_result.py` docstring corrected: marker pattern uses `blocker=True`
+  (was incorrectly described as `blocker=False` — pre-5b.6 inconsistency).
+- `legal_compliance_service.py:75-78` `_TRANSITION_GATES` preamble corrected:
+  only G07 is in the table (not G07/G15/G16 as comment falsely claimed).
+
+### Added — Phase 3b 5b.7d (2026-05-03)
+
+- `tests/unit/test_agreement_gates.py` (NEW): G07 marker test cases (3 cases —
+  returns_phase4_marker, does_not_call_repos, marker_is_blocker).
+- `tests/unit/test_payout_gates.py`: G15/G16 marker test cases (extended; 6 new
+  cases, 3 per gate). Test count delta: +9 unit pass (633 → 642).
+
+### Changed — Phase 3b 5b.7c S-48 hygiene sweep across 43 sites (2026-05-03)
+
+- 5b.7c S-48 hygiene sweep: removed 31 redundant explicit `session.commit()` calls across routers (9 sites in 4 files: `legal_acceptance.py:73`, `admin.py:347/392/422/561`, `legal_profile.py:79/92/111`, `ord.py:55`) and bot handlers (22 sites in 9 files: `contract_signing.py`, `legal_profile.py`, `arbitration.py`, `channel_owner.py`, `channel_settings.py`, `placement.py`, `advertiser/campaigns.py`, `dispute.py`, `billing.py`); `get_db_session` and `DBSessionMiddleware` autocommit on handler success making explicit commits redundant double-commits. Mirrors 5b.7a O.4 + 5b.7b CL-1 precedents.
+- `routers/disputes.py:299/356`: `commit()` → `flush()` switch preserves IntegrityError → 409 mapping (mirror 5b.7b CL-1 precedent).
+- `routers/disputes.py:729`: removed pure Pattern 1 commit + L728 paranoia comment (reclassified Class i from audit D1.1 mis-classification per Q6=(а)).
+- 9 routers using `async_session_factory()` directly: added `# S-48: self-contained pattern` marker for Pattern 2 hygiene (`billing.py:610/720`, `analytics.py:571`, `auth_login_widget.py:98`, `campaigns.py:343/409/600`, `auth_login_code.py:120`, `auth.py:227`).
+- `contract_signing.py:111` stale "Reload after commit" comment updated to "Reload to get fresh attribute values from DB after service mutations" (Q5=(а); freshness comes from SQLAlchemy autoflush + SELECT, not commit ordering).
+
+### Added — Phase 3b 5b.7b PayoutComplianceService skeleton + idempotency keying + P4 cleanups (2026-05-03)
+
+- `PayoutComplianceService` skeleton (`src/core/services/payout_compliance_service.py`) — Phase 5 boundary for payout-side gate dispatch. Option A design (Marina Q1=(а)): three empty registries (`_PAYOUT_GATE_CHECKERS`, `_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`) + four fully-wired dispatcher methods (`gates_for_payout_transition`, `gates_for_payout_create`, `check_gate`, `check_gates_for_payout_transition`). `check_gates_for_payout_create` raises `NotImplementedError` by design (signature impedance per O.I — Phase 5 chooses dispatch path). Service partition (Q6=(а)): owns ONLY payout-specific gates G13-G18; user-role gates G04-G06 remain `LegalComplianceService` territory.
+- `X-Idempotency-Key` header support for `POST /api/payouts/` (Marina Q3=(а), Q4=(а)) — server-side UUID4 fallback when absent. Key shape: `payout_request:owner={user_id}:nonce={header|uuid4_hex}`. Mirrors admin topup precedent at `routers/admin.py:744`.
+- `extract_constraint_name` helper (`src/utils/db_errors.py`) — encapsulates asyncpg-vs-aiosqlite IntegrityError diag divergence; returns None when constraint name not extractable (5b.7b CL-3).
+- `IDEMPOTENCY_KEY_CONSTRAINT_NAME` constant (`src/db/models/payout.py`) — mirrors migration `0001_initial_schema.py:816` literal; production code AND tests import (5b.7b CL-2).
+- 17 new unit tests: 7 PayoutComplianceService skeleton + 6 idempotency + 4 helper = +17 pass over 5b.7a baseline; 0 new failures.
+
+### Changed — Phase 3b 5b.7b (2026-05-03)
+
+- `routers/payouts.py:create_payout` signature gained `x_idempotency_key: Annotated[str | None, Header(alias="X-Idempotency-Key")] = None`.
+- `routers/payouts.py:create_payout` IntegrityError handler distinguishes `idempotency_key` UNIQUE collision (race-past-EXISTS → idempotent re-read) from other IntegrityErrors (re-raise honestly per Marina Q5=(б) strict-distinguish).
+- `routers/payouts.py:create_payout` uses `session.flush()` instead of `session.commit()` (CL-1) — `get_db_session` dependency autocommits on handler success (verified pre-flight at `src/api/dependencies.py:170-183`). Mirrors 5b.7a O.4 bot-handler fix.
+
+### Fixed — Phase 3b 5b.7b (2026-05-03)
+
+- 5b.1.3 deferral closed: `payout_request.idempotency_key` keying convention landed at the only active creation site. Other three creation sites remain dead code per 5b.7 A.5 / Marina Q7=(b) deferral; if revived in Phase 5 they inherit the same convention.
+- Pre-existing redundant explicit `await session.commit()` removed from `routers/payouts.py:create_payout` (CL-1 / O.D). Brings router into Pattern 1 S-48 alignment with bot handler (5b.7a O.4 mirror).
+
+### Added — Phase 3b 5b.7a channel-add compliance hooks + G06 разморозка (2026-05-03)
+
+- Channel-add compliance hook (API `POST /api/channels/` + bot
+  `add_channel_confirm` callback handler). Both surfaces invoke
+  `LegalComplianceService.check_gates_for_user_role(user, role="owner")`
+  before any Telegram API round-trip. Failures raise
+  `ChannelAddDeclinedError` (HTTP 403) on the API path; bot path edits
+  callback message with remediation lines + clears FSM state. Closes
+  BL-037 channel-add fail-fast precondition gap.
+- `LegalComplianceService.check_gate_for_user` /
+  `check_gates_for_user_role` dispatchers — parallel to placement-side
+  `check_gate` / `check_gates_for_transition`. New module-level
+  `_USER_GATE_CHECKERS` registry maps G01-G06 to user-side checker
+  variants. Downstream gates (G07+) operate on placement state and
+  remain unmapped (`NotImplementedError` on dispatch).
+- G01-G06 user-side gate-checker variants (`check_gXX_user(session, user)`)
+  in `src/core/services/gates/owner_gates.py` and `advertiser_gates.py`.
+  Shared body via `_check_gXX_for_user_id(session, user_id)` helpers —
+  placement-side and user-side both delegate; placement signatures
+  preserved.
+- Admin test-mode carve-out for channel-add: when
+  `current_user.is_admin and body.is_test=True` the compliance hook
+  is bypassed entirely (Marina Q3=(а), mirrors plan §3.B.4 admin
+  spirit). Bot path has no carve-out — bot UX hardcodes
+  `is_active=True` and lacks the parameter (O.7 deferred).
+- `GateReason` +1 entry: `PAYOUT_METHOD_INVALID` for G06 real-now fail.
+- AuditLog entry on declined channel-add attempts
+  (`action="channel_add_declined"`, `resource_type="channel"`,
+  `extra={"blockers": [...]}`).
+- 14 new unit tests (6 API, 4 bot, 4 dispatcher) + 12 refactored
+  owner_gates tests = +24 pass over 5b.6 baseline; 0 new failures.
+
+### Changed — Phase 3b 5b.7a (2026-05-03)
+
+- G06 (`OWNER_PAYOUT_METHOD_VALID`) body: unconditional `PHASE5_PENDING`
+  marker (5b.4) replaced with real-now lookup via
+  `payout_repo.get_valid_for_owner` + `get_by_owner`. Logic:
+  - Owner with at least one valid PayoutRequest (`payout_method_type
+    IS NOT NULL` + status NOT IN rejected/cancelled) → PASS.
+  - Owner with zero PayoutRequest records → PASS (pre-payout-setup
+    state; channel-add valid before owner attempts payout setup).
+  - Owner with PayoutRequest records but none valid → FAIL with
+    `payout_method_invalid` reason code.
+  Phase 5 swap will tighten "valid" to "provider-confirmed valid"
+  (YooKassa recipient-check, SBP registration, BIK validation per
+  Marina M4/M6) — semantics complementary, no contract change.
+
+### Fixed — Phase 3b 5b.7a (2026-05-03)
+
+- Bot `add_channel_confirm` S-48 contract marker (O.4): explicit
+  `await session.commit()` removed. `DBSessionMiddleware` autocommits
+  on handler success — explicit call was redundant double-commit
+  (no-op but blurred Pattern 1 contract for handlers).
+
+### Added — Phase 3b 5b.6 payout-side gate bodies G13/G14 + G17/G18 markers (2026-05-03)
+
+- `LegalComplianceService` G13/G14 real bodies + G17/G18 Phase 5 pending
+  markers, replacing Foundation `NotImplementedError` stubs (pre-payout
+  territory; 4 of 6 stubs in `payout_gates.py` filled — G15/G16 remain
+  Phase 4 stubs):
+  - **G13** publication period elapsed: reads `placement.deleted_at`
+    in-memory (no repo). Pairs with G14's trigger condition — `Act`
+    generation requires `deleted_at IS NOT NULL` per
+    `act_service.generate_for_completed_placement`.
+  - **G14** Act generated: reads via
+    `ActRepository.get_by_placement_request(placement.id)`. Pass iff
+    a row exists (existence-only — G15 covers signing). Catches the
+    silent-failure case where `publication_service.delete_published_post`
+    swallows `Act` generation exceptions by design.
+  - **G17** VAT obligation handled: `PHASE5_PENDING` unconditional marker
+    (mirror G06). Per plan §3.B.1 applies only to `legal_entity` owners
+    (счёт-фактура generation with VAT) — Phase 5 will replace this body
+    end-to-end with real `Invoice` generation + VAT calculation +
+    signed-LE-counterparty check per 5b.1 closure attribution.
+  - **G18** payout reported to ORD: `PHASE5_PENDING` unconditional marker.
+    Per plan §3.B.1 applies if monthly advertising turnover exceeds the
+    ФЗ-38 threshold N — Phase 5/6 will replace with real ORD provider +
+    monthly turnover aggregation + threshold constant + ORD payout-event
+    report endpoint.
+- `src/core/enums/gate_reason.py` — 2 new entries:
+  `PUBLICATION_PERIOD_NOT_ELAPSED`, `ACT_NOT_GENERATED`.
+- `tests/unit/test_payout_gates.py` (NEW) — 14 cases (G13: 4, G14: 4,
+  G17: 3, G18: 3). Inline `_fake_placement(deleted_at=...)` /
+  `_fake_act(sign_status=...)` helpers per 5b.3/5b.4/5b.5 precedent.
+- All 4 gate bodies S-48 Pattern 1 — receive `session: AsyncSession`,
+  no `commit/flush/rollback`. G13 + markers leave session unused;
+  G14 passes session to `ActRepository`.
+- `_TRANSITION_GATES` and `_USER_ROLE_GATES` unchanged — G13-G18
+  intentionally excluded per `legal_compliance_service.py:57-59`
+  comment. Future `PayoutComplianceService` (Phase 5/5b.7) is the
+  planned invoker.
+
+### Added — Phase 3b 5b.5 publication + post-publication gate bodies (2026-05-02)
+
+- `LegalComplianceService` G08-G12 gate bodies replacing Foundation
+  `NotImplementedError` stubs (escrow→published + published→completed
+  transitions):
+  - **G08** ERID registered: reads `OrdRegistration.erid` via
+    `OrdRegistrationRepo.get_by_placement(placement.id)`. Pass iff
+    row exists AND `erid` is set.
+  - **G09** ORD contract reported: reads
+    `OrdRegistration.contract_ord_id` (provider-side ID, NOT the local
+    `Contract` FK). Pass iff row exists AND `contract_ord_id` is set.
+  - **G10** placement text marked: reads `placement.erid` directly
+    (in-memory). Marker rendering precondition — marker is computed
+    JIT at publish time by `_build_marked_text`.
+  - **G11** publication verified: reads `placement.message_id`
+    (durable Telegram-acceptance signal committed via S-48
+    external-boundary commit in `publish_placement`). Phase 6
+    hardening will switch to `placement.publication_verified`
+    once that Block 1 hook gets a writer.
+  - **G12** publication reported to ORD: reads
+    `OrdRegistration.status`. Pass iff `status == "reported"`
+    (set by `OrdService.report_publication`).
+- `src/core/enums/gate_reason.py` — 5 new entries:
+  `ERID_NOT_REGISTERED`, `ORD_CONTRACT_NOT_REPORTED`,
+  `PLACEMENT_TEXT_NOT_MARKED`, `PUBLICATION_NOT_VERIFIED`,
+  `PUBLICATION_NOT_REPORTED_TO_ORD`.
+- `tests/unit/test_publication_gates.py` (NEW) — 11 cases (G08: 4,
+  G09: 4, G10: 3). Inline `_fake_ord_registration` / `_fake_placement`
+  helpers per 5b.3/5b.4 precedent.
+- `tests/unit/test_post_publication_gates.py` (NEW) — 9 cases (G11: 4,
+  G12: 5). Same inline helper pattern.
+- All gate bodies S-48 Pattern 1 — receive `session: AsyncSession`,
+  no `commit/flush/rollback`. Gate failure → `TransitionBlockedError`
+  raised by transition service caller.
+- Block 1 hooks (`placement.publication_verified`,
+  `OrdRegistration.published_at`, `OrdRegistration.deadline_at`)
+  intentionally NOT read — await Phase 6 writer per plan §6.B.3.
+
+### Added — Phase 3b 5b.4 owner gate bodies (2026-05-02)
+
+- `LegalComplianceService` G04-G05 owner gate bodies (symmetric mirror
+  of 5b.3 advertiser pattern):
+  - **G04** owner legal profile complete: reads `User.legal_status_completed`
+    via `UserRepository.get_with_legal_profile(placement.owner_id)`.
+    Same flag for both roles (User-level, not role-scoped).
+  - **G05** owner framework contract signed:
+    `ContractRepo.has_signed_framework` with `role="owner"`.
+    `Contract.role` column carries owner-vs-advertiser discriminator;
+    `contract_type="advertiser_framework"` umbrella name (L18 deferral)
+    unchanged.
+- `tests/unit/test_owner_gates.py` (NEW) — 10 cases (G04: 5; G05: 3;
+  G06 Phase 5 marker: 2). Pure mocked using `MagicMock(spec=AsyncSession)`
+  + `monkeypatch` on repo classes. Reuses `_fake_user` / `_fake_legal_profile`
+  helpers from 5b.3.
+
+### Changed — Phase 3b 5b.4 G06 Phase 5 marker (2026-05-02)
+
+- `LegalComplianceService` G06 (`G06_OWNER_PAYOUT_METHOD_VALID`)
+  migrated from Foundation `NotImplementedError` stub to Phase 5
+  pending marker — returns
+  `GateResult(passed=False, blocker=True, reason_code=PHASE5_PENDING,
+  remediation_url=None)`. Phase 5 will fill the body with real
+  per-method validation per Marina M4 (payout method matrix —
+  YooKassa Payouts API for individuals/SE; SBP bank selector;
+  BIK + corresponding-account for IE/LE) + M6 (per-method tax receipts).
+  Interim `blocker=True` semantics let 5b.7 channel-add hook integrate
+  end-to-end now; Phase 5 swaps the body without touching call sites.
+
+### Added — Phase 3b 5b.3 advertiser gate bodies (2026-05-02)
+
+- `src/core/enums/gate_reason.py` — `GateReason(StrEnum)` with 13 reason
+  code values (`ok`, `phase4_pending`, `phase5_pending`, `user_not_found`,
+  `legal_profile_missing`, `legal_profile_incomplete`,
+  `framework_contract_unsigned`, `inn_missing`, `inn_checksum_invalid`,
+  `ogrn_missing`, `ogrn_checksum_invalid`, `ogrnip_missing`,
+  `ogrnip_checksum_invalid`, `unknown_legal_status`).
+- `src/constants/portal_routes.py` — static web-portal path constants
+  (`LEGAL_PROFILE`, `LEGAL_PROFILE_VIEW`, `CONTRACTS`) used by
+  `GateResult.remediation_url`. Per ФЗ-152 + plan §3.D, gates surface
+  to web_portal only.
+- `LegalComplianceService` G01-G03 advertiser gate bodies replacing
+  Foundation `NotImplementedError` stubs:
+  - **G01** legal profile complete: reads `User.legal_status_completed`
+    (cached projection of `LegalProfileService.check_completeness`).
+  - **G02** framework contract signed: `ContractRepo.has_signed_framework`
+    with `role="advertiser"`. Expiry not checked (deferred — no renewal
+    flow today).
+  - **G03 interim** legal status compliance via INN/OGRN/OGRNIP checksum
+    validation through `validate_inn_checksum` / `validate_ogrn_checksum`.
+    Per-status logic: `individual` (INN optional), `self_employed` (INN
+    required), `individual_entrepreneur` (INN+OGRNIP required),
+    `legal_entity` (INN+OGRN required). Unknown status → blocker.
+    Missing-data cases return `blocker=False` informational (G01 fires
+    as blocker for the same root cause). FNS verification → 5b.8;
+    EGRUL/EGRIP snapshot freshness → Phase 5.
+- `tests/unit/test_advertiser_gates.py` — 25 test cases (G01: 5;
+  G02: 3; G03: 17 = 15 parametrized + 2 informational). Pure mocked
+  using `MagicMock(spec=AsyncSession)` + `monkeypatch` on repo classes.
+
+### Added — Phase 3b 5b.2 gate resolution methods (2026-05-02)
+
+- `LegalComplianceService.gates_for_transition(from, to)` — returns
+  compliance gates required for a placement state transition (resolution
+  layer). Module-level `_TRANSITION_GATES` table with 19 entries mirrors
+  `PlacementTransitionService._ALLOW_LIST` exactly; explicit empty
+  frozenset where no gates apply. Unknown pair raises plain `ValueError`
+  (no cross-service import — Q3 decision). G13-G18 intentionally absent
+  (payout-side gates belong to `PayoutRequest` lifecycle — Q1 decision).
+- `LegalComplianceService.gates_for_user_role(role)` — returns compliance
+  gates for a user role (`"owner"` / `"advertiser"`); pure role lookup,
+  no `user` param (Q4 decision). `Literal["owner", "advertiser"]`
+  signature; runtime `ValueError` for unknown role as defence-in-depth
+  (Q5 decision). Owner returns {G04, G05, G06} per plan §3.B.6 verbatim;
+  advertiser returns {G01, G02, G03} (Q2 decision — symmetric design).
+- `tests/unit/test_legal_compliance_service.py` — 27 test cases
+  including a consistency invariant (`test_table_keys_match_allow_list`)
+  catching future drift between gates table and placement allow-list.
+
+### Added — Phase 3b 5b.1 schema additives (2026-05-02)
+
+- `legal_profile.egrul_egrip_snapshot` JSONB nullable column — populates from
+  Phase 5 EGRUL provider; adjacent to existing `egrul_snapshot_at` timestamp
+  (Marina M1.2).
+- `payout_requests.idempotency_key` `String(128)` UNIQUE-indexed nullable
+  column — mirrors `Transaction.idempotency_key` pattern (S-48 A.2). Index
+  `ix_payout_requests_idempotency_key`. Service-level keying convention
+  deferred to 5b.7 (Marina M5).
+
+### Changed — Phase 3b 5b.1 schema additives (2026-05-02)
+
+- `payout_requests.payout_method_type` converted from `String(16)` to enum
+  `payoutmethodtype` with 4 values (`bank_card`, `yoomoney`, `sbp`,
+  `bank_transfer`). Lossless conversion — column was never written by any
+  code path. Migration owns type creation; model uses `Mapped[Enum]`
+  shortcut matching `PayoutStatus` precedent (Marina M3=a). Phase 5 may
+  extend the enum (e.g. split `bank_transfer` per LE/IE bank account types).
+
 ### Added — Phase 3a Foundation (Blocks 1, 1.5, 2, 3, 4 — 2026-05-02)
 
 Comprehensive Phase 3a Foundation bundle. Replaces the in-flight Block-1-only

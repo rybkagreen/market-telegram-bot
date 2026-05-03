@@ -70,5 +70,4 @@ async def accept_rules(
         )
     svc = ContractService(session)
     await svc.accept_platform_rules(current_user.id)
-    await session.commit()
     return {"success": True}

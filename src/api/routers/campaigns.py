@@ -340,7 +340,7 @@ async def start_placement_request(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
             ) from exc
-        await session.commit()
+        await session.commit()  # S-48: self-contained pattern
 
         logger.info(f"Campaign {placement_request_id} started by user {current_user.id}")
 
@@ -406,7 +406,7 @@ async def cancel_placement_request(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
             ) from exc
-        await session.commit()
+        await session.commit()  # S-48: self-contained pattern
 
         logger.info(f"Campaign {placement_request_id} cancelled by user {current_user.id}")
 
@@ -597,7 +597,7 @@ async def duplicate_placement_request(
         )
         session.add(new_placement_request)
         try:
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
         except IntegrityError as e:
             await session.rollback()
             raise HTTPException(

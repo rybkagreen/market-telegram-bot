@@ -107,7 +107,6 @@ async def open_dispute(
         expires_at=datetime.now(UTC) + timedelta(hours=24),
     )
     session.add(dispute)
-    await session.commit()
     await session.refresh(dispute)
 
     reason_human = _REASON_LABELS.get(reason.value, reason.value)
@@ -275,7 +274,6 @@ async def owner_explain_text(message: Message, state: FSMContext, session: Async
 
     dispute.owner_explanation = explanation
     dispute.status = DisputeStatus.owner_explained
-    await session.commit()
     await state.clear()
 
     # Уведомить администраторов

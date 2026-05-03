@@ -70,7 +70,6 @@ async def cb_contract_sign(callback: CallbackQuery, session: AsyncSession) -> No
         contract = await svc.sign_contract(
             contract_id=contract_id, user_id=user_id, method="button_accept"
         )
-        await session.commit()
         signed_str = contract.signed_at.strftime("%d.%m.%Y %H:%M") if contract.signed_at else "—"
         await callback.message.answer(
             f"✅ Договор №{contract_id} подписан.\nДата подписания: {signed_str}"
@@ -104,18 +103,16 @@ async def cb_accept_rules(callback: CallbackQuery, session: AsyncSession) -> Non
 
     svc = ContractService(session)
     await svc.accept_platform_rules(onboard_user.id)
-    await session.commit()
     await callback.message.answer("✅ Правила платформы и политика конфиденциальности приняты.")
 
     # --- Continue onboarding flow (S7 addition) ---
-    # Reload after commit to get fresh attribute values
+    # Reload to get fresh attribute values from DB after service mutations
     onboard_user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if onboard_user is not None and onboard_user.legal_profile_prompted_at is None:
         now = datetime.now(UTC)
         await session.execute(
             sa_update(User).where(User.id == onboard_user.id).values(legal_profile_prompted_at=now)
         )
-        await session.commit()
         await callback.message.answer(
             "📋 Заполните юридический профиль для работы с договорами и выплатами.",
             reply_markup=first_start_legal_prompt_keyboard(),

@@ -76,7 +76,6 @@ async def create_profile(
     """Create legal profile for current user."""
     svc = LegalProfileService(session)
     profile = await svc.create_profile(current_user.id, data.model_dump(exclude_none=True))
-    await session.commit()
     return _build_response(profile, current_user)
 
 
@@ -89,7 +88,6 @@ async def update_profile(
     """Update legal profile of current user."""
     svc = LegalProfileService(session)
     profile = await svc.update_profile(current_user.id, data.model_dump(exclude_unset=True))
-    await session.commit()
     return _build_response(profile, current_user)
 
 
@@ -108,7 +106,6 @@ async def upload_scan(
         await svc.upload_scan(current_user.id, data.scan_type, data.file_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    await session.commit()
     return {"success": True}
 
 
