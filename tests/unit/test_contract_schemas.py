@@ -57,6 +57,7 @@ from src.api.schemas.legal_profile import (
 )
 from src.api.schemas.payout import AdminPayoutListResponse, PayoutResponse
 from src.api.schemas.user import UserResponse
+from src.core.schemas.gate_result import GateResultResponse
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 
@@ -98,6 +99,8 @@ CONTRACT_SCHEMAS: list[tuple[str, type[BaseModel]]] = [
     # ── auth bridge (Phase 0 — mini_app → web_portal) ───────────────────
     ("ticket_response", TicketResponse),
     ("auth_token_response", AuthTokenResponse),
+    # ── compliance gates (Phase 3a Foundation) ──────────────────────────
+    ("gate_result_response", GateResultResponse),
 ]
 
 

@@ -136,3 +136,12 @@ class ContractRepo(BaseRepository[Contract]):
             .values(kep_requested=True, kep_request_email=email)
         )
         await self.session.flush()
+
+    async def has_signed_framework(self, user_id: int, role: str) -> bool:
+        """Check whether user has a fully-signed framework contract for given role.
+
+        Thin predicate over `get_framework_contract` — returns True only if
+        a contract exists AND its signed_at timestamp is set.
+        """
+        contract = await self.get_framework_contract(user_id, role)
+        return contract is not None and contract.signed_at is not None

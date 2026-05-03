@@ -53,7 +53,6 @@ async def cb_legal_skip_first_start(
         .where(User.id == db_user.id)
         .values(legal_profile_prompted_at=now, legal_profile_skipped_at=now)
     )
-    await session.commit()
     await state.clear()
     await callback.message.answer(
         f"Вы можете заполнить профиль позже через веб-портал:\n{PORTAL_URL}/legal-profile"

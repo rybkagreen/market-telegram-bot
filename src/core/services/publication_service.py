@@ -305,7 +305,7 @@ class PublicationService:
         await placement_repo.set_message_id(
             session, placement_id, sent_message.message_id, scheduled_delete_at
         )
-        await session.commit()  # Атомарно фиксируем message_id
+        await session.commit()  # S-48: external-boundary (Telegram message_id idempotency)
 
         # 6b. После коммита объекты в сессии просрочены — перечитываем placement
         placement = (

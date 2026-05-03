@@ -302,7 +302,6 @@ async def camp_step6_submit(
         final_text=ad_text,
         publication_format=fmt,
     )
-    await session.commit()
 
     channel = await session.get(TelegramChat, channel_id)
     if channel:
@@ -476,8 +475,6 @@ async def camp_pay_balance(callback: CallbackQuery, session: AsyncSession) -> No
         # Never block escrow transition
     # --- end ORD auto-trigger ---
 
-    await session.commit()
-
     price = req.final_price or req.proposed_price
     scheduled_at = req.final_schedule or req.proposed_schedule
     channel = await session.get(TelegramChat, req.channel_id)
@@ -642,7 +639,6 @@ async def camp_cancel_after_escrow(callback: CallbackQuery, session: AsyncSessio
         reason="advertiser_cancel_after_escrow",
         trigger="api",
     )
-    await session.commit()
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Мои кампании", callback_data="main:my_campaigns")

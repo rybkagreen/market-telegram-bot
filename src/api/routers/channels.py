@@ -36,8 +36,11 @@ from src.constants.tariffs import (
     TARIFF_SUBSCRIBER_LIMITS,
     TARIFF_TOPICS,
 )
+from src.core.exceptions import ChannelAddDeclinedError
+from src.core.services.legal_compliance_service import LegalComplianceService
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
+from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.session import async_session_factory
 
@@ -330,8 +333,40 @@ async def create_channel(
     Raises:
         HTTPException 400: Канал не найден или уже добавлен
         HTTPException 403: Бот не является администратором канала
+        ChannelAddDeclinedError 403: Owner не прошёл legal compliance precondition
     """
     from telegram import ChatMemberAdministrator
+
+    # Phase 3b §3.B.6 — owner role compliance precondition (5b.7a).
+    # Admin test-mode carve-out per Marina Q3=(а): bypass when admin is
+    # explicitly creating a test channel. Mirrors §3.B.4 admin spirit.
+    admin_test_bypass = current_user.is_admin and body.is_test
+    if not admin_test_bypass:
+        compliance = LegalComplianceService(session)
+        gate_results = await compliance.check_gates_for_user_role(
+            current_user, role="owner"
+        )
+        blockers = [r for r in gate_results if not r.passed]
+        if blockers:
+            await AuditLogRepo(session).log(
+                action="channel_add_declined",
+                resource_type="channel",
+                user_id=current_user.id,
+                extra={"blockers": [r.gate.value for r in blockers]},
+            )
+            raise ChannelAddDeclinedError(
+                "Channel-add declined: legal compliance preconditions not met",
+                extra={
+                    "blockers": [
+                        {
+                            "gate": r.gate.value,
+                            "reason_code": r.reason_code,
+                            "remediation_url": r.remediation_url,
+                        }
+                        for r in blockers
+                    ],
+                },
+            )
 
     # 1. Проверка существования канала
     try:
@@ -420,7 +455,7 @@ async def create_channel(
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1136,7 +1171,7 @@ async def delete_channel(
     # Soft-delete
     channel.is_active = False
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1188,7 +1223,7 @@ async def activate_channel(
 
     channel.is_active = True
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -1242,7 +1277,6 @@ async def update_channel_category(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная категория")
 
     channel.category = cat.slug
-    await session.commit()
     await session.refresh(channel)
 
     return ChannelResponse(

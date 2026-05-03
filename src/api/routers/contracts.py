@@ -64,7 +64,6 @@ async def generate_contract(
     contract = await svc.generate_contract(
         current_user.id, data.contract_type.value, data.placement_request_id
     )
-    await session.commit()
     return _contract_to_response(contract)
 
 
@@ -131,7 +130,6 @@ async def sign_contract(
             sms_code=data.sms_code,
             ip_address=ip,
         )
-        await session.commit()
         return _contract_to_response(contract)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
@@ -152,7 +150,6 @@ async def request_kep(
     svc = ContractService(session)
     try:
         await svc.request_kep_version(data.contract_id, current_user.id, data.email)
-        await session.commit()
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
     except ValueError as e:

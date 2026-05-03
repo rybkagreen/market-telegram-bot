@@ -10,9 +10,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.channel_owner import AddChannelStates
+from src.core.services.legal_compliance_service import LegalComplianceService
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.transaction import TransactionType
+from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
@@ -361,6 +363,43 @@ async def add_channel_confirm(
         await callback.answer("❌ Пользователь не найден", show_alert=True)
         return
 
+    # Phase 3b §3.B.6 — owner role compliance precondition (5b.7a).
+    # No admin test-mode carve-out for bot path: API has body.is_test +
+    # is_admin gate, but bot UX hardcodes is_active=True and lacks the
+    # parameter (pre-existing — flagged in 5b.7a closure as O.7 deferred).
+    compliance = LegalComplianceService(session)
+    gate_results = await compliance.check_gates_for_user_role(user, role="owner")
+    blockers = [r for r in gate_results if not r.passed]
+    if blockers:
+        await AuditLogRepo(session).log(
+            action="channel_add_declined",
+            resource_type="channel",
+            user_id=user.id,
+            extra={"blockers": [r.gate.value for r in blockers]},
+        )
+        await callback.answer(
+            "❌ Добавление канала недоступно", show_alert=True
+        )
+        lines = [
+            "❌ *Добавление канала недоступно*",
+            "",
+            "Чтобы добавить канал, заполните юр. профиль и подпишите договор владельца канала:",
+        ]
+        for r in blockers:
+            line = f"• {r.gate.value}: {r.reason_code}"
+            if r.remediation_url:
+                line += f" → {r.remediation_url}"
+            lines.append(line)
+        builder = InlineKeyboardBuilder()
+        builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown",
+        )
+        await state.clear()
+        return
+
     ch = TelegramChat(
         telegram_id=data["channel_telegram_id"],
         username=data["username"],
@@ -375,7 +414,9 @@ async def add_channel_confirm(
 
     ch_settings = ChannelSettings(channel_id=ch.id)
     session.add(ch_settings)
-    await session.commit()
+    # S-48 (5b.7a O.4): explicit commit removed — DBSessionMiddleware autocommits
+    # on handler success (src/bot/middlewares/db_session.py). Pre-existing
+    # double-commit was a no-op but blurred Pattern 1 contract for handlers.
 
     await state.clear()
 
@@ -407,7 +448,6 @@ async def delete_channel(callback: CallbackQuery, session: AsyncSession) -> None
     ch = await session.get(TelegramChat, channel_id)
     if ch:
         ch.is_active = False
-        await session.commit()
 
     builder = InlineKeyboardBuilder()
     builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
@@ -428,7 +468,6 @@ async def restore_channel(callback: CallbackQuery, session: AsyncSession) -> Non
     ch = await session.get(TelegramChat, channel_id)
     if ch:
         ch.is_active = True
-        await session.commit()
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:channel:{channel_id}")

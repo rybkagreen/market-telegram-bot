@@ -1,9 +1,10 @@
 """LegalProfile model for user legal/tax data."""
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.security.field_encryption import EncryptedString, HashableEncryptedString
@@ -54,6 +55,19 @@ class LegalProfile(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Phase 3: legal compliance gate inputs (G03/G06/G16/G17).
+    fns_verification_status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="unchecked", server_default="unchecked"
+    )
+    fns_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    egrul_snapshot_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    egrul_egrip_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    inn_checksum_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="legal_profile")

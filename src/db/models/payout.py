@@ -16,6 +16,13 @@ if TYPE_CHECKING:
     from src.db.models.user import User
 
 
+# 5b.7b CL-2: constraint name for the UNIQUE index on idempotency_key column.
+# Mirrors src/db/migrations/versions/0001_initial_schema.py:816 literal.
+# Production code (routers/payouts.py error handling) and tests import this
+# constant — single source of truth for runtime constraint introspection.
+IDEMPOTENCY_KEY_CONSTRAINT_NAME = "ix_payout_requests_idempotency_key"
+
+
 class PayoutStatus(str, Enum):
     """Статусы заявок на выплату."""
 
@@ -24,6 +31,15 @@ class PayoutStatus(str, Enum):
     paid = "paid"
     rejected = "rejected"
     cancelled = "cancelled"
+
+
+class PayoutMethodType(str, Enum):
+    """Типы методов выплаты (Phase 3b minimal subset; Phase 5 may extend)."""
+
+    bank_card = "bank_card"
+    yoomoney = "yoomoney"
+    sbp = "sbp"
+    bank_transfer = "bank_transfer"
 
 
 class PayoutRequest(Base, TimestampMixin):
@@ -54,6 +70,20 @@ class PayoutRequest(Base, TimestampMixin):
     )
     npd_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", server_default="pending"
+    )
+
+    # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
+    # Phase 3b 5b.1.4 (M3=a): String(16) → enum (mirrors PayoutStatus pattern —
+    # Mapped[Enum] shortcut auto-creates the postgres type via create_all()).
+    payout_method_type: Mapped[PayoutMethodType | None] = mapped_column(nullable=True)
+
+    # Phase 3b 5b.1.3: business-level idempotency guard for payout events.
+    # UNIQUE + nullable mirrors transactions.idempotency_key pattern; service-level
+    # keying convention landed in 5b.7b (POST /api/payouts/ — X-Idempotency-Key).
+    # IDEMPOTENCY_KEY_CONSTRAINT_NAME below mirrors the migration literal —
+    # production code AND tests import it for runtime constraint introspection.
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), unique=True, nullable=True, index=True
     )
 
     # Relationships

@@ -19,6 +19,7 @@ make lint-fix         # Ruff auto-fix (also: poetry run ruff check src/ --fix)
 make format           # Ruff format
 make typecheck        # MyPy strict check
 make ci               # lint + format + typecheck (no tests)
+make ci-local         # Real verification gate (BL-017 — GHA inactive)
 
 # Tests
 make test             # Unit tests
@@ -27,14 +28,14 @@ poetry run pytest tests/unit/test_billing.py -v  # Single test file
 
 # Database Migrations
 make migrate          # Apply migrations
-make migrate-revision  # Create new migration (set MIGRATION_MESSAGE env var)
+make migrate-revision # Create new migration (set MIGRATION_MESSAGE env var)
 make migrate-downgrade # Rollback one step
 
 # Docker
 make docker-up        # Start all services
 make docker-down      # Stop all services
 make docker-logs      # Follow logs
-docker compose up -d api     # Recreate specific service (note: 'restart' does not re-read env_file; 'up -d' recreates container with refreshed environment)
+docker compose up -d api     # Recreate (NOT 'restart' — restart keeps stale env_file)
 docker compose logs api --tail=20
 ```
 
@@ -43,7 +44,7 @@ docker compose logs api --tail=20
 **Claude Code has a native `LSP` tool available in every session** (requires `ENABLE_LSP_TOOL=1`, already set globally).
 
 Active language servers:
-- **Python** — `pyright-langserver` via `pyrightconfig.json` at repo root (venv: `.venv` → poetry virtualenv, Python 3.14, 322 deps resolved)
+- **Python** — `pyright-langserver` via `pyrightconfig.json` at repo root (venv: `.venv` → poetry virtualenv, Python 3.14)
 - **TypeScript / TSX** — `typescript-language-server` picks up each `tsconfig.json` in `mini_app/`, `web_portal/`, `landing/` automatically
 
 ### Tool operations
@@ -57,21 +58,17 @@ Parameters: `operation`, `filePath`, `line` (1-based), `character` (1-based).
 - "who calls `freeze_escrow_for_payment`?" → `findReferences` / `incomingCalls`
 - "what methods does `ReputationRepo` expose?" → `documentSymbol`
 - "find the class whose name contains `Payout`" → `workspaceSymbol`
-- type of a variable, signature of a function → `hover`
+- type of variable, function signature → `hover`
 
-**Use Grep / Read** (not LSP) for:
-- text search in strings, comments, TODO markers, logs
-- regex across non-code files (`*.md`, `*.yaml`, `*.sql`, `alembic/versions/*`)
-- counting occurrences
-- when LSP returns empty (fall back to Grep as a last resort, and say so explicitly)
+**Use Grep / Read** (not LSP) for: text in strings/comments/TODOs/logs, regex across non-code files, counting occurrences, when LSP returns empty (fall back explicitly).
 
-**Rule of thumb:** "navigating by symbol" = LSP; "searching for text" = Grep. Never silently use Grep for goto-definition when LSP would answer.
+**Rule:** "navigating by symbol" = LSP; "searching for text" = Grep.
 
 ### Fallback signals
 
 If `LSP goToDefinition` returns `[]` or errors:
-1. Verify the file is under `include` in `pyrightconfig.json` (Python) or covered by a `tsconfig.json` (TS)
-2. For Python — check `.venv` symlink still points at a valid poetry venv (`ls -la .venv`)
+1. Verify file is under `include` in `pyrightconfig.json` (Python) or covered by a `tsconfig.json` (TS)
+2. For Python — check `.venv` symlink (`ls -la .venv`)
 3. Only then fall back to Grep, and report the LSP failure to the user
 
 ## Architecture
@@ -109,7 +106,7 @@ Aiogram Bot (polling)     FastAPI (port 8001)
 
 ### Key Models & Aliases
 
-- **`PlacementRequest`** is the central entity (ad placement). In analytics/cleanup code it's aliased as `Campaign = PlacementRequest`.
+- **`PlacementRequest`** is the central entity (ad placement). Aliased as `Campaign = PlacementRequest` in analytics/cleanup code.
 - **`PlacementStatus`** is aliased as `CampaignStatus` in `campaigns.py` router.
 - **`ReputationRepo`** is exported as `ReputationRepository` at the end of `reputation_repo.py`.
 
@@ -150,14 +147,11 @@ Source: `IMPLEMENTATION_PLAN_ACTIVE.md` § 2.B.0 Decision 1.
 | `document_ocr:*` | `worker_critical` | worker_critical |
 | `payouts:*` | `background` | worker_background |
 
-**Rules for new tasks:**
-- Every new Celery task MUST have explicit `queue=` in its `@celery_app.task(...)` decorator AND a matching pattern in `task_routes` in `celery_app.py`.
-- Queue constants live in `src/tasks/celery_app.py` (e.g. `QUEUE_WORKER_CRITICAL`). `celery_config.py` was deleted in S-36.
-
-**Notes:**
-- Dead queue `rating` in `worker_background` — historical artifact (`rating_tasks.py` deleted in v4.3). Listener kept for in-flight safety; remove at next docker-compose cleanup.
-- 4 periodic notification tasks (`auto_approve_placements`, `notify_pending_placement_reminders`, `notify_expiring_plans`, `notify_expired_plans`) intentionally use `queue=mailing` in their decorator despite the `notifications:*` prefix. Decorator overrides `task_routes`. This is correct: `mailing` is for scheduled batch sends, `notifications` is for event-driven.
-- **task_routes uses colon-patterns** (`mailing:*`, `parser:*`, etc.) — Celery does fnmatch against task names. Dot-patterns (`mailing.*`) do NOT match colon-prefixed names. Never revert to dot-patterns.
+**Rules:**
+- Every new task MUST have explicit `queue=` in `@celery_app.task(...)` AND a matching pattern in `task_routes` in `celery_app.py`.
+- Queue constants live in `src/tasks/celery_app.py` (e.g. `QUEUE_WORKER_CRITICAL`).
+- 4 periodic notification tasks (`auto_approve_placements`, `notify_pending_placement_reminders`, `notify_expiring_plans`, `notify_expired_plans`) intentionally use `queue=mailing` despite `notifications:*` prefix — decorator overrides `task_routes`. Correct: `mailing` = scheduled batches, `notifications` = event-driven.
+- `task_routes` uses **colon-patterns** (`mailing:*`) — Celery fnmatch matches against task names. Dot-patterns (`mailing.*`) do NOT match. Never revert.
 
 ### Bot Instance Lifecycle (S-37 + S-48 refinement)
 
@@ -183,111 +177,113 @@ async def _delete_published_post_async(placement_id: int) -> None:
 ```
 
 - **Rule: `Bot()` must NEVER be instantiated outside `_bot_factory.py`.**
-- `bot.session.close()` must NEVER be called in task code — both factories
-  manage their own lifecycle.
+- `bot.session.close()` must NEVER be called in task code — both factories manage their own lifecycle.
 
 ### Service Transaction Contract (S-48)
 
-Transaction ownership rests with the **outermost caller** (Celery task or
-FastAPI endpoint). Service methods accepting `session: AsyncSession`:
+Transactions belong to the highest layer that knows the unit of work. Three patterns coexist; new code MUST identify which pattern it follows. Patterns 2 and 3 require an inline marker on the `commit()` call.
 
-- **MUST NOT** call `async with session.begin()` — it poisons any session
-  that already has an active autobegin transaction (first SELECT starts one).
-- **MUST NOT** call `await session.commit()` / `await session.rollback()`.
-- **MAY** call `await session.flush()` to materialise constraints early.
-- **MAY** use `async with session.begin_nested()` (SAVEPOINT) when a specific
-  sub-block must roll back independently without aborting the outer
-  transaction.
+#### Pattern 1 — Caller-owns (default)
 
-Methods that open their own session (e.g. `async with async_session_factory()
-as session, session.begin():`) are fine — they own that transaction
-end-to-end.
+Service receives `session: AsyncSession` (via `__init__` or method param) and **NEVER** calls `session.commit()`, `session.flush()`, or `session.rollback()`. Caller (typically a FastAPI router via `Depends(get_db_session)`) owns lifecycle. `get_db_session` auto-commits on success, rolls back on exception.
 
-**Business-level idempotency.** Financial events carry stable keys on
-`Transaction.idempotency_key` (UNIQUE index). EXISTS-check early-exit covers
-the happy path; `try/except IntegrityError` around `flush()` covers the
-race-past-EXISTS case.
+- **MUST NOT** `async with session.begin()` — poisons sessions with active autobegin.
+- **MUST NOT** `commit()` / `rollback()`.
+- **MAY** `flush()` to materialise constraints early.
+- **MAY** `async with session.begin_nested()` (SAVEPOINT) for independent sub-block rollback.
 
-Key format (in use today):
+No marker. Use this unless you have a specific reason not to. Examples: `ContractService`, `LegalProfileService`, `PlacementTransitionService`, `ChannelService`, `BillingService`, `PayoutService`.
+
+#### Pattern 2 — Self-contained
+
+Method opens its own session via `async with async_session_factory() as session: ...`. Session never crosses method boundary. MUST commit within scope before exit (otherwise implicit rollback reverts writes).
+
+Use only for **leaf operations called from sessionless contexts** — typically Celery tasks receiving primitive args.
+
+Marker:
+```python
+await session.commit()  # S-48: self-contained pattern
+```
+
+Examples: `badge_service.check_and_award_badges`, `award_badge`, `check_achievements` (called from `tasks/badge_tasks.py`).
+
+#### Pattern 3 — External-boundary
+
+Service receives `session: AsyncSession` from caller AND commits at a well-defined point pairing with an external-system interaction. Use only when:
+
+- Service just performed an irreversible external side-effect (Telegram send, payment-provider call)
+- DB state confirming it MUST be visible to retry workers before further work fails and rolls back
+- `flush()` insufficient (writes inside open tx invisible to other processes)
+
+Replacing `commit()` with `flush()` here reintroduces double-execution risk (e.g., double-publish to Telegram).
+
+Marker:
+```python
+await session.commit()  # S-48: external-boundary (<short description>)
+```
+
+Example: `publication_service.publish_placement` after Telegram send. **Pattern 3 is rare.** Default to Pattern 1.
+
+#### Auditing
+
+A `commit()` in `src/core/services/` is not automatically a violation. Classify by session ownership:
+1. Method receives `session` arg → Pattern 1 (commit wrong; remove) OR Pattern 3 (correct; mark).
+2. Method opens `async with async_session_factory()` → Pattern 2 (commit required; mark).
+
+`grep` alone cannot distinguish Pattern 1 violation from Pattern 3 carve-out. Verify session ownership before classifying.
+
+#### Idempotency keys
+
+Financial events carry stable keys on `Transaction.idempotency_key` (UNIQUE index). EXISTS-check early-exit covers happy path; `try/except IntegrityError` around `flush()` covers race-past-EXISTS.
+
+Format in use:
 - `escrow_freeze:placement={id}`
 - `escrow_release:placement={id}:{owner|platform}`
 - `refund:placement={id}:scenario={scenario}:{advertiser|owner}`
 
 ### Notification Helpers (S-37)
 
-- `_notify_user_async(telegram_id, message, parse_mode, reply_markup)` — low-level send, no `notifications_enabled` check. Use for admin alerts and system messages.
-- `_notify_user_checked(user_id, message, ...) -> bool` — checks `user.notifications_enabled` via DB lookup (by internal user.id). Returns `False` if skipped, not found, or blocked. **All new user-facing notification tasks must use this helper.**
+- `_notify_user_async(telegram_id, message, ...)` — low-level send, no `notifications_enabled` check. Admin alerts and system messages.
+- `_notify_user_checked(user_id, message, ...) -> bool` — checks `user.notifications_enabled` via DB lookup (by internal `user.id`). Returns `False` if skipped/not-found/blocked. **All new user-facing notification tasks must use this helper.**
 - `mailing:notify_user(telegram_id, ...)` — public entry point; checks `notifications_enabled` via `get_by_telegram_id`. If user not found, sends anyway (system/auth flows).
-- **Architectural rule**: `Bot()` is never created in `core/services/`. If a service needs to send a message, dispatch a Celery task (e.g., `notify_payment_success.delay(...)`).
-
-### Celery Queue Assignment (legacy summary)
-
-- **critical**: billing, notifications, mailing (concurrency 2)
-- **background**: parser, cleanup, rating (concurrency 4)
-- **game**: badges, XP (concurrency 2)
+- **Rule:** `Bot()` never created in `core/services/`. Service needing to send → dispatch Celery task.
 
 ## Migration Strategy (Pre-Production)
 
 **CURRENT RULE (until first production user):**
 - Do NOT create incremental Alembic migrations for model changes
-- Instead: edit `src/db/migrations/versions/0001_initial_schema.py` directly
+- Edit `src/db/migrations/versions/0001_initial_schema.py` directly
 - After editing: drop and recreate the DB, then `alembic upgrade head`
 
-**Reset command:**
+**Reset:**
 ```bash
 docker compose exec db psql -U postgres \
   -c "DROP DATABASE market_bot_db; CREATE DATABASE market_bot_db;" \
   && docker compose exec api poetry run alembic -c alembic.ini upgrade head
 ```
 
-**Verify sync after every model change:**
+**Verify after every model change:**
 ```bash
 docker compose exec api poetry run alembic -c alembic.ini check
 # Must output: "No new upgrade operations detected."
 ```
 
-**Switch to incremental migrations ONLY when:** first real user appears in production.
-At that point — `0001_initial_schema.py` becomes immutable (standard Alembic rules apply).
-
-## Deleted in v4.3 Rebuild
-
-Do **not** import these — they no longer exist:
-- `src.db.models.crypto_payment` (CryptoPayment, PaymentMethod, PaymentStatus)
-- `src.tasks.mailing_tasks` (send_placement_request, publish_single_placement)
-
-Still present (corrected — NOT deleted):
-- `MailingLog`, `MailingStatus` — exist in `src/db/models/mailing_log.py`
-- `Campaign`, `CampaignStatus` — exist in `src/db/models/campaign.py` as aliases for `PlacementRequest` / `PlacementStatus`
-
-MailingService (no `mailing_service.py`): publishing logic lives in `PublicationService` (`publication_service.py`) and Celery tasks (`publication_tasks.py`, `placement_tasks.py`).
+**Switch to incremental migrations ONLY when:** first real user appears in production. Then `0001_initial_schema.py` becomes immutable (standard Alembic rules).
 
 ## Ruff Configuration
 
-Target: Python 3.13, line length 100. Rules: E, F, I, N, W, UP, B, C4, SIM.
-Current state: 0 errors. Always run `make lint` before committing.
+Target: Python 3.13, line length 100. Rules: E, F, I, N, W, UP, B, C4, SIM. Always run `make lint` before committing.
 
 ## Payments (Промт 15.7)
 
 Active payment provider: **YooKassa** (cards, SBP, YooMoney).
 
-Single source of truth: `src/constants/fees.py`. Hardcoding any of these
-values is blocked by `tests/unit/test_no_hardcoded_fees.py`.
+Single source of truth: `src/constants/fees.py`. Hardcoding any of these values is blocked by `tests/unit/test_no_hardcoded_fees.py`.
 
-- **Topup:** YooKassa pass-through 3.5% (`YOOKASSA_FEE_RATE = 0.035`).
-  User pays `desired_balance × (1 + 0.035)`. Platform earns 0.
-- **Placement successful release:** 20% / 80% gross split
-  (`PLATFORM_COMMISSION_RATE = 0.20`, `OWNER_SHARE_RATE = 0.80`)
-  plus 1.5% service fee withheld from owner gross
-  (`SERVICE_FEE_RATE = 0.015`). Effective: owner net **78.8%**,
-  platform total **21.2%** of `final_price`.
-- **Cancel after_confirmation (post-escrow, pre-publish):** 50/40/10
-  — `CANCEL_REFUND_ADVERTISER_RATE = 0.50`,
-  `CANCEL_REFUND_OWNER_RATE = 0.40`,
-  `CANCEL_REFUND_PLATFORM_RATE = 0.10`.
-  Pre-escrow cancel = 100% advertiser refund. Post-publish cancel = 0%
-  refund (treated as completed).
-- **Payout fee** (withdrawal, separate from placement flow): 1.5%
-  (`PAYOUT_FEE_RATE` in `src/constants/payments.py`).
+- **Topup:** YooKassa pass-through 3.5% (`YOOKASSA_FEE_RATE = 0.035`). User pays `desired_balance × (1 + 0.035)`. Platform earns 0.
+- **Placement successful release:** 20% / 80% gross split (`PLATFORM_COMMISSION_RATE = 0.20`, `OWNER_SHARE_RATE = 0.80`) plus 1.5% service fee withheld from owner gross (`SERVICE_FEE_RATE = 0.015`). Effective: owner net **78.8%**, platform total **21.2%** of `final_price`.
+- **Cancel after_confirmation (post-escrow, pre-publish):** 50/40/10 — `CANCEL_REFUND_ADVERTISER_RATE = 0.50`, `CANCEL_REFUND_OWNER_RATE = 0.40`, `CANCEL_REFUND_PLATFORM_RATE = 0.10`. Pre-escrow cancel = 100% advertiser refund. Post-publish cancel = 0% refund (treated as completed).
+- **Payout fee** (withdrawal): 1.5% (`PAYOUT_FEE_RATE` in `src/constants/payments.py`).
 
 Credits system: `credits_per_rub_for_plan = 1.0`.
 
@@ -308,82 +304,33 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`. Integration tests use `
 
 ## API Conventions (FIX_PLAN_06 §6.7)
 
-**screen → hook → api-module — единственный путь вызова бэкенда из
-`web_portal/src/` и `mini_app/src/`.**
+**screen → hook → api-module — единственный путь вызова бэкенда из `web_portal/src/` и `mini_app/src/`.**
 
 - Экран никогда не импортирует `api` напрямую — только hook.
-- Hook инкапсулирует React Query / мутацию и вызывает функцию из
-  `web_portal/src/api/<domain>.ts` (или `mini_app/src/lib/`).
+- Hook инкапсулирует React Query / мутацию и вызывает функцию из `web_portal/src/api/<domain>.ts` (или `mini_app/src/lib/`).
 - API-модуль — единственное место, где собирается URL и параметры.
 - Правило проверяется трёхступенчато:
-    1. ESLint `no-restricted-imports` (S-46) — блокирует прямые
-       `import { api }` в `screens/**`, `components/**`, `hooks/**`.
-    2. `scripts/check_forbidden_patterns.sh` (S-48) — grep-guard на
-       7 регрессионных паттернов (import api, legacy-поля,
-       phantom-пути).
-    3. CI `.github/workflows/contract-check.yml` — прогоняет 1 + 2
-       + pytest `tests/unit/test_contract_schemas.py` + pytest
-       `tests/unit/api/`.
+    1. ESLint `no-restricted-imports` (S-46) — блокирует прямые `import { api }` в `screens/**`, `components/**`, `hooks/**`.
+    2. `scripts/check_forbidden_patterns.sh` (S-48) — grep-guard на 7 регрессионных паттернов.
+    3. CI `.github/workflows/contract-check.yml` — прогоняет 1 + 2 + pytest `tests/unit/test_contract_schemas.py` + `tests/unit/api/`.
 
 **Добавление нового endpoint'а:**
-1. Pydantic-схема ответа в `src/api/schemas/<domain>.py` (или прямо в
-   роутере). Любое изменение formы попадает в
-   `tests/unit/test_contract_schemas.py` — после изменения запустить
-   `UPDATE_SNAPSHOTS=1 poetry run pytest tests/unit/test_contract_schemas.py`
-   и закоммитить обновлённый snapshot в ту же PR.
-2. Добавить функцию в `web_portal/src/api/<domain>.ts` — это
-   единственное место с fetch/ky.
-3. Добавить hook в `web_portal/src/hooks/` (useQuery/useMutation
-   поверх api-функции).
-4. Подключить hook в экране. Прямой вызов `api.*` в экране — fail
-   CI (ESLint + grep-guard).
+1. Pydantic-схема ответа в `src/api/schemas/<domain>.py` (или прямо в роутере). Любое изменение формы → `tests/unit/test_contract_schemas.py` ломается → `UPDATE_SNAPSHOTS=1 poetry run pytest tests/unit/test_contract_schemas.py` и закоммитить snapshot в ту же PR.
+2. Добавить функцию в `web_portal/src/api/<domain>.ts` — единственное место с fetch/ky.
+3. Добавить hook в `web_portal/src/hooks/`.
+4. Подключить hook в экране. Прямой вызов `api.*` в экране — fail CI.
 
 ## Contract drift guard (FIX_PLAN_06 §6.1 Variant B + plan-04)
 
-`tests/unit/test_contract_schemas.py` снимает JSON-schema-снимки
-18 моделей и валидирует их против файлов в
-`tests/unit/snapshots/*.json`. Любое изменение формы (переименование
-/ добавление / удаление поля, смена типа) ломает тест с unified diff
-— автор обязан пересгенерировать snapshot и закоммитить рядом со
-схемой, что делает drift видимым в ревью.
+`tests/unit/test_contract_schemas.py` снимает JSON-schema-снимки 18 моделей и валидирует их против файлов в `tests/unit/snapshots/*.json`. Любое изменение формы (переименование/добавление/удаление поля, смена типа) ломает тест с unified diff — автор пересгенерирует snapshot и закоммитит рядом со схемой.
 
-**Item-схемы (8):** `UserResponse`, `UserAdminResponse`,
-`PlacementResponse`, `PayoutResponse`, `ContractResponse`,
-`DisputeResponse`, `LegalProfileResponse`, `ChannelResponse`.
+**Item-схемы (8):** `UserResponse`, `UserAdminResponse`, `PlacementResponse`, `PayoutResponse`, `ContractResponse`, `DisputeResponse`, `LegalProfileResponse`, `ChannelResponse`.
 
-**List / pagination wrappers (10, plan-04):**
-`AdminPayoutListResponse`, `AdminContractListResponse`,
-`UserListAdminResponse`, `DisputeListAdminResponse`,
-`FeedbackListAdminResponse`, `DisputeListResponse`,
-`FeedbackListResponse`, `ContractListResponse`,
-`CampaignListResponse`, `CampaignsListResponse`. Покрывают форму
-`{items, total, limit, offset}` (и две легаси-формы в
-`campaigns.py`) — переименование `total → count` или
-`items → rows` ломает тест.
+**List wrappers (10):** `AdminPayoutListResponse`, `AdminContractListResponse`, `UserListAdminResponse`, `DisputeListAdminResponse`, `FeedbackListAdminResponse`, `DisputeListResponse`, `FeedbackListResponse`, `ContractListResponse`, `CampaignListResponse`, `CampaignsListResponse`. Покрывают форму `{items, total, limit, offset}`.
 
-**Сознательно НЕ покрыто** (item-схема уже фиксирует контракт, либо
-ответ собирается inline-dict без Pydantic-обёртки):
-`GET /api/payouts/` (`list[PayoutResponse]`),
-`GET /api/admin/audit-logs` (inline `dict`).
+**Сознательно НЕ покрыто:** `GET /api/payouts/` (`list[PayoutResponse]`), `GET /api/admin/audit-logs` (inline `dict`).
 
-Регенерация: `UPDATE_SNAPSHOTS=1 poetry run pytest
-tests/unit/test_contract_schemas.py`.
-
-Контракт прогоняется в CI — `.github/workflows/contract-check.yml`.
-
-## Component Inventory (Verified 2026-03-22)
-
-| Component | Count | Location |
-|-----------|-------|----------|
-| API Routers | 15 | `src/api/routers/` |
-| Core Services | 15 | `src/core/services/` |
-| DB Models | 19 | `src/db/models/` |
-| FSM State groups | 9 | `src/bot/states/` |
-| Bot Handlers | 18 | `src/bot/handlers/` |
-| Alembic Migrations | 7 | `src/db/migrations/versions/` |
-| Mini App Screens | 39 | `mini_app/src/screens/` |
-
-Mini App breakdown: common (9), advertiser (13), owner (11), admin (6).
+Регенерация: `UPDATE_SNAPSHOTS=1 poetry run pytest tests/unit/test_contract_schemas.py`.
 
 ## ORD Integration
 
@@ -400,34 +347,28 @@ Mini App breakdown: common (9), advertiser (13), owner (11), admin (6).
 
 These tasks MUST be completed before deploying with real payments and publications.
 
-### ORD Integration (legal requirement — ФЗ-38)
+### ORD Integration (legal — ФЗ-38)
 
-- `src/core/services/stub_ord_provider.py` issues synthetic ERID
+- `stub_ord_provider.py` issues synthetic ERID
 - `ORD_BLOCK_WITHOUT_ERID=false` in current `.env` — publications pass with stub ERID
-- Legal exposure: under ФЗ-38 every ad must have a real ERID from an official ОРД operator
+- Legal exposure: ФЗ-38 requires real ERID from official ОРД operator
 
 **Required before launch:**
-1. Contract with one of the ОРД providers (Яндекс ОРД API v7, VK Реклама, Ozon)
-2. Obtain API credentials, add to `.env`:
-   - `ORD_PROVIDER=yandex`
-   - `ORD_API_KEY=...`
-   - `ORD_API_URL=...`
-3. Set `ORD_BLOCK_WITHOUT_ERID=true` in production `.env`
-4. Real provider is auto-selected by `ORD_PROVIDER` in settings (no code change needed)
+1. Contract with ОРД provider (Яндекс ОРД API v7, VK Реклама, Ozon)
+2. API credentials in `.env`: `ORD_PROVIDER=yandex`, `ORD_API_KEY=...`, `ORD_API_URL=...`
+3. Set `ORD_BLOCK_WITHOUT_ERID=true` in production
+4. Real provider auto-selected by `ORD_PROVIDER` (no code change)
 5. E2E test: placement with real ERID passes, without it — blocked
 
-### FNS Validation (optional hardening, not a legal blocker)
+### FNS Validation (optional hardening, not a launch blocker)
 
-- `src/core/services/fns_validation_service.py` validates checksum only
-- For post-launch adversarial protection — integrate `npchk.nalog.ru`
-- Does not block launch (checksum is sufficient against typos)
+- `fns_validation_service.py` validates checksum only
+- Post-launch hardening — integrate `npchk.nalog.ru`
+- Does not block launch (checksum sufficient against typos)
 
 ## Deferred E2E items (plan-08)
 
-Three flows in `web_portal/tests/specs/deep-flows.spec.ts` are
-permanently `test.fixme`'d. Each has explicit re-activation criteria
-in `reports/docs-architect/BACKLOG.md` — re-activate by satisfying
-the criterion, then turn the `test.fixme` into a real `test`.
+Three flows in `web_portal/tests/specs/deep-flows.spec.ts` are permanently `test.fixme`'d. Re-activation criteria in `reports/docs-architect/BACKLOG.md`.
 
 | ID | Flow | Blocked by |
 |---|---|---|
@@ -435,258 +376,169 @@ the criterion, then turn the `test.fixme` into a real `test`.
 | BL-002 | Channel add via bot verification | Telegram Bot API mock in docker-compose.test.yml |
 | BL-003 | KEP signature on framework contract | КриптоПро stub or `signature_method=sms_code` fallback |
 
-Do **not** add new `test.fixme(true, ...)` blocks without recording a
-matching BL entry — silent skips defeat the point of the suite.
+Do **not** add new `test.fixme(true, ...)` blocks without a matching BL entry.
 
-## Known Issues (2026-03-22)
+---
 
-- **mypy**: 529 errors in 41 files — long-standing, pre-existing, not blocking deployment. Key example: `placements.py:534` returns `PlacementRequest` where `PlacementResponse` expected.
-- **ruff**: 0 errors (clean).
-- **Menu Button**: ✅ Implemented in src/bot/main.py — MenuButtonWebApp pointing to https://app.rekharbor.ru/
-- **Admin Panel**: Deferred to next sprint.
+## Engineering Principles
 
-### Resolved
+These govern non-trivial work. They override time-saving heuristics within the current sub-block scope. They do NOT override safety rules, S-48, or explicit Marina decisions.
 
-- **ESCROW-002 (2026-04-21)** — auto-deletion of expired placements and
-  release of escrow. Fixed by Track A: caller-controlled transaction contract
-  for BillingService; `Transaction.idempotency_key` + UNIQUE as the single
-  source of idempotency truth; per-task `ephemeral_bot()` lifecycle;
-  `check_escrow_stuck` group C for recovery. See
-  `CHANGES_2026-04-21_fix-escrow-auto-release.md` and
-  `/root/.claude/plans/lexical-swinging-pony.md` Track B for architectural
-  follow-up.
+### Principle 1 — Architectural cleanliness over schedule (within sub-block scope)
+
+Within the current sub-block, choose clean over quick. Workarounds compound; clean code does not.
+
+If achieving cleanliness requires changes that **expand beyond the current sub-block** (touch upcoming-block plan, modify shipped CHANGES, require schema/migration revision), STOP and surface to planner. Do not expand scope autonomously across sub-block boundaries.
+
+### Principle 2 — Three-phase workflow for non-trivial tasks
+
+Non-trivial = ANY of: touches >2 files, crosses module boundary, has multiple plausible architectural approaches, plan contains unresolved ambiguity. Trivial work (single-file edit, signature copy, mechanical refactor with established pattern) skips phases A/B.
+
+- **Phase A — Investigate.** Build full picture before any mutation: existing patterns, all callers, related code, constraints, types. No mutations during Phase A. Output to `tmp/<task>_investigation.md` if substantial.
+- **Phase B — Re-evaluate.** Given findings: is original plan still right? Better approach within sub-block? Crosses sub-block boundary? STOP and surface.
+- **Phase C — Execute.** Only after A and B complete. Per-commit gates per prompt.
+
+Investigate before deciding, re-evaluate before executing.
+
+### Principle 3 — No workarounds
+
+A workaround is any of:
+- Inline fix whose rationale lives only in commit message
+- New code with `TODO`, `FIXME`, `HACK`, `temporary`, "for now" comments
+- Symptom handling instead of root cause (`try: x() except: pass`)
+- Special-case branch instead of correct generalization
+- Magic number / hardcoded path duplicating named constant
+- Copy-paste of similar logic instead of extracted shared helper (when actually same)
+
+If a workaround forms during execution: investigate root cause (return to Phase A), propose proper fix. If proper fix fits in sub-block — do it. If it expands scope — STOP, surface. **Do not commit "for now" intending to fix later.** The "for now" version is what ships.
+
+### Principle 4 — Once-correctly over twice-iteratively
+
+If two solutions exist and one is "good enough but I'd want to revisit later", choose the other. If the right approach takes 3x longer but eliminates a follow-up cleanup commit, take the longer path. If a refactor is justified by current work, do it now in the same commit (within sub-block scope per P1).
+
+This applies within the agent's autonomous decision space. Cross-sub-block decisions remain Marina's territory.
+
+### Principle 5 — Conflict handling
+
+When principles conflict with elsewhere-stated rules:
+- **Safety rules** (ПД discipline, no-secrets-in-commits): always win, no exception
+- **S-48 contract**: wins
+- **Explicit Marina decisions** in current prompt: win
+- **BL-013 stop-hook defer (b)/(c)**: applies to documentation bundling only; do NOT defer code-quality decisions or proper-fix-vs-workaround judgments
+- **Time / token budget heuristics**: lose to these principles within sub-block scope
+
+When uncertain about a conflict, surface to planner.
+
+### Self-audit before each commit
+
+1. Did I investigate before executing? (P2)
+2. Did I re-evaluate plan against findings? (P2)
+3. Is anything I'm shipping a workaround per P3?
+4. Is there a once-correctly version I'm declining for time? (P4)
+5. If I diverged from prompt, is the divergence within sub-block scope? (P1)
+
+If any answer fails — return to investigation or surface to planner. Do not commit through a failed self-check.
 
 ---
 
 ## Research reports — Objections section (MANDATORY)
 
-When producing a research / consolidation report before any implementation
-(deep-dive Explore agents, architecture audits, plan reviews):
-
-If you spot any of the following in the original plan or in the findings,
-raise them **explicitly in a separate section "Возражения и риски"
-("Objections and risks"), placed BEFORE the "Вопросы для подтверждения"
-("Questions for confirmation") section:**
+When producing a research / consolidation report before any implementation: if you spot any of the following, raise them **explicitly in a "Возражения и риски" section, BEFORE "Вопросы для подтверждения":**
 
 - Security holes (auth bypass, missing rate-limit, replay, weak validation)
-- Internal contradictions (plan says X but the codebase pattern is Y)
+- Internal contradictions (plan says X but codebase pattern is Y)
 - Missed edge cases (race conditions, concurrent writes, Redis flush, partial failure)
-- Bad naming (semantic mismatch between term and what it actually denotes)
-- API ergonomics traps (default values that silently disable safety, optional
-  params that should be required, footguns for future contributors)
+- Bad naming (semantic mismatch between term and what it denotes)
+- API ergonomics traps (defaults that disable safety, optional params that should be required)
 
-Do **NOT** disguise objections as clarifying questions. A question like
-"подтверждаем X, как сказано в плане?" is rubber-stamping when you
-actually disagree — instead write "план требует X, я считаю Y потому что
-Z, какой выбираем?".
-
-It is far better to surface five uncomfortable observations than to skip
-one security hole. The user expects you to push back on the plan when you
-have grounds — that is the value of having you review it, not just execute
-it.
+Do **NOT** disguise objections as clarifying questions. Better to surface five uncomfortable observations than skip one security hole. The user expects you to push back when you have grounds.
 
 ### Phase mode discipline
 
-You operate in one of two modes. Be explicit about which one you're in.
+Be explicit about which mode you're in.
 
-**Research / planning mode** (deep-dive Explore, audits, plan reviews,
-consolidation reports BEFORE any code is written):
+**Research / planning mode** (deep-dive Explore, audits, plan reviews, consolidation reports BEFORE code is written):
 > "Be critical. Look for problems. Dispute decisions with reasoning."
 
-In this mode, raise concerns aggressively. Argue with the plan when you
-have grounds. The expected output is a sharper plan, not agreement.
+Raise concerns aggressively. The expected output is a sharper plan, not agreement.
 
-**Implementation mode** (writing/editing code per an already-agreed plan):
-> "Implement the plan as written. If a blocking problem surfaces — stop
-> and report. Do NOT introduce improvements that are not in the plan."
+**Implementation mode** (writing/editing code per agreed plan):
+> "Implement as written. If a blocking problem surfaces — stop and report. Do NOT introduce improvements not in the plan."
 
-In this mode, scope discipline matters. The user has decided what they
-want; your job is to land it precisely. Cosmetic refactors, "while-I'm-here"
-cleanups, extra abstraction layers — out of scope unless the plan asks
-for them.
+Cosmetic refactors, "while-I'm-here" cleanups, extra abstraction layers — out of scope unless plan asks.
 
 ### What counts as "raise explicitly" vs "defer"
 
-**Raise explicitly (block / interrupt the work):**
-- (a) Security problem (auth bypass, missing validation, secret exposure,
-  rate-limit gap, replay risk, signature trust assumption)
-- (b) Bug or likely bug (race condition, off-by-one, wrong type, missing
-  error path that will fire under realistic load)
-- (c) Plain contradiction in the plan or requirements (the plan says X but
-  the codebase already does Y; two parts of the plan conflict)
-- (d) Decision that will materially complicate future maintenance (heavy
-  coupling, premature abstraction, hidden invariant nobody will remember,
-  deletion of a load-bearing affordance)
+**Raise explicitly (block the work):**
+- (a) Security problem (auth bypass, missing validation, secret exposure, rate-limit gap, replay, signature trust assumption)
+- (b) Bug or likely bug (race, off-by-one, wrong type, missing error path firing under realistic load)
+- (c) Plain contradiction (plan says X but codebase does Y; two parts conflict)
+- (d) Decision that materially complicates future maintenance (heavy coupling, premature abstraction, hidden invariant, deletion of load-bearing affordance)
 
-**Defer to a one-line footnote at the end of the report**
-(category: "возможные дальнейшие улучшения, не требуют действий сейчас"):
-- Cosmetic refactors ("could rename X for clarity")
-- Style/consistency nits not breaking anything
-- Test coverage gaps in untouched code
-- Performance optimisations without measured impact
-- Naming preferences without semantic mismatch
+**Defer to one-line footnote** ("возможные дальнейшие улучшения, не требуют действий сейчас"):
+- Cosmetic refactors, style nits, test coverage gaps in untouched code, perf opts without measured impact, naming preferences without semantic mismatch
 
-The split rule: if a future maintainer would shrug at the issue, defer it.
-If a future maintainer would have to redo significant work or hit a real
-incident, raise it.
+Rule: future maintainer would shrug → defer. Future maintainer hits a real incident → raise.
 
 ### Plan validation gate (MANDATORY before approving any Phase N plan)
 
-Before a phase's plan is approved for implementation — i.e. before the
-"research → STOP → implementation" handoff — run the following three
-checks. Any failure means the plan is reworked, not patched during
-implementation.
+Before "research → STOP → implementation" handoff, run these checks. Failure = plan reworked, not patched during implementation.
 
-- **(a) `tsc --noEmit` dry-run with the plan's strip-list applied to
-  `mini_app/` and `web_portal/`.** If the plan removes files / hooks /
-  api modules, simulate the deletion locally (or branch) and confirm
-  both frontends still build. A plan that ships a broken TS graph is
-  not a plan, it's a regression. (Origin: Phase 1 O.1 — plan said
-  "delete contracts.ts" but 6 portal screens still imported it.)
-- **(b) Per-endpoint PII classification for every endpoint the plan
-  switches to web_portal-only auth.** Read request schema + response
-  schema + service-side DB writes. An endpoint with no PII fields
-  requires explicit justification for web_portal-only (UX cost, not
-  legal cost) or a carve-out (e.g. `legal_acceptance.py`). File-name
-  heuristics are not a substitute. (Origin: Phase 1 A.2 — `accept-rules`
-  lived in `contracts.py` but is non-PII boolean ack.)
-- **(c) Audit of merged decisions from previous phases.** Diff the
-  current plan text against the codebase reality on `develop`.
-  Anything the plan says is already-true must actually be already-true,
-  or the plan needs an explicit "drift fix" commit as its first step.
-  (Origin: Phase 0 PF.2 — Phase 1 plan still said "401 for aud-less"
-  and "don't touch audit_middleware.py" after Phase 0 follow-up
-  reversed both.)
+- **(a) `tsc --noEmit` dry-run** with the plan's strip-list applied to `mini_app/` and `web_portal/`. If the plan removes files / hooks / api modules, simulate locally and confirm both frontends still build.
+- **(b) Per-endpoint PII classification** for every endpoint switched to web_portal-only auth. Read request schema + response schema + service-side DB writes. No-PII endpoint requires explicit UX-cost justification or carve-out. File-name heuristics not a substitute.
+- **(c) Audit of merged decisions from previous phases.** Diff plan text against codebase reality on `develop`. Anything plan says is already-true must be already-true, or plan needs explicit "drift fix" commit as first step.
+- **(d) Ruff baseline diff.** `make lint` before any edit; compare after alignment commit. Plans must not regress baseline.
+- **(e) Cross-artifact reference check (BL-015).** Every BL-ID, ticket ID, file path, line, commit SHA must resolve. Run `grep -E '\b(BL-[0-9]+|plan-[0-9]+|FIXME|TODO\([^)]+\))\b' <plan>.md` and verify.
+- **(f) Test infrastructure surface (BL-024).** Before any plan touching tests is approved, `grep -rn 'autouse=True' tests/` and review `conftest.py` hierarchy. Document autouse fixtures and shadowing. **`tests/integration/conftest.py` is load-bearing infra** — its NullPool + connection-rollback override is intentional, not a cleanup target.
+- **(g) Mutation-audit completeness (BL-026).** When auditing field writes, enumerate (1) calls to helpers matching `update_<field>|set_<field>|change_<field>` and (2) bulk SQLAlchemy `.values(<field>=...)` writes — both accept runtime values and bypass static literal scans. Where possible, **delete** parameter-driven helpers rather than lint-allow.
+- **(h) Verify gate naming.** Each command actually covers what's intended? Use `make -n <target>` dry-run before declaring command as gate. (Origin: BL-057 — series 16.x verify gates were de-facto lint-only because `make ci-local` halted on baseline.)
 
-The output of this gate is a short alignment commit (`docs(phase-N):
-align plan with PF.X / O.Y decisions`) on the feature branch *before*
-any implementation commit. Skipping the gate or rolling its findings
-into the first implementation commit defeats the purpose — drift stays
-invisible.
+The output is a short alignment commit (`docs(phase-N): align plan with PF.X / O.Y decisions`) on the feature branch *before* any implementation commit. Skipping the gate or rolling its findings into the first implementation commit defeats the purpose.
+
+Research-agent enumerations (Agent A/B/C, deep-dive Explore catalogs) are **incomplete-by-default**. § B.1 of any phase plan begins with a "final mutation audit" step that re-greps for the relevant pattern.
 
 ---
 
-## Process discipline (added from Phase 2 lessons)
-
-These rules were extracted from BACKLOG entries BL-006, BL-007, BL-013,
-BL-015, BL-016, BL-018, BL-024, BL-026, BL-028 (Phase 2 closure,
-2026-04-27). They extend — not replace — the "Phase mode discipline"
-section above.
-
-### Plan validation gate — extended (BL-015, BL-024, BL-026, BL-018)
-
-The original three checks (a/b/c) above are necessary but not
-sufficient. Before approving any phase plan, also run:
-
-- **(d) Ruff baseline diff.** Capture `make lint` output before any
-  edit and compare it after the alignment commit. Plans must not
-  regress the ruff baseline; if a phase plan adds new files or moves
-  code, baseline must hold within the documented tolerance.
-- **(e) Cross-artifact reference check (BL-015).** Every backlog
-  reference, ticket ID, file path, line number, and commit SHA in the
-  phase plan must resolve to an existing entity. Run
-  `grep -E '\b(BL-[0-9]+|plan-[0-9]+|FIXME|TODO\([^)]+\))\b' <plan>.md`
-  and verify each match exists in BACKLOG.md / repo / git log. Plan
-  authors hallucinate IDs (origin: `plan-08` propagated through three
-  artifacts before being caught).
-- **(f) Test infrastructure surface (BL-024).** Before any plan
-  touching test files is approved, run `grep -rn 'autouse=True' tests/`
-  and review the conftest.py hierarchy depth + override patterns.
-  Document all autouse fixtures and shadowing in the plan. Treat
-  `tests/integration/conftest.py` as load-bearing infra: its
-  NullPool + connection-rollback override is intentional, not a target
-  for "cleanup".
-- **(g) Mutation-audit completeness (BL-026).** When auditing field
-  writes, enumerate (1) calls to helpers whose name matches
-  `update_<field>|set_<field>|change_<field>` and (2) bulk SQLAlchemy
-  `.values(<field>=...)` writes — both accept a runtime value and
-  bypass static literal scans. Generic mutation helpers with a
-  parameter-driven RHS are blind spots in regex/AST literal scans.
-  Where possible, **delete** parameter-driven helpers rather than
-  lint-allowing them; the lint cannot reason about runtime parameters.
-
-Research-agent enumerations (Agent A/B/C output, deep-dive Explore
-catalogs) must be treated as **incomplete-by-default**. § B.1 of any
-phase plan begins with a "final mutation audit" step that re-greps the
-codebase for the relevant pattern; do not trust the research catalog
-alone. (Origin: Phase 2 § 2.B.2a found 6 callers of
-`PlacementRequestRepository.update_status` that the initial enumeration
-missed.)
+## Process discipline
 
 ### Stop-hook relay protocol (BL-006, BL-013, BL-016)
 
-Stop-hook output is **informational** — its purpose is to surface
-documentation gaps to the user, not to authorise the agent to close
-them. The agent's correct response to a hook warning is:
+Stop-hook output is **informational** — surfaces documentation gaps to the user, does not authorise the agent to close them. The agent's correct response:
 
-1. Relay the warning to the user, with the user's three-way choice:
-   - **(a) immediate fix-commit** (warning is load-bearing — public
-     contract changed and CHANGES is genuinely missing);
-   - **(b) bundle into next natural commit** (default — warning will
-     be addressed at the next commit boundary anyway);
-   - **(c) defer to phase closure** (only if no risk of CHANGES
-     becoming stale relative to documented commits — i.e. the work in
-     progress is itself the phase closure work).
+1. Relay the warning to the user with three-way choice:
+   - **(a) immediate fix-commit** (warning is load-bearing — public contract changed and CHANGES is genuinely missing)
+   - **(b) bundle into next natural commit** (default — warning will be addressed at next commit boundary anyway)
+   - **(c) defer to phase closure** (only if no risk of CHANGES becoming stale relative to documented commits — i.e. the WIP itself is the phase closure work)
 
-Loop-firing tolerance: if the **same** hook warning fires more than
-twice in succession on identical HEAD/transcript state, ack it twice
-non-trivially, then silent-ignore subsequent identical fires. Identical
-fires within a single decision point count as one ack, not multiple.
-This avoids the BL-016 anti-pattern where each agent turn after a
-commit re-issues the same warning, burning context and pressuring the
-agent into autonomous fix to "stop the alarm".
+Defer (b)/(c) applies to documentation bundling only. Do not use BL-013 defer to postpone code-quality decisions or ship a workaround "for now" (see Principle 3).
 
-The STOP gate (research → STOP → user "давай" → implementation)
-applies to **every commit**, including `docs(...)` /  `chore(...)` /
-process-rule commits, not only `feat(...)` / `fix(...)`. Auto-mode on
-docs today is auto-mode on code tomorrow — same anti-pattern.
+**Loop-firing tolerance:** if the **same** hook warning fires more than twice in succession on identical HEAD/transcript state, ack twice non-trivially, then silent-ignore subsequent identical fires. Identical fires within a single decision point count as ONE ack, not multiple. This avoids the BL-016 anti-pattern where each post-commit turn re-issues the same warning, burning context and pressuring the agent into autonomous fix to "stop the alarm".
+
+The STOP gate (research → STOP → user "давай" → implementation) applies to **every commit**, including `docs(...)` / `chore(...)` — not only `feat(...)` / `fix(...)`.
 
 ### Cross-artifact reference fabrication (BL-015)
 
-Before committing any plan / CHANGES / BACKLOG entry that cross-refs
-another doc by name, ID, or section: `grep` for the target and confirm
-it exists. Once a fabricated reference enters one artifact, copy-paste
-through prompt templates multiplies it. Same rule applies during
-research-artifact consolidation (Agent C-style review).
+Before committing any plan / CHANGES / BACKLOG entry that cross-refs another doc by name, ID, or section: `grep` for the target and confirm it exists. Once a fabricated reference enters one artifact, copy-paste through prompt templates multiplies it.
 
 ### Stale plan vs reality (BL-007, BL-018)
 
-The implementation plan is allowed to drift from the codebase between
-sessions. Line numbers in the plan are HINTS, not absolutes. Sub-agent
-searches must work by signature/content, not by `L<N>`. If the plan
-describes a file/function/line that no longer matches reality, surface
-this explicitly in the report — do not silently adapt.
-
-The Phase 0 closure note "2 ruff warnings in
-`document_validation.py`" turning into "0 warnings on develop" by
-Phase 2 start is the canonical example: baseline drifts during
-unrelated work, not because anyone fixed it deliberately.
+The implementation plan is allowed to drift between sessions. Line numbers in the plan are HINTS, not absolutes. Sub-agent searches must work by signature/content, not by `L<N>`. If the plan describes a file/function/line no longer matching reality, surface explicitly — do not silently adapt.
 
 ### Verification gate language (BL-018, BL-028)
 
-GitHub Actions are permanently inert for this repository (BL-017
-ACCEPTED). The actual verification gate is `make ci-local`. All
-future phase plans must phrase verification gates as:
+GitHub Actions are permanently inert (BL-017 ACCEPTED). The actual verification gate is `make ci-local`. Phase plans must phrase verification gates as:
 
-> "Local `make ci-local` passes against baseline X (failed=N1,
->  errored=N2, collection=N3, mypy=N4, ruff=N5)."
+> "Local `make ci-local` passes against baseline X (failed=N1, errored=N2, collection=N3, mypy=N4, ruff=N5)."
 
-— not "CI green" and not bare numbers like "76 failed". Baseline
-numbers must always be quoted with the **exact invocation** that
-produced them. `pytest --continue-on-collection-errors tests/` and
-`make ci-local` produce different counts on the same source tree
-(BL-028: 96+132 vs 76+17 on the same HEAD); without the invocation,
-the baseline is ambiguous and silent regressions slip past the gate.
+— not "CI green" and not bare numbers like "76 failed". Baseline numbers must always be quoted with the **exact invocation** (`pytest --continue-on-collection-errors tests/` and `make ci-local` produce different counts on the same source tree — BL-028).
 
-Baseline updates land per-phase as part of `CHANGES_*.md` rather than
-as standalone documents.
+Baseline updates land per-phase as part of `CHANGES_*.md`, not as standalone documents.
 
 ---
 
 ## Documentation & Changelog Sync (MANDATORY)
 
-This section mirrors INSTRUCTIONS.md and is enforced by hooks. Every task is INCOMPLETE
-without these steps.
+This section is enforced by hooks. Every task is INCOMPLETE without these steps.
 
 ### After EVERY code change
 1. Create `reports/docs-architect/discovery/CHANGES_<YYYY-MM-DD>_<short-desc>.md`
@@ -700,10 +552,9 @@ without these steps.
 
 ---
 
-## Git Flow (MANDATORY)
+## Git Flow (MANDATORY — local-merge-only model per BL-017)
 
-This section is enforced by hooks. Every sprint is INCOMPLETE without these steps.
-**Branches**: `feature/*` → `develop` → `main`
+**Workflow:** `feature/*` → `develop` → `main`. **All operations are LOCAL.** No `git push` to remote — GitHub CI is permanently inactive (BL-017 ACCEPTED). Real verification gate is `make ci-local`.
 
 ### After EVERY batch of code changes (within a feature branch)
 
@@ -720,61 +571,53 @@ Split staged files into **semantic groups** and commit each group separately:
 
 **Rules:**
 - NEVER `git add .` in a single commit — always add files by group
-- Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`
-- `git commit -m "feat(backend): ..."` — English, imperative, under 72 chars
+- [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`
+- English, imperative, under 72 chars
+- NEVER force-push, rebase, or squash on feature branches — preserve history
 
-### After EVERY sprint / feature completion
-
-Execute **in this exact order**, stopping immediately on any conflict:
+### After EVERY sprint / feature completion (local merges only)
 
 ```bash
 # 1. Verify clean state
 git status   # must be "nothing to commit, working tree clean"
 
-# 2. Push feature branch
-git push origin $CURRENT_BRANCH
-
-# 3. Merge into develop
-git checkout develop && git pull origin develop
+# 2. Merge feature into develop (local, --no-ff required)
+git checkout develop
 git merge $CURRENT_BRANCH --no-ff -m "chore(develop): merge $CURRENT_BRANCH — <sprint summary>"
-git push origin develop
 
-# 4. Merge develop into main
-git checkout main && git pull origin main
+# 3. Merge develop into main (local, --no-ff required)
+git checkout main
 git merge develop --no-ff -m "chore(main): merge develop — <sprint summary>"
-git push origin main
 
-# 5. Return to feature branch
+# 4. Return to feature branch (or delete it)
 git checkout $CURRENT_BRANCH
 ```
 
 **Hard limits:**
-- `--no-ff` is REQUIRED on every merge — never fast-forward
-- On ANY merge conflict: **STOP and report** — never auto-resolve
-- Never force-push `develop` or `main`
-- Never skip `git pull` before merging
+- `--no-ff` REQUIRED on every merge — never fast-forward
+- On ANY conflict: **STOP and report** — never auto-resolve
+- Never force-push `develop` or `main` (and never push at all)
+- Feature branch is preserved post-merge unless Marina explicitly says delete
 
-### NEVER TOUCH (extended list for Claude Code)
-# Original list from CLAUDE.md applies PLUS:
+### NEVER TOUCH
+
+```
 src/core/security/field_encryption.py
 src/api/middleware/log_sanitizer.py
 src/db/models/audit_log.py
 src/db/models/legal_profile.py
 src/db/models/contract.py
 src/db/models/ord_registration.py
-src/db/migrations/versions/          ← read-only, never edit after production apply
+src/db/migrations/versions/          ← read-only after production apply (pre-prod exception: 0001_initial_schema.py editable until first user)
+```
 
-# Notes:
-# - src/api/middleware/audit_middleware.py was previously listed here but
-#   removed for Phase 1 §1.B.0b refactor (PF.4 decision: replace unsafe JWT
-#   re-decode with request.state.user_id read; ~21 LOC, 2 files). After Phase 1
-#   merge, the file is owned by Phase 1; do not re-add to NEVER TOUCH unless
-#   the security model around audit logging changes again.
+Note: `src/api/middleware/audit_middleware.py` was previously listed but removed for Phase 1 §1.B.0b refactor (PF.4 decision — JWT re-decode replaced with `request.state.user_id` read). After Phase 1 merge, it's owned by Phase 1; do not re-add unless the security model around audit logging changes.
 
 ### Landing-specific rules
-- Landing lives in: /opt/market-telegram-bot/landing/
+
+- Landing lives in: `/opt/market-telegram-bot/landing/`
 - It is FULLY STATIC — never add runtime FastAPI calls
-- Tailwind @theme tokens come from DESIGN.md only
+- Tailwind `@theme` tokens come from `DESIGN.md` only
 - TS version: 6.0.2 (align with mini_app and web_portal)
 - Motion imports: `import { ... } from 'motion/react'` (package name: `motion`)
 - CSP: no unsafe-inline, no unsafe-eval

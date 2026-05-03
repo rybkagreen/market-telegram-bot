@@ -675,6 +675,17 @@ def upgrade() -> None:  # noqa: PLR0915
             nullable=False,
         ),
         sa.Column("inn_hash", sa.String(64), nullable=True),
+        # Phase 3: legal compliance gate inputs (G03/G06/G16/G17).
+        sa.Column(
+            "fns_verification_status",
+            sa.String(20),
+            server_default=sa.text("'unchecked'"),
+            nullable=True,
+        ),
+        sa.Column("fns_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("egrul_snapshot_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("egrul_egrip_snapshot", postgresql.JSONB(), nullable=True),
+        sa.Column("inn_checksum_valid", sa.Boolean(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="legal_profiles_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", name="legal_profiles_user_id_key"),
@@ -779,12 +790,34 @@ def upgrade() -> None:  # noqa: PLR0915
             server_default=sa.text("'pending'"),
             nullable=False,
         ),
+        # Phase 3: G06 typed payout method (D2 — enum tag, per-method validators in 3b).
+        # Phase 3b 5b.1.4 (M3=a): String(16) → Enum (lossless; column was unwritten).
+        sa.Column(
+            "payout_method_type",
+            sa.Enum(
+                "bank_card",
+                "yoomoney",
+                "sbp",
+                "bank_transfer",
+                name="payoutmethodtype",
+            ),
+            nullable=True,
+        ),
+        # Phase 3b 5b.1.3: payout-level idempotency guard (mirrors transactions.idempotency_key).
+        sa.Column("idempotency_key", sa.String(128), nullable=True),
         sa.ForeignKeyConstraint(["admin_id"], ["users.id"], name="payout_requests_admin_id_fkey"),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], name="payout_requests_owner_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_payout_requests_owner_id", "payout_requests", ["owner_id"])
     op.create_index("ix_payout_requests_status", "payout_requests", ["status"])
+    # Phase 3b 5b.1.3: unique index doubles as idempotency constraint for payout events.
+    op.create_index(
+        "ix_payout_requests_idempotency_key",
+        "payout_requests",
+        ["idempotency_key"],
+        unique=True,
+    )
 
     # ── Table 16: user_badges ─────────────────────────────────────────────────
     op.create_table(
@@ -1133,6 +1166,14 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("erid", sa.String(100), nullable=True, comment="ad marking token from ORD"),
         sa.Column("escrow_transaction_id", sa.Integer(), nullable=True),
         sa.Column("meta_json", postgresql.JSONB(), nullable=True),
+        # Phase 3: G11 post-publication verification gate.
+        sa.Column(
+            "publication_verified",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column("publication_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["advertiser_id"],
             ["users.id"],
@@ -1461,6 +1502,10 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("yandex_request_id", sa.String(128), nullable=True),
         sa.Column("platform_ord_id", sa.String(128), nullable=True),
         sa.Column("contract_ord_id", sa.String(128), nullable=True),
+        # Phase 3: G12 — ORD reporting deadline = end of month following publication month
+        # (ФЗ-38 ст. 18.1 / ПП-1427).
+        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deadline_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["contract_id"],
             ["contracts.id"],
@@ -1934,6 +1979,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS publicationformat")
     op.execute("DROP TYPE IF EXISTS placementstatus")
     op.execute("DROP TYPE IF EXISTS payoutstatus")
+    op.execute("DROP TYPE IF EXISTS payoutmethodtype")
     op.execute("DROP TYPE IF EXISTS disputestatus")
     op.execute("DROP TYPE IF EXISTS disputeresolution")
     op.execute("DROP TYPE IF EXISTS disputereason")

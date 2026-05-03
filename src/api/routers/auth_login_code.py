@@ -117,7 +117,7 @@ async def login_with_code(
                 first_name="Web User",
                 last_name=None,
             )
-        await session.commit()
+        await session.commit()  # S-48: self-contained pattern
 
     plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
 
