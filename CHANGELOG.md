@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.6 payout-side gate bodies G13/G14 + G17/G18 markers (2026-05-03)
+
+- `LegalComplianceService` G13/G14 real bodies + G17/G18 Phase 5 pending
+  markers, replacing Foundation `NotImplementedError` stubs (pre-payout
+  territory; 4 of 6 stubs in `payout_gates.py` filled — G15/G16 remain
+  Phase 4 stubs):
+  - **G13** publication period elapsed: reads `placement.deleted_at`
+    in-memory (no repo). Pairs with G14's trigger condition — `Act`
+    generation requires `deleted_at IS NOT NULL` per
+    `act_service.generate_for_completed_placement`.
+  - **G14** Act generated: reads via
+    `ActRepository.get_by_placement_request(placement.id)`. Pass iff
+    a row exists (existence-only — G15 covers signing). Catches the
+    silent-failure case where `publication_service.delete_published_post`
+    swallows `Act` generation exceptions by design.
+  - **G17** VAT obligation handled: `PHASE5_PENDING` unconditional marker
+    (mirror G06). Per plan §3.B.1 applies only to `legal_entity` owners
+    (счёт-фактура generation with VAT) — Phase 5 will replace this body
+    end-to-end with real `Invoice` generation + VAT calculation +
+    signed-LE-counterparty check per 5b.1 closure attribution.
+  - **G18** payout reported to ORD: `PHASE5_PENDING` unconditional marker.
+    Per plan §3.B.1 applies if monthly advertising turnover exceeds the
+    ФЗ-38 threshold N — Phase 5/6 will replace with real ORD provider +
+    monthly turnover aggregation + threshold constant + ORD payout-event
+    report endpoint.
+- `src/core/enums/gate_reason.py` — 2 new entries:
+  `PUBLICATION_PERIOD_NOT_ELAPSED`, `ACT_NOT_GENERATED`.
+- `tests/unit/test_payout_gates.py` (NEW) — 14 cases (G13: 4, G14: 4,
+  G17: 3, G18: 3). Inline `_fake_placement(deleted_at=...)` /
+  `_fake_act(sign_status=...)` helpers per 5b.3/5b.4/5b.5 precedent.
+- All 4 gate bodies S-48 Pattern 1 — receive `session: AsyncSession`,
+  no `commit/flush/rollback`. G13 + markers leave session unused;
+  G14 passes session to `ActRepository`.
+- `_TRANSITION_GATES` and `_USER_ROLE_GATES` unchanged — G13-G18
+  intentionally excluded per `legal_compliance_service.py:57-59`
+  comment. Future `PayoutComplianceService` (Phase 5/5b.7) is the
+  planned invoker.
+
 ### Added — Phase 3b 5b.5 publication + post-publication gate bodies (2026-05-02)
 
 - `LegalComplianceService` G08-G12 gate bodies replacing Foundation
