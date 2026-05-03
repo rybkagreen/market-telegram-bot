@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)
+
+- 5b.7d gate marker uniformization: G07/G15/G16 NotImplementedError raisers
+  converted to PHASE4_PENDING markers (mirror G17/G18 PHASE5_PENDING from 5b.6).
+  Forward-looking uniformization — no production callsite exercises G07
+  today; transition-time gate enforcement wiring is Phase 3c territory.
+  Result: zero NotImplementedError raisers in production gate body code.
+- 7 stale docstring/comment alignments across gate framework files
+  (`agreement_gates.py`, `payout_gates.py` module docstrings; `placement_gate.py`,
+  `gate_result.py`, `gate_reason.py`, `legal_compliance_service.py` table comment
+  + `check_gate` docstring).
+- `gate_result.py` docstring corrected: marker pattern uses `blocker=True`
+  (was incorrectly described as `blocker=False` — pre-5b.6 inconsistency).
+- `legal_compliance_service.py:75-78` `_TRANSITION_GATES` preamble corrected:
+  only G07 is in the table (not G07/G15/G16 as comment falsely claimed).
+
+### Added — Phase 3b 5b.7d (2026-05-03)
+
+- `tests/unit/test_agreement_gates.py` (NEW): G07 marker test cases (3 cases —
+  returns_phase4_marker, does_not_call_repos, marker_is_blocker).
+- `tests/unit/test_payout_gates.py`: G15/G16 marker test cases (extended; 6 new
+  cases, 3 per gate). Test count delta: +9 unit pass (633 → 642).
+
 ### Changed — Phase 3b 5b.7c S-48 hygiene sweep across 43 sites (2026-05-03)
 
 - 5b.7c S-48 hygiene sweep: removed 31 redundant explicit `session.commit()` calls across routers (9 sites in 4 files: `legal_acceptance.py:73`, `admin.py:347/392/422/561`, `legal_profile.py:79/92/111`, `ord.py:55`) and bot handlers (22 sites in 9 files: `contract_signing.py`, `legal_profile.py`, `arbitration.py`, `channel_owner.py`, `channel_settings.py`, `placement.py`, `advertiser/campaigns.py`, `dispute.py`, `billing.py`); `get_db_session` and `DBSessionMiddleware` autocommit on handler success making explicit commits redundant double-commits. Mirrors 5b.7a O.4 + 5b.7b CL-1 precedents.
