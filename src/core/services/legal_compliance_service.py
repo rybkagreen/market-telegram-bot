@@ -74,8 +74,9 @@ _USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
 #
 # G13-G18 are payout-side gates and intentionally absent — they belong to
 # PayoutRequest lifecycle, not placement transitions (Phase 5 territory).
-# G07/G15/G16 (Phase 4) ARE included; their bodies raise NotImplementedError
-# until those phases land.
+# G07 (Phase 4) IS included; its body returns a PHASE4_PENDING marker
+# until Phase 4 (МES Acts API) lands. G15/G16 are payout-side and
+# intentionally absent (handed off to PayoutComplianceService).
 _TRANSITION_GATES: dict[
     tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]
 ] = {
@@ -214,8 +215,8 @@ class LegalComplianceService:
     ) -> GateResult:
         """Dispatch to the appropriate gate-checker function.
 
-        The dispatch logic itself is real (Block 2). The checker bodies
-        all raise NotImplementedError until Phase 3b fills them.
+        The dispatch logic itself is real (Block 2). All checker bodies
+        are real or Phase-N pending markers — none raise as of 5b.7d.
         """
         checker = _GATE_CHECKERS.get(gate)
         if checker is None:

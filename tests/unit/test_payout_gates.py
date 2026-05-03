@@ -21,6 +21,8 @@ from src.core.enums.placement_gate import PlacementGate
 from src.core.services.gates.payout_gates import (
     check_g13,
     check_g14,
+    check_g15,
+    check_g16,
     check_g17,
     check_g18,
 )
@@ -248,4 +250,70 @@ async def test_g18_marker_is_blocker(mock_session: MagicMock) -> None:
 
     result = await check_g18(mock_session, placement)
 
+    assert result.blocker is True
+
+
+# ============================================================================
+# G15 — Act signed by both sides (Phase 4 pending marker)
+# ============================================================================
+
+
+async def test_g15_returns_phase4_marker(mock_session: MagicMock) -> None:
+    """5b.7d ships G15 as Phase 4 pending marker (mirror G17/G18 PHASE5)."""
+    placement = _fake_placement()
+
+    result = await check_g15(mock_session, placement)
+
+    assert result.gate == PlacementGate.G15_ACT_SIGNED_BOTH_SIDES
+    assert result.passed is False
+    assert result.blocker is True
+    assert result.reason_code == GateReason.PHASE4_PENDING.value
+    assert result.remediation_url is None
+
+
+async def test_g15_does_not_call_repos(mock_session: MagicMock) -> None:
+    placement = _fake_placement()
+    await check_g15(mock_session, placement)
+    mock_session.execute.assert_not_called()
+    mock_session.commit.assert_not_called()
+    mock_session.flush.assert_not_called()
+    mock_session.rollback.assert_not_called()
+
+
+async def test_g15_marker_is_blocker(mock_session: MagicMock) -> None:
+    placement = _fake_placement()
+    result = await check_g15(mock_session, placement)
+    assert result.blocker is True
+
+
+# ============================================================================
+# G16 — Tax receipt issued (Phase 4 pending marker)
+# ============================================================================
+
+
+async def test_g16_returns_phase4_marker(mock_session: MagicMock) -> None:
+    """5b.7d ships G16 as Phase 4 pending marker (mirror G17/G18 PHASE5)."""
+    placement = _fake_placement()
+
+    result = await check_g16(mock_session, placement)
+
+    assert result.gate == PlacementGate.G16_TAX_RECEIPT_ISSUED
+    assert result.passed is False
+    assert result.blocker is True
+    assert result.reason_code == GateReason.PHASE4_PENDING.value
+    assert result.remediation_url is None
+
+
+async def test_g16_does_not_call_repos(mock_session: MagicMock) -> None:
+    placement = _fake_placement()
+    await check_g16(mock_session, placement)
+    mock_session.execute.assert_not_called()
+    mock_session.commit.assert_not_called()
+    mock_session.flush.assert_not_called()
+    mock_session.rollback.assert_not_called()
+
+
+async def test_g16_marker_is_blocker(mock_session: MagicMock) -> None:
+    placement = _fake_placement()
+    result = await check_g16(mock_session, placement)
     assert result.blocker is True
