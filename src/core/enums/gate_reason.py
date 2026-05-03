@@ -34,3 +34,10 @@ class GateReason(StrEnum):
     OGRNIP_MISSING = "ogrnip_missing"
     OGRNIP_CHECKSUM_INVALID = "ogrnip_checksum_invalid"
     UNKNOWN_LEGAL_STATUS = "unknown_legal_status"
+
+    # 5b.5 additions — publication + post-publication gates
+    ERID_NOT_REGISTERED = "erid_not_registered"
+    ORD_CONTRACT_NOT_REPORTED = "ord_contract_not_reported"
+    PLACEMENT_TEXT_NOT_MARKED = "placement_text_not_marked"
+    PUBLICATION_NOT_VERIFIED = "publication_not_verified"
+    PUBLICATION_NOT_REPORTED_TO_ORD = "publication_not_reported_to_ord"
