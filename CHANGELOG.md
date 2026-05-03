@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.7b PayoutComplianceService skeleton + idempotency keying + P4 cleanups (2026-05-03)
+
+- `PayoutComplianceService` skeleton (`src/core/services/payout_compliance_service.py`) — Phase 5 boundary for payout-side gate dispatch. Option A design (Marina Q1=(а)): three empty registries (`_PAYOUT_GATE_CHECKERS`, `_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`) + four fully-wired dispatcher methods (`gates_for_payout_transition`, `gates_for_payout_create`, `check_gate`, `check_gates_for_payout_transition`). `check_gates_for_payout_create` raises `NotImplementedError` by design (signature impedance per O.I — Phase 5 chooses dispatch path). Service partition (Q6=(а)): owns ONLY payout-specific gates G13-G18; user-role gates G04-G06 remain `LegalComplianceService` territory.
+- `X-Idempotency-Key` header support for `POST /api/payouts/` (Marina Q3=(а), Q4=(а)) — server-side UUID4 fallback when absent. Key shape: `payout_request:owner={user_id}:nonce={header|uuid4_hex}`. Mirrors admin topup precedent at `routers/admin.py:744`.
+- `extract_constraint_name` helper (`src/utils/db_errors.py`) — encapsulates asyncpg-vs-aiosqlite IntegrityError diag divergence; returns None when constraint name not extractable (5b.7b CL-3).
+- `IDEMPOTENCY_KEY_CONSTRAINT_NAME` constant (`src/db/models/payout.py`) — mirrors migration `0001_initial_schema.py:816` literal; production code AND tests import (5b.7b CL-2).
+- 17 new unit tests: 7 PayoutComplianceService skeleton + 6 idempotency + 4 helper = +17 pass over 5b.7a baseline; 0 new failures.
+
+### Changed — Phase 3b 5b.7b (2026-05-03)
+
+- `routers/payouts.py:create_payout` signature gained `x_idempotency_key: Annotated[str | None, Header(alias="X-Idempotency-Key")] = None`.
+- `routers/payouts.py:create_payout` IntegrityError handler distinguishes `idempotency_key` UNIQUE collision (race-past-EXISTS → idempotent re-read) from other IntegrityErrors (re-raise honestly per Marina Q5=(б) strict-distinguish).
+- `routers/payouts.py:create_payout` uses `session.flush()` instead of `session.commit()` (CL-1) — `get_db_session` dependency autocommits on handler success (verified pre-flight at `src/api/dependencies.py:170-183`). Mirrors 5b.7a O.4 bot-handler fix.
+
+### Fixed — Phase 3b 5b.7b (2026-05-03)
+
+- 5b.1.3 deferral closed: `payout_request.idempotency_key` keying convention landed at the only active creation site. Other three creation sites remain dead code per 5b.7 A.5 / Marina Q7=(b) deferral; if revived in Phase 5 they inherit the same convention.
+- Pre-existing redundant explicit `await session.commit()` removed from `routers/payouts.py:create_payout` (CL-1 / O.D). Brings router into Pattern 1 S-48 alignment with bot handler (5b.7a O.4 mirror).
+
 ### Added — Phase 3b 5b.7a channel-add compliance hooks + G06 разморозка (2026-05-03)
 
 - Channel-add compliance hook (API `POST /api/channels/` + bot
