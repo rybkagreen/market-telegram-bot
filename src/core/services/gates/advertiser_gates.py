@@ -3,21 +3,58 @@
 G01: Advertiser legal profile complete
 G02: Advertiser framework contract signed
 G03: Advertiser legal_status compliant (per legal_status type)
-
-All Phase 3b stubs.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.constants import portal_routes
+from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
 from src.core.schemas.gate_result import GateResult
 from src.db.models.placement_request import PlacementRequest
+from src.db.repositories.user_repo import UserRepository
 
 
 async def check_g01(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G01_ADVERTISER_LEGAL_PROFILE_COMPLETE — Phase 3b stub."""
-    raise NotImplementedError(
-        f"Phase 3b: {PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE.name}"
+    """G01_ADVERTISER_LEGAL_PROFILE_COMPLETE.
+
+    Reads User.legal_status_completed flag (cached projection of
+    LegalProfileService.check_completeness). Phase A.5 confirmed the
+    flag is in sync — sole writer is LegalProfileService, called after
+    every LegalProfile mutation.
+
+    Pattern 1 (S-48): receives session, no commit/flush/rollback.
+    """
+    user = await UserRepository(session).get_with_legal_profile(placement.advertiser_id)
+    if user is None:
+        return GateResult(
+            gate=PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+            passed=False,
+            blocker=True,
+            reason_code=GateReason.USER_NOT_FOUND.value,
+            remediation_url=None,
+        )
+    if user.legal_profile is None:
+        return GateResult(
+            gate=PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+            passed=False,
+            blocker=True,
+            reason_code=GateReason.LEGAL_PROFILE_MISSING.value,
+            remediation_url=portal_routes.LEGAL_PROFILE,
+        )
+    if not user.legal_status_completed:
+        return GateResult(
+            gate=PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+            passed=False,
+            blocker=True,
+            reason_code=GateReason.LEGAL_PROFILE_INCOMPLETE.value,
+            remediation_url=portal_routes.LEGAL_PROFILE,
+        )
+    return GateResult(
+        gate=PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+        passed=True,
+        blocker=True,
+        reason_code=GateReason.OK.value,
     )
 
 
