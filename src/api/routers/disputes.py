@@ -296,7 +296,7 @@ async def create_dispute(
 
     session.add(dispute)
     try:
-        await session.commit()
+        await session.flush()  # surfaces IntegrityError; get_db_session autocommits on success
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -353,7 +353,7 @@ async def update_dispute(
     dispute.status = DisputeStatus.owner_explained
 
     try:
-        await session.commit()
+        await session.flush()  # surfaces IntegrityError; get_db_session autocommits on success
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(
@@ -725,8 +725,6 @@ async def resolve_dispute_admin(
             detail=f"Status transition failed: {exc}",
         ) from exc
 
-    # Router owns the outermost transaction (S-48: service.flush() only).
-    await session.commit()
     await session.refresh(dispute)
 
     advertiser_username = dispute.advertiser.username if dispute.advertiser else None

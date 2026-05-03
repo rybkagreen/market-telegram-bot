@@ -224,7 +224,7 @@ async def _login_handler(body: LoginRequest) -> LoginResponse:
             first_name=tg_user.get("first_name"),
             last_name=tg_user.get("last_name"),
         )
-        await session.commit()
+        await session.commit()  # S-48: self-contained pattern
 
     plan_value = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
     logger.info(f"Mini App login: telegram_id={telegram_id}, plan={plan_value}")

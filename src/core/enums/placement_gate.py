@@ -7,8 +7,9 @@ legal_profiles.legal_status DB column; the older LEGAL_TYPE_* naming
 in frozen research artifacts is historical.
 
 Implementation per gate в src/core/services/gates/ (Phase 3b).
-G07/G15/G16 stubs return reason_code="phase4_pending" — those gates
-require КЭП + real "Мой налог" integration shipped in Phase 4.
+G07/G15/G16 return ``reason_code="phase4_pending"`` (markers) — real
+bodies require МES Acts + КЭП + Мой налог real integration shipped in
+Phase 4. G17/G18 mirror this with ``reason_code="phase5_pending"``.
 """
 
 from enum import StrEnum

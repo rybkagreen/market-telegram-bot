@@ -208,7 +208,6 @@ async def camp_counter_accept(callback: CallbackQuery, session: AsyncSession) ->
         reason="user_action",
         trigger="api",
     )
-    await session.commit()
 
     price = req.final_price or req.proposed_price
     builder = InlineKeyboardBuilder()
@@ -319,7 +318,6 @@ async def camp_counter_input(message: Message, state: FSMContext, session: Async
         await message.answer("❌ Заявка уже обработана — встречное предложение отправить нельзя.")
         return
 
-    await session.commit()
     await state.clear()
 
     # Уведомить владельца канала
