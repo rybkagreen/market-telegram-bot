@@ -45,3 +45,6 @@ class GateReason(StrEnum):
     # 5b.6 additions — payout-side gates (G13/G14)
     PUBLICATION_PERIOD_NOT_ELAPSED = "publication_period_not_elapsed"
     ACT_NOT_GENERATED = "act_not_generated"
+
+    # 5b.7a additions — G06 real-now (channel-add precondition)
+    PAYOUT_METHOD_INVALID = "payout_method_invalid"

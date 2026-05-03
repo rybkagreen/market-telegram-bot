@@ -23,8 +23,10 @@ from src.core.services.gates import (
     publication_gates,
 )
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.user import User
 
 GateCheckerFn = Callable[[AsyncSession, PlacementRequest], Awaitable[GateResult]]
+UserGateCheckerFn = Callable[[AsyncSession, User], Awaitable[GateResult]]
 
 
 _GATE_CHECKERS: dict[PlacementGate, GateCheckerFn] = {
@@ -46,6 +48,22 @@ _GATE_CHECKERS: dict[PlacementGate, GateCheckerFn] = {
     PlacementGate.G16_TAX_RECEIPT_ISSUED: payout_gates.check_g16,
     PlacementGate.G17_VAT_OBLIGATION_HANDLED: payout_gates.check_g17,
     PlacementGate.G18_PAYOUT_REPORTED_TO_ORD: payout_gates.check_g18,
+}
+
+
+# 5b.7a: user-side gate-checker registry — parallel to _GATE_CHECKERS but
+# takes (session, user) instead of (session, placement). Used by
+# check_gate_for_user dispatcher for non-transition contexts (channel-add).
+# Only G01-G06 (legal profile / framework contract / payout method) have
+# user-side bodies today; downstream gates (G07+) operate on placement
+# state and have no user-side semantic.
+_USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
+    PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE: advertiser_gates.check_g01_user,
+    PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED: advertiser_gates.check_g02_user,
+    PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT: advertiser_gates.check_g03_user,
+    PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE: owner_gates.check_g04_user,
+    PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED: owner_gates.check_g05_user,
+    PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID: owner_gates.check_g06_user,
 }
 
 
@@ -218,4 +236,51 @@ class LegalComplianceService:
         results: list[GateResult] = []
         for gate in required:
             results.append(await self.check_gate(gate, placement))
+        return results
+
+    async def check_gate_for_user(
+        self,
+        gate: PlacementGate,
+        user: User,
+    ) -> GateResult:
+        """Dispatch to the user-side gate-checker function (5b.7a).
+
+        Parallel to ``check_gate(gate, placement)`` but for non-transition
+        contexts (channel-add, future advertiser-side preconditions) where
+        the precondition is determined by the user alone, not by a placement
+        state transition.
+
+        Each user-role gate-checker function in ``src/core/services/gates/``
+        accepts ``(session, user)`` and shares its body with the placement-
+        side variant via a ``_check_gXX_for_user_id`` helper.
+
+        Raises:
+            NotImplementedError: if `gate` has no entry in
+                ``_USER_GATE_CHECKERS``. Today only G01-G06 are mapped;
+                downstream gates operate on placement state and have no
+                user-side semantic.
+        """
+        checker = _USER_GATE_CHECKERS.get(gate)
+        if checker is None:
+            raise NotImplementedError(
+                f"No user-role gate-checker registered for {gate.name}"
+            )
+        return await checker(self._session, user)
+
+    async def check_gates_for_user_role(
+        self,
+        user: User,
+        role: Literal["owner", "advertiser"],
+    ) -> list[GateResult]:
+        """Evaluate all gates required for the user acting in `role` (5b.7a).
+
+        Resolves required gates via ``gates_for_user_role``, then dispatches
+        each through ``check_gate_for_user``. Returns the list in evaluation
+        order. Used by the channel-add hook (§3.B.6) and future non-
+        transition precondition checks.
+        """
+        required = self.gates_for_user_role(role)
+        results: list[GateResult] = []
+        for gate in required:
+            results.append(await self.check_gate_for_user(gate, user))
         return results

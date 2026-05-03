@@ -7,18 +7,20 @@ to instantiate the service; no DB, no async fixtures, no testcontainer.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.enums.placement_gate import PlacementGate
+from src.core.schemas.gate_result import GateResult
 from src.core.services.legal_compliance_service import (
     _TRANSITION_GATES,
     LegalComplianceService,
 )
 from src.core.services.placement_transition_service import _ALLOW_LIST
 from src.db.models.placement_request import PlacementStatus
+from src.db.models.user import User
 
 
 @pytest.fixture
@@ -168,3 +170,117 @@ def test_gates_for_user_role_unknown_raises(
 ) -> None:
     with pytest.raises(ValueError, match="Unknown role"):
         service.gates_for_user_role(bad_role)  # type: ignore[arg-type]
+
+
+# ============================================================================
+# 5b.7a — check_gate_for_user / check_gates_for_user_role dispatchers
+# ============================================================================
+
+
+def _fake_user(user_id: int = 42) -> User:
+    u = User()
+    u.id = user_id
+    return u
+
+
+def _ok_result(gate: PlacementGate) -> GateResult:
+    return GateResult(gate=gate, passed=True, blocker=True, reason_code="ok")
+
+
+@pytest.mark.asyncio
+async def test_check_gate_for_user_owner_g04_dispatches(
+    service: LegalComplianceService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G04 dispatch routes to the owner_gates.check_g04_user implementation."""
+    user = _fake_user()
+    expected = _ok_result(PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE)
+    mock_checker = AsyncMock(return_value=expected)
+    monkeypatch.setitem(
+        __import__(
+            "src.core.services.legal_compliance_service", fromlist=["_USER_GATE_CHECKERS"]
+        )._USER_GATE_CHECKERS,
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+        mock_checker,
+    )
+
+    result = await service.check_gate_for_user(
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE, user
+    )
+
+    assert result is expected
+    mock_checker.assert_awaited_once_with(service._session, user)
+
+
+@pytest.mark.asyncio
+async def test_check_gate_for_user_unknown_gate_raises(
+    service: LegalComplianceService,
+) -> None:
+    """Gates not in _USER_GATE_CHECKERS raise NotImplementedError.
+
+    G07-G18 operate on placement state and have no user-side semantic.
+    """
+    user = _fake_user()
+    with pytest.raises(NotImplementedError, match="No user-role gate-checker"):
+        await service.check_gate_for_user(
+            PlacementGate.G08_ERID_REGISTERED, user
+        )
+
+
+@pytest.mark.asyncio
+async def test_check_gates_for_user_role_owner_returns_three_results(
+    service: LegalComplianceService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Owner role evaluates G04+G05+G06 — three gate results in order."""
+    user = _fake_user()
+    target_module = __import__(
+        "src.core.services.legal_compliance_service", fromlist=["_USER_GATE_CHECKERS"]
+    )
+    for gate in (
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+    ):
+        monkeypatch.setitem(
+            target_module._USER_GATE_CHECKERS,
+            gate,
+            AsyncMock(return_value=_ok_result(gate)),
+        )
+
+    results = await service.check_gates_for_user_role(user, role="owner")
+
+    assert len(results) == 3
+    assert {r.gate for r in results} == {
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+    }
+
+
+@pytest.mark.asyncio
+async def test_check_gates_for_user_role_advertiser_returns_three_results(
+    service: LegalComplianceService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Advertiser role evaluates G01+G02+G03."""
+    user = _fake_user()
+    target_module = __import__(
+        "src.core.services.legal_compliance_service", fromlist=["_USER_GATE_CHECKERS"]
+    )
+    for gate in (
+        PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+    ):
+        monkeypatch.setitem(
+            target_module._USER_GATE_CHECKERS,
+            gate,
+            AsyncMock(return_value=_ok_result(gate)),
+        )
+
+    results = await service.check_gates_for_user_role(user, role="advertiser")
+
+    assert len(results) == 3
+    assert {r.gate for r in results} == {
+        PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+    }
