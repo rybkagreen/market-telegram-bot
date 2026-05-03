@@ -41,3 +41,7 @@ class GateReason(StrEnum):
     PLACEMENT_TEXT_NOT_MARKED = "placement_text_not_marked"
     PUBLICATION_NOT_VERIFIED = "publication_not_verified"
     PUBLICATION_NOT_REPORTED_TO_ORD = "publication_not_reported_to_ord"
+
+    # 5b.6 additions — payout-side gates (G13/G14)
+    PUBLICATION_PERIOD_NOT_ELAPSED = "publication_period_not_elapsed"
+    ACT_NOT_GENERATED = "act_not_generated"
