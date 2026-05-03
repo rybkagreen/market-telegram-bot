@@ -277,7 +277,6 @@ async def buy_plan(callback: CallbackQuery, session: AsyncSession) -> None:
             description=f"Покупка тарифа {_PLAN_NAMES[plan]}",
         )
     )
-    await session.commit()
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 

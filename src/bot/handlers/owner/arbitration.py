@@ -223,7 +223,6 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
         reason="user_action",
         trigger="api",
     )
-    await session.commit()
 
     advertiser = await session.get(User, req.advertiser_id)
     channel = await session.get(TelegramChat, req.channel_id)
@@ -325,7 +324,6 @@ async def reject_request_comment(
             "❌ Невозможно отклонить — заявка уже обработана.",
         )
         return
-    await session.commit()
 
     # Штраф репутации
     owner = await session.get(User, req.owner_id)
@@ -555,7 +553,6 @@ async def _send_counter_offer(
                 "❌ Невозможно отправить контр-предложение — заявка уже обработана.",
             )
         return
-    await session.commit()
 
     await state.clear()
 
