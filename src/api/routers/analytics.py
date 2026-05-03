@@ -568,7 +568,7 @@ async def get_campaign_ai_insights(
             .values(ai_uses_count=current_user.ai_uses_count + 1)
         )
         try:
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
         except IntegrityError as e:
             await session.rollback()
             raise HTTPException(
