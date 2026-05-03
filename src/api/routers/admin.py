@@ -344,7 +344,6 @@ async def list_legal_profiles(
         user_id=admin_user.id,
         extra={"count": len(profiles)},
     )
-    await session.commit()
 
     return {
         "items": [
@@ -389,7 +388,6 @@ async def verify_legal_profile(
         target_user_id=user_id,
         extra={"action": "verify"},
     )
-    await session.commit()
     logger.info(f"Admin {admin_user.id} verified legal profile for user {user_id}")
     return {"success": True, "verified": True}
 
@@ -419,7 +417,6 @@ async def unverify_legal_profile(
         target_user_id=user_id,
         extra={"action": "unverify"},
     )
-    await session.commit()
     logger.info(f"Admin {admin_user.id} unverified legal profile for user {user_id}")
     return {"success": True, "verified": False}
 
@@ -558,7 +555,6 @@ async def update_platform_settings(
         user_id=admin_user.id,
         extra={"fields_updated": list(values.keys())},
     )
-    await session.commit()
     logger.info(f"Admin {admin_user.id} updated platform settings: {list(values.keys())}")
     return {"success": True}
 
