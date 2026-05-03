@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-01 (BL-064/066/067/068/069/070 closed; BL-071 process finding added)_
+_Last updated: 2026-05-03 (Phase 3b closure batch — BL-072/073/074 added)_
 
 ## Active items
 
@@ -2082,6 +2082,206 @@ documentation note. If real — backfill blocking Phase 3 legal gate.
 piecemeal backfill scripts.
 
 **Refs:** BL-051 sub-task 6, 16.5c, ФЗ-152.
+
+### BL-072 — Phase 3b Tier 1 production launch blockers (8 items)
+
+**Status:** OPEN — production launch blocked until ALL Tier 1 resolved
+**Created:** 2026-05-03
+**Source:** Phase 3b closure audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md` D6 Tier 1
+
+8 hard blockers — production launch CANNOT ship until ALL resolved.
+Each requires Phase 3c / Phase 4 / Phase 5 work; none can be fixed inline
+within current sub-block charter.
+
+#### T1.1 — Phase 3c: PlacementTransitionService gate enforcement wiring
+
+- **Source:** L39 (5b.7d closure)
+- **Issue:** Gate framework fully ready (registries populated 5b.2 / 5b.3-5b.7d;
+  dispatchers operational 5b.7a/5b.7b; markers uniform 5b.6/5b.7d), but
+  `PlacementTransitionService.transition()` does NOT invoke
+  `LegalComplianceService.check_gates_for_transition`. Production placements
+  can transition without legal-compliance check.
+- **Compliance impact:** ФЗ-152 / ФЗ-38 enforcement bypass
+- **Sub-block scope:** dedicated Phase 3c sub-block; do NOT inline into
+  unrelated placement-transition refactors (per audit O.9 — protect
+  integration design from drive-by edits)
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7d-marker-uniformization.md`
+
+#### T1.2 — Pre-existing test infrastructure debt (81 fails / 17 errors)
+
+- **Source:** Pre-closure audit O.6 + 5b.7c O.8 (DEFERRED-AS-ACCEPTED)
+- **Issue:** 81 unit test failures + 17 collection errors accumulated
+  PRE-Phase-3b: model schema drift (`bmediakit_comparison`, `escrow_payouts`),
+  sqlite shadow-table issues, FSM state rename, `auth_utils.create_access_token`
+  refactor, Telegram token env-dependency, etc.
+- **Note (per audit O.2):** PREDATES Phase 3b. Separate workstream from
+  Phase 3c/4/5 deliverables. NOT a Phase 3b artifact.
+- **Compliance impact:** Cannot ship product with 81 unit fails (quality gate)
+- **Source closures:** all 10 5b.X (relative-baseline-stability gate operational)
+
+#### T1.3 — Phase 5: PayoutCompliance wiring at routers/payouts.py
+
+- **Source:** Pre-closure audit O.7 / 5b.7b D4.11
+- **Issue:** Today payout creation bypasses compliance entirely. No G06
+  validation, no G13-G18 enforcement at create_payout. PayoutComplianceService
+  skeleton exists (5b.7b) but registries empty + no callsite invokes it.
+- **Note (per audit O.3):** until Phase 5 ships, `PayoutComplianceService`
+  is "claimed but not enforced" — callers must use
+  `LegalComplianceService.check_gate()` for any G13-G18 lookups. Do not
+  treat half-baked PayoutCompliance service as enforced.
+- **Compliance impact:** real payouts proceed without compliance check
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7b-payout-compliance-skeleton-idempotency.md`
+
+#### T1.4 — G17 real body (счёт-фактура generation для legal_entity owners)
+
+- **Source:** D4.04
+- **Issue:** PHASE5_PENDING marker shipped 5b.6; real body Phase 5
+- **Compliance impact:** НК РФ / Russian VAT compliance
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b6-payout-gates.md`
+
+#### T1.5 — G18 real body (real ORD provider; monthly turnover aggregation)
+
+- **Source:** D4.05
+- **Issue:** PHASE5_PENDING marker shipped 5b.6; real body Phase 5/6
+- **Compliance impact:** ФЗ-38 advertising compliance
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b6-payout-gates.md`
+
+#### T1.6 — G07 real body (supplementary agreement КЭП verification, МES Acts API)
+
+- **Source:** D4.01
+- **Issue:** PHASE4_PENDING marker shipped 5b.7d; real body Phase 4
+- **Compliance impact:** ГК РФ ст.432 / КЭП legal validity
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7d-marker-uniformization.md`
+
+#### T1.7 — G15 real body (Act both-side КЭП verification)
+
+- **Source:** D4.02
+- **Issue:** PHASE4_PENDING marker shipped 5b.7d; real body Phase 4
+- **Compliance impact:** КЭП crypto integration; Act signing legal validity
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7d-marker-uniformization.md`
+
+#### T1.8 — G16 real body (Мой налог real receipt issuance)
+
+- **Source:** D4.03
+- **Issue:** PHASE4_PENDING marker shipped 5b.7d; real body Phase 4
+- **Compliance impact:** ФЗ-Налог for self-employed
+- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7d-marker-uniformization.md`
+
+**Refs:** Phase 3b closure batch (BL-073, BL-074); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
+
+### BL-073 — Phase 3b Tier 2 production launch quality (7 items)
+
+**Status:** OPEN — quality issues; не strict launch blockers, но required для ship
+**Created:** 2026-05-03
+**Source:** Phase 3b closure audit D6 Tier 2
+
+#### T2.1 — DBSessionMiddleware explicit rollback path
+
+- **Source:** D4.25 / 5b.7c O.3 (DEFERRED)
+- **Issue:** `src/bot/middlewares/db_session.py:21-25` lacks `try/except`
+  around handler invocation. On exception, `await session.commit()` doesn't
+  run, but `async with async_session_factory()` exits via `__aexit__` →
+  `session.close()` → SQLAlchemy 2.x async session implicit rollback. Works
+  but asymmetric к `get_db_session` (which has explicit `try/except`).
+- **Source closure:** `CHANGES_2026-05-03_phase3b-5b7c-s48-hygiene.md`
+
+#### T2.2 — Pragmatic session.rollback() в bot handlers (S-48 contract tension)
+
+- **Source:** D4.26 / 5b.7c O.5 (DEFERRED)
+- **Issue per audit O.5 escalation:** Pattern 1 strict reading bans
+  `session.rollback()` в handlers, но operational reality (next
+  `session.execute()` raises `InFailedSQLTransactionError` after exception
+  в nested op) makes it necessary. Confirmed sites: `arbitration.py:321,
+  545`. Closure cites "multiple handlers".
+- **Action required:** ESCALATED from "deferred to launch" → "S-48 contract
+  decision needed before next bot-handler refactor session". Not a strict
+  launch blocker per se, but a decision blocker для future bot handler work.
+- **Source closure:** `CHANGES_2026-05-03_phase3b-5b7c-s48-hygiene.md`
+
+#### T2.3 / T2.4 — payout_service.create_payout dead code + S-48 violation
+
+- **Sources:** D4.14 + D4.15 / 5b.7a O.2/Q7 + 5b.7b O.H + 5b.7c
+- **Issue:** Dead code (zero callers per 5b.7 A.5) + 3 S-48 violations
+  (`async with session.begin()` at L513, L775, L840) поisoning sessions.
+  NDFL/NPD/velocity/cooldown logic dead today — production path duplicates
+  simpler version without those guards (ФЗ-Налог compliance gap для
+  individual owners).
+- **Action required per audit O.4:** "three sub-blocks have surfaced this;
+  next time the file is touched, full cleanup is mandatory per L33 — not
+  optional"
+- **Source closures:** all three (5b.7a, 5b.7b, 5b.7c) — see L33 (5b.7b)
+
+#### T2.5 — Frontend addPayout X-Idempotency-Key opt-in
+
+- **Source:** D4.20 / 5b.7b O.G
+- **Issue:** Client retry safety = 0 без header; UUID fallback safe-by-default
+  but not full retry idempotency. `web_portal/src/api/payouts.ts:11` does
+  NOT send header today.
+- **Source closure:** `CHANGES_2026-05-03_phase3b-5b7b-payout-compliance-skeleton-idempotency.md`
+
+#### T2.6 — YooKassa Payouts API key mapping (≤64 chars)
+
+- **Source:** D4.23 / 5b.7b O.A
+- **Issue:** Our key shape `payout_request:owner={user_id}:nonce={value}`
+  ~70 chars > 64-char YooKassa Idempotence-Key limit. Phase 5 needs mapping
+  table (hashing or shortening).
+- **Source closure:** `CHANGES_2026-05-03_phase3b-5b7b-payout-compliance-skeleton-idempotency.md`
+
+#### T2.7 — G06 provider-validated state
+
+- **Source:** D4.06
+- **Issue:** Current `owner_gates.py:check_g06` body checks DB-only
+  (5b.7a real-now разморозка); Phase 5 swaps with provider validation
+  (YooKassa Payouts recipient-check, SBP, BIK, OAuth).
+- **Source closures:** 5b.7a + 5b.7b
+
+**Refs:** Phase 3b closure batch (BL-072, BL-074); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
+
+### BL-074 — Phase 3b Tier 3 deferred work (22 items)
+
+**Status:** OPEN — deferred work; не pre-launch strict; eventual hardening
+**Created:** 2026-05-03
+**Source:** Phase 3b closure audit D6 Tier 3
+
+#### Frontend
+
+- **T3.1** — mini_app declined-channel UX deeplink (5b.7a)
+- **T3.2** — web_portal channel-add error UI render `extra.blockers[]` (5b.7a)
+- **T3.3** — `/payout-methods` portal route for G06 fail remediation_url (5b.7a)
+- **T3.7** — Frontend `addChannel` mutation idempotency convention (5b.7a O.6)
+
+#### Operational
+
+- **T3.4** — Channel-add audit log retention policy (5b.7a)
+- **T3.5** — `placement.py:305` retry-safety informational (5b.7c O.2)
+- **T3.6** — Bot path `is_test` admin carve-out (5b.7a O.7)
+- **T3.10** — G14 Acts pipeline alarming (proactive alarm; gate-time detection only today; 5b.6)
+
+#### Phase 5 PayoutCompliance details (deferred с T1.3 wiring)
+
+- **T3.12** — `_PAYOUT_GATE_CHECKERS` body fills (5b.7b)
+- **T3.13** — `_PAYOUT_TRANSITION_GATES` table population (5b.7b)
+- **T3.14** — `_PAYOUT_CREATE_GATES` table population (5b.7b)
+- **T3.15** — `check_gates_for_payout_create` dispatch design (5b.7b O.I)
+- **T3.16** — `PayoutRequest.placement_id` FK schema decision (5b.7b)
+
+#### Documentation hygiene
+
+- **T3.8** — Broader stale module-docstring sweep (5b.7d O.5; closure batch territory deferred)
+- **T3.11** — Plan §3.B.1 terminology drift (resolved inline в closure batch via Q9; remaining sweep deferred)
+- **T3.21** — `LegalProfileService.check_completeness` side-effects split (pure compute + write; 5b.3 L19)
+- **T3.22** — Plan §3.B.6 admin test-mode carve-out language (resolved inline в closure batch via Q9; future plan revisions monitor)
+
+#### Code hygiene (deferred)
+
+- **T3.9** — 4 pre-existing ruff `src/` errors (`document_validation.py:107/263`,
+  `channel_owner.py:82`, `placement_tasks.py:380`) — pre-existing, не Phase 3b debt
+- **T3.17** — L20 dead code: skeleton `YandexOrdProvider` removal (`src/core/services/ord_yandex_provider.py`; real impl `yandex_ord_provider.py` per 5b.5 L20)
+- **T3.18** — `_global_provider` module-state в `ord_service.py:48` (5b.5)
+- **T3.19** — `OrdRegistration.status` String(20) → Enum migration (5b.5)
+- **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (5b.3 L18)
+
+**Refs:** Phase 3b closure batch (BL-072, BL-073); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
 
 ## Closed items
 
