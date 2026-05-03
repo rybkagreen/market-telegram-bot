@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants import portal_routes
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
-from src.core.services.gates.advertiser_gates import check_g01
+from src.core.services.gates.advertiser_gates import check_g01, check_g02
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.placement_request import PlacementRequest
 from src.db.models.user import User
@@ -160,3 +160,63 @@ async def test_g01_remediation_url_points_to_legal_profile(
     result = await check_g01(mock_session, placement)
 
     assert result.remediation_url == "/legal-profile"
+
+
+# ============================================================================
+# G02 — Framework contract signed
+# ============================================================================
+
+
+async def test_g02_unsigned_returns_blocker(
+    mock_session: MagicMock, placement: PlacementRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_repo = MagicMock()
+    mock_repo.has_signed_framework = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        "src.core.services.gates.advertiser_gates.ContractRepo",
+        lambda session: mock_repo,
+    )
+
+    result = await check_g02(mock_session, placement)
+
+    assert result.gate == PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED
+    assert result.passed is False
+    assert result.blocker is True
+    assert result.reason_code == GateReason.FRAMEWORK_CONTRACT_UNSIGNED.value
+    assert result.remediation_url == portal_routes.CONTRACTS
+
+
+async def test_g02_signed_returns_pass(
+    mock_session: MagicMock, placement: PlacementRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_repo = MagicMock()
+    mock_repo.has_signed_framework = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "src.core.services.gates.advertiser_gates.ContractRepo",
+        lambda session: mock_repo,
+    )
+
+    result = await check_g02(mock_session, placement)
+
+    assert result.passed is True
+    assert result.blocker is True
+    assert result.reason_code == GateReason.OK.value
+    assert result.remediation_url is None
+
+
+async def test_g02_calls_repo_with_advertiser_role(
+    mock_session: MagicMock, placement: PlacementRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify role='advertiser' passed (not 'owner' or default)."""
+    mock_repo = MagicMock()
+    mock_repo.has_signed_framework = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "src.core.services.gates.advertiser_gates.ContractRepo",
+        lambda session: mock_repo,
+    )
+
+    await check_g02(mock_session, placement)
+
+    mock_repo.has_signed_framework.assert_awaited_once_with(
+        user_id=42, role="advertiser"
+    )
