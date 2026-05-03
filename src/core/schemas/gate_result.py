@@ -23,10 +23,10 @@ Population conventions
   raises ``TransitionBlockedError``; channel-add hook raises
   ``ChannelAddDeclinedError``.
 
-* ``blocker=False`` and ``passed=False`` ⇒ informational only; common
-  Phase 3a stubs use ``reason_code="phase4_pending"`` for G07/G15/G16
-  to advertise that the gate is recognised but its evaluator ships
-  later.
+* Phase-N pending markers (``blocker=True``, ``passed=False``,
+  ``reason_code="phaseN_pending"``) advertise that the gate is
+  recognised but its evaluator ships in a later phase: G07/G15/G16 →
+  ``phase4_pending``; G17/G18 → ``phase5_pending``.
 
 * ``remediation_url`` should resolve to a Mini App / Web Portal screen
   capable of resolving the failure (e.g. legal-profile editor for

@@ -13,8 +13,8 @@ from enum import StrEnum
 class GateReason(StrEnum):
     OK = "ok"
 
-    # Phase 3a stub markers (existing G07/G15/G16 use string literals;
-    # this enum entry exists so future stub-markup migration is uniform)
+    # Phase-N pending markers — gates whose real body ships in a later phase.
+    # G07/G15/G16 use PHASE4_PENDING; G17/G18 use PHASE5_PENDING.
     PHASE4_PENDING = "phase4_pending"
     PHASE5_PENDING = "phase5_pending"
 

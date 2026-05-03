@@ -8,9 +8,10 @@ G17: VAT obligation handled
 G18: Payout reported to ОРД
 
 5b.6 fills G13/G14 real bodies and G17/G18 Phase 5 pending markers.
-G15/G16 remain Phase 4 stubs. None are wired into ``_TRANSITION_GATES``
-— payout-side gates hand off to a future PayoutComplianceService
-(Phase 5/5b.7) per the comment in ``legal_compliance_service.py``.
+5b.7d fills G15/G16 as Phase 4 pending markers (mirror G17/G18). None
+are wired into ``_TRANSITION_GATES`` — payout-side gates hand off to a
+future PayoutComplianceService (Phase 5/5b.7) per the comment in
+``legal_compliance_service.py``.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,13 +92,41 @@ async def check_g14(session: AsyncSession, placement: PlacementRequest) -> GateR
 
 
 async def check_g15(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G15_ACT_SIGNED_BOTH_SIDES — Phase 4 stub."""
-    raise NotImplementedError(f"Phase 4: {PlacementGate.G15_ACT_SIGNED_BOTH_SIDES.name}")
+    """G15_ACT_SIGNED_BOTH_SIDES — Phase 4 pending marker.
+
+    Per plan §3.B.1, follows G14 (Act generated) in the pre-payout chain.
+    Real body — verify Act has both advertiser-side and owner-side
+    signatures via КЭП — is Phase 4 territory (МES Acts API + КЭП
+    crypto integration).
+
+    Pattern 1 (S-48): receives session (unused), no commit/flush/rollback.
+    """
+    return GateResult(
+        gate=PlacementGate.G15_ACT_SIGNED_BOTH_SIDES,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.PHASE4_PENDING.value,
+        remediation_url=None,
+    )
 
 
 async def check_g16(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G16_TAX_RECEIPT_ISSUED — Phase 4 stub."""
-    raise NotImplementedError(f"Phase 4: {PlacementGate.G16_TAX_RECEIPT_ISSUED.name}")
+    """G16_TAX_RECEIPT_ISSUED — Phase 4 pending marker.
+
+    Per plan §3.B.1, applies to self-employed owners (receipt issuance
+    via Мой налог). Real body — call Мой налог real provider, verify
+    receipt accepted with persistent receipt-id — is Phase 4 territory
+    (replaces current synthetic receipt-id flow).
+
+    Pattern 1 (S-48): receives session (unused), no commit/flush/rollback.
+    """
+    return GateResult(
+        gate=PlacementGate.G16_TAX_RECEIPT_ISSUED,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.PHASE4_PENDING.value,
+        remediation_url=None,
+    )
 
 
 async def check_g17(session: AsyncSession, placement: PlacementRequest) -> GateResult:
