@@ -101,10 +101,52 @@ async def check_g16(session: AsyncSession, placement: PlacementRequest) -> GateR
 
 
 async def check_g17(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G17_VAT_OBLIGATION_HANDLED — Phase 3b stub."""
-    raise NotImplementedError(f"Phase 3b: {PlacementGate.G17_VAT_OBLIGATION_HANDLED.name}")
+    """G17_VAT_OBLIGATION_HANDLED — Phase 5 pending marker.
+
+    Per plan §3.B.1, applies only to ``legal_entity`` owners
+    (счёт-фактура generation with VAT). Real body — Invoice generation
+    + VAT calculation + signed-LE-counterparty check — is Phase 5
+    territory per 5b.1 closure CHANGES (Payout Provider Implementation
+    phase absorbs G16/G17/G18 bodies).
+
+    Conditional pre-check on ``owner.legal_status`` is deliberately
+    deferred: Phase 5 will replace this body end-to-end with the real
+    conditional + Invoice integration, so the interim marker is
+    unconditional to keep 5b.6 surface minimal.
+
+    Pattern 1 (S-48): receives session (unused), no commit/flush/rollback.
+    """
+    return GateResult(
+        gate=PlacementGate.G17_VAT_OBLIGATION_HANDLED,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.PHASE5_PENDING.value,
+        remediation_url=None,
+    )
 
 
 async def check_g18(session: AsyncSession, placement: PlacementRequest) -> GateResult:
-    """G18_PAYOUT_REPORTED_TO_ORD — Phase 3b stub."""
-    raise NotImplementedError(f"Phase 3b: {PlacementGate.G18_PAYOUT_REPORTED_TO_ORD.name}")
+    """G18_PAYOUT_REPORTED_TO_ORD — Phase 5 pending marker.
+
+    Per plan §3.B.1, applies if monthly advertising turnover exceeds
+    the ФЗ-38 threshold N. Real body requires:
+
+    - Real ORD provider (Phase 6 §6.B.3 hardens StubOrdProvider)
+    - Monthly turnover aggregation across owner placements
+    - Threshold constant N (undefined in code today)
+    - ORD payout-event report endpoint integration
+
+    Per 5b.1 closure CHANGES, Phase 5 (Payout Provider Implementation)
+    absorbs this body. Marker reuses ``PHASE5_PENDING`` (mirror G06 /
+    G17) — keeps gate registry consistent and surfaces phase boundary
+    to API consumers.
+
+    Pattern 1 (S-48): receives session (unused), no commit/flush/rollback.
+    """
+    return GateResult(
+        gate=PlacementGate.G18_PAYOUT_REPORTED_TO_ORD,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.PHASE5_PENDING.value,
+        remediation_url=None,
+    )
