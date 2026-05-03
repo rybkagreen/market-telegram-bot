@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3b 5b.4 owner gate bodies (2026-05-02)
+
+- `LegalComplianceService` G04-G05 owner gate bodies (symmetric mirror
+  of 5b.3 advertiser pattern):
+  - **G04** owner legal profile complete: reads `User.legal_status_completed`
+    via `UserRepository.get_with_legal_profile(placement.owner_id)`.
+    Same flag for both roles (User-level, not role-scoped).
+  - **G05** owner framework contract signed:
+    `ContractRepo.has_signed_framework` with `role="owner"`.
+    `Contract.role` column carries owner-vs-advertiser discriminator;
+    `contract_type="advertiser_framework"` umbrella name (L18 deferral)
+    unchanged.
+- `tests/unit/test_owner_gates.py` (NEW) — 10 cases (G04: 5; G05: 3;
+  G06 Phase 5 marker: 2). Pure mocked using `MagicMock(spec=AsyncSession)`
+  + `monkeypatch` on repo classes. Reuses `_fake_user` / `_fake_legal_profile`
+  helpers from 5b.3.
+
+### Changed — Phase 3b 5b.4 G06 Phase 5 marker (2026-05-02)
+
+- `LegalComplianceService` G06 (`G06_OWNER_PAYOUT_METHOD_VALID`)
+  migrated from Foundation `NotImplementedError` stub to Phase 5
+  pending marker — returns
+  `GateResult(passed=False, blocker=True, reason_code=PHASE5_PENDING,
+  remediation_url=None)`. Phase 5 will fill the body with real
+  per-method validation per Marina M4 (payout method matrix —
+  YooKassa Payouts API for individuals/SE; SBP bank selector;
+  BIK + corresponding-account for IE/LE) + M6 (per-method tax receipts).
+  Interim `blocker=True` semantics let 5b.7 channel-add hook integrate
+  end-to-end now; Phase 5 swaps the body without touching call sites.
+
 ### Added — Phase 3b 5b.3 advertiser gate bodies (2026-05-02)
 
 - `src/core/enums/gate_reason.py` — `GateReason(StrEnum)` with 13 reason
