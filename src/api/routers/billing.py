@@ -607,7 +607,7 @@ async def change_plan(
             )
         )
         try:
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
         except IntegrityError as e:
             await session.rollback()
             raise HTTPException(
@@ -717,7 +717,7 @@ async def yookassa_webhook(
                     # Обновить статус платежа на succeeded
                     record.status = "succeeded"
                     record.processed_at = datetime.now(UTC)
-                    await session.commit()
+                    await session.commit()  # S-48: self-contained pattern
 
                     logger.info(
                         f"Topup processed: payment_id={event.payment_id}, "

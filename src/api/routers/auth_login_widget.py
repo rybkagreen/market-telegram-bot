@@ -95,7 +95,7 @@ async def login_telegram_login_widget(
             first_name=widget_data.get("first_name", ""),
             last_name=widget_data.get("last_name"),
         )
-        await session.commit()
+        await session.commit()  # S-48: self-contained pattern
 
     # Проверяем что пользователь активен (не забанен)
     if not user.is_active:

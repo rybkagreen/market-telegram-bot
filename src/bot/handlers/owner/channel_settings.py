@@ -30,7 +30,6 @@ async def _get_or_create_settings(session: AsyncSession, channel_id: int) -> Cha
     if not settings:
         settings = ChannelSettings(channel_id=channel_id)
         session.add(settings)
-        await session.commit()
     return settings
 
 
@@ -129,7 +128,6 @@ async def edit_price_input(message: Message, state: FSMContext, session: AsyncSe
 
     settings = await _get_or_create_settings(session, channel_id)
     settings.price_per_post = price
-    await session.commit()
     await state.clear()
 
     builder = InlineKeyboardBuilder()
@@ -196,7 +194,6 @@ async def toggle_format(callback: CallbackQuery, session: AsyncSession) -> None:
     attr = attr_map.get(fmt_key)
     if attr:
         setattr(settings, attr, not getattr(settings, attr))
-        await session.commit()
 
     # Re-draw formats screen
     callback.data = f"own:settings:formats:{channel_id}"
@@ -218,7 +215,6 @@ async def toggle_autoaccept(callback: CallbackQuery, session: AsyncSession) -> N
         return
 
     settings.auto_accept_enabled = not settings.auto_accept_enabled
-    await session.commit()
 
     status = "включено" if settings.auto_accept_enabled else "выключено"
     await callback.answer(f"Автоподтверждение {status}")
@@ -310,7 +306,6 @@ async def edit_schedule_input(message: Message, state: FSMContext, session: Asyn
     settings.publish_end_time = end
     settings.break_start_time = brk_start
     settings.break_end_time = brk_end
-    await session.commit()
     await state.clear()
 
     brk_str = f"{m.group(3)}–{m.group(4)}" if brk_start else "нет"
