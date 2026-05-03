@@ -42,16 +42,17 @@ _Last updated: 2026-04-28 (post Phase 2 closure, серия 15.x active, BL-037 
 | Phase 1 | ✅ DONE | 2026-04-25 | merged develop+main | ФЗ-152 hardening — 23 PII endpoints на web_portal-only auth, mini_app legal strip |
 | Phase 2 | ✅ DONE | 2026-04-27 | `9adaef2` merge | `PlacementTransitionService`, `placement_status_history`, forbidden-patterns lint, dead code cleanup |
 | **15.x серия** | ✅ DONE | 2026-04-29 | rolling, closed | Centralized fee model + legal templates aligned + frontend consumes /fee-config + acceptance loop + bot fail-closed + dead act-templates wired + AST lint TS literals + webhook consolidation 14b + WebhookAuthError rename + payment status type honesty. 9 промтов deployed (15.5–15.13 + 15.13.1) |
-| **16.x серия** | ⏸ Pending (open) | — | — | PII Hardening (closes findings из `PII_AUDIT_2026-04-28.md`). Не начата |
-| Phase 3 | ⏸ Pending | — | — | Legal Compliance Gates (18 точек) |
-| Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) |
-| Phase 5 | ⏸ Pending | — | — | Test-mode runtime + admin UI + provider pattern |
+| **16.x серия** | ✅ DONE | 2026-04-30 | rolling, closed | PII Hardening — Группы A/B/C/D + LOW batch + canonical PII keys + webhook trim. Pin /api/payouts/* + /api/admin/* к web_portal, encrypt requisites + ocr_text, bot payout removal, ReferralItem leak fix. BL-044..BL-058 closed |
+| Phase 3a Foundation | ✅ DONE | 2026-05-02 | merged develop (sister `feature/legal-compliance-gates @ 9d072f1` retained as Foundation snapshot) | G01-G03 advertiser gates + helpers + tests (BL-037 sub-stage tracking groundwork) |
+| Phase 3b Legal Compliance Gates | ✅ DONE | 2026-05-03 | merged develop+main `--no-ff` + tag `v0.3.0-phase3b` | 10 sub-blocks 5b.1-5b.7d (34 commits + 4 closure-batch). 18 gates G01-G18, transition→gates resolution, LegalCompliance + PayoutCompliance skeleton, channel-add hook, X-Idempotency-Key keying, S-48 hygiene (43 sites), gate marker uniformization. +119 unit pass, 0 regressions. Phase 3c transition wiring per L39 |
+| Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) — G07/G15/G16 PHASE4_PENDING markers awaiting real bodies |
+| Phase 5 | ⏸ Pending | — | — | Test-mode runtime + admin UI + provider pattern + PayoutCompliance wiring + G17/G18 PHASE5_PENDING markers |
 | Phase 6 | ⏸ Pending | — | — | Contracts/Acts UX + ORD production hardening |
 | Phase 7 | ⏸ Pending | — | — | UI Timeline + sub-stage events + educational overlay (BL-037 visualization) |
 
 **Branch HEADs (на момент обновления):**
-- `main` = `68d570d`
-- `develop` = `6539552`
+- `main` = `fe456c7` (pre-closure-batch merge; will advance with `--no-ff` merge sequence)
+- `develop` = `5926797` (pre-closure-batch merge; will advance with `--no-ff` merge sequence)
 
 ---
 
@@ -504,7 +505,7 @@ completed, refunded, cancelled — terminal
 - G11_PUBLICATION_VERIFIED
 - G12_PUBLICATION_REPORTED_TO_ORD *(до конца месяца, следующего за месяцем публикации; per ФЗ-38 ст. 18.1 + ПП-1427)*
 
-**Pre-payout (completed → payout_processing):**
+**Pre-payout (placement = completed; payout-side gates G13-G18 evaluate against placement, not against PayoutRequest transitions; payout aggregation is owner-side, не per-placement):**
 - G13_PUBLICATION_PERIOD_ELAPSED
 - G14_ACT_GENERATED
 - G15_ACT_SIGNED_BOTH_SIDES
@@ -581,6 +582,8 @@ if blockers:
 ```
 
 UI — на attempt to add channel показывает блок "Чтобы добавить канал, заполните юр. профиль и подпишите договор владельца канала", не позволяет proceed.
+
+**Admin test-mode carve-out:** при создании канала admin'ом с `is_test=True` — G04/G05/G06 пропускаются по аналогии с §3.B.4 admin spirit consistency (см. 5b.7a closure). Bot-side channel-add (handlers) НЕ имеет admin carve-out — admin использует API для test channels.
 
 ### 3.B.7 legal_profile доп. поля (ТОЛЬКО если Agent A покажет отсутствие)
 - `fns_verification_status: Enum["unchecked", "active", "inactive"]`
