@@ -1022,12 +1022,17 @@ def auto_approve_placements() -> dict:
 
         from sqlalchemy import select
 
+        from src.core.exceptions import TransitionBlockedError
         from src.core.services.placement_transition_service import PlacementTransitionService
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
+
+        marker_codes = {"phase4_pending", "phase5_pending"}
 
         deadline = datetime.now(UTC) - timedelta(hours=24)
         approved_count = 0
         failed_count = 0
+        skipped_marker_count = 0
+        skipped_real_fail_count = 0
 
         async with async_session_factory() as session:
             stmt = (
@@ -1055,16 +1060,52 @@ def auto_approve_placements() -> dict:
                     logger.info(
                         f"Auto-approved placement {placement.id} for channel {placement.channel_id}"
                     )
+                except TransitionBlockedError as exc:
+                    blockers = exc.extra.get("blockers", [])
+                    all_markers = bool(blockers) and all(
+                        b.get("reason_code") in marker_codes for b in blockers
+                    )
+                    gate_names = [b.get("gate") for b in blockers]
+                    if all_markers:
+                        logger.debug(
+                            "auto_approve_24h: placement %s skipped (all-marker blockers: %s)",
+                            placement.id,
+                            gate_names,
+                        )
+                        skipped_marker_count += 1
+                    else:
+                        real_fail_gates = [
+                            b.get("gate")
+                            for b in blockers
+                            if b.get("reason_code") not in marker_codes
+                        ]
+                        logger.warning(
+                            "auto_approve_24h: placement %s skipped due to real-fail blockers: %s",
+                            placement.id,
+                            real_fail_gates,
+                        )
+                        skipped_real_fail_count += 1
                 except Exception as e:
                     logger.error(f"Auto-approve failed for placement {placement.id}: {e}")
                     failed_count += 1
 
             await session.commit()
 
+        logger.info(
+            "auto_approve_24h summary: approved=%d failed=%d "
+            "skipped_marker=%d skipped_real_fail=%d",
+            approved_count,
+            failed_count,
+            skipped_marker_count,
+            skipped_real_fail_count,
+        )
+
         return {
             "status": "ok",
             "approved": approved_count,
             "failed": failed_count,
+            "skipped_marker": skipped_marker_count,
+            "skipped_real_fail": skipped_real_fail_count,
         }
 
     try:
