@@ -1,11 +1,15 @@
 """PlacementTransitionService — single point of mutation for placement.status.
 
 Phase 2 § 2.B.1 commit 3/4. Implements § 2.B.0 Decisions 2, 4, 5, 11, 12.
+Phase 3c (2026-05-04) wires LegalComplianceService gate enforcement into
+transition() — see bypass_gates parameter and TransitionBlockedError raise.
 
 Two public methods:
-- transition() — strict allow-list mode for organic transitions.
+- transition() — strict allow-list mode for organic transitions; gate-checked.
 - transition_admin_override() — for admin-driven transitions outside
-  the allow-list, requires explicit AdminOverrideReason.
+  the allow-list, requires explicit AdminOverrideReason. Gates are NOT
+  consulted on this path — admin override is the universal carve-out
+  by design (Phase 3c O.7).
 
 Both methods append a row to placement_status_history (no UNIQUE
 constraint per Decision 10 — ping-pong is legal). Both use
@@ -14,21 +18,22 @@ per Decision 4 conflict matrix.
 
 S-48 contract: methods do NOT open or commit transactions. The caller
 owns the session lifecycle.
-
-11 callers will be migrated to this service in § 2.B.2 (separate work).
 """
 
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import TransitionBlockedError
 from src.core.schemas.transition_metadata import (
     AdminOverrideReason,
     TransitionMetadata,
     Trigger,
 )
+from src.core.services.legal_compliance_service import LegalComplianceService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.placement_status_history import PlacementStatusHistory
+from src.db.repositories.audit_log_repo import AuditLogRepo
 
 
 class InvalidTransitionError(ValueError):
@@ -94,12 +99,30 @@ class PlacementTransitionService:
         reason: str,
         trigger: Trigger,
         metadata: TransitionMetadata | None = None,
+        *,
+        bypass_gates: bool = False,
     ) -> PlacementStatusHistory:
-        """Organic transition — strict allow-list.
+        """Organic transition — strict allow-list + legal compliance gates.
+
+        After the allow-list check the service consults
+        ``LegalComplianceService.check_gates_for_transition`` (Phase 3c).
+        Any failed gate (``passed=False``) raises ``TransitionBlockedError``
+        with a collect-all blockers list in ``extra``. PHASE_N_PENDING
+        markers (G07/G15/G16/G17/G18) actively block the transition until
+        the corresponding phase ships the real evaluator — caller-side
+        rendering distinguishes marker vs. real-fail by ``reason_code``.
+
+        Args:
+            bypass_gates: skip gate enforcement entirely. Reserved for
+                admin/test contexts; production callers leave the default
+                ``False``. Caller is responsible for ensuring the bypass
+                is appropriate.
 
         Raises:
             InvalidTransitionError: if (from_status, to_status) is not
                 in the allow-list.
+            TransitionBlockedError: if any required gate returns
+                ``passed=False`` and ``bypass_gates`` is False.
             TransitionInvariantError: if the resulting state would
                 violate an invariant (INV-1 etc.).
         """
@@ -109,6 +132,43 @@ class PlacementTransitionService:
                 f"Transition {from_status} -> {to_status} not in allow-list. "
                 f"Use transition_admin_override() for admin-driven exceptions."
             )
+
+        if not bypass_gates:
+            compliance = LegalComplianceService(self._session)
+            gate_results = await compliance.check_gates_for_transition(
+                placement=placement,
+                to_status=to_status,
+            )
+            blockers = [r for r in gate_results if not r.passed]
+            if blockers:
+                await AuditLogRepo(self._session).log(
+                    action="transition_blocked",
+                    resource_type="placement",
+                    resource_id=placement.id,
+                    user_id=actor_user_id,
+                    extra={
+                        "from": from_status.value,
+                        "to": to_status.value,
+                        "blockers": [r.gate.value for r in blockers],
+                    },
+                )
+                raise TransitionBlockedError(
+                    f"Transition {from_status.value} -> {to_status.value} "
+                    f"blocked by {len(blockers)} gate(s)",
+                    extra={
+                        "from": from_status.value,
+                        "to": to_status.value,
+                        "blockers": [
+                            {
+                                "gate": r.gate.value,
+                                "reason_code": r.reason_code,
+                                "remediation_url": r.remediation_url,
+                                "remediation_data": r.remediation_data,
+                            }
+                            for r in blockers
+                        ],
+                    },
+                )
 
         return await self._apply(placement, to_status, actor_user_id, reason, trigger, metadata)
 
@@ -121,10 +181,12 @@ class PlacementTransitionService:
         admin_override_reason: AdminOverrideReason,
         metadata: TransitionMetadata | None = None,
     ) -> PlacementStatusHistory:
-        """Admin-driven transition — bypasses allow-list, requires reason.
+        """Admin-driven transition — bypasses allow-list AND gates.
 
-        Allow-list is NOT consulted. Invariants ARE still enforced
-        (admin cannot bypass INV-1 etc. via this path).
+        Allow-list is NOT consulted. Compliance gates are NOT consulted —
+        admin override is the universal carve-out by design (Phase 3c
+        O.7). Invariants ARE still enforced (admin cannot bypass INV-1
+        etc. via this path).
         """
         if metadata is None:
             metadata = TransitionMetadata(
