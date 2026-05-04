@@ -198,16 +198,27 @@ async def camp_counter_accept(callback: CallbackQuery, session: AsyncSession) ->
         req.final_schedule = req.counter_schedule
 
     # expires_at +24h on pending_payment handled by _sync_status_timestamps.
+    from src.bot.utils.gate_block_render import render_advertiser_message
+    from src.core.exceptions import TransitionBlockedError
     from src.core.services.placement_transition_service import PlacementTransitionService
 
     transition_service = PlacementTransitionService(session)
-    await transition_service.transition(
-        placement=req,
-        to_status=PlacementStatus.pending_payment,
-        actor_user_id=req.advertiser_id,
-        reason="user_action",
-        trigger="api",
-    )
+    try:
+        await transition_service.transition(
+            placement=req,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=req.advertiser_id,
+            reason="user_action",
+            trigger="api",
+        )
+    except TransitionBlockedError as exc:
+        blockers = exc.extra.get("blockers", [])
+        if not isinstance(callback.message, Message):
+            await callback.answer()
+            return
+        await callback.message.answer(render_advertiser_message(blockers))
+        await callback.answer()
+        return
 
     price = req.final_price or req.proposed_price
     builder = InlineKeyboardBuilder()
