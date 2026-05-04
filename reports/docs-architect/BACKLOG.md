@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-03 (Phase 3b closure batch — BL-072/073/074 added)_
+_Last updated: 2026-05-04 (Phase 3c.1 — BL-072 T1.1 closed paper-only; BL-075 new)_
 
 ## Active items
 
@@ -2095,17 +2095,21 @@ within current sub-block charter.
 
 #### T1.1 — Phase 3c: PlacementTransitionService gate enforcement wiring
 
+- **Status:** ✅ CLOSED (paper-only) — 2026-05-04
+- **Resolution:** Phase 3c.1 commits `075637a` / `e71a676` /
+  (3c.1.3 docs commit) on `feature/phase3c-transition-wiring`; merged
+  to `develop` --no-ff.
+- **Closure note:** Wiring is in place; AuditLog entry on decline; admin
+  override remains universal carve-out; `bypass_gates: bool = False`
+  flag for test/admin contexts. **HOWEVER** G07 PHASE4_PENDING marker
+  fires on every `pending_owner | counter_offer → pending_payment`
+  transition (Marina Q6=(a) accept-blocker decision); this constraint
+  is removed only when Phase 4 (T1.6) ships G07 real body. Phase 3c
+  closure is therefore "paper-only" — gate framework wiring is
+  load-bearing, but production placement flow is **halted** at the
+  payment step until Phase 4.
 - **Source:** L39 (5b.7d closure)
-- **Issue:** Gate framework fully ready (registries populated 5b.2 / 5b.3-5b.7d;
-  dispatchers operational 5b.7a/5b.7b; markers uniform 5b.6/5b.7d), but
-  `PlacementTransitionService.transition()` does NOT invoke
-  `LegalComplianceService.check_gates_for_transition`. Production placements
-  can transition without legal-compliance check.
-- **Compliance impact:** ФЗ-152 / ФЗ-38 enforcement bypass
-- **Sub-block scope:** dedicated Phase 3c sub-block; do NOT inline into
-  unrelated placement-transition refactors (per audit O.9 — protect
-  integration design from drive-by edits)
-- **Source closures:** `CHANGES_2026-05-03_phase3b-5b7d-marker-uniformization.md`
+- **Closure docs:** `CHANGES_2026-05-04_phase3c-1-transition-wiring.md`
 
 #### T1.2 — Pre-existing test infrastructure debt (81 fails / 17 errors)
 
@@ -2282,6 +2286,46 @@ within current sub-block charter.
 - **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (5b.3 L18)
 
 **Refs:** Phase 3b closure batch (BL-072, BL-073); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
+
+### BL-075 — `_TRANSITION_GATES` does not enforce G01-G06 at any placement transition
+
+**Status:** OPEN — Tier 2 (quality / architectural completeness gap)
+**Created:** 2026-05-04
+**Source:** Phase 3c Phase A+B investigation O.2
+
+**Statement:** `_TRANSITION_GATES` (populated 5b.2) currently maps `(from, to)`
+pairs only to G07-G12. G01-G06 (advertiser/owner legal profile, framework
+contract, payout method) are enforced ONLY at channel-add (5b.7a
+`_USER_GATE_CHECKERS`), NOT at any placement transition. Implication: an
+advertiser without a legal profile or framework contract can create a
+placement and transition it through escrow / published; only G07
+PHASE4_PENDING marker blocks `pending_payment`, but advertiser-side
+compliance is **not** verified at transition-time. Owner side is
+verified at channel-add — but if owner status drifts later (e.g.,
+contract revoked, payout method invalidated) the placement transitions
+proceed without re-validation.
+
+**Closure trigger:** dedicated future sub-block expanding
+`_TRANSITION_GATES` for G01-G06 inclusion at appropriate transitions.
+Suggested initial mapping (Marina decision required):
+
+- `pending_owner → pending_payment`: add `{G01, G02, G03, G07}` for
+  advertiser side (so missing legal profile blocks payment, not only
+  G07 marker).
+- `created → pending_owner` (if added to allow-list): may require
+  `{G04, G05, G06}` for owner side.
+
+**Compliance impact:** ФЗ-152 / ГК РФ ст.432 — advertiser without legal
+profile or framework contract should not be able to fund placements;
+current Phase 3c wiring catches this only at channel-add for owners.
+
+**References:**
+- `tmp/PHASE3C_INVESTIGATION_2026-05-04.md` O.2
+- `CHANGES_2026-05-04_phase3c-1-transition-wiring.md` (Phase 3c closure)
+- 5b.2 closure (table populated):
+  `CHANGES_2026-05-02_phase3b-5b2-gate-resolution.md`
+
+**Refs:** Phase 3c closure (BL-072 T1.1).
 
 ## Closed items
 
