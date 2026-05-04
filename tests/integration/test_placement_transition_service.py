@@ -1,13 +1,13 @@
 """Unit-level tests for PlacementTransitionService.
 
 Phase 2 § 2.B.1 commit 4/4.
+Phase 3c (2026-05-04) appends ``TestGateEnforcement`` covering
+LegalComplianceService gate dispatch wired into ``transition()``.
 
 Tests live in tests/integration/ for testcontainer DB access. The service
 appends rows to placement_status_history and reads PlacementRequest from
 a real session — sqlite/mock backings would not exercise the JSONB
 column or the FK CASCADE behavior.
-
-Service-level isolation: no callers integrated yet (§ 2.B.2 work).
 """
 
 from __future__ import annotations
@@ -20,12 +20,15 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import TransitionBlockedError
 from src.core.schemas.transition_metadata import TransitionMetadata
 from src.core.services.placement_transition_service import (
     InvalidTransitionError,
     PlacementTransitionService,
     TransitionInvariantError,
 )
+from src.db.models.audit_log import AuditLog
+from src.db.models.ord_registration import OrdRegistration
 from src.db.models.placement_request import (
     PlacementRequest,
     PlacementStatus,
@@ -315,3 +318,239 @@ class TestMetadataValidation:
                 trigger="api",
                 telegram_id=12345,  # type: ignore[call-arg]  # forbidden — extra field
             )
+
+
+# ============================================================================
+# Phase 3c — Gate enforcement tests (TestGateEnforcement)
+#
+# Wires LegalComplianceService.check_gates_for_transition into transition()
+# body. G07 PHASE4_PENDING marker actively blocks pending_owner|counter_offer
+# → pending_payment until Phase 4 ships G07 real body.
+# ============================================================================
+
+
+class TestGateEnforcement:
+    async def test_g07_marker_blocks_pending_payment_transition(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """pending_owner → pending_payment fires G07 PHASE4_PENDING marker."""
+        placement = await _seed_placement(db_session, telegram_id_offset=300)
+
+        with pytest.raises(TransitionBlockedError) as exc_info:
+            await service.transition(
+                placement=placement,
+                to_status=PlacementStatus.pending_payment,
+                actor_user_id=placement.owner_id,
+                reason="user_action",
+                trigger="api",
+            )
+
+        blockers = exc_info.value.extra["blockers"]
+        assert len(blockers) == 1
+        assert blockers[0]["gate"] == "G07_SUPPLEMENTARY_AGREEMENT_SIGNED"
+        assert blockers[0]["reason_code"] == "phase4_pending"
+        assert exc_info.value.extra["from"] == "pending_owner"
+        assert exc_info.value.extra["to"] == "pending_payment"
+
+    async def test_gate_empty_transition_passes_through(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """pending_owner → counter_offer has empty gate set; transitions cleanly."""
+        placement = await _seed_placement(db_session, telegram_id_offset=310)
+
+        history = await service.transition(
+            placement=placement,
+            to_status=PlacementStatus.counter_offer,
+            actor_user_id=placement.advertiser_id,
+            reason="user_action",
+            trigger="api",
+        )
+
+        assert placement.status == PlacementStatus.counter_offer
+        assert history.to_status == PlacementStatus.counter_offer
+
+    async def test_admin_override_bypasses_gates(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """transition_admin_override does NOT consult gates — even for G07 transitions."""
+        placement = await _seed_placement(db_session, telegram_id_offset=320)
+        admin = User(telegram_id=920_900_001, first_name="Admin", username="admin320")
+        db_session.add(admin)
+        await db_session.flush()
+
+        history = await service.transition_admin_override(
+            placement=placement,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=admin.id,
+            reason="manual_recovery",
+            admin_override_reason="manual_data_repair",
+        )
+
+        assert placement.status == PlacementStatus.pending_payment
+        assert history.to_status == PlacementStatus.pending_payment
+
+    async def test_bypass_gates_flag_skips_check(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """transition(..., bypass_gates=True) skips gate evaluation entirely."""
+        placement = await _seed_placement(db_session, telegram_id_offset=330)
+
+        history = await service.transition(
+            placement=placement,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=None,
+            reason="system",
+            trigger="api",
+            bypass_gates=True,
+        )
+
+        assert placement.status == PlacementStatus.pending_payment
+        assert history.to_status == PlacementStatus.pending_payment
+
+    async def test_blockers_audit_log_written(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """Failed gate writes AuditLog row with action='transition_blocked'."""
+        placement = await _seed_placement(db_session, telegram_id_offset=340)
+
+        with pytest.raises(TransitionBlockedError):
+            await service.transition(
+                placement=placement,
+                to_status=PlacementStatus.pending_payment,
+                actor_user_id=placement.owner_id,
+                reason="user_action",
+                trigger="api",
+            )
+
+        audit_rows = await db_session.execute(
+            select(AuditLog).where(AuditLog.action == "transition_blocked")
+        )
+        rows = list(audit_rows.scalars())
+        assert len(rows) == 1
+        assert rows[0].resource_type == "placement"
+        assert rows[0].resource_id == placement.id
+        assert rows[0].user_id == placement.owner_id
+        assert rows[0].extra["from"] == "pending_owner"
+        assert rows[0].extra["to"] == "pending_payment"
+        assert "G07_SUPPLEMENTARY_AGREEMENT_SIGNED" in rows[0].extra["blockers"]
+
+    async def test_failed_transition_no_status_mutation(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """When TransitionBlockedError raised, placement.status is NOT mutated."""
+        placement = await _seed_placement(db_session, telegram_id_offset=350)
+        original_status = placement.status
+
+        with pytest.raises(TransitionBlockedError):
+            await service.transition(
+                placement=placement,
+                to_status=PlacementStatus.pending_payment,
+                actor_user_id=placement.owner_id,
+                reason="user_action",
+                trigger="api",
+            )
+
+        assert placement.status == original_status == PlacementStatus.pending_owner
+
+    async def test_failed_transition_no_history_row(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """When TransitionBlockedError raised, no PlacementStatusHistory row appended."""
+        placement = await _seed_placement(db_session, telegram_id_offset=360)
+
+        with pytest.raises(TransitionBlockedError):
+            await service.transition(
+                placement=placement,
+                to_status=PlacementStatus.pending_payment,
+                actor_user_id=placement.owner_id,
+                reason="user_action",
+                trigger="api",
+            )
+
+        result = await db_session.execute(
+            select(PlacementStatusHistory).where(
+                PlacementStatusHistory.placement_id == placement.id
+            )
+        )
+        rows = list(result.scalars())
+        assert rows == []
+
+    async def test_multi_blocker_collect_all(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """escrow → published evaluates G08+G09+G10 — all failed gates collected."""
+        placement = await _seed_placement(
+            db_session,
+            telegram_id_offset=370,
+            status=PlacementStatus.escrow,
+            with_escrow_tx=True,
+        )
+
+        with pytest.raises(TransitionBlockedError) as exc_info:
+            await service.transition(
+                placement=placement,
+                to_status=PlacementStatus.published,
+                actor_user_id=None,
+                reason="publication_success",
+                trigger="celery_signal",
+            )
+
+        blocker_gates = {b["gate"] for b in exc_info.value.extra["blockers"]}
+        assert blocker_gates == {
+            "G08_ERID_REGISTERED",
+            "G09_ORD_CONTRACT_REPORTED",
+            "G10_PLACEMENT_TEXT_MARKED",
+        }
+        # Real reason codes (not phase4_pending markers) — G08/G09/G10 ship real bodies.
+        for b in exc_info.value.extra["blockers"]:
+            assert b["reason_code"] != "phase4_pending"
+
+    async def test_publication_side_g08_g09_g10_pass_with_full_seed(
+        self,
+        service: PlacementTransitionService,
+        db_session: AsyncSession,
+    ) -> None:
+        """escrow → published passes when ORD registration + erid set."""
+        placement = await _seed_placement(
+            db_session,
+            telegram_id_offset=380,
+            status=PlacementStatus.escrow,
+            with_escrow_tx=True,
+        )
+        # Set placement.erid (G10) and seed OrdRegistration with erid (G08) +
+        # contract_ord_id (G09) so all three pre-publication gates pass.
+        placement.erid = "test_erid_380"
+        ord_reg = OrdRegistration(
+            placement_request_id=placement.id,
+            erid="test_erid_380",
+            contract_ord_id="test_contract_ord_380",
+        )
+        db_session.add(ord_reg)
+        await db_session.flush()
+
+        history = await service.transition(
+            placement=placement,
+            to_status=PlacementStatus.published,
+            actor_user_id=None,
+            reason="publication_success",
+            trigger="celery_signal",
+        )
+
+        assert placement.status == PlacementStatus.published
+        assert history.to_status == PlacementStatus.published
