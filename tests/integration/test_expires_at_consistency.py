@@ -99,6 +99,7 @@ async def test_service_counter_offer_sets_expires_at_24h(
 @pytest.mark.asyncio
 async def test_service_advertiser_accept_counter_refreshes_expires_at_to_24h(
     db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """T1-3 fix: transitioning counter_offer → pending_payment must refresh
     expires_at to now()+24h, not retain a stale value from counter_offer."""
@@ -117,6 +118,17 @@ async def test_service_advertiser_accept_counter_refreshes_expires_at_to_24h(
     db_session.add(placement)
     await db_session.commit()
     await db_session.refresh(placement)
+
+    # Phase 3c (2026-05-04): mock LegalComplianceService.check_gates_for_transition
+    # so the G07 PHASE4_PENDING marker doesn't fire and block the transition under
+    # test. This test predates Phase 3c gate enforcement; the legal-profile/contract
+    # seed required for G07 to pass is not available here. Per-test scope only.
+    from src.core.services.legal_compliance_service import LegalComplianceService
+
+    async def _no_gates(self, placement, to_status):  # type: ignore[no-untyped-def]
+        return []
+
+    monkeypatch.setattr(LegalComplianceService, "check_gates_for_transition", _no_gates)
 
     service = _make_service(db_session)
 
