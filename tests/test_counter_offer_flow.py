@@ -16,8 +16,8 @@ class TestCounterOfferServiceFix1:
     async def test_advertiser_accept_counter_sets_final_price(
         self,
         db_session,
-        test_advertiser,
-        test_owner,
+        advertiser_user,
+        owner_user,
         test_channel,
     ):
         """When advertiser accepts counter-offer, final_price must be set from counter_price."""
@@ -28,8 +28,8 @@ class TestCounterOfferServiceFix1:
 
         # Create placement with pending_owner status
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text for placement",
@@ -61,7 +61,7 @@ class TestCounterOfferServiceFix1:
             billing_service=None,
         )
 
-        result = await service.advertiser_accept_counter(placement.id, test_advertiser.id)
+        result = await service.advertiser_accept_counter(placement.id, advertiser_user.id)
 
         assert result is not None
         assert result.status == PlacementStatus.pending_payment
@@ -72,8 +72,8 @@ class TestCounterOfferServiceFix1:
     async def test_advertiser_accept_counter_sets_final_schedule(
         self,
         db_session,
-        test_advertiser,
-        test_owner,
+        advertiser_user,
+        owner_user,
         test_channel,
     ):
         """When advertiser accepts counter-offer, final_schedule must be set."""
@@ -85,8 +85,8 @@ class TestCounterOfferServiceFix1:
         counter_schedule = datetime(2026, 4, 15, 14, 0, 0, tzinfo=UTC)
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text",
@@ -112,7 +112,7 @@ class TestCounterOfferServiceFix1:
             billing_service=None,
         )
 
-        result = await service.advertiser_accept_counter(placement.id, test_advertiser.id)
+        result = await service.advertiser_accept_counter(placement.id, advertiser_user.id)
 
         assert result is not None
         assert result.final_schedule == counter_schedule
@@ -126,14 +126,14 @@ class TestCounterOfferAPIFix2:
         self,
         api_client_with_auth,
         test_channel,
-        test_advertiser,
+        advertiser_user,
         db_session,
     ):
         """API response must include counter_price, counter_schedule, counter_comment."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
+            advertiser_id=advertiser_user.id,
             owner_id=test_channel.owner_id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
@@ -165,16 +165,16 @@ class TestCounterOfferDataFix4:
     async def test_advertiser_counter_price_does_not_overwrite_owner_counter(
         self,
         db_session,
-        test_advertiser,
-        test_owner,
+        advertiser_user,
+        owner_user,
         test_channel,
     ):
         """Advertiser's counter-counter must NOT overwrite owner's counter_price."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text",
@@ -199,16 +199,16 @@ class TestCounterOfferDataFix4:
     async def test_multiple_counter_rounds_preserve_history(
         self,
         db_session,
-        test_advertiser,
-        test_owner,
+        advertiser_user,
+        owner_user,
         test_channel,
     ):
         """Multiple counter-offer rounds must preserve both parties' data."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text",
@@ -249,14 +249,14 @@ class TestCounterOfferAPIFix7:
         self,
         api_client_with_auth,
         test_channel,
-        test_advertiser,
+        advertiser_user,
         db_session,
     ):
         """API response must include advertiser_counter_price, schedule, comment."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
+            advertiser_id=advertiser_user.id,
             owner_id=test_channel.owner_id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
@@ -289,16 +289,16 @@ class TestPriceResolutionLogic:
     async def test_payment_uses_final_price_when_set(
         self,
         db_session,
-        test_advertiser,
-        test_owner,
+        advertiser_user,
+        owner_user,
         test_channel,
     ):
         """Payment must use final_price when set, not proposed_price."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text",
@@ -315,14 +315,14 @@ class TestPriceResolutionLogic:
 
     @pytest.mark.asyncio
     async def test_payment_falls_back_to_proposed_price(
-        self, db_session, test_advertiser, test_owner, test_channel
+        self, db_session, advertiser_user, owner_user, test_channel
     ):
         """When final_price is None, must fall back to proposed_price."""
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
 
         placement = PlacementRequest(
-            advertiser_id=test_advertiser.id,
-            owner_id=test_owner.id,
+            advertiser_id=advertiser_user.id,
+            owner_id=owner_user.id,
             channel_id=test_channel.id,
             proposed_price=Decimal("1000.00"),
             ad_text="Test ad text",
