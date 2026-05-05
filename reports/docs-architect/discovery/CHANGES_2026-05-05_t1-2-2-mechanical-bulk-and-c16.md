@@ -37,4 +37,28 @@ Status: in-progress (per-cluster sections landed incrementally; final summary ap
   - 2× `404 Not Found` для `GET /api/v1/placements/{id}` (TestCounterOfferAPIFix2/Fix7) — URL drift (C8-similar pattern на different endpoint)
   - These are NOT в T1.2.2 audit scope. Hand forward к next sub-block decision (likely T1.2.3 или separate audit cluster). Net delta для Шаг 2: -8E +4F.
 
-<!-- Шаги 3-7 append cluster sections above this comment. Шаг 8 replaces this comment with final summary block. -->
+### C15 method rename + API drift (T1.2.2.3) — DEFERRED
+
+- **Status:** deferred к T1.2.5 или T1.2.6 (sub-block owner TBD)
+- **File:** `tests/test_channel_settings_repo.py` (path corrected — `tests/` root)
+- **Type/Count:** 3F deferred (NOT closed in T1.2.2)
+- **Reason:** Pre-fix verification revealed audit shape drift. Audit classified as "method rename"; actual is deeper API drift:
+  - Production `ChannelSettingsRepo.get_or_create(self, channel_id: int)` — single arg, no `owner_id`
+  - `ChannelSettings` model has no `owner_id` column (only `channel_id`)
+  - `upsert` method не существует на repo
+  - 3 tests pass `channel_id=..., owner_id=owner_user.id` к `get_or_create_default(...)`; 1 test calls `upsert(channel_id=..., owner_id=..., price_per_post=...)`.
+- **Decision required (sub-block owner):** should production grow API (`upsert` + `owner_id` ownership-scope) OR should tests rewrite expectations к current `get_or_create(channel_id)` semantics? Production-source change запрещён в T1.2.2 sub-block prohibitions.
+- **L44 pattern:** another audit-classified-mechanical cluster hiding deeper drift. Shape verification per cluster pre-fix остаётся mandatory.
+
+### C14 enum split + token mock (T1.2.2.4)
+
+- **Commit:** `<this commit SHA — placeholder; canonical в Шаге 8 commits index>`
+- **File:** `tests/unit/test_sender.py`
+- **Type/Count:** 3F → 0
+- **Sub-fixes:**
+  - **1F enum split** (`test_send_message_forbidden`): production `_handle_forbidden` (sender.py:118) routes `TelegramForbiddenError` к `SendStatus.CHAT_BLOCKED` (split from former conflated `FAILED`). Updated assertion `SendStatus.FAILED` → `SendStatus.CHAT_BLOCKED`. Existing `"forbidden" in error_message.lower()` assertion still passes (`error_message="ChatWriteForbidden: ..."` contains "forbidden").
+  - **2F token mock** (`test_create_sender`, `test_sender_close`): production `create_sender` refactored — теперь uses `from src.bot.session_factory import new_bot` (local import inside function); `Bot` no longer referenced at module level в `sender.py`. Tests patched `src.utils.telegram.sender.Bot` — patch resolved nothing, real `Bot("test_token")` instantiation raised `TokenValidationError`. Updated patch target к `src.bot.session_factory.new_bot`. Updated `mock_bot_class.assert_called_once_with` → `mock_new_bot.assert_called_once_with`.
+- **Production references:** `src/utils/telegram/sender.py:44-53` (SendStatus enum), `:118` (`CHAT_BLOCKED` branch), `:236-248` (`create_sender` → `new_bot`); `src/bot/session_factory.py:17` (`new_bot`).
+- **Re-baseline post:** TBD (final table в Шаг 8).
+
+<!-- Шаги 5-7 append cluster sections above this comment. Шаг 8 replaces this comment with final summary block. -->
