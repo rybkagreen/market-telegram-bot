@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 3c.1 transition-time gate enforcement wiring (2026-05-04)
+
+- `PlacementTransitionService.transition()` now invokes
+  `LegalComplianceService.check_gates_for_transition` after allow-list
+  validation. Failed gates raise `TransitionBlockedError` (HTTP 409,
+  `error_code="transition_blocked"`) with collect-all blockers in
+  `extra.blockers[]`. Admin path (`transition_admin_override`) remains
+  gate-free by design.
+- `bypass_gates: bool = False` keyword-only parameter on `transition()`
+  for admin/test contexts (default opt-OUT, never opt-IN).
+- `AuditLog` row written on every transition decline
+  (`action="transition_blocked"`, 18 chars; fits 20-char column).
+- Caller-side marker-aware UX: PHASE_N_PENDING markers (G07/G15/G16/G17/G18)
+  render as "временно недоступно" until phase ships real body; real-fail
+  blockers render full remediation list. Shared classifier at
+  `src/bot/utils/gate_block_render.py`.
+- Defensive try/except on 2 publication-side `transition()` sites
+  (escrow→published, published→completed) — gate-block handled without
+  crashing publication tasks.
+- Celery `auto_approve_24h` task (`tasks/notification_tasks.py`) gains
+  `skipped_marker_count` / `skipped_real_fail_count` counters and
+  marker-aware log severity.
+- 18 new tests: 9 service-layer (`TestGateEnforcement`) + 9 caller-layer
+  (3 owner-accept + 3 advertiser-pay-now + 3 Celery auto-approve).
+
+### Known constraints
+
+- G07 PHASE4_PENDING marker actively fires on every
+  `pending_owner | counter_offer → pending_payment` transition until
+  Phase 4 ships G07 real body (МES Acts API + КЭП verification). Owner
+  / advertiser bot accept handlers render "временно недоступно" message.
+  Marina Q6=(a) accept blocker decision; documented in
+  `CHANGES_2026-05-04_phase3c-1-transition-wiring.md`.
+- BL-072 T1.1 closure is paper-only — gate framework wiring is now
+  load-bearing, but production-readiness requires Phase 4 G07 real body.
+- BL-075 (NEW): `_TRANSITION_GATES` does not enforce G01-G06 at any
+  transition (advertiser/owner profile / framework contract / payout
+  method only enforced at channel-add). Tier 2 architectural gap
+  surfaced during Phase 3c Phase A+B (O.2).
+
 ## [v0.3.0-phase3b] - 2026-05-03
 
 ### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)

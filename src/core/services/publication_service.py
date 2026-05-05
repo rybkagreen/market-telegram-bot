@@ -16,7 +16,12 @@ from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
 from src.constants.payments import FORMAT_DURATIONS_SECONDS
-from src.core.exceptions import BotNotAdminError, InsufficientPermissionsError, PostDeletionError
+from src.core.exceptions import (
+    BotNotAdminError,
+    InsufficientPermissionsError,
+    PostDeletionError,
+    TransitionBlockedError,
+)
 from src.core.services.billing_service import BillingService
 from src.core.services.placement_transition_service import PlacementTransitionService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
@@ -318,13 +323,33 @@ class PublicationService:
             placement.sent_count += 1
             # published_at + last_published_at handled by _sync_status_timestamps.
             transition_service = PlacementTransitionService(session)
-            await transition_service.transition(
-                placement=placement,
-                to_status=PlacementStatus.published,
-                actor_user_id=None,
-                reason="publication_success",
-                trigger="celery_signal",
-            )
+            try:
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.published,
+                    actor_user_id=None,
+                    reason="publication_success",
+                    trigger="celery_signal",
+                )
+            except TransitionBlockedError as exc:
+                blockers = [b.get("gate") for b in exc.extra.get("blockers", [])]
+                logger.error(
+                    "publish_placement: escrow->published blocked for placement %s "
+                    "after Telegram send (message_id=%s): %s",
+                    placement_id,
+                    sent_message.message_id,
+                    blockers,
+                )
+                # Telegram message is already live, but compliance gates failed.
+                # escrow->failed is gate-empty (allow-list entry with no gates),
+                # so the organic path goes through cleanly without raising.
+                await transition_service.transition(
+                    placement=placement,
+                    to_status=PlacementStatus.failed,
+                    actor_user_id=None,
+                    reason="gate_block_publication",
+                    trigger="celery_signal",
+                )
 
         logger.info(
             f"Placement {placement_id} published: message_id={sent_message.message_id}, "
@@ -421,13 +446,25 @@ class PublicationService:
 
         # Переводим в completed после удаления + освобождения эскроу
         transition_service = PlacementTransitionService(session)
-        await transition_service.transition(
-            placement=placement,
-            to_status=PlacementStatus.completed,
-            actor_user_id=None,
-            reason="manual_publish_delete",
-            trigger="celery_signal",
-        )
+        try:
+            await transition_service.transition(
+                placement=placement,
+                to_status=PlacementStatus.completed,
+                actor_user_id=None,
+                reason="manual_publish_delete",
+                trigger="celery_signal",
+            )
+        except TransitionBlockedError as exc:
+            blockers = [b.get("gate") for b in exc.extra.get("blockers", [])]
+            logger.error(
+                "delete_published_post: published->completed blocked for placement %s; "
+                "leaving in 'published' for next post-publication verification cycle: %s",
+                placement_id,
+                blockers,
+            )
+            # Post deleted, escrow released — placement stays in `published`.
+            # G11/G12 will be re-evaluated on the next periodic sweep.
+            return
 
         # Sprint A.2: автоматическая генерация акта выполненных работ
         try:
