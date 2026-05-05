@@ -17,6 +17,8 @@ from src.bot.handlers.shared.notifications import (
     notify_advertiser_rejected,
 )
 from src.bot.states.arbitration import ArbitrationStates
+from src.bot.utils.gate_block_render import render_owner_message
+from src.core.exceptions import TransitionBlockedError
 from src.core.services.placement_transition_service import (
     InvalidTransitionError,
     PlacementTransitionService,
@@ -216,13 +218,19 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
 
     transition_service = PlacementTransitionService(session)
-    await transition_service.transition(
-        placement=req,
-        to_status=PlacementStatus.pending_payment,
-        actor_user_id=req.owner_id,
-        reason="user_action",
-        trigger="api",
-    )
+    try:
+        await transition_service.transition(
+            placement=req,
+            to_status=PlacementStatus.pending_payment,
+            actor_user_id=req.owner_id,
+            reason="user_action",
+            trigger="api",
+        )
+    except TransitionBlockedError as exc:
+        blockers = exc.extra.get("blockers", [])
+        await callback.message.answer(render_owner_message(blockers))
+        await callback.answer()
+        return
 
     advertiser = await session.get(User, req.advertiser_id)
     channel = await session.get(TelegramChat, req.channel_id)
