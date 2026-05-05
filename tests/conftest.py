@@ -471,10 +471,15 @@ async def reputation_repo(db_session: AsyncSession) -> ReputationRepo:
 @pytest_asyncio.fixture
 async def api_client_with_auth(advertiser_user: User) -> AsyncGenerator[AsyncClient]:
     """HTTP клиент с авторизацией через JWT."""
-    from src.api.auth_utils import create_access_token
+    from src.api.auth_utils import create_jwt_token
     from src.api.main import app
 
-    token = create_access_token(advertiser_user.id)
+    token = create_jwt_token(
+        advertiser_user.id,
+        advertiser_user.telegram_id,
+        advertiser_user.plan,
+        source="mini_app",
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
