@@ -89,52 +89,52 @@ class TestContentFilter:
         """Создать ContentFilter."""
         return ContentFilter()
 
-    def test_check_clean_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_clean_text(self, content_filter: ContentFilter) -> None:
         """Проверка чистого текста."""
-        result = content_filter.check("Привет! Как твои дела?")
+        result = await content_filter.check("Привет! Как твои дела?")
         assert result.passed is True
         assert result.score == 0.0
         assert len(result.categories) == 0
 
-    def test_check_blocked_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_blocked_text(self, content_filter: ContentFilter) -> None:
         """Проверка заблокированного текста."""
-        result = content_filter.check("Купить наркотики закладку")
+        result = await content_filter.check("Купить наркотики закладку")
         assert result.passed is False
         assert result.score > 0.3
         assert "drugs" in result.categories
 
-    def test_check_mixed_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_mixed_text(self, content_filter: ContentFilter) -> None:
         """Проверка смешанного текста."""
-        result = content_filter.check(
+        result = await content_filter.check(
             "Привет! Это реклама казино и ставок на спорт, купите наркотики"
         )
         assert result.passed is False
         assert "gambling" in result.categories
         assert "drugs" in result.categories
 
-    def test_check_empty_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_empty_text(self, content_filter: ContentFilter) -> None:
         """Проверка пустого текста."""
-        result = content_filter.check("")
+        result = await content_filter.check("")
         assert result.passed is True
         assert result.score == 0.0
 
-    def test_check_short_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_short_text(self, content_filter: ContentFilter) -> None:
         """Проверка короткого текста."""
-        result = content_filter.check("Привет")
+        result = await content_filter.check("Привет")
         assert result.passed is True
         assert result.score == 0.0
 
-    def test_check_long_text(self, content_filter: ContentFilter) -> None:
+    async def test_check_long_text(self, content_filter: ContentFilter) -> None:
         """Проверка длинного текста."""
         long_text = "Привет! " * 1000
-        result = content_filter.check(long_text)
+        result = await content_filter.check(long_text)
         assert result.passed is True
         assert result.score == 0.0
 
-    def test_check_case_insensitive(self, content_filter: ContentFilter) -> None:
+    async def test_check_case_insensitive(self, content_filter: ContentFilter) -> None:
         """Проверка регистронезависимости."""
-        result1 = content_filter.check("НАРКОТИКИ")
-        result2 = content_filter.check("наркотики")
+        result1 = await content_filter.check("НАРКОТИКИ")
+        result2 = await content_filter.check("наркотики")
         assert result1.score == result2.score
 
     def test_merge_categories(self, content_filter: ContentFilter) -> None:
