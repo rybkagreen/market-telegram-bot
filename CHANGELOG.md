@@ -47,6 +47,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   method only enforced at channel-add). Tier 2 architectural gap
   surfaced during Phase 3c Phase A+B (O.2).
 
+### Fixed — T1.2.1 auth refactor test-side cleanup (2026-05-04)
+
+- `tests/conftest.py:472–484` — `api_client_with_auth` fixture migrated
+  from removed `create_access_token` (single-arg legacy) to
+  `create_jwt_token` (4 args: `user_id`, `telegram_id`, `plan`, `source:
+  JwtSource`) per upstream refactor of `src/api/auth_utils.py`.
+  Audience pinned to `"mini_app"` (dominant test pattern; fixture is
+  generic and consumed by routers using `CurrentUser` which accepts both
+  audiences). Plan reads `advertiser_user.plan` (User-model default
+  `"free"`).
+- ci-local test-stage: 17 ERROR → 8 ERROR (9 ImportErrors cleared).
+  Single-file edit fan-outs across 3 consumer files (audit overstated
+  4-file scope; empirical reality is 1 inline-import in conftest).
+- 5 latent FAILs unmasked in `tests/test_api_channel_settings.py`
+  (cluster C8 second-half) — pre-existing assertion drift previously
+  hidden by setup error; T1.2.2 owns investigation. 4 latent SKIPs
+  unmasked in `tests/test_api_placements.py` (skip-conditions in
+  bodies were unreachable while setup errored).
+- Audit correction absorbed: cluster C7 (`test_counter_offer_flow.py`)
+  empirical shape is **0 ImportError + 8 fixture-name** (not "3+5" as
+  audit predicted); 3 entries shifted T1.2.1 → T1.2.2. Cumulative T1.2
+  progress after T1.2.1: 9 of 99 entries (~10%, not 12%).
+
 ## [v0.3.0-phase3b] - 2026-05-03
 
 ### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)
