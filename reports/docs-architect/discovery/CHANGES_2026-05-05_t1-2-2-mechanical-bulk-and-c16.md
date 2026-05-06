@@ -61,4 +61,19 @@ Status: in-progress (per-cluster sections landed incrementally; final summary ap
 - **Production references:** `src/utils/telegram/sender.py:44-53` (SendStatus enum), `:118` (`CHAT_BLOCKED` branch), `:236-248` (`create_sender` → `new_bot`); `src/bot/session_factory.py:17` (`new_bot`).
 - **Re-baseline post:** TBD (final table в Шаг 8).
 
-<!-- Шаги 5-7 append cluster sections above this comment. Шаг 8 replaces this comment with final summary block. -->
+### C8 URL drift + field rename (T1.2.2.5) — PARTIAL CLOSURE
+
+- **Commit:** `<this commit SHA — placeholder; canonical в Шаге 8 commits index>`
+- **File:** `tests/test_api_channel_settings.py` (path corrected — `tests/` root)
+- **Type/Count:** 5F production-drift fixed; 5F infra-gap deferred (same count post-fix, error mode changes)
+- **Production drift fixed:**
+  - 5 URLs: `/api/v1/channels/{id}/settings/` → `/api/channel-settings/?channel_id={id}`
+  - 1 field: `start_time`/`end_time` → `publish_start_time`/`publish_end_time` (в `test_patch_invalid_time_order_422`)
+  - Verified via 5.1 belt-and-suspenders: mount at `src/api/main.py:195`, router `APIRouter(tags=[...])` без `prefix=`, GET/PATCH `/`, `channel_id: int` — query param (FastAPI default for non-path), Pydantic `extra="ignore"` silently drops unknown fields → field-rename semantic bug surfaced (test asserted 422 но получало 200 после URL fix без field rename).
+- **Real failure mode (post-mechanical fix):** `ConnectionRefused 127.0.0.1:5432`. Mechanical drift fix is correct; tests still fail because `tests/conftest.py::api_client_with_auth` (line 472) НЕ устанавливает `app.dependency_overrides[get_db_session]` к test container engine. ASGITransport routes requests in-process; `Depends(get_db_session)` resolves к prod settings.
+- **Existing override pattern:** per-test в 3 examples (`tests/integration/test_needs_accept_rules_endpoint.py:48`, `test_api_legal_profile.py:48`, `test_ticket_bridge_e2e.py:159`).
+- **Deferred к T1.2.4 (test infra territory):** extension of `api_client_with_auth` fixture с db override OR alternative pattern (per-test override / new fixture). Infra decision needs sub-block owner analysis (impact на other callers, fixture composition strategy).
+- **Re-baseline post Шаг 5:** expect 80F → 80F (5F same count, error mode changed from 404 к ConnectionRefused). Production drift work preserved; infra gap transitions к T1.2.4.
+- **L44 pattern:** audit-classified-mechanical cluster hiding deeper drift (URL + field + infra). Pre-fix verification + post-fix empirical re-baseline остаются mandatory.
+
+<!-- Шаги 6-7 append cluster sections above this comment. Шаг 8 replaces this comment with final summary block. -->
