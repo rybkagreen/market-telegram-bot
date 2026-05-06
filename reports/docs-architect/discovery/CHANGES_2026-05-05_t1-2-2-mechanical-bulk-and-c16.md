@@ -76,4 +76,39 @@ Status: in-progress (per-cluster sections landed incrementally; final summary ap
 - **Re-baseline post Шаг 5:** expect 80F → 80F (5F same count, error mode changed from 404 к ConnectionRefused). Production drift work preserved; infra gap transitions к T1.2.4.
 - **L44 pattern:** audit-classified-mechanical cluster hiding deeper drift (URL + field + infra). Pre-fix verification + post-fix empirical re-baseline остаются mandatory.
 
-<!-- Шаги 6-7 append cluster sections above this comment. Шаг 8 replaces this comment with final summary block. -->
+### C10 field rename + SQLite gap + production bug (T1.2.2.6) — DEFERRED CLOSURE
+
+- **Commit:** `<this commit SHA — placeholder; canonical в Шаге 8 commits index>`
+- **File:** `tests/unit/test_bmediakit_comparison.py`
+- **Type/Count:** 4F → 4S (mechanical edits applied + all 4 skipped с pointers)
+- **Mechanical drift fix applied (preserved in committed code, awaiting unblock):**
+  - `test_calculate_comparison_metrics` — drop invalid kwargs (`last_avg_views`, `last_post_frequency`, `price_per_post`), route price via `ChannelSettings(channel_id=chat.id, price_per_post=...)`
+  - `test_price_per_1k_subscribers_calculation` — same pattern
+  - Field migration verified (model side, TelegramChat:54)
+- **All 4 tests skipped с explicit reasons:**
+  - `test_calculate_comparison_metrics` + `test_price_per_1k_subscribers_calculation`: SQLite gap (creating ChannelSettings rows hits "no such table: channel_settings")
+  - `test_get_mediatkit_data`: production bug pointer (см. Deferred to production fix)
+  - `test_get_channels_for_comparison`: SQLite gap per D1
+- **Phase B surface (probe underestimate):** probe identified 1 SQLite-blocked test; reality is 3. Mechanical "field rename" fix к 2 tests insufficient because they create ChannelSettings rows → hit same SQLite gap as `test_get_channels_for_comparison`.
+- **Re-baseline post Шаг 6:** expect -4F +4S (in-file).
+- **Owner of unblock:**
+  - 3 SQLite-blocked tests → T1.2.4 (relocation per Marina Q4=(a) или fixture extension decision)
+  - 1 production-bug test → consolidates к BACKLOG в T1.2 final closure
+- **Production migration verified (model side, TelegramChat):**
+  - `last_avg_views` → renamed к `avg_views` (line 54)
+  - `last_post_frequency` → removed entirely (НЕ synonym; не на model)
+  - `price_per_post` → moved к `ChannelSettings.price_per_post`
+- **L44 pattern:** field-rename audit underestimated SQLite dependency surface. Mechanical edits изначально казались self-contained; actual ChannelSettings construction triggered fixture gap.
+
+### Deferred to production fix (consolidates к BACKLOG в T1.2 final closure)
+
+- **mediakit_service migration incomplete** — `src/core/services/mediakit_service.py:111-116` reads `chat.last_avg_views`, `chat.last_post_frequency`, `chat.price_per_post`. Model side migrated:
+  - `chat.last_avg_views` → `chat.avg_views` (TelegramChat:54)
+  - `chat.last_post_frequency` → field removed entirely (no synonym)
+  - `chat.price_per_post` → `chat.channel_settings.price_per_post` (moved to ChannelSettings)
+  - Latent runtime bug — anyone calling `mediakit_service.get_mediakit_data()` hits AttributeError.
+  - **Surface:** discovered through C10 test verification.
+  - **Owner:** production migration sub-block (NOT T1.2.x test cleanup).
+  - **Unblock:** `test_get_mediatkit_data` resumes when service migrated.
+
+<!-- Шаг 7 appends cluster section above this comment. Шаг 8 replaces this comment with final summary block. -->
