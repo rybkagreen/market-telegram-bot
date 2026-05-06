@@ -121,3 +121,125 @@ Status: in-progress (per-cluster sections landed incrementally; final summary ap
   - **(2) Mock leakage refactor (1F):** `test_check_escrow_stuck_group_a_dispatches_delete_not_refund` (line 245). Previous setup: `mock_session.execute = AsyncMock(return_value=mock_result)`. Production `_check_escrow_stuck_async` calls `session.execute()` **twice** (Group A/B query + Group C query). Shared `return_value` caused Group C path to dispatch a duplicate delete — `apply_async` called 2× instead of 1×. Refactored к `side_effect=[result_AB, result_C]` с empty Group C scalars list. Added `assert mock_session.execute.await_count == 2` lock-in — surfaces production refactors that change query count.
 - **Recipe (L45 — preventive, см. Шаг 8 lessons):** when patching `session.execute()` for production functions calling `execute()` more than once, always use `side_effect=[...]`, never `return_value=`. Pattern not currently widespread в T1.2.2 file scope (other tests use single-execute production paths or already use side_effect).
 - **Re-baseline post:** TBD (final table в Шаг 8).
+
+## Re-baseline progression
+
+| Stage | F | P | S | E | Delta |
+|-------|---|---|---|---|-------|
+| T1.2.1.2 (start) | 86 | 940 | 10 | 8 | — |
+| Post Шаг 1 (C6) | 79 | 947 | 10 | 8 | -7F +7P |
+| Post Шаг 2 (C7) | 83 | 951 | 10 | 0 | +4F +4P -8E (4F unmasked out-of-scope) |
+| Post Шаг 4 (C14) | 80 | 954 | 10 | 0 | -3F +3P |
+| Post Шаг 5 (C8 partial) | 80 | 954 | 10 | 0 | 0 net (5F same count, error mode 404 → ConnectionRefused) |
+| Post Шаг 6 (C10 deferred) | 76 | 954 | 14 | 0 | -4F +4S |
+| Post Шаг 7 (C16) | 73 | 957 | 14 | 0 | -3F +3P |
+| **Total Δ** | **-13F** | **+17P** | **+4S** | **-8E** | |
+
+## Commits index
+
+| Шаг | Cluster | SHA | Outcome |
+|-----|---------|-----|---------|
+| T1.2.2.1 | C6 | `b562acc` | ✅ closed (7F) |
+| T1.2.2.2 | C7 + CHANGES seed | `58eaf10` | ✅ closed (8E; 4F unmasked out-of-scope) |
+| T1.2.2.3 | C15 | (skipped) | ⏸ deferred to T1.2.5/T1.2.6 (API drift) |
+| T1.2.2.4 | C14 | `b73fc24` | ✅ closed (3F) |
+| T1.2.2.5 | C8 partial | `3f5c638` | ⏸ partial (URL/field fix preserved; infra → T1.2.4) |
+| T1.2.2.6 | C10 deferred | `6ad285f` | ⏸ skipped (mechanical preserved; SQLite + prod bug → T1.2.4 + BACKLOG) |
+| T1.2.2.7 | C16 | `5ccf50a` | ✅ closed (3F) |
+| T1.2.2.8 | closure docs | `<this SHA>` | — |
+
+## Cluster outcomes summary
+
+| Cluster | Status | Entries closed | Owner of unblock |
+|---------|--------|----------------|------------------|
+| C6 | ✅ closed | 7F | — |
+| C7 | ✅ closed | 8E | — (4F unmasked tests are out-of-scope) |
+| C15 | ⏸ deferred | 0 | T1.2.5 или T1.2.6 (API growth vs test rewrite decision) |
+| C14 | ✅ closed | 3F | — |
+| C8 | ⏸ partial | 0 (5F same count, mode shift) | T1.2.4 (api_client_with_auth db override decision) |
+| C10 | ⏸ skipped | 0 (4F → 4S) | T1.2.4 (relocation per Q4=(a)) + BACKLOG (mediakit_service migration) |
+| C16 | ✅ closed | 3F | — |
+
+**Fully closed: 4 clusters, 21 entries.**
+**Deferred: 3 clusters, ~13 entries (3F C15 + 5F C8 + 4F C10 + 1F SQLite).**
+
+## Out of scope (per audit)
+
+- **C20 collection-error** `tests/unit/test_main_menu.py` (`ImportError: cannot import name 'role_select_kb'`) — deferred к T1.2.5 (delete batch per Marina Q5=(a)). `--ignore=tests/unit/test_main_menu.py` Makefile flag preserved.
+- **4 unmasked failures из C7** (post-Шаг 2 +4F shift) — out-of-scope clusters surfaced after fixture rename. Belong to T1.2.5 / other sub-blocks.
+
+## Lessons learned
+
+### L44 (originally T1.2.1) — confirmed extension trail
+
+T1.2.1 surfaced L44 originally ("audit shape can be wrong"). T1.2.2 extended in two dimensions:
+
+1. **Probe phase (Шаг 0 / Phase A+B):** audit **path** wrong в 4 of 8 clusters (`tests/unit/*` claimed → `tests/*` или `tests/tasks/*` actual).
+2. **Execution phase (Шаги 3, 5, 6):** audit **depth** wrong — "mechanical" classification hid deeper drift in 3 of 7 clusters (C15 API drift, C8 infra gap, C10 SQLite + production bug).
+
+### L45 — mock-leakage recipe (C16)
+
+When patching `session.execute()` for production functions calling `execute()` more than once: always use `side_effect=[...]`, never `return_value=`. Single `return_value` shared across multiple production calls → mock leakage (same fixture data appears в different code paths, producing duplicate behavior).
+
+**Lock-in pattern:** after `side_effect=[...]` refactor, add `assert mock_session.execute.await_count == N` to lock the contract — surfaces production refactors that change query count.
+
+**Detected:** C16 `test_check_escrow_stuck_group_a_dispatches_delete_not_refund` — Group A/B and Group C queries shared single `mock_result`, dispatching duplicate delete.
+
+### L46 — stop-hook noise mitigation pattern
+
+Original plan deferred CHANGES к single Шаг 8 commit. Stop-hook fired ~150 identical "missing CHANGES_*.md" warnings on Шаг 1 commit, requiring manual user interrupt. BL-016 silent-ignore (bound at 2 acks) practically unmanageable on this fire scale.
+
+**Mitigation applied:** switched к interleaved CHANGES (Marina decision a) — CHANGES file created on Шаг 2, appended each subsequent Шаг. Hook satisfied after Шаг 2.
+
+**Generalization:** for future multi-commit sub-blocks — initialize CHANGES file in first or second commit (not deferred to closure). Per-cluster appends are append-only (compatible with project rule). Subsequent CHANGELOG.md hook (separate trigger): apply explicit warning text per BL-013 (c) deferral; single CHANGELOG entry в closure commit satisfies hook permanently.
+
+### L47 — pre-fix per-cluster empirical verification mandatory
+
+3 of 7 T1.2.2 clusters revealed deeper drift than audit-classified surface:
+
+| Cluster | Audit said | Reality |
+|---------|-----------|---------|
+| C15 | method rename | + signature drift + missing method (API drift) |
+| C8 | URL drift | + field rename + infra gap (api_client_with_auth missing db override) |
+| C10 | field rename | + SQLite fixture gap + production bug (mediakit_service migration incomplete) |
+
+**Mitigation:** pre-fix verification per cluster (read production source + run isolated pytest + verify fixture wiring) before declaring fix surface "mechanical". L43 STOP-gate per Шаг enabled mid-execution scope re-evaluation rather than mass commit revert.
+
+**Generalization:** future sub-blocks treat audit cluster classifications as working hypotheses; verify shape + path + depth empirically before locking arithmetic. Marina's "архитектурно чисто" принцип benefits from per-cluster verification — it surfaces architectural decisions that would otherwise be silenced by short-path mechanical commits.
+
+## Cumulative T1.2 progress
+
+- T1.2.1: 9 entries closed (auth migration)
+- T1.2.2: 21 entries closed (4 clusters; 3 clusters deferred с pointers)
+- **Cumulative: 30 of 99 entries (~30%)**
+
+## Open items handed forward
+
+### To T1.2.4 (relocations + test infra)
+
+- **C8 infra:** `api_client_with_auth` fixture extension с `app.dependency_overrides[get_db_session]` override OR alternative pattern (per-test override / new fixture). Decision needs impact analysis on other callers.
+- **C10 SQLite-blocked tests (3 tests in `test_bmediakit_comparison.py`):** mechanical drift fix preserved in committed code; awaits relocation per Marina Q4=(a) или fixture extension.
+
+### To T1.2.5 / T1.2.6 (decision needed)
+
+- **C15 API drift (3F in `test_channel_settings_repo.py`):** decision required — should production grow API (`upsert` + `owner_id` ownership-scope) OR should tests rewrite expectations к current `get_or_create(channel_id)` semantics?
+- **C20 collection-error in `test_main_menu.py`:** delete batch territory T1.2.5.
+
+### Deferred to production fix (consolidates к BACKLOG в T1.2 final closure)
+
+- **mediakit_service migration incomplete** — `src/core/services/mediakit_service.py:111-116` reads `chat.last_avg_views`, `chat.last_post_frequency`, `chat.price_per_post`. Model side migrated:
+  - `chat.last_avg_views` → `chat.avg_views` (TelegramChat:54)
+  - `chat.last_post_frequency` → field removed entirely (no synonym)
+  - `chat.price_per_post` → `chat.channel_settings.price_per_post`
+  - Latent runtime bug — anyone calling `mediakit_service.get_mediakit_data()` hits AttributeError.
+  - **Surface:** discovered through C10 test verification.
+  - **Owner:** production migration sub-block (NOT T1.2.x test cleanup).
+  - **Unblock:** `test_get_mediatkit_data` resumes when service migrated.
+
+## Process discipline observations
+
+- **L43 STOP-gate compliance:** 7 cluster commits каждый gated by Marina "давай" — no autonomous Шаг advancement. Critical для surfacing C15 / C8 / C10 deeper drift mid-execution rather than committing wrong assumptions.
+- **L44/L47 pattern:** empirical path + depth verification замест audit-claim trust — saved 3 wrong-direction commits across C15/C8/C10.
+- **L45 recipe** captured before broader pattern emerged — preventive vs reactive recording.
+- **L46 hook mitigation:** interleaved CHANGES адаптация preserved D2 architectural decision (one commit per cluster) while satisfying stop-hook discipline.
+- **β rule preserved:** "Deferred to production fix" section accumulates discoveries для consolidation в T1.2 final closure — NO inline BACKLOG commits.
