@@ -70,6 +70,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   audit predicted); 3 entries shifted T1.2.1 → T1.2.2. Cumulative T1.2
   progress after T1.2.1: 9 of 99 entries (~10%, not 12%).
 
+### Internal — T1.2.2 test cleanup batch (2026-05-06)
+
+- T1.2.2 test cleanup batch — 4 clusters closed (C6 await, C7 fixture
+  rename, C14 enum/token mock, C16 mock semantics with L45 leakage
+  recipe); 3 clusters deferred с explicit pointers (C15 API drift, C8
+  infra gap, C10 SQLite + production bug). Detailed re-baseline
+  progression and cluster outcomes:
+  `reports/docs-architect/discovery/CHANGES_2026-05-05_t1-2-2-mechanical-bulk-and-c16.md`.
+  Cumulative T1.2 progress: 30 of 99 entries (~30%).
+
 ## [v0.3.0-phase3b] - 2026-05-03
 
 ### Changed — Phase 3b 5b.7d gate marker uniformization (2026-05-03)
