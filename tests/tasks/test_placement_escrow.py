@@ -259,13 +259,21 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
         stuck.meta_json = {}
         stuck.scheduled_delete_at = MagicMock()
 
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = [stuck]
-        mock_result = MagicMock()
-        mock_result.scalars.return_value = mock_scalars
+        # L45 recipe: production calls session.execute() twice (Group A/B query + Group C
+        # query). Shared return_value would leak [stuck] into Group C path → duplicate
+        # dispatch. side_effect=[result_AB, result_C] isolates per-call results.
+        mock_scalars_AB = MagicMock()
+        mock_scalars_AB.all.return_value = [stuck]
+        mock_result_AB = MagicMock()
+        mock_result_AB.scalars.return_value = mock_scalars_AB
+
+        mock_scalars_C = MagicMock()
+        mock_scalars_C.all.return_value = []
+        mock_result_C = MagicMock()
+        mock_result_C.scalars.return_value = mock_scalars_C
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.execute = AsyncMock(side_effect=[mock_result_AB, mock_result_C])
         mock_session.commit = AsyncMock()
         mock_session.rollback = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -291,6 +299,9 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
         mock_task.apply_async.assert_called_once_with(args=[42])
         mock_refund.assert_not_called()
         assert stats["group_a_dispatched"] == 1
+        # Lock-in: production must call execute exactly 2× (Group A/B + Group C).
+        # If query count changes, this surfaces explicitly.
+        assert mock_session.execute.await_count == 2
 
     asyncio.run(_run())
 
@@ -334,7 +345,7 @@ def test_publish_placement_failure_calls_refund_escrow():
             ),
             patch("src.tasks.placement_tasks.PlacementRequestRepository", return_value=mock_repo),
             patch("src.tasks._bot_factory.get_bot", return_value=AsyncMock()),
-            patch("src.tasks.placement_tasks._check_dedup", return_value=False),
+            patch("src.tasks.placement_tasks._check_dedup_async", return_value=False),
             patch("src.core.services.publication_service.PublicationService") as mock_pub_cls,
             patch(
                 "src.core.services.billing_service.BillingService.refund_escrow", new=mock_refund
@@ -395,7 +406,7 @@ def test_publish_placement_success_does_not_refund():
             patch("src.tasks.placement_tasks.async_session_factory", return_value=mock_session),
             patch("src.tasks.placement_tasks.PlacementRequestRepository", return_value=mock_repo),
             patch("src.tasks._bot_factory.get_bot", return_value=AsyncMock()),
-            patch("src.tasks.placement_tasks._check_dedup", return_value=False),
+            patch("src.tasks.placement_tasks._check_dedup_async", return_value=False),
             patch("src.core.services.publication_service.PublicationService") as mock_pub_cls,
             patch("src.tasks.placement_tasks.ReputationService", return_value=mock_rep),
             patch(

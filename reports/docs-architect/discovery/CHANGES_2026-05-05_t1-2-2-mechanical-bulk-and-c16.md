@@ -111,4 +111,13 @@ Status: in-progress (per-cluster sections landed incrementally; final summary ap
   - **Owner:** production migration sub-block (NOT T1.2.x test cleanup).
   - **Unblock:** `test_get_mediatkit_data` resumes when service migrated.
 
-<!-- Шаг 7 appends cluster section above this comment. Шаг 8 replaces this comment with final summary block. -->
+### C16 mock semantics — patch rename + leakage refactor (T1.2.2.7)
+
+- **Commit:** `<this commit SHA — placeholder; canonical в Шаге 8 commits index>`
+- **File:** `tests/tasks/test_placement_escrow.py` (path corrected — `tests/tasks/`, NOT `tests/unit/`)
+- **Type/Count:** 3F → 0
+- **Sub-fixes:**
+  - **(1) Stale patch target rename (2F mechanical):** `test_publish_placement_failure_calls_refund_escrow` (line 298), `test_publish_placement_success_does_not_refund` (line 357). Production renamed `_check_dedup` → `_check_dedup_async` (S-40, `src/tasks/placement_tasks.py:102`). Updated patch target strings (lines 337, 398).
+  - **(2) Mock leakage refactor (1F):** `test_check_escrow_stuck_group_a_dispatches_delete_not_refund` (line 245). Previous setup: `mock_session.execute = AsyncMock(return_value=mock_result)`. Production `_check_escrow_stuck_async` calls `session.execute()` **twice** (Group A/B query + Group C query). Shared `return_value` caused Group C path to dispatch a duplicate delete — `apply_async` called 2× instead of 1×. Refactored к `side_effect=[result_AB, result_C]` с empty Group C scalars list. Added `assert mock_session.execute.await_count == 2` lock-in — surfaces production refactors that change query count.
+- **Recipe (L45 — preventive, см. Шаг 8 lessons):** when patching `session.execute()` for production functions calling `execute()` more than once, always use `side_effect=[...]`, never `return_value=`. Pattern not currently widespread в T1.2.2 file scope (other tests use single-execute production paths or already use side_effect).
+- **Re-baseline post:** TBD (final table в Шаг 8).
