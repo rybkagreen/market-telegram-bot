@@ -23,7 +23,19 @@ Rejected:
 - Hash: <set during commit>
 - Files: reports/docs-architect/discovery/CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md (NEW)
 
-### Commit 2 — TBD
+### Commit 2 — `test(billing): modernize ESCROW invariant к multi-callsite allowlist`
+- Hash: <set during commit>
+- Files: tests/unit/test_billing.py (modify)
+- LOC: +54/-21 (net +33), 75 changed lines.
+- Implementation: AST-based scan via `ast.walk` over `Path("/opt/.../src").rglob("*.py")`. Filters `ast.Call` nodes whose callee is `release_escrow` (matches both `Name` and `Attribute` forms — covers `release_escrow(...)` и `obj.release_escrow(...)`). Skips `SyntaxError` files defensively.
+- Approved callsites:
+  - `src/core/services/publication_service.py` — success path (delete_published_post)
+  - `src/api/routers/disputes.py` — admin dispute resolution (advertiser_fault, added в commit 8cfa49a)
+- Test renamed: `test_release_escrow_only_in_delete_published_post` → `test_release_escrow_only_in_approved_callsites` (reflects new multi-callsite invariant).
+- Removed unused `import subprocess` (was only used by replaced grep-based test).
+- Why AST: robust против comments/docstrings/f-string false-positives — was Issue 1A в Phase A+B probe (line 595 docstring). Issue 1B (line 672 real call) addressed via allowlist expansion.
+- Side fix: SIM114 ruff issue surfaced and resolved via fname helper variable refactor.
+- Verify: `pytest TestEscrowReleaseLocation` PASSED. `ruff check`, `ruff format --check` pass.
 
 ### Commit 3 — TBD
 
