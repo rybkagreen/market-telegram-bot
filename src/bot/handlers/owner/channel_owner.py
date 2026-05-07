@@ -79,10 +79,7 @@ async def show_inactive_channels(callback: CallbackQuery, session: AsyncSession)
     builder.adjust(1)
 
     count = len(channels)
-    if count == 0:
-        body = "У вас нет скрытых каналов."
-    else:
-        body = "Нажмите на канал для восстановления:"
+    body = "У вас нет скрытых каналов." if count == 0 else "Нажмите на канал для восстановления:"
     await callback.message.edit_text(
         f"📦 *Скрытые каналы* ({count})\n\n{body}",
         reply_markup=builder.as_markup(),

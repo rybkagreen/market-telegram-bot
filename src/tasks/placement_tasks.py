@@ -377,7 +377,6 @@ async def _check_counter_offer_sla_async() -> dict[str, Any]:
     }
 
     async with async_session_factory() as session:
-        repo = PlacementRequestRepository(session)
         from datetime import UTC, datetime
 
         from sqlalchemy import select as _select

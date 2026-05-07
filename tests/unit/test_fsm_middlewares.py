@@ -36,6 +36,7 @@ class TestFSMStates:
         assert "advertiser_commenting" in states
         assert "admin_reviewing" in states
 
+
 class TestMiddlewares:
     """Tests for middlewares."""
 
