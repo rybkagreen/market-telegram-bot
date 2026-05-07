@@ -23,7 +23,12 @@
 - **Verify:** 12F / 997P / 5S / 0E (+ unchanged 21 lint / 14 format / 10 mypy)
 - **Note:** First gate run showed 13F due к flake `tests/unit/test_content_filter.py::test_check_case_insensitive` (Mistral non-determinism, `0.25 == 1.0`). Re-run confirmed 12F restoration. Flake unrelated к commit diff.
 
-### Commit 2 — TBD (mini_app payout removal)
+### Commit 2 — `refactor(mini_app): remove payout screens, hooks, types, redirect routes`
+- **Hash:** TBD (post-commit)
+- **Files (delete, 5):** `OwnPayouts.tsx`, `OwnPayouts.module.css`, `OwnPayoutRequest.tsx`, `api/payouts.ts`, `hooks/queries/usePayoutQueries.ts`
+- **Files (modify, 7):** `App.tsx` (imports + routes + stale comment), `OwnMenu.tsx` (Выплаты MenuButton + dead `useMe`/`formatCurrency` imports), `hooks/queries/index.ts` (barrel export), `lib/types.ts` (`PayoutStatus`+`Payout` interface), `lib/constants.ts` (`WITHDRAWAL_FEE`), `lib/formatters.ts` (`calcWithdrawalFee` + `WITHDRAWAL_FEE` import), `screens/common/Help.tsx` (FAQ rewrite to portal-redirect text)
+- **Diff:** 12 files, +2 / -317 lines
+- **Verify:** TBD (expected 12F/997P/5S/0E preserved — Python tests don't touch mini_app)
 
 ### Commit 3 — TBD (stale bot comment update)
 

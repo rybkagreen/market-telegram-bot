@@ -80,7 +80,6 @@ export const PLATFORM_TOTAL_RATE = 1 - OWNER_NET_RATE
 // to the effective platform total under Промт 15.7.
 export const PLATFORM_COMMISSION = PLATFORM_TOTAL_RATE
 export const YOOKASSA_FEE = 0.035  // pass-through, platform earns 0
-export const WITHDRAWAL_FEE = 0.015  // payout flow, separate from placement fees
 
 /** Cancel split (after_confirmation): 50 / 40 / 10. */
 export const CANCEL_REFUND_ADVERTISER = 0.50

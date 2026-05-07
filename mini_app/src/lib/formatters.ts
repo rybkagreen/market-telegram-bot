@@ -4,7 +4,7 @@
 // ============================================================
 
 import type { Plan, PublicationFormat } from './types'
-import { PLAN_HIERARCHY, PUBLICATION_FORMATS, YOOKASSA_FEE, WITHDRAWAL_FEE } from './constants'
+import { PLAN_HIERARCHY, PUBLICATION_FORMATS, YOOKASSA_FEE } from './constants'
 
 // ---- Currency ----
 
@@ -99,11 +99,6 @@ export function formatCountdown(iso: string): string {
 export function calcTopUpFee(desired: number): { desired: number; fee: number; total: number } {
   const fee = Math.round(desired * YOOKASSA_FEE)
   return { desired, fee, total: desired + fee }
-}
-
-export function calcWithdrawalFee(gross: number): { gross: number; fee: number; net: number } {
-  const fee = Math.round(gross * WITHDRAWAL_FEE)
-  return { gross, fee, net: gross - fee }
 }
 
 export function calcFormatPrice(
