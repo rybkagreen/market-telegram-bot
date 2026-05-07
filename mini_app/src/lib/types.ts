@@ -24,8 +24,6 @@ export type PublicationFormat =
   | 'pin_24h'
   | 'pin_48h'
 
-export type PayoutStatus = 'pending' | 'processing' | 'paid' | 'rejected'
-
 export type DisputeStatus = 'open' | 'owner_explained' | 'resolved' | 'closed'
 
 export type MediaType = 'none' | 'photo' | 'video'
@@ -190,17 +188,6 @@ export interface PlacementRequest {
   video_duration: number | null
   erid: string | null
   created_at: string
-}
-
-export interface Payout {
-  id: number
-  gross_amount: string
-  fee_amount: string
-  net_amount: string
-  status: PayoutStatus
-  requisites: string
-  created_at: string
-  processed_at: string | null
 }
 
 export interface Dispute {
