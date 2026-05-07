@@ -516,6 +516,54 @@ async def api_client_with_auth(
             app.dependency_overrides.pop(dep, None)
 
 
+@pytest_asyncio.fixture
+async def api_client_with_owner_auth(
+    owner_user: User, db_session: AsyncSession
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент с авторизацией через JWT — owner_user."""
+    from src.api.auth_utils import create_jwt_token
+    from src.api.dependencies import (
+        get_current_user,
+        get_current_user_from_mini_app,
+        get_current_user_from_web_portal,
+        get_db_session,
+    )
+    from src.api.main import app
+
+    token = create_jwt_token(
+        owner_user.id,
+        owner_user.telegram_id,
+        owner_user.plan,
+        source="mini_app",
+    )
+
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
+
+    async def _override_get_current_user() -> User:
+        return owner_user
+
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+    app.dependency_overrides[get_current_user_from_mini_app] = _override_get_current_user
+    app.dependency_overrides[get_current_user_from_web_portal] = _override_get_current_user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        for dep in (
+            get_db_session,
+            get_current_user,
+            get_current_user_from_mini_app,
+            get_current_user_from_web_portal,
+        ):
+            app.dependency_overrides.pop(dep, None)
+
+
 # =============================================================================
 # LEGAL PROFILE / CONTRACT / ORD fixtures (testing-suite 2026-04-21)
 # =============================================================================
