@@ -145,7 +145,5 @@ async def test_log_warning_emitted_on_failure(
         )
 
     matching = [r for r in caplog.records if "Audit log write failed" in r.message]
-    assert (
-        len(matching) >= 1
-    ), f"Expected warning record, got {[r.message for r in caplog.records]}"
+    assert len(matching) >= 1, f"Expected warning record, got {[r.message for r in caplog.records]}"
     assert matching[0].exc_info is not None

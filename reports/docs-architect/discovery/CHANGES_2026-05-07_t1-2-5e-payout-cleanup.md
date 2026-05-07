@@ -61,12 +61,16 @@
 - **Verify:** 12F/981P/3S/0E (match) + 21 lint / 14 format / 10 mypy unchanged
 
 ### Commit 7a — `chore(lint): clear residual ruff lint after dead-code purge (excl. conftest)`
-- **Hash:** TBD (post-commit)
+- **Hash:** d84780b
 - **Files (modify, 7):** `src/api/routers/document_validation.py` (SIM102 line 107 — combine if; E712 line 263 — replace `== True` с `.is_(True)`), `src/bot/handlers/owner/channel_owner.py` (SIM108 line 82 — collapse к ternary), `src/tasks/placement_tasks.py` (F841 line 380 — drop unused `repo`), `tests/mocks/yookassa_mock.py` (B903 lines 8, 15 — convert MockConfirmation/MockAmount к dataclass), `tests/tasks/test_placement_escrow.py` (4× N806 — rename `mock_scalars_AB`/`mock_result_AB`/`mock_scalars_C`/`mock_result_C` → lowercase; 2× N817 — replace `as PS` с full `PlacementStatus` name), `tests/unit/test_fsm_middlewares.py` (E302 line 39 — add blank line), `tests/unit/test_payments_constants.py` (B007 line 151 — rename `plan` → `_plan`)
 - **NOT touched:** `tests/unit/conftest.py` (7 errors stay per Marina Q1=(a) Phase C — intentional asyncio policy ordering, BL-024 prohibition).
-- **Verify:** TBD (expected 12F/981P/3S/0E pytest unchanged; lint 21 → **7**; format 14 → 14; mypy 10 → 10)
+- **Verify:** lint 21 → **7** (conftest residual); format 14 → **13** (one file incidentally cleaned by edit); pytest 12F/981P/3S/0E (unaffected by lint-only edits — verified post-7b)
 
-### Commit 7b — TBD (format cleanup)
+### Commit 7b — `chore(format): apply ruff format to 13 drifted files`
+- **Hash:** TBD (post-commit)
+- **Method:** `make format` (`poetry run ruff format src/ tests/`)
+- **Files reformatted (13):** `src/api/routers/channels.py`, `src/bot/handlers/owner/channel_owner.py`, `src/core/services/legal_compliance_service.py`, `src/db/models/legal_profile.py`, `tests/integration/api/test_admin_payouts.py`, `tests/integration/test_audit_log_repo.py`, `tests/test_api_channel_settings.py`, `tests/test_streak_bonus.py`, `tests/unit/api/test_channels_create.py`, `tests/unit/test_advertiser_gates.py`, `tests/unit/test_bot_channel_owner.py`, `tests/unit/test_legal_compliance_service.py`, `tests/unit/test_owner_gates.py` (commit 7a's `test_fsm_middlewares.py` E302 edit incidentally cleaned that file).
+- **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format 13 → **0**; mypy 10 → 10)
 
 ### Commit 7c — TBD (typecheck cleanup)
 

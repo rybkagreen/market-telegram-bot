@@ -77,38 +77,32 @@ _USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
 # G07 (Phase 4) IS included; its body returns a PHASE4_PENDING marker
 # until Phase 4 (МES Acts API) lands. G15/G16 are payout-side and
 # intentionally absent — payout-side coordinator is Phase 5 territory.
-_TRANSITION_GATES: dict[
-    tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]
-] = {
+_TRANSITION_GATES: dict[tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]] = {
     (PlacementStatus.pending_owner, PlacementStatus.counter_offer): frozenset(),
-    (PlacementStatus.pending_owner, PlacementStatus.pending_payment): frozenset(
-        {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED}
-    ),
+    (PlacementStatus.pending_owner, PlacementStatus.pending_payment): frozenset({
+        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED
+    }),
     (PlacementStatus.pending_owner, PlacementStatus.cancelled): frozenset(),
     (PlacementStatus.counter_offer, PlacementStatus.pending_owner): frozenset(),
-    (PlacementStatus.counter_offer, PlacementStatus.pending_payment): frozenset(
-        {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED}
-    ),
+    (PlacementStatus.counter_offer, PlacementStatus.pending_payment): frozenset({
+        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED
+    }),
     (PlacementStatus.counter_offer, PlacementStatus.cancelled): frozenset(),
     (PlacementStatus.pending_payment, PlacementStatus.escrow): frozenset(),
     (PlacementStatus.pending_payment, PlacementStatus.cancelled): frozenset(),
-    (PlacementStatus.escrow, PlacementStatus.published): frozenset(
-        {
-            PlacementGate.G08_ERID_REGISTERED,
-            PlacementGate.G09_ORD_CONTRACT_REPORTED,
-            PlacementGate.G10_PLACEMENT_TEXT_MARKED,
-        }
-    ),
+    (PlacementStatus.escrow, PlacementStatus.published): frozenset({
+        PlacementGate.G08_ERID_REGISTERED,
+        PlacementGate.G09_ORD_CONTRACT_REPORTED,
+        PlacementGate.G10_PLACEMENT_TEXT_MARKED,
+    }),
     (PlacementStatus.escrow, PlacementStatus.failed): frozenset(),
     (PlacementStatus.escrow, PlacementStatus.failed_permissions): frozenset(),
     (PlacementStatus.escrow, PlacementStatus.refunded): frozenset(),
     (PlacementStatus.escrow, PlacementStatus.cancelled): frozenset(),
-    (PlacementStatus.published, PlacementStatus.completed): frozenset(
-        {
-            PlacementGate.G11_PUBLICATION_VERIFIED,
-            PlacementGate.G12_PUBLICATION_REPORTED_TO_ORD,
-        }
-    ),
+    (PlacementStatus.published, PlacementStatus.completed): frozenset({
+        PlacementGate.G11_PUBLICATION_VERIFIED,
+        PlacementGate.G12_PUBLICATION_REPORTED_TO_ORD,
+    }),
     (PlacementStatus.published, PlacementStatus.failed): frozenset(),
     (PlacementStatus.published, PlacementStatus.refunded): frozenset(),
     (PlacementStatus.published, PlacementStatus.cancelled): frozenset(),
@@ -124,20 +118,16 @@ _TRANSITION_GATES: dict[
 # G06 included for "owner" per plan §3.B.6 verbatim (Marina decision Q2 lean).
 # All gate bodies remain NotImplementedError until 5b.3+ ships logic.
 _USER_ROLE_GATES: dict[str, frozenset[PlacementGate]] = {
-    "owner": frozenset(
-        {
-            PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
-            PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
-            PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
-        }
-    ),
-    "advertiser": frozenset(
-        {
-            PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
-            PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
-            PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
-        }
-    ),
+    "owner": frozenset({
+        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G05_OWNER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID,
+    }),
+    "advertiser": frozenset({
+        PlacementGate.G01_ADVERTISER_LEGAL_PROFILE_COMPLETE,
+        PlacementGate.G02_ADVERTISER_FRAMEWORK_CONTRACT_SIGNED,
+        PlacementGate.G03_ADVERTISER_LEGAL_STATUS_COMPLIANT,
+    }),
 }
 
 
@@ -203,9 +193,7 @@ class LegalComplianceService:
                 time; the runtime check is defence-in-depth.
         """
         if role not in _USER_ROLE_GATES:
-            raise ValueError(
-                f"Unknown role: {role!r}. Expected one of: 'owner', 'advertiser'."
-            )
+            raise ValueError(f"Unknown role: {role!r}. Expected one of: 'owner', 'advertiser'.")
         return list(_USER_ROLE_GATES[role])
 
     async def check_gate(
@@ -263,9 +251,7 @@ class LegalComplianceService:
         """
         checker = _USER_GATE_CHECKERS.get(gate)
         if checker is None:
-            raise NotImplementedError(
-                f"No user-role gate-checker registered for {gate.name}"
-            )
+            raise NotImplementedError(f"No user-role gate-checker registered for {gate.name}")
         return await checker(self._session, user)
 
     async def check_gates_for_user_role(

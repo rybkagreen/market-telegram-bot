@@ -16,7 +16,9 @@ class TestAPIChannelSettings:
         owner_user,
     ):
         """GET создаёт настройки с defaults если их нет."""
-        response = await api_client_with_owner_auth.get(f"/api/channel-settings/?channel_id={test_channel.id}")
+        response = await api_client_with_owner_auth.get(
+            f"/api/channel-settings/?channel_id={test_channel.id}"
+        )
 
         assert response.status_code == 200
         data = response.json()

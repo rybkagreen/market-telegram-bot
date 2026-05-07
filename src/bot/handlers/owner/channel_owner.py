@@ -374,9 +374,7 @@ async def add_channel_confirm(
             user_id=user.id,
             extra={"blockers": [r.gate.value for r in blockers]},
         )
-        await callback.answer(
-            "❌ Добавление канала недоступно", show_alert=True
-        )
+        await callback.answer("❌ Добавление канала недоступно", show_alert=True)
         lines = [
             "❌ *Добавление канала недоступно*",
             "",

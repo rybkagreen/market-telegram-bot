@@ -124,11 +124,7 @@ def test_table_keys_match_allow_list() -> None:
     - A transition was removed from _ALLOW_LIST but the gates entry remains
       (dead entry)
     """
-    expected_pairs = {
-        (from_s, to_s)
-        for from_s, allowed in _ALLOW_LIST.items()
-        for to_s in allowed
-    }
+    expected_pairs = {(from_s, to_s) for from_s, allowed in _ALLOW_LIST.items() for to_s in allowed}
     actual_pairs = set(_TRANSITION_GATES.keys())
     missing = expected_pairs - actual_pairs
     extra = actual_pairs - expected_pairs
@@ -203,9 +199,7 @@ async def test_check_gate_for_user_owner_g04_dispatches(
         mock_checker,
     )
 
-    result = await service.check_gate_for_user(
-        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE, user
-    )
+    result = await service.check_gate_for_user(PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE, user)
 
     assert result is expected
     mock_checker.assert_awaited_once_with(service._session, user)
@@ -221,9 +215,7 @@ async def test_check_gate_for_user_unknown_gate_raises(
     """
     user = _fake_user()
     with pytest.raises(NotImplementedError, match="No user-role gate-checker"):
-        await service.check_gate_for_user(
-            PlacementGate.G08_ERID_REGISTERED, user
-        )
+        await service.check_gate_for_user(PlacementGate.G08_ERID_REGISTERED, user)
 
 
 @pytest.mark.asyncio
