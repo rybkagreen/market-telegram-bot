@@ -415,16 +415,6 @@ async def test_channel(
 
 
 @pytest_asyncio.fixture
-async def test_campaign(db_session: AsyncSession, advertiser_user: User):
-    """Создать тестовую кампанию — REMOVED in v4.2."""
-    # from src.db.models.campaign import Campaign, CampaignStatus
-    # campaign = Campaign(...)
-    # This fixture is deprecated — use placement_request fixture instead
-    pytest.skip("Campaign model removed in v4.2 — use PlacementRequest")
-    return None
-
-
-@pytest_asyncio.fixture
 async def placement_request_service(db_session: AsyncSession) -> PlacementRequestService:
     """Создать PlacementRequestService для тестов."""
 
