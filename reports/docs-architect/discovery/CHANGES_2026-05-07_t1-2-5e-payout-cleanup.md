@@ -24,13 +24,17 @@
 - **Note:** First gate run showed 13F due к flake `tests/unit/test_content_filter.py::test_check_case_insensitive` (Mistral non-determinism, `0.25 == 1.0`). Re-run confirmed 12F restoration. Flake unrelated к commit diff.
 
 ### Commit 2 — `refactor(mini_app): remove payout screens, hooks, types, redirect routes`
-- **Hash:** TBD (post-commit)
+- **Hash:** 79de007
 - **Files (delete, 5):** `OwnPayouts.tsx`, `OwnPayouts.module.css`, `OwnPayoutRequest.tsx`, `api/payouts.ts`, `hooks/queries/usePayoutQueries.ts`
 - **Files (modify, 7):** `App.tsx` (imports + routes + stale comment), `OwnMenu.tsx` (Выплаты MenuButton + dead `useMe`/`formatCurrency` imports), `hooks/queries/index.ts` (barrel export), `lib/types.ts` (`PayoutStatus`+`Payout` interface), `lib/constants.ts` (`WITHDRAWAL_FEE`), `lib/formatters.ts` (`calcWithdrawalFee` + `WITHDRAWAL_FEE` import), `screens/common/Help.tsx` (FAQ rewrite to portal-redirect text)
-- **Diff:** 12 files, +2 / -317 lines
-- **Verify:** TBD (expected 12F/997P/5S/0E preserved — Python tests don't touch mini_app)
+- **Diff:** 13 files, +8 / -318 lines (incl. CHANGES placeholder add line)
+- **Verify:** 12F/997P/5S/0E (match) + 21 lint / 14 format / 10 mypy unchanged
 
-### Commit 3 — TBD (stale bot comment update)
+### Commit 3 — `docs(bot): update stale 16.3 payout-flow comments`
+- **Hash:** TBD (post-commit)
+- **Files:** `src/bot/handlers/__init__.py` (router-include comment lines 29-31), `tests/unit/test_fsm_middlewares.py` (TestNoBotPayoutFlow class docstring lines 100-105)
+- **Reason:** Both comments described the bot opening mini_app at `/own/payouts/request` for OpenInWebPortal redirect — the mini_app screen was deleted in commit 2 (79de007), and the actual mechanism was always `build_portal_deeplink` direct minting (BL-055). Comments now describe the actual flow.
+- **Verify:** TBD (expected 12F/997P/5S/0E preserved — comment-only edits)
 
 ### Commit 4 — TBD (PayoutService dead methods)
 

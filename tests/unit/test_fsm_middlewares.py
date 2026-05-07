@@ -98,10 +98,11 @@ class TestCallbackRegistry:
 
 
 class TestNoBotPayoutFlow:
-    """BL-045 / 16.3: bot must not accept payout requisites (PII).
+    """BL-045 / 16.3 / BL-055: bot must not accept payout requisites (PII).
 
-    Setup lives in the web portal; the bot only opens the mini_app at
-    `/own/payouts/request`, which redirects via OpenInWebPortal.
+    Setup lives in the web portal; the bot mints a portal-login URL via
+    build_portal_deeplink and attaches it to inline buttons that open the
+    user's external browser at /own/payouts/request (web portal).
     """
 
     def test_payout_handler_module_absent(self):
