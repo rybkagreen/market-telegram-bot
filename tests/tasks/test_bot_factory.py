@@ -25,9 +25,9 @@ class TestGetBotSingleton:
 
     def test_get_bot_returns_singleton(self):
         """Two calls to get_bot() must return the same object."""
-        with patch("src.tasks._bot_factory.Bot") as mock_bot:
+        with patch("src.tasks._bot_factory.new_bot") as mock_new_bot:
             mock_instance = MagicMock()
-            mock_bot.return_value = mock_instance
+            mock_new_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import get_bot
 
@@ -35,28 +35,28 @@ class TestGetBotSingleton:
             second = get_bot()
 
             assert first is second
-            assert mock_bot.call_count == 1
+            assert mock_new_bot.call_count == 1
 
     def test_init_bot_idempotent(self):
         """Calling init_bot() twice must not create a second Bot."""
-        with patch("src.tasks._bot_factory.Bot") as mock_bot:
+        with patch("src.tasks._bot_factory.new_bot") as mock_new_bot:
             mock_instance = MagicMock()
-            mock_bot.return_value = mock_instance
+            mock_new_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import init_bot
 
             init_bot()
             init_bot()
 
-            assert mock_bot.call_count == 1
+            assert mock_new_bot.call_count == 1
 
     def test_close_bot_clears_instance(self):
         """After close_bot(), get_bot() must create a fresh instance."""
-        with patch("src.tasks._bot_factory.Bot") as mock_bot:
+        with patch("src.tasks._bot_factory.new_bot") as mock_new_bot:
             mock_instance = MagicMock()
             mock_instance.session = MagicMock()
             mock_instance.session.close = AsyncMock()
-            mock_bot.return_value = mock_instance
+            mock_new_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import close_bot, get_bot, init_bot
 
@@ -70,17 +70,17 @@ class TestGetBotSingleton:
 
             # get_bot() creates a new instance
             get_bot()
-            assert mock_bot.call_count == 2
+            assert mock_new_bot.call_count == 2
 
     def test_get_bot_initializes_if_none(self):
         """get_bot() with no prior init_bot() call must still return a Bot."""
-        with patch("src.tasks._bot_factory.Bot") as mock_bot:
+        with patch("src.tasks._bot_factory.new_bot") as mock_new_bot:
             mock_instance = MagicMock()
-            mock_bot.return_value = mock_instance
+            mock_new_bot.return_value = mock_instance
 
             from src.tasks._bot_factory import get_bot
 
             result = get_bot()
 
             assert result is mock_instance
-            assert mock_bot.call_count == 1
+            assert mock_new_bot.call_count == 1
