@@ -65,18 +65,15 @@ class TestMediakitService:
     @pytest.mark.asyncio
     async def test_get_or_create_mediatkit(self, db_session, user_test_data, chat_test_data):
         """Test get or create mediakit."""
-        # Create user
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
 
-        # Create chat
         chat = TelegramChat(**chat_test_data, owner_user_id=user.id)
         db_session.add(chat)
         await db_session.flush()
 
-        # Get or create mediakit
-        mediakit = await mediakit_service.get_or_create_mediakit(chat.id)
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
 
         assert mediakit is not None
         assert mediakit.channel_id == chat.id
@@ -85,7 +82,6 @@ class TestMediakitService:
     @pytest.mark.asyncio
     async def test_update_mediatkit(self, db_session, user_test_data, chat_test_data):
         """Test updating mediakit."""
-        # Create user and chat
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
@@ -94,16 +90,16 @@ class TestMediakitService:
         db_session.add(chat)
         await db_session.flush()
 
-        # Create mediakit
-        mediakit = await mediakit_service.get_or_create_mediakit(chat.id)
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
 
-        # Update
         updates = {
             "custom_description": "Updated description",
             "theme_color": "#ff0000",
             "is_public": False,
         }
-        updated = await mediakit_service.update_mediakit(mediakit.id, user.id, updates)
+        updated = await mediakit_service.update_mediakit(
+            mediakit.id, user.id, updates, session=db_session
+        )
 
         assert updated.custom_description == "Updated description"
         assert updated.theme_color == "#ff0000"
@@ -111,10 +107,9 @@ class TestMediakitService:
 
     @pytest.mark.skip(
         reason=(
-            "BLOCKED: mediakit_service.get_mediakit_data reads stale fields "
-            "(chat.last_avg_views/last_post_frequency/price_per_post). "
-            "Production migration incomplete; tracked in T1.2.2 closure CHANGES "
-            "'Deferred to production fix' section."
+            "mediakit_service stale fields production bug — service reads "
+            "chat.last_avg_views/last_post_frequency/price_per_post but "
+            "model migrated; defer to T1.2 final closure BACKLOG batch (Q3=a)"
         )
     )
     @pytest.mark.asyncio
@@ -153,22 +148,13 @@ class TestMediakitService:
 class TestComparisonService:
     """Tests for ComparisonService."""
 
-    @pytest.mark.skip(
-        reason=(
-            "DEFERRED to T1.2.4 per Marina D1: SQLite fixture missing "
-            "channel_settings table. Test relocates to integration territory "
-            "or fixture grows."
-        )
-    )
     @pytest.mark.asyncio
     async def test_get_channels_for_comparison(self, db_session, user_test_data):
         """Test getting channels for comparison."""
-        # Create user
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
 
-        # Create test channels
         channels_data = [
             {"username": "channel1", "title": "Channel 1", "member_count": 10000, "topic": "it"},
             {"username": "channel2", "title": "Channel 2", "member_count": 15000, "topic": "it"},
@@ -182,33 +168,24 @@ class TestComparisonService:
             await db_session.flush()
             channel_ids.append(chat.id)
 
-        # Get channels for comparison
-        channels = await comparison_service.get_channels_for_comparison(channel_ids)
+        channels = await comparison_service.get_channels_for_comparison(
+            channel_ids, session=db_session
+        )
 
         assert len(channels) == 3
-        assert channels[0]["member_count"] == 10000
-        assert channels[1]["member_count"] == 15000
-        assert channels[2]["member_count"] == 8000
+        assert channels[0]["subscribers"] == 10000
+        assert channels[1]["subscribers"] == 15000
+        assert channels[2]["subscribers"] == 8000
 
-    @pytest.mark.skip(
-        reason=(
-            "DEFERRED to T1.2.4: SQLite fixture missing channel_settings table "
-            "(per Marina D1; conftest extension forbidden в T1.2.2 scope). "
-            "Mechanical drift fix applied; awaiting relocation per Marina Q4=(a) "
-            "или fixture extension decision."
-        )
-    )
     @pytest.mark.asyncio
     async def test_calculate_comparison_metrics(self, db_session, user_test_data):
         """Test calculating comparison metrics."""
-        # Create user
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
 
-        # Create test channels with different metrics
         # Note: post-migration field names — last_avg_views→avg_views,
-        # last_post_frequency removed, price_per_post moved к ChannelSettings.
+        # last_post_frequency removed, price_per_post moved to ChannelSettings.
         channels_data = [
             {
                 "username": "channel1",
@@ -239,37 +216,30 @@ class TestComparisonService:
             await db_session.flush()
             channel_ids.append(chat.id)
 
-        # Get channels and calculate metrics
-        channels = await comparison_service.get_channels_for_comparison(channel_ids)
+        channels = await comparison_service.get_channels_for_comparison(
+            channel_ids, session=db_session
+        )
         comparison = comparison_service.calculate_comparison_metrics(channels)
 
         assert "channels" in comparison
         assert "best_values" in comparison
         assert "recommendation" in comparison
 
-        # Check best values
-        assert comparison["best_values"]["member_count"] == 15000
+        assert comparison["best_values"]["subscribers"] == 15000
         assert comparison["best_values"]["avg_views"] == 2000
-        assert comparison["best_values"]["er"] == 15.0
+        assert comparison["best_values"]["last_er"] == 15.0
 
-        # Check recommendation (should be channel with best ER)
+        # Recommendation should be channel with best ER (channel1)
         assert comparison["recommendation"]["channel_id"] == channel_ids[0]
 
-    @pytest.mark.skip(
-        reason=(
-            "DEFERRED to T1.2.4: same SQLite blocker as "
-            "test_calculate_comparison_metrics."
-        )
-    )
     @pytest.mark.asyncio
     async def test_price_per_1k_subscribers_calculation(self, db_session, user_test_data):
         """Test price per 1k subscribers calculation."""
-        # Create user
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
 
-        # Create test channel — price_per_post moved к ChannelSettings post-migration.
+        # price_per_post moved to ChannelSettings post-migration.
         chat = TelegramChat(
             username="channel1",
             title="Channel 1",
@@ -284,8 +254,9 @@ class TestComparisonService:
         db_session.add(settings)
         await db_session.flush()
 
-        # Get channels and calculate metrics
-        channels = await comparison_service.get_channels_for_comparison([chat.id])
+        channels = await comparison_service.get_channels_for_comparison(
+            [chat.id], session=db_session
+        )
         comparison = comparison_service.calculate_comparison_metrics(channels)
 
         # Price per 1k = 500 / (10000 / 1000) = 50
