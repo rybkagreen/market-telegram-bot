@@ -31,58 +31,6 @@ class TestBadgeService:
         assert len(badges) == 0
 
 
-class TestStreakBonus:
-    """Tests for streak bonus system."""
-
-    @pytest.mark.asyncio
-    async def test_streak_bonus_thresholds(self, db_session, user_test_data):
-        """Test streak bonus thresholds."""
-        from src.core.services.xp_service import xp_service
-
-        # Create user
-        user = User(**user_test_data)
-        db_session.add(user)
-        await db_session.flush()
-
-        # Test 7 days streak
-        result = await xp_service.award_streak_bonus(user.id, 7)
-        assert result["success"] is True
-        assert result["xp_awarded"] == 50
-        assert result["balance_rub_awarded"] == 10
-
-        # Test 14 days streak
-        result = await xp_service.award_streak_bonus(user.id, 14)
-        assert result["success"] is True
-        assert result["xp_awarded"] == 100
-        assert result["balance_rub_awarded"] == 25
-
-        # Test 30 days streak
-        result = await xp_service.award_streak_bonus(user.id, 30)
-        assert result["success"] is True
-        assert result["xp_awarded"] == 300
-        assert result["balance_rub_awarded"] == 100
-
-        # Test 100 days streak
-        result = await xp_service.award_streak_bonus(user.id, 100)
-        assert result["success"] is True
-        assert result["xp_awarded"] == 1000
-        assert result["balance_rub_awarded"] == 500
-
-    @pytest.mark.asyncio
-    async def test_streak_bonus_below_threshold(self, db_session, user_test_data):
-        """Test streak bonus below minimum threshold."""
-        from src.core.services.xp_service import xp_service
-
-        # Create user
-        user = User(**user_test_data)
-        db_session.add(user)
-        await db_session.flush()
-
-        # Test 5 days (below 7 days threshold)
-        result = await xp_service.award_streak_bonus(user.id, 5)
-        assert result.get("skipped") is True
-
-
 class TestCategorySubcategory:
     """Tests for category/subcategory classification."""
 

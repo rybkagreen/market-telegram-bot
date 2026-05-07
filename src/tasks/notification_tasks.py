@@ -468,17 +468,19 @@ def notify_owner_xp_for_publication(
 
     async def _add_xp() -> bool:
         from src.core.services.xp_service import xp_service
+        from src.db.session import celery_async_session_factory
 
-        # 30 XP за каждую публикацию
-        new_level, leveled_up = await xp_service.add_owner_xp(
-            user_id=owner_id,
-            amount=30,
-            reason=f"publication:{placement_id}",
-        )
+        async with celery_async_session_factory() as session:
+            new_level, leveled_up = await xp_service.add_owner_xp(
+                session,
+                user_id=owner_id,
+                amount=30,
+                reason=f"publication:{placement_id}",
+            )
+            await session.commit()  # S-48: self-contained pattern
 
         if leveled_up:
             logger.info(f"Owner {owner_id} leveled up to {new_level} (owner XP)")
-            # Можно отправить уведомление о повышении уровня
             from src.tasks.notification_tasks import notify_level_up
 
             notify_level_up.delay(owner_id, new_level)
