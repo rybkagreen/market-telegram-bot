@@ -391,15 +391,28 @@ class AnalyticsService:
 
     async def _call_mistral_json(self, system_prompt: str, user_prompt: str) -> str:
         """Call Mistral in JSON-mode via the raw client (bypassing `.generate`)."""
+        from mistralai.models import (
+            AssistantMessageTypedDict,
+            SystemMessageTypedDict,
+            ToolMessageTypedDict,
+            UserMessageTypedDict,
+        )
+
         from src.constants.ai import MISTRAL_MODEL
 
+        messages: list[
+            SystemMessageTypedDict
+            | UserMessageTypedDict
+            | AssistantMessageTypedDict
+            | ToolMessageTypedDict
+        ] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
         response = await asyncio.to_thread(
             self.ai_service.client.chat.complete,
             model=MISTRAL_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
             max_tokens=INSIGHTS_MISTRAL_MAX_TOKENS,
             temperature=0.4,
             response_format={"type": "json_object"},

@@ -72,7 +72,11 @@
 - **Files reformatted (13):** `src/api/routers/channels.py`, `src/bot/handlers/owner/channel_owner.py`, `src/core/services/legal_compliance_service.py`, `src/db/models/legal_profile.py`, `tests/integration/api/test_admin_payouts.py`, `tests/integration/test_audit_log_repo.py`, `tests/test_api_channel_settings.py`, `tests/test_streak_bonus.py`, `tests/unit/api/test_channels_create.py`, `tests/unit/test_advertiser_gates.py`, `tests/unit/test_bot_channel_owner.py`, `tests/unit/test_legal_compliance_service.py`, `tests/unit/test_owner_gates.py` (commit 7a's `test_fsm_middlewares.py` E302 edit incidentally cleaned that file).
 - **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format 13 → **0**; mypy 10 → 10)
 
-### Commit 7c — TBD (typecheck cleanup)
+### Commit 7c — `chore(typecheck): clear 6 of 10 mypy errors (mediakit deferred)`
+- **Hash:** TBD (post-commit)
+- **Files (modify, 4 src + 1 helper):** `src/bot/handlers/owner/channel_owner.py:457` (added explicit `if ch is None: return` guard before `.username`/`.title` access — closes 2 union-attr errors), `src/tasks/ord_tasks.py:59` (dropped commented-out `channel_id`/`post_url` kwargs from `report_publication` call to match service signature — closes 2 call-arg errors), `src/core/services/analytics_service.py:392-411` (typed `messages` list with full `SystemMessageTypedDict | UserMessageTypedDict | AssistantMessageTypedDict | ToolMessageTypedDict` union to satisfy SDK list-invariance constraint — closes 1 arg-type error), `src/bot/handlers/advertiser/campaigns.py:172` (no-op — issue resolved by adding `parse_mode` to helper), `src/bot/utils/safe_callback.py:10-32` (extended `safe_callback_edit` signature to accept optional `parse_mode: str | None = None`, threaded into both `edit_text` and `answer` fallback — closes 1 call-arg error).
+- **NOT touched:** `src/core/services/mediakit_service.py` (4 errors deferred per Marina Q2=(c) — `TelegramChat` model attrs `last_avg_views`/`last_post_frequency`/`price_per_post` don't exist; orthogonal cleanup target, see Deferred section).
+- **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format 0; mypy 10 → **4** — only mediakit residual)
 
 ### Commit 8 — TBD (closure docs + tmp cleanup)
 

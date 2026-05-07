@@ -461,8 +461,10 @@ async def restore_channel(callback: CallbackQuery, session: AsyncSession) -> Non
     channel_id = int((callback.data or "").split(":")[-1])
 
     ch = await session.get(TelegramChat, channel_id)
-    if ch:
-        ch.is_active = True
+    if ch is None:
+        await callback.answer("❌ Канал не найден", show_alert=True)
+        return
+    ch.is_active = True
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:channel:{channel_id}")
