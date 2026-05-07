@@ -59,4 +59,17 @@ This sub-block delivers the production fix: schema widen + SAVEPOINT refactor + 
   try/except cannot rescue DBAPI-level transaction state. Now genuine: any audit
   write failure rolls back at SAVEPOINT level, leaving parent session healthy.
 
+## Шаг 4 — Failure-path tests (commit T1.2.3.3)
+
+- New file `tests/integration/test_audit_log_repo.py` (~150 lines, 4 tests)
+- Real DB trigger via over-long `resource_type` (varchar(50) → 60-char input).
+  Independent of widened `action` column — test stays meaningful even if `action`
+  is widened further later.
+- Mock-based variant covers non-DBAPI exception path
+  (`AsyncMock(side_effect=RuntimeError("boom"))` patched onto `session.execute`).
+- 4 contract assertions per failure test: log() doesn't raise; parent tx survives;
+  parent commitable; failed audit row absent.
+- caplog test locks observability contract (warning + exc_info).
+- Closes the coverage gap: pre-Phase-C, no test verified the SAVEPOINT contract.
+
 🔍 Verified against: `1996fbb` | 📅 Updated: 2026-05-07
