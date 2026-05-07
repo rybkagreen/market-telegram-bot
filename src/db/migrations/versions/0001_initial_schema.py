@@ -402,7 +402,7 @@ def upgrade() -> None:  # noqa: PLR0915
         "audit_logs",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=True),
-        sa.Column("action", sa.String(20), nullable=False),
+        sa.Column("action", sa.String(64), nullable=False),
         sa.Column("resource_type", sa.String(50), nullable=False),
         sa.Column("resource_id", sa.Integer(), nullable=True),
         sa.Column("target_user_id", sa.BigInteger(), nullable=True),

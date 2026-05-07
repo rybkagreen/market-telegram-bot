@@ -20,8 +20,8 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # null for system events
     action: Mapped[str] = mapped_column(
-        String(20), nullable=False
-    )  # allowed: READ, WRITE, DELETE, ADMIN_READ
+        String(64), nullable=False
+    )  # action verb identifying the audited operation; vocabulary grows over time
     resource_type: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # e.g. legal_profile, contract, payout
