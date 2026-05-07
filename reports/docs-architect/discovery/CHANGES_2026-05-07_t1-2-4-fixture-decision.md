@@ -96,7 +96,7 @@
 
 ## Lessons learned
 
-### L## — xp_service S-48 violation surface area (T1.2.4 Phase A+B + Phase C Šаг 0)
+### L50 — xp_service S-48 violation surface area (T1.2.4 Phase A+B + Phase C Šаг 0)
 
 Phase A+B probe identified C4 single failing test и classified root cause як
 «xp_service Pattern 2 violation». Phase A+B inventory was shallow:
@@ -129,7 +129,7 @@ surface area inventory**:
 
 This rule applies к BL-019 cleanup workstreams и any future S-48 sweeps.
 
-### L## — Auth dep bypasses FastAPI DI via async_session_factory()
+### L51 — Auth dep bypasses FastAPI DI via async_session_factory()
 
 `_resolve_user_for_audience` in `src/api/dependencies.py:86` opens its own session
 via `async_session_factory()` directly, bypassing FastAPI's `Depends(get_db_session)`
@@ -146,7 +146,7 @@ resolvers. Future architectural cleanup candidate (refactor `_resolve_user_for_a
 to accept session via DI) — out of T1.2 scope; tracked in T1.2.4b alongside (B) Pydantic
 422 bug.
 
-### L## — Phase A+B count classification incomplete
+### L52 — Phase A+B classification methodology: separate data-collection from interpretation
 
 C5, C8, C10 all had Phase A+B count or root-cause mis-classifications surfaced during
 Phase C verification:
@@ -158,6 +158,50 @@ Phase C verification:
 **Lesson:** Phase A+B classifications based on error-string match are insufficient.
 Phase C step 0 isolated verification before mutation is mandatory; Auto-continue
 mode rule (h) explicitly STOPs on classification mismatch.
+
+**Rule strengthening:** Phase A+B probe ships **raw failure data** (full traceback,
+isolated run logs per cluster, surface inventory listing) — **classification happens
+in Phase C Šаг 0**, not in Phase A+B output. Separates data-collection from
+interpretation:
+
+- Phase A+B output: cluster bucketing by file/test (count) + raw error tracebacks +
+  isolated `pytest -v --tb=long` log per representative test + service-file surface
+  inventory if S-48-adjacent
+- Phase C Šаг 0 output: per-cluster classification (root cause, blast radius,
+  fix scope) BEFORE any mutation. STOP-on-mismatch против Phase A+B raw data is
+  expected, not exceptional
+
+This avoids "credibility hand-off" where Phase C agent inherits unverified Phase A+B
+interpretation as truth.
+
+### L53 — Phase A+B credibility decay (overarching pattern from T1.2.4)
+
+T1.2.4 sub-block surfaced **4 strikes** of Phase A+B classification inadequacy across
+4 clusters:
+
+1. **C4 path strike:** plan referenced `tests/unit/test_streak_bonus_thresholds.py`;
+   file did not exist (test was actually method in `test_gamification.py::TestStreakBonus`)
+2. **C4 surface strike:** plan classified single Pattern 2 method; reality 6/7 methods
+   + 3 src/ callers + 2 latent commit bugs
+3. **C5 root-cause strike:** plan claimed "SQLite missing tables fixture blocker";
+   reality INV-1 placement_escrow_integrity violations + stale assertions
+4. **C8 count + classification strike:** plan claimed "12F ConnRefused"; reality 7F
+   with 4 distinct root causes (URL drift / wrong user fixture / stale default /
+   Pydantic 422 bug)
+
+**Pattern:** Phase A+B probe methodology is systematically inadequate для S-48-adjacent
+or integration-fixture clusters. Error-string clustering matches surface symptoms but
+misses underlying causes (constraint violations, schema drift, framework bypass paths).
+
+**Mitigation:** Future probes targeting S-48 / integration / fixture-pattern clusters
+must adopt L52 rule (raw data + Phase C classification). L43 mandatory Šаг 0 isolated
+verify-per-cluster is not optional — it is the **primary** classification layer; Phase
+A+B is supporting data only.
+
+This rule applies к T1.2.5 (deprecated tests delete batch — likely OK, low-risk),
+T1.2.6 (publication_service / billing_service.release_escrow / disputes — high-risk
+S-48 territory), and T1.2.4b (Pydantic 422 bug + auth-DI refactor — production-bug
+territory).
 
 ## Deferrals
 
