@@ -44,16 +44,6 @@ class TestAPIChannelSettings:
         data = response.json()
         assert data["price_per_post"] == "1000.00"
 
-    @pytest.mark.skip(
-        reason=(
-            "T1.2.4b: Pydantic Decimal serialization bug — FastAPI 422 "
-            "validation responses with Decimal-typed ge/le constraint params "
-            "return 500 (TypeError: Object of type Decimal is not JSON "
-            "serializable). Production bug affecting all 422 responses on "
-            "Decimal validation. Fix requires exception handler in "
-            "src/api/main.py."
-        )
-    )
     @pytest.mark.asyncio
     async def test_patch_invalid_price_422(
         self,
