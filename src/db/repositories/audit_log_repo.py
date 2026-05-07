@@ -34,19 +34,19 @@ class AuditLogRepo:
         Caller is responsible for committing the session.
         """
         try:
-            await self.session.execute(
-                insert(AuditLog).values(
-                    user_id=user_id,
-                    action=action,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    target_user_id=target_user_id,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    extra=extra,
+            async with self.session.begin_nested():
+                await self.session.execute(
+                    insert(AuditLog).values(
+                        user_id=user_id,
+                        action=action,
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        target_user_id=target_user_id,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                        extra=extra,
+                    )
                 )
-            )
-            await self.session.flush()
         except Exception:
             logger.warning(
                 "Audit log write failed — ignoring to not block main operation", exc_info=True
