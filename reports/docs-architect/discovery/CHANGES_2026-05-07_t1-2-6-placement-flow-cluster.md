@@ -4,7 +4,10 @@
 **Started:** 2026-05-07
 **Pre-state HEAD:** 773eb38
 **Pre-state baseline:** 12F / 981P / 3S / 0E + 7 lint (conftest) / 0 format / 4 mypy (mediakit)
-**Status:** in-progress (commit 5 finalizes)
+**Post-state HEAD:** 215e219 (commit 4) → finalized at commit 5
+**Post-state baseline:** 6F / 987P / 3S / 0E + 7 lint (conftest) / 0 format / 4 mypy (mediakit)
+**Δ:** -6F closed (1 ESCROW + 4 reputation FK + 1 review INV-1), +6P
+**Status:** closed
 
 ## Marina decisions
 
@@ -56,12 +59,26 @@ Rejected:
 - Closes 1F. Pre-state: 7F/986P. Expected post-state: 6F/987P.
 - Verify: `pytest test_create_review_not_published_raises -v` → PASSED.
 
-### Commit 5 — TBD
+### Commit 5 — `docs(t1.2.6): closure CHANGES finalize + tmp cleanup`
+- Hash: <set during commit>
+- Files:
+  - This file (finalize) — fill post-state header, finalize commit 5 entry, fill deferred + verification footer.
+  - Cleanup `tmp/`: rm 5 probe markdowns (`t1_2_6_cluster_1_escrow_grep.md`, `t1_2_6_cluster_2_reputation_fk.md`, `t1_2_6_cluster_3_review_inv1.md`, `t1_2_6_shared_fixtures.md`, `t1_2_6_design_options.md`).
 
 ## Deferred to production launch
 
-(filled by commit 5 finalizer)
+### `tests/unit/test_review_service.py` local fixtures cleanup (BL-022 legacy)
+
+`tests/unit/test_review_service.py` определяет local `db_session` (Postgres-backed override of SQLite default), `advertiser` (telegram_id 900111001), `owner` (telegram_id 900111002), `channel`, `published_placement` fixtures. Эти duplicate root `tests/conftest.py` fixtures (`advertiser_user`, `owner_user`, `test_channel`). Heritage of BL-022 SQLite-shadow refactor — local fixtures были added когда file inherited SQLite db_session from `tests/unit/conftest.py`. Now что file overrides к Postgres, root fixtures могли бы be reused, но это broader refactor (~30-50 LOC). Defer к T1.2 closure batch BACKLOG entry.
+
+### ESCROW invariant evolution
+
+Текущий `test_release_escrow_only_in_approved_callsites` allows 2 callsites (`publication_service.py` + `disputes.py`). Если в Phase 4/5 будут добавлены legitimate callsites (e.g. PayoutComplianceService bulk-release flow, refund_escrow inverse), allowlist должен быть updated. Test docstring documents the invariant maintenance requirement; future updates per architectural changes.
+
+### Surfaced architectural-drift observation (recorded, не bug)
+
+`release_escrow` is called from TWO production paths now: `publication_service.delete_published_post` (success path) AND `disputes.resolve_dispute_admin` advertiser_fault branch (added в commit 8cfa49a "disputes v2"). Both rely on `Transaction.idempotency_key` для safety. ESCROW-001 invariant (originally "ONLY в delete_published_post") was updated к multi-callsite allowlist в commit 2.
 
 ## Verification footer
 
-(filled by commit 5 finalizer)
+🔍 Verified against: `215e219` | 📅 Updated: 2026-05-07T19:55:00Z
