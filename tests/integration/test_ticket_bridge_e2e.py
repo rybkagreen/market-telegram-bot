@@ -116,8 +116,12 @@ def fake_user() -> Any:
 
 @pytest_asyncio.fixture
 async def stub_session_factory(monkeypatch: pytest.MonkeyPatch, fake_user: Any) -> Any:
-    """Patch `async_session_factory` in dependencies.py to yield a session
-    whose `execute(...)` returns `fake_user` for every query."""
+    """Patch `async_session_factory` and return a stub session instance.
+
+    Patch keeps `get_db_session` working (still calls `async_session_factory`).
+    Returned instance is used by step 4 which calls `get_current_user`
+    directly (T1.2.4b B2: resolver now requires session arg).
+    """
 
     class _Result:
         def __init__(self, user: Any) -> None:
@@ -133,12 +137,23 @@ async def stub_session_factory(monkeypatch: pytest.MonkeyPatch, fake_user: Any) 
         async def execute(self, _stmt: Any) -> Any:
             return _Result(self._user)
 
+        async def commit(self) -> None:
+            pass
+
+        async def rollback(self) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    stub = _Session(fake_user)
+
     @asynccontextmanager
     async def _factory() -> AsyncIterator[_Session]:
-        yield _Session(fake_user)
+        yield stub
 
     monkeypatch.setattr("src.api.dependencies.async_session_factory", _factory)
-    return _factory
+    return stub
 
 
 @pytest.fixture
@@ -170,7 +185,7 @@ async def client(
 @pytest.mark.asyncio
 async def test_bridge_happy_path_token_authenticates(
     client: AsyncClient,
-    stub_session_factory: Any,  # noqa: ARG001 — needed for step 4 dep call
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """4-step bridge happy path with end-to-end auth verification.
@@ -205,7 +220,7 @@ async def test_bridge_happy_path_token_authenticates(
     # Step 4: token must authenticate against `get_current_user`
     request = MagicMock()
     request.state = type("S", (), {})()
-    user = await get_current_user(request, _bearer(access_token))
+    user = await get_current_user(request, _bearer(access_token), stub_session_factory)
     assert user.id == fake_user.id
     # Phase 1 §1.B.0b: dep wrote identity to request.state for AuditMiddleware
     assert request.state.user_id == fake_user.id
