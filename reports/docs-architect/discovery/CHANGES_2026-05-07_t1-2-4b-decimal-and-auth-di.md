@@ -73,14 +73,14 @@ require running `nginx-test` Docker stack.
 
 ## Lessons
 
-- **L## placeholder #1** — Pydantic 2 ValidationError `ctx['ge'/'le'/'gt'/'lt']`
+- **L54** — Pydantic 2 ValidationError `ctx['ge'/'le'/'gt'/'lt']`
   contains `Decimal` instance regardless of constraint literal type
   (`Field(ge=100)` vs `Field(ge=Decimal("100"))` produce identical ctx shape).
   Custom exception handlers consuming `e.errors()` MUST wrap content via
   `jsonable_encoder` (mirrors FastAPI default handler). Bare `json.dumps`
   fails on Decimal без default callable.
 
-- **L## placeholder #2** — Phase A+B initial scope analysis can mis-classify
+- **L55** — Phase A+B initial scope analysis can mis-classify
   when comparing surface-level field declarations к actual runtime serialization
   paths. Stage 5 empirical reproduction against actual handler caught
   misdiagnosis (early draft of `B1_scope.md` claimed bug doesn't fire on
@@ -88,12 +88,12 @@ require running `nginx-test` Docker stack.
   installed handler returned 500 on every numeric-out-of-range payload).
   L52 strengthening (probe ships raw data) prevented wrong Phase C.
 
-- **L## placeholder #3** — Auth dep DI refactor unlocks fixture override
+- **L56** — Auth dep DI refactor unlocks fixture override
   simplification: 4-way → 1-way restores original Q2=α intent. Pattern: when
   test fixture override count > 1 для one DI chain, suspect bypassed DI
   somewhere в production code path.
 
-- **L## placeholder #4** — Probe inventory for DI refactors must enumerate
+- **L57** — Probe inventory for DI refactors must enumerate
   TWO classes that `Depends`-grep misses: (1) **direct calls** к the
   refactored function (8 sites in `test_jwt_aud_claim.py` plus 1 in
   `test_ticket_bridge_e2e.py`); (2) **stub session/factory classes** in test
@@ -105,8 +105,7 @@ require running `nginx-test` Docker stack.
   refactors should grep direct calls (`grep -rn "await <fn_name>("`) and
   catalog stub session/factory classes (`grep -rn "monkeypatch.setattr.*async_session_factory\|class _Session"`).
 
-(L## placeholders — actual numbers assigned в Šаг 4 split commit per L43
-no-amend rule.)
+(L54-L57 assigned per L43 no-amend rule — split commit follows.)
 
 ## Cumulative T1.2 progress
 
