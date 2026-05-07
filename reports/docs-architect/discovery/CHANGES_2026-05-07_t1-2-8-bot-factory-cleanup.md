@@ -4,7 +4,10 @@
 **Started:** 2026-05-07 (nightrun)
 **Pre-state HEAD:** 9b321e3 (T1.2.7 commit 3)
 **Pre-state baseline:** 4F / 989P / 3S / 0E + 7 lint / 0 fmt / 4 mypy
-**Status:** in-progress
+**Post-state HEAD:** 7d560bd (Wave 2 commit 2) → finalized at commit 3
+**Post-state baseline:** 0F / 993P / 3S / 0E + 7 lint / 0 fmt / 4 mypy
+**Δ:** -4F closed (bot_factory ×4), +4P
+**Status:** closed
 
 ## Marina decision
 
@@ -77,4 +80,4 @@ Tests call `_reset_factory()` в `setup_method`/`teardown_method` для clear s
 
 ## Verification footer
 
-🔍 Verified against: `<commit 2 hash>` | 📅 Updated: 2026-05-07T20:25:00Z
+🔍 Verified against: `7d560bd` | 📅 Updated: 2026-05-07T20:25:00Z
