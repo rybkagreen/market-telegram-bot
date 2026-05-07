@@ -472,14 +472,14 @@ async def reputation_repo(db_session: AsyncSession) -> ReputationRepo:
 async def api_client_with_auth(
     advertiser_user: User, db_session: AsyncSession
 ) -> AsyncGenerator[AsyncClient]:
-    """HTTP клиент с авторизацией через JWT."""
+    """HTTP клиент с авторизацией через JWT.
+
+    Single override (T1.2.4b B2): после refactor `_resolve_user_for_audience`
+    принимает session via DI — fixture только подменяет `get_db_session`,
+    реальный auth resolver запускается на тестовой сессии и находит юзера.
+    """
     from src.api.auth_utils import create_jwt_token
-    from src.api.dependencies import (
-        get_current_user,
-        get_current_user_from_mini_app,
-        get_current_user_from_web_portal,
-        get_db_session,
-    )
+    from src.api.dependencies import get_db_session
     from src.api.main import app
 
     token = create_jwt_token(
@@ -492,13 +492,7 @@ async def api_client_with_auth(
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
         yield db_session
 
-    async def _override_get_current_user() -> User:
-        return advertiser_user
-
     app.dependency_overrides[get_db_session] = _override_get_db_session
-    app.dependency_overrides[get_current_user] = _override_get_current_user
-    app.dependency_overrides[get_current_user_from_mini_app] = _override_get_current_user
-    app.dependency_overrides[get_current_user_from_web_portal] = _override_get_current_user
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -507,27 +501,19 @@ async def api_client_with_auth(
         ) as client:
             yield client
     finally:
-        for dep in (
-            get_db_session,
-            get_current_user,
-            get_current_user_from_mini_app,
-            get_current_user_from_web_portal,
-        ):
-            app.dependency_overrides.pop(dep, None)
+        app.dependency_overrides.pop(get_db_session, None)
 
 
 @pytest_asyncio.fixture
 async def api_client_with_owner_auth(
     owner_user: User, db_session: AsyncSession
 ) -> AsyncGenerator[AsyncClient]:
-    """HTTP клиент с авторизацией через JWT — owner_user."""
+    """HTTP клиент с авторизацией через JWT — owner_user.
+
+    Single override (T1.2.4b B2) — см. `api_client_with_auth`.
+    """
     from src.api.auth_utils import create_jwt_token
-    from src.api.dependencies import (
-        get_current_user,
-        get_current_user_from_mini_app,
-        get_current_user_from_web_portal,
-        get_db_session,
-    )
+    from src.api.dependencies import get_db_session
     from src.api.main import app
 
     token = create_jwt_token(
@@ -540,13 +526,7 @@ async def api_client_with_owner_auth(
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
         yield db_session
 
-    async def _override_get_current_user() -> User:
-        return owner_user
-
     app.dependency_overrides[get_db_session] = _override_get_db_session
-    app.dependency_overrides[get_current_user] = _override_get_current_user
-    app.dependency_overrides[get_current_user_from_mini_app] = _override_get_current_user
-    app.dependency_overrides[get_current_user_from_web_portal] = _override_get_current_user
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -555,13 +535,7 @@ async def api_client_with_owner_auth(
         ) as client:
             yield client
     finally:
-        for dep in (
-            get_db_session,
-            get_current_user,
-            get_current_user_from_mini_app,
-            get_current_user_from_web_portal,
-        ):
-            app.dependency_overrides.pop(dep, None)
+        app.dependency_overrides.pop(get_db_session, None)
 
 
 # =============================================================================
