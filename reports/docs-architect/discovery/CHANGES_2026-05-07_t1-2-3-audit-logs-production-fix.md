@@ -49,4 +49,14 @@ This sub-block delivers the production fix: schema widen + SAVEPOINT refactor + 
   boundary; widen also resolves their latent fragility.
 - Pre-prod immutability exception applies (no users yet, BL-061 explicit carve-out).
 
+## Шаг 3 — SAVEPOINT refactor (commit T1.2.3.2)
+
+- `src/db/repositories/audit_log_repo.py::log()`: wrap insert+flush in `session.begin_nested()`
+- Removed redundant explicit `flush()` (SAVEPOINT close handles it)
+- Logger output identical (observability contract preserved)
+- Public method signature unchanged — 13 production call sites unaffected
+- Architectural rationale: previous fire-and-forget contract was broken — Python
+  try/except cannot rescue DBAPI-level transaction state. Now genuine: any audit
+  write failure rolls back at SAVEPOINT level, leaving parent session healthy.
+
 🔍 Verified against: `1996fbb` | 📅 Updated: 2026-05-07
