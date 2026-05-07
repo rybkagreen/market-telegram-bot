@@ -5,6 +5,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
 from src.core.services.placement_request_service import PlacementRequestService
 from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 
 # from src.db.models.campaign import Campaign  # REMOVED in v4.2 — using PlacementRequest instead
@@ -412,6 +414,34 @@ async def test_channel(
     await db_session.commit()
     await db_session.refresh(channel)
     return channel
+
+
+@pytest_asyncio.fixture
+async def placement_request(
+    db_session: AsyncSession,
+    advertiser_user: User,
+    owner_user: User,
+    test_channel: TelegramChat,
+) -> PlacementRequest:
+    """Real PlacementRequest без escrow scaffolding.
+
+    Fixture для tests, которые нуждаются в валидном placement_request_id
+    для FK references (e.g. reputation_history.placement_request_id) но не
+    тестируют escrow lifecycle сам по себе. Status pending_owner — early
+    lifecycle, не trip INV-1 (placement_escrow_integrity).
+    """
+    placement = PlacementRequest(
+        advertiser_id=advertiser_user.id,
+        owner_id=owner_user.id,
+        channel_id=test_channel.id,
+        status=PlacementStatus.pending_owner,
+        ad_text="Test ad text",
+        proposed_price=Decimal("500"),
+    )
+    db_session.add(placement)
+    await db_session.commit()
+    await db_session.refresh(placement)
+    return placement
 
 
 @pytest_asyncio.fixture

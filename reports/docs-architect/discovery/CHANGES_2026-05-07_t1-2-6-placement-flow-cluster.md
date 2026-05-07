@@ -37,7 +37,15 @@ Rejected:
 - Side fix: SIM114 ruff issue surfaced and resolved via fname helper variable refactor.
 - Verify: `pytest TestEscrowReleaseLocation` PASSED. `ruff check`, `ruff format --check` pass.
 
-### Commit 3 — TBD
+### Commit 3 — `test(reputation): root fixture + refactor 4 FK-violating tests (Cluster 2)`
+- Hash: <set during commit>
+- Files:
+  - `tests/conftest.py` (modify) — add `Decimal` import, add `PlacementRequest`/`PlacementStatus` import, add `placement_request` fixture (between `test_channel` и `placement_request_service`).
+  - `tests/test_reputation_service.py` (modify) — 4 tests refactored к use `placement_request` fixture instead of hardcoded `placement_request_id=1`.
+- Fixture `placement_request`: status `pending_owner` (early lifecycle, не trip INV-1 placement_escrow_integrity), depends on existing root fixtures `advertiser_user` / `owner_user` / `test_channel`. Real DB row, FK-resolvable.
+- Side fix: `ReputationAction.PUBLICATION` → `ReputationAction.publication` в `test_history_recorded` (line 81). Pre-existing latent test bug — uppercase form is invalid (enum members lowercase per `src/db/models/reputation_history.py:16-34` и all production usage). Test prior failed at FK violation BEFORE reaching assertion; after FK fix, assertion bug surfaces. Fixing together per Principle 3 (no workarounds).
+- Closes 4F. Pre-state: 11F. Expected post-state: 7F.
+- Verify: `pytest tests/test_reputation_service.py::TestReputationService -v` → 4 PASSED.
 
 ### Commit 4 — TBD
 
