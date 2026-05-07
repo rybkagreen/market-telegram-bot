@@ -37,15 +37,20 @@
 - **Verify:** TBD (expected 12F/997P/5S/0E preserved — comment-only edits)
 
 ### Commit 4 — `refactor(payout): delete dead PayoutService methods`
-- **Hash:** TBD (post-commit)
-- **Files (modify, 2):** `src/core/services/payout_service.py` (-684 lines net: 11 dead methods + 3 unused exception classes + 8 orphan imports), `tests/integration/test_api_endpoints.py` (-46 lines: TestPayoutService class with 2 active + 2 SKIPPED tests)
+- **Hash:** 516415d
+- **Files (modify, 2):** `src/core/services/payout_service.py` (-684 lines net: 11 dead methods + 3 unused exception classes + 8 orphan imports), `tests/integration/test_api_endpoints.py` (-45 lines: TestPayoutService class with 2 active + 2 SKIPPED tests)
 - **Methods deleted (11):** `calculate_payout` (instance), `get_owner_balance`, `get_owner_payouts`, `create_pending_payout`, `process_payout`, `mark_payout_paid`, `cancel_payout`, `request_payout_for_placement`, `check_velocity`, `create_payout` (instance — also drops S-48 `async with session.begin()` violation), `calculate_payout_with_tax`
 - **Methods retained (4 + __init__):** `complete_payout`, `reject_payout`, `approve_request`, `reject_request` — all live via admin router (`approve_request`/`reject_request` chain into internal complete/reject_payout)
 - **Exceptions removed (3):** `InsufficientFundsError`, `PayoutAPIError`, `UserNotFoundError` — all unused after deletion
 - **Imports cleaned:** ROUND_HALF_UP, COOLDOWN_HOURS, MIN_PAYOUT, PAYOUT_FEE_RATE, VELOCITY_MAX_RATIO, VELOCITY_WINDOW_DAYS, VelocityCheckError, User, PayoutRepository
-- **Verify:** TBD (expected 12F/995P/3S/0E — loses 2 active + 2 SKIPPED tests)
+- **Verify:** 12F/995P/3S/0E (match) + 21 lint / 14 format / 10 mypy unchanged
 
-### Commit 5 — TBD (PayoutComplianceService skeleton)
+### Commit 5 — `refactor(payout): delete PayoutComplianceService skeleton + clean stale comments`
+- **Hash:** TBD (post-commit)
+- **Files (delete, 2):** `src/core/services/payout_compliance_service.py` (5b.7b SKELETON, ~190 LOC), `tests/unit/test_payout_compliance_service.py` (145 LOC, 7 tests)
+- **Files (modify, 2):** `src/core/services/legal_compliance_service.py` (line 79 comment — remove "(handed off to PayoutComplianceService)" reference), `src/core/services/gates/payout_gates.py` (lines 12-14 docstring — remove "future PayoutComplianceService" reference)
+- **Reason:** Skeleton had empty registries `_PAYOUT_TRANSITION_GATES = {}` / `_PAYOUT_CREATE_GATES = {}` and ZERO production callers (verified via grep — only the test file imports it). Phase 5 / 5b.7 will recreate (see Deferred section).
+- **Verify:** TBD (expected 12F/988P/3S/0E — loses 7 tests)
 
 ### Commit 6 — TBD (free function `calculate_payout`)
 

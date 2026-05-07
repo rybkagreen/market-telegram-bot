@@ -76,7 +76,7 @@ _USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
 # PayoutRequest lifecycle, not placement transitions (Phase 5 territory).
 # G07 (Phase 4) IS included; its body returns a PHASE4_PENDING marker
 # until Phase 4 (МES Acts API) lands. G15/G16 are payout-side and
-# intentionally absent (handed off to PayoutComplianceService).
+# intentionally absent — payout-side coordinator is Phase 5 territory.
 _TRANSITION_GATES: dict[
     tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]
 ] = {
