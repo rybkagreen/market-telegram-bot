@@ -104,12 +104,11 @@ async def upload_document(
         )
 
     # Validate passport_page_group for passport documents
-    if document_type == "passport":
-        if passport_page_group not in ("main_pages", "registration"):
-            raise HTTPException(
-                status_code=400,
-                detail="Для паспорта укажите страницу: main_pages (стр. 2-3) или registration (прописка)",
-            )
+    if document_type == "passport" and passport_page_group not in ("main_pages", "registration"):
+        raise HTTPException(
+            status_code=400,
+            detail="Для паспорта укажите страницу: main_pages (стр. 2-3) или registration (прописка)",
+        )
 
     # Read file content
     content = await file.read()
@@ -260,7 +259,7 @@ async def check_passport_completeness(
                 DocumentUpload.user_id == current_user.id,
                 DocumentUpload.document_type == "passport",
                 DocumentUpload.validation_status == "completed",
-                DocumentUpload.is_readable == True,
+                DocumentUpload.is_readable.is_(True),
             )
         )
         uploads = result.scalars().all()

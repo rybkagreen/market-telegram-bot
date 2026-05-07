@@ -124,7 +124,7 @@ class TestPlanLimits:
 
     def test_plan_structure(self):
         """Each plan has active_campaigns, ai_per_month, formats."""
-        for plan, limits in PLAN_LIMITS.items():
+        for _plan, limits in PLAN_LIMITS.items():
             assert "active_campaigns" in limits
             assert "ai_per_month" in limits
             assert "formats" in limits

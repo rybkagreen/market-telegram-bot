@@ -261,19 +261,19 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
 
         # L45 recipe: production calls session.execute() twice (Group A/B query + Group C
         # query). Shared return_value would leak [stuck] into Group C path → duplicate
-        # dispatch. side_effect=[result_AB, result_C] isolates per-call results.
-        mock_scalars_AB = MagicMock()
-        mock_scalars_AB.all.return_value = [stuck]
-        mock_result_AB = MagicMock()
-        mock_result_AB.scalars.return_value = mock_scalars_AB
+        # dispatch. side_effect=[result_ab, result_c] isolates per-call results.
+        mock_scalars_ab = MagicMock()
+        mock_scalars_ab.all.return_value = [stuck]
+        mock_result_ab = MagicMock()
+        mock_result_ab.scalars.return_value = mock_scalars_ab
 
-        mock_scalars_C = MagicMock()
-        mock_scalars_C.all.return_value = []
-        mock_result_C = MagicMock()
-        mock_result_C.scalars.return_value = mock_scalars_C
+        mock_scalars_c = MagicMock()
+        mock_scalars_c.all.return_value = []
+        mock_result_c = MagicMock()
+        mock_result_c.scalars.return_value = mock_scalars_c
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(side_effect=[mock_result_AB, mock_result_C])
+        mock_session.execute = AsyncMock(side_effect=[mock_result_ab, mock_result_c])
         mock_session.commit = AsyncMock()
         mock_session.rollback = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -308,13 +308,13 @@ def test_check_escrow_stuck_group_a_dispatches_delete_not_refund():
 
 def test_publish_placement_failure_calls_refund_escrow():
     """При ошибке публикации refund_escrow вызывается с scenario=after_escrow_before_confirmation."""
-    from src.db.models.placement_request import PlacementStatus as PS
+    from src.db.models.placement_request import PlacementStatus
     from src.tasks.placement_tasks import _publish_placement_async
 
     async def _run():
         placement = MagicMock()
         placement.id = 77
-        placement.status = PS.escrow
+        placement.status = PlacementStatus.escrow
         placement.advertiser_id = 5
         placement.owner_id = 6
         placement.message_id = None
@@ -367,13 +367,13 @@ def test_publish_placement_failure_calls_refund_escrow():
 
 def test_publish_placement_success_does_not_refund():
     """Happy path не вызывает refund_escrow."""
-    from src.db.models.placement_request import PlacementStatus as PS
+    from src.db.models.placement_request import PlacementStatus
     from src.tasks.placement_tasks import _publish_placement_async
 
     async def _run():
         placement = MagicMock()
         placement.id = 78
-        placement.status = PS.escrow
+        placement.status = PlacementStatus.escrow
         placement.advertiser_id = 5
         placement.owner_id = 6
         placement.message_id = None
