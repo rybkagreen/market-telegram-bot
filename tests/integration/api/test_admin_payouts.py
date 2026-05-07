@@ -97,9 +97,7 @@ def fake_payout_rejected(admin_user: User) -> PayoutRequest:
 
 
 @pytest_asyncio.fixture
-async def admin_client(
-    admin_user: User, db_session: AsyncSession
-) -> AsyncGenerator[AsyncClient]:
+async def admin_client(admin_user: User, db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     """HTTP-клиент с админом — web_portal JWT, реальный auth chain.
 
     Pattern: tests/conftest.py:461-494 api_client_with_auth (T1.2.4b B2).
@@ -297,9 +295,7 @@ class TestRejectRequiresReason:
         body = resp.json()
         assert body["status"] == "rejected"
         assert body["rejection_reason"] == "Реквизиты не прошли проверку."
-        reject_mock.assert_awaited_once_with(
-            43, admin_user.id, "Реквизиты не прошли проверку."
-        )
+        reject_mock.assert_awaited_once_with(43, admin_user.id, "Реквизиты не прошли проверку.")
 
     async def test_reject_already_finalized_returns_409(self, admin_client: AsyncClient) -> None:
         # plan-05: ConflictError → 409 (was 400 pre-plan-05).

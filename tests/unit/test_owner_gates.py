@@ -229,9 +229,7 @@ async def test_g05_calls_repo_with_owner_role(
 
     await check_g05(mock_session, placement)
 
-    mock_repo.has_signed_framework.assert_awaited_once_with(
-        user_id=42, role="owner"
-    )
+    mock_repo.has_signed_framework.assert_awaited_once_with(user_id=42, role="owner")
 
 
 # ============================================================================
@@ -275,9 +273,7 @@ async def test_g06_valid_payout_method_passes(
 ) -> None:
     """Owner with at least one valid PayoutRequest passes."""
     valid_payout = MagicMock()
-    _patch_payout_repo(
-        monkeypatch, valid_return=valid_payout, by_owner_return=[valid_payout]
-    )
+    _patch_payout_repo(monkeypatch, valid_return=valid_payout, by_owner_return=[valid_payout])
 
     result = await check_g06(mock_session, placement)
 
@@ -291,9 +287,7 @@ async def test_g06_payout_records_but_none_valid_fails(
 ) -> None:
     """Owner attempted payout setup but all records invalid → FAIL."""
     invalid_payout = MagicMock()
-    _patch_payout_repo(
-        monkeypatch, valid_return=None, by_owner_return=[invalid_payout]
-    )
+    _patch_payout_repo(monkeypatch, valid_return=None, by_owner_return=[invalid_payout])
 
     result = await check_g06(mock_session, placement)
 
@@ -308,9 +302,7 @@ async def test_g06_skips_get_by_owner_when_valid_found(
 ) -> None:
     """When get_valid_for_owner returns non-None, skip the secondary count query."""
     valid_payout = MagicMock()
-    repo = _patch_payout_repo(
-        monkeypatch, valid_return=valid_payout, by_owner_return=[]
-    )
+    repo = _patch_payout_repo(monkeypatch, valid_return=valid_payout, by_owner_return=[])
 
     await check_g06(mock_session, placement)
 
@@ -429,9 +421,7 @@ async def test_check_g06_user_valid_method_passes(
 ) -> None:
     user = _fake_user(user_id=42)
     valid_payout = MagicMock()
-    _patch_payout_repo(
-        monkeypatch, valid_return=valid_payout, by_owner_return=[valid_payout]
-    )
+    _patch_payout_repo(monkeypatch, valid_return=valid_payout, by_owner_return=[valid_payout])
 
     result = await check_g06_user(mock_session, user)
 
@@ -445,9 +435,7 @@ async def test_check_g06_user_invalid_method_fails(
     """User-side G06: post-setup with all-invalid records → FAIL."""
     user = _fake_user(user_id=42)
     invalid_payout = MagicMock()
-    _patch_payout_repo(
-        monkeypatch, valid_return=None, by_owner_return=[invalid_payout]
-    )
+    _patch_payout_repo(monkeypatch, valid_return=None, by_owner_return=[invalid_payout])
 
     result = await check_g06_user(mock_session, user)
 

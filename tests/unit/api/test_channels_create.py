@@ -147,9 +147,7 @@ async def test_create_channel_g04_fail_returns_403_with_remediation(
         AsyncMock(return_value=None),
     )
 
-    response = await client_as_owner.post(
-        "/api/channels/", json={"username": "test_chan"}
-    )
+    response = await client_as_owner.post("/api/channels/", json={"username": "test_chan"})
 
     assert response.status_code == 403
     body = response.json()
@@ -185,9 +183,7 @@ async def test_create_channel_g05_fail_returns_403_with_contracts_remediation(
         AsyncMock(return_value=None),
     )
 
-    response = await client_as_owner.post(
-        "/api/channels/", json={"username": "test_chan"}
-    )
+    response = await client_as_owner.post("/api/channels/", json={"username": "test_chan"})
 
     assert response.status_code == 403
     blockers = response.json()["extra"]["blockers"]
@@ -219,9 +215,7 @@ async def test_create_channel_g06_fail_returns_403(
         AsyncMock(return_value=None),
     )
 
-    response = await client_as_owner.post(
-        "/api/channels/", json={"username": "test_chan"}
-    )
+    response = await client_as_owner.post("/api/channels/", json={"username": "test_chan"})
 
     assert response.status_code == 403
     blockers = response.json()["extra"]["blockers"]
@@ -320,6 +314,4 @@ async def test_create_channel_logs_audit_on_decline(
     assert kwargs["action"] == "channel_add_declined"
     assert kwargs["resource_type"] == "channel"
     assert kwargs["user_id"] == 7001
-    assert kwargs["extra"]["blockers"] == [
-        PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE.value
-    ]
+    assert kwargs["extra"]["blockers"] == [PlacementGate.G04_OWNER_LEGAL_PROFILE_COMPLETE.value]

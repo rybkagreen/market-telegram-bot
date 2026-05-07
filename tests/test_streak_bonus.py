@@ -24,9 +24,7 @@ class TestStreakBonus:
         async def _mock_award_badge(user_id: int, badge_code: str) -> dict:
             return {"success": True, "badge_code": badge_code}
 
-        monkeypatch.setattr(
-            badge_service_module.badge_service, "award_badge", _mock_award_badge
-        )
+        monkeypatch.setattr(badge_service_module.badge_service, "award_badge", _mock_award_badge)
 
         user = User(**user_test_data)
         db_session.add(user)
@@ -72,9 +70,7 @@ class TestXpServicePattern1:
     """
 
     @pytest.mark.asyncio
-    async def test_add_advertiser_xp_persists_after_commit(
-        self, db_session, advertiser_test_data
-    ):
+    async def test_add_advertiser_xp_persists_after_commit(self, db_session, advertiser_test_data):
         """add_advertiser_xp writes persist after caller commit (Pattern 1)."""
         from sqlalchemy import select
 
@@ -116,9 +112,7 @@ class TestXpServicePattern1:
         assert leveled_up is True
 
     @pytest.mark.asyncio
-    async def test_add_xp_pattern1_no_internal_session_begin(
-        self, db_session, user_test_data
-    ):
+    async def test_add_xp_pattern1_no_internal_session_begin(self, db_session, user_test_data):
         """add_xp does not open internal transaction — works on autobegun session."""
         user = User(**user_test_data)
         db_session.add(user)
@@ -126,16 +120,12 @@ class TestXpServicePattern1:
 
         # Calling add_xp on already-active session must not raise
         # 'A transaction is already begun on this Session.'
-        event = await xp_service.add_xp(
-            db_session, user_id=user.id, amount=50, reason="test"
-        )
+        event = await xp_service.add_xp(db_session, user_id=user.id, amount=50, reason="test")
         assert event is None  # below level threshold, no level-up event
         await db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_award_streak_bonus_pattern1_no_internal_commit(
-        self, db_session, user_test_data
-    ):
+    async def test_award_streak_bonus_pattern1_no_internal_commit(self, db_session, user_test_data):
         """award_streak_bonus does not commit internally — caller controls."""
         from sqlalchemy import select
 
