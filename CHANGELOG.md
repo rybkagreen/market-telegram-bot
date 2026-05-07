@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (T1.2 series — stubs, finalized в closure batch)
+
+- T1.2.6: placement-flow cluster cleanup (ESCROW invariant modernize +
+  reputation FK fixture + review INV-1 status switch). See
+  `reports/docs-architect/discovery/CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md`.
+- T1.2.7: counter_offer flow API drift cleanup. See
+  `reports/docs-architect/discovery/CHANGES_2026-05-07_t1-2-7-counter-offer-cleanup.md`.
+- T1.2.8: bot_factory mock target drift cleanup. See
+  `reports/docs-architect/discovery/CHANGES_2026-05-07_t1-2-8-bot-factory-cleanup.md`.
+
 ### Added — Phase 3c.1 transition-time gate enforcement wiring (2026-05-04)
 
 - `PlacementTransitionService.transition()` now invokes
