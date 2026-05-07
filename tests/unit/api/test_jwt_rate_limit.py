@@ -9,7 +9,6 @@ POST /api/auth/consume-ticket. Two cases per IMPLEMENTATION_PLAN_ACTIVE.md §0.C
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,27 +22,7 @@ from src.api.main import app
 from src.config.settings import settings
 
 # Reuse the in-memory Redis stub from the aud-claim suite.
-from tests.unit.api.test_jwt_aud_claim import FakeRedis, _make_user
-
-
-@pytest_asyncio.fixture
-async def stub_session_factory(monkeypatch: pytest.MonkeyPatch) -> Any:
-    fake_user = _make_user()
-
-    class _Result:
-        def scalar_one_or_none(self) -> Any:
-            return fake_user
-
-    class _Session:
-        async def execute(self, _stmt: Any) -> Any:
-            return _Result()
-
-    @asynccontextmanager
-    async def _factory() -> AsyncIterator[_Session]:
-        yield _Session()
-
-    monkeypatch.setattr("src.api.dependencies.async_session_factory", _factory)
-    return _factory
+from tests.unit.api.test_jwt_aud_claim import FakeRedis
 
 
 @pytest.fixture
@@ -53,9 +32,11 @@ def fake_redis() -> FakeRedis:
 
 @pytest_asyncio.fixture
 async def client(
-    stub_session_factory: Any,  # noqa: ARG001 (activates the patch)
     fake_redis: FakeRedis,
 ) -> AsyncIterator[AsyncClient]:
+    """Single `get_redis` override — `/api/auth/consume-ticket` не трогает БД,
+    поэтому стуб `async_session_factory` (pre-5de1ded leftover) удалён."""
+
     async def _override_redis() -> FakeRedis:
         return fake_redis
 
@@ -64,7 +45,7 @@ async def client(
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_redis, None)
 
 
 def _forged_ticket(user_id: int = 42) -> str:
