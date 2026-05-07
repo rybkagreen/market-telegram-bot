@@ -233,11 +233,14 @@ class TestCreateReview:
         channel: TelegramChat,
     ) -> None:
         """Нельзя оставить отзыв на размещение не в статусе published."""
+        # status=pending_owner — early lifecycle, не trip INV-1
+        # placement_escrow_integrity. Test intent: any non-published status
+        # raises ValueError; status choice is incidental.
         req = PlacementRequest(
             advertiser_id=advertiser.id,
             owner_id=owner.id,
             channel_id=channel.id,
-            status=PlacementStatus.escrow,
+            status=PlacementStatus.pending_owner,
             ad_text="Ещё не опубликовано",
             proposed_price=Decimal("500.00"),
         )

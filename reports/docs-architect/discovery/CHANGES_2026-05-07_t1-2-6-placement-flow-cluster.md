@@ -47,7 +47,14 @@ Rejected:
 - Closes 4F. Pre-state: 11F. Expected post-state: 7F.
 - Verify: `pytest tests/test_reputation_service.py::TestReputationService -v` → 4 PASSED.
 
-### Commit 4 — TBD
+### Commit 4 — `test(review): switch placement status pending в INV-1 fixture (Cluster 3)`
+- Hash: <set during commit>
+- Files: `tests/unit/test_review_service.py` (modify, ~3 LOC)
+- Change: `status=PlacementStatus.escrow` → `status=PlacementStatus.pending_owner` в `test_create_review_not_published_raises` inline placement.
+- Rationale: test intent ("не в статусе published") agnostic к specific non-published status. `escrow` was incidentally chosen but trips INV-1 (placement_escrow_integrity CHECK requires escrow_transaction_id IS NOT NULL для status='escrow'). `pending_owner` satisfies test intent без INV-1 violation.
+- Added inline comment explaining INV-1 avoidance rationale.
+- Closes 1F. Pre-state: 7F/986P. Expected post-state: 6F/987P.
+- Verify: `pytest test_create_review_not_published_raises -v` → PASSED.
 
 ### Commit 5 — TBD
 
