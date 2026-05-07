@@ -19,12 +19,23 @@ class TestCounterOfferServiceFix1:
         advertiser_user,
         owner_user,
         test_channel,
+        monkeypatch,
     ):
         """When advertiser accepts counter-offer, final_price must be set from counter_price."""
+        from src.core.services.legal_compliance_service import LegalComplianceService
         from src.core.services.placement_request_service import PlacementRequestService
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
         from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
         from src.db.repositories.placement_request_repo import PlacementRequestRepository
+
+        # Phase 3c.1 transition gates (G07 supplementary agreement) require
+        # legal-compliance scaffolding for counter_offer → pending_payment.
+        # Unit test scope is service price/schedule logic, not legal flow —
+        # bypass gates за counter via monkeypatch.
+        async def _no_gates(self, placement, to_status):
+            return []
+
+        monkeypatch.setattr(LegalComplianceService, "check_gates_for_transition", _no_gates)
 
         # Create placement with pending_owner status
         placement = PlacementRequest(
@@ -39,27 +50,27 @@ class TestCounterOfferServiceFix1:
         await db_session.commit()
         await db_session.refresh(placement)
 
-        # Owner makes counter-offer
-        repo = PlacementRequestRepository(db_session)
-        await repo.counter_offer(
+        service = PlacementRequestService(
+            session=db_session,
+            placement_repo=PlacementRequestRepository(db_session),
+            channel_settings_repo=ChannelSettingsRepo(db_session),
+            reputation_repo=None,
+            billing_service=None,
+        )
+
+        # Owner makes counter-offer (canonical state machine via service —
+        # repo.counter_offer was deleted in commit daf5146; repo is now
+        # read-only per Phase 2 § 2.B.0 Decision 2)
+        await service.owner_counter_offer(
             placement_id=placement.id,
+            owner_id=owner_user.id,
             proposed_price=Decimal("1500.00"),
-            comment="Owner's counter price",
         )
         await db_session.refresh(placement)
 
         assert placement.status == PlacementStatus.counter_offer
         assert placement.counter_price == Decimal("1500.00")
         assert placement.final_price is None  # Not set yet
-
-        # FIX #1: Service now passes final_price=counter_price
-        service = PlacementRequestService(
-            session=db_session,
-            placement_repo=repo,
-            channel_settings_repo=ChannelSettingsRepo(db_session),
-            reputation_repo=None,
-            billing_service=None,
-        )
 
         result = await service.advertiser_accept_counter(placement.id, advertiser_user.id)
 
@@ -75,12 +86,20 @@ class TestCounterOfferServiceFix1:
         advertiser_user,
         owner_user,
         test_channel,
+        monkeypatch,
     ):
         """When advertiser accepts counter-offer, final_schedule must be set."""
+        from src.core.services.legal_compliance_service import LegalComplianceService
         from src.core.services.placement_request_service import PlacementRequestService
         from src.db.models.placement_request import PlacementRequest, PlacementStatus
         from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
         from src.db.repositories.placement_request_repo import PlacementRequestRepository
+
+        # See test_advertiser_accept_counter_sets_final_price для bypass rationale.
+        async def _no_gates(self, placement, to_status):
+            return []
+
+        monkeypatch.setattr(LegalComplianceService, "check_gates_for_transition", _no_gates)
 
         counter_schedule = datetime(2026, 4, 15, 14, 0, 0, tzinfo=UTC)
 
@@ -96,21 +115,22 @@ class TestCounterOfferServiceFix1:
         await db_session.commit()
         await db_session.refresh(placement)
 
-        repo = PlacementRequestRepository(db_session)
-        await repo.counter_offer(
-            placement_id=placement.id,
-            proposed_price=Decimal("1500.00"),
-            proposed_schedule=counter_schedule,
-        )
-        await db_session.refresh(placement)
-
         service = PlacementRequestService(
             session=db_session,
-            placement_repo=repo,
+            placement_repo=PlacementRequestRepository(db_session),
             channel_settings_repo=ChannelSettingsRepo(db_session),
             reputation_repo=None,
             billing_service=None,
         )
+
+        # Owner makes counter-offer with schedule
+        await service.owner_counter_offer(
+            placement_id=placement.id,
+            owner_id=owner_user.id,
+            proposed_price=Decimal("1500.00"),
+            proposed_schedule=counter_schedule,
+        )
+        await db_session.refresh(placement)
 
         result = await service.advertiser_accept_counter(placement.id, advertiser_user.id)
 
