@@ -145,7 +145,7 @@ class TestCounterOfferAPIFix2:
         db_session.add(placement)
         await db_session.commit()
 
-        response = await api_client_with_auth.get(f"/api/v1/placements/{placement.id}")
+        response = await api_client_with_auth.get(f"/api/placements/{placement.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -269,7 +269,7 @@ class TestCounterOfferAPIFix7:
         db_session.add(placement)
         await db_session.commit()
 
-        response = await api_client_with_auth.get(f"/api/v1/placements/{placement.id}")
+        response = await api_client_with_auth.get(f"/api/placements/{placement.id}")
 
         assert response.status_code == 200
         data = response.json()
