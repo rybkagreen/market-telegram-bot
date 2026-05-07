@@ -4,7 +4,10 @@
 **Started:** 2026-05-07 (nightrun)
 **Pre-state HEAD:** 002e7fb (T1.2.6 commit 5)
 **Pre-state baseline:** 6F / 987P / 3S / 0E + 7 lint / 0 fmt / 4 mypy
-**Status:** in-progress
+**Post-state HEAD:** 4e24e8c (Wave 1 commit 2) → finalized at commit 3
+**Post-state baseline:** 4F / 989P / 3S / 0E + 7 lint / 0 fmt / 4 mypy
+**Δ:** -2F closed (counter_offer ×2), +2P
+**Status:** closed
 
 ## Marina decision
 
@@ -51,3 +54,21 @@ Fix: monkeypatch.setattr `LegalComplianceService.check_gates_for_transition` к 
 #### Closes 2F. Pre-state: 6F/987P. Expected post-state: 4F/989P.
 
 - Verify: `pytest TestCounterOfferServiceFix1 -v` → 2 PASSED. Lint clean. Format applied (lines wrapping).
+
+### Commit 3 — `docs(t1.2.7): closure CHANGES finalize + tmp cleanup`
+- Hash: <set during commit>
+- Files: this file (finalize header + this commit entry + footer); rm `tmp/t1_2_7_probe.md`.
+
+## Deferred to production launch
+
+### Counter-offer flow gate-enforcement coverage
+
+If broader integration tests являются required для verifying production legal-compliance flow (i.e. NOT bypassing gates), need test fixture that creates real `Contract` + `SupplementaryAgreement` records satisfying G07. Out of T1.2.7 scope. Recorded для test-health epic Phase 4 backlog.
+
+### Test infra debt — service construction boilerplate
+
+Both test methods construct `PlacementRequestService` inline с identical 4-arg invocation. Could be extracted к shared fixture. Out of scope (KISS); recorded для T1.2 closure batch refactor.
+
+## Verification footer
+
+🔍 Verified against: `4e24e8c` | 📅 Updated: 2026-05-07T20:10:00Z
