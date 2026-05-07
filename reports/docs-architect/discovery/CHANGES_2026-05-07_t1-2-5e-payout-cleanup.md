@@ -4,7 +4,9 @@
 **Started:** 2026-05-07
 **Pre-state HEAD:** b7d4589
 **Pre-state baseline:** 12F / 997P / 5S / 0E + 21 lint / 14 format / 10 mypy
-**Status:** in-progress (commit 8 finalizes)
+**Status:** complete
+**Post-state HEAD:** TBD (commit 8 hash)
+**Post-state baseline:** 12F / 981P / 3S / 0E + 7 lint (conftest) / 0 format / 4 mypy (mediakit) / ci-local exit 2
 
 ## Marina decisions
 
@@ -64,26 +66,94 @@
 - **Hash:** d84780b
 - **Files (modify, 7):** `src/api/routers/document_validation.py` (SIM102 line 107 — combine if; E712 line 263 — replace `== True` с `.is_(True)`), `src/bot/handlers/owner/channel_owner.py` (SIM108 line 82 — collapse к ternary), `src/tasks/placement_tasks.py` (F841 line 380 — drop unused `repo`), `tests/mocks/yookassa_mock.py` (B903 lines 8, 15 — convert MockConfirmation/MockAmount к dataclass), `tests/tasks/test_placement_escrow.py` (4× N806 — rename `mock_scalars_AB`/`mock_result_AB`/`mock_scalars_C`/`mock_result_C` → lowercase; 2× N817 — replace `as PS` с full `PlacementStatus` name), `tests/unit/test_fsm_middlewares.py` (E302 line 39 — add blank line), `tests/unit/test_payments_constants.py` (B007 line 151 — rename `plan` → `_plan`)
 - **NOT touched:** `tests/unit/conftest.py` (7 errors stay per Marina Q1=(a) Phase C — intentional asyncio policy ordering, BL-024 prohibition).
-- **Verify:** lint 21 → **7** (conftest residual); format 14 → **13** (one file incidentally cleaned by edit); pytest 12F/981P/3S/0E (unaffected by lint-only edits — verified post-7b)
+- **Verify:** lint 21 → **7** (conftest residual); format 14 → **13** (one file incidentally cleaned by edit); pytest 12F/981P/3S/0E (unaffected by lint-only edits — confirmed in commit 7c integrated ci-local run)
 
 ### Commit 7b — `chore(format): apply ruff format to 13 drifted files`
-- **Hash:** TBD (post-commit)
+- **Hash:** d73bfd1
 - **Method:** `make format` (`poetry run ruff format src/ tests/`)
 - **Files reformatted (13):** `src/api/routers/channels.py`, `src/bot/handlers/owner/channel_owner.py`, `src/core/services/legal_compliance_service.py`, `src/db/models/legal_profile.py`, `tests/integration/api/test_admin_payouts.py`, `tests/integration/test_audit_log_repo.py`, `tests/test_api_channel_settings.py`, `tests/test_streak_bonus.py`, `tests/unit/api/test_channels_create.py`, `tests/unit/test_advertiser_gates.py`, `tests/unit/test_bot_channel_owner.py`, `tests/unit/test_legal_compliance_service.py`, `tests/unit/test_owner_gates.py` (commit 7a's `test_fsm_middlewares.py` E302 edit incidentally cleaned that file).
-- **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format 13 → **0**; mypy 10 → 10)
+- **Verify:** pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format **0** (402 files clean); mypy 10 → 10 (post-7b, before 7c) — confirmed in commit 7c integrated ci-local run
 
 ### Commit 7c — `chore(typecheck): clear 6 of 10 mypy errors (mediakit deferred)`
-- **Hash:** TBD (post-commit)
+- **Hash:** a2e7e09
 - **Files (modify, 4 src + 1 helper):** `src/bot/handlers/owner/channel_owner.py:457` (added explicit `if ch is None: return` guard before `.username`/`.title` access — closes 2 union-attr errors), `src/tasks/ord_tasks.py:59` (dropped commented-out `channel_id`/`post_url` kwargs from `report_publication` call to match service signature — closes 2 call-arg errors), `src/core/services/analytics_service.py:392-411` (typed `messages` list with full `SystemMessageTypedDict | UserMessageTypedDict | AssistantMessageTypedDict | ToolMessageTypedDict` union to satisfy SDK list-invariance constraint — closes 1 arg-type error), `src/bot/handlers/advertiser/campaigns.py:172` (no-op — issue resolved by adding `parse_mode` to helper), `src/bot/utils/safe_callback.py:10-32` (extended `safe_callback_edit` signature to accept optional `parse_mode: str | None = None`, threaded into both `edit_text` and `answer` fallback — closes 1 call-arg error).
 - **NOT touched:** `src/core/services/mediakit_service.py` (4 errors deferred per Marina Q2=(c) — `TelegramChat` model attrs `last_avg_views`/`last_post_frequency`/`price_per_post` don't exist; orthogonal cleanup target, see Deferred section).
-- **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged; lint 7 (conftest); format 0; mypy 10 → **4** — only mediakit residual)
+- **Verify (post-7a/7b/7c integrated, single ci-local run):** pytest 12F/981P/3S/0E (match); lint **7** (conftest residual); format **0** (402 files clean); mypy **4** (mediakit residual); ci-local exit **2** (lint+mypy non-zero, expected per Marina Q1=a + Q2=c)
 
-### Commit 8 — TBD (closure docs + tmp cleanup)
+### Commit 8 — `docs(t1.2.5e): closure CHANGES + tmp cleanup`
+- **Hash:** TBD (this commit)
+- **Files (modify, 1):** finalize this CHANGES file — fill Deferred section, post-state HEAD, verification footer.
+- **Files (delete, 11):** `tmp/t1_2_5e_topup_analog.md`, `tmp/t1_2_5e_payout_surface.md`, `tmp/t1_2_5e_payout_tests.md`, `tmp/t1_2_5e0_residual.md`, `tmp/t1_2_5e0_ci_local_*.log`, `tmp/t1_2_5e_deadcode_audit.md`, `tmp/t1_2_5e_ui_surface.md`, `tmp/t1_2_5e_pretest_baseline.md`, `tmp/t1_2_5e_commit_plan.md`, `tmp/t1_2_5e_c1_verify.log`, `tmp/t1_2_5e_c1_recheck.log`, `tmp/t1_2_5e_c2_verify.log`, `tmp/t1_2_5e_c4_verify.log`, `tmp/t1_2_5e_c5_verify.log`, `tmp/t1_2_5e_c6_verify.log`, `tmp/t1_2_5e_c7_verify.log` — Phase A+B/C probe artefacts no longer needed.
+- **Verify:** TBD (expected pytest 12F/981P/3S/0E unchanged — docs/cleanup only)
+
+## Pytest baseline shifts (per commit)
+
+| Commit | Hash | F | P | S | E | Δ |
+|---|---|---|---|---|---|---|
+| pre | b7d4589 | 12 | 997 | 5 | 0 | (baseline) |
+| 1 | c9d3175 | 12 | 997 | 5 | 0 | unchanged (admin handler delete; no test path) |
+| mini | 2ae52b0 | 12 | 997 | 5 | 0 | unchanged (CHANGES placeholder) |
+| 2 | 79de007 | 12 | 997 | 5 | 0 | unchanged (mini_app TS only) |
+| 3 | b74cf34 | 12 | 997 | 5 | 0 | unchanged (comment-only) |
+| 4 | 516415d | 12 | 995 | 3 | 0 | −2 P, −2 S (TestPayoutService class deleted: 2 active + 2 SKIPPED) |
+| 5 | 17d8f1f | 12 | 988 | 3 | 0 | −7 P (test_payout_compliance_service.py deleted) |
+| 6 | 1dd496c | 12 | 981 | 3 | 0 | −7 P (TestPayoutCalculation × 4 + TestCalculatePayout × 3) |
+| 7a | d84780b | 12 | 981 | 3 | 0 | unchanged (lint edits) |
+| 7b | d73bfd1 | 12 | 981 | 3 | 0 | unchanged (format edits) |
+| 7c | a2e7e09 | 12 | 981 | 3 | 0 | unchanged (typecheck edits) |
+
+**Net pytest delta:** F unchanged (12); P −16 (997 → 981); S −2 (5 → 3); E unchanged (0). The 12F residual was Marina-confirmed orthogonal к payout cleanup at probe time and stayed untouched throughout.
+
+## Pre-test gate baseline shifts
+
+| Gate | pre | post | Δ |
+|---|---|---|---|
+| Lint (ruff) | 21 | 7 | −14 (conftest 7 stay per Q1=a) |
+| Format (ruff) | 14 | 0 | −14 (all auto-fixed) |
+| Typecheck (mypy) | 10 | 4 | −6 (mediakit 4 stay per Q2=c) |
+| ci-local exit code | 2 | 2 | unchanged (lint+mypy non-zero) |
 
 ## Deferred to production launch
 
-(filled by commit 8 finalizer)
+The following items are explicitly carved out of T1.2.5e and must be addressed before deploying with real users:
+
+### 1. PayoutComplianceService recreation (Phase 5 / 5b.7)
+
+The 5b.7b SKELETON was deleted in commit 17d8f1f (`refactor(payout): delete PayoutComplianceService skeleton + clean stale comments`). It had empty registries (`_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`) and zero production callers. Phase 5 / 5b.7 implementor must recreate the service with:
+- G13-G18 transition resolver (publication_period_elapsed → act_generated → act_signed → tax_receipt → vat → ord_reported)
+- Create-time gate registry для payout-request creation
+- Same dispatch architecture as `LegalComplianceService` (sibling coordinator)
+
+Reference: `git show 17d8f1f^:src/core/services/payout_compliance_service.py` для original structure. Test reference: `git show 17d8f1f^:tests/unit/test_payout_compliance_service.py`.
+
+The gate-checker bodies в `src/core/services/gates/payout_gates.py` (G13-G18) are intact and should be wired into the new coordinator's transition resolution table.
+
+### 2. mediakit_service.py architectural cleanup (orthogonal)
+
+4 mypy errors in `src/core/services/mediakit_service.py` lines 111-116 deferred per Marina Q2=(c):
+- Line 111: `TelegramChat.last_avg_views` (mypy suggests `avg_views`)
+- Line 113: `TelegramChat.last_post_frequency` (no such attr)
+- Lines 115, 116: `TelegramChat.price_per_post` (no such attr)
+
+Companion test SKIPPED: `tests/test_bmediakit_comparison.py::TestMediakitService::test_get_mediatkit_data` (skip reason references same fields).
+
+Investigation options для отдельного sub-block:
+- (a) Compute from existing fields (`avg_views` exists; derive `last_post_frequency` from publication history)
+- (b) Drop dead code path entirely (mediakit feature may not be production-bound)
+- (c) Add fields с migration
+
+Marina decision required before scope. Cross-reference: T1.2.4 Q3=a "mediakit_service stale fields production bug" BACKLOG candidate.
+
+### 3. tests/unit/conftest.py 7 lint errors (intentional infra)
+
+7 ruff errors in `tests/unit/conftest.py` (1× SIM105 line 12 + 6× E402 lines 20-26) accepted as known residual per Marina Q1=(a) Phase C. The errors are intentional asyncio policy ordering (must precede aiogram imports); BL-024 prohibits touching the file in any cleanup context.
+
+Suppression options:
+- (a) Add `# ruff: noqa: E402, SIM105` shim at file top — single line, preserves logic intact, lint baseline → 0
+- (b) Reshape asyncio policy ordering pattern — bigger refactor
+
+Defer к T1.2 final closure milestone or dedicated sub-block per project rule.
 
 ## Verification footer
 
-(filled by commit 8 finalizer)
+🔍 Verified against: a2e7e09 (commit 7c, pre-commit-8 state) | 📅 Updated: 2026-05-07T19:25:00Z (final post-commit-8 hash and updated timestamp folded into commit 8 itself)
