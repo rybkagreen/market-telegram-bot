@@ -36,7 +36,14 @@
 - **Reason:** Both comments described the bot opening mini_app at `/own/payouts/request` for OpenInWebPortal redirect — the mini_app screen was deleted in commit 2 (79de007), and the actual mechanism was always `build_portal_deeplink` direct minting (BL-055). Comments now describe the actual flow.
 - **Verify:** TBD (expected 12F/997P/5S/0E preserved — comment-only edits)
 
-### Commit 4 — TBD (PayoutService dead methods)
+### Commit 4 — `refactor(payout): delete dead PayoutService methods`
+- **Hash:** TBD (post-commit)
+- **Files (modify, 2):** `src/core/services/payout_service.py` (-684 lines net: 11 dead methods + 3 unused exception classes + 8 orphan imports), `tests/integration/test_api_endpoints.py` (-46 lines: TestPayoutService class with 2 active + 2 SKIPPED tests)
+- **Methods deleted (11):** `calculate_payout` (instance), `get_owner_balance`, `get_owner_payouts`, `create_pending_payout`, `process_payout`, `mark_payout_paid`, `cancel_payout`, `request_payout_for_placement`, `check_velocity`, `create_payout` (instance — also drops S-48 `async with session.begin()` violation), `calculate_payout_with_tax`
+- **Methods retained (4 + __init__):** `complete_payout`, `reject_payout`, `approve_request`, `reject_request` — all live via admin router (`approve_request`/`reject_request` chain into internal complete/reject_payout)
+- **Exceptions removed (3):** `InsufficientFundsError`, `PayoutAPIError`, `UserNotFoundError` — all unused after deletion
+- **Imports cleaned:** ROUND_HALF_UP, COOLDOWN_HOURS, MIN_PAYOUT, PAYOUT_FEE_RATE, VELOCITY_MAX_RATIO, VELOCITY_WINDOW_DAYS, VelocityCheckError, User, PayoutRepository
+- **Verify:** TBD (expected 12F/995P/3S/0E — loses 2 active + 2 SKIPPED tests)
 
 ### Commit 5 — TBD (PayoutComplianceService skeleton)
 
