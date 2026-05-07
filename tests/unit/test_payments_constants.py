@@ -9,9 +9,7 @@ from decimal import Decimal
 from src.constants.fees import YOOKASSA_FEE_RATE
 from src.constants.payments import (
     FORMAT_MULTIPLIERS,
-    PAYOUT_FEE_RATE,
     PLAN_LIMITS,
-    calculate_payout,
     calculate_topup_payment,
     get_format_price,
     is_format_allowed_for_plan,
@@ -52,28 +50,6 @@ class TestCalculateTopupPayment:
     def test_fee_rate_is_3_5_percent(self):
         """Verify YOOKASSA_FEE_RATE is 3.5%."""
         assert Decimal("0.035") == YOOKASSA_FEE_RATE
-
-
-class TestCalculatePayout:
-    """Tests for calculate_payout function."""
-
-    def test_payout_10000(self):
-        """Payout 10000 ₽ → fee=150, net=9850."""
-        result = calculate_payout(Decimal("10000"))
-        assert result["gross"] == Decimal("10000")
-        assert result["fee"] == Decimal("150")
-        assert result["net"] == Decimal("9850")
-
-    def test_payout_1000_minimum(self):
-        """Payout minimum 1000 ₽ → fee=15, net=985."""
-        result = calculate_payout(Decimal("1000"))
-        assert result["gross"] == Decimal("1000")
-        assert result["fee"] == Decimal("15")
-        assert result["net"] == Decimal("985")
-
-    def test_payout_fee_rate_is_1_5_percent(self):
-        """Verify PAYOUT_FEE_RATE is 1.5%."""
-        assert Decimal("0.015") == PAYOUT_FEE_RATE
 
 
 class TestGetFormatPrice:

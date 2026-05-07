@@ -132,29 +132,6 @@ def calculate_topup_payment(desired: Decimal) -> dict:
     }
 
 
-def calculate_payout(gross: Decimal) -> dict:
-    """
-    Рассчитать выплату с комиссией платформы.
-
-    Args:
-        gross: Сумма запроса на выплату.
-
-    Returns:
-        dict с ключами:
-            - gross: запрошенная сумма
-            - fee: комиссия платформы (1.5%)
-            - net: сумма к перечислению
-    """
-    gross = Decimal(str(gross))
-    fee = (gross * PAYOUT_FEE_RATE).quantize(Decimal("0.01"))
-    net = gross - fee
-    return {
-        "gross": gross,
-        "fee": fee,
-        "net": net,
-    }
-
-
 def get_format_price(base_price: Decimal, fmt: str) -> Decimal:
     """
     Рассчитать цену публикации с учётом формата.

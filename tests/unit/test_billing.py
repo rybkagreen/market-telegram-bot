@@ -15,8 +15,6 @@ from src.constants.fees import (
 )
 from src.constants.payments import (
     MIN_CAMPAIGN_BUDGET,
-    PAYOUT_FEE_RATE,
-    calculate_payout,
     calculate_topup_payment,
 )
 
@@ -95,38 +93,6 @@ class TestEscrowReleaseLocation:
             assert "publication_service.py" in line, (
                 f"ESCROW-001 VIOLATION: release_escrow() found outside publication_service.py: {line}"
             )
-
-
-class TestPayoutCalculation:
-    """Tests for payout calculations."""
-
-    def test_payout_10000_gross(self):
-        """Payout: 10000 ₽ gross → 150 ₽ fee, 9850 ₽ net."""
-        result = calculate_payout(Decimal("10000"))
-        assert result["gross"] == Decimal("10000")
-        assert result["fee"] == Decimal("150")  # 1.5%
-        assert result["net"] == Decimal("9850")
-
-    def test_payout_1000_minimum(self):
-        """Payout minimum 1000 ₽ → 15 ₽ fee, 985 ₽ net."""
-        result = calculate_payout(Decimal("1000"))
-        assert result["gross"] == Decimal("1000")
-        assert result["fee"] == Decimal("15")
-        assert result["net"] == Decimal("985")
-
-    def test_payout_fee_rate(self):
-        """Payout fee rate is 1.5%."""
-        assert Decimal("0.015") == PAYOUT_FEE_RATE
-
-    def test_payout_formula(self):
-        """Payout formula: fee = gross × 0.015, net = gross - fee."""
-        gross = Decimal("10000")
-        expected_fee = gross * PAYOUT_FEE_RATE
-        expected_net = gross - expected_fee
-
-        result = calculate_payout(gross)
-        assert result["fee"] == expected_fee.quantize(Decimal("0.01"))
-        assert result["net"] == expected_net.quantize(Decimal("0.01"))
 
 
 class TestPlatformCommission:

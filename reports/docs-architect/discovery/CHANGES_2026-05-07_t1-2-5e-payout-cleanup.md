@@ -46,13 +46,19 @@
 - **Verify:** 12F/995P/3S/0E (match) + 21 lint / 14 format / 10 mypy unchanged
 
 ### Commit 5 — `refactor(payout): delete PayoutComplianceService skeleton + clean stale comments`
-- **Hash:** TBD (post-commit)
+- **Hash:** 17d8f1f
 - **Files (delete, 2):** `src/core/services/payout_compliance_service.py` (5b.7b SKELETON, ~190 LOC), `tests/unit/test_payout_compliance_service.py` (145 LOC, 7 tests)
 - **Files (modify, 2):** `src/core/services/legal_compliance_service.py` (line 79 comment — remove "(handed off to PayoutComplianceService)" reference), `src/core/services/gates/payout_gates.py` (lines 12-14 docstring — remove "future PayoutComplianceService" reference)
 - **Reason:** Skeleton had empty registries `_PAYOUT_TRANSITION_GATES = {}` / `_PAYOUT_CREATE_GATES = {}` and ZERO production callers (verified via grep — only the test file imports it). Phase 5 / 5b.7 will recreate (see Deferred section).
-- **Verify:** TBD (expected 12F/988P/3S/0E — loses 7 tests)
+- **Verify:** 12F/988P/3S/0E (match) + 21 lint / 14 format / 10 mypy unchanged
 
-### Commit 6 — TBD (free function `calculate_payout`)
+### Commit 6 — `refactor(payments): delete unused free function calculate_payout`
+- **Hash:** TBD (post-commit)
+- **Files (modify, 3):** `src/constants/payments.py` (-21 lines: function deleted), `tests/unit/test_billing.py` (-30 lines: TestPayoutCalculation class — 4 tests; PAYOUT_FEE_RATE import dropped — no longer used after class delete), `tests/unit/test_payments_constants.py` (-20 lines: TestCalculatePayout class — 3 tests; PAYOUT_FEE_RATE import dropped — no longer used)
+- **Reason:** Free function в `src/constants/payments.py:135` had zero callers in `src/` (verified via grep). Only test consumers (TestPayoutCalculation in test_billing.py, TestCalculatePayout in test_payments_constants.py — 7 tests total) referenced it. Removing function + dependent test classes.
+- **Surviving in payments.py:** `calculate_topup_payment`, `get_format_price`, `is_format_allowed_for_plan`, all constants (PAYOUT_FEE_RATE, MIN_PAYOUT, MAX_TOPUP, MIN_TOPUP, COOLDOWN_HOURS, VELOCITY_MAX_RATIO, VELOCITY_WINDOW_DAYS, FORMAT_MULTIPLIERS, PLAN_LIMITS) — kept (still used by router/service code).
+- **Surviving test classes:** TestBillingServiceInit, TestCalculateTopupPreview, TestFreezeEscrowConstants, TestEscrowReleaseLocation, TestPlatformCommission, TestVelocityCheckConstants (test_billing.py); TestCalculateTopupPayment, TestGetFormatPrice, TestIsFormatAllowedForPlan, TestPlanLimits (test_payments_constants.py).
+- **Verify:** TBD (expected 12F/981P/3S/0E — loses 4 + 3 = 7 tests)
 
 ### Commit 7a — TBD (lint cleanup)
 
