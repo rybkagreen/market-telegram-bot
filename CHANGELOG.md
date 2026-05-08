@@ -9,6 +9,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty — ready для next workstream)
 
+## [v0.5.2] - 2026-05-08
+
+### Topup normalize (T1.2.5f Bundle D) + pre-existing middleware fix
+
+Mirrors payout deeplink pattern (BL-055 / 16.3) для topup flow. Web portal
+authoritative; bot и mini_app redirect through `build_portal_deeplink('/topup')`.
+Pre-existing AcceptanceMiddleware bug fixed (post-Phase-C surface during
+T1.2.5f testing).
+
+### Added
+
+- Bot `topup_start` handler refactored к redirect-only — mints portal deeplink
+  через `build_portal_deeplink('/topup')`, shows как inline URL button.
+- Cabinet "💳 Пополнить баланс" inline URL deeplink (mirror payout button
+  pattern at `cabinet_kb`).
+- 3 insufficient-funds callsites (`billing.py:255` plan_buy,
+  `placement.py:369` placement payment, `camp_payment_kb:132`) converted
+  к URL deeplinks.
+- `bot_portal_exchange_allowed_paths` whitelist расширен с `/topup` entry.
+- Mini_app `TopUp.tsx` placeholder containing
+  `<OpenInWebPortal target="/topup">` (mirror LegalProfileView pattern).
+- `TestTopupRejectsMiniAppJwt` × 2 (mini_app JWT 403 на POST `/topup` + GET
+  status) + `TestWebPortalJwtPassesAudienceGate` extension × 2 (portal JWT
+  non-403).
+- `TestNoBotTopupFlow` regression test с adapted assertions для shared
+  `src/bot/states/billing.py` topology.
+
+### Changed
+
+- `POST /api/billing/topup` + `GET /api/billing/topup/{payment_id}/status`
+  теперь pinned к `web_portal` audience (mini_app JWT отбивается). Mirror
+  BL-046 (payouts pinning).
+
+### Removed
+
+- Bot handlers `topup_select_amount`, `topup_pay`, `topup_check`,
+  `topup_cancel` (only `topup_start` redirect remains).
+- `TopupStates` FSM class (`src/bot/states/billing.py`) + `__init__.py`
+  exports.
+- File `src/bot/keyboards/billing/topup.py` (4 keyboard factories).
+- Mini_app `TopUpConfirm.tsx` + `/topup/confirm` route.
+- Mini_app `createTopUp` + `getTopUpStatus` API functions, `useCreateTopUp`
+  + `useTopUpStatus` hooks (latter was orphan export — Surprise 2 from
+  probe).
+- Mini_app `TopUpRequest` + `TopUpResponse` types.
+- Test file `tests/integration/test_bot_topup_handler.py` (covered deleted
+  handlers).
+- Test `test_topup_states_defined` (asserted opposite invariant).
+- Side-fix: orphan `mini_app/src/screens/owner/OwnPayoutRequest.module.css`
+  (T1.2.5e cleanup leak).
+
+### Fixed
+
+- **Pre-existing AcceptanceMiddleware bug.** Middleware was registered на
+  `dp.update.middleware` which receives `Update` events; внутренние
+  `isinstance(event, Message)` / `isinstance(event, CallbackQuery)` checks
+  always False against Update → silent swallow для users без
+  `terms_accepted_at`. Surfaced during T1.2.5f rebuild after schema drift
+  resolution (Marina's test account locked from /start). Fixed by
+  registering на `dp.message` + `dp.callback_query` observers (aiogram
+  native pattern). Other middlewares unaffected. See `src/bot/main.py`
+  commit `f82852d`.
+
+### Known residual (deferred к future workstreams)
+
+- 7 lint errors в `tests/unit/conftest.py` (intentional asyncio policy
+  ordering hack — BL-024 prohibits modification; suppress shim deferred к
+  T1.2.5x).
+- 4 mypy errors в `src/core/services/mediakit_service.py` (TelegramChat
+  schema drift — investigation deferred к BACKLOG).
+- T1.2.4d B3 — full elimination `async_session_factory` — separate future
+  workstream.
+- BL-076 — 19 consolidated deferred entries from T1.2 series + new entry
+  для middleware fix (если applicable).
+- Pre-fill amount support в bot deeplinks (Decision 1.f / 5.f / 5.g from
+  probe) — deferred (single-target `/topup` selected per Decision 1.e).
+- TopupResponse contract drift snapshot — Decision 7.d not selected;
+  добавить в `tests/unit/test_contract_schemas.py` если future drift
+  matters.
+- `topup:amount:custom` Decimal cast input validation — Surprise 3 from
+  probe (currently в deleted handler, applies elsewhere если pattern
+  reused).
+
+### Cumulative impact
+
+- Bot: 5 handlers replaced с 1 redirect, 4 keyboards deleted, 1 FSM
+  removed.
+- Mini_app: 158 LOC удалено (TopUp + TopUpConfirm screens), placeholder
+  added.
+- Backend: audience pinning extended к topup endpoints, whitelist
+  adjusted.
+- Tests: 993P → 997P (+4 PII pinning, +3 regression, -3 obsolete).
+- Browser testing: 7 PASS / 0 FAIL / 7 SKIP — green-light merge readiness.
+
+### Notes
+
+- Branch `feature/t1-2-5f-topup-normalize` merged --no-ff в develop, then
+  develop --no-ff в main (atomic FE+BE deploy).
+- All previous tags preserved (v0.5.0, v0.5.1, v0.4.0-phase3c).
+
 ## [v0.5.0] - 2026-05-08
 
 ### Test infrastructure cleanup (T1.2 series)

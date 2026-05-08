@@ -50,7 +50,8 @@ async def main() -> None:
     dp.update.middleware(DBSessionMiddleware())
     dp.update.middleware(ThrottlingMiddleware())
     dp.update.middleware(RoleCheckMiddleware())
-    dp.update.middleware(AcceptanceMiddleware())
+    dp.message.middleware(AcceptanceMiddleware())
+    dp.callback_query.middleware(AcceptanceMiddleware())
     dp.update.middleware(FSMTimeoutMiddleware())
 
     dp.include_router(main_router)

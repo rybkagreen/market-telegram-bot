@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Plan, TopUpResponse } from '@/lib/types'
+import type { Plan } from '@/lib/types'
 
 export interface PlanDetail {
   key: Plan
@@ -66,18 +66,6 @@ export function getBillingHistory(page: number = 1, limit: number = 20): Promise
 
 export function purchasePlan(plan: string): Promise<PlanPurchaseResponse> {
   return api.post('billing/plan', { json: { plan } }).json<PlanPurchaseResponse>()
-}
-
-export function createTopUp(desiredAmount: number): Promise<TopUpResponse> {
-  return api.post('billing/topup', { json: { desired_amount: desiredAmount } }).json<TopUpResponse>()
-}
-
-export function getTopUpStatus(
-  paymentId: string,
-): Promise<{ status: 'pending' | 'succeeded' | 'canceled' }> {
-  return api
-    .get(`billing/topup/${paymentId}/status`)
-    .json<{ status: 'pending' | 'succeeded' | 'canceled' }>()
 }
 
 export function getPlans(): Promise<PlanDetail[]> {

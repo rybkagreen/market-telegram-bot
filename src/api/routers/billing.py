@@ -19,7 +19,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, get_db_session
+from src.api.dependencies import CurrentUser, get_current_user_from_web_portal, get_db_session
 from src.config.settings import settings
 from src.constants.payments import PLAN_LIMITS
 from src.db.models.user import User
@@ -151,7 +151,7 @@ class FrozenBalanceResponse(BaseModel):
 @router.post("/topup", responses={400: {"description": "Bad request"}})
 async def create_unified_topup(
     body: TopupRequest,
-    current_user: CurrentUser,
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TopupResponse:
     """
@@ -236,7 +236,7 @@ async def create_unified_topup(
 @router.get("/topup/{payment_id}/status", responses={404: {"description": "Not found"}})
 async def get_topup_status(
     payment_id: str,
-    current_user: CurrentUser,
+    current_user: Annotated[User, Depends(get_current_user_from_web_portal)],
 ) -> dict[str, str]:
     """
     Получить статус платежа.
