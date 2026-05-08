@@ -11,15 +11,6 @@ import pytest
 class TestFSMStates:
     """Tests for FSM states."""
 
-    def test_topup_states_defined(self):
-        """TopupStates has 3 states: entering_amount, confirming, waiting_payment."""
-        from src.bot.states.billing import TopupStates
-
-        states = TopupStates.__dict__
-        assert "entering_amount" in states
-        assert "confirming" in states
-        assert "waiting_payment" in states
-
     def test_feedback_states_defined(self):
         """FeedbackStates has entering_text state."""
         from src.bot.states.feedback import FeedbackStates
@@ -124,4 +115,39 @@ class TestNoBotPayoutFlow:
 
         assert not hasattr(states, "PayoutStates"), (
             "PayoutStates still exported from src.bot.states; must be deleted (BL-045)"
+        )
+
+
+class TestNoBotTopupFlow:
+    """T1.2.5f / Bundle D: bot must not run topup FSM (web portal authoritative).
+
+    Setup lives in the web portal; the bot's topup_start handler is a
+    redirect-only stub that mints a portal deeplink via build_portal_deeplink
+    and shows it as inline button.
+    """
+
+    def test_topup_states_class_absent(self):
+        """TopupStates class deleted from src/bot/states/billing.py."""
+        from src.bot.states import billing as billing_states_module
+
+        assert not hasattr(billing_states_module, "TopupStates"), (
+            "TopupStates still defined в src.bot.states.billing; must be deleted (T1.2.5f)"
+        )
+
+    def test_topup_handlers_deleted_from_module(self):
+        """topup_select_amount, topup_pay, topup_check, topup_cancel deleted (only topup_start redirect remains)."""
+        from src.bot.handlers.billing import billing as billing_handlers_module
+
+        deleted_handlers = ["topup_select_amount", "topup_pay", "topup_check", "topup_cancel"]
+        for name in deleted_handlers:
+            assert not hasattr(billing_handlers_module, name), (
+                f"{name} still defined в billing handlers; must be deleted (T1.2.5f)"
+            )
+
+    def test_topup_start_handler_remains_as_redirect(self):
+        """topup_start handler exists but is redirect-only (sanity check)."""
+        from src.bot.handlers.billing import billing as billing_handlers_module
+
+        assert hasattr(billing_handlers_module, "topup_start"), (
+            "topup_start handler missing — must remain as redirect (T1.2.5f Decision 2.iii.b)"
         )
