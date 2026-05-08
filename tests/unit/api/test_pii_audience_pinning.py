@@ -142,14 +142,28 @@ async def client(
         # The endpoint may exercise commit/rollback on success/error paths;
         # an in-memory stub is enough — these tests fence-check the auth dep
         # chain, not DB business logic.
+        #
+        # T1.2.4b B2: auth resolver now reads via Depends(get_db_session), so
+        # `session.execute(...)` must surface the registered user — otherwise
+        # the resolver returns 401 ("User not found or inactive") before the
+        # audience/admin gates run. Lists/counts retain the empty fallback.
         session = MagicMock()
         session.commit = _async_noop
         session.rollback = _async_noop
         session.close = _async_noop
         session.get = _async_none
-        session.execute = _async_empty_result
         session.add = lambda *_a, **_kw: None
         session.refresh = _async_noop
+
+        async def _execute(*_args: Any, **_kwargs: Any) -> Any:
+            result = MagicMock()
+            user = next(iter(stub_user_lookup.values()), None) if stub_user_lookup else None
+            result.scalar_one_or_none.return_value = user
+            result.scalars.return_value.all.return_value = []
+            result.scalar.return_value = 0
+            return result
+
+        session.execute = _execute
         yield session
 
     app.dependency_overrides[get_redis] = _override_redis
@@ -169,14 +183,6 @@ async def _async_noop(*_args: Any, **_kwargs: Any) -> None:
 
 async def _async_none(*_args: Any, **_kwargs: Any) -> Any:
     return None
-
-
-async def _async_empty_result(*_args: Any, **_kwargs: Any) -> Any:
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = []
-    result.scalar.return_value = 0
-    result.scalar_one_or_none.return_value = None
-    return result
 
 
 def _register_and_token(

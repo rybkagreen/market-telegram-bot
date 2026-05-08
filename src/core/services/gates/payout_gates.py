@@ -9,9 +9,8 @@ G18: Payout reported to ОРД
 
 5b.6 fills G13/G14 real bodies and G17/G18 Phase 5 pending markers.
 5b.7d fills G15/G16 as Phase 4 pending markers (mirror G17/G18). None
-are wired into ``_TRANSITION_GATES`` — payout-side gates hand off to a
-future PayoutComplianceService (Phase 5/5b.7) per the comment in
-``legal_compliance_service.py``.
+are wired into ``_TRANSITION_GATES`` — payout-side gates remain reserved
+for the Phase 5 coordinator that will own PayoutRequest lifecycle.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession

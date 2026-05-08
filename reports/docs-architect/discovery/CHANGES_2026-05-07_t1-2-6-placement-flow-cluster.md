@@ -1,0 +1,84 @@
+# T1.2.6 — Placement-flow cluster + ESCROW false-positive
+
+**Branch:** feature/t1-2-test-failures-cleanup
+**Started:** 2026-05-07
+**Pre-state HEAD:** 773eb38
+**Pre-state baseline:** 12F / 981P / 3S / 0E + 7 lint (conftest) / 0 format / 4 mypy (mediakit)
+**Post-state HEAD:** 215e219 (commit 4) → finalized at commit 5
+**Post-state baseline:** 6F / 987P / 3S / 0E + 7 lint (conftest) / 0 format / 4 mypy (mediakit)
+**Δ:** -6F closed (1 ESCROW + 4 reputation FK + 1 review INV-1), +6P
+**Status:** closed
+
+## Marina decisions
+
+- **Cluster 1 (ESCROW invariant):** β — multi-callsite allowlist (publication_service.py + disputes.py advertiser_fault branch); AST or strict-regex comment-strip implementation, agent выбирает по ergonomics.
+- **Cluster 2 (reputation FK ×4):** α — root `tests/conftest.py` shared fixture; 4 reputation tests refactored.
+- **Cluster 3 (review INV-1 ×1):** α — status switch in test_review_service fixture (1 LOC); KISS, NOT reuse Cluster 2 fixture.
+
+Rejected:
+- ε delete (Cluster 1) — invariant still has defensive value via allowlist.
+- β AST-only / γ inline (Cluster 2) — fixture sharing wins на reuse + DRY.
+- β C5 wholesale / γ Cluster 2 reuse (Cluster 3) — over-engineering.
+
+## Commits
+
+### Commit 1 — `docs(t1.2.6): create placeholder CHANGES для interleaved updates`
+- Hash: <set during commit>
+- Files: reports/docs-architect/discovery/CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md (NEW)
+
+### Commit 2 — `test(billing): modernize ESCROW invariant к multi-callsite allowlist`
+- Hash: <set during commit>
+- Files: tests/unit/test_billing.py (modify)
+- LOC: +54/-21 (net +33), 75 changed lines.
+- Implementation: AST-based scan via `ast.walk` over `Path("/opt/.../src").rglob("*.py")`. Filters `ast.Call` nodes whose callee is `release_escrow` (matches both `Name` and `Attribute` forms — covers `release_escrow(...)` и `obj.release_escrow(...)`). Skips `SyntaxError` files defensively.
+- Approved callsites:
+  - `src/core/services/publication_service.py` — success path (delete_published_post)
+  - `src/api/routers/disputes.py` — admin dispute resolution (advertiser_fault, added в commit 8cfa49a)
+- Test renamed: `test_release_escrow_only_in_delete_published_post` → `test_release_escrow_only_in_approved_callsites` (reflects new multi-callsite invariant).
+- Removed unused `import subprocess` (was only used by replaced grep-based test).
+- Why AST: robust против comments/docstrings/f-string false-positives — was Issue 1A в Phase A+B probe (line 595 docstring). Issue 1B (line 672 real call) addressed via allowlist expansion.
+- Side fix: SIM114 ruff issue surfaced and resolved via fname helper variable refactor.
+- Verify: `pytest TestEscrowReleaseLocation` PASSED. `ruff check`, `ruff format --check` pass.
+
+### Commit 3 — `test(reputation): root fixture + refactor 4 FK-violating tests (Cluster 2)`
+- Hash: <set during commit>
+- Files:
+  - `tests/conftest.py` (modify) — add `Decimal` import, add `PlacementRequest`/`PlacementStatus` import, add `placement_request` fixture (between `test_channel` и `placement_request_service`).
+  - `tests/test_reputation_service.py` (modify) — 4 tests refactored к use `placement_request` fixture instead of hardcoded `placement_request_id=1`.
+- Fixture `placement_request`: status `pending_owner` (early lifecycle, не trip INV-1 placement_escrow_integrity), depends on existing root fixtures `advertiser_user` / `owner_user` / `test_channel`. Real DB row, FK-resolvable.
+- Side fix: `ReputationAction.PUBLICATION` → `ReputationAction.publication` в `test_history_recorded` (line 81). Pre-existing latent test bug — uppercase form is invalid (enum members lowercase per `src/db/models/reputation_history.py:16-34` и all production usage). Test prior failed at FK violation BEFORE reaching assertion; after FK fix, assertion bug surfaces. Fixing together per Principle 3 (no workarounds).
+- Closes 4F. Pre-state: 11F. Expected post-state: 7F.
+- Verify: `pytest tests/test_reputation_service.py::TestReputationService -v` → 4 PASSED.
+
+### Commit 4 — `test(review): switch placement status pending в INV-1 fixture (Cluster 3)`
+- Hash: <set during commit>
+- Files: `tests/unit/test_review_service.py` (modify, ~3 LOC)
+- Change: `status=PlacementStatus.escrow` → `status=PlacementStatus.pending_owner` в `test_create_review_not_published_raises` inline placement.
+- Rationale: test intent ("не в статусе published") agnostic к specific non-published status. `escrow` was incidentally chosen but trips INV-1 (placement_escrow_integrity CHECK requires escrow_transaction_id IS NOT NULL для status='escrow'). `pending_owner` satisfies test intent без INV-1 violation.
+- Added inline comment explaining INV-1 avoidance rationale.
+- Closes 1F. Pre-state: 7F/986P. Expected post-state: 6F/987P.
+- Verify: `pytest test_create_review_not_published_raises -v` → PASSED.
+
+### Commit 5 — `docs(t1.2.6): closure CHANGES finalize + tmp cleanup`
+- Hash: <set during commit>
+- Files:
+  - This file (finalize) — fill post-state header, finalize commit 5 entry, fill deferred + verification footer.
+  - Cleanup `tmp/`: rm 5 probe markdowns (`t1_2_6_cluster_1_escrow_grep.md`, `t1_2_6_cluster_2_reputation_fk.md`, `t1_2_6_cluster_3_review_inv1.md`, `t1_2_6_shared_fixtures.md`, `t1_2_6_design_options.md`).
+
+## Deferred to production launch
+
+### `tests/unit/test_review_service.py` local fixtures cleanup (BL-022 legacy)
+
+`tests/unit/test_review_service.py` определяет local `db_session` (Postgres-backed override of SQLite default), `advertiser` (telegram_id 900111001), `owner` (telegram_id 900111002), `channel`, `published_placement` fixtures. Эти duplicate root `tests/conftest.py` fixtures (`advertiser_user`, `owner_user`, `test_channel`). Heritage of BL-022 SQLite-shadow refactor — local fixtures были added когда file inherited SQLite db_session from `tests/unit/conftest.py`. Now что file overrides к Postgres, root fixtures могли бы be reused, но это broader refactor (~30-50 LOC). Defer к T1.2 closure batch BACKLOG entry.
+
+### ESCROW invariant evolution
+
+Текущий `test_release_escrow_only_in_approved_callsites` allows 2 callsites (`publication_service.py` + `disputes.py`). Если в Phase 4/5 будут добавлены legitimate callsites (e.g. PayoutComplianceService bulk-release flow, refund_escrow inverse), allowlist должен быть updated. Test docstring documents the invariant maintenance requirement; future updates per architectural changes.
+
+### Surfaced architectural-drift observation (recorded, не bug)
+
+`release_escrow` is called from TWO production paths now: `publication_service.delete_published_post` (success path) AND `disputes.resolve_dispute_admin` advertiser_fault branch (added в commit 8cfa49a "disputes v2"). Both rely on `Transaction.idempotency_key` для safety. ESCROW-001 invariant (originally "ONLY в delete_published_post") was updated к multi-callsite allowlist в commit 2.
+
+## Verification footer
+
+🔍 Verified against: `215e219` | 📅 Updated: 2026-05-07T19:55:00Z

@@ -26,8 +26,9 @@ from src.bot.handlers.shared.start import router as start_router
 main_router = Router()
 
 # Router order: shared → billing → advertiser → placement → owner → admin → dispute
-# Payout setup flow removed in 16.3 — bot now opens mini_app at /own/payouts/request,
-# which redirects via OpenInWebPortal to the web portal (PII never enters bot).
+# Payout setup flow lives only in the web portal (per ФЗ-152, PII never enters bot).
+# Bot mints a portal-login URL via build_portal_deeplink (BL-055) and attaches it
+# to inline buttons; tap → external browser → ticket-login → /own/payouts/request.
 main_router.include_router(start_router)
 main_router.include_router(login_code_router)
 main_router.include_router(cabinet_router)

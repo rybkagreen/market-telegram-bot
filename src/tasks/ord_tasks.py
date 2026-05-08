@@ -58,9 +58,7 @@ async def _report_publication_async(placement_request_id: int) -> None:
         ord_service = get_ord_service(session)
         await ord_service.report_publication(
             placement_request_id=placement_request_id,
-            channel_id=0,
             published_at=published_at,
-            post_url="",
         )
         await session.commit()
 

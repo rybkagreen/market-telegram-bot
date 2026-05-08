@@ -11,12 +11,13 @@ async def safe_callback_edit(
     callback: CallbackQuery,
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
+    parse_mode: str | None = None,
 ) -> None:
     """Безопасное редактирование callback."""
     if not isinstance(callback.message, Message):
         return
     try:
-        await callback.message.edit_text(text, reply_markup=reply_markup)
+        await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
     except Exception as e:
         logger.debug(
             "edit_text failed for callback %s, falling back to answer: %s",
@@ -24,7 +25,7 @@ async def safe_callback_edit(
             e,
         )
         try:
-            await callback.message.answer(text, reply_markup=reply_markup)
+            await callback.message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
         except Exception as e2:
             logger.error("Both edit_text and answer failed for callback %s: %s", callback.id, e2)
             import sentry_sdk

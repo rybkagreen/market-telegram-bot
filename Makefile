@@ -33,7 +33,6 @@ run:
 test:
 	poetry run pytest tests/ \
 		--ignore=tests/e2e_api \
-		--ignore=tests/unit/test_main_menu.py \
 		--no-cov \
 		-v \
 		--tb=short
@@ -156,8 +155,7 @@ check:
 #
 # Test stage delegates to standalone `test` target via $(MAKE), single
 # source of truth for pytest invocation (ignores e2e_api which требует
-# docker-compose.test.yml, и test_main_menu.py legacy skip; --no-cov;
-# -v --tb=short).
+# docker-compose.test.yml; --no-cov; -v --tb=short).
 # ============================================================
 ci-local:
 	@set +e; \

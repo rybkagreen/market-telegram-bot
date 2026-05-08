@@ -297,25 +297,3 @@ class TestNotifyPaymentReceived:
         call_kwargs = bot.send_message.call_args
         text = call_kwargs.kwargs.get("text", "") or ""
         assert "850" in text
-
-
-# ---------------------------------------------------------------------------
-# Skipped — no implementation
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.skip(reason="notify_cancelled not implemented in notifications.py")
-class TestNotifyCancelled:
-    pass
-
-
-@pytest.mark.skip(reason="notify_sla_expired not implemented in notifications.py")
-class TestNotifySlaExpired:
-    pass
-
-
-@pytest.mark.skip(
-    reason="private helpers _format_datetime, _format_owner_payout, _send_notification, _truncate_text not exposed"
-)
-class TestPrivateHelpers:
-    pass

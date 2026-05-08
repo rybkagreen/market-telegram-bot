@@ -1,5 +1,5 @@
 """
-Unit-тесты роутера /api/admin/payouts (FIX_PLAN_06 §6.5).
+Integration-тесты роутера /api/admin/payouts (FIX_PLAN_06 §6.5).
 
 Покрывают контракт API-слоя:
     * `GET /api/admin/payouts` — 403 для не-админа.
@@ -9,6 +9,15 @@ Unit-тесты роутера /api/admin/payouts (FIX_PLAN_06 §6.5).
 Логика `payout_service.{approve,reject}_request` замокана: этот слой
 проверяется в `tests/integration/test_payout_lifecycle.py` — там же
 происходит реальное перемещение средств.
+
+Relocated from tests/unit/api/ (D4): T1.2.4b commit 5de1ded refactored
+auth chain to use single Depends(get_db_session); _resolve_user_for_audience
+выполняет selectinload(User.legal_profile) — требует full schema.
+unit/conftest SQLite (3-table subset) этого не выдерживает; integration
+testcontainer PostgreSQL держит каноническую схему. Auth resolvers
+(get_current_admin_user, get_current_user_from_web_portal) запускаются
+реально на seeded users — fixture override'ит только get_db_session
+(single-override pattern из tests/conftest.py:461-528 api_client_with_auth).
 """
 
 from __future__ import annotations
@@ -16,19 +25,15 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import (
-    get_current_admin_user,
-    get_current_user,
-    get_current_user_from_web_portal,
-    get_db_session,
-)
+from src.api.auth_utils import create_jwt_token
+from src.api.dependencies import get_db_session
 from src.api.main import app
 from src.core.exceptions import PayoutAlreadyFinalizedError, PayoutNotFoundError
 from src.core.services.payout_service import payout_service
@@ -36,34 +41,24 @@ from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.user import User
 
 
-@pytest.fixture
-def admin_user() -> User:
+@pytest_asyncio.fixture
+async def admin_user(db_session: AsyncSession) -> User:
+    """DB-seeded admin user (testcontainer PostgreSQL)."""
     user = User(
-        id=9001,
         telegram_id=900_000_001,
         username="admin_user",
         first_name="Admin",
         is_admin=True,
         is_active=True,
     )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
     return user
 
 
 @pytest.fixture
-def advertiser_user() -> User:
-    user = User(
-        id=8001,
-        telegram_id=800_000_001,
-        username="advertiser_non_admin",
-        first_name="Advertiser",
-        is_admin=False,
-        is_active=True,
-    )
-    return user
-
-
-@pytest.fixture
-def fake_payout_paid() -> PayoutRequest:
+def fake_payout_paid(admin_user: User) -> PayoutRequest:
     """Возврат сервиса после успешного approve — status=paid."""
     now = datetime.now(UTC)
     return PayoutRequest(
@@ -74,7 +69,7 @@ def fake_payout_paid() -> PayoutRequest:
         net_amount=Decimal("985"),
         status=PayoutStatus.paid,
         requisites="40802810000000000001",
-        admin_id=9001,
+        admin_id=admin_user.id,
         processed_at=now,
         rejection_reason=None,
         created_at=now,
@@ -83,7 +78,7 @@ def fake_payout_paid() -> PayoutRequest:
 
 
 @pytest.fixture
-def fake_payout_rejected() -> PayoutRequest:
+def fake_payout_rejected(admin_user: User) -> PayoutRequest:
     now = datetime.now(UTC)
     return PayoutRequest(
         id=43,
@@ -93,7 +88,7 @@ def fake_payout_rejected() -> PayoutRequest:
         net_amount=Decimal("492.5"),
         status=PayoutStatus.rejected,
         requisites="40802810000000000002",
-        admin_id=9001,
+        admin_id=admin_user.id,
         processed_at=now,
         rejection_reason="Реквизиты не прошли проверку.",
         created_at=now,
@@ -102,50 +97,68 @@ def fake_payout_rejected() -> PayoutRequest:
 
 
 @pytest_asyncio.fixture
-async def admin_client(admin_user: User) -> AsyncGenerator[AsyncClient]:
-    """HTTP-клиент с админом, подставленным через dependency_overrides.
+async def admin_client(admin_user: User, db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
+    """HTTP-клиент с админом — web_portal JWT, реальный auth chain.
 
-    16.1: `get_current_admin_user` теперь wraps `get_current_user_from_web_portal`
-    (BL-049), поэтому при тестировании non-admin path (`advertiser_client`)
-    необходимо переопределять оба dep'а.
+    Pattern: tests/conftest.py:461-494 api_client_with_auth (T1.2.4b B2).
+    Single override get_db_session — _resolve_user_for_audience запускается
+    на integration testcontainer session и находит seeded admin_user.
+    Admin endpoint требует source="web_portal" (BL-049 audience hard-cut).
     """
-    app.dependency_overrides[get_current_admin_user] = lambda: admin_user
-    app.dependency_overrides[get_current_user] = lambda: admin_user
-    app.dependency_overrides[get_current_user_from_web_portal] = lambda: admin_user
+    token = create_jwt_token(
+        admin_user.id,
+        admin_user.telegram_id,
+        admin_user.plan,
+        source="web_portal",
+    )
 
-    async def _stub_session() -> AsyncGenerator[Any]:
-        session = MagicMock()
-        session.get = AsyncMock(return_value=None)
-        session.execute = AsyncMock(return_value=MagicMock(scalar=lambda: 0))
-        yield session
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
 
-    app.dependency_overrides[get_db_session] = _stub_session
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-
-    app.dependency_overrides.clear()
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
 
 
 @pytest_asyncio.fixture
 async def advertiser_client(
-    advertiser_user: User,
+    advertiser_user: User, db_session: AsyncSession
 ) -> AsyncGenerator[AsyncClient]:
-    """HTTP-клиент с не-админом, подставленным через web_portal-only dep.
+    """HTTP-клиент с не-админом — web_portal JWT, fail на is_admin check.
 
-    16.1: `get_current_admin_user` ныне wraps `get_current_user_from_web_portal`
-    — для проверки 403-on-non-admin переопределяем именно его (mini_app
-    audience уже отбит на уровне dep).
+    Pattern: tests/conftest.py:497-528 api_client_with_owner_auth.
+    Token source="web_portal" чтобы пройти audience-check в
+    get_current_user_from_web_portal — затем get_current_admin_user
+    падает на is_admin=False с 403 "admin privileges required".
+    advertiser_user — DB-seeded из tests/conftest.py:378.
     """
-    app.dependency_overrides[get_current_user] = lambda: advertiser_user
-    app.dependency_overrides[get_current_user_from_web_portal] = lambda: advertiser_user
+    token = create_jwt_token(
+        advertiser_user.id,
+        advertiser_user.telegram_id,
+        advertiser_user.plan,
+        source="web_portal",
+    )
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
 
-    app.dependency_overrides.clear()
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
 
 
 # ─── GET /api/admin/payouts ────────────────────────────────────────────
@@ -176,6 +189,7 @@ class TestApprovePayoutChangesStatus:
     async def test_approve_returns_paid_response(
         self,
         admin_client: AsyncClient,
+        admin_user: User,
         fake_payout_paid: PayoutRequest,
     ) -> None:
         # autospec=True привязывает сигнатуру мока к реальному
@@ -194,8 +208,8 @@ class TestApprovePayoutChangesStatus:
         assert body["id"] == 42
         assert body["status"] == "paid"
         assert Decimal(str(body["gross_amount"])) == Decimal("1000")
-        assert body["admin_id"] == 9001
-        approve_mock.assert_awaited_once_with(42, 9001)
+        assert body["admin_id"] == admin_user.id
+        approve_mock.assert_awaited_once_with(42, admin_user.id)
 
 
 class TestApproveAlreadyProcessed:
@@ -263,6 +277,7 @@ class TestRejectRequiresReason:
     async def test_reject_happy_path(
         self,
         admin_client: AsyncClient,
+        admin_user: User,
         fake_payout_rejected: PayoutRequest,
     ) -> None:
         with patch.object(
@@ -280,7 +295,7 @@ class TestRejectRequiresReason:
         body = resp.json()
         assert body["status"] == "rejected"
         assert body["rejection_reason"] == "Реквизиты не прошли проверку."
-        reject_mock.assert_awaited_once_with(43, 9001, "Реквизиты не прошли проверку.")
+        reject_mock.assert_awaited_once_with(43, admin_user.id, "Реквизиты не прошли проверку.")
 
     async def test_reject_already_finalized_returns_409(self, admin_client: AsyncClient) -> None:
         # plan-05: ConflictError → 409 (was 400 pre-plan-05).

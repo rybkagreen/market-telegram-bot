@@ -60,9 +60,7 @@ class LegalProfile(Base, TimestampMixin):
     fns_verification_status: Mapped[str | None] = mapped_column(
         String(20), nullable=True, default="unchecked", server_default="unchecked"
     )
-    fns_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    fns_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     egrul_snapshot_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

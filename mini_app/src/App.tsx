@@ -60,10 +60,6 @@ const OwnChannelDetail   = lazy(() => import('@/screens/owner/OwnChannelDetail')
 const OwnChannelSettings = lazy(() => import('@/screens/owner/OwnChannelSettings'))
 const OwnRequests        = lazy(() => import('@/screens/owner/OwnRequests'))
 const OwnRequestDetail   = lazy(() => import('@/screens/owner/OwnRequestDetail'))
-const OwnPayouts         = lazy(() => import('@/screens/owner/OwnPayouts'))
-// 16.3 deeplink target: bot payout buttons open mini_app at this path,
-// the screen is a portal-bridge placeholder (ФЗ-152, BL-045 / BL-055).
-const OwnPayoutRequest   = lazy(() => import('@/screens/owner/OwnPayoutRequest'))
 const DisputeResponse    = lazy(() => import('@/screens/owner/DisputeResponse'))
 
 // ═══ Admin ═══ (PHASE-5)
@@ -153,8 +149,6 @@ const router = createBrowserRouter([
       { path: 'own/requests',                           element: <OwnRequests /> },
       { path: 'own/requests/:id',                       element: <OwnRequestDetail /> },
       { path: 'own/disputes',                           element: <MyDisputes /> },
-      { path: 'own/payouts',                            element: <OwnPayouts /> },
-      { path: 'own/payouts/request',                    element: <OwnPayoutRequest /> },
       { path: 'own/disputes/:id',                       element: <DisputeResponse /> },
 
       // ── Admin ── (PHASE-5) — guarded by AdminGuard

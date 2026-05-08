@@ -3,7 +3,6 @@ Unit tests for BillingService (P02).
 Standalone tests - no conftest dependencies.
 """
 
-import subprocess
 from decimal import Decimal
 
 # Test constants directly without service dependencies
@@ -15,8 +14,6 @@ from src.constants.fees import (
 )
 from src.constants.payments import (
     MIN_CAMPAIGN_BUDGET,
-    PAYOUT_FEE_RATE,
-    calculate_payout,
     calculate_topup_payment,
 )
 
@@ -74,59 +71,61 @@ class TestFreezeEscrowConstants:
 class TestEscrowReleaseLocation:
     """ESCROW-001 verification tests."""
 
-    def test_release_escrow_only_in_delete_published_post(self):
-        """ESCROW-001: release_escrow() is ONLY called in delete_published_post()."""
-        result = subprocess.run(
-            ["poetry", "run", "grep", "-rn", "release_escrow(", "src/"],
-            capture_output=True,
-            text=True,
-            cwd="/opt/market-telegram-bot",
+    def test_release_escrow_only_in_approved_callsites(self):
+        """ESCROW-001: release_escrow() callable only from approved locations.
+
+        Approved callsites (idempotency-key-protected):
+        - src/core/services/publication_service.py — success path
+          (delete_published_post)
+        - src/api/routers/disputes.py — admin dispute resolution
+          (advertiser_fault branch added in 8cfa49a "disputes v2")
+
+        Both rely on Transaction.idempotency_key (UNIQUE) to prevent
+        double-release race. Adding a new callsite outside this allowlist
+        requires: (1) verifying idempotency-key handling, (2) updating this
+        allowlist with rationale.
+
+        AST-based scan: ignores comments, docstrings, and string-literal
+        matches — robust against the false-positives that affected the
+        previous grep-based implementation (e.g. docstring text mentioning
+        ``release_escrow()``).
+        """
+        import ast
+        from pathlib import Path
+
+        src_root = Path("/opt/market-telegram-bot/src")
+        approved = {
+            "src/core/services/publication_service.py",
+            "src/api/routers/disputes.py",
+        }
+
+        violations: list[str] = []
+
+        for py_file in src_root.rglob("*.py"):
+            try:
+                tree = ast.parse(py_file.read_text(), filename=str(py_file))
+            except SyntaxError:
+                continue
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                fname: str | None = None
+                if isinstance(func, ast.Name):
+                    fname = func.id
+                elif isinstance(func, ast.Attribute):
+                    fname = func.attr
+                if fname != "release_escrow":
+                    continue
+                rel = py_file.relative_to(src_root.parent).as_posix()
+                if rel not in approved:
+                    violations.append(f"{rel}:{node.lineno}")
+
+        assert not violations, (
+            "ESCROW-001 VIOLATION: release_escrow() called from non-approved "
+            f"location(s): {violations}. Approved: {sorted(approved)}"
         )
-
-        # Filter out function definitions and binary files
-        lines = [
-            line
-            for line in result.stdout.split("\n")
-            if line and "def release_escrow" not in line and ".pyc" not in line
-        ]
-
-        # Should only appear in publication_service.py
-        for line in lines:
-            assert "publication_service.py" in line, (
-                f"ESCROW-001 VIOLATION: release_escrow() found outside publication_service.py: {line}"
-            )
-
-
-class TestPayoutCalculation:
-    """Tests for payout calculations."""
-
-    def test_payout_10000_gross(self):
-        """Payout: 10000 ₽ gross → 150 ₽ fee, 9850 ₽ net."""
-        result = calculate_payout(Decimal("10000"))
-        assert result["gross"] == Decimal("10000")
-        assert result["fee"] == Decimal("150")  # 1.5%
-        assert result["net"] == Decimal("9850")
-
-    def test_payout_1000_minimum(self):
-        """Payout minimum 1000 ₽ → 15 ₽ fee, 985 ₽ net."""
-        result = calculate_payout(Decimal("1000"))
-        assert result["gross"] == Decimal("1000")
-        assert result["fee"] == Decimal("15")
-        assert result["net"] == Decimal("985")
-
-    def test_payout_fee_rate(self):
-        """Payout fee rate is 1.5%."""
-        assert Decimal("0.015") == PAYOUT_FEE_RATE
-
-    def test_payout_formula(self):
-        """Payout formula: fee = gross × 0.015, net = gross - fee."""
-        gross = Decimal("10000")
-        expected_fee = gross * PAYOUT_FEE_RATE
-        expected_net = gross - expected_fee
-
-        result = calculate_payout(gross)
-        assert result["fee"] == expected_fee.quantize(Decimal("0.01"))
-        assert result["net"] == expected_net.quantize(Decimal("0.01"))
 
 
 class TestPlatformCommission:

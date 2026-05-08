@@ -10,6 +10,7 @@ import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from telegram import Bot
 
@@ -27,9 +28,26 @@ bearer_scheme = HTTPBearer(auto_error=False)
 _ALLOWED_AUDIENCES: list[JwtSource] = ["mini_app", "web_portal"]
 
 
+async def get_db_session():
+    """
+    Получить сессию БД.
+
+    Yields:
+        AsyncSession SQLAlchemy.
+    """
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
 async def _resolve_user_for_audience(
     credentials: HTTPAuthorizationCredentials | None,
     audience: JwtSource | list[JwtSource],
+    session: AsyncSession,
     *,
     audience_mismatch_status: int = status.HTTP_403_FORBIDDEN,
     request: Request | None = None,
@@ -41,6 +59,12 @@ async def _resolve_user_for_audience(
     `get_current_user_from_web_portal`, `get_current_user_from_mini_app`)
     делегируют сюда — отличаются только разрешённым набором audience и
     тем, какой статус возвращать при aud-несовпадении.
+
+    Session инжектится caller'ом через FastAPI DI (`Depends(get_db_session)`)
+    — единая сессия на запрос, доступна и auth-чтению, и эндпоинт-коду.
+    Раньше `_resolve_user_for_audience` открывал свою сессию через
+    `async_session_factory()`, что разделяло User-lookup и эндпоинт-логику
+    на две транзакции и ломало 1-way fixture override в тестах (T1.2.4b).
 
     `request` опционален: когда вызвано через FastAPI DI — FastAPI
     автоинжектит, и мы пишем `request.state.user_id` + `user_aud`, чтобы
@@ -83,11 +107,10 @@ async def _resolve_user_for_audience(
             detail="Invalid token",
         ) from e
 
-    async with async_session_factory() as session:
-        result = await session.execute(
-            sa_select(User).where(User.id == user_id).options(selectinload(User.legal_profile))
-        )
-        user = result.scalar_one_or_none()
+    result = await session.execute(
+        sa_select(User).where(User.id == user_id).options(selectinload(User.legal_profile))
+    )
+    user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
         raise HTTPException(
@@ -108,6 +131,7 @@ async def _resolve_user_for_audience(
 async def get_current_user(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> User:
     """
     Dependency: получить текущего пользователя из JWT токена (mini_app или web_portal).
@@ -124,6 +148,7 @@ async def get_current_user(
     return await _resolve_user_for_audience(
         credentials,
         _ALLOWED_AUDIENCES,
+        session,
         audience_mismatch_status=status.HTTP_401_UNAUTHORIZED,
         request=request,
     )
@@ -132,6 +157,7 @@ async def get_current_user(
 async def get_current_user_from_web_portal(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> User:
     """
     Dependency: только web_portal-токены. mini_app JWT → 403.
@@ -143,6 +169,7 @@ async def get_current_user_from_web_portal(
     return await _resolve_user_for_audience(
         credentials,
         "web_portal",
+        session,
         audience_mismatch_status=status.HTTP_403_FORBIDDEN,
         request=request,
     )
@@ -151,6 +178,7 @@ async def get_current_user_from_web_portal(
 async def get_current_user_from_mini_app(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> User:
     """
     Dependency: только mini_app-токены. web_portal JWT → 403.
@@ -162,25 +190,10 @@ async def get_current_user_from_mini_app(
     return await _resolve_user_for_audience(
         credentials,
         "mini_app",
+        session,
         audience_mismatch_status=status.HTTP_403_FORBIDDEN,
         request=request,
     )
-
-
-async def get_db_session():
-    """
-    Получить сессию БД.
-
-    Yields:
-        AsyncSession SQLAlchemy.
-    """
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
 
 
 # Type aliases для зависимостей
