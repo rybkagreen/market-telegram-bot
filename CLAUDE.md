@@ -536,72 +536,72 @@ Baseline updates land per-phase as part of `CHANGES_*.md`, not as standalone doc
 
 ---
 
-## Контроль текстовых артефактов
+## Text Artifact Control
 
-В этом проекте все идентификаторы, имена файлов, ключевые слова и
-названия проекта пишутся на одной системе письма без скрытых символов.
-Перед любой записью в файлы, перед grep/search и перед генерацией кода
-проверяй текст (свой и пользовательский) на следующие артефакты и
-нормализуй их.
+In this project all identifiers, file names, keywords, and project
+names are written in a single writing system without hidden characters.
+Before any file write, before grep/search, and before code generation,
+check the text (your own and the user's) for the following artifacts
+and normalize them.
 
-### 1. Homoglyph-подмены (визуально похожие буквы из других алфавитов)
+### 1. Homoglyph substitutions (visually similar letters from other alphabets)
 
-Внутри русского слова должны быть только кириллические буквы.
-Подозрительны латинские и греческие двойники:
-- Латиница в кириллическом слове: a e o p c x y i A B C E H K M O P T X Y
-- Кириллица в латинском слове: а е о р с х у і
-- Греческие буквы рядом с обоими: ο (omicron), α, ρ, ν, μ, τ
+Inside a Russian word, only Cyrillic letters should appear.
+Suspicious twins from Latin and Greek:
+- Latin in a Cyrillic word: a e o p c x y i A B C E H K M O P T X Y
+- Cyrillic in a Latin word: а е о р с х у і
+- Greek letters near either: ο (omicron), α, ρ, ν, μ, τ
 
-### 2. Латинские диакритики в русском контексте
+### 2. Latin diacritics in a Russian context
 
-Š š Č č Ž ž Ć ć Đ đ Ř ř Ł ł Ń ń ě ş ţ — если проект русскоязычный,
-это почти всегда артефакт автогенерации, а не намеренный текст.
+Š š Č č Ž ž Ć ć Đ đ Ř ř Ł ł Ń ń ě ş ţ — for a Russian-language project,
+this is almost always an autogeneration artifact, not deliberate text.
 
-### 3. Смешение скриптов внутри одного слова
+### 3. Mixed scripts within a single word
 
-Слово должно быть целиком на одном алфавите. Артефакты:
-- "шagh", "Pуссkий", "файл.tхt", "Šаг" вместо "Шаг"
-- Не путать с легитимными случаями: "GitHub-репозиторий", "API-ключ" —
-  это разные слова через дефис, не смешение внутри слова.
+A word must be entirely in one alphabet. Artifacts:
+- "шagh", "Pуссkий", "файл.tхt", "Šаг" instead of "Шаг"
+- Do not confuse with legitimate cases: "GitHub-репозиторий", "API-ключ" —
+  these are separate words joined by a hyphen, not script mixing within one word.
 
-### 4. Невидимые и контрольные символы
+### 4. Invisible and control characters
 
-В обычном тексте их быть не должно:
+These should not appear in plain text:
 - Zero-width: U+200B, U+200C, U+200D, U+FEFF (BOM)
 - Soft hyphen: U+00AD
 - Bidirectional overrides: U+202A–U+202E, U+2066–U+2069
 - Word joiner: U+2060
 
-### 5. Нестандартные пробелы
+### 5. Non-standard spaces
 
-- Non-breaking space (U+00A0) там, где ожидается обычный пробел
+- Non-breaking space (U+00A0) where a regular space is expected
 - Narrow no-break space (U+202F), em/en space, hair space
-- В коде и идентификаторах — всегда нормализуй до U+0020.
+- In code and identifiers — always normalize to U+0020.
 
-### 6. Типографика vs ASCII
+### 6. Typography vs ASCII
 
-В коде, конфигах, командах — только ASCII:
-- Кавычки: " ' вместо " " ' '
-- Тире: - вместо — – −
-- Многоточие: ... вместо …
+In code, configs, and commands — ASCII only:
+- Quotes: " ' instead of " " ' '
+- Dashes: - instead of — – −
+- Ellipsis: ... instead of …
 
-### Действия при обнаружении
+### Actions on detection
 
-- **Код, идентификаторы, имена файлов, пути** — нормализуй
-  немедленно и без вопросов, это функциональный риск.
-- **Конфиги, YAML-фронтматтер, JSON-ключи** — нормализуй немедленно.
-- **Документация и комментарии** — нормализуй, если артефакт
-  нарушает консистентность проекта.
-- **Пользовательские строки и UI-тексты** — спроси перед
-  заменой, могут быть намеренными.
-- После нормализации кратко перечисли: что нашёл, где, чем заменил.
+- **Code, identifiers, file names, paths** — normalize
+  immediately and without asking; this is a functional risk.
+- **Configs, YAML frontmatter, JSON keys** — normalize immediately.
+- **Documentation and comments** — normalize if the artifact
+  breaks project consistency.
+- **User-facing strings and UI text** — ask before
+  replacing; they may be intentional.
+- After normalization, briefly list what was found, where, and what it was replaced with.
 
-### Перед grep / Glob / поиском по проекту
+### Before grep / Glob / project-wide search
 
-Если ищешь по имени проекта или другому термину, который мог
-попасть в код в нескольких написаниях — сначала проверь, нет ли
-вариантов с homoglyph'ами или диакритиками, и используй
-расширенный паттерн или несколько прогонов поиска.
+If you are searching for the project name or another term that may
+have ended up in the code under several spellings — first check
+whether homoglyph or diacritic variants exist, and use an extended
+pattern or several search passes.
 
 ---
 
@@ -668,7 +668,16 @@ git checkout $CURRENT_BRANCH
 - Never force-push `develop` or `main` (and never push at all)
 - Feature branch is preserved post-merge unless Marina explicitly says delete
 
-### NEVER TOUCH
+### HIGH-CONSEQUENCE FILES (require explicit Marina approval)
+
+The files listed below carry high blast radius (PII encryption, audit
+integrity, legal/compliance state, schema invariants). Modifications
+require explicit Marina approval before commit. The agent must STOP
+and surface a change proposal — not proceed autonomously.
+
+Migration policy (forward-only post-apply per BL-061; pre-prod exception
+for `0001_initial_schema.py` editable until first production user)
+overlaps with the listed entry — intentional defense-in-depth.
 
 ```
 src/core/security/field_encryption.py
