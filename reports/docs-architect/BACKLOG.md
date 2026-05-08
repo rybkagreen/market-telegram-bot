@@ -2700,6 +2700,199 @@ blocks current work.
 section; `CHANGES_2026-05-08_t1-2-5f-topup-normalize.md` (middleware fix
 appended via commit `fa85a38`).
 
+### BL-078 — Mediakit feature полная реализация
+
+**Status:** OPEN — feature, deferred since early development; surfaced 2026-05-08 via BL-076 probe.
+**Created:** 2026-05-08
+
+**Surface:** BL-076 probe report `tmp/bl076_mediakit_probe.md`. Schema `channel_mediakits` (`0001_initial_schema.py:586-628`, fields: `owner_user_id`, `logo_file_id`, `theme_color`). `MediakitService` + `mediakit_pdf.py` существуют как orphan stubs без production callers (zero refs в `src/api/routers/`, `src/bot/handlers/`). `ChannelService.get_or_create_mediakit` / `update_mediakit` — duplicate dead surface (lines 89-122).
+
+**Issue:** Owner-side artifact — брендированный PDF канала (logo + theme color + статистика канала + цены) для отправки рекламодателю как portfolio. Ранний concept без API/UI integration. Текущий код out of sync с current schema:
+
+- `chat.last_avg_views` → `chat.avg_views` (`telegram_chat.py:54`)
+- `chat.last_post_frequency` → field удалён (need derive from publication history)
+- `chat.price_per_post` → `chat.channel_settings.price_per_post` (`channel_settings.py:24`, relationship `telegram_chat.py:74`)
+
+**Decision (Marina, 2026-05-08):** Path (a) full rewrite — dead code на launch несовместим с архитектурной чистотой. Schema invested + feature имеет owner-side business value. ChannelService duplicate methods (`get_or_create_mediakit` / `update_mediakit`) **deleted** as part of BL-078 — single canonical surface через MediakitService.
+
+**Scope:**
+
+- **Service rewrite** в `MediakitService` — data assembly с current schema. `post_frequency` derived from `PublicationLog` history (count posts в окне N days).
+- **API endpoint:** `GET /api/channels/{id}/mediakit/pdf` (owner-only, ownership check).
+- **PDF rendering:** logo (resolve `logo_file_id` → file storage), theme color (`theme_color` accent), stats block, sample posts (optional sub-block). Use existing PDF generation pattern (act/contract templates как modeled).
+- **UI web_portal:** `web_portal/src/screens/owner/ChannelMediakit.tsx` + download button на `OwnChannels` channel detail.
+- **UI mini_app:** read-only preview card. PDF download только через web_portal — bot/web split convention (mobile clients render PDF poorly + report lab is server-side). NO ФЗ-152 implication — mediakit content carries no PII.
+- **ChannelService cleanup:** `get_or_create_mediakit` + `update_mediakit` методы **deleted** (duplicate dead surface, replaced by MediakitService).
+- **Schema:** existing `channel_mediakits` table — no migration needed (pre-existing, BL-061 forward-only respected).
+
+**Acceptance:**
+
+- Owner может скачать брендированный PDF канала через web_portal.
+- BL-076 T1.2-D1 closed (4 mypy errors gone, schema-code drift resolved).
+- `tests/test_bmediakit_comparison.py::test_get_mediatkit_data` un-skipped + passing с rewritten service.
+- Existing analytics screen (S-47, `/analytics`) untouched.
+- ChannelService.get_or_create_mediakit / update_mediakit **gone** (verified via grep).
+
+**Compliance impact:** none. Mediakit content (logo + theme + channel stats + price) carries no PII. ФЗ-152 не релевант.
+
+**Priority:** medium-high — launch prerequisite per архитектурная чистота policy (dead code unacceptable on launch).
+
+**Blocks:** none.
+
+**Closes:** BL-076 T1.2-D1 (when BL-078 ships).
+
+**Deadline:** Phase 8 (new — Creative content lifecycle, см. plan placement note).
+
+**References:**
+
+- `tmp/bl076_mediakit_probe.md` — probe findings (input для design).
+- BL-076 T1.2-D1 — current dead code surface (will be edited to "stale dead-code drift" wording when BL-078 lands).
+- `0001_initial_schema.py:586-628` — `channel_mediakits` table.
+- `tests/test_bmediakit_comparison.py:108-114` — skip reason update needed.
+
+---
+
+### BL-079 — Campaign creation media file upload (UI/feature gap)
+
+**Status:** OPEN — launch prerequisite (Marina decision O5, 2026-05-08).
+**Created:** 2026-05-08
+
+**Surface:** Marina observation 2026-05-08 — campaign creation wizard содержит toggle "добавить медиафайлы" (фото/видео), но поле для upload отсутствует. Switcher либо dead UI, либо partial implementation в early phase.
+
+**Issue:** Advertiser создаёт campaign, видит option "с медиа", но не может прикрепить файл. User expectation broken. Publication composes plain-text post, media never persisted.
+
+**Scope to investigate (probe required first — Phase 8.B Agent A):**
+
+- Identify switcher source: `web_portal/src/screens/advertiser/campaign/*.tsx` (likely `CampaignText.tsx` или wizard step), mini_app analog.
+- Determine current state — is media field hidden behind switcher, or absent entirely? Is switcher wired anywhere?
+- DB schema audit: `placement_request.media_files` (или similar) — exists?
+- Telegram Bot API publication: `send_photo` / `send_video` / `send_media_group` requirements + caption length limits (1024 chars vs 4096 plain text).
+
+**Design decisions (decided ahead — not deferred to probe):**
+
+- **Storage backend (default):** S3/MinIO/local volume с copy strategy. **Telegram file_id passthrough explicitly NOT recommended** — file_ids are bot-scoped (different bots can't access each other's IDs), can become invalid (rare but documented), break ФЗ-38 audit retention если original message deleted.
+- **Media + ERID composition:** decided в BL-080 design (caption budget edge case — BL-080 scope item).
+
+**Implementation scope:**
+
+- DB migration (если нужна — `placement_request.media_attachments` table или `media_files` JSONB).
+- Storage service abstraction (`src/core/services/media_storage.py` или extend existing).
+- Upload endpoint: `POST /api/placements/{id}/media` (multipart) или separate `POST /api/media/upload` returning file IDs.
+- UI field в campaign wizard step (web_portal + mini_app where allowed).
+- Publication composition: media + marked text (per BL-080 decision на caption budget).
+- Audit trail: media files reference в `placement_status_history.metadata_json` или dedicated `media_audit_log`.
+- File validation: size limits, allowed extensions (`.jpg`, `.png`, `.mp4`, etc.), virus scanning policy (defer to ops если не in stack).
+
+**Acceptance:**
+
+- Advertiser uploads фото/видео в campaign creation wizard.
+- Files persist в configured storage backend.
+- Publication composes media + marked text согласно BL-080 caption budget decision.
+- Integration test: campaign created с media → `send_photo/video/media_group` called с правильными args + ERID disclaimer.
+- ФЗ-38 audit retention: media file retrievable post-publication. **Retention period defined per ФЗ-38 / ОРД tech spec** (typical 1 year for advertising materials — exact requirement confirmed during probe + storage policy aligned).
+
+**Compliance impact:**
+
+- **ФЗ-38** — рекламные креативы с media require ОРД маркировку. Interaction details — BL-080 design item.
+- **ФЗ-152** — applies **conditionally**: если uploaded media содержит identifiers of natural persons (faces, names, contact info), требуется storage encryption + access control + retention policy. Pure-product creatives (product photo, brand asset без people) — standard business-asset handling sufficient. Probe-time classification required (per upload metadata flag или per campaign settings).
+
+**Priority:** high — launch prerequisite (Marina decision O5).
+
+**Blocks:** none.
+
+**Blocked by:** BL-080 (ERID flow) — нужен caption budget decision + composition pattern перед implementation.
+
+**Deadline:** Phase 8 (new — Creative content lifecycle).
+
+**References:**
+
+- Marina observation 2026-05-08.
+- `IMPLEMENTATION_PLAN_ACTIVE.md` Phase 6.B.3 — ORD hardening (BL-080 dependency).
+- Telegram Bot API docs: caption length 1024, text 4096.
+
+---
+
+### BL-080 — ERID marking flow completion + Phase 6.B.3 scope additions
+
+**Status:** OPEN — launch prerequisite (ФЗ-38 legal compliance).
+**Created:** 2026-05-08
+
+**Surface:** Marina observation 2026-05-08 — flow с маркированием ERID не полностью проработан. `StubOrdProvider` + `YandexOrdProvider` существуют, `_build_marked_text` есть в `publication_service.py:106`, но end-to-end gaps remain.
+
+**Issue:** ОРД (Оператор Рекламных Данных) integration частично implemented:
+
+- Provider abstraction есть (`OrdProvider` protocol).
+- ERID registration через `ord_service.py`.
+- Marked text composition через `_build_marked_text`.
+- Phase 6.B.3 (existing plan slot) covers: `ord_provider` literal, deterministic block logic, `_build_marked_text` rewrite, gate G08 alignment, КЭП fallback.
+
+**Phase 6.B.3 already covers (no need to duplicate в BL-080):**
+
+- `ord_provider: Literal["stub", "yandex", "vk", "ozon"]` в settings.
+- Removal `ord_block_publication_without_erid` в favor deterministic logic.
+- `_build_marked_text` block-on-no-erid for non-stub providers.
+- Gate G08 deterministic alignment.
+
+**BL-080 scope = scope additions to Phase 6.B.3 + dead code cleanup. Не duplicate existing plan items, а extend.**
+
+**Scope items (BL-080 specific):**
+
+1. **Duplicate yandex provider cleanup** (closes BL-074 T3.17). Two files exist: `src/core/services/ord_yandex_provider.py:13` (skeleton) + `src/core/services/yandex_ord_provider.py:36` (real impl per 5b.5 L20). **Both define `class YandexOrdProvider(OrdProvider)`** — same name, two implementations. Whichever import path runs first wins, the other shadowed silently. **Delete `ord_yandex_provider.py`** (skeleton) — keep `yandex_ord_provider.py` as canonical. Closes BL-074 T3.17.
+
+2. **Caption budget design (media + ERID composition).** Telegram limits: 4096 chars text-only, 1024 chars media caption. ERID disclaimer (`Реклама. {advertiser_name}\nerid: {token}`) + ad text + URL fits 4096 comfortably but easily overruns 1024 в caption. Design decision (impacts BL-079):
+   - **Option A:** Caption с truncated ad text + full ERID disclaimer (preserves legal marker, sacrifices content).
+   - **Option B:** Separate text message under media (`send_media_group` then `send_message` reply-to) — preserves content + marker. **Requires ОРД legal review** — ФЗ-38 + ОРД technical spec typically require marker visible together с advertising creative within same publication unit. Separate message может быть legally separable from creative + Telegram readers can miss second message (mobile UX, scroll ordering). Decision must NOT be made on UX/cost grounds alone.
+   - **Option C:** Media-with-text composition pattern (`InputMediaPhoto.caption` constrained, follow-up message с ERID).
+   - **Decision required при probe** — affects user expectations, Telegram delivery cost, ФЗ-38 marker placement compliance.
+
+3. **ERID idempotency on retry.** Re-calling provider on retry may double-register same creative (different ERIDs returned for what is logically one ad). Provider may or may not enforce idempotency upstream. Implementation: stable internal `idempotency_key` per creative + EXISTS-check pattern (mirror of S-48 financial transactions). Update `ord_service.py` register call с idempotency guard.
+
+4. **Registration retry policy.** Define max attempts, backoff, escalation path. `ord_blocked` status recovery: admin override через Phase 5 mechanism + retry button.
+
+5. **Audit trail completion (split per agent O3):**
+   - **(a)** Verify `OrdRegistration` model captures full event history (request payload, response, ERID, timestamp, attempt number).
+   - **(b)** Link `OrdRegistration` ↔ `placement_status_history` via `placement_id` + `correlation_id` для cross-domain debugging.
+
+6. **Failure paths enumeration:** provider down, ERID rejected, registration timeout, marking errors. Each requires explicit status + recovery path.
+
+7. **Media-aware marking** (interaction with BL-079): how ERID disclaimer renders когда post содержит media. См. item 2 above (caption budget design).
+
+**Phase A research scope:**
+
+- Read full ERID flow: `publication_service.py:_build_marked_text:106`, `ord_service.py`, `ord_yandex_provider.py`, `yandex_ord_provider.py`, `stub_ord_provider.py`, `OrdProvider` protocol.
+- Cross-reference Phase 6.B.3 plan — gap delta between plan + BL-080 additions.
+- ФЗ-38 + ОРД technical spec compliance check (gap analysis vs requirements).
+- Test coverage audit: `test_ord_*`, `test_publication_*` — gaps.
+
+**Acceptance:**
+
+- Single `YandexOrdProvider` class (one file, skeleton deleted).
+- Caption budget design decision recorded + implemented.
+- ERID registration idempotent on retry (no double-registration).
+- Retry policy + recovery paths defined and tested.
+- `OrdRegistration` audit trail complete + linked to placement_status_history.
+- Integration test: full ERID flow including failure paths.
+- Phase 6.B.3 acceptance items + BL-080 items both pass.
+
+**Compliance impact:** **HIGH** — ФЗ-38 рекламное законодательство. Publication без verified ERID = legal risk. Marker placement must comply с ОРД technical spec.
+
+**Priority:** high — launch blocker (legal compliance).
+
+**Blocks:** BL-079 (campaign media upload — requires media+ERID composition decision from item 2).
+
+**Closes:** BL-074 **T3.17 sub-item** (yandex provider skeleton deletion). Parent BL-074 остаётся OPEN с T2.3 / T2.4 / T3.18 / T3.19 / T3.20 unaddressed.
+
+**Deadline:** Phase 6 (existing slot Phase 6.B.3 expanded with BL-080 scope).
+
+**References:**
+
+- Marina observation 2026-05-08.
+- `IMPLEMENTATION_PLAN_ACTIVE.md` Phase 6.B.3 — ORD production hardening (existing slot).
+- BL-074 T3.17 — yandex skeleton dead code (BL-080 absorbs).
+- `src/core/services/publication_service.py:106` — `_build_marked_text`.
+- `src/core/services/ord_service.py`, `ord_yandex_provider.py:13`, `yandex_ord_provider.py:36`, `stub_ord_provider.py`.
+- Telegram Bot API docs: caption length 1024, text 4096, `InputMediaPhoto`, `send_media_group`.
+
 ## Closed items
 
 ### BL-052 — 15.13.1 micro-cleanup (CLOSED 2026-04-29)
