@@ -121,15 +121,27 @@ def camp_waiting_kb(rid: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def camp_payment_kb(rid: int, bal: Decimal, price: Decimal) -> InlineKeyboardMarkup:
-    """Оплата кампании."""
+def camp_payment_kb(
+    rid: int,
+    bal: Decimal,
+    price: Decimal,
+    *,
+    topup_url: str | None = None,
+) -> InlineKeyboardMarkup:
+    """Оплата кампании.
+
+    ``topup_url`` is the pre-minted portal-login URL (T1.2.5f Bundle D).
+    The button appears only when balance < price AND a URL was minted —
+    a falsy URL silently hides the button per the same pattern as
+    ``cabinet_kb`` (BL-055 mirror).
+    """
     builder = InlineKeyboardBuilder()
     if bal >= price:
         builder.row(
             InlineKeyboardButton(text="Оплатить с баланса", callback_data=f"camp:pay:balance:{rid}")
         )
-    else:
-        builder.row(InlineKeyboardButton(text="Пополнить", callback_data="billing:topup_start"))
+    elif topup_url:
+        builder.row(InlineKeyboardButton(text="Пополнить", url=topup_url))
     builder.row(InlineKeyboardButton(text=CANCEL_BTN, callback_data=f"camp:cancel:{rid}"))
     return builder.as_markup()
 

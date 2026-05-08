@@ -10,19 +10,19 @@ def cabinet_kb(
     earned_rub: Decimal,
     *,
     payout_url: str | None = None,
+    topup_url: str | None = None,
 ) -> InlineKeyboardMarkup:
     """Клавиатура кабинета — без role gating.
 
-    ``payout_url`` is the pre-minted portal-login URL (BL-055). The button
-    appears only when ``earned_rub >= 1000`` AND a URL was minted —
-    falsy URL silently hides the button so the rest of the cabinet
-    still renders even if the API is briefly unreachable.
+    ``payout_url`` and ``topup_url`` are pre-minted portal-login URLs
+    (BL-055 / T1.2.5f). Each button appears only when its URL was minted —
+    a falsy URL silently hides the button so the rest of the cabinet still
+    renders even if the API is briefly unreachable.
     """
     builder = InlineKeyboardBuilder()
 
-    builder.row(
-        InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="billing:topup_start")
-    )
+    if topup_url:
+        builder.row(InlineKeyboardButton(text="💳 Пополнить баланс", url=topup_url))
 
     if earned_rub >= Decimal("1000") and payout_url:
         builder.row(InlineKeyboardButton(text="💸 Запросить вывод", url=payout_url))
