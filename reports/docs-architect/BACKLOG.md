@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items)_
+_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items; BL-077 new — middleware registration lesson, post-T1.2.5f)_
 
 ## Active items
 
@@ -2648,6 +2648,57 @@ here.
 
 **Refs:** T1.2 series closure (BL-072 T1.2 closed — see
 `CHANGES_2026-05-08_t1-2-series-closure.md`).
+
+### BL-077 — Middleware registration: specific observers vs `dp.update`
+
+**Status:** OPEN — engineering practice / pre-PR check guidance
+**Created:** 2026-05-08
+**Source:** T1.2.5f post-Phase-C live debug (commit `f82852d`, v0.5.2 release)
+
+**Lesson:** aiogram middleware can be registered на
+`dp.update.middleware()` (receives все `Update` events) или specific
+observers (`dp.message.middleware()`, `dp.callback_query.middleware()`,
+etc.). Registration target must match what middleware logic expects.
+
+**Symptom (silent failure mode):** middleware uses
+`isinstance(event, Message)` / `isinstance(event, CallbackQuery)` checks,
+но registered на `dp.update.middleware()` → checks always evaluate False
+(Update is not Message/CallbackQuery) → middleware silently swallows
+updates без error. Affected users get no response, никакого log entry
+кроме generic "Update is not handled" warning.
+
+**Pre-existing instance (fixed):** `AcceptanceMiddleware` (commit
+`f82852d`) — was registered на `dp.update.middleware()` но использовал
+Message / CallbackQuery isinstance checks. Result: users без
+`terms_accepted_at` flag completely locked out (не могли reach /start
+handler nor see acceptance prompt).
+
+**Recommended pre-PR check для future middleware:**
+
+1. Если middleware uses `isinstance(event, ConcreteType)` — register на
+   matching observer (`dp.<type>.middleware()`), не
+   `dp.update.middleware()`.
+2. Если middleware needs Update-level access — accept Update event
+   explicitly, без isinstance check downstream.
+3. Add unit test asserting handler runs after middleware passes through
+   (не только middleware logic в isolation). E.g. fake exempt update +
+   verify handler invoked.
+
+**Files exemplifying correct pattern post-fix:**
+
+- `src/bot/main.py` — `AcceptanceMiddleware` теперь на
+  `dp.message.middleware()` + `dp.callback_query.middleware()`
+  (event-type-specific).
+- Other middlewares (DBSession, Throttling, FSMTimeout, RoleCheck) на
+  `dp.update.middleware()` — они event-type-agnostic by design, не
+  затронуты.
+
+**Priority:** medium — passive check для new middleware additions; не
+blocks current work.
+
+**Refs:** AcceptanceMiddleware fix `f82852d`; CHANGELOG `[v0.5.2]` Fixed
+section; `CHANGES_2026-05-08_t1-2-5f-topup-normalize.md` (middleware fix
+appended via commit `fa85a38`).
 
 ## Closed items
 
