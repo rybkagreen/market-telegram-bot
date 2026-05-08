@@ -5,17 +5,17 @@ Revises: e6a88faa9fa0
 Create Date: 2026-05-08 08:24:14.666132
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'cd59fc72b378'
-down_revision: Union[str, None] = 'e6a88faa9fa0'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = 'e6a88faa9fa0'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # PayoutMethodType enum used for payout_requests.payout_method_type alter.
