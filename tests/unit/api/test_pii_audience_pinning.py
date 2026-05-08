@@ -229,6 +229,33 @@ class TestPayoutsRejectMiniAppJwt:
         assert resp.status_code == 403, resp.text
 
 
+# ─── T1.2.5f Bundle D: /api/billing/topup* отклоняет mini_app JWT ───
+
+
+class TestTopupRejectsMiniAppJwt:
+    """`/api/billing/topup` and `/api/billing/topup/{id}/status` (T1.2.5f / D4)
+    pinned к web_portal-only — mirror BL-046 payout pattern."""
+
+    async def test_create_topup_with_mini_app_jwt_returns_403(self, client: AsyncClient) -> None:
+        token = _register_and_token(client, 7201, is_admin=False, source="mini_app")
+        resp = await client.post(
+            "/api/billing/topup",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"desired_amount": 1000, "method": "yookassa"},
+        )
+        assert resp.status_code == 403, resp.text
+
+    async def test_get_topup_status_with_mini_app_jwt_returns_403(
+        self, client: AsyncClient
+    ) -> None:
+        token = _register_and_token(client, 7202, is_admin=False, source="mini_app")
+        resp = await client.get(
+            "/api/billing/topup/2c04f5b0-000f-5000-8000-000000000001/status",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 403, resp.text
+
+
 # ─── BL-049: /api/admin/* отклоняет mini_app JWT (даже admin'a) ─────
 
 
@@ -308,3 +335,34 @@ class TestWebPortalJwtPassesAudienceGate:
         resp = await client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403, resp.text
         assert "admin" in resp.json().get("detail", "").lower()
+
+    async def test_web_portal_jwt_topup_does_not_403_on_audience(self, client: AsyncClient) -> None:
+        # T1.2.5f: POST /api/billing/topup pinned к web_portal — portal JWT
+        # passes audience gate (may 4xx/5xx for business reasons but не 403).
+        token = _register_and_token(client, 7201, is_admin=False, source="web_portal")
+        resp = await client.post(
+            "/api/billing/topup",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"desired_amount": 1000, "method": "yookassa"},
+        )
+        assert resp.status_code != 403, resp.text
+
+    async def test_web_portal_jwt_topup_status_does_not_403_on_audience(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # T1.2.5f: GET /api/billing/topup/{id}/status — portal JWT passes.
+        # BillingService.check_payment opens its own session (Pattern 2);
+        # stub it so the audience gate is what we measure, not DB connectivity.
+        async def _stub_check_payment(self_: Any, payment_id: str, user_id: int) -> dict[str, str]:
+            return {"status": "pending"}
+
+        monkeypatch.setattr(
+            "src.core.services.billing_service.BillingService.check_payment",
+            _stub_check_payment,
+        )
+        token = _register_and_token(client, 7202, is_admin=False, source="web_portal")
+        resp = await client.get(
+            "/api/billing/topup/2c04f5b0-000f-5000-8000-000000000002/status",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code != 403, resp.text
