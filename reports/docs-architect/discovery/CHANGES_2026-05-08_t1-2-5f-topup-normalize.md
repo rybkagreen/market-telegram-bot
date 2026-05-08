@@ -107,6 +107,20 @@ prompt's accompanying calculation (+3, −2, −1 from 997P) actually gives 997P
 - (ii) Make cd59fc72b378 idempotent via `IF NOT EXISTS` patterns (more fragile).
 This is pure docs/lint cleanup для future fresh installs — does NOT affect the current running DB.
 
+### Fix #2 — `fix(bot): register AcceptanceMiddleware на specific observers (pre-existing bug)`
+
+**Trigger:** During T1.2.5f container rebuild (after `legal_profiles.egrul_egrip_snapshot` schema drift was resolved via Fix #1), Marina's test account was locked out of the bot — bot did not respond to `/start` despite middleware appearing healthy in logs.
+
+**Root cause:** `AcceptanceMiddleware` was registered на `dp.update.middleware`, which receives `Update` events. Internal isinstance checks (`isinstance(event, Message)`, `isinstance(event, CallbackQuery)`) always evaluated False against the wrapping `Update` object — both the exempt-pass branch и the block-path message-send branch never fired. Effect: для users где `needs_accept_rules=True` middleware silently swallowed every update.
+
+**Effect:** Users без `terms_accepted_at` filled were completely locked out — they could neither reach the `/start` handler nor see the acceptance prompt. Pre-existing latent bug, surfaced because Marina's test account happened to have un-accepted state.
+
+**Fix:** Register middleware on `dp.message` и `dp.callback_query` observers (aiogram native pattern для type-specific event handling). Other middlewares (DBSession, Throttling, FSMTimeout, RoleCheck) are event-type-agnostic and stay on `dp.update`.
+
+**Files:** `src/bot/main.py` (+2/-1).
+
+**Not part of T1.2.5f Bundle D scope** — pre-existing aiogram-pattern bug, unrelated to topup normalize. Bundled in feature branch для convenience (post-Phase-C, pre-merge); attribution clearly separated в this section.
+
 ## Verification footer
 
-🔍 Verified against: 58a1dd0 (Phase C) + cd59fc72b378 (post-closure migration) | 📅 Updated: 2026-05-08T11:30:00+03:00
+🔍 Verified against: 58a1dd0 (Phase C) + cd59fc72b378 (post-closure migration) + f82852d (AcceptanceMiddleware observer fix) | 📅 Updated: 2026-05-08T13:44:45+03:00
