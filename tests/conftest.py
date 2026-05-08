@@ -5,6 +5,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
 from src.core.services.placement_request_service import PlacementRequestService
 from src.core.services.reputation_service import ReputationService
 from src.db.base import Base
+from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 
 # from src.db.models.campaign import Campaign  # REMOVED in v4.2 — using PlacementRequest instead
@@ -415,13 +417,31 @@ async def test_channel(
 
 
 @pytest_asyncio.fixture
-async def test_campaign(db_session: AsyncSession, advertiser_user: User):
-    """Создать тестовую кампанию — REMOVED in v4.2."""
-    # from src.db.models.campaign import Campaign, CampaignStatus
-    # campaign = Campaign(...)
-    # This fixture is deprecated — use placement_request fixture instead
-    pytest.skip("Campaign model removed in v4.2 — use PlacementRequest")
-    return None
+async def placement_request(
+    db_session: AsyncSession,
+    advertiser_user: User,
+    owner_user: User,
+    test_channel: TelegramChat,
+) -> PlacementRequest:
+    """Real PlacementRequest без escrow scaffolding.
+
+    Fixture для tests, которые нуждаются в валидном placement_request_id
+    для FK references (e.g. reputation_history.placement_request_id) но не
+    тестируют escrow lifecycle сам по себе. Status pending_owner — early
+    lifecycle, не trip INV-1 (placement_escrow_integrity).
+    """
+    placement = PlacementRequest(
+        advertiser_id=advertiser_user.id,
+        owner_id=owner_user.id,
+        channel_id=test_channel.id,
+        status=PlacementStatus.pending_owner,
+        ad_text="Test ad text",
+        proposed_price=Decimal("500"),
+    )
+    db_session.add(placement)
+    await db_session.commit()
+    await db_session.refresh(placement)
+    return placement
 
 
 @pytest_asyncio.fixture
@@ -469,19 +489,73 @@ async def reputation_repo(db_session: AsyncSession) -> ReputationRepo:
 
 
 @pytest_asyncio.fixture
-async def api_client_with_auth(advertiser_user: User) -> AsyncGenerator[AsyncClient]:
-    """HTTP клиент с авторизацией через JWT."""
-    from src.api.auth_utils import create_access_token
+async def api_client_with_auth(
+    advertiser_user: User, db_session: AsyncSession
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент с авторизацией через JWT.
+
+    Single override (T1.2.4b B2): после refactor `_resolve_user_for_audience`
+    принимает session via DI — fixture только подменяет `get_db_session`,
+    реальный auth resolver запускается на тестовой сессии и находит юзера.
+    """
+    from src.api.auth_utils import create_jwt_token
+    from src.api.dependencies import get_db_session
     from src.api.main import app
 
-    token = create_access_token(advertiser_user.id)
+    token = create_jwt_token(
+        advertiser_user.id,
+        advertiser_user.telegram_id,
+        advertiser_user.plan,
+        source="mini_app",
+    )
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-        headers={"Authorization": f"Bearer {token}"},
-    ) as client:
-        yield client
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
+
+
+@pytest_asyncio.fixture
+async def api_client_with_owner_auth(
+    owner_user: User, db_session: AsyncSession
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP клиент с авторизацией через JWT — owner_user.
+
+    Single override (T1.2.4b B2) — см. `api_client_with_auth`.
+    """
+    from src.api.auth_utils import create_jwt_token
+    from src.api.dependencies import get_db_session
+    from src.api.main import app
+
+    token = create_jwt_token(
+        owner_user.id,
+        owner_user.telegram_id,
+        owner_user.plan,
+        source="mini_app",
+    )
+
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
 
 
 # =============================================================================

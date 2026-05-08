@@ -8,6 +8,7 @@ from copy import deepcopy
 from typing import Any
 
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -57,4 +58,7 @@ async def sanitized_validation_error_handler(
         request.url.path,
         extra={"body": sanitized, "errors": exc.errors()},
     )
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(exc.errors())},
+    )

@@ -103,8 +103,13 @@ def fake_user() -> Any:
 
 @pytest_asyncio.fixture
 async def stub_session_factory(monkeypatch: pytest.MonkeyPatch, fake_user: Any) -> Any:
-    """Patch `async_session_factory` inside dependencies.py to yield a session
-    whose `execute(...)` returns our fake user."""
+    """Patch `async_session_factory` and return a stub session instance.
+
+    Patch keeps `get_db_session` working in integration tests (it still calls
+    `async_session_factory`). Returned instance is the same session yielded
+    from the patched factory — unit tests calling resolvers directly pass it
+    as the `session` positional arg (T1.2.4b B2).
+    """
 
     class _Result:
         def __init__(self, user: Any) -> None:
@@ -120,12 +125,23 @@ async def stub_session_factory(monkeypatch: pytest.MonkeyPatch, fake_user: Any) 
         async def execute(self, _stmt: Any) -> Any:
             return _Result(self._user)
 
+        async def commit(self) -> None:
+            pass
+
+        async def rollback(self) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    stub = _Session(fake_user)
+
     @asynccontextmanager
     async def _factory() -> AsyncIterator[_Session]:
-        yield _Session(fake_user)
+        yield stub
 
     monkeypatch.setattr("src.api.dependencies.async_session_factory", _factory)
-    return _factory
+    return stub
 
 
 @pytest.fixture
@@ -190,28 +206,30 @@ def _legacy_token_without_aud(user_id: int = 42) -> str:
 
 @pytest.mark.asyncio
 async def test_case1_mini_app_jwt_accepted_by_get_current_user(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """Case 1: mini_app JWT in get_current_user → returns user."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
-    user = await get_current_user(_req(), _bearer(token))
+    user = await get_current_user(_req(), _bearer(token), stub_session_factory)
     assert user.id == fake_user.id
 
 
 @pytest.mark.asyncio
 async def test_case2_web_portal_jwt_accepted_by_get_current_user(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """Case 2: web_portal JWT in get_current_user → returns user."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
-    user = await get_current_user(_req(), _bearer(token))
+    user = await get_current_user(_req(), _bearer(token), stub_session_factory)
     assert user.id == fake_user.id
 
 
 @pytest.mark.asyncio
-async def test_case3_legacy_jwt_without_aud_rejected_with_426() -> None:
+async def test_case3_legacy_jwt_without_aud_rejected_with_426(
+    stub_session_factory: Any,
+) -> None:
     """Case 3: legacy aud-less JWT → 426 Upgrade Required + WWW-Authenticate.
 
     Phase 1 §1.B.0a (PF.2 decision): the aud-less branch ships 426 instead of
@@ -220,7 +238,7 @@ async def test_case3_legacy_jwt_without_aud_rejected_with_426() -> None:
     """
     token = _legacy_token_without_aud()
     with pytest.raises(HTTPException) as exc:
-        await get_current_user(_req(), _bearer(token))
+        await get_current_user(_req(), _bearer(token), stub_session_factory)
     assert exc.value.status_code == 426
     assert "audience" in exc.value.detail.lower()
     assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
@@ -228,25 +246,25 @@ async def test_case3_legacy_jwt_without_aud_rejected_with_426() -> None:
 
 @pytest.mark.asyncio
 async def test_case4_mini_app_jwt_rejected_by_web_portal_dep_with_403(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """Case 4: mini_app JWT in get_current_user_from_web_portal → 403."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
     with pytest.raises(HTTPException) as exc:
-        await get_current_user_from_web_portal(_req(), _bearer(token))
+        await get_current_user_from_web_portal(_req(), _bearer(token), stub_session_factory)
     assert exc.value.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_web_portal_jwt_rejected_by_mini_app_dep_with_403(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """Symmetric guard: web_portal JWT in get_current_user_from_mini_app → 403."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
     with pytest.raises(HTTPException) as exc:
-        await get_current_user_from_mini_app(_req(), _bearer(token))
+        await get_current_user_from_mini_app(_req(), _bearer(token), stub_session_factory)
     assert exc.value.status_code == 403
 
 
@@ -255,7 +273,7 @@ async def test_web_portal_jwt_rejected_by_mini_app_dep_with_403(
 
 @pytest.mark.asyncio
 async def test_resolve_writes_user_id_and_aud_to_request_state_mini_app(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """Phase 1 §1.B.0b: dep writes request.state.user_id + user_aud (PF.4).
@@ -266,7 +284,7 @@ async def test_resolve_writes_user_id_and_aud_to_request_state_mini_app(
     """
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="mini_app")
     request = _req()
-    user = await get_current_user(request, _bearer(token))
+    user = await get_current_user(request, _bearer(token), stub_session_factory)
     assert user.id == fake_user.id
     assert request.state.user_id == fake_user.id
     assert request.state.user_aud == "mini_app"
@@ -274,13 +292,13 @@ async def test_resolve_writes_user_id_and_aud_to_request_state_mini_app(
 
 @pytest.mark.asyncio
 async def test_resolve_writes_user_aud_web_portal(
-    stub_session_factory: Any,  # noqa: ARG001
+    stub_session_factory: Any,
     fake_user: Any,
 ) -> None:
     """web_portal token → user_aud == "web_portal" on request.state."""
     token = create_jwt_token(fake_user.id, fake_user.telegram_id, "free", source="web_portal")
     request = _req()
-    user = await get_current_user_from_web_portal(request, _bearer(token))
+    user = await get_current_user_from_web_portal(request, _bearer(token), stub_session_factory)
     assert user.id == fake_user.id
     assert request.state.user_aud == "web_portal"
 

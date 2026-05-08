@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-04 (Phase 3c.1 — BL-072 T1.1 closed paper-only; BL-075 new)_
+_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items)_
 
 ## Active items
 
@@ -2113,14 +2113,44 @@ within current sub-block charter.
 
 #### T1.2 — Pre-existing test infrastructure debt (81 fails / 17 errors)
 
-- **Source:** Pre-closure audit O.6 + 5b.7c O.8 (DEFERRED-AS-ACCEPTED)
-- **Issue:** 81 unit test failures + 17 collection errors accumulated
-  PRE-Phase-3b: model schema drift (`bmediakit_comparison`, `escrow_payouts`),
-  sqlite shadow-table issues, FSM state rename, `auth_utils.create_access_token`
-  refactor, Telegram token env-dependency, etc.
-- **Note (per audit O.2):** PREDATES Phase 3b. Separate workstream from
-  Phase 3c/4/5 deliverables. NOT a Phase 3b artifact.
-- **Compliance impact:** Cannot ship product with 81 unit fails (quality gate)
+- **Status:** ✅ CLOSED — 2026-05-08
+- **Resolution:** T1.2 series (sub-blocks T1.2.1 — T1.2.8) on
+  `feature/t1-2-test-failures-cleanup`; merged to `develop` --no-ff,
+  then `develop` → `main` --no-ff (atomic FE+BE deploy moment).
+- **Closure metrics:** Pre-series baseline 81 fails / 17 errors (audit
+  expansion to 99 entries during T1.2.0 probe). Post-series baseline
+  **0 fails / 993 passing / 3 skipped / 0 errors** + 7 lint (intentional
+  `tests/unit/conftest.py` asyncio policy ordering — BL-024 prohibits
+  modification) + 0 format + 4 mypy (`mediakit_service.py` deferred per
+  Q2=c — see BL-076).
+- **Sub-block index (closure CHANGES files):**
+  - T1.2.1 — auth refactor cleanup (`CHANGES_2026-05-04_t1-2-1-auth-refactor-cleanup.md`)
+  - T1.2.2 — mechanical bulk + C16 (`CHANGES_2026-05-05_t1-2-2-mechanical-bulk-and-c16.md`)
+  - T1.2.3 — audit_logs production fix (`CHANGES_2026-05-07_t1-2-3-audit-logs-production-fix.md`)
+  - T1.2.4 — fixture decision (`CHANGES_2026-05-07_t1-2-4-fixture-decision.md`)
+  - T1.2.4b — Pydantic Decimal + auth-DI refactor (`CHANGES_2026-05-07_t1-2-4b-decimal-and-auth-di.md`)
+  - T1.2.5 Phase C-1 — surgical/wholesale deletes (`CHANGES_2026-05-07_t1-2-5-phase-c1.md`)
+  - T1.2.5 Phase C-2 — surgical pruning (`CHANGES_2026-05-07_t1-2-5-phase-c2.md`)
+  - D4 — admin_payouts test relocation to integration (`CHANGES_2026-05-07_d4-admin-client-relocation.md`)
+  - T1.2.5e — payout dead-code cleanup (`CHANGES_2026-05-07_t1-2-5e-payout-cleanup.md`)
+  - T1.2.5g — content_filter Mistral mock (`CHANGES_2026-05-07_t1-2-5g-content-filter-stability.md`)
+  - T1.2.6 — placement-flow cluster (`CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md`)
+  - T1.2.7 — counter_offer cleanup (`CHANGES_2026-05-07_t1-2-7-counter-offer-cleanup.md`)
+  - T1.2.8 — bot_factory cleanup (`CHANGES_2026-05-07_t1-2-8-bot-factory-cleanup.md`)
+  - Master closure: `CHANGES_2026-05-08_t1-2-series-closure.md`
+- **Production-code side effects (within T1.2 sub-blocks):** audit_logs
+  production fix (action varchar(20) → varchar(64) + SAVEPOINT pattern in
+  `AuditLogRepo.log` — T1.2.3), Pydantic Decimal 422 + `_resolve_user_for_audience`
+  DI refactor (T1.2.4b), 11 dead `PayoutService` methods + 3 S-48 violations
+  removed + `PayoutComplianceService` skeleton deleted (T1.2.5e), mini_app
+  payout screens deleted (BL-055 redirect-only — T1.2.5e), `xp_service`
+  Pattern 1 refactor (T1.2.4 C4), `ReputationAction` enum case fix
+  (T1.2.6 Wave 0).
+- **Note:** sub-block T1.2.5f (topup normalize — apply payout deeplink
+  pattern to topup) deferred as separate future workstream pending Marina
+  UX decisions. T1.2.4d (B3 full elimination of `async_session_factory()`
+  outside `db/session.py`) deferred as separate future workstream.
+- **Deferred items:** see BL-076 для consolidated list.
 - **Source closures:** all 10 5b.X (relative-baseline-stability gate operational)
 
 #### T1.3 — Phase 5: PayoutCompliance wiring at routers/payouts.py
@@ -2326,6 +2356,298 @@ current Phase 3c wiring catches this only at channel-add for owners.
   `CHANGES_2026-05-02_phase3b-5b2-gate-resolution.md`
 
 **Refs:** Phase 3c closure (BL-072 T1.1).
+
+### BL-076 — T1.2 series test cleanup deferred items
+
+**Status:** OPEN — accumulated deferred entries from T1.2.1 — T1.2.8 sub-blocks
+**Created:** 2026-05-08 (T1.2 series closure batch)
+**Source:** consolidated `## Deferred to production launch` / `## Deferred to BACKLOG` sections from all T1.2 sub-block CHANGES files
+
+T1.2 series closed pre-existing test infrastructure debt (99 audit entries
+→ 0F / 993P / 3S / 0E baseline). During the series, sub-blocks surfaced
+production-bugs, architectural cleanups, and coverage gaps that were
+explicitly carved out of T1.2 cleanup scope. Per project closure policy
+(no inline BACKLOG commits during sub-block work), entries accumulate
+here.
+
+#### T1.2-D1 — `mediakit_service.py` stale fields production bug
+
+- **Surface:** T1.2.2 C10, T1.2.4 Q3=a, T1.2.5e Q2=c
+- **Source CHANGES:**
+  - `CHANGES_2026-05-05_t1-2-2-mechanical-bulk-and-c16.md`
+  - `CHANGES_2026-05-07_t1-2-4-fixture-decision.md`
+  - `CHANGES_2026-05-07_t1-2-5e-payout-cleanup.md`
+- **Issue:** `src/core/services/mediakit_service.py:111-116` reads
+  `chat.last_avg_views`, `chat.last_post_frequency`, `chat.price_per_post`.
+  Model side migrated:
+  - `chat.last_avg_views` → `chat.avg_views` (`TelegramChat:54`)
+  - `chat.last_post_frequency` → field removed entirely (no synonym)
+  - `chat.price_per_post` → `chat.channel_settings.price_per_post`
+    (moved to ChannelSettings)
+- **Symptom:** `mediakit_service.get_mediakit_data()` raises AttributeError
+  at runtime; surfaces 4 mypy errors (residual T1.2 baseline).
+- **Companion test:** `tests/test_bmediakit_comparison.py::TestMediakitService::test_get_mediatkit_data` SKIPPED with refreshed pointer
+  to BACKLOG.
+- **Investigation options:**
+  - (a) Compute from existing fields (`avg_views` exists; derive
+    `last_post_frequency` from publication history)
+  - (b) Drop dead code path entirely (mediakit feature may not be
+    production-bound)
+  - (c) Add fields with migration
+- **Priority:** medium — runtime AttributeError under any caller. Marina
+  decision required before scope.
+
+#### T1.2-D2 — `tests/unit/conftest.py` 7 lint suppression
+
+- **Surface:** T1.2.5e Q1=a (deferred to T1.2 closure or dedicated sub-block)
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5e-payout-cleanup.md`
+- **Issue:** 7 ruff errors in `tests/unit/conftest.py` (1× SIM105 line 12 +
+  6× E402 lines 20-26) accepted as known residual. Errors are intentional
+  asyncio policy ordering (must precede aiogram imports); BL-024 prohibits
+  modification of `tests/unit/conftest.py` core logic.
+- **Suppression options:**
+  - (a) Add `# ruff: noqa: E402, SIM105` shim at file top — single line,
+    preserves logic intact, lint baseline → 0
+  - (b) Reshape asyncio policy ordering pattern — bigger refactor
+- **Priority:** low — cosmetic baseline cleanup; no functional impact.
+
+#### T1.2-D3 — PayoutComplianceService recreation для Phase 5 / 5b.7
+
+- **Surface:** T1.2.5e (skeleton deletion in `17d8f1f`)
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5e-payout-cleanup.md`
+- **Issue:** 5b.7b SKELETON deleted in `refactor(payout): delete
+  PayoutComplianceService skeleton + clean stale comments`. Empty
+  registries (`_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`) and zero
+  production callers. Phase 5 / 5b.7 implementor must recreate with:
+  - G13-G18 transition resolver
+    (publication_period_elapsed → act_generated → act_signed →
+    tax_receipt → vat → ord_reported)
+  - Create-time gate registry для payout-request creation
+  - Same dispatch architecture as `LegalComplianceService` (sibling coordinator)
+- **Reference:** `git show 17d8f1f^:src/core/services/payout_compliance_service.py`
+  для original structure. Test reference:
+  `git show 17d8f1f^:tests/unit/test_payout_compliance_service.py`.
+- **Note:** gate-checker bodies в `src/core/services/gates/payout_gates.py`
+  (G13-G18) intact and should be wired into the new coordinator's
+  transition resolution table.
+- **Priority:** high — required for Phase 5 payout compliance enforcement
+  (T1.3 / BL-072 T1.3 dependency).
+
+#### T1.2-D4 — AUDIT-LOG-1: SAVEPOINT pattern audit across other side-effect repos
+
+- **Surface:** T1.2.3 (audit_logs production fix)
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-3-audit-logs-production-fix.md`
+- **Issue:** `AuditLogRepo.log` now wraps writes in SAVEPOINT
+  (`session.begin_nested()`) — the originally-intended fire-and-forget
+  semantics. Audit other "best-effort" side-effect writes to verify
+  they don't share the same broken Python-except-only pattern that
+  T1.2.3 surfaced.
+- **Candidate scan target:** any repo method whose docstring claims
+  "fire and forget" or "never blocks" without a SAVEPOINT wrap.
+- **Priority:** medium — latent risk surface; may hide identical
+  poisoned-transaction failure modes downstream of other failed writes.
+
+#### T1.2-D5 — AUDIT-LOG-2: Action vocabulary documentation
+
+- **Surface:** T1.2.3
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-3-audit-logs-production-fix.md`
+- **Issue:** `audit_logs.action` column was originally designed as a
+  4-value enum (READ/WRITE/DELETE/ADMIN_READ); vocabulary has grown
+  organically to 12 values. Consider documenting the action taxonomy or
+  formalizing as a Postgres ENUM in a future migration once vocabulary
+  stabilizes.
+- **Priority:** low — documentation hygiene; no functional impact.
+
+#### T1.2-D6 — `constants/content_filter.py` drift
+
+- **Surface:** T1.2.5g
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5g-content-filter-stability.md`
+- **Issue:** `src/constants/content_filter.py` declares
+  `LEVEL2_THRESHOLD = 0.3`, `LEVEL3_THRESHOLD = 0.5`, but `filter.py`
+  overrides к `0.15 / 0.7`. Constants file unused (verified: not imported
+  by `filter.py`).
+- **Investigation options:** либо delete file (preferred), либо align
+  values + import-from-constants pattern. Surface only — не related к
+  flake.
+- **Priority:** low — drift hygiene; values are correctly applied
+  inline in `filter.py`.
+
+#### T1.2-D7 — `MistralAIService.moderate_content` blanket-except production-bug surface
+
+- **Surface:** T1.2.5g
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5g-content-filter-stability.md`
+- **Issue:** `mistral_ai_service.py:194-252` catches ВСЕ `Exception`
+  types и returns
+  `MistralModerationResult(passed=True, score=0.0, categories=[], analysis="")`
+  fallback. Создаёт second failure mode для `test_check_blocked_text`
+  beyond L3 timeout.
+- **Investigation:** должен ли catch только specific exceptions (rate
+  limit, network, parse)? Sentry capture без silent fallback?
+  Production behavior implication — fail-open поведение для blanket
+  exceptions может пропускать blocked content при transient backend
+  issues.
+- **Priority:** medium — fail-open security implication for content
+  moderation pipeline.
+
+#### T1.2-D8 — Future LLM-test marker convention (YAGNI)
+
+- **Surface:** T1.2.5g
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5g-content-filter-stability.md`
+- **Issue:** Future LLM-dependent tests should use the same `(a.1) inline
+  patch` pattern adopted in T1.2.5g. Marker convention (e.g.
+  `@pytest.mark.requires_external_llm`) deferred until second LLM-test
+  surface emerges.
+- **Priority:** low — YAGNI; revisit when 2nd LLM-test surface appears.
+
+#### T1.2-D9 — Coverage for current FSM topology (replaces deleted C3 internal tests)
+
+- **Surface:** T1.2.5 Phase C-2
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5-phase-c2.md`
+- **Issue:** C3 surgical removed 9 tests asserting internal FSM topology
+  elements (state names, middleware constants, init signatures). Public
+  surface coverage (FSM transition behavior, throttling effect, admin
+  filter gating) is NOT covered by surviving tests (which only verify
+  imports work).
+- **Future sub-block:** behavioral tests on FSM transitions + middleware
+  effects.
+- **Priority:** medium — coverage gap on FSM behavior.
+
+#### T1.2-D10 — Coverage for current `cmd_start` / `cb_tos_*` / `go_to_*_menu` public surface (replaces deleted C2 internal tests)
+
+- **Surface:** T1.2.5 Phase C-2
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5-phase-c2.md`
+- **Issue:** C2 surgical removed 11 tests on `_handle_start` /
+  `safe_callback_edit` / `async_session_factory` (all internal helpers).
+  Public entry points (`cmd_start` command handler, `cb_tos_accept` /
+  `cb_tos_decline` callback handlers, role-selection callback handler)
+  have NO behavioral test coverage post-deletion. Surviving tests cover
+  only role validation constants + callback string format.
+- **Priority:** medium — first-touch user flow has zero behavioral
+  coverage.
+
+#### T1.2-D11 — Gamification coverage (replaces deleted C4 internal tests)
+
+- **Surface:** T1.2.5 Phase C-2
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5-phase-c2.md`
+- **Issue:** If production has live gamification logic
+  (`src/tasks/gamification_tasks.py`, `src/tasks/badge_tasks.py`,
+  `src/core/services/badge_service.py`), fresh tests against actual
+  current surface would close coverage gap.
+- **Priority:** low — gamification is feature-flag-able; revisit when
+  feature is production-bound.
+
+#### T1.2-D12 — `MistralAIService` unit test coverage
+
+- **Surface:** T1.2.5 Phase C-1, Phase C-2 (carried)
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-5-phase-c1.md`,
+  `CHANGES_2026-05-07_t1-2-5-phase-c2.md`
+- **Issue:** Coverage for current
+  `src/core/services/mistral_ai_service.py` deleted along with
+  `tests/unit/test_ai_service.py` (C1). Resurrection = rewrite from
+  scratch against actual public surface. Out of T1.2 cleanup scope.
+- **Priority:** medium — moderation L3 surface lacks unit-level
+  coverage post-cleanup.
+
+#### T1.2-D13 — Project-wide `__init__.py` audit (L61 follow-up)
+
+- **Surface:** D4 (admin_payouts relocation)
+- **Source CHANGES:** `CHANGES_2026-05-07_d4-admin-client-relocation.md`
+- **Issue:** Pytest «sub-package without parent» collision (L61)
+  surfaced when adding `tests/integration/api/__init__.py` triggered 9
+  ModuleNotFoundError on existing `tests/unit/api/test_*.py` files. Root
+  cause: `tests/unit/` had no `__init__.py` while `tests/unit/api/` did
+  — pytest `prepend` import mode registered `tests/unit/api/test_*` as
+  top-level package `api`, conflicting when `tests/integration/api/`
+  added the same name.
+- **Audit candidate:** check `tests/<layer>/<subdir>/__init__.py` chain
+  для other sub-package-without-parent collisions waiting for trigger.
+  E.g. `tests/unit/services/__init__.py` без `tests/unit/__init__.py` =
+  same problem class.
+- **Long-term option:** switch `pyproject.toml` pytest addopts к
+  `--import-mode=importlib` — modern pattern избегает namespace fights
+  целиком, но требует separate validation pass.
+- **Priority:** low — latent bug, only fires when adding new test
+  directories with conflicting names.
+
+#### T1.2-D14 — `test_review_service.py` local fixtures cleanup (BL-022 legacy)
+
+- **Surface:** T1.2.6
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md`
+- **Issue:** `tests/unit/test_review_service.py` defines local
+  `db_session` (Postgres-backed override of SQLite default), `advertiser`
+  (telegram_id 900111001), `owner` (telegram_id 900111002), `channel`,
+  `published_placement` fixtures. These duplicate root
+  `tests/conftest.py` fixtures (`advertiser_user`, `owner_user`,
+  `test_channel`). Heritage of BL-022 SQLite-shadow refactor — local
+  fixtures were added when file inherited SQLite db_session from
+  `tests/unit/conftest.py`. Now that file overrides к Postgres, root
+  fixtures could be reused, но это broader refactor (~30-50 LOC).
+- **Priority:** low — duplication / hygiene; no functional impact.
+
+#### T1.2-D15 — ESCROW invariant evolution (allowlist maintenance)
+
+- **Surface:** T1.2.6
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-6-placement-flow-cluster.md`
+- **Issue:** Текущий `test_release_escrow_only_in_approved_callsites`
+  allows 2 callsites (`publication_service.py` + `disputes.py`). If в
+  Phase 4/5 будут добавлены legitimate callsites (e.g.
+  PayoutComplianceService bulk-release flow, refund_escrow inverse),
+  allowlist должен быть updated. Test docstring documents the invariant
+  maintenance requirement; future updates per architectural changes.
+- **Priority:** documentation — invariant is maintained, this is a
+  pointer для future refactor authors.
+
+#### T1.2-D16 — Counter-offer flow gate-enforcement coverage
+
+- **Surface:** T1.2.7
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-7-counter-offer-cleanup.md`
+- **Issue:** If broader integration tests are required для verifying
+  production legal-compliance flow (i.e. NOT bypassing gates), need test
+  fixture creating real `Contract` + `SupplementaryAgreement` records
+  satisfying G07. Out of T1.2.7 scope. Recorded для test-health epic
+  Phase 4 backlog.
+- **Priority:** medium — depends on Phase 4 G07 real body landing
+  (T1.6 / BL-072 T1.6).
+
+#### T1.2-D17 — Test infra debt: `PlacementRequestService` boilerplate (T1.2.7) + `_reset_factory` autouse (T1.2.8)
+
+- **Surface:** T1.2.7, T1.2.8
+- **Source CHANGES:**
+  - `CHANGES_2026-05-07_t1-2-7-counter-offer-cleanup.md`
+  - `CHANGES_2026-05-07_t1-2-8-bot-factory-cleanup.md`
+- **Issue (T1.2.7):** Both test methods construct `PlacementRequestService`
+  inline с identical 4-arg invocation. Could be extracted к shared
+  fixture. Out of scope (KISS).
+- **Issue (T1.2.8):** Tests call `_reset_factory()` в
+  `setup_method`/`teardown_method` для clear singleton state. Could be
+  elevated к pytest fixture с autouse.
+- **Priority:** low — DRY / hygiene improvements; functional behavior
+  intact.
+
+#### T1.2-D18 — Bot factory invariant INV-3 lint enforcement
+
+- **Surface:** T1.2.8
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-8-bot-factory-cleanup.md`
+- **Issue:** Per `src/bot/session_factory.py` docstring: `Bot()` is
+  created only в `session_factory.py` и `_bot_factory.py` (which
+  delegates). If new direct callsites появляются, INV-3 invariant broken.
+  Could be enforced via lint (similar к ESCROW-001 в
+  `tests/unit/test_release_escrow_callsites.py` from T1.2.6).
+- **Priority:** medium — invariant currently relies on docstring +
+  reviewer attention; lint promotion would lock the contract.
+
+#### T1.2-D19 — `xp_service` helpers Pattern 2 sweep candidate
+
+- **Surface:** T1.2.4 (carried beyond Q6=(i') scope)
+- **Source CHANGES:** `CHANGES_2026-05-07_t1-2-4-fixture-decision.md`
+- **Issue:** `badge_service.award_badge` is also Pattern 2 (opens own
+  session via `async_session_factory`). Out of T1.2.4 Q6=(i') scope.
+  Future S-48 sweep candidate.
+- **Priority:** low — operational; Pattern 2 self-contained correctness
+  preserved (commits with `# S-48: self-contained pattern` marker).
+
+**Refs:** T1.2 series closure (BL-072 T1.2 closed — see
+`CHANGES_2026-05-08_t1-2-series-closure.md`).
 
 ## Closed items
 

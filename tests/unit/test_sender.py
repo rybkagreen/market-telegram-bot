@@ -176,7 +176,7 @@ class TestTelegramSenderErrors:
             text="Test message",
         )
 
-        assert result.status == SendStatus.FAILED
+        assert result.status == SendStatus.CHAT_BLOCKED
         assert "forbidden" in result.error_message.lower()
 
     @pytest.mark.asyncio
@@ -245,26 +245,26 @@ class TestCreateSender:
     @pytest.mark.asyncio
     async def test_create_sender(self) -> None:
         """Проверка создания TelegramSender."""
-        with patch("src.utils.telegram.sender.Bot") as mock_bot_class:
+        with patch("src.bot.session_factory.new_bot") as mock_new_bot:
             mock_bot = MagicMock()
             mock_bot.session = AsyncMock()
             mock_bot.session.close = AsyncMock()
-            mock_bot_class.return_value = mock_bot
+            mock_new_bot.return_value = mock_bot
 
             sender = await create_sender("test_token")
 
             assert isinstance(sender, TelegramSender)
             assert sender.bot == mock_bot
-            mock_bot_class.assert_called_once_with(token="test_token")
+            mock_new_bot.assert_called_once_with(token="test_token")
 
     @pytest.mark.asyncio
     async def test_sender_close(self) -> None:
         """Проверка закрытия sender."""
-        with patch("src.utils.telegram.sender.Bot") as mock_bot_class:
+        with patch("src.bot.session_factory.new_bot") as mock_new_bot:
             mock_bot = MagicMock()
             mock_bot.session = AsyncMock()
             mock_bot.session.close = AsyncMock()
-            mock_bot_class.return_value = mock_bot
+            mock_new_bot.return_value = mock_bot
 
             sender = await create_sender("test_token")
             await sender.close()

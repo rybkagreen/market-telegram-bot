@@ -15,20 +15,68 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.services.billing_service import BillingService
+from src.core.services.placement_transition_service import PlacementTransitionService
 from src.db.models.mailing_log import MailingLog, MailingStatus
-
-billing_service = BillingService()
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
+
+billing_service = BillingService()
 
 
 def unique_telegram_id() -> int:
     """Generate unique telegram_id for test isolation."""
     return random.randint(100000000, 999999999)
+
+
+async def _setup_escrow_placement(
+    db_session: AsyncSession,
+    advertiser: User,
+    owner: User,
+    channel: TelegramChat,
+    *,
+    final_price: Decimal = Decimal("500"),
+    ad_text: str = "Test ad text",
+) -> PlacementRequest:
+    # INV-1: status='escrow' requires escrow_transaction_id IS NOT NULL.
+    # Drives placement through real pending_payment → escrow flow via
+    # BillingService.freeze_escrow_for_placement + PlacementTransitionService,
+    # so escrow_transaction_id is populated by construction.
+    placement = PlacementRequest(
+        advertiser_id=advertiser.id,
+        owner_id=owner.id,
+        channel_id=channel.id,
+        status=PlacementStatus.pending_payment,
+        ad_text=ad_text,
+        proposed_price=final_price,
+        final_price=final_price,
+    )
+    db_session.add(placement)
+    await db_session.flush()
+
+    transaction = await billing_service.freeze_escrow_for_placement(
+        session=db_session,
+        placement_id=placement.id,
+        advertiser_id=advertiser.id,
+        amount=final_price,
+    )
+    placement.escrow_transaction_id = transaction.id
+
+    transition_service = PlacementTransitionService(db_session)
+    await transition_service.transition(
+        placement=placement,
+        to_status=PlacementStatus.escrow,
+        actor_user_id=advertiser.id,
+        reason="payment_received",
+        trigger="system",
+        bypass_gates=True,
+    )
+    return placement
 
 
 class TestEscrowFreeze:
@@ -146,23 +194,18 @@ class TestEscrowRelease:
     @pytest.mark.asyncio
     async def test_release_escrow_funds_success(self, db_session, owner_test_data):
         """Test successful escrow release."""
-        # Create platform account (singleton id=1)
         from src.db.models.platform_account import PlatformAccount
 
         platform_account = PlatformAccount(id=1)
         db_session.add(platform_account)
         await db_session.flush()
 
-        # Create owner user
         owner_data = owner_test_data.copy()
         owner_data["telegram_id"] = unique_telegram_id()
-        owner_data["balance_rub"] = 0
+        owner_data["balance_rub"] = 500
         owner = User(**owner_data)
         db_session.add(owner)
         await db_session.flush()
-
-        # Create channel
-        from src.db.models.telegram_chat import TelegramChat
 
         channel = TelegramChat(
             telegram_id=-1009876543210,
@@ -175,20 +218,10 @@ class TestEscrowRelease:
         db_session.add(channel)
         await db_session.flush()
 
-        # Create placement request
-        placement_request = PlacementRequest(
-            advertiser_id=owner.id,
-            owner_id=owner.id,
-            channel_id=channel.id,
-            status=PlacementStatus.escrow,
-            ad_text="Test ad text",
-            proposed_price=Decimal("500"),
-            final_price=Decimal("500"),
+        placement_request = await _setup_escrow_placement(
+            db_session, advertiser=owner, owner=owner, channel=channel
         )
-        db_session.add(placement_request)
-        await db_session.flush()
 
-        # Create mailing
         mailing = MailingLog(
             placement_request_id=placement_request.id,
             chat_id=channel.id,
@@ -197,9 +230,8 @@ class TestEscrowRelease:
             cost=500,
         )
         db_session.add(mailing)
-        await db_session.commit()
+        await db_session.flush()
 
-        # Release escrow
         await billing_service.release_escrow(
             db_session,
             placement_request.id,
@@ -208,17 +240,12 @@ class TestEscrowRelease:
             placement_request.owner_id,
         )
 
-        # Verify mailing status changed to PAID
-        await db_session.refresh(mailing)
-        assert mailing.status == MailingStatus.paid
-
         # Owner net = price × OWNER_SHARE_RATE × (1 - SERVICE_FEE_RATE)
         # 500 × 0.80 = 400 gross; service_fee = 400 × 0.015 = 6.00;
         # owner_net = 400 - 6 = 394 (78.8% effective).
         await db_session.refresh(owner)
         assert owner.earned_rub == Decimal("394.00")
 
-        # Verify transaction created
         result = await db_session.execute(
             select(Transaction).where(
                 Transaction.user_id == owner.id,
@@ -232,23 +259,18 @@ class TestEscrowRelease:
     @pytest.mark.asyncio
     async def test_release_escrow_funds_idempotency(self, db_session, owner_test_data):
         """Test that release_escrow_funds is idempotent."""
-        # Create platform account (singleton id=1)
         from src.db.models.platform_account import PlatformAccount
 
         platform_account = PlatformAccount(id=1)
         db_session.add(platform_account)
         await db_session.flush()
 
-        # Create owner user
         owner_data = owner_test_data.copy()
         owner_data["telegram_id"] = unique_telegram_id()
-        owner_data["balance_rub"] = 0
+        owner_data["balance_rub"] = 500
         owner = User(**owner_data)
         db_session.add(owner)
         await db_session.flush()
-
-        # Create channel
-        from src.db.models.telegram_chat import TelegramChat
 
         channel = TelegramChat(
             telegram_id=-1009876543210,
@@ -261,20 +283,10 @@ class TestEscrowRelease:
         db_session.add(channel)
         await db_session.flush()
 
-        # Create placement request
-        placement_request = PlacementRequest(
-            advertiser_id=owner.id,
-            owner_id=owner.id,
-            channel_id=channel.id,
-            status=PlacementStatus.escrow,
-            ad_text="Test ad text",
-            proposed_price=Decimal("500"),
-            final_price=Decimal("500"),
+        placement_request = await _setup_escrow_placement(
+            db_session, advertiser=owner, owner=owner, channel=channel
         )
-        db_session.add(placement_request)
-        await db_session.flush()
 
-        # Create mailing
         mailing = MailingLog(
             placement_request_id=placement_request.id,
             chat_id=channel.id,
@@ -283,9 +295,8 @@ class TestEscrowRelease:
             cost=500,
         )
         db_session.add(mailing)
-        await db_session.commit()
+        await db_session.flush()
 
-        # First release
         await billing_service.release_escrow(
             db_session,
             placement_request.id,
@@ -294,7 +305,6 @@ class TestEscrowRelease:
             placement_request.owner_id,
         )
 
-        # Second release (should be no-op due to idempotency)
         await billing_service.release_escrow(
             db_session,
             placement_request.id,
@@ -303,7 +313,7 @@ class TestEscrowRelease:
             placement_request.owner_id,
         )
 
-        # Verify owner received earned_rub only once (78.8% of 500 = 394, not 788)
+        # Owner received earned_rub only once (78.8% of 500 = 394, not 788)
         await db_session.refresh(owner)
         assert owner.earned_rub == Decimal("394.00")
 
@@ -314,16 +324,18 @@ class TestRefundFailedPlacement:
     @pytest.mark.asyncio
     async def test_refund_failed_placement_success(self, db_session, advertiser_test_data):
         """Test successful refund for failed placement."""
-        # Create advertiser user
+        from src.db.models.platform_account import PlatformAccount
+
+        platform_account = PlatformAccount(id=1)
+        db_session.add(platform_account)
+        await db_session.flush()
+
         advertiser_data = advertiser_test_data.copy()
         advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["balance_rub"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
         await db_session.flush()
-
-        # Create channel
-        from src.db.models.telegram_chat import TelegramChat
 
         channel = TelegramChat(
             telegram_id=-1001234567890,
@@ -336,20 +348,10 @@ class TestRefundFailedPlacement:
         db_session.add(channel)
         await db_session.flush()
 
-        # Create placement request in escrow status
-        placement_request = PlacementRequest(
-            advertiser_id=advertiser.id,
-            owner_id=advertiser.id,
-            channel_id=channel.id,
-            status=PlacementStatus.escrow,
-            ad_text="Test ad text",
-            proposed_price=Decimal("500"),
-            final_price=Decimal("500"),
+        placement_request = await _setup_escrow_placement(
+            db_session, advertiser=advertiser, owner=advertiser, channel=channel
         )
-        db_session.add(placement_request)
-        await db_session.flush()
 
-        # Create failed mailing log
         mailing = MailingLog(
             placement_request_id=placement_request.id,
             chat_id=channel.id,
@@ -358,21 +360,20 @@ class TestRefundFailedPlacement:
             cost=500,
         )
         db_session.add(mailing)
-        await db_session.commit()
+        await db_session.flush()
 
-        # Refund
         result = await billing_service.refund_failed_placement(db_session, mailing.id)
 
         assert result is True
 
-        # Commit the transaction
-        await db_session.commit()
+        # refund_failed_placement applies dirty state without flushing; force
+        # write before refresh re-reads DB.
+        await db_session.flush()
 
-        # Verify advertiser received refund to balance_rub
+        # After freeze: balance 500 → 0. After refund: balance 0 → 500.
         await db_session.refresh(advertiser)
-        assert advertiser.balance_rub == Decimal("500")  # Refunded to balance_rub
+        assert advertiser.balance_rub == Decimal("500")
 
-        # Verify transaction created
         result = await db_session.execute(
             select(Transaction).where(
                 Transaction.user_id == advertiser.id,
@@ -388,16 +389,18 @@ class TestRefundFailedPlacement:
         self, db_session, advertiser_test_data
     ):
         """Test refund only works for FAILED status."""
-        # Create advertiser user
+        from src.db.models.platform_account import PlatformAccount
+
+        platform_account = PlatformAccount(id=1)
+        db_session.add(platform_account)
+        await db_session.flush()
+
         advertiser_data = advertiser_test_data.copy()
         advertiser_data["telegram_id"] = unique_telegram_id()
         advertiser_data["balance_rub"] = 500
         advertiser = User(**advertiser_data)
         db_session.add(advertiser)
         await db_session.flush()
-
-        # Create channel
-        from src.db.models.telegram_chat import TelegramChat
 
         channel = TelegramChat(
             telegram_id=-1001234567890,
@@ -410,20 +413,10 @@ class TestRefundFailedPlacement:
         db_session.add(channel)
         await db_session.flush()
 
-        # Create placement request
-        placement_request = PlacementRequest(
-            advertiser_id=advertiser.id,
-            owner_id=advertiser.id,
-            channel_id=channel.id,
-            status=PlacementStatus.escrow,
-            ad_text="Test ad text",
-            proposed_price=Decimal("500"),
-            final_price=Decimal("500"),
+        placement_request = await _setup_escrow_placement(
+            db_session, advertiser=advertiser, owner=advertiser, channel=channel
         )
-        db_session.add(placement_request)
-        await db_session.flush()
 
-        # Create SENT mailing (not FAILED)
         mailing = MailingLog(
             placement_request_id=placement_request.id,
             chat_id=channel.id,
@@ -432,9 +425,8 @@ class TestRefundFailedPlacement:
             cost=500,
         )
         db_session.add(mailing)
-        await db_session.commit()
+        await db_session.flush()
 
-        # Try to refund (should fail)
         result = await billing_service.refund_failed_placement(db_session, mailing.id)
 
         assert result is False

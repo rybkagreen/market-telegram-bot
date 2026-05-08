@@ -1,6 +1,8 @@
 """
 XP Service — сервис для управления опытом и уровнями.
-Спринт 4 — геймификация и удержание пользователей.
+
+Pattern 1 (S-48): caller-controlled transaction. Methods accept session arg;
+caller manages commit/rollback boundary. Service does not own session lifecycle.
 """
 
 import logging
@@ -8,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from src.db.session import async_session_factory
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -104,68 +106,32 @@ class LevelUpEvent:
 
 
 class XPService:
-    """
-    Сервис для управления опытом и уровнями.
+    """Caller-controlled transaction (S-48 contract).
 
-    Методы:
-        add_xp: Добавить XP пользователю
-        get_level_for_xp: Получить уровень по XP
-        get_level_privileges: Получить привилегии уровня
-        get_progress_to_next_level: Получить прогресс до следующего уровня
+    Service does not own session lifecycle — every async method accepts
+    session arg; caller manages commit/rollback boundary.
     """
 
     def __init__(self) -> None:
         """Инициализация сервиса."""
 
     def get_level_for_xp(self, xp: int) -> int:
-        """
-        Получить уровень по количеству XP.
-
-        Args:
-            xp: Количество очков опыта.
-
-        Returns:
-            Уровень (1-10).
-        """
+        """Получить уровень по количеству XP."""
         for level in range(10, 0, -1):
             if xp >= LEVEL_THRESHOLDS[level]:
                 return level
         return 1
 
     def get_level_name(self, level: int) -> str:
-        """
-        Получить название уровня.
-
-        Args:
-            level: Номер уровня.
-
-        Returns:
-            Название уровня.
-        """
+        """Получить название уровня."""
         return LEVEL_NAMES.get(level, UNKNOWN_STR)
 
     def get_level_discount(self, level: int) -> int:
-        """
-        Получить скидку уровня в процентах.
-
-        Args:
-            level: Номер уровня.
-
-        Returns:
-            Скидка в процентах.
-        """
+        """Получить скидку уровня в процентах."""
         return LEVEL_DISCOUNTS.get(level, 0)
 
     def get_level_privileges(self, level: int) -> dict[str, Any]:
-        """
-        Получить привилегии уровня.
-
-        Args:
-            level: Номер уровня.
-
-        Returns:
-            dict с discount_pct, badge, features.
-        """
+        """Получить привилегии уровня."""
         return {
             "discount_pct": self.get_level_discount(level),
             "level_name": self.get_level_name(level),
@@ -173,15 +139,7 @@ class XPService:
         }
 
     def _get_level_features(self, level: int) -> list[str]:
-        """
-        Получить список особенностей уровня.
-
-        Args:
-            level: Номер уровня.
-
-        Returns:
-            Список особенностей.
-        """
+        """Получить список особенностей уровня."""
         features = []
 
         if level >= 3:
@@ -200,18 +158,8 @@ class XPService:
         current_level: int,
         current_xp: int,
     ) -> dict[str, Any]:
-        """
-        Получить прогресс до следующего уровня.
-
-        Args:
-            current_level: Текущий уровень.
-            current_xp: Текущее количество XP.
-
-        Returns:
-            dict с current_xp, next_level_xp, progress_percent, xp_to_next.
-        """
+        """Получить прогресс до следующего уровня."""
         if current_level >= 10:
-            # Максимальный уровень
             return {
                 "current_xp": current_xp,
                 "next_level_xp": LEVEL_THRESHOLDS[10],
@@ -238,274 +186,213 @@ class XPService:
 
     async def add_xp(
         self,
+        session: AsyncSession,
         user_id: int,
         amount: int,
         reason: str,
     ) -> LevelUpEvent | None:
-        """
-        Добавить XP пользователю (ОБЩЕЕ — для обратной совместимости).
-
-        Args:
-            user_id: ID пользователя.
-            amount: Количество XP.
-            reason: Причина начисления (для логирования).
-
-        Returns:
-            LevelUpEvent если уровень повышен, иначе None.
-        """
+        """Добавить XP пользователю (общий путь, обратная совместимость)."""
+        from sqlalchemy import select
 
         from src.db.models.user import User
 
-        async with async_session_factory() as session, session.begin():
-            # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
-            from sqlalchemy import select
+        stmt = select(User).where(User.id == user_id).with_for_update()
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
 
-            stmt = select(User).where(User.id == user_id).with_for_update()
-            result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
+        if not user:
+            logger.error(f"User {user_id} not found")
+            return None
 
-            if not user:
-                logger.error(f"User {user_id} not found")
-                return None
+        old_level = user.advertiser_level
+        old_xp = user.advertiser_xp
 
-            old_level = user.advertiser_level
-            old_xp = user.advertiser_xp
+        user.advertiser_xp += amount
+        new_xp = user.advertiser_xp
 
-            # Добавляем XP
-            user.advertiser_xp += amount
-            new_xp = user.advertiser_xp
+        new_level = self.get_level_for_xp(new_xp)
 
-            # Проверяем повышение уровня
-            new_level = self.get_level_for_xp(new_xp)
+        level_up_event = None
+        if new_level > old_level:
+            user.advertiser_level = new_level
+            level_up_event = LevelUpEvent(
+                user_id=user_id,
+                old_level=old_level,
+                new_level=new_level,
+                xp_reward=XP_REWARDS.get("campaign_completed", 0),
+            )
+            logger.info(
+                f"User {user_id} leveled up: {old_level} → {new_level} ({old_xp} → {new_xp} XP)"
+            )
+        else:
+            logger.info(f"User {user_id} gained {amount} XP ({old_xp} → {new_xp} XP)")
 
-            level_up_event = None
-            if new_level > old_level:
-                user.advertiser_level = new_level
-                level_up_event = LevelUpEvent(
-                    user_id=user_id,
-                    old_level=old_level,
-                    new_level=new_level,
-                    xp_reward=XP_REWARDS.get("campaign_completed", 0),
-                )
-                logger.info(
-                    f"User {user_id} leveled up: {old_level} → {new_level} ({old_xp} → {new_xp} XP)"
-                )
-            else:
-                logger.info(f"User {user_id} gained {amount} XP ({old_xp} → {new_xp} XP)")
-
-            # session.begin() автоматически commit
-            return level_up_event
-
-    # === Спринт 5: Раздельный XP для рекламодателей и владельцев ===
+        return level_up_event
 
     async def add_advertiser_xp(
         self,
+        session: AsyncSession,
         user_id: int,
         amount: int,
         reason: str = "campaign",
     ) -> tuple[int, bool]:
-        """
-        Добавить XP рекламодателя.
-
-        Args:
-            user_id: ID пользователя.
-            amount: Количество XP.
-            reason: Причина начисления.
-
-        Returns:
-            (new_level, leveled_up)
-        """
+        """Добавить XP рекламодателя."""
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
-            if not user:
-                logger.error(f"User {user_id} not found")
-                return (1, False)
+        user = await session.get(User, user_id)
+        if not user:
+            logger.error(f"User {user_id} not found")
+            return (1, False)
 
-            old_level = user.advertiser_level
-            user.advertiser_xp += amount
-            new_xp = user.advertiser_xp
+        old_level = user.advertiser_level
+        user.advertiser_xp += amount
+        new_xp = user.advertiser_xp
 
-            # Вычисляем новый уровень
-            new_level = self.get_level_for_xp(new_xp)
-            leveled_up = False
+        new_level = self.get_level_for_xp(new_xp)
+        leveled_up = False
 
-            if new_level > old_level:
-                user.advertiser_level = new_level
-                leveled_up = True
-                logger.info(
-                    f"User {user_id} advertiser level up: {old_level} → {new_level} "
-                    f"({amount} XP for {reason})"
-                )
+        if new_level > old_level:
+            user.advertiser_level = new_level
+            leveled_up = True
+            logger.info(
+                f"User {user_id} advertiser level up: {old_level} → {new_level} "
+                f"({amount} XP for {reason})"
+            )
 
-            await session.flush()
-            return (new_level, leveled_up)
+        return (new_level, leveled_up)
 
     async def add_owner_xp(
         self,
+        session: AsyncSession,
         user_id: int,
         amount: int,
         reason: str = "publication",
     ) -> tuple[int, bool]:
-        """
-        Добавить XP владельца.
-
-        Args:
-            user_id: ID пользователя.
-            amount: Количество XP.
-            reason: Причина начисления.
-
-        Returns:
-            (new_level, leveled_up)
-        """
+        """Добавить XP владельца."""
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
-            if not user:
-                logger.error(f"User {user_id} not found")
-                return (1, False)
+        user = await session.get(User, user_id)
+        if not user:
+            logger.error(f"User {user_id} not found")
+            return (1, False)
 
-            old_level = user.owner_level
-            user.owner_xp += amount
-            new_xp = user.owner_xp
+        old_level = user.owner_level
+        user.owner_xp += amount
+        new_xp = user.owner_xp
 
-            # Вычисляем новый уровень
-            new_level = self.get_level_for_xp(new_xp)
-            leveled_up = False
+        new_level = self.get_level_for_xp(new_xp)
+        leveled_up = False
 
-            if new_level > old_level:
-                user.owner_level = new_level
-                leveled_up = True
-                logger.info(
-                    f"User {user_id} owner level up: {old_level} → {new_level} "
-                    f"({amount} XP for {reason})"
-                )
-
-            await session.flush()
-            return (new_level, leveled_up)
-
-    async def get_user_stats(self, user_id: int) -> dict[str, Any]:
-        """
-        Получить общую статистику пользователя (для обратной совместимости).
-
-        Args:
-            user_id: ID пользователя.
-
-        Returns:
-            dict с level, xp, progress, privileges.
-        """
-
-        from src.db.models.user import User
-
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
-            if not user:
-                return {"error": USER_NOT_FOUND}
-
-            combined_level = max(user.advertiser_level, user.owner_level)
-            combined_xp = user.advertiser_xp + user.owner_xp
-            progress = self.get_progress_to_next_level(combined_level, combined_xp)
-            privileges = self.get_level_privileges(combined_level)
-
-            return {
-                "user_id": user_id,
-                "level": combined_level,
-                "level_name": self.get_level_name(combined_level),
-                "xp_points": combined_xp,
-                "progress": progress,
-                "privileges": privileges,
-                "total_spent": float(getattr(user, "total_spent", None) or 0),
-                "total_earned": float(getattr(user, "total_earned", None) or 0),
-                "streak_days": getattr(user, "streak_days", None) or 0,
-            }
-
-    # === Спринт 5: Раздельная статистика ===
-
-    async def get_advertiser_stats(self, user_id: int) -> dict[str, Any]:
-        """
-        Получить статистику рекламодателя.
-
-        Args:
-            user_id: ID пользователя.
-
-        Returns:
-            dict с advertiser_level, advertiser_xp, progress.
-        """
-        from src.db.models.user import User
-
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
-            if not user:
-                return {"error": USER_NOT_FOUND}
-
-            progress = self.get_progress_to_next_level(
-                user.advertiser_level,
-                user.advertiser_xp,
+        if new_level > old_level:
+            user.owner_level = new_level
+            leveled_up = True
+            logger.info(
+                f"User {user_id} owner level up: {old_level} → {new_level} "
+                f"({amount} XP for {reason})"
             )
 
-            return {
-                "user_id": user_id,
-                "level": user.advertiser_level,
-                "level_name": ADVERTISER_LEVEL_NAMES.get(user.advertiser_level, UNKNOWN_STR),
-                "xp_points": user.advertiser_xp,
-                "progress": progress,
-                "privileges": self.get_level_privileges(user.advertiser_level),
-            }
+        return (new_level, leveled_up)
 
-    async def get_owner_stats(self, user_id: int) -> dict[str, Any]:
-        """
-        Получить статистику владельца.
-
-        Args:
-            user_id: ID пользователя.
-
-        Returns:
-            dict с owner_level, owner_xp, progress.
-        """
+    async def get_user_stats(
+        self,
+        session: AsyncSession,
+        user_id: int,
+    ) -> dict[str, Any]:
+        """Получить общую статистику пользователя."""
         from src.db.models.user import User
 
-        async with async_session_factory() as session:
-            user = await session.get(User, user_id)
-            if not user:
-                return {"error": USER_NOT_FOUND}
+        user = await session.get(User, user_id)
+        if not user:
+            return {"error": USER_NOT_FOUND}
 
-            progress = self.get_progress_to_next_level(
-                user.owner_level,
-                user.owner_xp,
-            )
+        combined_level = max(user.advertiser_level, user.owner_level)
+        combined_xp = user.advertiser_xp + user.owner_xp
+        progress = self.get_progress_to_next_level(combined_level, combined_xp)
+        privileges = self.get_level_privileges(combined_level)
 
-            return {
-                "user_id": user_id,
-                "level": user.owner_level,
-                "level_name": OWNER_LEVEL_NAMES.get(user.owner_level, UNKNOWN_STR),
-                "xp_points": user.owner_xp,
-                "progress": progress,
-                "privileges": self.get_level_privileges(user.owner_level),
-            }
+        return {
+            "user_id": user_id,
+            "level": combined_level,
+            "level_name": self.get_level_name(combined_level),
+            "xp_points": combined_xp,
+            "progress": progress,
+            "privileges": privileges,
+            "total_spent": float(getattr(user, "total_spent", None) or 0),
+            "total_earned": float(getattr(user, "total_earned", None) or 0),
+            "streak_days": getattr(user, "streak_days", None) or 0,
+        }
 
-    async def award_streak_bonus(self, user_id: int, streak_days: int) -> dict[str, Any]:
-        """
-        Начислить бонус за стрик активности.
+    async def get_advertiser_stats(
+        self,
+        session: AsyncSession,
+        user_id: int,
+    ) -> dict[str, Any]:
+        """Получить статистику рекламодателя."""
+        from src.db.models.user import User
+
+        user = await session.get(User, user_id)
+        if not user:
+            return {"error": USER_NOT_FOUND}
+
+        progress = self.get_progress_to_next_level(
+            user.advertiser_level,
+            user.advertiser_xp,
+        )
+
+        return {
+            "user_id": user_id,
+            "level": user.advertiser_level,
+            "level_name": ADVERTISER_LEVEL_NAMES.get(user.advertiser_level, UNKNOWN_STR),
+            "xp_points": user.advertiser_xp,
+            "progress": progress,
+            "privileges": self.get_level_privileges(user.advertiser_level),
+        }
+
+    async def get_owner_stats(
+        self,
+        session: AsyncSession,
+        user_id: int,
+    ) -> dict[str, Any]:
+        """Получить статистику владельца."""
+        from src.db.models.user import User
+
+        user = await session.get(User, user_id)
+        if not user:
+            return {"error": USER_NOT_FOUND}
+
+        progress = self.get_progress_to_next_level(
+            user.owner_level,
+            user.owner_xp,
+        )
+
+        return {
+            "user_id": user_id,
+            "level": user.owner_level,
+            "level_name": OWNER_LEVEL_NAMES.get(user.owner_level, UNKNOWN_STR),
+            "xp_points": user.owner_xp,
+            "progress": progress,
+            "privileges": self.get_level_privileges(user.owner_level),
+        }
+
+    async def award_streak_bonus(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        streak_days: int,
+    ) -> dict[str, Any]:
+        """Начислить бонус за стрик активности.
 
         Бонусы:
         - 7 дней: +50 XP + 10 ₽
         - 14 дней: +100 XP + 25 ₽
         - 30 дней: +300 XP + 100 ₽
         - 100 дней: +1000 XP + 500 ₽ + значок
-
-        Args:
-            user_id: ID пользователя.
-            streak_days: Количество дней стрика.
-
-        Returns:
-            dict с начисленными бонусами.
         """
+        from sqlalchemy import select
+
         from src.core.services.badge_service import badge_service
         from src.db.models.user import User
 
-        # Таблица бонусов
         bonuses = {
             7: {"xp": 50, "balance_rub": 10, "badge_code": None},
             14: {"xp": 100, "balance_rub": 25, "badge_code": None},
@@ -513,7 +400,6 @@ class XPService:
             100: {"xp": 1000, "balance_rub": 500, "badge_code": "streak_100_days"},
         }
 
-        # Находим максимальный порог который достигнут
         earned_bonus = None
         for threshold, bonus in sorted(bonuses.items(), reverse=True):
             if streak_days >= threshold:
@@ -523,39 +409,30 @@ class XPService:
         if not earned_bonus:
             return {"skipped": True, "reason": "threshold not reached"}
 
-        async with async_session_factory() as session, session.begin():
-            # ✅ БЛОКИРОВКА СТРОКИ для предотвращения race condition
-            from sqlalchemy import select
+        stmt = select(User).where(User.id == user_id).with_for_update()
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
 
-            stmt = select(User).where(User.id == user_id).with_for_update()
-            result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
+        if not user:
+            return {"error": USER_NOT_FOUND}
 
-            if not user:
-                return {"error": USER_NOT_FOUND}
+        user.advertiser_xp += earned_bonus["xp"]  # type: ignore
+        user.balance_rub += Decimal(str(earned_bonus["balance_rub"]))  # type: ignore
 
-            # Начисляем XP
-            user.advertiser_xp += earned_bonus["xp"]  # type: ignore
+        badge_awarded: dict[str, Any] | None = None
+        badge_code: str | None = earned_bonus.get("badge_code")  # type: ignore
+        if badge_code:
+            badge_result = await badge_service.award_badge(user_id, badge_code)
+            if badge_result.get("success"):  # type: ignore
+                badge_awarded = badge_result  # type: ignore
 
-            # Начисляем баланс
-            user.balance_rub += Decimal(str(earned_bonus["balance_rub"]))  # type: ignore
-
-            # Выдаём значок если есть
-            badge_awarded: dict[str, Any] | None = None
-            badge_code: str | None = earned_bonus.get("badge_code")  # type: ignore
-            if badge_code:
-                result = await badge_service.award_badge(user_id, badge_code)
-                if result.get("success"):  # type: ignore
-                    badge_awarded = result  # type: ignore
-
-            # session.begin() автоматически commit
-            return {
-                "success": True,
-                "streak_days": streak_days,
-                "xp_awarded": earned_bonus["xp"],  # type: ignore
-                "balance_rub_awarded": earned_bonus["balance_rub"],  # type: ignore
-                "badge_awarded": badge_awarded,
-            }
+        return {
+            "success": True,
+            "streak_days": streak_days,
+            "xp_awarded": earned_bonus["xp"],  # type: ignore
+            "balance_rub_awarded": earned_bonus["balance_rub"],  # type: ignore
+            "badge_awarded": badge_awarded,
+        }
 
 
 # Глобальный экземпляр

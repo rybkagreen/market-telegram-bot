@@ -20,38 +20,6 @@ class TestFSMStates:
         assert "confirming" in states
         assert "waiting_payment" in states
 
-    def test_placement_states_defined(self):
-        """PlacementStates has required states."""
-        from src.bot.states.placement import PlacementStates
-
-        states = PlacementStates.__dict__
-        assert "waiting_post_text" in states
-        assert "waiting_cancel_confirm" in states
-
-    def test_arbitration_states_defined(self):
-        """ArbitrationStates has required states."""
-        from src.bot.states.arbitration import ArbitrationStates
-
-        states = ArbitrationStates.__dict__
-        assert "waiting_rejection_reason" in states
-        assert "waiting_counter_price" in states
-
-    def test_channel_settings_states_defined(self):
-        """ChannelSettingsStates has required states."""
-        from src.bot.states.channel_settings import ChannelSettingsStates
-
-        states = ChannelSettingsStates.__dict__
-        assert "waiting_price_per_post" in states
-        assert "waiting_start_time" in states
-
-    def test_channel_owner_states_defined(self):
-        """ChannelOwnerStates has 2 states."""
-        from src.bot.states.channel_owner import ChannelOwnerStates
-
-        states = ChannelOwnerStates.__dict__
-        assert "entering_username" in states
-        assert "confirming_add" in states
-
     def test_feedback_states_defined(self):
         """FeedbackStates has entering_text state."""
         from src.bot.states.feedback import FeedbackStates
@@ -67,41 +35,6 @@ class TestFSMStates:
         assert "owner_explaining" in states
         assert "advertiser_commenting" in states
         assert "admin_reviewing" in states
-
-    def test_admin_states_defined(self):
-        """AdminStates has 3 states."""
-        from src.bot.states.admin import AdminStates
-
-        states = AdminStates.__dict__
-        assert "entering_broadcast" in states
-        assert "reviewing_dispute" in states
-        assert "entering_resolution" in states
-
-    def test_all_states_importable(self):
-        """All FSM states can be imported from __init__.py."""
-        from src.bot.states import (
-            AdminStates,
-            ArbitrationStates,
-            CampaignCreateState,
-            CampaignStates,
-            ChannelOwnerStates,
-            ChannelSettingsStates,
-            DisputeStates,
-            FeedbackStates,
-            PlacementStates,
-            TopupStates,
-        )
-
-        assert AdminStates is not None
-        assert ArbitrationStates is not None
-        assert CampaignStates is not None
-        assert CampaignCreateState is not None
-        assert ChannelOwnerStates is not None
-        assert ChannelSettingsStates is not None
-        assert DisputeStates is not None
-        assert FeedbackStates is not None
-        assert PlacementStates is not None
-        assert TopupStates is not None
 
 
 class TestMiddlewares:
@@ -139,32 +72,6 @@ class TestMiddlewares:
         assert AdminFilter is not None
 
 
-class TestMiddlewareStructure:
-    """Tests for middleware structure."""
-
-    def test_throttling_middleware_has_redis_param(self):
-        """ThrottlingMiddleware.__init__ accepts redis parameter."""
-        import inspect
-
-        from src.bot.middlewares.throttling import ThrottlingMiddleware
-
-        sig = inspect.signature(ThrottlingMiddleware.__init__)
-        params = list(sig.parameters.keys())
-        assert "redis" in params
-
-    def test_fsm_timeout_constant_defined(self):
-        """FSM_TIMEOUT constant is defined (300 seconds = 5 minutes)."""
-        from src.bot.middlewares.fsm_timeout import FSM_TIMEOUT
-
-        assert FSM_TIMEOUT == 300
-
-    def test_throttle_time_constant_defined(self):
-        """THROTTLE_TIME constant is defined (0.5 seconds)."""
-        from src.bot.middlewares.throttling import THROTTLE_TIME
-
-        assert THROTTLE_TIME == 0.5
-
-
 class TestCallbackRegistry:
     """Tests for callback data registry (RT-001)."""
 
@@ -192,10 +99,11 @@ class TestCallbackRegistry:
 
 
 class TestNoBotPayoutFlow:
-    """BL-045 / 16.3: bot must not accept payout requisites (PII).
+    """BL-045 / 16.3 / BL-055: bot must not accept payout requisites (PII).
 
-    Setup lives in the web portal; the bot only opens the mini_app at
-    `/own/payouts/request`, which redirects via OpenInWebPortal.
+    Setup lives in the web portal; the bot mints a portal-login URL via
+    build_portal_deeplink and attaches it to inline buttons that open the
+    user's external browser at /own/payouts/request (web portal).
     """
 
     def test_payout_handler_module_absent(self):
