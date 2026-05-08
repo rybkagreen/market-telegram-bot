@@ -217,9 +217,7 @@ async def test_g02_calls_repo_with_advertiser_role(
 
     await check_g02(mock_session, placement)
 
-    mock_repo.has_signed_framework.assert_awaited_once_with(
-        user_id=42, role="advertiser"
-    )
+    mock_repo.has_signed_framework.assert_awaited_once_with(user_id=42, role="advertiser")
 
 
 # ============================================================================

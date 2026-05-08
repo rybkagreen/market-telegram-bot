@@ -19,7 +19,9 @@ def _is_streak_active(last_login_date: date, today: date, yesterday: date) -> bo
     return last_login_date in (today, yesterday) and (today - last_login_date).days == 0
 
 
-async def _process_streak_continue(user: Any, today: date, stats: dict[str, Any]) -> None:
+async def _process_streak_continue(
+    user: Any, today: date, stats: dict[str, Any], session: Any
+) -> None:
     """Обновить стрик если пользователь активен сегодня."""
     if user.updated_at and user.updated_at.date() == today:
         return  # Уже обновили сегодня
@@ -38,7 +40,7 @@ async def _process_streak_continue(user: Any, today: date, stats: dict[str, Any]
     if user.login_streak_days % 7 == 0:
         from src.core.services.xp_service import xp_service
 
-        await xp_service.award_streak_bonus(user.id, user.login_streak_days)
+        await xp_service.award_streak_bonus(session, user.id, user.login_streak_days)
 
 
 def _process_streak_reset(user: Any, stats: dict[str, Any]) -> None:
@@ -49,7 +51,7 @@ def _process_streak_reset(user: Any, stats: dict[str, Any]) -> None:
 
 
 async def _update_user_streak(
-    user: Any, today: date, yesterday: date, stats: dict[str, Any]
+    user: Any, today: date, yesterday: date, stats: dict[str, Any], session: Any
 ) -> None:
     """Обработать стрик одного пользователя."""
     if user.last_login_at is None:
@@ -58,7 +60,7 @@ async def _update_user_streak(
     last_login_date = user.last_login_at.date()
 
     if _is_streak_active(last_login_date, today, yesterday):
-        await _process_streak_continue(user, today, stats)
+        await _process_streak_continue(user, today, stats, session)
     else:
         _process_streak_reset(user, stats)
 
@@ -103,9 +105,9 @@ def update_streaks_daily(self) -> dict[str, Any]:
             yesterday = today - timedelta(days=1)
 
             for user in users:
-                await _update_user_streak(user, today, yesterday, stats)
+                await _update_user_streak(user, today, yesterday, stats, session)
 
-            await session.commit()
+            await session.commit()  # S-48: self-contained pattern
 
             return stats
 
@@ -350,6 +352,7 @@ def award_daily_login_bonus(self, user_id: int) -> dict[str, Any]:
 
             # Начисляем XP за вход
             level_up = await xp_service.add_xp(
+                session,
                 user_id=user_id,
                 amount=10,  # +10 XP за ежедневный вход
                 reason="daily_login",
@@ -357,7 +360,7 @@ def award_daily_login_bonus(self, user_id: int) -> dict[str, Any]:
 
             # Обновляем last_login
             user.updated_at = datetime.now(UTC)
-            await session.flush()
+            await session.commit()  # S-48: self-contained pattern
 
             return {
                 "success": True,

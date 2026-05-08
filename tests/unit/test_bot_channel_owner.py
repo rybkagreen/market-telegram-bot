@@ -81,9 +81,7 @@ def _patch_message_isinstance(monkeypatch: pytest.MonkeyPatch) -> None:
     """``isinstance(callback.message, Message)`` early-returns; bypass with patch."""
     import src.bot.handlers.owner.channel_owner as mod
 
-    monkeypatch.setattr(
-        mod, "isinstance", lambda obj, cls: True, raising=False
-    )
+    monkeypatch.setattr(mod, "isinstance", lambda obj, cls: True, raising=False)
 
 
 async def test_add_channel_confirm_happy_path_creates_channel(

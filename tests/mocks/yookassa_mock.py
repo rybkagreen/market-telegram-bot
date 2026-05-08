@@ -2,22 +2,23 @@
 Mock объекты для тестирования YooKassa SDK без реального API.
 """
 
+from dataclasses import dataclass
 from typing import Any
 
 
+@dataclass
 class MockConfirmation:
     """Mock объекта подтверждения платежа."""
 
-    def __init__(self, url: str = "https://yookassa.ru/checkout/test") -> None:
-        self.confirmation_url = url
+    confirmation_url: str = "https://yookassa.ru/checkout/test"
 
 
+@dataclass
 class MockAmount:
     """Mock объекта суммы платежа."""
 
-    def __init__(self, value: str = "100.00", currency: str = "RUB") -> None:
-        self.value = value
-        self.currency = currency
+    value: str = "100.00"
+    currency: str = "RUB"
 
 
 class MockYooKassaPayment:

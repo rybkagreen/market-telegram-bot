@@ -79,10 +79,7 @@ async def show_inactive_channels(callback: CallbackQuery, session: AsyncSession)
     builder.adjust(1)
 
     count = len(channels)
-    if count == 0:
-        body = "У вас нет скрытых каналов."
-    else:
-        body = "Нажмите на канал для восстановления:"
+    body = "У вас нет скрытых каналов." if count == 0 else "Нажмите на канал для восстановления:"
     await callback.message.edit_text(
         f"📦 *Скрытые каналы* ({count})\n\n{body}",
         reply_markup=builder.as_markup(),
@@ -377,9 +374,7 @@ async def add_channel_confirm(
             user_id=user.id,
             extra={"blockers": [r.gate.value for r in blockers]},
         )
-        await callback.answer(
-            "❌ Добавление канала недоступно", show_alert=True
-        )
+        await callback.answer("❌ Добавление канала недоступно", show_alert=True)
         lines = [
             "❌ *Добавление канала недоступно*",
             "",
@@ -466,8 +461,10 @@ async def restore_channel(callback: CallbackQuery, session: AsyncSession) -> Non
     channel_id = int((callback.data or "").split(":")[-1])
 
     ch = await session.get(TelegramChat, channel_id)
-    if ch:
-        ch.is_active = True
+    if ch is None:
+        await callback.answer("❌ Канал не найден", show_alert=True)
+        return
+    ch.is_active = True
 
     builder = InlineKeyboardBuilder()
     builder.button(text="⚙️ Настройки", callback_data=f"own:channel:{channel_id}")
