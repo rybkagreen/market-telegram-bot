@@ -328,7 +328,7 @@ class Settings(BaseSettings):
         description="In-cluster base URL for server-to-server API calls (bot → API)",
     )
     bot_portal_exchange_allowed_paths: tuple[str, ...] = Field(
-        ("/own/payouts/request",),
+        ("/own/payouts/request", "/topup"),
         alias="BOT_PORTAL_EXCHANGE_ALLOWED_PATHS",
         description="Whitelist of redirect_path values accepted by /api/auth/exchange-bot-token-to-portal",
     )
