@@ -52,15 +52,3 @@ async def show_pending_payouts(callback: CallbackQuery, session: AsyncSession) -
     for p in payouts[:10]:
         lines.append(f"• #{p.id} — {p.gross_amount:.2f} ₽ (owner_id={p.owner_id})")
     await safe_callback_edit(callback, "\n".join(lines))
-
-
-@router.callback_query(lambda c: c.data.startswith("admin:approve_payout:"))
-async def approve_payout(callback: CallbackQuery) -> None:
-    """Одобрить выплату."""
-    await callback.answer("Выплата одобрена", show_alert=True)
-
-
-@router.callback_query(lambda c: c.data.startswith("admin:reject_payout:"))
-async def reject_payout(callback: CallbackQuery) -> None:
-    """Отклонить выплату."""
-    await callback.answer("Выплата отклонена", show_alert=True)

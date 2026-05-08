@@ -343,9 +343,7 @@ async def create_channel(
     admin_test_bypass = current_user.is_admin and body.is_test
     if not admin_test_bypass:
         compliance = LegalComplianceService(session)
-        gate_results = await compliance.check_gates_for_user_role(
-            current_user, role="owner"
-        )
+        gate_results = await compliance.check_gates_for_user_role(current_user, role="owner")
         blockers = [r for r in gate_results if not r.passed]
         if blockers:
             await AuditLogRepo(session).log(

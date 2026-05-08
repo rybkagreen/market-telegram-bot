@@ -4,6 +4,7 @@ Unit-тесты ReputationService.
 
 import pytest
 
+from src.db.models.placement_request import PlacementRequest
 from src.db.models.reputation_history import ReputationAction
 
 
@@ -15,12 +16,13 @@ class TestReputationService:
         self,
         reputation_service,
         advertiser_user,
+        placement_request: PlacementRequest,
     ):
         """Успешная публикация → +1 к репутации."""
         await reputation_service.on_publication(
             advertiser_id=advertiser_user.id,
             owner_id=advertiser_user.id,
-            placement_request_id=1,
+            placement_request_id=placement_request.id,
         )
 
         rep_score = await reputation_service.reputation_repo.get_by_user(advertiser_user.id)
@@ -32,11 +34,12 @@ class TestReputationService:
         self,
         reputation_service,
         advertiser_user,
+        placement_request: PlacementRequest,
     ):
         """Отмена до подтверждения → -5 к репутации."""
         await reputation_service.on_advertiser_cancel(
             advertiser_id=advertiser_user.id,
-            placement_request_id=1,
+            placement_request_id=placement_request.id,
             after_confirmation=False,
         )
 
@@ -48,11 +51,12 @@ class TestReputationService:
         self,
         reputation_service,
         owner_user,
+        placement_request: PlacementRequest,
     ):
         """Первый невалидный отказ → -10 к репутации."""
         await reputation_service.on_invalid_rejection(
             owner_id=owner_user.id,
-            placement_request_id=1,
+            placement_request_id=placement_request.id,
         )
 
         rep_score = await reputation_service.reputation_repo.get_by_user(owner_user.id)
@@ -63,15 +67,16 @@ class TestReputationService:
         self,
         reputation_service,
         advertiser_user,
+        placement_request: PlacementRequest,
     ):
         """История изменений записывается."""
         await reputation_service.on_publication(
             advertiser_id=advertiser_user.id,
             owner_id=advertiser_user.id,
-            placement_request_id=1,
+            placement_request_id=placement_request.id,
         )
 
         history = await reputation_service.reputation_repo.get_history(advertiser_user.id)
         assert len(history) >= 1
-        assert history[0].action == ReputationAction.PUBLICATION
+        assert history[0].action == ReputationAction.publication
         assert history[0].delta == 1.0

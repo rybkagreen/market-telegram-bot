@@ -7,6 +7,190 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(empty — ready для next workstream)
+
+## [v0.5.0] - 2026-05-08
+
+### Test infrastructure cleanup (T1.2 series)
+
+Closes T1.2.1 — T1.2.8 sub-blocks (BL-072 T1.2). Pre-series baseline:
+99 audit entries (81 fails / 17 errors / 1 collection error)
+accumulated pre-Phase-3b (model schema drift, sqlite shadow-table issues,
+FSM state rename, `auth_utils.create_access_token` refactor, Telegram
+token env-dependency, etc.). Post-series baseline: 0 failing / 993 passing
+/ 3 skipped / 0 errors + 7 lint (intentional `tests/unit/conftest.py`
+asyncio policy ordering — BL-024 prohibits modification) / 0 format / 4
+mypy (`mediakit_service.py` deferred — BL-076 T1.2-D1).
+
+### Added
+
+- Root `placement_request` fixture в `tests/conftest.py` для FK reference
+  scenarios (T1.2.6).
+- AST-based ESCROW invariant validator
+  (`tests/unit/test_release_escrow_callsites.py`) с multi-callsite
+  allowlist (`publication_service.py` + `disputes.py` advertiser_fault).
+  Replaces grep-based assertion (T1.2.6).
+- Deterministic Mistral L3 mock pattern (class-level patch) для
+  `content_filter` unit tests (T1.2.5g).
+- 4 contract tests pinning `audit_logs.action varchar(64)` + SAVEPOINT
+  pattern в `AuditLogRepo.log` (T1.2.3).
+- Empty `tests/unit/__init__.py` + `tests/integration/__init__.py` для
+  fixing pytest «sub-package without parent» namespace collision (L61);
+  surfaced when relocating `test_admin_payouts.py` к integration layer
+  (D4).
+- Regression tests за xp_service Pattern 1 refactor (4 new tests
+  documenting commit semantics) + counter_offer state-machine routing
+  tests via `PlacementRequestService.owner_counter_offer` canonical path
+  (T1.2.4 C4 / T1.2.7).
+
+### Changed
+
+- `audit_logs.action` column promoted varchar(20) → varchar(64) (initial
+  schema migration `0001_initial_schema.py` per pre-production rule
+  carved into CLAUDE.md); SAVEPOINT pattern added к `AuditLogRepo.log`
+  (`session.begin_nested()`) для poisoned-transaction isolation.
+  Replaces broken Python-except-only fire-and-forget claim (T1.2.3).
+- `_resolve_user_for_audience` (`src/api/dependencies.py`) refactored к
+  accept `session: AsyncSession` via FastAPI DI, eliminating direct
+  `async_session_factory()` call. Auth dep now uses test-overridable
+  session, enabling api-test fixture isolation (T1.2.4b).
+- Pydantic Decimal 422 validation properly serializes — fixes 500 → 422
+  для endpoints using Decimal `ge`/`le` validation (`src/api/main.py`
+  exception handler) (T1.2.4b).
+- `xp_service` async methods refactored к Pattern 1 (caller-owns
+  session): removed `async with session.begin()`, removed
+  `async with async_session_factory()`, all accept
+  `session: AsyncSession`. 3 src/ callers updated (`notification_tasks.py`
+  `notify_owner_xp_for_publication` Pattern 2, `gamification_tasks.py`
+  `_process_streak_continue` + `award_daily_login_bonus`). Eliminates 2
+  latent silent-rollback bugs in `add_advertiser_xp` / `add_owner_xp`
+  (T1.2.4 C4).
+- `tests/conftest.py:472–484` — `api_client_with_auth` fixture migrated
+  from removed `create_access_token` (single-arg legacy) к
+  `create_jwt_token` (4 args: `user_id`, `telegram_id`, `plan`,
+  `source: JwtSource`) per upstream refactor of `src/api/auth_utils.py`.
+  Audience pinned к `"mini_app"` (dominant test pattern); plan reads
+  `advertiser_user.plan` (User-model default `"free"`) (T1.2.1).
+- 4 reputation tests refactored к use real placement creation flow
+  (eliminate FK violations); review_service test status switch (escrow
+  → pending) preserves test intent без INV-1 violation (T1.2.6).
+- `ReputationAction.PUBLICATION` enum case fix (`PUBLICATION` →
+  `publication` lowercase canonical) — latent bug surfaced after FK
+  fixture fix in T1.2.6 Wave 0.
+- counter_offer tests migrated от deleted
+  `PlacementRequestRepository.counter_offer` к
+  `PlacementRequestService.owner_counter_offer` (canonical state
+  machine); legal-gate bypass via `bypass_gates=True` keyword (T1.2.7).
+- bot_factory tests updated к Bot factory unification: mock target paths
+  point к `src.bot.session_factory.new_bot` instead of `aiogram.Bot`
+  (post 911a4c8 unification of `get_bot()` / `ephemeral_bot()`
+  factories) (T1.2.8).
+- `tests/unit/api/test_admin_payouts.py` relocated к
+  `tests/integration/api/test_admin_payouts.py`; 4-way fixture override
+  → 1-way (`get_db_session` only); admin endpoint with full ORM auth
+  chain reclassified as integration (D4 architectural cleanliness path).
+- `_check_dedup` → `_check_dedup_async` patch target rename (post S-40
+  production rename) в 2 placement-task tests (T1.2.2 C16).
+- mock-leakage refactor в
+  `test_check_escrow_stuck_group_a_dispatches_delete_not_refund` —
+  `session.execute()` shared `return_value` caused Group C path to
+  dispatch duplicate delete; refactored к `side_effect=[result_AB,
+  result_C]` с `await_count == 2` lock-in (T1.2.2 C16).
+
+### Removed
+
+- 11 dead `PayoutService` methods including `create_payout` с 3 S-48
+  violations (`async with session.begin()` at L513, L775, L840) — zero
+  production callers verified empirically (T1.2.5e).
+- `PayoutComplianceService` skeleton
+  (`src/core/services/payout_compliance_service.py`) — empty registries
+  (`_PAYOUT_TRANSITION_GATES`, `_PAYOUT_CREATE_GATES`), zero callers;
+  recreate в Phase 5 / 5b.7 (see BL-076 T1.2-D3) (T1.2.5e).
+- mini_app payout screens, hooks, types, routes — bot redirects к web
+  portal deeplink per BL-055 atomic FE+BE deploy (T1.2.5e).
+- Empty bot admin payout approve/reject callback stubs (T1.2.5e).
+- Free function `calculate_payout` в `src/constants/payments.py` — zero
+  src/ callers (T1.2.5e).
+- 26 deprecated unit tests across surgical/wholesale deletion (T1.2.5
+  Phase C-1 / C-2 / D4):
+  - C1: `tests/unit/test_ai_service.py` (deleted MistralAIService
+    coverage — see BL-076 T1.2-D12)
+  - C2: 11 tests on `_handle_start` / `safe_callback_edit` internal
+    helpers
+  - C3: 9 tests asserting internal FSM topology (state names, middleware
+    constants)
+  - C4: 6 deleted gamification tests (`test_gamification.py` wholesale
+    per L60 ≥1-passing rule)
+- Inline-imports of `_USER_GATE_CHECKERS` constant в test files (T1.2.7
+  — replaced by service-level invocation).
+
+### Fixed
+
+- `audit_logs` production bug — `varchar(20)` truncation на 28-char
+  `transition_blocked` action string + broken Python-except-only
+  fire-and-forget pattern (Python catch не rescues DBAPI
+  transaction state — claim was advertised, not delivered). Real cause
+  traced via L48 lesson (DBAPI tx-state isolation + traceback-chain
+  reading) (T1.2.3).
+- `auth_utils.create_access_token` (single-arg legacy) ImportError
+  fan-out across 3 test consumer files (cluster P1 — 9 ImportErrors
+  cleared via single-file fixture edit) (T1.2.1).
+- 9 ImportErrors → 0 cleared в C7 fixture-name cluster
+  (`test_advertiser` / `test_owner` / `test_channel` rename) (T1.2.2 C7).
+- `mediakit_service` model side migrated (`last_avg_views` →
+  `avg_views`, `last_post_frequency` removed, `price_per_post` →
+  `ChannelSettings.price_per_post`); service
+  `src/core/services/mediakit_service.py:111-116` still reads old field
+  names (4 mypy errors residual; deferred per BL-076 T1.2-D1) (T1.2.2
+  C10 / T1.2.4 Q3=a).
+
+### Known residual (deferred к future workstreams)
+
+- 7 lint errors в `tests/unit/conftest.py` (intentional asyncio policy
+  ordering — BL-024 prohibits modification; suppress shim deferred —
+  BL-076 T1.2-D2).
+- 4 mypy errors в `src/core/services/mediakit_service.py` (`TelegramChat`
+  schema drift — BL-076 T1.2-D1).
+- T1.2.5f topup normalize — separate future workstream (apply payout
+  deeplink pattern к topup; requires UX decisions).
+- T1.2.4d B3 — full elimination `async_session_factory()` outside
+  `db/session.py` — separate future workstream.
+- 19 consolidated deferred entries in BL-076 (mediakit production bug,
+  PayoutComplianceService recreation, audit-log SAVEPOINT sweep,
+  content_filter constants drift, MistralAI fail-open investigation,
+  FSM/cmd_start/gamification coverage gaps, MistralAI unit coverage,
+  __init__.py audit, review_service fixtures, ESCROW invariant
+  evolution, counter-offer gate coverage, test infra DRY, INV-3 lint
+  enforcement, xp_service helpers Pattern 2 sweep).
+
+### Cumulative impact
+
+- Tests: 81F → 0F (test failures), 17 collection errors → 0E.
+- Production code: 11 dead `PayoutService` methods removed, 3 S-48
+  violations eliminated, audit_logs SAVEPOINT correctness, `xp_service`
+  Pattern 1 refactor (6 of 7 methods), `_resolve_user_for_audience` DI
+  refactor, Pydantic Decimal 422 fix, `ReputationAction` enum case fix.
+- Frontend (mini_app): payout screens removed (web portal authoritative
+  per BL-055).
+- Test infrastructure: real-flow fixtures replace synthetic scaffolding
+  в reputation+escrow domains; 1 admin-test relocated к integration
+  layer (D4); empty `tests/{unit,integration}/__init__.py` added для
+  pytest sub-package collision fix (L61).
+
+### Notes
+
+- Branch `feature/t1-2-test-failures-cleanup` merged --no-ff в
+  `develop`, then `develop` --no-ff в `main` (atomic FE+BE deploy moment
+  per BL-055 / web_portal-authoritative payout flow).
+- Phase 3c.1 wiring (previously in `[Unreleased]`) extracted к
+  `[v0.4.0-phase3c]` retroactive section.
+- Preserved branches: `feature/legal-compliance-gates` @ 9d072f1,
+  `feature/phase3b-compliance-gates` @ 2d78cf2,
+  `feature/phase3c-transition-wiring` @ 6f44ccb. Preserved tag:
+  `v0.4.0-phase3c` at main `59c4094`.
+
+## [v0.4.0-phase3c] - 2026-05-04
+
 ### Added — Phase 3c.1 transition-time gate enforcement wiring (2026-05-04)
 
 - `PlacementTransitionService.transition()` now invokes
@@ -18,7 +202,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bypass_gates: bool = False` keyword-only parameter on `transition()`
   for admin/test contexts (default opt-OUT, never opt-IN).
 - `AuditLog` row written on every transition decline
-  (`action="transition_blocked"`, 18 chars; fits 20-char column).
+  (`action="transition_blocked"`, 18 chars; fits 20-char column at
+  the time — column promoted к varchar(64) в v0.5.0 T1.2.3).
 - Caller-side marker-aware UX: PHASE_N_PENDING markers (G07/G15/G16/G17/G18)
   render as "временно недоступно" until phase ships real body; real-fail
   blockers render full remediation list. Shared classifier at
