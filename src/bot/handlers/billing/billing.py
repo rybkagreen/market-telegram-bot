@@ -115,8 +115,25 @@ async def buy_plan(callback: CallbackQuery, session: AsyncSession) -> None:
         needed = price - user.balance_rub
         from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+        topup_url: str | None = None
+        try:
+            topup_url = await build_portal_deeplink(
+                telegram_id=user.telegram_id,
+                redirect_path="/topup",
+            )
+        except PortalDeeplinkError as exc:
+            logger.warning(
+                "plan_buy_topup_button_skipped",
+                extra={
+                    "event": "plan_buy_topup_button_skipped",
+                    "telegram_id": user.telegram_id,
+                    "error": str(exc),
+                },
+            )
+
         builder = InlineKeyboardBuilder()
-        builder.button(text="💳 Пополнить баланс", callback_data="billing:topup_start")
+        if topup_url:
+            builder.button(text="💳 Пополнить баланс", url=topup_url)
         builder.button(text="🔙 Назад", callback_data="billing:plans")
         builder.adjust(1)
         await callback.message.edit_text(
