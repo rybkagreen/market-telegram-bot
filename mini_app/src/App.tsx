@@ -10,7 +10,6 @@ const MainMenu           = lazy(() => import('@/screens/common/MainMenu'))
 const Cabinet            = lazy(() => import('@/screens/common/Cabinet'))
 const Referral           = lazy(() => import('@/screens/common/Referral'))
 const TopUp              = lazy(() => import('@/screens/common/TopUp'))
-const TopUpConfirm       = lazy(() => import('@/screens/common/TopUpConfirm'))
 const Help               = lazy(() => import('@/screens/common/Help'))
 const Feedback           = lazy(() => import('@/screens/common/Feedback'))  // ДОБАВЛЕНО (2026-03-18)
 const Plans              = lazy(() => import('@/screens/common/Plans'))
@@ -105,7 +104,6 @@ const router = createBrowserRouter([
       { path: 'cabinet',                  element: <Cabinet /> },
       { path: 'referral',                 element: <Referral /> },
       { path: 'topup',                    element: <TopUp /> },
-      { path: 'topup/confirm',            element: <TopUpConfirm /> },
       { path: 'help',                     element: <Help /> },
       { path: 'feedback',                 element: <Feedback /> },  // ДОБАВЛЕНО (2026-03-18)
       { path: 'plans',                    element: <Plans /> },

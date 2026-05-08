@@ -78,9 +78,21 @@ async def show_cabinet(callback: CallbackQuery, session: AsyncSession) -> None:
                 extra={"event": "cabinet_payout_button_skipped", "error": str(exc)},
             )
 
+    topup_url: str | None = None
+    try:
+        topup_url = await build_portal_deeplink(
+            telegram_id=user.telegram_id,
+            redirect_path="/topup",
+        )
+    except PortalDeeplinkError as exc:
+        logger.warning(
+            "cabinet_topup_button_skipped",
+            extra={"event": "cabinet_topup_button_skipped", "error": str(exc)},
+        )
+
     await callback.message.edit_text(
         text,
-        reply_markup=cabinet_kb(user.earned_rub, payout_url=payout_url),
+        reply_markup=cabinet_kb(user.earned_rub, payout_url=payout_url, topup_url=topup_url),
         parse_mode="Markdown",
     )
     await callback.answer()
