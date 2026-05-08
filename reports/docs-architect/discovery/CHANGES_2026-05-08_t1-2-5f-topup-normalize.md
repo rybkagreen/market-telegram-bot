@@ -79,6 +79,34 @@ prompt's accompanying calculation (+3, −2, −1 from 997P) actually gives 997P
 
 - **Pre-fill amount support (Decisions 1.f / 5.f / 5.g)** — defer к UX improvement BACKLOG. Single-target `/topup` was selected (Decision 1.e). The user clicks the deeplink and sees the web-portal topup form without a pre-filled amount. If users complain about typing the amount twice, a query-string-based pre-fill flow (e.g. `/topup?amount=1000`) can be added; the whitelist parser tolerates query params today.
 
+## Post-closure fixes
+
+### Fix #1 — `fix(t1.2.5f-debug): incremental migration cd59fc72b378 — schema drift surfaced after rebuild`
+
+**Trigger:** After `docker compose build --no-cache` rebuild, bot stopped responding to /start. Every aiogram update aborted at middleware-level on user load — `legal_profiles.egrul_egrip_snapshot` did not exist в DB.
+
+**Root cause:** DB built before commit 6c75bda (`feat(db): add legal_profile.egrul_egrip_snapshot JSONB column`) edited `0001_initial_schema.py` к add the column. Per pre-prod policy the DB needed `DROP DATABASE; CREATE DATABASE; alembic upgrade head` after that edit; that step never ran. Three further schema-edit commits accumulated the same way (5 ops total).
+
+**Marina decision:** Option C (incremental migration, treats DB as production going forward) — explicit override of CLAUDE.md pre-prod rule. Pre-fix dump preserved at `backups/pre_t1_2_5f_fix_20260508T112317.sql` (107KB / 3702 lines).
+
+**Migration `cd59fc72b378_drift_fix_post_t1_2_5f_egrul_idempotency_audit_action_enum.py`:**
+1. `audit_logs.action`: VARCHAR(20) → VARCHAR(64) — matches commit 8a283b5
+2. `legal_profiles.egrul_egrip_snapshot`: ADD JSONB NULL — matches commit 6c75bda
+3. `payout_requests.idempotency_key`: ADD VARCHAR(128) NULL — matches commit c62cc48
+4. `payout_requests.payout_method_type`: VARCHAR(16) → ENUM(payoutmethodtype) — matches commit 5c8aa66; manual edit added explicit `payout_method_enum.create()` (autogenerate omits CREATE TYPE для VARCHAR→ENUM) and `postgresql_using='payout_method_type::text::payoutmethodtype'`
+5. UNIQUE INDEX `ix_payout_requests_idempotency_key` — matches commit c62cc48
+
+**Verification:**
+- `alembic upgrade head` → applied cleanly
+- `alembic check` → `No new upgrade operations detected.`
+- Bot + API restarted, polling resumed без errors
+
+**Open follow-up для Marina (not autonomous):**
+`0001_initial_schema.py` still contains the 5 columns/types as if part of base schema. For future fresh-DB setups, this creates double-declaration: 0001 creates the column → cd59fc72b378 tries to ADD COLUMN → fails. Two options:
+- (i) Revert the 5 affected lines in `0001_initial_schema.py` so 0001 represents "what was actually applied at DB-creation time", and leave the deltas only в cd59fc72b378.
+- (ii) Make cd59fc72b378 idempotent via `IF NOT EXISTS` patterns (more fragile).
+This is pure docs/lint cleanup для future fresh installs — does NOT affect the current running DB.
+
 ## Verification footer
 
-🔍 Verified against: 58a1dd0 | 📅 Updated: 2026-05-08T10:32:04+03:00
+🔍 Verified against: 58a1dd0 (Phase C) + cd59fc72b378 (post-closure migration) | 📅 Updated: 2026-05-08T11:30:00+03:00
