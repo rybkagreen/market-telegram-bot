@@ -5,20 +5,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from aiogram import F, Router
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.keyboards.billing.topup import (
-    topup_amounts_kb,
-    topup_confirm_kb,
-    topup_payment_kb,
-    topup_success_kb,
-)
-from src.bot.states.billing import TopupStates
-from src.bot.utils.safe_callback import safe_callback_edit
+from src.bot.utils.portal_deeplink import PortalDeeplinkError, build_portal_deeplink
 from src.config.settings import settings
-from src.constants.fees import YOOKASSA_FEE_RATE
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.repositories.user_repo import UserRepository
 
@@ -37,161 +28,34 @@ CABINET_SCENE = "main:cabinet"
 router = Router()
 
 
-@router.callback_query(lambda c: c.data == "billing:topup_start")
-async def topup_start(callback: CallbackQuery, state: FSMContext) -> None:
-    """Начать пополнение."""
+@router.callback_query(F.data == "billing:topup_start")
+async def topup_start(callback: CallbackQuery) -> None:
+    """Topup flow moved к web portal (T1.2.5f). Mints portal deeplink and renders inline button."""
     if not isinstance(callback.message, Message):
         return
-    await state.set_state(TopupStates.entering_amount)
-    await callback.answer("Выберите сумму")
-    await callback.message.answer("💰 Выберите сумму пополнения:", reply_markup=topup_amounts_kb())
-
-
-@router.callback_query(lambda c: c.data.startswith("topup:amount:"))
-async def topup_select_amount(callback: CallbackQuery, state: FSMContext) -> None:
-    """Выбрать сумму пополнения."""
-    amount = (callback.data or "").split(":")[-1]
-    await state.update_data(amount=amount)
-    await state.set_state(TopupStates.confirming)
-    fee = Decimal(amount) * YOOKASSA_FEE_RATE
-    gross = Decimal(amount) + fee
-    text = f"Пополнение на {amount} ₽\nКомиссия: {fee:.2f} ₽\nК оплате: {gross:.2f} ₽"
-    await safe_callback_edit(callback, text, reply_markup=topup_confirm_kb())
-
-
-@router.callback_query(F.data == "topup:pay", TopupStates.confirming)
-async def topup_pay(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    """Создать платёж ЮKassa."""
-    if not isinstance(callback.message, Message):
-        return
-    data = await state.get_data()
-    amount = Decimal(str(data["amount"]))
-
-    await callback.message.edit_text(
-        f"⏳ *Создаём платёж...*\n\nСумма к зачислению: *{amount} ₽*",
-        parse_mode="Markdown",
-    )
-
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer(USER_NOT_FOUND, show_alert=True)
-        return
-
-    from src.core.services.billing_service import PaymentProviderError
-    from src.core.services.yookassa_service import YooKassaService
-
     try:
-        result = await YooKassaService().create_topup_payment(
-            session=session,
-            user_id=user.id,
-            desired_balance=amount,
+        topup_url = await build_portal_deeplink(
+            telegram_id=callback.from_user.id,
+            redirect_path="/topup",
         )
-    except PaymentProviderError as exc:
-        logger.error(
-            "YooKassa PaymentProviderError for user %s: code=%s request_id=%s",
-            user.id,
-            exc.code,
-            exc.request_id,
+    except PortalDeeplinkError as exc:
+        logger.warning(
+            "topup_redirect_failed",
+            extra={
+                "event": "topup_redirect_failed",
+                "telegram_id": callback.from_user.id,
+                "error": str(exc),
+            },
         )
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-        builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 Назад", callback_data="billing:topup_start")
-        await callback.message.edit_text(
-            "⚠️ Платёжный сервис временно недоступен.\n\n"
-            "Попробуйте позже или обратитесь в поддержку.\n"
-            f"Код запроса: {exc.request_id}",
-            reply_markup=builder.as_markup(),
-        )
-        await callback.answer()
+        await callback.answer("Не удалось открыть портал. Попробуйте ещё раз.", show_alert=True)
         return
-    except ValueError as exc:
-        logger.warning("Topup ValueError for user %s: %s", user.id, exc)
-        await callback.message.edit_text(f"⚠️ Ошибка: {exc}")
-        await callback.answer()
-        return
-    except Exception as e:
-        logger.error("YooKassa unexpected error for user %s: %s", user.id, e)
-        import sentry_sdk
-
-        sentry_sdk.capture_exception()
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-        builder = InlineKeyboardBuilder()
-        builder.button(text="🔙 Назад", callback_data="billing:topup_start")
-        await callback.message.edit_text(
-            "❌ Ошибка создания платежа. Попробуйте позже.\n\n"
-            "Если проблема повторяется — обратитесь в поддержку.",
-            reply_markup=builder.as_markup(),
-        )
-        await callback.answer()
-        return
-
-    await state.update_data(payment_id=result["payment_id"])
-    await state.set_state(TopupStates.waiting_payment)
+    await callback.answer()
     await callback.message.edit_text(
-        f"💳 *Оплата*\n\nСумма к оплате: *{result['amount']} ₽*\n"
-        f"Перейдите по ссылке для оплаты.\n\n⏱ Ссылка действует 15 минут.",
-        reply_markup=topup_payment_kb(result["payment_url"], result["payment_id"]),
-        parse_mode="Markdown",
+        "Пополнение баланса перенесено в веб-портал.\nОткройте по ссылке ниже:",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🌐 Открыть веб-портал", url=topup_url)]]
+        ),
     )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("topup:check:"))
-async def topup_check(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    """Проверить статус платежа."""
-    if not isinstance(callback.message, Message):
-        return
-    payment_id = (callback.data or "").split(":")[-1]
-    from src.core.services.yookassa_service import yookassa_service
-
-    try:
-        status = await yookassa_service.get_payment_status(payment_id)
-        if status is None:
-            logger.warning("YooKassa payment status unavailable for %s", payment_id)
-            await callback.answer(
-                "⏳ Статус платежа пока неизвестен. Попробуйте через минуту.",
-                show_alert=True,
-            )
-            return
-        if status == "succeeded":
-            user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-            await state.clear()
-            balance = user.balance_rub if user else 0
-            await callback.message.edit_text(
-                f"✅ *Баланс пополнен!*\n\nНовый баланс: *{balance} ₽*",
-                reply_markup=topup_success_kb(),
-                parse_mode="Markdown",
-            )
-        elif status == "pending":
-            await callback.answer("⏳ Платёж ещё не получен. Подождите немного.", show_alert=True)
-            return
-        else:
-            await callback.answer("❌ Платёж не прошёл.", show_alert=True)
-            return
-    except Exception as e:
-        logger.error("YooKassa check error: %s", e)
-        import sentry_sdk
-
-        sentry_sdk.capture_exception()
-        await callback.answer("❌ Ошибка проверки платежа.", show_alert=True)
-        return
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("topup:cancel:"))
-async def topup_cancel(callback: CallbackQuery, state: FSMContext) -> None:
-    """Отменить пополнение."""
-    if not isinstance(callback.message, Message):
-        return
-    await state.clear()
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 В кабинет", callback_data=CABINET_SCENE)
-    await callback.message.edit_text("❌ Пополнение отменено.", reply_markup=builder.as_markup())
-    await callback.answer()
 
 
 @router.callback_query(F.data == "billing:plans")
