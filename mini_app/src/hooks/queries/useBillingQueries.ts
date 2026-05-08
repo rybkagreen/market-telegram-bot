@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlans, createTopUp, getTopUpStatus, purchasePlan, getBillingHistory, getFeeConfig } from '@/api/billing'
+import { getPlans, purchasePlan, getBillingHistory, getFeeConfig } from '@/api/billing'
 import { useUiStore } from '@/stores/uiStore'
-import type { TopUpResponse } from '@/lib/types'
 
 export const useBillingHistory = (page: number = 1) =>
   useQuery({
@@ -15,19 +14,6 @@ export const usePlans = () =>
     queryKey: ['billing', 'plans'],
     queryFn: getPlans,
     staleTime: 60 * 60_000,
-  })
-
-export const useCreateTopUp = () =>
-  useMutation<TopUpResponse, unknown, number>({
-    mutationFn: (desiredAmount: number) => createTopUp(desiredAmount),
-  })
-
-export const useTopUpStatus = (id: string | null) =>
-  useQuery({
-    queryKey: ['billing', 'topup', id],
-    queryFn: () => getTopUpStatus(id!),
-    enabled: !!id,
-    refetchInterval: 3000,
   })
 
 export const useFeeConfig = () =>
