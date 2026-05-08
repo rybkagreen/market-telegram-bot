@@ -15,6 +15,7 @@ from src.bot.keyboards.advertiser.placement import (
     video_upload_keyboard,
 )
 from src.bot.states.placement import PlacementStates
+from src.bot.utils.portal_deeplink import PortalDeeplinkError, build_portal_deeplink
 from src.bot.utils.safe_callback import safe_callback_edit
 from src.constants.fees import (
     CANCEL_REFUND_ADVERTISER_RATE,
@@ -366,7 +367,26 @@ async def camp_pay(callback: CallbackQuery, session: AsyncSession) -> None:
             callback_data=f"camp:pay:balance:{request_id}",
         )
     else:
-        builder.button(text="💳 Пополнить баланс", callback_data="billing:topup_start")
+        topup_url: str | None = None
+        if user is not None:
+            try:
+                topup_url = await build_portal_deeplink(
+                    telegram_id=user.telegram_id,
+                    redirect_path="/topup",
+                )
+            except PortalDeeplinkError as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "placement_payment_topup_button_skipped",
+                    extra={
+                        "event": "placement_payment_topup_button_skipped",
+                        "telegram_id": user.telegram_id,
+                        "error": str(exc),
+                    },
+                )
+        if topup_url:
+            builder.button(text="💳 Пополнить баланс", url=topup_url)
     builder.button(text="❌ Отменить заявку", callback_data=f"camp:cancel:{request_id}")
     builder.adjust(1)
 

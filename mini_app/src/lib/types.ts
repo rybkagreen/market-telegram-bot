@@ -263,18 +263,6 @@ export interface OwnerAnalytics {
 
 // ---- Billing ----
 
-export interface TopUpRequest {
-  desired_amount: number
-}
-
-export interface TopUpResponse {
-  payment_id: string
-  payment_url: string
-  amount: string
-  fee: string
-  total: string
-}
-
 export interface PlanInfo {
   key: Plan
   name: string
