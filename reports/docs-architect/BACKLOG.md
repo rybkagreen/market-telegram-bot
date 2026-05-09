@@ -2271,6 +2271,15 @@ within current sub-block charter.
 
 **Refs:** Phase 3b closure batch (BL-072, BL-074); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
 
+**Disposition 2026-05-08 (per "архитектурная чистота" review):**
+
+- **T2.1** — DEFER post-launch closure batch (cosmetic asymmetry; implicit rollback works correctly via `__aexit__`).
+- **T2.2** — ESCALATED to separate architectural decision session (S-48 contract tension; не code change item).
+- **T2.3 / T2.4** — ABSORBED into Phase 4/5 PayoutCompliance recreation scope (dead code + 3 S-48 violations + ФЗ-Налог compliance gap для individual owners; L33 mandate full cleanup at next file touch).
+- **T2.5** — ABSORBED into BL-081 launch hardening bundle (frontend addPayout X-Idempotency-Key opt-in).
+- **T2.6** — DEFER to Phase 5 (already planned: YooKassa key mapping table).
+- **T2.7** — DEFER to Phase 5 (already planned: G06 provider-validated state).
+
 ### BL-074 — Phase 3b Tier 3 deferred work (22 items)
 
 **Status:** OPEN — deferred work; не pre-launch strict; eventual hardening
@@ -2316,6 +2325,30 @@ within current sub-block charter.
 - **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (5b.3 L18)
 
 **Refs:** Phase 3b closure batch (BL-072, BL-073); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
+
+**Disposition 2026-05-08 (per "архитектурная чистота" review):**
+
+**Frontend:**
+- **T3.1, T3.2, T3.3, T3.7** — ABSORBED into BL-081 launch hardening bundle.
+
+**Operational:**
+- **T3.4, T3.5, T3.6, T3.10** — DEFER post-launch (ops/admin tooling, не user-facing).
+
+**Phase 5 PayoutCompliance:**
+- **T3.12-T3.16** — DEFER to Phase 5 (already planned).
+
+**Documentation hygiene:**
+- **T3.8** — DEFER post-launch closure batch.
+- **T3.11** — RESOLVED inline в Q9 closure batch (sweep deferred).
+- **T3.21** — ABSORBED into BL-081 launch hardening bundle (compute/writes split refactor).
+- **T3.22** — RESOLVED inline в Q9 closure batch.
+
+**Code hygiene:**
+- **T3.9** — FOLD into next T1.2.x cleanup commit (4 pre-existing ruff `src/` errors).
+- **T3.17** — CLOSED by 5b.5 / BL-080 absorbs (yandex skeleton dead code).
+- **T3.18** — ABSORBED into BL-080 scope expansion (`_global_provider` module-state).
+- **T3.19** — ABSORBED into BL-080 scope expansion (`OrdRegistration.status` enum migration).
+- **T3.20** — ABSORBED into BL-081 launch hardening bundle (`Contract.contract_type` rename).
 
 ### BL-075 — `_TRANSITION_GATES` does not enforce G01-G06 at any placement transition
 
@@ -2857,6 +2890,8 @@ appended via commit `fa85a38`).
 
 7. **Media-aware marking** (interaction with BL-079): how ERID disclaimer renders когда post содержит media. См. item 2 above (caption budget design).
 
+**Scope expansion 2026-05-08 (BL-074 disposition review):** absorbs BL-074 T3.18 (`_global_provider` module-state в `src/core/services/ord_service.py:48` cleanup) + T3.19 (`OrdRegistration.status` String(20) → Enum migration). Natural fit с ERID flow completion / ord_service touchpoints.
+
 **Phase A research scope:**
 
 - Read full ERID flow: `publication_service.py:_build_marked_text:106`, `ord_service.py`, `ord_yandex_provider.py`, `yandex_ord_provider.py`, `stub_ord_provider.py`, `OrdProvider` protocol.
@@ -2892,6 +2927,29 @@ appended via commit `fa85a38`).
 - `src/core/services/publication_service.py:106` — `_build_marked_text`.
 - `src/core/services/ord_service.py`, `ord_yandex_provider.py:13`, `yandex_ord_provider.py:36`, `stub_ord_provider.py`.
 - Telegram Bot API docs: caption length 1024, text 4096, `InputMediaPhoto`, `send_media_group`.
+
+### BL-081 — Phase 3b launch hardening bundle
+
+**Status:** OPEN — launch prerequisite per "архитектурная чистота" policy
+**Created:** 2026-05-08
+**Source:** BL-073/BL-074 disposition review 2026-05-08
+
+Bundle of 7 launch absorption items from BL-073/BL-074 Tier 2/3 review (Marina decision 2026-05-08: priority shift "не экономия бюджета → архитектурная чистота + полная готовность включая всплывающее"). Each item ships before launch; BL-081 closes when все 7 done.
+
+#### Frontend UX gaps (5)
+
+- **T2.5** — Frontend `addPayout` send `X-Idempotency-Key` header (`web_portal/src/api/payouts.ts:11`); client retry safety
+- **T3.1** — mini_app declined-channel UX deeplink (originally 5b.7a)
+- **T3.2** — web_portal channel-add error UI render `extra.blockers[]` (originally 5b.7a)
+- **T3.3** — `/payout-methods` portal route для G06 fail `remediation_url` (originally 5b.7a)
+- **T3.7** — Frontend `addChannel` mutation idempotency convention (originally 5b.7a O.6)
+
+#### Refactor / schema (2)
+
+- **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (originally 5b.3 L18; mechanical clean naming)
+- **T3.21** — `LegalProfileService.check_completeness` side-effects split: pure compute + write (originally 5b.3 L19)
+
+**Refs:** BL-073 disposition (T2.5), BL-074 disposition (T3.1-T3.3, T3.7, T3.20, T3.21).
 
 ## Closed items
 
