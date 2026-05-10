@@ -2,7 +2,7 @@
 
 _Last updated: 2026-04-28 (post Phase 2 closure, серия 15.x active, BL-037 codified)_
 
-> **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 7) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
+> **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 8) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
 >
 > **Проект не в production.** Критерий — не "правильно", а "архитектурно элегантно". Backward compatibility НЕ требуется. Мёртвый код, dev-only ветки, hardcoded значения — удаляются.
 >
@@ -911,6 +911,8 @@ def get_ord_provider(placement: PlacementRequest) -> OrdProvider:
 - Gate G08 (Phase 3) использует ту же детерминированную логику.
 - UI: в `CampaignWaiting.tsx` секция "ОРД" — убираем вручную; всё видно через Timeline (Phase 7) как event.
 
+**BL-080 absorption:** ERID flow completion + production hardening — caption budget design, idempotency on retry, retry policy, audit trail split, yandex provider dedup (closes BL-074 T3.17), failure paths. Plus T3.18 (`_global_provider` module-state cleanup) + T3.19 (`OrdRegistration.status` String(20)→Enum migration) per BL-074 disposition. See BACKLOG.md BL-080 для scope details.
+
 ### 6.B.4 КЭП fallback (чтобы не blocker для pre-launch)
 - `ContractSigner` провайдер (из Phase 5) имеет три реализации:
   - `ClickSimulationSigner` — для `individual`/`self_employed` (click accept юридически достаточно).
@@ -1056,9 +1058,25 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 8. Финальный merge и удаление плана
+# Phase 8 — Creative content lifecycle (placeholder, probes pending)
 
-После всех 8 фаз + серий 15.x + 16.x:
+> **Status:** OPEN — placeholder. Содержание (research / implementation / acceptance / cross-cutting) будет finalized после probe sessions для BL-078 (mediakit) и BL-079 (media upload).
+>
+> Этот phase отражает Marina's priority shift 2026-05-08: "архитектурная чистота + полная готовность включая всплывающее" — `MediakitService` orphan stubs (BL-078) + campaign creation media upload gap (BL-079) — launch prerequisites, не post-launch.
+
+## 8.A mediakit feature workstream — BL-078
+
+Replace dead-code path (`MediakitService` + `mediakit_pdf.py` orphan stubs + `ChannelService.get_or_create_mediakit/update_mediakit` duplicate dead surface) с full feature: service rewrite, API endpoint, PDF rendering, UI screens, ChannelService duplicate cleanup. Probe pending. См. BACKLOG.md BL-078.
+
+## 8.B campaign creation media upload — BL-079
+
+Add media upload field к campaign creation switcher (currently switcher без field), upload + storage + composition design. Blocked by BL-080 (caption budget decision). Probe pending. См. BACKLOG.md BL-079.
+
+---
+
+## 9. Финальный merge и удаление плана
+
+После всех 9 фаз + серий 15.x + 16.x:
 
 1. Все feature-ветки смержены в `develop` через `--no-ff`.
 2. `git checkout develop && git pull`.
@@ -1079,7 +1097,7 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 9. Что НЕ делаем (и почему)
+## 10. Что НЕ делаем (и почему)
 
 - **Отдельный `src/mocks/`** — моки и так в `tests/`, переиспользуем.
 - **SQLAlchemy event-hook на status** — магия, ломается на Celery/bulk. Используем explicit transition function (Phase 2 done).
@@ -1096,7 +1114,7 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 10. Quick navigation
+## 11. Quick navigation
 
 - Текущее состояние: см. **Status overlay** в начале.
 - Что делать дальше: серия 15.x → 15.8 (legal templates Jinja injection).
