@@ -6,7 +6,6 @@ from typing import Any
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
@@ -85,41 +84,6 @@ class ChannelService:
             }
             for row in result.all()
         ]
-
-    async def get_or_create_mediakit(
-        self, channel_id: int, session: AsyncSession
-    ) -> ChannelMediakit:
-        """Получить или создать медиакит канала."""
-        mediakit = await session.execute(
-            select(ChannelMediakit).where(ChannelMediakit.channel_id == channel_id)
-        )
-        result = mediakit.scalar_one_or_none()
-        if not result:
-            result = ChannelMediakit(channel_id=channel_id)
-            session.add(result)
-            await session.flush()
-            await session.refresh(result)
-        return result
-
-    async def update_mediakit(
-        self, channel_id: int, data: dict[str, Any], session: AsyncSession
-    ) -> ChannelMediakit:
-        """Обновить поля медиакита."""
-        mediakit = await self.get_or_create_mediakit(channel_id, session)
-        valid_fields = {
-            "description",
-            "audience_description",
-            "avg_post_reach",
-            "views_count",
-            "downloads_count",
-            "is_published",
-        }
-        for field, value in data.items():
-            if field in valid_fields:
-                setattr(mediakit, field, value)
-        await session.flush()
-        await session.refresh(mediakit)
-        return mediakit
 
     async def suggest_optimal_publish_time(self, channel_id: int, session: AsyncSession) -> int:
         """Вернуть оптимальный час публикации (0-23)."""
