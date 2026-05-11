@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import and_, false, func, select, true
 from sqlalchemy.exc import IntegrityError
@@ -38,11 +38,13 @@ from src.constants.tariffs import (
 )
 from src.core.exceptions import ChannelAddDeclinedError
 from src.core.services.legal_compliance_service import LegalComplianceService
+from src.core.services.mediakit_service import mediakit_service
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
 from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.session import async_session_factory
+from src.utils.mediakit_pdf import generate_mediakit_pdf
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["channels"])
@@ -1294,4 +1296,45 @@ async def update_channel_category(
         is_active=channel.is_active,
         is_test=channel.is_test,
         created_at=channel.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/{channel_id}/mediakit/pdf",
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def get_mediakit_pdf(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    """Сгенерировать и вернуть PDF медиакита канала (только владелец).
+
+    Инкрементирует views_count и downloads_count на каждый hit (BL-078 Q6).
+    Возвращает PDF как application/pdf attachment.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    data = await mediakit_service.get_mediakit_data(channel_id, session=session)
+    mediakit = await mediakit_service.get_or_create_mediakit(channel_id, session=session)
+
+    pdf_bytes = generate_mediakit_pdf(data, logo_bytes=None)
+
+    mediakit.views_count += 1
+    mediakit.downloads_count += 1
+    await session.flush()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="mediakit_{channel_id}.pdf"',
+        },
     )
