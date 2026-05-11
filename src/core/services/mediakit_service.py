@@ -155,7 +155,7 @@ class MediakitService:
         mediakit_data: dict[str, Any] = {
             "id": mediakit.id,
             "custom_description": mediakit.description,
-            "theme_color": mediakit.theme_color,
+            "theme_color": mediakit.theme_color or "#1a73e8",
             "is_public": mediakit.is_published,
             "logo_file_id": mediakit.logo_file_id,
         }
