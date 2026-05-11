@@ -1,6 +1,6 @@
 # IMPLEMENTATION_PLAN_ACTIVE.md — Consolidated session plan (rev 4)
 
-_Last updated: 2026-05-11 (post BL-078 B.1-B.3 + theme_color hotfix; main @ e1c31b3 v0.5.2, develop @ 49813f0)_
+_Last updated: 2026-05-11 (post BL-078 Phase B closure (B.1-B.6.2); main @ e1c31b3 v0.5.2, develop @ 2b0d0ab pre-B.6.2-merge)_
 
 > **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 8) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
 >
@@ -51,16 +51,16 @@ _Last updated: 2026-05-11 (post BL-078 B.1-B.3 + theme_color hotfix; main @ e1c3
 | **T1.2 audit series** | ✅ DONE | 2026-05-04 → 2026-05-08 | rolling cleanup, closed (tags `v0.5.0` / `v0.5.1` / `v0.5.2`) | Test failures cleanup 99→0. T1.2.1 auth refactor cleanup → T1.2.2 mechanical bulk + C16 → T1.2.3 audit_logs production fix (varchar widen + SAVEPOINT wrap) → T1.2.4/4b fixture decision + decimal/auth DI → T1.2.5e payout cleanup (PayoutComplianceService skeleton del, PayoutService dead methods, mini_app payout screens removed) → T1.2.5-C1/C2 surgical test deletes → T1.2.5f Bundle D topup normalize → T1.2.5g content_filter stability → T1.2.6 placement flow cluster → T1.2.7 counter-offer cleanup → T1.2.8 bot-factory cleanup → D4 admin_client relocation → T1.2 series closure + CHANGELOG. Tags: `v0.5.0` (T1.2 closure), `v0.5.1` (CLAUDE.md ru→en + hotfix), `v0.5.2` (Bundle D topup + middleware fix). +BL-077 new (middleware registration lesson) |
 | **BL-073/074/080/081 dispositions** | ✅ DOCS | 2026-05-08 → 2026-05-09 | merged develop | BL-078/079/080 entries landed → BL-073/074/080 dispositions (T2.5/T3.1/T3.2/T3.3/T3.7/T3.17/T3.18/T3.19/T3.20/T3.21 absorbed) → BL-081 launch hardening bundle surfaced. BL-074 T3.17/T3.18/T3.19 closed via absorption into BL-080 scope. Docs-only commits + ruff exclude `src/db/migrations/versions/` |
 | Plan restructure | ✅ DOCS | 2026-05-10 | merged develop `213aef2` | Phase 8 placeholder added + 6.B.3 BL-080 reference + section renumber. Reflects 2026-05-08 priority shift "architectural cleanliness + полная готовность including emergent BL-078/079" — launch prerequisites, not post-launch |
-| **BL-078 Phase B (mediakit)** | 🚧 IN FLIGHT (B.1+B.2+B.3 merged; B.4+ pending) | 2026-05-11 | 4 feature merges into develop (`428bd05` precleanup, `a584351` B.1, `0308072` B.2, `49813f0` B.3) | Precleanup: drop dead `ChannelService.get_or_create_mediakit` / `update_mediakit` duplicates. B.1: `MediakitService` rewrite Pattern 1 strict + drop `_session_ctx`. B.2: owner-only PDF endpoint + counter increments. B.3: tests sweep + counter refactor + `theme_color=None` graceful handling hotfix. Closes BL-076 T1.2-D1 (dead code surface gone) |
+| **BL-078 Phase B (mediakit)** | ✅ DONE | 2026-05-11 | 8 feature merges into develop (`428bd05` precleanup, `a584351` B.1, `0308072` B.2, `49813f0` B.3, `b47d5e2` B.4, `6961994` B.5.1, `72ec2a1` B.5, `2b0d0ab` B.6.1; B.6.2 = this docs closure merge) | Precleanup: drop dead `ChannelService.get_or_create_mediakit` / `update_mediakit` duplicates. B.1: `MediakitService` rewrite Pattern 1 strict + drop `_session_ctx`. B.2: owner-only PDF endpoint + counter increments. B.3: tests sweep + counter refactor + `theme_color=None` graceful handling hotfix. B.4: web_portal owner "Скачать медиакит" PDF download button. B.5.1: advertiser-readable mediakit endpoint (`GET /api/channels/{id}/mediakit` + privacy 404 для unpublished). B.5: mini_app advertiser preview screen + ⓘ icon on ChannelCard. B.6.1: CHANGELOG `[Unreleased]` consolidation. B.6.2: BACKLOG closeouts (BL-076 T1.2-D1, BL-078 IN-PHASE-CLOSED) + 5 new entries (BL-086 logo resolver, BL-087 theme_color tinting, BL-088 landing probe, BL-089 unused dep, BL-090 stop-hook fires loop) + PLAN overlay refresh. Closes BL-076 T1.2-D1 + BL-078 in-phase. Polish tracked under BL-086 / BL-087 |
 | Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) — G07/G15/G16 PHASE4_PENDING markers awaiting real bodies |
 | Phase 5 | ⏸ Pending | — | — | Test-mode runtime + admin UI + provider pattern + PayoutCompliance wiring + G17/G18 PHASE5_PENDING markers |
 | Phase 6 | ⏸ Pending | — | — | Contracts/Acts UX + ORD production hardening (BL-080 absorb) |
 | Phase 7 | ⏸ Pending | — | — | UI Timeline + sub-stage events + educational overlay (BL-037 visualization) |
-| Phase 8 (placeholder) | ⏸ Pending | — | — | BL-078 (mediakit B.4+) + BL-079 (campaign media upload) — launch prerequisites per Marina 2026-05-08 priority shift |
+| Phase 8 (placeholder) | ⏸ Pending | — | — | BL-079 (campaign media upload) + future creative content lifecycle work. BL-078 mediakit closed in-phase 2026-05-11 (polish under BL-086 / BL-087) — launch prerequisites per Marina 2026-05-08 priority shift |
 
 **Branch HEADs (на момент обновления):**
 - `main` = `e1c31b3` (v0.5.2 — T1.2.5f Bundle D + middleware fix)
-- `develop` = `49813f0` (BL-078 B.3 merge — mediakit tests + counter refactor + theme_color hotfix)
+- `develop` = `2b0d0ab` (post-B.6.1 merge — `[Unreleased]` consolidation; B.6.2 docs closure merging now)
 
 ---
 
