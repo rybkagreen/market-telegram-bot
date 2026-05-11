@@ -34,6 +34,7 @@ const MyCampaigns    = lazy(() => import('@/screens/advertiser/MyCampaigns'))
 const CampaignVideo              = lazy(() => import('@/screens/advertiser/CampaignVideo'))
 const OrdStatus                  = lazy(() => import('@/screens/advertiser/OrdStatus'))
 const AdvertiserFrameworkContract = lazy(() => import('@/screens/advertiser/AdvertiserFrameworkContract'))
+const ChannelMediakitView         = lazy(() => import('@/screens/advertiser/ChannelMediakitView'))
 
 // ═══ Advertiser / Campaign wizard ═══
 const CampaignCategory   = lazy(() => import('@/screens/advertiser/campaign/CampaignCategory'))
@@ -136,6 +137,7 @@ const router = createBrowserRouter([
       { path: 'adv/campaigns/:id/dispute',              element: <OpenDispute /> },
       { path: 'adv/disputes',                           element: <MyDisputes /> },
       { path: 'adv/disputes/:id',                       element: <DisputeDetail /> },
+      { path: 'adv/channels/:channelId/mediakit',       element: <ChannelMediakitView /> },
 
       // ── Owner ──
       { path: 'own',                                    element: <OwnMenu /> },
