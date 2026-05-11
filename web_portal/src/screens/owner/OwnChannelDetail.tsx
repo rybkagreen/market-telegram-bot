@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Notification,
@@ -10,6 +11,8 @@ import type { IconName } from '@shared/ui'
 import { formatCompact, CATEGORIES, formatDateMSK } from '@/lib/constants'
 import { useMyChannels } from '@/hooks/useChannelQueries'
 import { useDeleteChannel, useActivateChannel } from '@/hooks/useChannelSettings'
+import { useToast } from '@/hooks/useToast'
+import { downloadMediakitPdf } from '@/hooks/useMediakitQueries'
 
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c.key, label: c.name, emoji: c.emoji }))
 
@@ -20,6 +23,8 @@ export default function OwnChannelDetail() {
   const { data: channels, isLoading } = useMyChannels()
   const deleteChannel = useDeleteChannel()
   const activateChannel = useActivateChannel()
+  const [isDownloadingMediakit, setIsDownloadingMediakit] = useState(false)
+  const { showToast, ToastComponent } = useToast()
 
   const channel = channels?.find((c) => c.id === numId) ?? null
 
@@ -55,6 +60,17 @@ export default function OwnChannelDetail() {
     activateChannel.mutate(channel.id, {
       onError: () => alert('Не удалось восстановить канал. Попробуйте позже.'),
     })
+  }
+
+  const handleDownloadMediakit = async () => {
+    setIsDownloadingMediakit(true)
+    try {
+      await downloadMediakitPdf(channel.id)
+    } catch {
+      showToast('Не удалось скачать медиакит. Попробуйте позже.', 'error')
+    } finally {
+      setIsDownloadingMediakit(false)
+    }
   }
 
   const categoryInfo = channel.category
@@ -138,6 +154,19 @@ export default function OwnChannelDetail() {
         </div>
       </div>
 
+      <div className="mb-5 flex justify-end">
+        <Button
+          variant="secondary"
+          size="md"
+          iconLeft="download"
+          loading={isDownloadingMediakit}
+          disabled={isDownloadingMediakit}
+          onClick={handleDownloadMediakit}
+        >
+          Скачать медиакит
+        </Button>
+      </div>
+
       {!channel.category && (
         <div className="mb-5">
           <Notification type="warning">
@@ -212,6 +241,8 @@ export default function OwnChannelDetail() {
           </div>
         </div>
       )}
+
+      {ToastComponent}
     </div>
   )
 }
