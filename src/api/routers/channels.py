@@ -930,6 +930,7 @@ class ComparisonResponse(BaseModel):
 async def compare_channels(
     request: ChannelIdsRequest,
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ComparisonResponse:
     """
     Сравнить 2-5 каналов по метрикам.
@@ -944,7 +945,7 @@ async def compare_channels(
         raise HTTPException(status_code=400, detail="Максимум 5 каналов для сравнения")
 
     service = ComparisonService()
-    channels_data = await service.get_channels_for_comparison(request.channel_ids)
+    channels_data = await service.get_channels_for_comparison(request.channel_ids, session=session)
 
     if len(channels_data) < 2:
         raise HTTPException(status_code=404, detail="Недостаточно каналов найдено")
@@ -957,6 +958,7 @@ async def compare_channels(
 async def compare_channels_preview(
     ids: str,  # "1,2,3"
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ComparisonResponse:
     """GET /channels/compare/preview?ids=1,2,3"""
     try:
@@ -967,6 +969,7 @@ async def compare_channels_preview(
     return await compare_channels(
         ChannelIdsRequest(channel_ids=channel_ids),
         current_user,
+        session,
     )
 
 
