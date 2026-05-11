@@ -2951,6 +2951,120 @@ Bundle of 7 launch absorption items from BL-073/BL-074 Tier 2/3 review (Marina d
 
 **Refs:** BL-073 disposition (T2.5), BL-074 disposition (T3.1-T3.3, T3.7, T3.20, T3.21).
 
+### BL-082 — `User` type 3 sources of truth (drift risk)
+
+**Status:** OPEN — latent (DX / type-drift, no current breakage)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #2
+
+**Statement:** Three independent `User` type declarations coexist in `web_portal/`:
+
+- `web_portal/src/stores/authStore.ts` exposes `User` (10 fields — intentionally
+  minimal subset для store state)
+- `web_portal/src/lib/types.ts` exposes `User` (legacy aggregate types file,
+  7959 bytes)
+- `web_portal/src/lib/types/user.ts` exposes `User` (23 fields — modular, likely
+  canonical: `plan_expires_at`, `credits`, `advertiser_xp/level`, `owner_xp/level`,
+  `referral_code`, `legal_status_completed`, `has_legal_profile`,
+  `platform_rules_accepted_at`, `privacy_policy_accepted_at`, etc.)
+
+Risk: type drift over time, inconsistent field access patterns, false-positive
+imports from wrong module.
+
+**Closure trigger:** consolidate to single canonical (likely
+`lib/types/user.ts`); refactor `authStore.User` to import & alias subset via
+`Pick<User, ...>`; deprecate `lib/types.ts:User` and update all importers; add
+eslint rule preventing direct re-declarations.
+
+**Effort:** Small (~2-4 hours: audit imports + replace + lint clean + verify
+build).
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 5 + § 11).
+
+### BL-083 — TanStack Query devtools не mounted в `App.tsx`
+
+**Status:** OPEN — latent (DX-only)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #8
+
+**Statement:** `@tanstack/react-query-devtools` присутствует в
+`web_portal/package.json` `devDependencies` (`v5.91.3`) но не imported / mounted
+в `web_portal/src/App.tsx`. DX-loss — нельзя inspect query cache, debug stale
+data, observe network в dev режиме.
+
+**Closure trigger:**
+
+```tsx
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+
+// inside <QueryClientProvider>:
+<QueryClientProvider client={queryClient}>
+  <RouterProvider router={router} />
+  {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+</QueryClientProvider>
+```
+
+**Effort:** Trivial (~5 lines, <10 minutes).
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 4 + § 11).
+
+### BL-084 — `authStore` без `persist` middleware — manual localStorage sync
+
+**Status:** OPEN — latent (cross-tab edge case)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #5
+
+**Statement:** `web_portal/src/stores/authStore.ts` использует vanilla zustand
+БЕЗ `persist` middleware. `setAuth`/`logout` manually write to BOTH store state
+AND `localStorage` (keys `rh_token`, `rh_user`). Cross-tab sync работает только
+при initial `localStorage.getItem(...)` at store creation — нет `storage` event
+listener для live cross-tab updates.
+
+**Risk (edge case):** user opens 2 tabs → logs out в tab A → tab B continues
+showing logged-in state until refresh/navigation. No current user reports.
+
+**Closure trigger (variants):**
+
+- (a) Refactor к `zustand/middleware persist` — drops manual writes, gives
+  automatic localStorage sync. Refactor ~30 min, contained surgery.
+- (b) Add `storage` event listener — surgical (~10 min), live cross-tab updates;
+  keeps current manual-write pattern.
+
+**Effort:** Small.
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 5 + § 11).
+
+### BL-085 — Sentry `afterResponse` auto-captures non-ok — noise на known 4xx
+
+**Status:** OPEN — latent (observability noise)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #4
+
+**Statement:** `afterResponse` hook на ky instance (`web_portal/src/shared/api/client.ts`)
+вызывает `Sentry.captureException(new Error(\`[API] Error: ${response.status} ${response.url}\`))`
+для каждого `!response.ok`. Известные ожидаемые 4xx (404 на download
+not-found, 403 на not-owner attempts, 401 → handled by redirect) шумят в Sentry
+без actionable signal.
+
+Affected endpoints today: acts PDF download, kudir export (admin), mediakit PDF
+download (B.4 ships 2026-05-11).
+
+**Closure trigger (variants):**
+
+- (a) Filter by URL pattern в `afterResponse` — skip Sentry capture для известных
+  download endpoints на 4xx.
+- (b) Filter by status code — skip 401 (already handled by redirect) and 403/404
+  globally; keep 5xx и unexpected.
+- (c) Add Sentry `beforeSend` global hook с filtered list.
+
+**Effort:** Small (~10 lines с tests of filter logic).
+
+**Priority note:** Low-medium — escalate if Sentry quota / signal-to-noise
+becomes operational pain.
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 3 + § 11); BL-076 T1.2-D1
+(mediakit B.1-B.4 series).
+
 ## Closed items
 
 ### BL-052 — 15.13.1 micro-cleanup (CLOSED 2026-04-29)
