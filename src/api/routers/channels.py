@@ -1323,13 +1323,8 @@ async def get_mediakit_pdf(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
 
     data = await mediakit_service.get_mediakit_data(channel_id, session=session)
-    mediakit = await mediakit_service.get_or_create_mediakit(channel_id, session=session)
-
     pdf_bytes = generate_mediakit_pdf(data, logo_bytes=None)
-
-    mediakit.views_count += 1
-    mediakit.downloads_count += 1
-    await session.flush()
+    await mediakit_service.register_pdf_hit(channel_id, session=session)
 
     return Response(
         content=pdf_bytes,
