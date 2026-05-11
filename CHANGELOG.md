@@ -7,7 +7,120 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(empty — ready для next workstream)
+### Mediakit feature shipping — owner PDF + advertiser preview (Phase B)
+
+Adds owner-only PDF download capability и advertiser-readable mediakit preview
+для каналов. Backend ships new PDF endpoint + advertiser JSON endpoint с
+privacy-preserving 404 для unpublished mediakits. Frontends ship download
+button (web_portal owner cabinet) + ⓘ icon preview drilldown (mini_app
+advertiser campaign wizard). Includes `MediakitService` Pattern 1 strict
+rewrite + counter logic refactor + `theme_color=None` crash hotfix.
+
+### Added
+
+- **Backend `GET /api/channels/{channel_id}/mediakit/pdf`** — owner-only PDF
+  download endpoint. Returns `application/pdf` с `Content-Disposition:
+  attachment; filename="mediakit_{id}.pdf"`. 403 для non-owner, 404 для
+  absent channel. Synchronously increments `views_count` + `downloads_count`.
+- **Backend `GET /api/channels/{channel_id}/mediakit`** — advertiser-readable
+  JSON endpoint. 200 `MediakitAdvertiserResponse` если
+  `ChannelMediakit.is_published=True`, иначе 404 (privacy parity:
+  not-published / not-exists / no-mediakit все 404). Excludes control fields
+  (`is_published`, `owner_user_id`, `views_count`, `downloads_count`, `id`,
+  `channel_id`). Auth accepts mini_app + web_portal audiences.
+- **Backend `MediakitAdvertiserResponse`** Pydantic schema
+  (`src/api/schemas/mediakit.py`) — 6 visible fields (`description`,
+  `audience_description`, `logo_file_id`, `theme_color`, `avg_post_reach`,
+  `updated_at`).
+- **Backend `MediakitService.register_pdf_hit(channel_id, session)`** —
+  bare UPDATE method (race-safe DB-level arithmetic). Replaces redundant
+  SELECT+ORM-increment pattern.
+- **Backend `MediakitService.get_published_for_advertiser(channel_id, session)`**
+  — read-only fetcher для advertiser endpoint (returns None для unpublished).
+- **Backend `MediakitService.update_mediakit(mediakit_id, user_id, updates, session)`**
+  — whitelist enforcement (5 canonical fields + 2 SQLAlchemy synonyms) +
+  owner check (`PermissionError` on mismatch).
+- **Backend module constants** в `mediakit_service.py`:
+  `POST_FREQUENCY_WINDOW_DAYS = 30`, `_UPDATE_WHITELIST` frozenset.
+- **Web portal "Скачать медиакит" button** на `/own/channels/:id` (owner
+  cabinet). Mirrors existing PDF download pattern (`downloadActPdf`).
+  Loading state + `useToast` error UX.
+- **Web portal `api/mediakit.ts`** (ky wrapper) + `hooks/useMediakitQueries.ts`
+  (download function) — screen → hook → api convention.
+- **Mini app advertiser mediakit preview screen** at sibling route
+  `/adv/channels/:channelId/mediakit`. Shows description /
+  audience_description / avg_post_reach / updated_at. Loading Skeleton +
+  EmptyState ("Медиакит недоступен") для 404 fallback.
+- **Mini app `ChannelCard` ⓘ icon button** (header right). Optional
+  `onInfoClick` callback navigates к mediakit screen с route state.
+  `e.stopPropagation()` preserves card-body select-toggle.
+- **Mini app `api/mediakit.ts`** + `hooks/queries/useMediakitQueries.ts`
+  (TanStack Query с `retry: false` для 404 finality, `staleTime: 2min`).
+- **Tests** — 10 new `MediakitService` unit tests (whitelist
+  canonical/synonym/unknown paths, owner-mismatch `PermissionError`,
+  `register_pdf_hit`, `get_published_for_advertiser`) + 5 PDF endpoint
+  integration tests (`tests/integration/test_mediakit_pdf_endpoint.py`
+  new) + 5 advertiser endpoint integration tests
+  (`tests/integration/test_mediakit_advertiser_endpoint.py` new).
+
+### Changed
+
+- **`MediakitService` Pattern 1 strict rewrite.** Dropped `_session_ctx`
+  helper (S-48 trap eliminated). Every method теперь takes
+  `session: AsyncSession` required; caller (router via
+  `Depends(get_db_session)`) owns commit lifecycle. Service uses `flush()`
+  + `refresh()` only, never `commit()`.
+- **`MediakitService.get_mediakit_data` field drift resolved** — reads
+  actual `TelegramChat` schema (`avg_views`, derives post frequency from
+  `PlacementRequest` count over 30-day window, reads `price_per_post` from
+  `channel_settings` relationship). Output dict gains `description` +
+  `topic` (=`chat.category`). `theme_color` defensively coalesces к
+  `"#1a73e8"` если ORM value None.
+- **`comparison_service.get_channels_for_comparison`** теперь requires
+  `session: AsyncSession` (Pattern 1 strict). `POST /channels/compare` и
+  `GET /channels/compare/preview` updated к accept и pass session DI.
+  Transparent к API client.
+- **PDF endpoint counter logic** refactored к single `register_pdf_hit`
+  call (render-first ordering — counter increments только на successful
+  PDF render). Replaces previous double-method-call + ORM-attribute
+  mutation pattern.
+
+### Fixed
+
+- **`theme_color=None` crash в PDF generation.** `src/utils/mediakit_pdf.py`
+  `HexColor(None)` raised `TypeError`, но `except` clause caught только
+  `ValueError` → unhandled 500 для всех freshly-created `ChannelMediakit`
+  rows без theme_color customization. Hybrid fix (defense in depth):
+  broadened except к `(ValueError, TypeError)` + service-layer coalesce
+  `mediakit.theme_color or "#1a73e8"`. Launch blocker resolved до B.4/B.5
+  shipping.
+- **`mediakit_service.py` field drift mypy errors** (4 errors at lines
+  111-116) — resolved by Pattern 1 rewrite (B.1).
+- **5 `mediatkit→mediakit` typos** в `tests/test_bmediakit_comparison.py`.
+- **`test_get_mediakit_data`** un-skipped и fix-forward applied
+  (post-B.1 rename) — closes BL-076 T1.2-D1 naturally via skip-removal.
+
+### Removed
+
+- **`ChannelService.get_or_create_mediakit`** + **`ChannelService.update_mediakit`**
+  (duplicate dead methods) + unused `ChannelMediakit` import. ZERO production
+  callers — orphan stubs duplicating `MediakitService` functionality.
+- **`_session_ctx` helper** из `mediakit_service.py` (S-48 hybrid trap
+  eliminated). `comparison_service` sole external consumer migrated
+  atomically in same commit.
+
+### Notes
+
+- Migrations untouched (BL-061 forward-only / pre-prod exception applies к
+  `0001_initial_schema.py` only).
+- `views_count`/`downloads_count` conflated per request (PDF endpoint hit
+  increments both — MVP decision).
+- `is_published` semantic wiring (mediakit publish flow) deferred post-launch.
+- `logo_file_id` upload pathway deferred (no Telegram file_id resolver
+  frontend-side yet).
+- `theme_color` tinting в mini_app preview screen deferred.
+- Frontend test infrastructure для mini_app preview screen deferred (no
+  Vitest/Playwright infra в `mini_app/`).
 
 ## [v0.5.2] - 2026-05-08
 
