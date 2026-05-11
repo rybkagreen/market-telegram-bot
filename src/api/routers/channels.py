@@ -28,6 +28,7 @@ from src.api.schemas.channel import (
     ChannelCreateRequest,
     ChannelResponse,
 )
+from src.api.schemas.mediakit import MediakitAdvertiserResponse
 from src.config.settings import settings
 from src.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
@@ -1297,6 +1298,31 @@ async def update_channel_category(
         is_test=channel.is_test,
         created_at=channel.created_at.isoformat(),
     )
+
+
+@router.get(
+    "/{channel_id}/mediakit",
+    response_model=MediakitAdvertiserResponse,
+    responses={
+        404: {"description": "Not found"},
+    },
+)
+async def get_channel_mediakit_for_advertiser(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MediakitAdvertiserResponse:
+    """Вернуть published mediakit для advertiser-консьюмера (B.5.1).
+
+    Privacy gate: ChannelMediakit.is_published=False → 404 (parity
+    с not-exists / no-mediakit — no leak of unpublished draft existence).
+    Response excludes internal control fields (is_published, owner_user_id,
+    views_count, downloads_count).
+    """
+    mediakit = await mediakit_service.get_published_for_advertiser(channel_id, session=session)
+    if mediakit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mediakit not found")
+    return MediakitAdvertiserResponse.model_validate(mediakit)
 
 
 @router.get(

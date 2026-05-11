@@ -177,6 +177,31 @@ class MediakitService:
             "show_metrics": show_metrics,
         }
 
+    async def get_published_for_advertiser(
+        self,
+        channel_id: int,
+        session: AsyncSession,
+    ) -> ChannelMediakit | None:
+        """Fetch published mediakit для advertiser-readable endpoint (B.5.1).
+
+        Returns None if:
+        - Channel does not exist (no row matching channel_id)
+        - Channel has no mediakit row
+        - Mediakit exists but is_published is False (privacy gate)
+
+        Returning None для всех "not visible" причин prevents существование leak
+        unpublished draft. Caller (route) maps None → 404.
+
+        Read-only — no commits, no flushes (S-48 Pattern 1).
+        """
+        result = await session.execute(
+            select(ChannelMediakit).where(
+                ChannelMediakit.channel_id == channel_id,
+                ChannelMediakit.is_published.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def register_pdf_hit(
         self,
         channel_id: int,
