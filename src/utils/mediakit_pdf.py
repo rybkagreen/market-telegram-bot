@@ -51,7 +51,7 @@ def generate_mediakit_pdf(mediakit_data: dict[str, Any], logo_bytes: bytes | Non
     theme_color = mediakit_data.get("mediakit", {}).get("theme_color", "#1a73e8")
     try:
         theme_color_obj = colors.HexColor(theme_color)
-    except ValueError:
+    except (ValueError, TypeError):
         theme_color_obj = colors.HexColor("#1a73e8")
 
     # 1. Заголовок с логотипом

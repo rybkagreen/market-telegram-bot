@@ -51,14 +51,9 @@ async def channel(db_session: AsyncSession, owner_user: User) -> TelegramChat:
     db_session.add(chat)
     await db_session.flush()
     await db_session.refresh(chat)
-    # Pre-create mediakit with theme_color set: mediakit_pdf.generate_mediakit_pdf
-    # crashes on theme_color=None (HexColor(None) raises TypeError, but the
-    # except clause only catches ValueError — bug surfaced by B.3 endpoint
-    # tests, fix tracked separately per Marina Q6 flag-and-accept default).
     mediakit = ChannelMediakit(
         channel_id=chat.id,
         owner_user_id=owner_user.id,
-        theme_color="#1a73e8",
     )
     db_session.add(mediakit)
     await db_session.flush()
