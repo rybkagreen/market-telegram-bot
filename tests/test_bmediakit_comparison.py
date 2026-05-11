@@ -23,7 +23,7 @@ class TestChannelMediakitModel:
     """Tests for ChannelMediakit model."""
 
     @pytest.mark.asyncio
-    async def test_mediatkit_creation(self, db_session, user_test_data, chat_test_data):
+    async def test_mediakit_creation(self, db_session, user_test_data, chat_test_data):
         """Test creating a channel mediakit."""
         # Create user
         user = User(**user_test_data)
@@ -63,7 +63,7 @@ class TestMediakitService:
     """Tests for MediakitService."""
 
     @pytest.mark.asyncio
-    async def test_get_or_create_mediatkit(self, db_session, user_test_data, chat_test_data):
+    async def test_get_or_create_mediakit(self, db_session, user_test_data, chat_test_data):
         """Test get or create mediakit."""
         user = User(**user_test_data)
         db_session.add(user)
@@ -80,7 +80,7 @@ class TestMediakitService:
         assert mediakit.owner_user_id == user.id
 
     @pytest.mark.asyncio
-    async def test_update_mediatkit(self, db_session, user_test_data, chat_test_data):
+    async def test_update_mediakit(self, db_session, user_test_data, chat_test_data):
         """Test updating mediakit."""
         user = User(**user_test_data)
         db_session.add(user)
@@ -105,44 +105,183 @@ class TestMediakitService:
         assert updated.theme_color == "#ff0000"
         assert updated.is_public is False
 
-    @pytest.mark.skip(
-        reason=(
-            "mediakit_service stale fields production bug — service reads "
-            "chat.last_avg_views/last_post_frequency/price_per_post but "
-            "model migrated; defer to T1.2 final closure BACKLOG batch (Q3=a)"
-        )
-    )
     @pytest.mark.asyncio
-    async def test_get_mediatkit_data(self, db_session, user_test_data, chat_test_data):
-        """Test getting mediakit data."""
-        # Create user and chat
+    async def test_get_mediakit_data(self, db_session, user_test_data, chat_test_data):
+        """Test getting mediakit data (post-B.1 schema: avg_views, last_er, ChannelSettings.price_per_post)."""
         user = User(**user_test_data)
         db_session.add(user)
         await db_session.flush()
 
+        chat_data = {**chat_test_data, "member_count": 10000}
         chat = TelegramChat(
-            **chat_test_data,
+            **chat_data,
             owner_user_id=user.id,
-            member_count=10000,
-            last_avg_views=1500,
+            avg_views=1500,
             last_er=15.0,
-            last_post_frequency=2.5,
-            price_per_post=500,
         )
         db_session.add(chat)
         await db_session.flush()
 
-        # Get mediakit data
-        data = await mediakit_service.get_mediakit_data(chat.id)
+        settings = ChannelSettings(channel_id=chat.id, price_per_post=500)
+        db_session.add(settings)
+        await db_session.flush()
+
+        data = await mediakit_service.get_mediakit_data(chat.id, session=db_session)
 
         assert "channel" in data
         assert "mediakit" in data
         assert "metrics" in data
         assert "price" in data
+        assert "show_metrics" in data
 
         assert data["metrics"]["subscribers"] == 10000
         assert data["metrics"]["avg_views"] == 1500
         assert data["metrics"]["er"] == 15.0
+        assert data["metrics"]["post_frequency"] == 0
+        assert data["price"]["amount"] == 500
+        assert data["price"]["currency"] == "кр"
+
+    @pytest.mark.asyncio
+    async def test_update_mediakit_canonical_fields(
+        self, db_session, user_test_data, chat_test_data
+    ):
+        """Update with 5 canonical whitelist fields succeeds."""
+        user = User(**user_test_data)
+        db_session.add(user)
+        await db_session.flush()
+
+        chat = TelegramChat(**chat_test_data, owner_user_id=user.id)
+        db_session.add(chat)
+        await db_session.flush()
+
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
+
+        updates = {
+            "description": "Canonical desc",
+            "audience_description": "Audience text",
+            "logo_file_id": "AgAC123",
+            "theme_color": "#abcdef",
+            "is_published": True,
+        }
+        updated = await mediakit_service.update_mediakit(
+            mediakit.id, user.id, updates, session=db_session
+        )
+
+        assert updated.description == "Canonical desc"
+        assert updated.audience_description == "Audience text"
+        assert updated.logo_file_id == "AgAC123"
+        assert updated.theme_color == "#abcdef"
+        assert updated.is_published is True
+
+    @pytest.mark.asyncio
+    async def test_update_mediakit_synonym_keys(self, db_session, user_test_data, chat_test_data):
+        """Synonym keys custom_description / is_public route to canonical fields."""
+        user = User(**user_test_data)
+        db_session.add(user)
+        await db_session.flush()
+
+        chat = TelegramChat(**chat_test_data, owner_user_id=user.id)
+        db_session.add(chat)
+        await db_session.flush()
+
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
+
+        updates = {"custom_description": "Via synonym", "is_public": True}
+        updated = await mediakit_service.update_mediakit(
+            mediakit.id, user.id, updates, session=db_session
+        )
+
+        assert updated.description == "Via synonym"
+        assert updated.custom_description == "Via synonym"
+        assert updated.is_published is True
+        assert updated.is_public is True
+
+    @pytest.mark.asyncio
+    async def test_update_mediakit_unknown_key_dropped(
+        self, db_session, user_test_data, chat_test_data
+    ):
+        """Unknown key silently dropped; whitelisted keys still applied."""
+        user = User(**user_test_data)
+        db_session.add(user)
+        await db_session.flush()
+
+        chat = TelegramChat(**chat_test_data, owner_user_id=user.id)
+        db_session.add(chat)
+        await db_session.flush()
+
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
+        initial_views = mediakit.views_count
+
+        updates = {
+            "description": "Allowed",
+            "views_count": 99999,
+            "unknown_field": "ignored",
+        }
+        updated = await mediakit_service.update_mediakit(
+            mediakit.id, user.id, updates, session=db_session
+        )
+
+        assert updated.description == "Allowed"
+        assert updated.views_count == initial_views
+        assert (
+            not hasattr(updated, "unknown_field")
+            or getattr(updated, "unknown_field", None) != "ignored"
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_mediakit_owner_mismatch_raises(
+        self, db_session, user_test_data, chat_test_data
+    ):
+        """PermissionError when user_id != mediakit.owner_user_id."""
+        owner = User(**user_test_data)
+        db_session.add(owner)
+        await db_session.flush()
+
+        other = User(
+            telegram_id=987654321,
+            username="other_user",
+            first_name="Other",
+        )
+        db_session.add(other)
+        await db_session.flush()
+
+        chat = TelegramChat(**chat_test_data, owner_user_id=owner.id)
+        db_session.add(chat)
+        await db_session.flush()
+
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
+
+        with pytest.raises(PermissionError, match="Access denied"):
+            await mediakit_service.update_mediakit(
+                mediakit.id, other.id, {"description": "x"}, session=db_session
+            )
+
+    @pytest.mark.asyncio
+    async def test_register_pdf_hit_increments_counters(
+        self, db_session, user_test_data, chat_test_data
+    ):
+        """register_pdf_hit atomically increments views_count + downloads_count."""
+        user = User(**user_test_data)
+        db_session.add(user)
+        await db_session.flush()
+
+        chat = TelegramChat(**chat_test_data, owner_user_id=user.id)
+        db_session.add(chat)
+        await db_session.flush()
+
+        mediakit = await mediakit_service.get_or_create_mediakit(chat.id, session=db_session)
+        assert mediakit.views_count == 0
+        assert mediakit.downloads_count == 0
+
+        await mediakit_service.register_pdf_hit(chat.id, session=db_session)
+        await db_session.refresh(mediakit)
+        assert mediakit.views_count == 1
+        assert mediakit.downloads_count == 1
+
+        await mediakit_service.register_pdf_hit(chat.id, session=db_session)
+        await db_session.refresh(mediakit)
+        assert mediakit.views_count == 2
+        assert mediakit.downloads_count == 2
 
 
 class TestComparisonService:
@@ -267,7 +406,7 @@ class TestPDFGeneration:
     """Tests for PDF generation."""
 
     @pytest.mark.asyncio
-    async def test_generate_mediatkit_pdf(self):
+    async def test_generate_mediakit_pdf(self):
         """Test generating mediakit PDF."""
         from src.utils.mediakit_pdf import generate_mediakit_pdf
 
