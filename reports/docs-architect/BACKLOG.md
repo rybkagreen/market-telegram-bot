@@ -2429,6 +2429,15 @@ here.
   - (c) Add fields with migration
 - **Priority:** medium — runtime AttributeError under any caller. Marina
   decision required before scope.
+- **CLOSED 2026-05-11** via BL-078 Phase B execution. Path (a)
+  compute-from-existing-fields chosen: `MediakitService.get_mediakit_data`
+  reads `chat.avg_views` directly + derives `post_frequency` from
+  `PlacementRequest` count over 30-day window
+  (`POST_FREQUENCY_WINDOW_DAYS = 30` module constant) + reads
+  `price_per_post` from `chat.channel_settings` (via `selectinload`).
+  4 mypy errors eliminated. Test `test_get_mediakit_data` un-skipped via
+  fix-forward в B.3. See `CHANGES_2026-05-11_bl-078-b1-mediakit-service-rewrite.md`
+  + `CHANGES_2026-05-11_bl-078-b3-tests-and-counter-refactor.md`.
 
 #### T1.2-D2 — `tests/unit/conftest.py` 7 lint suppression
 
@@ -2735,7 +2744,7 @@ appended via commit `fa85a38`).
 
 ### BL-078 — Mediakit feature полная реализация
 
-**Status:** OPEN — feature, deferred since early development; surfaced 2026-05-08 via BL-076 probe.
+**Status:** IN-PHASE-CLOSED 2026-05-11 — Phase B implementation complete (B.1-B.6.2 closure batch). Residual polish tracked under BL-086 (logo resolver), BL-087 (theme_color tinting). Phase 8 may revisit для deeper feature work.
 **Created:** 2026-05-08
 
 **Surface:** BL-076 probe report `tmp/bl076_mediakit_probe.md`. Schema `channel_mediakits` (`0001_initial_schema.py:586-628`, fields: `owner_user_id`, `logo_file_id`, `theme_color`). `MediakitService` + `mediakit_pdf.py` существуют как orphan stubs без production callers (zero refs в `src/api/routers/`, `src/bot/handlers/`). `ChannelService.get_or_create_mediakit` / `update_mediakit` — duplicate dead surface (lines 89-122).
@@ -3064,6 +3073,175 @@ becomes operational pain.
 
 **Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 3 + § 11); BL-076 T1.2-D1
 (mediakit B.1-B.4 series).
+
+### BL-086 — Mediakit logo resolver / Telegram file_id image proxy
+
+**Status:** OPEN — feature gap (frontend image proxy infrastructure)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 mini_app preview screen CHANGES (deferred section); also surfaced PROMPT_24/PROMPT_25 B.4 download path.
+
+**Statement:** `ChannelMediakit.logo_file_id` хранит Telegram file_id
+(bot-scoped reference). Frontends (web_portal owner cabinet PDF preview,
+mini_app advertiser preview screen) сейчас не могут рендерить logo image —
+нет endpoint'а / proxy, отдающего bytes по file_id. Backend PDF generator
+(`mediakit_pdf.py`) принимает `logo_bytes` argument, но `logo_file_id →
+bytes` resolver не реализован (B.2 ships с `logo_bytes=None` per Q3 defer).
+
+Broader concern: file_id → image bytes pattern also applies к channel
+avatars (currently not displayed) и future post media attachments (BL-079
+scope).
+
+**Closure trigger (variants):**
+
+- (a) `GET /api/files/telegram/{file_id}` endpoint — `getFile` +
+  `downloadFile` + auth + cache. Frontend `<TelegramImage file_id={...}>`
+  component для shared use.
+- (b) Pre-resolve URL: signed-proxy с TTL; backend job заранее resolves
+  and caches.
+- (c) S3/MinIO mirror: on mediakit logo upload (Phase 8 feature surface),
+  copy bytes к internal storage + serve via standard CDN.
+
+**Effort:** medium (endpoint + cache + frontend component + tests; ~1-2 days).
+
+**Priority note:** low — cosmetic (mediakit functional без logo); Phase 8
+candidate если broader image-proxy infrastructure planned.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; B.2 endpoint в `src/api/routers/channels.py:1302-1342`;
+`mediakit_pdf.py:58` `logo_bytes` guard.
+
+### BL-087 — Mediakit theme_color tinting
+
+**Status:** OPEN — UX polish (visual identity передача)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 mini_app preview screen CHANGES (deferred section).
+
+**Statement:** `MediakitAdvertiserResponse.theme_color` (hex string,
+defaults к `"#1a73e8"` после B.3 hotfix) возвращается frontend'у но не
+applied as visual tint в mini_app preview screen. Currently screen uses
+neutral Tailwind tokens (`var(--rh-space-*)`). Channel-owner brand identity
+не передаётся в advertiser-facing preview.
+
+Web_portal PDF rendering уже использует `theme_color` через
+`reportlab.lib.colors.HexColor` в `mediakit_pdf.py` — mini_app preview
+parity отсутствует.
+
+**Closure trigger:** apply `theme_color` к specific UI elements в
+`mini_app/src/screens/advertiser/ChannelMediakitView.tsx`: e.g. heading
+underline, card border accent, или CTA button background. Pattern: inline
+`style={{ borderColor: theme_color }}` per element, либо CSS variable
+injection через React context.
+
+**Effort:** small (~30 LOC, single screen).
+
+**Priority note:** low — cosmetic polish; mediakit content readable без
+tinting.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; `mini_app/src/screens/advertiser/ChannelMediakitView.tsx`;
+`MediakitAdvertiserResponse.theme_color` (`src/api/schemas/mediakit.py`).
+
+### BL-088 — `landing/` frontend surface probe
+
+**Status:** OPEN — operational / observability gap
+**Created:** 2026-05-11
+**Source:** Phase B mediakit workstream — third frontend dir untouched + unprobed.
+
+**Statement:** Repository contains three frontend directories: `mini_app/`,
+`web_portal/`, `landing/`. Phase B mediakit work (B.4 + B.5) probed
+`web_portal/` (PROMPT_23) and `mini_app/` (PROMPT_26) before touching,
+surfacing baseline issues (BL-082..085 from web_portal probe; B.5 deferrals
+from mini_app probe). `landing/` (RekHarbor static landing page per
+`landing-dev` skill metadata) was NOT touched during Phase B, also NOT
+probed.
+
+Stack/scope/deps/build state unknown today: `package.json` deps, lint
+baseline, vite/Tailwind v4 config, deployed surface, integration с other
+frontends (auth, deeplinks), bundle size, motion/react usage.
+
+**Closure trigger:** deep-dive probe session — inventory
+`landing/package.json` deps + `landing/src/` screens/components + `npm run
+lint` baseline + `npm run build` artifact + verify CSP/font/motion
+conventions per CLAUDE.md landing-specific rules.
+
+**Effort:** small (~probe session, no implementation).
+
+**Priority note:** low — no immediate functional gap; insurance against
+repeat issues от prior `web_portal/`/`mini_app/` probes when next
+`landing/` touch comes.
+
+**Refs:** `CHANGES_2026-05-11_b5-1-mediakit-advertiser-endpoint.md` mentions
+`landing/: untouched` baseline preservation as evidence of probe gap;
+CLAUDE.md § "Landing-specific rules" lists conventions; `landing-dev` skill
+scoped to `/opt/market-telegram-bot/landing/`.
+
+### BL-089 — `@telegram-apps/sdk-react` unused dep в `mini_app/`
+
+**Status:** OPEN — dep hygiene (cosmetic)
+**Created:** 2026-05-11
+**Source:** PROMPT_26 mini_app probe surprise #1 (referenced в B.5 CHANGES "Deferred" section).
+
+**Statement:** Package `@telegram-apps/sdk-react` declared в
+`mini_app/package.json` dependencies, но не imported anywhere в
+`mini_app/src/`. Verified through grep during PROMPT_26 probe — zero
+`from '@telegram-apps/sdk-react'` references. Adds:
+
+- Bundle weight (unused code в dist).
+- npm install time / lockfile churn.
+- Cognitive overhead (future developer might assume it's wired).
+
+Likely artifact of early Telegram WebApp integration exploration, abandoned
+in favor of custom auth/ky-based pattern.
+
+**Closure trigger:** `cd mini_app && npm uninstall @telegram-apps/sdk-react`
++ verify build still clean (`npm run build`) + verify no transitive
+consumers (`grep -r telegram-apps mini_app/src/`).
+
+**Effort:** trivial (~5 minutes).
+
+**Priority note:** low — cosmetic / hygiene; not blocking.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; PROMPT_26 probe transcript (`tmp/mini_app_probe.md` if
+preserved).
+
+### BL-090 — Stop-hook fires loop on Phase A research-only outputs
+
+**Status:** OPEN — UX noise (no functional impact)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 Phase A (~500+ fires); PROMPT_30 B.6.2 Phase A (~9 fires). Recurrence confirmed; L71 candidate pattern.
+
+**Statement:** Prompts using Phase A (read-only research →
+`tmp/<slug>_research.md` output) → STOP gate → Phase B (mutations + CHANGES
+file landed same-commit с docs edits в Шаге 6) trigger repeated stop-hook
+fires at Phase A boundary complaining `CHANGES_<date>_<desc>.md` NOT
+created в `reports/docs-architect/discovery/`. BL-016 silent-ignore
+protocol handles agent-side after first non-trivial ack; fires continue
+as visible noise stream к Marina (chat surface — no agent action).
+
+Pattern reproduces deterministically on L70 design (CHANGES same-commit
+pattern, deferred from Phase A boundary). Each STOP gate без CHANGES file
+fires the hook; identical fires per BL-016 silent-ignored agent-side but
+each fire surfaces к Marina via chat.
+
+**Closure trigger (variants):**
+
+- (a) Server-side hook tuning (Anthropic-side action — not actionable from
+  project prompts).
+- (b) Hook config в `.claude/` if existing — selectively suppress fires
+  when `tmp/<slug>_research.md` exists OR when transcript indicates "Phase
+  A research-only STOP gate".
+- (c) Accept as known harmless; rely on BL-016 silent-ignore (current
+  state). Phase A boundary fires not blocking workflow.
+
+**Effort:** small (option b) / negligible (option c).
+
+**Priority note:** low — UX noise; не affects correctness. Marina-side
+annoyance only.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (stop-hook fires-in-loop
+infrastructure), L70 (Phase A boundary deferral pattern), L71 (in-prompt
+tracking pattern).
 
 ## Closed items
 
