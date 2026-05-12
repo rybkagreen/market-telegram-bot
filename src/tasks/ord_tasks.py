@@ -10,6 +10,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from src.core.services.ord_retry import compute_backoff
 from src.core.services.stub_ord_provider import StubOrdProvider
 from src.db.models.ord_registration import OrdRegistrationStatus
 from src.db.session import celery_async_session_factory as async_session_factory
@@ -153,22 +154,33 @@ async def _poll_erid_status_async(registration_id: int) -> str:
 
 @celery_app.task(bind=True, base=BaseTask, name="ord:register_creative", queue="background")
 def register_creative_task(self: Any, placement_request_id: int) -> None:
-    """Register an ad creative in ORD asynchronously."""
+    """Register an ad creative in ORD asynchronously.
+
+    Retries с exponential backoff + jitter (BL-080 8c Q3=(b)). Base 5s,
+    max 5min, max 5 attempts. Replaces the previous linear 300s/3-retries
+    pattern that risked thundering-herd hits on Yandex during outages.
+    """
     try:
         asyncio.run(_register_creative_async(placement_request_id))
     except Exception as e:
         logger.error("ord:register_creative failed for placement %s: %s", placement_request_id, e)
-        raise self.retry(exc=e, countdown=300, max_retries=3) from e
+        countdown = compute_backoff(self.request.retries)
+        raise self.retry(exc=e, countdown=countdown, max_retries=5) from e
 
 
 @celery_app.task(bind=True, base=BaseTask, name="ord:report_publication", queue="background")
 def report_publication_task(self: Any, placement_request_id: int) -> None:
-    """Report publication fact to ORD asynchronously."""
+    """Report publication fact to ORD asynchronously.
+
+    Retries: exponential backoff + jitter (BL-080 8c). Same envelope as
+    register_creative_task.
+    """
     try:
         asyncio.run(_report_publication_async(placement_request_id))
     except Exception as e:
         logger.error("ord:report_publication failed for placement %s: %s", placement_request_id, e)
-        raise self.retry(exc=e, countdown=300, max_retries=3) from e
+        countdown = compute_backoff(self.request.retries)
+        raise self.retry(exc=e, countdown=countdown, max_retries=5) from e
 
 
 @celery_app.task(
@@ -177,12 +189,14 @@ def report_publication_task(self: Any, placement_request_id: int) -> None:
     name="ord:poll_erid_status",
     queue="background",
     max_retries=12,
-    default_retry_delay=300,  # 5 минут
 )
 def poll_erid_status(self: Any, registration_id: int) -> None:
     """Poll ERIR status for an ORD registration.
 
-    Retries up to 12 times with 5-minute intervals (1 hour total).
+    Retries up to 12 times с exponential backoff + jitter (BL-080 8c
+    Q3=(b)). Base 30s, max 10min — широкий poll window survives Yandex
+    ERIR async-processing latency без drumming the API.
+
     On success: status = 'erir_confirmed'.
     On error: status = 'erir_failed'.
     On timeout: status = 'erir_timeout'.
@@ -217,7 +231,8 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
                     self.max_retries,
                 )
                 return
-            raise self.retry(exc=e, countdown=300) from e
+            countdown = compute_backoff(self.request.retries, base_seconds=30.0, max_seconds=600.0)
+            raise self.retry(exc=e, countdown=countdown) from e
         raise
     except Exception as e:
         logger.error(
@@ -226,4 +241,5 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
             e,
             exc_info=True,
         )
-        raise self.retry(exc=e, countdown=300) from e
+        countdown = compute_backoff(self.request.retries, base_seconds=30.0, max_seconds=600.0)
+        raise self.retry(exc=e, countdown=countdown) from e
