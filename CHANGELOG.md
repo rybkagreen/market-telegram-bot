@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(empty — ready для next workstream)
+
+## [v0.6.0] - 2026-05-12
+
 ### Mediakit feature shipping — owner PDF + advertiser preview (Phase B)
 
 Adds owner-only PDF download capability и advertiser-readable mediakit preview
