@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items)_
+_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items; BL-077 new — middleware registration lesson, post-T1.2.5f)_
 
 ## Active items
 
@@ -2271,6 +2271,15 @@ within current sub-block charter.
 
 **Refs:** Phase 3b closure batch (BL-072, BL-074); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
 
+**Disposition 2026-05-08 (per "архитектурная чистота" review):**
+
+- **T2.1** — DEFER post-launch closure batch (cosmetic asymmetry; implicit rollback works correctly via `__aexit__`).
+- **T2.2** — ESCALATED to separate architectural decision session (S-48 contract tension; не code change item).
+- **T2.3 / T2.4** — ABSORBED into Phase 4/5 PayoutCompliance recreation scope (dead code + 3 S-48 violations + ФЗ-Налог compliance gap для individual owners; L33 mandate full cleanup at next file touch).
+- **T2.5** — ABSORBED into BL-081 launch hardening bundle (frontend addPayout X-Idempotency-Key opt-in).
+- **T2.6** — DEFER to Phase 5 (already planned: YooKassa key mapping table).
+- **T2.7** — DEFER to Phase 5 (already planned: G06 provider-validated state).
+
 ### BL-074 — Phase 3b Tier 3 deferred work (22 items)
 
 **Status:** OPEN — deferred work; не pre-launch strict; eventual hardening
@@ -2316,6 +2325,30 @@ within current sub-block charter.
 - **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (5b.3 L18)
 
 **Refs:** Phase 3b closure batch (BL-072, BL-073); audit `tmp/PHASE3B_CLOSURE_AUDIT_2026-05-03.md`.
+
+**Disposition 2026-05-08 (per "архитектурная чистота" review):**
+
+**Frontend:**
+- **T3.1, T3.2, T3.3, T3.7** — ABSORBED into BL-081 launch hardening bundle.
+
+**Operational:**
+- **T3.4, T3.5, T3.6, T3.10** — DEFER post-launch (ops/admin tooling, не user-facing).
+
+**Phase 5 PayoutCompliance:**
+- **T3.12-T3.16** — DEFER to Phase 5 (already planned).
+
+**Documentation hygiene:**
+- **T3.8** — DEFER post-launch closure batch.
+- **T3.11** — RESOLVED inline в Q9 closure batch (sweep deferred).
+- **T3.21** — ABSORBED into BL-081 launch hardening bundle (compute/writes split refactor).
+- **T3.22** — RESOLVED inline в Q9 closure batch.
+
+**Code hygiene:**
+- **T3.9** — FOLD into next T1.2.x cleanup commit (4 pre-existing ruff `src/` errors).
+- **T3.17** — CLOSED by 5b.5 / BL-080 absorbs (yandex skeleton dead code).
+- **T3.18** — ABSORBED into BL-080 scope expansion (`_global_provider` module-state).
+- **T3.19** — ABSORBED into BL-080 scope expansion (`OrdRegistration.status` enum migration).
+- **T3.20** — ABSORBED into BL-081 launch hardening bundle (`Contract.contract_type` rename).
 
 ### BL-075 — `_TRANSITION_GATES` does not enforce G01-G06 at any placement transition
 
@@ -2396,6 +2429,15 @@ here.
   - (c) Add fields with migration
 - **Priority:** medium — runtime AttributeError under any caller. Marina
   decision required before scope.
+- **CLOSED 2026-05-11** via BL-078 Phase B execution. Path (a)
+  compute-from-existing-fields chosen: `MediakitService.get_mediakit_data`
+  reads `chat.avg_views` directly + derives `post_frequency` from
+  `PlacementRequest` count over 30-day window
+  (`POST_FREQUENCY_WINDOW_DAYS = 30` module constant) + reads
+  `price_per_post` from `chat.channel_settings` (via `selectinload`).
+  4 mypy errors eliminated. Test `test_get_mediakit_data` un-skipped via
+  fix-forward в B.3. See `CHANGES_2026-05-11_bl-078-b1-mediakit-service-rewrite.md`
+  + `CHANGES_2026-05-11_bl-078-b3-tests-and-counter-refactor.md`.
 
 #### T1.2-D2 — `tests/unit/conftest.py` 7 lint suppression
 
@@ -2648,6 +2690,558 @@ here.
 
 **Refs:** T1.2 series closure (BL-072 T1.2 closed — see
 `CHANGES_2026-05-08_t1-2-series-closure.md`).
+
+### BL-077 — Middleware registration: specific observers vs `dp.update`
+
+**Status:** OPEN — engineering practice / pre-PR check guidance
+**Created:** 2026-05-08
+**Source:** T1.2.5f post-Phase-C live debug (commit `f82852d`, v0.5.2 release)
+
+**Lesson:** aiogram middleware can be registered на
+`dp.update.middleware()` (receives все `Update` events) или specific
+observers (`dp.message.middleware()`, `dp.callback_query.middleware()`,
+etc.). Registration target must match what middleware logic expects.
+
+**Symptom (silent failure mode):** middleware uses
+`isinstance(event, Message)` / `isinstance(event, CallbackQuery)` checks,
+но registered на `dp.update.middleware()` → checks always evaluate False
+(Update is not Message/CallbackQuery) → middleware silently swallows
+updates без error. Affected users get no response, никакого log entry
+кроме generic "Update is not handled" warning.
+
+**Pre-existing instance (fixed):** `AcceptanceMiddleware` (commit
+`f82852d`) — was registered на `dp.update.middleware()` но использовал
+Message / CallbackQuery isinstance checks. Result: users без
+`terms_accepted_at` flag completely locked out (не могли reach /start
+handler nor see acceptance prompt).
+
+**Recommended pre-PR check для future middleware:**
+
+1. Если middleware uses `isinstance(event, ConcreteType)` — register на
+   matching observer (`dp.<type>.middleware()`), не
+   `dp.update.middleware()`.
+2. Если middleware needs Update-level access — accept Update event
+   explicitly, без isinstance check downstream.
+3. Add unit test asserting handler runs after middleware passes through
+   (не только middleware logic в isolation). E.g. fake exempt update +
+   verify handler invoked.
+
+**Files exemplifying correct pattern post-fix:**
+
+- `src/bot/main.py` — `AcceptanceMiddleware` теперь на
+  `dp.message.middleware()` + `dp.callback_query.middleware()`
+  (event-type-specific).
+- Other middlewares (DBSession, Throttling, FSMTimeout, RoleCheck) на
+  `dp.update.middleware()` — они event-type-agnostic by design, не
+  затронуты.
+
+**Priority:** medium — passive check для new middleware additions; не
+blocks current work.
+
+**Refs:** AcceptanceMiddleware fix `f82852d`; CHANGELOG `[v0.5.2]` Fixed
+section; `CHANGES_2026-05-08_t1-2-5f-topup-normalize.md` (middleware fix
+appended via commit `fa85a38`).
+
+### BL-078 — Mediakit feature полная реализация
+
+**Status:** IN-PHASE-CLOSED 2026-05-11 — Phase B implementation complete (B.1-B.6.2 closure batch). Residual polish tracked under BL-086 (logo resolver), BL-087 (theme_color tinting). Phase 8 may revisit для deeper feature work.
+**Created:** 2026-05-08
+
+**Surface:** BL-076 probe report `tmp/bl076_mediakit_probe.md`. Schema `channel_mediakits` (`0001_initial_schema.py:586-628`, fields: `owner_user_id`, `logo_file_id`, `theme_color`). `MediakitService` + `mediakit_pdf.py` существуют как orphan stubs без production callers (zero refs в `src/api/routers/`, `src/bot/handlers/`). `ChannelService.get_or_create_mediakit` / `update_mediakit` — duplicate dead surface (lines 89-122).
+
+**Issue:** Owner-side artifact — брендированный PDF канала (logo + theme color + статистика канала + цены) для отправки рекламодателю как portfolio. Ранний concept без API/UI integration. Текущий код out of sync с current schema:
+
+- `chat.last_avg_views` → `chat.avg_views` (`telegram_chat.py:54`)
+- `chat.last_post_frequency` → field удалён (need derive from publication history)
+- `chat.price_per_post` → `chat.channel_settings.price_per_post` (`channel_settings.py:24`, relationship `telegram_chat.py:74`)
+
+**Decision (Marina, 2026-05-08):** Path (a) full rewrite — dead code на launch несовместим с архитектурной чистотой. Schema invested + feature имеет owner-side business value. ChannelService duplicate methods (`get_or_create_mediakit` / `update_mediakit`) **deleted** as part of BL-078 — single canonical surface через MediakitService.
+
+**Scope:**
+
+- **Service rewrite** в `MediakitService` — data assembly с current schema. `post_frequency` derived from `PublicationLog` history (count posts в окне N days).
+- **API endpoint:** `GET /api/channels/{id}/mediakit/pdf` (owner-only, ownership check).
+- **PDF rendering:** logo (resolve `logo_file_id` → file storage), theme color (`theme_color` accent), stats block, sample posts (optional sub-block). Use existing PDF generation pattern (act/contract templates как modeled).
+- **UI web_portal:** `web_portal/src/screens/owner/ChannelMediakit.tsx` + download button на `OwnChannels` channel detail.
+- **UI mini_app:** read-only preview card. PDF download только через web_portal — bot/web split convention (mobile clients render PDF poorly + report lab is server-side). NO ФЗ-152 implication — mediakit content carries no PII.
+- **ChannelService cleanup:** `get_or_create_mediakit` + `update_mediakit` методы **deleted** (duplicate dead surface, replaced by MediakitService).
+- **Schema:** existing `channel_mediakits` table — no migration needed (pre-existing, BL-061 forward-only respected).
+
+**Acceptance:**
+
+- Owner может скачать брендированный PDF канала через web_portal.
+- BL-076 T1.2-D1 closed (4 mypy errors gone, schema-code drift resolved).
+- `tests/test_bmediakit_comparison.py::test_get_mediatkit_data` un-skipped + passing с rewritten service.
+- Existing analytics screen (S-47, `/analytics`) untouched.
+- ChannelService.get_or_create_mediakit / update_mediakit **gone** (verified via grep).
+
+**Compliance impact:** none. Mediakit content (logo + theme + channel stats + price) carries no PII. ФЗ-152 не релевант.
+
+**Priority:** medium-high — launch prerequisite per архитектурная чистота policy (dead code unacceptable on launch).
+
+**Blocks:** none.
+
+**Closes:** BL-076 T1.2-D1 (when BL-078 ships).
+
+**Deadline:** Phase 8 (new — Creative content lifecycle, см. plan placement note).
+
+**References:**
+
+- `tmp/bl076_mediakit_probe.md` — probe findings (input для design).
+- BL-076 T1.2-D1 — current dead code surface (will be edited to "stale dead-code drift" wording when BL-078 lands).
+- `0001_initial_schema.py:586-628` — `channel_mediakits` table.
+- `tests/test_bmediakit_comparison.py:108-114` — skip reason update needed.
+
+---
+
+### BL-079 — Campaign creation media file upload (UI/feature gap)
+
+**Status:** OPEN — launch prerequisite (Marina decision O5, 2026-05-08).
+**Created:** 2026-05-08
+
+**Surface:** Marina observation 2026-05-08 — campaign creation wizard содержит toggle "добавить медиафайлы" (фото/видео), но поле для upload отсутствует. Switcher либо dead UI, либо partial implementation в early phase.
+
+**Issue:** Advertiser создаёт campaign, видит option "с медиа", но не может прикрепить файл. User expectation broken. Publication composes plain-text post, media never persisted.
+
+**Scope to investigate (probe required first — Phase 8.B Agent A):**
+
+- Identify switcher source: `web_portal/src/screens/advertiser/campaign/*.tsx` (likely `CampaignText.tsx` или wizard step), mini_app analog.
+- Determine current state — is media field hidden behind switcher, or absent entirely? Is switcher wired anywhere?
+- DB schema audit: `placement_request.media_files` (или similar) — exists?
+- Telegram Bot API publication: `send_photo` / `send_video` / `send_media_group` requirements + caption length limits (1024 chars vs 4096 plain text).
+
+**Design decisions (decided ahead — not deferred to probe):**
+
+- **Storage backend (default):** S3/MinIO/local volume с copy strategy. **Telegram file_id passthrough explicitly NOT recommended** — file_ids are bot-scoped (different bots can't access each other's IDs), can become invalid (rare but documented), break ФЗ-38 audit retention если original message deleted.
+- **Media + ERID composition:** decided в BL-080 design (caption budget edge case — BL-080 scope item).
+
+**Implementation scope:**
+
+- DB migration (если нужна — `placement_request.media_attachments` table или `media_files` JSONB).
+- Storage service abstraction (`src/core/services/media_storage.py` или extend existing).
+- Upload endpoint: `POST /api/placements/{id}/media` (multipart) или separate `POST /api/media/upload` returning file IDs.
+- UI field в campaign wizard step (web_portal + mini_app where allowed).
+- Publication composition: media + marked text (per BL-080 decision на caption budget).
+- Audit trail: media files reference в `placement_status_history.metadata_json` или dedicated `media_audit_log`.
+- File validation: size limits, allowed extensions (`.jpg`, `.png`, `.mp4`, etc.), virus scanning policy (defer to ops если не in stack).
+
+**Acceptance:**
+
+- Advertiser uploads фото/видео в campaign creation wizard.
+- Files persist в configured storage backend.
+- Publication composes media + marked text согласно BL-080 caption budget decision.
+- Integration test: campaign created с media → `send_photo/video/media_group` called с правильными args + ERID disclaimer.
+- ФЗ-38 audit retention: media file retrievable post-publication. **Retention period defined per ФЗ-38 / ОРД tech spec** (typical 1 year for advertising materials — exact requirement confirmed during probe + storage policy aligned).
+
+**Compliance impact:**
+
+- **ФЗ-38** — рекламные креативы с media require ОРД маркировку. Interaction details — BL-080 design item.
+- **ФЗ-152** — applies **conditionally**: если uploaded media содержит identifiers of natural persons (faces, names, contact info), требуется storage encryption + access control + retention policy. Pure-product creatives (product photo, brand asset без people) — standard business-asset handling sufficient. Probe-time classification required (per upload metadata flag или per campaign settings).
+
+**Priority:** high — launch prerequisite (Marina decision O5).
+
+**Blocks:** none.
+
+**Blocked by:** BL-080 (ERID flow) — нужен caption budget decision + composition pattern перед implementation.
+
+**Deadline:** Phase 8 (new — Creative content lifecycle).
+
+**References:**
+
+- Marina observation 2026-05-08.
+- `IMPLEMENTATION_PLAN_ACTIVE.md` Phase 6.B.3 — ORD hardening (BL-080 dependency).
+- Telegram Bot API docs: caption length 1024, text 4096.
+
+---
+
+### BL-080 — ERID marking flow completion + Phase 6.B.3 scope additions
+
+**Status:** OPEN — launch prerequisite (ФЗ-38 legal compliance).
+**Created:** 2026-05-08
+
+**Surface:** Marina observation 2026-05-08 — flow с маркированием ERID не полностью проработан. `StubOrdProvider` + `YandexOrdProvider` существуют, `_build_marked_text` есть в `publication_service.py:106`, но end-to-end gaps remain.
+
+**Issue:** ОРД (Оператор Рекламных Данных) integration частично implemented:
+
+- Provider abstraction есть (`OrdProvider` protocol).
+- ERID registration через `ord_service.py`.
+- Marked text composition через `_build_marked_text`.
+- Phase 6.B.3 (existing plan slot) covers: `ord_provider` literal, deterministic block logic, `_build_marked_text` rewrite, gate G08 alignment, КЭП fallback.
+
+**Phase 6.B.3 already covers (no need to duplicate в BL-080):**
+
+- `ord_provider: Literal["stub", "yandex", "vk", "ozon"]` в settings.
+- Removal `ord_block_publication_without_erid` в favor deterministic logic.
+- `_build_marked_text` block-on-no-erid for non-stub providers.
+- Gate G08 deterministic alignment.
+
+**BL-080 scope = scope additions to Phase 6.B.3 + dead code cleanup. Не duplicate existing plan items, а extend.**
+
+**Scope items (BL-080 specific):**
+
+1. **Duplicate yandex provider cleanup** (closes BL-074 T3.17). Two files exist: `src/core/services/ord_yandex_provider.py:13` (skeleton) + `src/core/services/yandex_ord_provider.py:36` (real impl per 5b.5 L20). **Both define `class YandexOrdProvider(OrdProvider)`** — same name, two implementations. Whichever import path runs first wins, the other shadowed silently. **Delete `ord_yandex_provider.py`** (skeleton) — keep `yandex_ord_provider.py` as canonical. Closes BL-074 T3.17.
+
+2. **Caption budget design (media + ERID composition).** Telegram limits: 4096 chars text-only, 1024 chars media caption. ERID disclaimer (`Реклама. {advertiser_name}\nerid: {token}`) + ad text + URL fits 4096 comfortably but easily overruns 1024 в caption. Design decision (impacts BL-079):
+   - **Option A:** Caption с truncated ad text + full ERID disclaimer (preserves legal marker, sacrifices content).
+   - **Option B:** Separate text message under media (`send_media_group` then `send_message` reply-to) — preserves content + marker. **Requires ОРД legal review** — ФЗ-38 + ОРД technical spec typically require marker visible together с advertising creative within same publication unit. Separate message может быть legally separable from creative + Telegram readers can miss second message (mobile UX, scroll ordering). Decision must NOT be made on UX/cost grounds alone.
+   - **Option C:** Media-with-text composition pattern (`InputMediaPhoto.caption` constrained, follow-up message с ERID).
+   - **Decision required при probe** — affects user expectations, Telegram delivery cost, ФЗ-38 marker placement compliance.
+
+3. **ERID idempotency on retry.** Re-calling provider on retry may double-register same creative (different ERIDs returned for what is logically one ad). Provider may or may not enforce idempotency upstream. Implementation: stable internal `idempotency_key` per creative + EXISTS-check pattern (mirror of S-48 financial transactions). Update `ord_service.py` register call с idempotency guard.
+
+4. **Registration retry policy.** Define max attempts, backoff, escalation path. `ord_blocked` status recovery: admin override через Phase 5 mechanism + retry button.
+
+5. **Audit trail completion (split per agent O3):**
+   - **(a)** Verify `OrdRegistration` model captures full event history (request payload, response, ERID, timestamp, attempt number).
+   - **(b)** Link `OrdRegistration` ↔ `placement_status_history` via `placement_id` + `correlation_id` для cross-domain debugging.
+
+6. **Failure paths enumeration:** provider down, ERID rejected, registration timeout, marking errors. Each requires explicit status + recovery path.
+
+7. **Media-aware marking** (interaction with BL-079): how ERID disclaimer renders когда post содержит media. См. item 2 above (caption budget design).
+
+**Scope expansion 2026-05-08 (BL-074 disposition review):** absorbs BL-074 T3.18 (`_global_provider` module-state в `src/core/services/ord_service.py:48` cleanup) + T3.19 (`OrdRegistration.status` String(20) → Enum migration). Natural fit с ERID flow completion / ord_service touchpoints.
+
+**Phase A research scope:**
+
+- Read full ERID flow: `publication_service.py:_build_marked_text:106`, `ord_service.py`, `ord_yandex_provider.py`, `yandex_ord_provider.py`, `stub_ord_provider.py`, `OrdProvider` protocol.
+- Cross-reference Phase 6.B.3 plan — gap delta between plan + BL-080 additions.
+- ФЗ-38 + ОРД technical spec compliance check (gap analysis vs requirements).
+- Test coverage audit: `test_ord_*`, `test_publication_*` — gaps.
+
+**Acceptance:**
+
+- Single `YandexOrdProvider` class (one file, skeleton deleted).
+- Caption budget design decision recorded + implemented.
+- ERID registration idempotent on retry (no double-registration).
+- Retry policy + recovery paths defined and tested.
+- `OrdRegistration` audit trail complete + linked to placement_status_history.
+- Integration test: full ERID flow including failure paths.
+- Phase 6.B.3 acceptance items + BL-080 items both pass.
+
+**Compliance impact:** **HIGH** — ФЗ-38 рекламное законодательство. Publication без verified ERID = legal risk. Marker placement must comply с ОРД technical spec.
+
+**Priority:** high — launch blocker (legal compliance).
+
+**Blocks:** BL-079 (campaign media upload — requires media+ERID composition decision from item 2).
+
+**Closes:** BL-074 **T3.17 sub-item** (yandex provider skeleton deletion). Parent BL-074 остаётся OPEN с T2.3 / T2.4 / T3.18 / T3.19 / T3.20 unaddressed.
+
+**Deadline:** Phase 6 (existing slot Phase 6.B.3 expanded with BL-080 scope).
+
+**References:**
+
+- Marina observation 2026-05-08.
+- `IMPLEMENTATION_PLAN_ACTIVE.md` Phase 6.B.3 — ORD production hardening (existing slot).
+- BL-074 T3.17 — yandex skeleton dead code (BL-080 absorbs).
+- `src/core/services/publication_service.py:106` — `_build_marked_text`.
+- `src/core/services/ord_service.py`, `ord_yandex_provider.py:13`, `yandex_ord_provider.py:36`, `stub_ord_provider.py`.
+- Telegram Bot API docs: caption length 1024, text 4096, `InputMediaPhoto`, `send_media_group`.
+
+### BL-081 — Phase 3b launch hardening bundle
+
+**Status:** OPEN — launch prerequisite per "архитектурная чистота" policy
+**Created:** 2026-05-08
+**Source:** BL-073/BL-074 disposition review 2026-05-08
+
+Bundle of 7 launch absorption items from BL-073/BL-074 Tier 2/3 review (Marina decision 2026-05-08: priority shift "не экономия бюджета → архитектурная чистота + полная готовность включая всплывающее"). Each item ships before launch; BL-081 closes when все 7 done.
+
+#### Frontend UX gaps (5)
+
+- **T2.5** — Frontend `addPayout` send `X-Idempotency-Key` header (`web_portal/src/api/payouts.ts:11`); client retry safety
+- **T3.1** — mini_app declined-channel UX deeplink (originally 5b.7a)
+- **T3.2** — web_portal channel-add error UI render `extra.blockers[]` (originally 5b.7a)
+- **T3.3** — `/payout-methods` portal route для G06 fail `remediation_url` (originally 5b.7a)
+- **T3.7** — Frontend `addChannel` mutation idempotency convention (originally 5b.7a O.6)
+
+#### Refactor / schema (2)
+
+- **T3.20** — `Contract.contract_type` rename "advertiser_framework" → "framework" (originally 5b.3 L18; mechanical clean naming)
+- **T3.21** — `LegalProfileService.check_completeness` side-effects split: pure compute + write (originally 5b.3 L19)
+
+**Refs:** BL-073 disposition (T2.5), BL-074 disposition (T3.1-T3.3, T3.7, T3.20, T3.21).
+
+### BL-082 — `User` type 3 sources of truth (drift risk)
+
+**Status:** OPEN — latent (DX / type-drift, no current breakage)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #2
+
+**Statement:** Three independent `User` type declarations coexist in `web_portal/`:
+
+- `web_portal/src/stores/authStore.ts` exposes `User` (10 fields — intentionally
+  minimal subset для store state)
+- `web_portal/src/lib/types.ts` exposes `User` (legacy aggregate types file,
+  7959 bytes)
+- `web_portal/src/lib/types/user.ts` exposes `User` (23 fields — modular, likely
+  canonical: `plan_expires_at`, `credits`, `advertiser_xp/level`, `owner_xp/level`,
+  `referral_code`, `legal_status_completed`, `has_legal_profile`,
+  `platform_rules_accepted_at`, `privacy_policy_accepted_at`, etc.)
+
+Risk: type drift over time, inconsistent field access patterns, false-positive
+imports from wrong module.
+
+**Closure trigger:** consolidate to single canonical (likely
+`lib/types/user.ts`); refactor `authStore.User` to import & alias subset via
+`Pick<User, ...>`; deprecate `lib/types.ts:User` and update all importers; add
+eslint rule preventing direct re-declarations.
+
+**Effort:** Small (~2-4 hours: audit imports + replace + lint clean + verify
+build).
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 5 + § 11).
+
+### BL-083 — TanStack Query devtools не mounted в `App.tsx`
+
+**Status:** OPEN — latent (DX-only)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #8
+
+**Statement:** `@tanstack/react-query-devtools` присутствует в
+`web_portal/package.json` `devDependencies` (`v5.91.3`) но не imported / mounted
+в `web_portal/src/App.tsx`. DX-loss — нельзя inspect query cache, debug stale
+data, observe network в dev режиме.
+
+**Closure trigger:**
+
+```tsx
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+
+// inside <QueryClientProvider>:
+<QueryClientProvider client={queryClient}>
+  <RouterProvider router={router} />
+  {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+</QueryClientProvider>
+```
+
+**Effort:** Trivial (~5 lines, <10 minutes).
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 4 + § 11).
+
+### BL-084 — `authStore` без `persist` middleware — manual localStorage sync
+
+**Status:** OPEN — latent (cross-tab edge case)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #5
+
+**Statement:** `web_portal/src/stores/authStore.ts` использует vanilla zustand
+БЕЗ `persist` middleware. `setAuth`/`logout` manually write to BOTH store state
+AND `localStorage` (keys `rh_token`, `rh_user`). Cross-tab sync работает только
+при initial `localStorage.getItem(...)` at store creation — нет `storage` event
+listener для live cross-tab updates.
+
+**Risk (edge case):** user opens 2 tabs → logs out в tab A → tab B continues
+showing logged-in state until refresh/navigation. No current user reports.
+
+**Closure trigger (variants):**
+
+- (a) Refactor к `zustand/middleware persist` — drops manual writes, gives
+  automatic localStorage sync. Refactor ~30 min, contained surgery.
+- (b) Add `storage` event listener — surgical (~10 min), live cross-tab updates;
+  keeps current manual-write pattern.
+
+**Effort:** Small.
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 5 + § 11).
+
+### BL-085 — Sentry `afterResponse` auto-captures non-ok — noise на known 4xx
+
+**Status:** OPEN — latent (observability noise)
+**Created:** 2026-05-11
+**Source:** PROMPT_23 web_portal/ probe 2026-05-11, § 11 surprise #4
+
+**Statement:** `afterResponse` hook на ky instance (`web_portal/src/shared/api/client.ts`)
+вызывает `Sentry.captureException(new Error(\`[API] Error: ${response.status} ${response.url}\`))`
+для каждого `!response.ok`. Известные ожидаемые 4xx (404 на download
+not-found, 403 на not-owner attempts, 401 → handled by redirect) шумят в Sentry
+без actionable signal.
+
+Affected endpoints today: acts PDF download, kudir export (admin), mediakit PDF
+download (B.4 ships 2026-05-11).
+
+**Closure trigger (variants):**
+
+- (a) Filter by URL pattern в `afterResponse` — skip Sentry capture для известных
+  download endpoints на 4xx.
+- (b) Filter by status code — skip 401 (already handled by redirect) and 403/404
+  globally; keep 5xx и unexpected.
+- (c) Add Sentry `beforeSend` global hook с filtered list.
+
+**Effort:** Small (~10 lines с tests of filter logic).
+
+**Priority note:** Low-medium — escalate if Sentry quota / signal-to-noise
+becomes operational pain.
+
+**Refs:** PROMPT_23 probe (`tmp/web_portal_probe.md` § 3 + § 11); BL-076 T1.2-D1
+(mediakit B.1-B.4 series).
+
+### BL-086 — Mediakit logo resolver / Telegram file_id image proxy
+
+**Status:** OPEN — feature gap (frontend image proxy infrastructure)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 mini_app preview screen CHANGES (deferred section); also surfaced PROMPT_24/PROMPT_25 B.4 download path.
+
+**Statement:** `ChannelMediakit.logo_file_id` хранит Telegram file_id
+(bot-scoped reference). Frontends (web_portal owner cabinet PDF preview,
+mini_app advertiser preview screen) сейчас не могут рендерить logo image —
+нет endpoint'а / proxy, отдающего bytes по file_id. Backend PDF generator
+(`mediakit_pdf.py`) принимает `logo_bytes` argument, но `logo_file_id →
+bytes` resolver не реализован (B.2 ships с `logo_bytes=None` per Q3 defer).
+
+Broader concern: file_id → image bytes pattern also applies к channel
+avatars (currently not displayed) и future post media attachments (BL-079
+scope).
+
+**Closure trigger (variants):**
+
+- (a) `GET /api/files/telegram/{file_id}` endpoint — `getFile` +
+  `downloadFile` + auth + cache. Frontend `<TelegramImage file_id={...}>`
+  component для shared use.
+- (b) Pre-resolve URL: signed-proxy с TTL; backend job заранее resolves
+  and caches.
+- (c) S3/MinIO mirror: on mediakit logo upload (Phase 8 feature surface),
+  copy bytes к internal storage + serve via standard CDN.
+
+**Effort:** medium (endpoint + cache + frontend component + tests; ~1-2 days).
+
+**Priority note:** low — cosmetic (mediakit functional без logo); Phase 8
+candidate если broader image-proxy infrastructure planned.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; B.2 endpoint в `src/api/routers/channels.py:1302-1342`;
+`mediakit_pdf.py:58` `logo_bytes` guard.
+
+### BL-087 — Mediakit theme_color tinting
+
+**Status:** OPEN — UX polish (visual identity передача)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 mini_app preview screen CHANGES (deferred section).
+
+**Statement:** `MediakitAdvertiserResponse.theme_color` (hex string,
+defaults к `"#1a73e8"` после B.3 hotfix) возвращается frontend'у но не
+applied as visual tint в mini_app preview screen. Currently screen uses
+neutral Tailwind tokens (`var(--rh-space-*)`). Channel-owner brand identity
+не передаётся в advertiser-facing preview.
+
+Web_portal PDF rendering уже использует `theme_color` через
+`reportlab.lib.colors.HexColor` в `mediakit_pdf.py` — mini_app preview
+parity отсутствует.
+
+**Closure trigger:** apply `theme_color` к specific UI elements в
+`mini_app/src/screens/advertiser/ChannelMediakitView.tsx`: e.g. heading
+underline, card border accent, или CTA button background. Pattern: inline
+`style={{ borderColor: theme_color }}` per element, либо CSS variable
+injection через React context.
+
+**Effort:** small (~30 LOC, single screen).
+
+**Priority note:** low — cosmetic polish; mediakit content readable без
+tinting.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; `mini_app/src/screens/advertiser/ChannelMediakitView.tsx`;
+`MediakitAdvertiserResponse.theme_color` (`src/api/schemas/mediakit.py`).
+
+### BL-088 — `landing/` frontend surface probe
+
+**Status:** OPEN — operational / observability gap
+**Created:** 2026-05-11
+**Source:** Phase B mediakit workstream — third frontend dir untouched + unprobed.
+
+**Statement:** Repository contains three frontend directories: `mini_app/`,
+`web_portal/`, `landing/`. Phase B mediakit work (B.4 + B.5) probed
+`web_portal/` (PROMPT_23) and `mini_app/` (PROMPT_26) before touching,
+surfacing baseline issues (BL-082..085 from web_portal probe; B.5 deferrals
+from mini_app probe). `landing/` (RekHarbor static landing page per
+`landing-dev` skill metadata) was NOT touched during Phase B, also NOT
+probed.
+
+Stack/scope/deps/build state unknown today: `package.json` deps, lint
+baseline, vite/Tailwind v4 config, deployed surface, integration с other
+frontends (auth, deeplinks), bundle size, motion/react usage.
+
+**Closure trigger:** deep-dive probe session — inventory
+`landing/package.json` deps + `landing/src/` screens/components + `npm run
+lint` baseline + `npm run build` artifact + verify CSP/font/motion
+conventions per CLAUDE.md landing-specific rules.
+
+**Effort:** small (~probe session, no implementation).
+
+**Priority note:** low — no immediate functional gap; insurance against
+repeat issues от prior `web_portal/`/`mini_app/` probes when next
+`landing/` touch comes.
+
+**Refs:** `CHANGES_2026-05-11_b5-1-mediakit-advertiser-endpoint.md` mentions
+`landing/: untouched` baseline preservation as evidence of probe gap;
+CLAUDE.md § "Landing-specific rules" lists conventions; `landing-dev` skill
+scoped to `/opt/market-telegram-bot/landing/`.
+
+### BL-089 — `@telegram-apps/sdk-react` unused dep в `mini_app/`
+
+**Status:** OPEN — dep hygiene (cosmetic)
+**Created:** 2026-05-11
+**Source:** PROMPT_26 mini_app probe surprise #1 (referenced в B.5 CHANGES "Deferred" section).
+
+**Statement:** Package `@telegram-apps/sdk-react` declared в
+`mini_app/package.json` dependencies, но не imported anywhere в
+`mini_app/src/`. Verified through grep during PROMPT_26 probe — zero
+`from '@telegram-apps/sdk-react'` references. Adds:
+
+- Bundle weight (unused code в dist).
+- npm install time / lockfile churn.
+- Cognitive overhead (future developer might assume it's wired).
+
+Likely artifact of early Telegram WebApp integration exploration, abandoned
+in favor of custom auth/ky-based pattern.
+
+**Closure trigger:** `cd mini_app && npm uninstall @telegram-apps/sdk-react`
++ verify build still clean (`npm run build`) + verify no transitive
+consumers (`grep -r telegram-apps mini_app/src/`).
+
+**Effort:** trivial (~5 minutes).
+
+**Priority note:** low — cosmetic / hygiene; not blocking.
+
+**Refs:** `CHANGES_2026-05-11_b5-mediakit-advertiser-preview.md` § "Deferred
+to B.6 / BACKLOG"; PROMPT_26 probe transcript (`tmp/mini_app_probe.md` if
+preserved).
+
+### BL-090 — Stop-hook fires loop on Phase A research-only outputs
+
+**Status:** OPEN — UX noise (no functional impact)
+**Created:** 2026-05-11
+**Source:** PROMPT_28 B.5 Phase A (~500+ fires); PROMPT_30 B.6.2 Phase A (~9 fires). Recurrence confirmed; L71 candidate pattern.
+
+**Statement:** Prompts using Phase A (read-only research →
+`tmp/<slug>_research.md` output) → STOP gate → Phase B (mutations + CHANGES
+file landed same-commit с docs edits в Шаге 6) trigger repeated stop-hook
+fires at Phase A boundary complaining `CHANGES_<date>_<desc>.md` NOT
+created в `reports/docs-architect/discovery/`. BL-016 silent-ignore
+protocol handles agent-side after first non-trivial ack; fires continue
+as visible noise stream к Marina (chat surface — no agent action).
+
+Pattern reproduces deterministically on L70 design (CHANGES same-commit
+pattern, deferred from Phase A boundary). Each STOP gate без CHANGES file
+fires the hook; identical fires per BL-016 silent-ignored agent-side but
+each fire surfaces к Marina via chat.
+
+**Closure trigger (variants):**
+
+- (a) Server-side hook tuning (Anthropic-side action — not actionable from
+  project prompts).
+- (b) Hook config в `.claude/` if existing — selectively suppress fires
+  when `tmp/<slug>_research.md` exists OR when transcript indicates "Phase
+  A research-only STOP gate".
+- (c) Accept as known harmless; rely on BL-016 silent-ignore (current
+  state). Phase A boundary fires not blocking workflow.
+
+**Effort:** small (option b) / negligible (option c).
+
+**Priority note:** low — UX noise; не affects correctness. Marina-side
+annoyance only.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (stop-hook fires-in-loop
+infrastructure), L70 (Phase A boundary deferral pattern), L71 (in-prompt
+tracking pattern).
 
 ## Closed items
 
