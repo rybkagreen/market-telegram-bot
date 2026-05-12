@@ -12,6 +12,7 @@ from datetime import datetime
 
 import httpx
 
+from src.core.exceptions import OrdPermanentError, OrdTransientError
 from src.core.services.ord_provider import OrdProvider
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,10 @@ SUCCESS_STATUSES = {"ERIR sync success", "ERIR async success"}
 ERROR_STATUSES = {"ERIR sync error", "ERIR async error", "ORD rejected"}
 
 
-class OrdRegistrationError(Exception):
-    """Raised when Yandex ORD API returns a non-recoverable error."""
+class OrdRegistrationError(OrdTransientError):
+    """Yandex ORD API error. Inherits from OrdTransientError as the default
+    failure mode (network / 5xx). 4xx validation paths raise OrdPermanentError
+    directly so the retry policy в ord_tasks doesn't waste attempts."""
 
 
 class YandexOrdProvider(OrdProvider):
@@ -73,18 +76,18 @@ class YandexOrdProvider(OrdProvider):
         except httpx.RequestError as e:
             raise OrdRegistrationError(f"Request error to ORD API: {e}") from e
 
-        # 5xx — retry (caller должен обрабатывать)
+        # 5xx — transient, retry с exponential backoff
         if resp.status_code >= 500:
             raise OrdRegistrationError(f"ORD server error {resp.status_code}: {resp.text[:500]}")
 
-        # 422 — валидация
+        # 422 — validation, permanent (retry won't help; payload must change)
         if resp.status_code == 422:
             logger.error("ORD validation error (422): %s", resp.text[:1000])
-            raise OrdRegistrationError(f"ORD validation error (422): {resp.text[:500]}")
+            raise OrdPermanentError(f"ORD validation error (422): {resp.text[:500]}")
 
-        # 4xx — ошибка клиента
+        # 4xx (other) — client error, permanent
         if resp.status_code >= 400:
-            raise OrdRegistrationError(f"ORD client error {resp.status_code}: {resp.text[:500]}")
+            raise OrdPermanentError(f"ORD client error {resp.status_code}: {resp.text[:500]}")
 
         return resp.json()
 
