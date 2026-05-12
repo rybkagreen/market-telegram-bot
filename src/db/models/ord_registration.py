@@ -51,8 +51,10 @@ class OrdRegistration(Base, TimestampMixin):
     ord_provider: Mapped[str] = mapped_column(
         String(50), nullable=False, default="default", server_default="default"
     )
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending", server_default="pending"
+    status: Mapped[OrdRegistrationStatus] = mapped_column(
+        nullable=False,
+        default=OrdRegistrationStatus.pending,
+        server_default=OrdRegistrationStatus.pending.value,
     )
     registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     token_received_at: Mapped[datetime | None] = mapped_column(
