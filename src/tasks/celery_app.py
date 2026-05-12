@@ -273,10 +273,20 @@ app = celery_app
 
 @worker_process_init.connect
 def on_worker_process_init(**kwargs: Any) -> None:
-    """Initialize shared Bot on worker fork."""
+    """Initialize shared Bot + warm ORD provider singleton on worker fork.
+
+    Previously the ORD provider was constructed at module import (singleton
+    initialized in src.core.services.ord_service). When ORD_PROVIDER=yandex,
+    Celery prefork ended up with the wrong provider class because the
+    skeleton import ran before the lifespan-side replacement that only the
+    API process performed. Pre-warming get_ord_provider() inside each worker
+    binds the canonical provider to this process.
+    """
+    from src.core.services.ord_service import get_ord_provider
     from src.tasks._bot_factory import init_bot
 
     init_bot()
+    get_ord_provider()
 
 
 @worker_process_shutdown.connect
