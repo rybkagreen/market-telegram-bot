@@ -26,7 +26,7 @@ from src.core.services.ord_provider import OrdProvider
 from src.core.services.stub_ord_provider import StubOrdProvider
 from src.core.services.yandex_ord_provider import YandexOrdProvider
 from src.db.models.legal_profile import LegalProfile
-from src.db.models.ord_registration import OrdRegistration
+from src.db.models.ord_registration import OrdRegistration, OrdRegistrationStatus
 from src.db.models.placement_request import PlacementRequest
 from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 
@@ -186,7 +186,7 @@ class OrdService:
             insert(OrdRegistration)
             .values(
                 placement_request_id=placement_request_id,
-                status="token_received",
+                status=OrdRegistrationStatus.token_received,
                 erid=erid,
                 ord_provider=settings.ord_provider,
                 advertiser_ord_id=advertiser_ord_id,
@@ -248,7 +248,9 @@ class OrdService:
             published_at=published_at,
             placement_request_id=placement_request_id,
         )
-        await repo.update_status(registration.id, "reported", reported_at=published_at)
+        await repo.update_status(
+            registration.id, OrdRegistrationStatus.reported, reported_at=published_at
+        )
 
     async def get_status(self, placement_request_id: int) -> OrdRegistration | None:
         """Получить статус регистрации в ОРД."""

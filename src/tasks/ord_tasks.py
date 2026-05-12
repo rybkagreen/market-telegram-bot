@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.services.stub_ord_provider import StubOrdProvider
+from src.db.models.ord_registration import OrdRegistrationStatus
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
@@ -79,8 +80,14 @@ async def _poll_erid_status_async(registration_id: int) -> str:
             return "not_found"
 
         # Terminal states — no need to poll
-        if registration.status in ("erir_confirmed", "erir_failed", "erir_timeout", "reported"):
-            return registration.status
+        terminal_statuses = {
+            OrdRegistrationStatus.erir_confirmed,
+            OrdRegistrationStatus.erir_failed,
+            OrdRegistrationStatus.erir_timeout,
+            OrdRegistrationStatus.reported,
+        }
+        if registration.status in terminal_statuses:
+            return registration.status.value
 
         if not registration.yandex_request_id:
             logger.warning(
@@ -88,7 +95,9 @@ async def _poll_erid_status_async(registration_id: int) -> str:
                 registration_id,
             )
             await repo.update_status(
-                registration.id, "erir_failed", error_message="No yandex_request_id"
+                registration.id,
+                OrdRegistrationStatus.erir_failed,
+                error_message="No yandex_request_id",
             )
             return "no_request_id"
 
@@ -114,7 +123,7 @@ async def _poll_erid_status_async(registration_id: int) -> str:
         from src.core.services.yandex_ord_provider import ERROR_STATUSES, SUCCESS_STATUSES
 
         if status_response in SUCCESS_STATUSES:
-            await repo.update_status(registration.id, "erir_confirmed")
+            await repo.update_status(registration.id, OrdRegistrationStatus.erir_confirmed)
             logger.info(
                 "ord:poll_erid_status — ERIR confirmed for registration %s",
                 registration_id,
@@ -123,7 +132,7 @@ async def _poll_erid_status_async(registration_id: int) -> str:
         elif status_response in ERROR_STATUSES:
             await repo.update_status(
                 registration.id,
-                "erir_failed",
+                OrdRegistrationStatus.erir_failed,
                 error_message=f"ERIR error: {status_response}",
             )
             logger.warning(
@@ -197,7 +206,7 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
                         if registration:
                             await repo.update_status(
                                 registration.id,
-                                "erir_timeout",
+                                OrdRegistrationStatus.erir_timeout,
                                 error_message=f"ERIR polling timeout after {self.max_retries} retries",
                             )
 

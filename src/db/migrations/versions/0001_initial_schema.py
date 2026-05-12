@@ -1479,7 +1479,16 @@ def upgrade() -> None:  # noqa: PLR0915
         ),
         sa.Column(
             "status",
-            sa.String(20),
+            sa.Enum(
+                "pending",
+                "token_received",
+                "erir_confirmed",
+                "erir_failed",
+                "erir_timeout",
+                "reported",
+                "ord_blocked",
+                name="ordregistrationstatus",
+            ),
             server_default=sa.text("'pending'"),
             nullable=False,
         ),
