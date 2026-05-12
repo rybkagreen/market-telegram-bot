@@ -7,6 +7,7 @@ G10: Placement text marked as advertising (`Реклама. erid: ...`)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import settings
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
 from src.core.schemas.gate_result import GateResult
@@ -18,11 +19,20 @@ async def check_g08(session: AsyncSession, placement: PlacementRequest) -> GateR
     """G08_ERID_REGISTERED.
 
     Reads OrdRegistration row for placement. Pass iff row exists AND
-    `erid` is set. Real-now per Phase 3b; Phase 6 (§6.B.3) hardens the
-    flow producing these registrations (stub vs real provider).
+    `erid` is set. Phase 6.B.3 deterministic alignment: when the active
+    provider is "stub", the gate short-circuits to pass — stub mode
+    intentionally publishes без erid (the same conditional that
+    publication_service._build_marked_text follows).
 
     Pattern 1 (S-48): receives session, no commit/flush/rollback.
     """
+    if settings.ord_provider == "stub":
+        return GateResult(
+            gate=PlacementGate.G08_ERID_REGISTERED,
+            passed=True,
+            blocker=True,
+            reason_code=GateReason.OK.value,
+        )
     registration = await OrdRegistrationRepo(session).get_by_placement(placement.id)
     if registration is None or not registration.erid:
         return GateResult(

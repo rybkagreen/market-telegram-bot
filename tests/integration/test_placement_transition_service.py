@@ -493,8 +493,17 @@ class TestGateEnforcement:
         self,
         service: PlacementTransitionService,
         db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """escrow → published evaluates G08+G09+G10 — all failed gates collected."""
+        """escrow → published evaluates G08+G09+G10 — all failed gates collected.
+
+        Phase 6.B.3 deterministic alignment: G08 short-circuits to pass под stub.
+        Force ord_provider=yandex so the gate exercises its non-stub blocker path
+        and все 3 gates surface their failures.
+        """
+        monkeypatch.setattr(
+            "src.core.services.gates.publication_gates.settings.ord_provider", "yandex"
+        )
         placement = await _seed_placement(
             db_session,
             telegram_id_offset=370,
