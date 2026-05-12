@@ -23,8 +23,8 @@ from sqlalchemy.orm import selectinload
 
 from src.config.settings import settings
 from src.core.services.ord_provider import OrdProvider
-from src.core.services.ord_yandex_provider import YandexOrdProvider
 from src.core.services.stub_ord_provider import StubOrdProvider
+from src.core.services.yandex_ord_provider import YandexOrdProvider
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.ord_registration import OrdRegistration
 from src.db.models.placement_request import PlacementRequest
@@ -48,7 +48,12 @@ def _build_ord_provider_from_settings() -> OrdProvider:
     if settings.ord_provider == "yandex":
         if not settings.ord_api_key or not settings.ord_api_url:
             raise RuntimeError("ORD_PROVIDER=yandex, but ORD_API_KEY or ORD_API_URL not set")
-        return YandexOrdProvider(settings.ord_api_key, settings.ord_api_url)
+        return YandexOrdProvider(
+            api_key=settings.ord_api_key,
+            base_url=settings.ord_api_url,
+            rekharbor_org_id=settings.ord_rekharbor_org_id,
+            rekharbor_inn=settings.ord_rekharbor_inn,
+        )
     return StubOrdProvider()
 
 
