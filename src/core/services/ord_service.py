@@ -77,20 +77,6 @@ class OrdService:
         if isinstance(self._provider, StubOrdProvider):
             logger.warning("OrdService: используется stub-провайдер (ORD_PROVIDER не настроен)")
 
-    # ─── Provider injection ────────────────────────────────────
-
-    @staticmethod
-    def get_default_provider() -> OrdProvider:
-        """Get the process-wide ORD provider via the lazy factory."""
-        return get_ord_provider()
-
-    @staticmethod
-    def set_default_provider(provider: OrdProvider) -> None:
-        """Override the cached ORD provider (called by API lifespan/tests)."""
-        global _provider_singleton
-        _provider_singleton = provider
-        logger.info("OrdService: ORD provider set to %s", type(provider).__name__)
-
     # ─── Business methods ──────────────────────────────────────
 
     async def register_advertiser(
