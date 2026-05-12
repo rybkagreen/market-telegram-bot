@@ -1487,6 +1487,7 @@ def upgrade() -> None:  # noqa: PLR0915
                 "erir_timeout",
                 "reported",
                 "ord_blocked",
+                "cancelled",
                 name="ordregistrationstatus",
             ),
             server_default=sa.text("'pending'"),
@@ -1515,6 +1516,9 @@ def upgrade() -> None:  # noqa: PLR0915
         # (ФЗ-38 ст. 18.1 / ПП-1427).
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deadline_at", sa.DateTime(timezone=True), nullable=True),
+        # BL-080 8c (Q7=(b)) — UUID correlation key minted by register_creative,
+        # propagated к each OrdAuditLog event observed during one attempt.
+        sa.Column("correlation_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["contract_id"],
             ["contracts.id"],
@@ -1538,6 +1542,81 @@ def upgrade() -> None:  # noqa: PLR0915
         ["placement_request_id"],
         unique=True,
     )
+    op.create_index(
+        "ix_ord_registrations_correlation_id",
+        "ord_registrations",
+        ["correlation_id"],
+    )
+
+    # ── Table 26.5: ord_audit_log (BL-080 8c, Q6=(a)) ─────────────────────────
+    # Append-only event log mirroring audit_logs precedent. Writes are
+    # SAVEPOINT-wrapped so audit failures never block the main flow.
+    op.create_table(
+        "ord_audit_log",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("correlation_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("ord_registration_id", sa.Integer(), nullable=True),
+        sa.Column("placement_id", sa.Integer(), nullable=False),
+        sa.Column("event_type", sa.String(64), nullable=False),
+        sa.Column("payload", postgresql.JSONB(), nullable=True),
+        sa.Column(
+            "status_from",
+            sa.Enum(
+                "pending",
+                "token_received",
+                "erir_confirmed",
+                "erir_failed",
+                "erir_timeout",
+                "reported",
+                "ord_blocked",
+                "cancelled",
+                name="ordregistrationstatus",
+                create_type=False,
+            ),
+            nullable=True,
+        ),
+        sa.Column(
+            "status_to",
+            sa.Enum(
+                "pending",
+                "token_received",
+                "erir_confirmed",
+                "erir_failed",
+                "erir_timeout",
+                "reported",
+                "ord_blocked",
+                "cancelled",
+                name="ordregistrationstatus",
+                create_type=False,
+            ),
+            nullable=True,
+        ),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("attempt_number", sa.Integer(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["ord_registration_id"],
+            ["ord_registrations.id"],
+            name="ord_audit_log_ord_registration_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["placement_id"],
+            ["placement_requests.id"],
+            name="ord_audit_log_placement_id_fkey",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("ix_ord_audit_log_correlation_id", "ord_audit_log", ["correlation_id"])
+    op.create_index("ix_ord_audit_log_placement_id", "ord_audit_log", ["placement_id"])
+    op.create_index(
+        "ix_ord_audit_log_ord_registration_id", "ord_audit_log", ["ord_registration_id"]
+    )
+    op.create_index("ix_ord_audit_log_created_at", "ord_audit_log", ["created_at"])
 
     # ── Table 27: mailing_logs ────────────────────────────────────────────────
     op.create_table(
@@ -1955,6 +2034,7 @@ def downgrade() -> None:
     op.drop_table("placement_disputes")
     op.drop_table("click_tracking")
     op.drop_table("mailing_logs")
+    op.drop_table("ord_audit_log")
     op.drop_table("ord_registrations")
     op.drop_table("invoices")
     op.drop_table("acts")
