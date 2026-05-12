@@ -1,6 +1,7 @@
 """OrdRegistration model for ORD (advertising registry) tracking."""
 
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
@@ -11,6 +12,25 @@ from src.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.db.models.contract import Contract
     from src.db.models.placement_request import PlacementRequest
+
+
+class OrdRegistrationStatus(str, Enum):
+    """Lifecycle states of an ORD registration.
+
+    Captures all stored values observed in code (ord_service.register_creative,
+    ord_tasks._poll_erid_status_async, ord_tasks._report_publication_async) plus
+    ord_blocked, which the BL-080 probe surfaced as referenced-but-undefined and
+    Marina ratified as a distinct semantic (Q4=(a)) — ORD-side rejection of the
+    creative, separable from the generic erir_failed bucket.
+    """
+
+    pending = "pending"
+    token_received = "token_received"
+    erir_confirmed = "erir_confirmed"
+    erir_failed = "erir_failed"
+    erir_timeout = "erir_timeout"
+    reported = "reported"
+    ord_blocked = "ord_blocked"
 
 
 class OrdRegistration(Base, TimestampMixin):
