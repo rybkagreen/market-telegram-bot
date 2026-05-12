@@ -32,12 +32,19 @@ from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 
 logger = logging.getLogger(__name__)
 
-# ─── Module-level global provider (injected at startup) ────────
+# ─── DI factory for ORD provider (lazy singleton) ────────────────
+#
+# Pattern mirrors src/api/dependencies.py:get_bot — the provider is built on
+# first access, not at module import. This avoids two failure modes that the
+# previous module-state singleton suffered from:
+#   • pytest collection crashing when ORD_PROVIDER=yandex but no keys set
+#   • Celery workers pre-fork import order picking the wrong provider class
+# Worker processes pre-warm the cache via worker_process_init signal.
+
+_provider_singleton: OrdProvider | None = None
 
 
-def _init_ord_provider_from_settings() -> OrdProvider:
-    from src.config.settings import settings
-
+def _build_ord_provider_from_settings() -> OrdProvider:
     if settings.ord_provider == "yandex":
         if not settings.ord_api_key or not settings.ord_api_url:
             raise RuntimeError("ORD_PROVIDER=yandex, but ORD_API_KEY or ORD_API_URL not set")
@@ -45,7 +52,12 @@ def _init_ord_provider_from_settings() -> OrdProvider:
     return StubOrdProvider()
 
 
-_global_provider: OrdProvider = _init_ord_provider_from_settings()
+def get_ord_provider() -> OrdProvider:
+    """Return the process-wide ORD provider, constructing it on first access."""
+    global _provider_singleton
+    if _provider_singleton is None:
+        _provider_singleton = _build_ord_provider_from_settings()
+    return _provider_singleton
 
 
 class OrdService:
@@ -61,15 +73,15 @@ class OrdService:
 
     @staticmethod
     def get_default_provider() -> OrdProvider:
-        """Get the globally configured ORD provider (set at startup)."""
-        return _global_provider
+        """Get the process-wide ORD provider via the lazy factory."""
+        return get_ord_provider()
 
     @staticmethod
     def set_default_provider(provider: OrdProvider) -> None:
-        """Set the global ORD provider (called at startup)."""
-        global _global_provider
-        _global_provider = provider
-        logger.info("OrdService: global ORD provider set to %s", type(provider).__name__)
+        """Override the cached ORD provider (called by API lifespan/tests)."""
+        global _provider_singleton
+        _provider_singleton = provider
+        logger.info("OrdService: ORD provider set to %s", type(provider).__name__)
 
     # ─── Business methods ──────────────────────────────────────
 
@@ -249,4 +261,4 @@ class OrdService:
 
 def get_ord_service(session: AsyncSession) -> OrdService:
     """Factory: создать OrdService с глобальным провайдером."""
-    return OrdService(session, provider=_global_provider)
+    return OrdService(session, provider=get_ord_provider())
