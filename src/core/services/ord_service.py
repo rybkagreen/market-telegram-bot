@@ -14,9 +14,10 @@ S-28 Phase 2: register_creative orchestrates the full flow:
 """
 
 import logging
+import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -26,8 +27,10 @@ from src.core.services.ord_provider import OrdProvider
 from src.core.services.stub_ord_provider import StubOrdProvider
 from src.core.services.yandex_ord_provider import YandexOrdProvider
 from src.db.models.legal_profile import LegalProfile
+from src.db.models.ord_audit_log import OrdAuditEventType
 from src.db.models.ord_registration import OrdRegistration, OrdRegistrationStatus
 from src.db.models.placement_request import PlacementRequest
+from src.db.repositories.ord_audit_log_repo import OrdAuditLogRepo
 from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 
 logger = logging.getLogger(__name__)
@@ -102,16 +105,25 @@ class OrdService:
         ad_text: str,
         media_type: str,
     ) -> OrdRegistration:
-        """
-        Полная оркестрация регистрации креатива в ОРД:
-        1. Загрузить PlacementRequest с channel и advertiser
-        2. Загрузить LegalProfile рекламодателя
-        3. register_advertiser → advertiser_ord_id
-        4. register_platform → platform_ord_id
-        5. register_contract → contract_ord_id
-        6. register_creative → erid (token) + request_id
-        7. Сохранить OrdRegistration
-        8. Запустить Celery task poll_erid_status
+        """Orchestrate full ORD registration for a placement.
+
+        BL-080 8c reordering: the OrdRegistration row is INSERTed in `pending`
+        state с a fresh correlation_id BEFORE any provider call. Subsequent
+        provider calls and state updates are audited через OrdAuditLogRepo
+        (SAVEPOINT-wrapped, fire-and-forget). On retry the EXISTS-check on
+        placement_request_id UNIQUE short-circuits к the existing row.
+
+        Steps:
+          1. EXISTS check (returns existing registration if already created).
+          2. Load PlacementRequest + LegalProfile.
+          3. INSERT OrdRegistration{status=pending, correlation_id=uuid}.
+          4. Audit: state_transition → pending.
+          5. Provider calls (advertiser → platform → contract → creative);
+             each audited with provider_request / provider_response events.
+          6. UPDATE OrdRegistration с erid + ord ids + status=token_received.
+          7. Audit: state_transition pending → token_received.
+          8. UPDATE PlacementRequest.erid.
+          9. Dispatch poll_erid_status Celery task (non-stub providers only).
         """
         repo = OrdRegistrationRepo(self.session)
         existing = await repo.get_by_placement(placement_request_id)
@@ -142,29 +154,84 @@ class OrdService:
         if legal_profile:
             name = legal_profile.legal_name or ""
 
-        # 3. register_advertiser
+        # 3. INSERT pending registration row + correlation_id BEFORE provider calls.
+        # uuid4 is sufficient — correlation_id is a join key для audit log entries
+        # within one register_creative call, not a sort key.
+        correlation_id = uuid.uuid4()
+        audit_repo = OrdAuditLogRepo(self.session)
+        registration = OrdRegistration(
+            placement_request_id=placement_request_id,
+            status=OrdRegistrationStatus.pending,
+            ord_provider=settings.ord_provider,
+            correlation_id=correlation_id,
+        )
+        self.session.add(registration)
+        await self.session.flush()
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.STATE_TRANSITION,
+            ord_registration_id=registration.id,
+            status_to=OrdRegistrationStatus.pending,
+        )
+
+        # 4. register_advertiser
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.PROVIDER_REQUEST,
+            ord_registration_id=registration.id,
+            payload={
+                "operation": "register_advertiser",
+                "user_id": placement.advertiser_id,
+                "name": name,
+                "inn": inn,
+            },
+        )
         advertiser_ord_id = await self._provider.register_advertiser(
             user_id=placement.advertiser_id,
             name=name,
             inn=inn,
         )
 
-        # 4. register_platform
+        # 5. register_platform
         channel = placement.channel
         channel_url = f"https://t.me/{channel.username}" if channel.username else ""
         channel_name = channel.title or channel.username or str(channel.telegram_id)
 
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.PROVIDER_REQUEST,
+            ord_registration_id=registration.id,
+            payload={
+                "operation": "register_platform",
+                "channel_id": channel.id,
+                "channel_url": channel_url,
+            },
+        )
         platform_ord_id = await self._provider.register_platform(
             channel_id=channel.id,
             channel_url=channel_url,
             channel_name=channel_name,
         )
 
-        # 5. register_contract
+        # 6. register_contract
         amount = placement.final_price or placement.proposed_price
         amount_rub = str(float(amount))
         pub_date = (placement.final_schedule or datetime.now(UTC)).date().isoformat()
 
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.PROVIDER_REQUEST,
+            ord_registration_id=registration.id,
+            payload={
+                "operation": "register_contract",
+                "advertiser_ord_id": advertiser_ord_id,
+                "amount_rub": amount_rub,
+            },
+        )
         contract_ord_id = await self._provider.register_contract(
             placement_request_id=placement_request_id,
             advertiser_ord_id=advertiser_ord_id,
@@ -172,32 +239,49 @@ class OrdService:
             date_str=pub_date,
         )
 
-        # 6. register_creative → erid (token)
+        # 7. register_creative → erid (token)
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.PROVIDER_REQUEST,
+            ord_registration_id=registration.id,
+            payload={
+                "operation": "register_creative",
+                "media_type": media_type,
+                "advertiser_ord_id": advertiser_ord_id,
+            },
+        )
         erid = await self._provider.register_creative(
             placement_request_id=placement_request_id,
             ad_text=ad_text,
             media_type=media_type,
             advertiser_ord_id=advertiser_ord_id,
         )
-
-        # 7. Save OrdRegistration
-        now = datetime.now(UTC)
-        insert_stmt = (
-            insert(OrdRegistration)
-            .values(
-                placement_request_id=placement_request_id,
-                status=OrdRegistrationStatus.token_received,
-                erid=erid,
-                ord_provider=settings.ord_provider,
-                advertiser_ord_id=advertiser_ord_id,
-                platform_ord_id=platform_ord_id,
-                contract_ord_id=contract_ord_id,
-                token_received_at=now,
-            )
-            .returning(OrdRegistration)
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.PROVIDER_RESPONSE,
+            ord_registration_id=registration.id,
+            payload={"erid": erid, "advertiser_ord_id": advertiser_ord_id},
         )
-        result = await self.session.execute(insert_stmt)
-        registration: OrdRegistration = result.scalar_one()
+
+        # 8. UPDATE registration с обтянутыми полями + state transition.
+        now = datetime.now(UTC)
+        registration.erid = erid
+        registration.advertiser_ord_id = advertiser_ord_id
+        registration.platform_ord_id = platform_ord_id
+        registration.contract_ord_id = contract_ord_id
+        registration.token_received_at = now
+        registration.status = OrdRegistrationStatus.token_received
+        await audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.STATE_TRANSITION,
+            ord_registration_id=registration.id,
+            status_from=OrdRegistrationStatus.pending,
+            status_to=OrdRegistrationStatus.token_received,
+            payload={"erid": erid},
+        )
 
         # Обновить erid в PlacementRequest
         await self.session.execute(
