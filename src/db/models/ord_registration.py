@@ -3,8 +3,10 @@
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base, TimestampMixin
@@ -17,11 +19,9 @@ if TYPE_CHECKING:
 class OrdRegistrationStatus(str, Enum):
     """Lifecycle states of an ORD registration.
 
-    Captures all stored values observed in code (ord_service.register_creative,
-    ord_tasks._poll_erid_status_async, ord_tasks._report_publication_async) plus
-    ord_blocked, which the BL-080 probe surfaced as referenced-but-undefined and
-    Marina ratified as a distinct semantic (Q4=(a)) — ORD-side rejection of the
-    creative, separable from the generic erir_failed bucket.
+    8 values: 6 observed stored states + ord_blocked (Q4=(a), ORD-side rejection
+    separable от erir_failed) + cancelled (Q5=(a), admin-driven recovery target
+    when retry is не viable from ord_blocked / erir_failed states).
     """
 
     pending = "pending"
@@ -31,6 +31,7 @@ class OrdRegistrationStatus(str, Enum):
     erir_timeout = "erir_timeout"
     reported = "reported"
     ord_blocked = "ord_blocked"
+    cancelled = "cancelled"
 
 
 class OrdRegistration(Base, TimestampMixin):
@@ -72,6 +73,10 @@ class OrdRegistration(Base, TimestampMixin):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # BL-080 8c — correlation key minted by register_creative; ties together every
+    # OrdAuditLog event observed during a single registration attempt (Q7=(b)).
+    correlation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
     # Relationships
     placement_request: Mapped[PlacementRequest] = relationship(
         "PlacementRequest", foreign_keys=[placement_request_id]
@@ -81,6 +86,7 @@ class OrdRegistration(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_ord_registrations_placement_request_id", "placement_request_id", unique=True),
         Index("ix_ord_registrations_erid", "erid"),
+        Index("ix_ord_registrations_correlation_id", "correlation_id"),
     )
 
     def __repr__(self) -> str:
