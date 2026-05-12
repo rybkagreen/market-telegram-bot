@@ -10,8 +10,10 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from src.core.exceptions import OrdPermanentError, OrdProviderRejectedError
 from src.core.services.ord_retry import compute_backoff
 from src.core.services.stub_ord_provider import StubOrdProvider
+from src.db.models.ord_audit_log import OrdAuditEventType
 from src.db.models.ord_registration import OrdRegistrationStatus
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
@@ -20,9 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 async def _register_creative_async(placement_request_id: int) -> None:
+    """Run a single register_creative attempt.
+
+    Permanent failures (OrdProviderRejected → ord_blocked, OrdPermanentError →
+    erir_failed) are caught here, the OrdRegistration is moved к the terminal
+    status, an audit log entry is written, and the task returns normally so
+    Celery does NOT retry. Transient failures bubble out for the task wrapper
+    to retry с exponential backoff.
+    """
     async with async_session_factory() as session:
         from src.core.services.ord_service import get_ord_service
         from src.db.models.placement_request import PlacementRequest
+        from src.db.repositories.ord_audit_log_repo import OrdAuditLogRepo
+        from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 
         placement = await session.get(PlacementRequest, placement_request_id)
         if not placement:
@@ -34,12 +46,76 @@ async def _register_creative_async(placement_request_id: int) -> None:
             )
             return
         ord_service = get_ord_service(session)
-        await ord_service.register_creative(
-            placement_request_id=placement_request_id,
-            ad_text=placement.ad_text or "",
-            media_type=placement.media_type or "none",
-        )
+        try:
+            await ord_service.register_creative(
+                placement_request_id=placement_request_id,
+                ad_text=placement.ad_text or "",
+                media_type=placement.media_type or "none",
+            )
+        except OrdProviderRejectedError as exc:
+            await _record_terminal_failure(
+                session,
+                placement_request_id,
+                OrdRegistrationStatus.ord_blocked,
+                exc,
+                ord_audit_repo=OrdAuditLogRepo(session),
+                ord_reg_repo=OrdRegistrationRepo(session),
+            )
+            await session.commit()
+            return
+        except OrdPermanentError as exc:
+            await _record_terminal_failure(
+                session,
+                placement_request_id,
+                OrdRegistrationStatus.erir_failed,
+                exc,
+                ord_audit_repo=OrdAuditLogRepo(session),
+                ord_reg_repo=OrdRegistrationRepo(session),
+            )
+            await session.commit()
+            return
         await session.commit()
+
+
+async def _record_terminal_failure(
+    session: Any,
+    placement_request_id: int,
+    target_status: OrdRegistrationStatus,
+    exc: Exception,
+    *,
+    ord_audit_repo: Any,
+    ord_reg_repo: Any,
+) -> None:
+    """Persist a terminal failure on the pending OrdRegistration row + audit it.
+
+    Called by _register_creative_async on permanent provider errors. The row
+    must exist in `pending` state (created by register_creative's pre-create
+    step); if not, log a warning and skip (defensive — could happen if the
+    error occurs before pre-create).
+    """
+    registration = await ord_reg_repo.get_by_placement(placement_request_id)
+    if registration is None:
+        logger.warning(
+            "ord:register_creative permanent failure but no registration row; "
+            "placement_request_id=%s, exc=%s",
+            placement_request_id,
+            exc,
+        )
+        return
+    status_from = registration.status
+    await ord_reg_repo.update_status(registration.id, target_status, error_message=str(exc)[:500])
+    correlation_id = registration.correlation_id
+    if correlation_id is not None:
+        await ord_audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.ERROR,
+            ord_registration_id=registration.id,
+            status_from=status_from,
+            status_to=target_status,
+            error_message=str(exc)[:500],
+            payload={"exception_type": type(exc).__name__},
+        )
 
 
 async def _report_publication_async(placement_request_id: int) -> None:
