@@ -1,6 +1,6 @@
 # IMPLEMENTATION_PLAN_ACTIVE.md — Consolidated session plan (rev 4)
 
-_Last updated: 2026-05-11 (post BL-078 Phase B closure (B.1-B.6.2); main @ e1c31b3 v0.5.2, develop @ 2b0d0ab pre-B.6.2-merge)_
+_Last updated: 2026-05-12 (post v0.6.0 release — Mediakit Phase B; main @ f866b2f v0.6.0, develop @ 2ad0759 post-release merge)_
 
 > **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 8) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
 >
@@ -59,8 +59,8 @@ _Last updated: 2026-05-11 (post BL-078 Phase B closure (B.1-B.6.2); main @ e1c31
 | Phase 8 (placeholder) | ⏸ Pending | — | — | BL-079 (campaign media upload) + future creative content lifecycle work. BL-078 mediakit closed in-phase 2026-05-11 (polish under BL-086 / BL-087) — launch prerequisites per Marina 2026-05-08 priority shift |
 
 **Branch HEADs (на момент обновления):**
-- `main` = `e1c31b3` (v0.5.2 — T1.2.5f Bundle D + middleware fix)
-- `develop` = `2b0d0ab` (post-B.6.1 merge — `[Unreleased]` consolidation; B.6.2 docs closure merging now)
+- `main` = `f866b2f` (v0.6.0 — Mediakit Phase B closure)
+- `develop` = `2ad0759` (post-v0.6.0 release merge — release/0.6.0 absorbed)
 
 ---
 
