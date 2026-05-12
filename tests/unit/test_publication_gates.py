@@ -78,6 +78,8 @@ def _patch_repo(monkeypatch: pytest.MonkeyPatch, registration: OrdRegistration |
 async def test_g08_no_registration_row_returns_blocker(
     mock_session: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Non-stub provider: missing OrdRegistration must block (Phase 6.B.3)."""
+    monkeypatch.setattr("src.core.services.gates.publication_gates.settings.ord_provider", "yandex")
     placement = _fake_placement()
     _patch_repo(monkeypatch, registration=None)
 
@@ -93,6 +95,8 @@ async def test_g08_no_registration_row_returns_blocker(
 async def test_g08_row_exists_erid_none_returns_blocker(
     mock_session: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Non-stub provider: registration row без erid must block."""
+    monkeypatch.setattr("src.core.services.gates.publication_gates.settings.ord_provider", "yandex")
     placement = _fake_placement()
     registration = _fake_ord_registration(erid=None)
     _patch_repo(monkeypatch, registration=registration)
@@ -120,12 +124,28 @@ async def test_g08_erid_set_returns_pass(
 async def test_g08_remediation_url_none_on_fail(
     mock_session: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Non-stub provider: failure path must surface no remediation URL."""
+    monkeypatch.setattr("src.core.services.gates.publication_gates.settings.ord_provider", "yandex")
     placement = _fake_placement()
     _patch_repo(monkeypatch, registration=None)
 
     result = await check_g08(mock_session, placement)
 
     assert result.remediation_url is None
+
+
+async def test_g08_stub_provider_short_circuits_pass(
+    mock_session: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stub provider: G08 passes без erid (Phase 6.B.3 deterministic alignment)."""
+    placement = _fake_placement(erid=None)
+    # Repo not patched — gate must not consult it under stub.
+    result = await check_g08(mock_session, placement)
+
+    assert result.gate == PlacementGate.G08_ERID_REGISTERED
+    assert result.passed is True
+    assert result.blocker is True
+    assert result.reason_code == GateReason.OK.value
 
 
 # ============================================================================
