@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import and_, false, func, select, true
 from sqlalchemy.exc import IntegrityError
@@ -28,6 +28,7 @@ from src.api.schemas.channel import (
     ChannelCreateRequest,
     ChannelResponse,
 )
+from src.api.schemas.mediakit import MediakitAdvertiserResponse
 from src.config.settings import settings
 from src.constants.tariffs import (
     PREMIUM_SUBSCRIBER_THRESHOLD,
@@ -38,11 +39,13 @@ from src.constants.tariffs import (
 )
 from src.core.exceptions import ChannelAddDeclinedError
 from src.core.services.legal_compliance_service import LegalComplianceService
+from src.core.services.mediakit_service import mediakit_service
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
 from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.session import async_session_factory
+from src.utils.mediakit_pdf import generate_mediakit_pdf
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["channels"])
@@ -930,6 +933,7 @@ class ComparisonResponse(BaseModel):
 async def compare_channels(
     request: ChannelIdsRequest,
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ComparisonResponse:
     """
     Сравнить 2-5 каналов по метрикам.
@@ -944,7 +948,7 @@ async def compare_channels(
         raise HTTPException(status_code=400, detail="Максимум 5 каналов для сравнения")
 
     service = ComparisonService()
-    channels_data = await service.get_channels_for_comparison(request.channel_ids)
+    channels_data = await service.get_channels_for_comparison(request.channel_ids, session=session)
 
     if len(channels_data) < 2:
         raise HTTPException(status_code=404, detail="Недостаточно каналов найдено")
@@ -957,6 +961,7 @@ async def compare_channels(
 async def compare_channels_preview(
     ids: str,  # "1,2,3"
     current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ComparisonResponse:
     """GET /channels/compare/preview?ids=1,2,3"""
     try:
@@ -967,6 +972,7 @@ async def compare_channels_preview(
     return await compare_channels(
         ChannelIdsRequest(channel_ids=channel_ids),
         current_user,
+        session,
     )
 
 
@@ -1291,4 +1297,65 @@ async def update_channel_category(
         is_active=channel.is_active,
         is_test=channel.is_test,
         created_at=channel.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/{channel_id}/mediakit",
+    response_model=MediakitAdvertiserResponse,
+    responses={
+        404: {"description": "Not found"},
+    },
+)
+async def get_channel_mediakit_for_advertiser(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MediakitAdvertiserResponse:
+    """Вернуть published mediakit для advertiser-консьюмера (B.5.1).
+
+    Privacy gate: ChannelMediakit.is_published=False → 404 (parity
+    с not-exists / no-mediakit — no leak of unpublished draft existence).
+    Response excludes internal control fields (is_published, owner_user_id,
+    views_count, downloads_count).
+    """
+    mediakit = await mediakit_service.get_published_for_advertiser(channel_id, session=session)
+    if mediakit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mediakit not found")
+    return MediakitAdvertiserResponse.model_validate(mediakit)
+
+
+@router.get(
+    "/{channel_id}/mediakit/pdf",
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+    },
+)
+async def get_mediakit_pdf(
+    channel_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    """Сгенерировать и вернуть PDF медиакита канала (только владелец).
+
+    Инкрементирует views_count и downloads_count на каждый hit (BL-078 Q6).
+    Возвращает PDF как application/pdf attachment.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+
+    data = await mediakit_service.get_mediakit_data(channel_id, session=session)
+    pdf_bytes = generate_mediakit_pdf(data, logo_bytes=None)
+    await mediakit_service.register_pdf_hit(channel_id, session=session)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="mediakit_{channel_id}.pdf"',
+        },
     )

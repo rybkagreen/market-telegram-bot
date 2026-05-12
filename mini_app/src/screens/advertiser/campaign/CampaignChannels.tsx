@@ -61,6 +61,10 @@ export default function CampaignChannels() {
                     price={formatCurrency(channel.settings.price_per_post)}
                     status="active"
                     onClick={() => handleToggle(channel.id)}
+                    onInfoClick={() => navigate(
+                      `/adv/channels/${channel.id}/mediakit`,
+                      { state: { channelTitle: channel.title, channelUsername: channel.username } },
+                    )}
                   />
                   <div className={styles.channelActions}>
                     {isSelected ? (

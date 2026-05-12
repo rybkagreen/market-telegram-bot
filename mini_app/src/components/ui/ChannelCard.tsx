@@ -1,3 +1,5 @@
+import { Info } from 'lucide-react'
+
 import { useHaptic } from '@/hooks/useHaptic'
 import { StatusPill } from './StatusPill'
 import styles from './ChannelCard.module.css'
@@ -12,6 +14,7 @@ interface ChannelCardProps {
   verified?: boolean
   status?: 'active' | 'inactive' | 'pending'
   onClick?: () => void
+  onInfoClick?: () => void
 }
 
 const STATUS_MAP = {
@@ -36,6 +39,7 @@ export function ChannelCard({
   verified = false,
   status,
   onClick,
+  onInfoClick,
 }: ChannelCardProps) {
   const haptic = useHaptic()
 
@@ -43,6 +47,13 @@ export function ChannelCard({
     if (!onClick) return
     haptic.tap()
     onClick()
+  }
+
+  const handleInfoClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!onInfoClick) return
+    haptic.tap()
+    onInfoClick()
   }
 
   return (
@@ -75,6 +86,17 @@ export function ChannelCard({
           <StatusPill status={STATUS_MAP[status]} size="sm">
             {STATUS_LABELS[status]}
           </StatusPill>
+        )}
+
+        {onInfoClick && (
+          <button
+            type="button"
+            className={styles.infoButton}
+            onClick={handleInfoClick}
+            aria-label="Открыть медиакит"
+          >
+            <Info size={18} strokeWidth={2} aria-hidden />
+          </button>
         )}
       </div>
 

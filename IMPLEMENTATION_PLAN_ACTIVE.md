@@ -1,8 +1,8 @@
 # IMPLEMENTATION_PLAN_ACTIVE.md — Consolidated session plan (rev 4)
 
-_Last updated: 2026-04-28 (post Phase 2 closure, серия 15.x active, BL-037 codified)_
+_Last updated: 2026-05-11 (post BL-078 Phase B closure (B.1-B.6.2); main @ e1c31b3 v0.5.2, develop @ 2b0d0ab pre-B.6.2-merge)_
 
-> **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 7) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
+> **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 8) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
 >
 > **Проект не в production.** Критерий — не "правильно", а "архитектурно элегантно". Backward compatibility НЕ требуется. Мёртвый код, dev-only ветки, hardcoded значения — удаляются.
 >
@@ -43,17 +43,24 @@ _Last updated: 2026-04-28 (post Phase 2 closure, серия 15.x active, BL-037 
 | Phase 2 | ✅ DONE | 2026-04-27 | `9adaef2` merge | `PlacementTransitionService`, `placement_status_history`, forbidden-patterns lint, dead code cleanup |
 | **15.x серия** | ✅ DONE | 2026-04-29 | rolling, closed | Centralized fee model + legal templates aligned + frontend consumes /fee-config + acceptance loop + bot fail-closed + dead act-templates wired + AST lint TS literals + webhook consolidation 14b + WebhookAuthError rename + payment status type honesty. 9 промтов deployed (15.5–15.13 + 15.13.1) |
 | **16.x серия** | ✅ DONE | 2026-04-30 | rolling, closed | PII Hardening — Группы A/B/C/D + LOW batch + canonical PII keys + webhook trim. Pin /api/payouts/* + /api/admin/* к web_portal, encrypt requisites + ocr_text, bot payout removal, ReferralItem leak fix. BL-044..BL-058 closed |
+| **17.x серия** | ✅ DONE | 2026-04-30 → 2026-05-01 | rolling, closed (tag `v0.2.0`) | Credits naming sweep — 17.1 backend variable names (BL-053) + 17.2 enum rename `credits_buy→plan_purchase` / `admin_credit→admin_grant` + meta_json keys rename + Pydantic schema rename + 17.3a credits sweep + 17.3b backend URL renames `/admin/credits/*` → `/admin/grants/platform` + `/admin/bonuses/gamification` + 17.3c FE cleanup. Tag `v0.1.0` (2026-05-01 — earlier release) + `v0.2.0` (2026-05-01 — sprint closure) |
+| **Misc cleanup batch 2026-04-30 → 2026-05-01** | ✅ DONE | rolling | merges into develop | BL-055 direct bot→portal token exchange (HMAC) + BL-058 ruff baseline cleanup + BL-061 stale TestBadgeAchievementModel removal + BL-063 ix index direction fix + BL-064 charge_balance_for_plan align к canonical + BL-066 HMAC secret split из BOT_TOKEN + BL-067 routers __init__ re-exports removal + alembic.docker.ini consolidation + BL-064/066/067/068/069/070 batch close |
 | Phase 3a Foundation | ✅ DONE | 2026-05-02 | merged develop (sister `feature/legal-compliance-gates @ 9d072f1` retained as Foundation snapshot) | G01-G03 advertiser gates + helpers + tests (BL-037 sub-stage tracking groundwork) |
 | Phase 3b Legal Compliance Gates | ✅ DONE | 2026-05-03 | merged develop+main `--no-ff` + tag `v0.3.0-phase3b` | 10 sub-blocks 5b.1-5b.7d (34 commits + 4 closure-batch). 18 gates G01-G18, transition→gates resolution, LegalCompliance + PayoutCompliance skeleton, channel-add hook, X-Idempotency-Key keying, S-48 hygiene (43 sites), gate marker uniformization. +119 unit pass, 0 regressions. Phase 3c transition wiring per L39 |
-| Phase 3c Transition wiring | ✅ DONE | 2026-05-04 | `feature/phase3c-transition-wiring` (3 commits) → develop --no-ff | 3c.1 LegalComplianceService gate enforcement wired into `PlacementTransitionService.transition` body. `bypass_gates` flag, `transition_blocked` audit log, caller updates на 5 sites with marker-aware UX classifier. +18 unit pass, 0 regressions. **BL-072 T1.1 closed paper-only** — G07 PHASE4_PENDING blocks все pending_payment transitions until Phase 4. **BL-075 new** for `_TRANSITION_GATES` G01-G06 expansion. Closure: `CHANGES_2026-05-04_phase3c-1-transition-wiring.md` |
+| Phase 3c Transition wiring | ✅ DONE | 2026-05-04 | `feature/phase3c-transition-wiring` (3 commits) → develop --no-ff + tag `v0.4.0-phase3c` (2026-05-05) | 3c.1 LegalComplianceService gate enforcement wired into `PlacementTransitionService.transition` body. `bypass_gates` flag, `transition_blocked` audit log, caller updates на 5 sites with marker-aware UX classifier. +18 unit pass, 0 regressions. **BL-072 T1.1 closed paper-only** — G07 PHASE4_PENDING blocks все pending_payment transitions until Phase 4. **BL-075 new** for `_TRANSITION_GATES` G01-G06 expansion. Closure: `CHANGES_2026-05-04_phase3c-1-transition-wiring.md` |
+| **T1.2 audit series** | ✅ DONE | 2026-05-04 → 2026-05-08 | rolling cleanup, closed (tags `v0.5.0` / `v0.5.1` / `v0.5.2`) | Test failures cleanup 99→0. T1.2.1 auth refactor cleanup → T1.2.2 mechanical bulk + C16 → T1.2.3 audit_logs production fix (varchar widen + SAVEPOINT wrap) → T1.2.4/4b fixture decision + decimal/auth DI → T1.2.5e payout cleanup (PayoutComplianceService skeleton del, PayoutService dead methods, mini_app payout screens removed) → T1.2.5-C1/C2 surgical test deletes → T1.2.5f Bundle D topup normalize → T1.2.5g content_filter stability → T1.2.6 placement flow cluster → T1.2.7 counter-offer cleanup → T1.2.8 bot-factory cleanup → D4 admin_client relocation → T1.2 series closure + CHANGELOG. Tags: `v0.5.0` (T1.2 closure), `v0.5.1` (CLAUDE.md ru→en + hotfix), `v0.5.2` (Bundle D topup + middleware fix). +BL-077 new (middleware registration lesson) |
+| **BL-073/074/080/081 dispositions** | ✅ DOCS | 2026-05-08 → 2026-05-09 | merged develop | BL-078/079/080 entries landed → BL-073/074/080 dispositions (T2.5/T3.1/T3.2/T3.3/T3.7/T3.17/T3.18/T3.19/T3.20/T3.21 absorbed) → BL-081 launch hardening bundle surfaced. BL-074 T3.17/T3.18/T3.19 closed via absorption into BL-080 scope. Docs-only commits + ruff exclude `src/db/migrations/versions/` |
+| Plan restructure | ✅ DOCS | 2026-05-10 | merged develop `213aef2` | Phase 8 placeholder added + 6.B.3 BL-080 reference + section renumber. Reflects 2026-05-08 priority shift "architectural cleanliness + полная готовность including emergent BL-078/079" — launch prerequisites, not post-launch |
+| **BL-078 Phase B (mediakit)** | ✅ DONE | 2026-05-11 | 8 feature merges into develop (`428bd05` precleanup, `a584351` B.1, `0308072` B.2, `49813f0` B.3, `b47d5e2` B.4, `6961994` B.5.1, `72ec2a1` B.5, `2b0d0ab` B.6.1; B.6.2 = this docs closure merge) | Precleanup: drop dead `ChannelService.get_or_create_mediakit` / `update_mediakit` duplicates. B.1: `MediakitService` rewrite Pattern 1 strict + drop `_session_ctx`. B.2: owner-only PDF endpoint + counter increments. B.3: tests sweep + counter refactor + `theme_color=None` graceful handling hotfix. B.4: web_portal owner "Скачать медиакит" PDF download button. B.5.1: advertiser-readable mediakit endpoint (`GET /api/channels/{id}/mediakit` + privacy 404 для unpublished). B.5: mini_app advertiser preview screen + ⓘ icon on ChannelCard. B.6.1: CHANGELOG `[Unreleased]` consolidation. B.6.2: BACKLOG closeouts (BL-076 T1.2-D1, BL-078 IN-PHASE-CLOSED) + 5 new entries (BL-086 logo resolver, BL-087 theme_color tinting, BL-088 landing probe, BL-089 unused dep, BL-090 stop-hook fires loop) + PLAN overlay refresh. Closes BL-076 T1.2-D1 + BL-078 in-phase. Polish tracked under BL-086 / BL-087 |
 | Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) — G07/G15/G16 PHASE4_PENDING markers awaiting real bodies |
 | Phase 5 | ⏸ Pending | — | — | Test-mode runtime + admin UI + provider pattern + PayoutCompliance wiring + G17/G18 PHASE5_PENDING markers |
-| Phase 6 | ⏸ Pending | — | — | Contracts/Acts UX + ORD production hardening |
+| Phase 6 | ⏸ Pending | — | — | Contracts/Acts UX + ORD production hardening (BL-080 absorb) |
 | Phase 7 | ⏸ Pending | — | — | UI Timeline + sub-stage events + educational overlay (BL-037 visualization) |
+| Phase 8 (placeholder) | ⏸ Pending | — | — | BL-079 (campaign media upload) + future creative content lifecycle work. BL-078 mediakit closed in-phase 2026-05-11 (polish under BL-086 / BL-087) — launch prerequisites per Marina 2026-05-08 priority shift |
 
 **Branch HEADs (на момент обновления):**
-- `main` = `fe456c7` (pre-closure-batch merge; will advance with `--no-ff` merge sequence)
-- `develop` = `5926797` (pre-closure-batch merge; will advance with `--no-ff` merge sequence)
+- `main` = `e1c31b3` (v0.5.2 — T1.2.5f Bundle D + middleware fix)
+- `develop` = `2b0d0ab` (post-B.6.1 merge — `[Unreleased]` consolidation; B.6.2 docs closure merging now)
 
 ---
 
@@ -911,6 +918,8 @@ def get_ord_provider(placement: PlacementRequest) -> OrdProvider:
 - Gate G08 (Phase 3) использует ту же детерминированную логику.
 - UI: в `CampaignWaiting.tsx` секция "ОРД" — убираем вручную; всё видно через Timeline (Phase 7) как event.
 
+**BL-080 absorption:** ERID flow completion + production hardening — caption budget design, idempotency on retry, retry policy, audit trail split, yandex provider dedup (closes BL-074 T3.17), failure paths. Plus T3.18 (`_global_provider` module-state cleanup) + T3.19 (`OrdRegistration.status` String(20)→Enum migration) per BL-074 disposition. See BACKLOG.md BL-080 для scope details.
+
 ### 6.B.4 КЭП fallback (чтобы не blocker для pre-launch)
 - `ContractSigner` провайдер (из Phase 5) имеет три реализации:
   - `ClickSimulationSigner` — для `individual`/`self_employed` (click accept юридически достаточно).
@@ -1056,9 +1065,25 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 8. Финальный merge и удаление плана
+# Phase 8 — Creative content lifecycle (placeholder, probes pending)
 
-После всех 8 фаз + серий 15.x + 16.x:
+> **Status:** OPEN — placeholder. Содержание (research / implementation / acceptance / cross-cutting) будет finalized после probe sessions для BL-078 (mediakit) и BL-079 (media upload).
+>
+> Этот phase отражает Marina's priority shift 2026-05-08: "архитектурная чистота + полная готовность включая всплывающее" — `MediakitService` orphan stubs (BL-078) + campaign creation media upload gap (BL-079) — launch prerequisites, не post-launch.
+
+## 8.A mediakit feature workstream — BL-078
+
+Replace dead-code path (`MediakitService` + `mediakit_pdf.py` orphan stubs + `ChannelService.get_or_create_mediakit/update_mediakit` duplicate dead surface) с full feature: service rewrite, API endpoint, PDF rendering, UI screens, ChannelService duplicate cleanup. Probe pending. См. BACKLOG.md BL-078.
+
+## 8.B campaign creation media upload — BL-079
+
+Add media upload field к campaign creation switcher (currently switcher без field), upload + storage + composition design. Blocked by BL-080 (caption budget decision). Probe pending. См. BACKLOG.md BL-079.
+
+---
+
+## 9. Финальный merge и удаление плана
+
+После всех 9 фаз + серий 15.x + 16.x:
 
 1. Все feature-ветки смержены в `develop` через `--no-ff`.
 2. `git checkout develop && git pull`.
@@ -1079,7 +1104,7 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 9. Что НЕ делаем (и почему)
+## 10. Что НЕ делаем (и почему)
 
 - **Отдельный `src/mocks/`** — моки и так в `tests/`, переиспользуем.
 - **SQLAlchemy event-hook на status** — магия, ломается на Celery/bulk. Используем explicit transition function (Phase 2 done).
@@ -1096,7 +1121,7 @@ Response: `list[TimelineEvent]` с полями `timestamp`, `event_type`, `acto
 
 ---
 
-## 10. Quick navigation
+## 11. Quick navigation
 
 - Текущее состояние: см. **Status overlay** в начале.
 - Что делать дальше: серия 15.x → 15.8 (legal templates Jinja injection).
