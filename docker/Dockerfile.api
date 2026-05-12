@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir poetry
 
 # Копируем зависимости
 COPY pyproject.toml poetry.lock* ./
+COPY vendor/ ./vendor/
 
 # Устанавливаем зависимости
 RUN poetry config virtualenvs.create false \
@@ -47,6 +48,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Копируем исходный код
 COPY src/ ./src/
 COPY pyproject.toml ./
+COPY vendor/ ./vendor/
 
 # Устанавливаем проект
 RUN poetry config virtualenvs.create false \
