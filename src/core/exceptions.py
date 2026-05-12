@@ -188,6 +188,12 @@ class PostDeletionError(RuntimeError):
     pass
 
 
+class PublicationBlockedError(RuntimeError):
+    """Публикация заблокирована из-за нарушения регламентов (например, отсутствует ERID на не-stub провайдере)."""
+
+    pass
+
+
 # ══════════════════════════════════════════════════════════════
 # plan-05 (2026-04-21) — domain-specific subclasses with stable
 # error_code values consumed by the web_portal frontend.
