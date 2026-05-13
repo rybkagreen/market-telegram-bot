@@ -20,6 +20,7 @@ from src.core.exceptions import (
     BotNotAdminError,
     InsufficientPermissionsError,
     PostDeletionError,
+    PublicationBlockedError,
     TransitionBlockedError,
 )
 from src.core.services.billing_service import BillingService
@@ -27,6 +28,7 @@ from src.core.services.placement_transition_service import PlacementTransitionSe
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.placement_request_repo import PlacementRequestRepo
 from src.db.repositories.publication_log_repo import PublicationLogRepo
+from src.utils.telegram_limits import TELEGRAM_CAPTION_LIMIT, truncate_ad_text
 
 logger = logging.getLogger(__name__)
 
@@ -103,36 +105,54 @@ class PublicationService:
             raise InsufficientPermissionsError("Нет права закреплять сообщения")
 
     @staticmethod
-    def _build_marked_text(placement: PlacementRequest, is_test: bool = False) -> str:
-        """
-        Build post text with ORD erid marker and tracking link.
+    def _build_marked_text(
+        placement: PlacementRequest,
+        is_test: bool = False,
+        for_media_caption: bool = False,
+    ) -> str:
+        """Build post text with ORD erid marker and tracking link.
 
-        Raises ValueError if erid is missing, blocking is enabled, and not a test placement.
+        Deterministic logic per Phase 6.B.3:
+          * provider == "stub" + no erid: publish without a marker; append the
+            "[ТЕСТОВАЯ ПУБЛИКАЦИЯ]" footer when the placement is flagged is_test.
+          * provider != "stub" + no erid: raise PublicationBlockedError; ФЗ-38
+            forbids publishing real advertising без ERID.
+          * erid present: append the disclaimer + erid line.
+
+        Tracking link (if tracking_short_code is set) is appended after the
+        marker logic and is independent of erid state.
+
+        Caption budget (BL-080 8d): when ``for_media_caption=True``, truncate
+        ``ad_text`` if needed so the composed text fits within
+        ``TELEGRAM_CAPTION_LIMIT`` (1024). Disclaimer and tracking URL are
+        always preserved (ФЗ-38 / ORD legal requirement); ad_text is the only
+        sacrificable component. Word-boundary truncate with trailing ellipsis.
         """
         base_text = placement.ad_text or ""
+        test_placement = is_test or bool(getattr(placement, "is_test", False))
 
         if not placement.erid:
-            if settings.ord_block_publication_without_erid and not is_test:
-                raise ValueError(
-                    f"Публикация заблокирована: erid отсутствует для placement {placement.id}"
+            if settings.ord_provider == "stub":
+                disclaimer = "\n[ТЕСТОВАЯ ПУБЛИКАЦИЯ]" if test_placement else ""
+            else:
+                raise PublicationBlockedError(
+                    f"ERID required: ord_provider={settings.ord_provider}, placement={placement.id}"
                 )
-            logger.warning(
-                "erid missing for placement %s (is_test=%s, blocking=%s)",
-                placement.id,
-                is_test,
-                settings.ord_block_publication_without_erid,
-            )
-            # No erid — publish without marking, but still append tracking link if present
-            text = base_text
         else:
             advertiser_name = getattr(placement, "advertiser_name", None) or "Рекламодатель"
-            text = f"{base_text}\n\nРеклама. {advertiser_name}\nerid: {placement.erid}"
+            disclaimer = f"\n\nРеклама. {advertiser_name}\nerid: {placement.erid}"
 
         if placement.tracking_short_code:
             tracking_url = f"{settings.tracking_base_url}/{placement.tracking_short_code}"
-            text = f"{text}\n🔗 {tracking_url}"
+            tracking = f"\n🔗 {tracking_url}"
+        else:
+            tracking = ""
 
-        return text
+        if for_media_caption:
+            budget = TELEGRAM_CAPTION_LIMIT - len(disclaimer) - len(tracking)
+            base_text = truncate_ad_text(base_text, budget)
+
+        return f"{base_text}{disclaimer}{tracking}"
 
     async def _send_message_for_placement(
         self,
@@ -240,7 +260,12 @@ class PublicationService:
             raise PostDeletionError(f"Bot permissions check failed: {e}") from e
 
         # 3. Формируем текст с маркировкой erid
-        marked_text = self._build_marked_text(placement, is_test=placement.is_test)
+        for_media_caption = placement.media_type in ("photo", "video")
+        marked_text = self._build_marked_text(
+            placement,
+            is_test=placement.is_test,
+            for_media_caption=for_media_caption,
+        )
         pub_log_repo = PublicationLogRepo(session)
 
         # Log erid presence before sending

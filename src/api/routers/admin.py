@@ -38,11 +38,15 @@ from src.api.schemas.payout import (
 from src.db.models.contract import Contract
 from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
+from src.db.models.ord_audit_log import OrdAuditEventType
+from src.db.models.ord_registration import OrdRegistration, OrdRegistrationStatus
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
+from src.db.repositories.ord_audit_log_repo import OrdAuditLogRepo
+from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 from src.db.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -1196,3 +1200,151 @@ async def reject_admin_payout(
     owner = await session.get(User, payout.owner_id)
     logger.info(f"Admin {admin_user.id} rejected payout {payout_id}: {body.reason}")
     return _payout_to_admin_response(payout, owner)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BL-080 8c — ORD registration admin override (Q5=(a))
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class OrdOverrideRequest(BaseModel):
+    """Admin override payload — retry the registration or cancel it outright."""
+
+    action: str = Field(..., description="retry | cancel", pattern="^(retry|cancel)$")
+    reason: str = Field(..., min_length=3, description="Audit reason (≥3 chars)")
+
+
+class OrdRegistrationAdminResponse(BaseModel):
+    """Subset of OrdRegistration surfaced after override."""
+
+    id: int
+    placement_request_id: int
+    status: OrdRegistrationStatus
+    erid: str | None
+    correlation_id: uuid.UUID | None
+    error_message: str | None
+
+
+_ORD_RETRY_FROM_STATUSES = {
+    OrdRegistrationStatus.ord_blocked,
+    OrdRegistrationStatus.erir_failed,
+    OrdRegistrationStatus.erir_timeout,
+}
+_ORD_CANCEL_FROM_STATUSES = {
+    OrdRegistrationStatus.ord_blocked,
+    OrdRegistrationStatus.erir_failed,
+    OrdRegistrationStatus.erir_timeout,
+    OrdRegistrationStatus.pending,
+    OrdRegistrationStatus.token_received,
+}
+
+
+@router.post(
+    "/ord-registrations/{registration_id}/override",
+    response_model=OrdRegistrationAdminResponse,
+    responses={
+        404: {"description": "Registration not found"},
+        409: {"description": "Invalid state for the requested action"},
+    },
+)
+async def admin_override_ord_registration(
+    registration_id: int,
+    body: OrdOverrideRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> OrdRegistrationAdminResponse:
+    """Admin recovery action for an ORD registration (BL-080 8c, Q5=(a)).
+
+    `retry`: clears the registration к pending state + mints a fresh
+    correlation_id + enqueues ord:register_creative. Allowed только from
+    terminal failure states.
+
+    `cancel`: marks the registration cancelled — terminal, no further
+    automation. Allowed from any pre-confirmed state.
+
+    Every override writes an OrdAuditLog entry tagged ADMIN_OVERRIDE
+    containing the admin's user_id and the reason.
+    """
+    reg = await session.get(OrdRegistration, registration_id)
+    if reg is None:
+        raise HTTPException(status_code=404, detail="OrdRegistration not found")
+
+    audit_repo = OrdAuditLogRepo(session)
+    reg_repo = OrdRegistrationRepo(session)
+    status_from = reg.status
+
+    if body.action == "retry":
+        if reg.status not in _ORD_RETRY_FROM_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot retry from status={reg.status.value}",
+            )
+        new_correlation = uuid.uuid4()
+        reg.status = OrdRegistrationStatus.pending
+        reg.correlation_id = new_correlation
+        reg.error_message = None
+        await session.flush()
+        if status_from is not None:
+            await audit_repo.log(
+                correlation_id=new_correlation,
+                placement_id=reg.placement_request_id,
+                event_type=OrdAuditEventType.ADMIN_OVERRIDE,
+                ord_registration_id=reg.id,
+                status_from=status_from,
+                status_to=OrdRegistrationStatus.pending,
+                payload={
+                    "admin_user_id": admin_user.id,
+                    "action": "retry",
+                    "reason": body.reason,
+                },
+            )
+        from src.tasks.ord_tasks import register_creative_task
+
+        register_creative_task.delay(reg.placement_request_id)
+        logger.info(
+            "Admin %s requested retry of OrdRegistration %s (placement %s); reason=%s",
+            admin_user.id,
+            reg.id,
+            reg.placement_request_id,
+            body.reason,
+        )
+    else:  # action == "cancel"
+        if reg.status not in _ORD_CANCEL_FROM_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot cancel from status={reg.status.value}",
+            )
+        await reg_repo.update_status(
+            reg.id, OrdRegistrationStatus.cancelled, error_message=f"admin cancel: {body.reason}"
+        )
+        if reg.correlation_id is not None:
+            await audit_repo.log(
+                correlation_id=reg.correlation_id,
+                placement_id=reg.placement_request_id,
+                event_type=OrdAuditEventType.ADMIN_OVERRIDE,
+                ord_registration_id=reg.id,
+                status_from=status_from,
+                status_to=OrdRegistrationStatus.cancelled,
+                payload={
+                    "admin_user_id": admin_user.id,
+                    "action": "cancel",
+                    "reason": body.reason,
+                },
+            )
+        logger.info(
+            "Admin %s cancelled OrdRegistration %s (placement %s); reason=%s",
+            admin_user.id,
+            reg.id,
+            reg.placement_request_id,
+            body.reason,
+        )
+
+    await session.refresh(reg)
+    return OrdRegistrationAdminResponse(
+        id=reg.id,
+        placement_request_id=reg.placement_request_id,
+        status=reg.status,
+        erid=reg.erid,
+        correlation_id=reg.correlation_id,
+        error_message=reg.error_message,
+    )

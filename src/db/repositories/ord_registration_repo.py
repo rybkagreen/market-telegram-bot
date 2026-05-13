@@ -2,7 +2,7 @@
 
 from sqlalchemy import select
 
-from src.db.models.ord_registration import OrdRegistration
+from src.db.models.ord_registration import OrdRegistration, OrdRegistrationStatus
 from src.db.repositories.base import BaseRepository
 
 
@@ -20,7 +20,9 @@ class OrdRegistrationRepo(BaseRepository[OrdRegistration]):
         )
         return result.scalar_one_or_none()
 
-    async def update_status(self, id: int, status: str, **kwargs: object) -> OrdRegistration:
+    async def update_status(
+        self, id: int, status: OrdRegistrationStatus, **kwargs: object
+    ) -> OrdRegistration:
         """Обновить статус регистрации."""
         registration = await self.get_by_id(id)
         if registration is None:

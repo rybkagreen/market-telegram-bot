@@ -86,40 +86,30 @@ async def lifespan(_app: FastAPI):
     logger.info("Starting FastAPI application...")
     # Инициализация пула БД происходит лениво через async_session_factory
 
-    # ─── ORD Provider injection (S-28 Phase 2) ────────────────
-    from src.core.services.ord_service import OrdService
+    # ─── ORD provider eager-init (BL-080 8c) ─────────────────
+    # The lazy factory get_ord_provider() builds on first access; calling it
+    # here surfaces misconfiguration (yandex without keys → RuntimeError) at
+    # startup rather than on the first ORD task. This replaces the previous
+    # set_default_provider lifespan-injection — DI factory is the single
+    # source of truth now.
+    from src.core.services.ord_service import get_ord_provider
 
-    if settings.ord_provider == "yandex" and settings.ord_api_key:
-        try:
-            from src.core.services.ord_service import OrdService
-            from src.core.services.yandex_ord_provider import YandexOrdProvider
-
-            provider = YandexOrdProvider(
-                api_key=settings.ord_api_key,
-                base_url=settings.ord_api_url or "https://ord.yandex.ru",
-                rekharbor_org_id=settings.ord_rekharbor_org_id,
-                rekharbor_inn=settings.ord_rekharbor_inn,
-            )
-            OrdService.set_default_provider(provider)
-            logger.info(
-                "ORD: YandexOrdProvider initialized (org_id=%s, key=...%s)",
-                settings.ord_rekharbor_org_id,
-                settings.ord_api_key[-4:],
-            )
-        except Exception as e:
-            logger.error("ORD: failed to initialize YandexOrdProvider, falling back to stub: %s", e)
-    else:
-        logger.info("ORD: using StubOrdProvider (ORD_PROVIDER=%s)", settings.ord_provider)
+    try:
+        provider = get_ord_provider()
+        logger.info("ORD: provider initialized — %s", type(provider).__name__)
+    except RuntimeError as exc:
+        logger.error("ORD: provider init failed at startup: %s", exc)
+        provider = None
 
     yield
 
     # ─── Cleanup ──────────────────────────────────────────────
-    provider = OrdService.get_default_provider()
-    close_fn = getattr(provider, "close", None)
-    if callable(close_fn):
-        result = close_fn()
-        if inspect.isawaitable(result):
-            await result
+    if provider is not None:
+        close_fn = getattr(provider, "close", None)
+        if callable(close_fn):
+            result = close_fn()
+            if inspect.isawaitable(result):
+                await result
 
     from src.api.dependencies import close_bot
 

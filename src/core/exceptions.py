@@ -188,6 +188,46 @@ class PostDeletionError(RuntimeError):
     pass
 
 
+class PublicationBlockedError(RuntimeError):
+    """Публикация заблокирована из-за нарушения регламентов (например, отсутствует ERID на не-stub провайдере)."""
+
+    pass
+
+
+# ══════════════════════════════════════════════════════════════
+# BL-080 8c — ORD error hierarchy для failure-path classification.
+# ord_tasks retry policy reads the type to decide retry vs ord_blocked.
+# ══════════════════════════════════════════════════════════════
+
+
+class OrdError(RuntimeError):
+    """Base for ORD-related failures."""
+
+    pass
+
+
+class OrdTransientError(OrdError):
+    """Retryable failure (network blip, 5xx, timeout). ord_tasks retries with
+    exponential backoff; exhaustion routes к erir_timeout."""
+
+    pass
+
+
+class OrdPermanentError(OrdError):
+    """Non-retryable failure (4xx validation, schema-level rejection). Routes
+    к OrdRegistrationStatus.erir_failed без retry."""
+
+    pass
+
+
+class OrdProviderRejectedError(OrdPermanentError):
+    """Provider explicitly rejected the creative (e.g. ОРД denied). Routes
+    к OrdRegistrationStatus.ord_blocked — distinct from generic erir_failed
+    per Q4=(a)."""
+
+    pass
+
+
 # ══════════════════════════════════════════════════════════════
 # plan-05 (2026-04-21) — domain-specific subclasses with stable
 # error_code values consumed by the web_portal frontend.

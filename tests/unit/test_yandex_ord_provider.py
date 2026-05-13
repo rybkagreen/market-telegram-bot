@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
+from src.core.exceptions import OrdPermanentError
 from src.core.services.yandex_ord_provider import (
     OrdRegistrationError,
     YandexOrdProvider,
@@ -255,29 +256,38 @@ async def test_check_erir_status_returns_full_payload() -> None:
 
 
 async def test_401_raises_ord_registration_error() -> None:
+    """401 is a permanent failure — retry won't help без a new token."""
+
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json=_load("error_401_invalid_token.json"))
 
     provider = _build_provider(handler)
-    with pytest.raises(OrdRegistrationError, match="401"):
+    with pytest.raises(OrdPermanentError, match="401"):
         await provider.register_advertiser(42, "Test", "7707083893")
 
 
 async def test_422_validation_error() -> None:
+    """422 is a permanent failure — payload must change, retries are wasted."""
+
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(422, json=_load("error_422_validation.json"))
 
     provider = _build_provider(handler)
-    with pytest.raises(OrdRegistrationError, match="validation error"):
+    with pytest.raises(OrdPermanentError, match="validation error"):
         await provider.register_advertiser(42, "T", "123")
 
 
 async def test_429_rate_limit_raises_client_error() -> None:
+    """429 is currently classified as permanent (4xx); ord_tasks retry policy
+    intentionally doesn't burn attempts here. If Yandex reliability changes
+    this trade-off, reclassify к OrdTransientError + bump backoff to honour
+    Retry-After header."""
+
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(429, json=_load("error_429_rate_limit.json"))
 
     provider = _build_provider(handler)
-    with pytest.raises(OrdRegistrationError, match="429"):
+    with pytest.raises(OrdPermanentError, match="429"):
         await provider.register_advertiser(42, "T", "7707083893")
 
 
