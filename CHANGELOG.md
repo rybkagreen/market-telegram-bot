@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(empty — ready для next workstream)
+### BL-080 8d — Caption budget for media posts
+
+Closes BL-080 final sub-block. Caption budget enforced для photo / video placements:
+ad_text truncated на word boundary с ellipsis when composed text (ad_text + ФЗ-38
+disclaimer + optional tracking URL) would exceed Telegram 1024-char caption limit.
+Disclaimer + tracking URL always preserved — ad_text only sacrificable component.
+
+### Added
+
+- **`src/utils/telegram_limits.py`** — new module exporting `TELEGRAM_CAPTION_LIMIT`
+  (1024), `TELEGRAM_MESSAGE_LIMIT` (4096), and `truncate_ad_text(text, max_chars)`
+  helper. Word-boundary truncate с trailing ellipsis; hard cut for single-word
+  overflow; non-positive budget returns empty string.
+- **`tests/unit/test_caption_truncate.py`** — 17 new unit tests (8 direct
+  `truncate_ad_text` + 9 `_build_marked_text` end-to-end including edge cases).
+
+### Changed
+
+- **`PublicationService._build_marked_text`** — new param `for_media_caption: bool
+  = False` (signature-backward-compatible). When `True`, truncates `ad_text` to fit
+  within `TELEGRAM_CAPTION_LIMIT - len(disclaimer) - len(tracking)` before
+  composition. All 8b deterministic logic preserved.
+- **`PublicationService.publish_placement`** — computes `for_media_caption =
+  placement.media_type in ("photo", "video")` and passes to `_build_marked_text`.
+  Text-only placements (`media_type="none"`) unchanged.
+
+### Deferred / Out of scope
+
+- **Option B (video note separate-message marker)** dropped в 8d — `media_type`
+  field doesn't include `video_note` value, no bot UI flow, no dispatcher branch
+  (Phase A empirical audit). Tracked как BL-108 candidate.
+- **Option D (overlay variant)** — image processing pipeline, separate post-launch BL.
+- **Text-only post `ad_text > 4096` overflow handling** — pre-existing edge,
+  tracked как BL-109 candidate. Not 8d scope.
 
 ## [v0.6.0] - 2026-05-12
 
