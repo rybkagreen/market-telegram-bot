@@ -156,3 +156,78 @@ class TestBuildMarkedTextCaptionBudget:
         )
         assert text.startswith(long_text)
         assert "…" not in text
+
+    def test_composed_exactly_at_caption_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ad_text sized so composed text = 1024 exactly → no truncate, no ellipsis."""
+        monkeypatch.setattr("src.core.services.publication_service.settings.ord_provider", "yandex")
+        erid = "ERID-EXACT-001"
+        name = "ООО Тест"
+        disclaimer = f"\n\nРеклама. {name}\nerid: {erid}"
+        ad_text = "А" * (TELEGRAM_CAPTION_LIMIT - len(disclaimer))
+        text = PublicationService._build_marked_text(
+            _placement(ad_text=ad_text, erid=erid, advertiser_name=name),
+            for_media_caption=True,
+        )
+        assert len(text) == TELEGRAM_CAPTION_LIMIT
+        assert "…" not in text
+        assert text.startswith(ad_text)
+
+    def test_tracking_pushes_over_limit_triggers_truncate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ad_text fits without tracking, but tracking_short_code adds chars → truncate kicks in."""
+        monkeypatch.setattr("src.core.services.publication_service.settings.ord_provider", "yandex")
+        erid = "ERID-TRK-PUSH-001"
+        name = "ООО Тест"
+        disclaimer = f"\n\nРеклама. {name}\nerid: {erid}"
+        # ad_text exactly fills budget when no tracking
+        ad_text = "А " * ((TELEGRAM_CAPTION_LIMIT - len(disclaimer)) // 2)
+        text_without_tracking = PublicationService._build_marked_text(
+            _placement(ad_text=ad_text, erid=erid, advertiser_name=name),
+            for_media_caption=True,
+        )
+        assert "…" not in text_without_tracking
+        # Add tracking → composed would overflow → truncate kicks in
+        text_with_tracking = PublicationService._build_marked_text(
+            _placement(
+                ad_text=ad_text,
+                erid=erid,
+                advertiser_name=name,
+                tracking_short_code="abc123def456ghi7",
+            ),
+            for_media_caption=True,
+        )
+        assert len(text_with_tracking) <= TELEGRAM_CAPTION_LIMIT
+        assert "…" in text_with_tracking
+        assert "🔗 " in text_with_tracking
+
+    def test_fallback_advertiser_name_when_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """advertiser_name=None → fallback 'Рекламодатель' used; budget accounts для fallback length."""
+        monkeypatch.setattr("src.core.services.publication_service.settings.ord_provider", "yandex")
+        text = PublicationService._build_marked_text(
+            _placement(
+                ad_text="А" * 1500,
+                erid="ERID-FALLBACK-001",
+                advertiser_name=None,
+            ),
+            for_media_caption=True,
+        )
+        assert len(text) <= TELEGRAM_CAPTION_LIMIT
+        assert "Реклама. Рекламодатель" in text
+        assert "…" in text
+
+    def test_stub_provider_no_erid_with_media_caption(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """stub + no erid + media path → no disclaimer; for_media_caption still truncates if needed."""
+        monkeypatch.setattr("src.core.services.publication_service.settings.ord_provider", "stub")
+        long_text = "А" * 1500
+        text = PublicationService._build_marked_text(
+            _placement(ad_text=long_text, erid=None, is_test=False),
+            for_media_caption=True,
+        )
+        assert len(text) <= TELEGRAM_CAPTION_LIMIT
+        # No erid → no disclaimer; disclaimer overhead = 0 → ad_text truncated to fit 1024
+        assert "Реклама" not in text
+        assert "erid:" not in text
+        assert "…" in text
