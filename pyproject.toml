@@ -35,8 +35,8 @@ python-telegram-bot = "^21.0"
 pymorphy3 = "^2.0.0"
 rapidfuzz = "^3.6.0"
 
-# AI Services — Mistral AI (официальный SDK)
-mistralai = "^1.12.4"
+# AI Services — Mistral AI (vendored wheel за PyPI quarantine; см. CHANGES_2026-05-12_fix-b-mistralai-vendor.md)
+mistralai = { path = "vendor/wheels/mistralai-1.12.4-py3-none-any.whl" }
 
 # Document processing & OCR
 PyMuPDF = "^1.24.0"           # PDF text extraction

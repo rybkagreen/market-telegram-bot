@@ -10,7 +10,11 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from src.core.exceptions import OrdPermanentError, OrdProviderRejectedError
+from src.core.services.ord_retry import compute_backoff
 from src.core.services.stub_ord_provider import StubOrdProvider
+from src.db.models.ord_audit_log import OrdAuditEventType
+from src.db.models.ord_registration import OrdRegistrationStatus
 from src.db.session import celery_async_session_factory as async_session_factory
 from src.tasks.celery_app import BaseTask, celery_app
 
@@ -18,9 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 async def _register_creative_async(placement_request_id: int) -> None:
+    """Run a single register_creative attempt.
+
+    Permanent failures (OrdProviderRejected → ord_blocked, OrdPermanentError →
+    erir_failed) are caught here, the OrdRegistration is moved к the terminal
+    status, an audit log entry is written, and the task returns normally so
+    Celery does NOT retry. Transient failures bubble out for the task wrapper
+    to retry с exponential backoff.
+    """
     async with async_session_factory() as session:
         from src.core.services.ord_service import get_ord_service
         from src.db.models.placement_request import PlacementRequest
+        from src.db.repositories.ord_audit_log_repo import OrdAuditLogRepo
+        from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 
         placement = await session.get(PlacementRequest, placement_request_id)
         if not placement:
@@ -32,12 +46,76 @@ async def _register_creative_async(placement_request_id: int) -> None:
             )
             return
         ord_service = get_ord_service(session)
-        await ord_service.register_creative(
-            placement_request_id=placement_request_id,
-            ad_text=placement.ad_text or "",
-            media_type=placement.media_type or "none",
-        )
+        try:
+            await ord_service.register_creative(
+                placement_request_id=placement_request_id,
+                ad_text=placement.ad_text or "",
+                media_type=placement.media_type or "none",
+            )
+        except OrdProviderRejectedError as exc:
+            await _record_terminal_failure(
+                session,
+                placement_request_id,
+                OrdRegistrationStatus.ord_blocked,
+                exc,
+                ord_audit_repo=OrdAuditLogRepo(session),
+                ord_reg_repo=OrdRegistrationRepo(session),
+            )
+            await session.commit()
+            return
+        except OrdPermanentError as exc:
+            await _record_terminal_failure(
+                session,
+                placement_request_id,
+                OrdRegistrationStatus.erir_failed,
+                exc,
+                ord_audit_repo=OrdAuditLogRepo(session),
+                ord_reg_repo=OrdRegistrationRepo(session),
+            )
+            await session.commit()
+            return
         await session.commit()
+
+
+async def _record_terminal_failure(
+    session: Any,
+    placement_request_id: int,
+    target_status: OrdRegistrationStatus,
+    exc: Exception,
+    *,
+    ord_audit_repo: Any,
+    ord_reg_repo: Any,
+) -> None:
+    """Persist a terminal failure on the pending OrdRegistration row + audit it.
+
+    Called by _register_creative_async on permanent provider errors. The row
+    must exist in `pending` state (created by register_creative's pre-create
+    step); if not, log a warning and skip (defensive — could happen if the
+    error occurs before pre-create).
+    """
+    registration = await ord_reg_repo.get_by_placement(placement_request_id)
+    if registration is None:
+        logger.warning(
+            "ord:register_creative permanent failure but no registration row; "
+            "placement_request_id=%s, exc=%s",
+            placement_request_id,
+            exc,
+        )
+        return
+    status_from = registration.status
+    await ord_reg_repo.update_status(registration.id, target_status, error_message=str(exc)[:500])
+    correlation_id = registration.correlation_id
+    if correlation_id is not None:
+        await ord_audit_repo.log(
+            correlation_id=correlation_id,
+            placement_id=placement_request_id,
+            event_type=OrdAuditEventType.ERROR,
+            ord_registration_id=registration.id,
+            status_from=status_from,
+            status_to=target_status,
+            error_message=str(exc)[:500],
+            payload={"exception_type": type(exc).__name__},
+        )
 
 
 async def _report_publication_async(placement_request_id: int) -> None:
@@ -79,8 +157,14 @@ async def _poll_erid_status_async(registration_id: int) -> str:
             return "not_found"
 
         # Terminal states — no need to poll
-        if registration.status in ("erir_confirmed", "erir_failed", "erir_timeout", "reported"):
-            return registration.status
+        terminal_statuses = {
+            OrdRegistrationStatus.erir_confirmed,
+            OrdRegistrationStatus.erir_failed,
+            OrdRegistrationStatus.erir_timeout,
+            OrdRegistrationStatus.reported,
+        }
+        if registration.status in terminal_statuses:
+            return registration.status.value
 
         if not registration.yandex_request_id:
             logger.warning(
@@ -88,7 +172,9 @@ async def _poll_erid_status_async(registration_id: int) -> str:
                 registration_id,
             )
             await repo.update_status(
-                registration.id, "erir_failed", error_message="No yandex_request_id"
+                registration.id,
+                OrdRegistrationStatus.erir_failed,
+                error_message="No yandex_request_id",
             )
             return "no_request_id"
 
@@ -114,7 +200,7 @@ async def _poll_erid_status_async(registration_id: int) -> str:
         from src.core.services.yandex_ord_provider import ERROR_STATUSES, SUCCESS_STATUSES
 
         if status_response in SUCCESS_STATUSES:
-            await repo.update_status(registration.id, "erir_confirmed")
+            await repo.update_status(registration.id, OrdRegistrationStatus.erir_confirmed)
             logger.info(
                 "ord:poll_erid_status — ERIR confirmed for registration %s",
                 registration_id,
@@ -123,7 +209,7 @@ async def _poll_erid_status_async(registration_id: int) -> str:
         elif status_response in ERROR_STATUSES:
             await repo.update_status(
                 registration.id,
-                "erir_failed",
+                OrdRegistrationStatus.erir_failed,
                 error_message=f"ERIR error: {status_response}",
             )
             logger.warning(
@@ -144,22 +230,33 @@ async def _poll_erid_status_async(registration_id: int) -> str:
 
 @celery_app.task(bind=True, base=BaseTask, name="ord:register_creative", queue="background")
 def register_creative_task(self: Any, placement_request_id: int) -> None:
-    """Register an ad creative in ORD asynchronously."""
+    """Register an ad creative in ORD asynchronously.
+
+    Retries с exponential backoff + jitter (BL-080 8c Q3=(b)). Base 5s,
+    max 5min, max 5 attempts. Replaces the previous linear 300s/3-retries
+    pattern that risked thundering-herd hits on Yandex during outages.
+    """
     try:
         asyncio.run(_register_creative_async(placement_request_id))
     except Exception as e:
         logger.error("ord:register_creative failed for placement %s: %s", placement_request_id, e)
-        raise self.retry(exc=e, countdown=300, max_retries=3) from e
+        countdown = compute_backoff(self.request.retries)
+        raise self.retry(exc=e, countdown=countdown, max_retries=5) from e
 
 
 @celery_app.task(bind=True, base=BaseTask, name="ord:report_publication", queue="background")
 def report_publication_task(self: Any, placement_request_id: int) -> None:
-    """Report publication fact to ORD asynchronously."""
+    """Report publication fact to ORD asynchronously.
+
+    Retries: exponential backoff + jitter (BL-080 8c). Same envelope as
+    register_creative_task.
+    """
     try:
         asyncio.run(_report_publication_async(placement_request_id))
     except Exception as e:
         logger.error("ord:report_publication failed for placement %s: %s", placement_request_id, e)
-        raise self.retry(exc=e, countdown=300, max_retries=3) from e
+        countdown = compute_backoff(self.request.retries)
+        raise self.retry(exc=e, countdown=countdown, max_retries=5) from e
 
 
 @celery_app.task(
@@ -168,12 +265,14 @@ def report_publication_task(self: Any, placement_request_id: int) -> None:
     name="ord:poll_erid_status",
     queue="background",
     max_retries=12,
-    default_retry_delay=300,  # 5 минут
 )
 def poll_erid_status(self: Any, registration_id: int) -> None:
     """Poll ERIR status for an ORD registration.
 
-    Retries up to 12 times with 5-minute intervals (1 hour total).
+    Retries up to 12 times с exponential backoff + jitter (BL-080 8c
+    Q3=(b)). Base 30s, max 10min — широкий poll window survives Yandex
+    ERIR async-processing latency без drumming the API.
+
     On success: status = 'erir_confirmed'.
     On error: status = 'erir_failed'.
     On timeout: status = 'erir_timeout'.
@@ -197,7 +296,7 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
                         if registration:
                             await repo.update_status(
                                 registration.id,
-                                "erir_timeout",
+                                OrdRegistrationStatus.erir_timeout,
                                 error_message=f"ERIR polling timeout after {self.max_retries} retries",
                             )
 
@@ -208,7 +307,8 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
                     self.max_retries,
                 )
                 return
-            raise self.retry(exc=e, countdown=300) from e
+            countdown = compute_backoff(self.request.retries, base_seconds=30.0, max_seconds=600.0)
+            raise self.retry(exc=e, countdown=countdown) from e
         raise
     except Exception as e:
         logger.error(
@@ -217,4 +317,5 @@ def poll_erid_status(self: Any, registration_id: int) -> None:
             e,
             exc_info=True,
         )
-        raise self.retry(exc=e, countdown=300) from e
+        countdown = compute_backoff(self.request.retries, base_seconds=30.0, max_seconds=600.0)
+        raise self.retry(exc=e, countdown=countdown) from e

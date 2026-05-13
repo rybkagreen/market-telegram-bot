@@ -4,6 +4,7 @@
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -273,18 +274,13 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════
     # ORD (Operator of Advertising Data) — маркировка рекламы
     # ═══════════════════════════════════════════════════════════════
-    ord_provider: str = Field(
+    ord_provider: Literal["stub", "yandex", "vk", "ozon"] = Field(
         "stub",
         alias="ORD_PROVIDER",
-        description="ORD провайдер: 'stub' | 'yandex' | 'vk' | 'ozon'",
+        description="ORD провайдер: blocking behaviour is deterministic — only stub publishes without ERID",
     )
     ord_api_key: str | None = Field(None, alias="ORD_API_KEY")
     ord_api_url: str | None = Field(None, alias="ORD_API_URL")
-    ord_block_publication_without_erid: bool = Field(
-        False,
-        alias="ORD_BLOCK_WITHOUT_ERID",
-        description="Блокировать публикацию без erid (включить после настройки провайдера)",
-    )
     ord_rekharbor_org_id: str = Field(
         "",
         alias="ORD_REKHARBOR_ORG_ID",

@@ -3243,6 +3243,26 @@ annoyance only.
 infrastructure), L70 (Phase A boundary deferral pattern), L71 (in-prompt
 tracking pattern).
 
+**Post-v0.6.0 observation (2026-05-12):** hook checks **tree state**, not
+commit state. PROMPT_31 (release/0.6.0 cut) fired 7 times at Phase A/B
+boundaries on branches not containing `CHANGES_*.md` in working tree, then
+resolved naturally at fire #8 (post-Шаг 11 boundary): the develop→main merge
+propagated existing CHANGES files into main's tree, satisfying the hook check.
+
+**Implication:** pathology is most active in Phase A read-only research
+boundaries on feature branches that don't yet contain CHANGES files. Natural
+resolution occurs at merge boundaries into targets containing accumulated
+CHANGES files.
+
+**Observed totals:** 7 fires (PROMPT_31), 9 fires (PROMPT_30), 1+ fires
+(PROMPT_29). BL-016 silent-ignore protocol handled cleanly across all — no
+autonomous capitulation.
+
+**Server-side mitigation reassessment:** option (a) (Anthropic-side) may not
+be required if pathology resolves at normal merge boundaries; option (c)
+accept-as-known-harmless validated through full release cycle
+(PROMPT_28..PROMPT_31).
+
 ## Closed items
 
 ### BL-052 — 15.13.1 micro-cleanup (CLOSED 2026-04-29)
