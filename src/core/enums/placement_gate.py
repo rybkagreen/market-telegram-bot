@@ -48,3 +48,6 @@ class PlacementGate(StrEnum):
     G16_TAX_RECEIPT_ISSUED = "G16_TAX_RECEIPT_ISSUED"  # Phase 4 (Мой налог real)
     G17_VAT_OBLIGATION_HANDLED = "G17_VAT_OBLIGATION_HANDLED"
     G18_PAYOUT_REPORTED_TO_ORD = "G18_PAYOUT_REPORTED_TO_ORD"
+
+    # ── Channel-add (owner-side, ФЗ-303 blogger registry — BL-107) ──────
+    G19_BLOGGER_REGISTRY_VERIFIED = "G19_BLOGGER_REGISTRY_VERIFIED"

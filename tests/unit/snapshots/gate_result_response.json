@@ -19,7 +19,8 @@
         "G15_ACT_SIGNED_BOTH_SIDES",
         "G16_TAX_RECEIPT_ISSUED",
         "G17_VAT_OBLIGATION_HANDLED",
-        "G18_PAYOUT_REPORTED_TO_ORD"
+        "G18_PAYOUT_REPORTED_TO_ORD",
+        "G19_BLOGGER_REGISTRY_VERIFIED"
       ],
       "title": "PlacementGate",
       "type": "string"

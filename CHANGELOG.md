@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.2 — BL-107 Gate Framework (G19 + parallel registry)
+
+Gate framework extension layer для ФЗ-303 blogger registry verification.
+Adds **G19_BLOGGER_REGISTRY_VERIFIED** gate с dual implementation (placement-
+side defense-in-depth + channel-context primary), new parallel registry
+`_CHANNEL_CONTEXT_GATE_CHECKERS` для per-channel gates whose evaluation
+depends on channel state, orchestration method `check_gates_for_channel_add`.
+
+Pure framework expansion — NO API/bot/Telegram/settings touches (Phase B.3+).
+
+#### Added
+
+- **`PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED`** — new gate enum value.
+- **`GateReason` codes** (3 new):
+  - `BLOGGER_REGISTRY_NOT_VERIFIED` — default fail (≥10k, no verification).
+  - `BLOGGER_REGISTRY_PENDING_REVIEW` — manual evidence submitted, admin review pending.
+  - `SUBSCRIBER_COUNT_UNKNOWN` — reserved для Phase B.3 (Telegram API failure case).
+- **`ChannelAddContext` dataclass** — `src/core/schemas/channel_add_context.py`
+  carrying per-channel data (telegram_id, username, member_count, is_test,
+  description, verification flags) для channel-context gate framework.
+- **G19 dual implementation** в `src/core/services/gates/owner_gates.py`:
+  - `_check_g19_core(...)` — pure logic, short-circuit precedence.
+  - `check_g19(session, placement)` — placement-side defense-in-depth.
+  - `check_g19_channel_add(session, user, channel_data)` — channel-context primary.
+- **`_CHANNEL_CONTEXT_GATE_CHECKERS` parallel registry** + **`check_gates_for_channel_add`
+  orchestration method** в `LegalComplianceService` (signature `(user, channel_data)
+  → list[GateResult]`).
+- **G19 wired to `_TRANSITION_GATES`** at `(pending_owner, pending_payment)` и
+  `(counter_offer, pending_payment)` — alongside G07 supplementary agreement.
+- **Unit tests** — `tests/unit/test_bl107_g19_gate.py` (22 tests, pure unit, no DB).
+
+#### Changed
+
+- **Snapshot** — `tests/unit/snapshots/gate_result_response.json` regenerated
+  для add G19 в PlacementGate enum literals (per FIX_PLAN_06 §6.1 contract drift
+  guard).
+
+#### Phase B.2 temporary state (Phase B.3 replaces)
+
+- `_DEFAULT_RKN_THRESHOLD = 10_000` hardcoded constant в `owner_gates.py` —
+  Phase B.3 replaces с `settings.rkn_threshold_subscribers`.
+- `remediation_url = None` в G19 fail GateResults — Phase B.5 populates после
+  admin review UI ships.
+
 ### Phase B.1 — BL-107 Schema (Blogger Registry Verification — ФЗ-303)
 
 Foundation schema layer for blogger registry verification feature. Adds 7
