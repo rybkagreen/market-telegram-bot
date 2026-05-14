@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items; BL-077 new — middleware registration lesson, post-T1.2.5f)_
+_Last updated: 2026-05-14 (post-v0.8.0 Phase 4 closure batch — 11 new BL candidates: BL-104 strategic Telegram→MAX migration, BL-105/107 launch-blocking (ККТУ codes + channel registration), BL-106 post-launch caption overlay, BL-108/109 feature gaps (video note + ad_text edge case), BL-110/111/112/113/115 Phase 4 surfaced; BL-114 retired NO BUG per PROMPT 28b probe)_
 
 ## Active items
 
@@ -3262,6 +3262,273 @@ autonomous capitulation.
 be required if pathology resolves at normal merge boundaries; option (c)
 accept-as-known-harmless validated through full release cycle
 (PROMPT_28..PROMPT_31).
+
+### BL-104 — Telegram→MAX migration strategy + transitional monitoring
+
+**Status:** OPEN — strategic
+**Created:** 2026-05-12 (BL-080 8a research surface)
+**Source:** ФЗ-72 ч. 10.7 ст. 5 ФЗ-38 — ФАС объявила запрет рекламы в Telegram с 01.01.2027.
+
+**Statement:** Платформа базируется на Telegram. ФЗ-72 запрещает рекламу в Telegram с 01.01.2027. Переходный период до 31.12.2026 — штрафы НЕ применяются. После 01.01.2027 — possible existential risk для платформы. Migration в MAX (МАХ — российский мессенджер) potential mitigation.
+
+**Marina plan (2026-05-13):** Launch в Telegram, миграция в МАХ к концу 2026 в параллель.
+
+**Closure trigger:**
+- (a) Provider-pattern abstraction for bot transport (Phase 5 territory) облегчит миграцию — `BotProvider` interface, Telegram = default impl, MAX = alternate impl.
+- (b) Strategic monitoring: transitional period штрафы tracking, MAX feature parity audit, business decision на ratio Telegram/MAX к Q4 2026.
+- (c) Acceptance: bot transport provider-pattern abstracted + MAX provider stub ready + business strategic decision documented.
+
+**Effort:** large (bot transport abstraction + new MAX integration + parallel ops).
+**Priority note:** high (strategic, existential timeline).
+
+**Refs:** Phase 5 (provider pattern), BL-105 (Yandex ORD которая работает в обоих), BL-107.
+
+**Owner:** _unassigned_
+
+### BL-105 — ККТУ codes UI integration (Yandex ORD v7)
+
+**Status:** OPEN — required for production ORD launch
+**Created:** 2026-05-12 (BL-080 8a research surface)
+**Source:** Yandex ORD API v7 (с 07.11.2025) обязательно требует `kktuCodes` для creative registration.
+
+**Statement:** Yandex ORD v7 requires `kktuCodes` (Классификатор Категорий Товаров и Услуг) for creative registration. Currently platform omits this field — works in stub mode (Phase 5 deferred) but fails real production ORD calls.
+
+**Closure trigger:**
+- (a) Add `kktu_codes` column to Campaign model (array of strings or JSONB).
+- (b) UI integration в campaign creation flow: ККТУ code picker (dropdown / search) с validation против reference list.
+- (c) ORD provider integration: pass `kktuCodes` field в creative registration payload.
+- (d) Migration of existing campaigns: default value strategy (NULL? "needs assignment" flag?).
+
+**Effort:** medium (DB schema add + UI integration + ORD payload extension).
+**Priority note:** medium-high — launch-blocking for real ORD registration.
+
+**Refs:** BL-080 (ORD hardening, real provider integration in Phase 5+).
+
+**Owner:** _unassigned_
+
+### BL-106 — Overlay variant (D) для caption budget
+
+**Status:** OPEN — post-launch enhancement
+**Created:** 2026-05-13 (BL-080 8d closure)
+**Source:** BL-080 8d caption budget Option A (truncate) was implemented; Option D (overlay erid on image) deferred.
+
+**Statement:** Best practice per АРИР — render erid поверх image (Pillow pipeline) AND duplicate в caption для ЕРИР робота. Currently we truncate caption (Option A) when erid + ad_text exceeds Telegram limit. Overlay variant ensures erid always visible на изображении plus separately в caption.
+
+**Closure trigger:**
+- (a) Pillow image processing pipeline integration (post-launch image processing service).
+- (b) Erid text overlay rendering: position, font, opacity, contrast against image background.
+- (c) Caption retains duplicated erid for ЕРИР robot indexing (truncate ad_text не erid).
+- (d) Tests: visual regression + caption parsing correctness.
+
+**Effort:** medium (image processing infra + rendering + tests).
+**Priority note:** low — Option A truncate works correctly per current scope.
+
+**Refs:** BL-080 (ERID marking flow), Q-M.4 carve-out (Phase 4 erid placeholder pattern в ДС).
+
+**Owner:** _unassigned_
+
+### BL-107 — Channel registration verification для каналов ≥10k подписчиков (метка А+)
+
+**Status:** OPEN — **LAUNCH-BLOCKING**
+**Created:** 2026-05-13 (BL-080 8a research surface)
+**Source:** ФЗ-303 от 08.08.2024 → ч. 10.6 ст. 5 ФЗ-38 + ст. 10.6 ФЗ-149. Реестр блогеров действует с 01.11.2024.
+
+**Statement:** Каналы ≥10000 подписчиков обязаны регистрироваться в реестре Роскомнадзора (Реестр блогеров) и иметь метку А+ (зарегистрирован) в публикациях. Штрафы за размещение рекламы у незарегистрированного блогера ≥10k подписчиков:
+
+- до 100k рублей для граждан;
+- до 200k рублей для должностных лиц;
+- **до 500k рублей для юридических лиц.**
+
+**Это независимая статья.** Штрафы действуют ВСЕГДА (не в переходном периоде, не ждут 01.01.2027). Платформа подвергается штрафу как facilitator если допускает placement у unregistered channel с ≥10k подписчиков.
+
+**Closure trigger:**
+- (a) Bot должен fetch subscriber count при `/add_channel` flow (Telegram Bot API `get_chat`).
+- (b) Если subscriber_count ≥10000: required verification — has метка А+ (зарегистрирован); channel owner может представить evidence (link на реестр, screenshot, etc.).
+- (c) DECLINE (hard, не warning) если ≥10k без верифицированной регистрации.
+- (d) DB schema: `Channel.is_blogger_registry_verified: bool` + `Channel.blogger_registry_verified_at: datetime | None`.
+- (e) UI flow: owner submits registry evidence → admin reviews → marks verified, OR bot auto-verifies via Роскомнадзор API (if available).
+- (f) Periodic re-check: subscriber growth past threshold without registration → block new placements (decision на existing placements TBD).
+
+**Effort:** medium (bot flow + DB schema + admin verification UI + Roskomnadzor reference if API available).
+**Priority note:** **HIGH — LAUNCH-BLOCKING**. Real legal liability ≥500k руб per violation для платформы.
+
+**Refs:** ФЗ-38, ФЗ-149, ФЗ-303. Phase 5 (channel gating territory).
+
+**Owner:** _unassigned_
+
+### BL-108 — Video note (кружок) placement type addition
+
+**Status:** OPEN — feature gap
+**Created:** 2026-05-13 (Phase 4 8d Phase A research)
+**Source:** PROMPT 8d Phase A finding: `media_type` enum supports `none/photo/video` only, video note (Telegram круглое видео) path не существует в data model.
+
+**Statement:** Telegram supports video notes (короткие круглые видео-сообщения) as a distinct media kind. Current `Placement.media_type` enum has `photo/video/none` but no `video_note`. Implication: cannot offer video note format ad placements. АРИР recommendations suggest video note formats grow in popularity для рекламы.
+
+**Closure trigger:**
+- (a) Data model: extend `media_type` enum — add `video_note` value.
+- (b) Bot UI flow: support video_note upload + preview.
+- (c) Dispatcher branch: route video_note placements to `send_video_note` Telegram API (cannot have caption — separate-message marker via `reply_parameters` only legal path per АРИР).
+- (d) Option B (separate-message marker via reply_parameters) — единственный legal путь для video notes.
+- (e) Smoke tests + integration test.
+
+**Effort:** medium (data model + bot UI + dispatcher + tests).
+**Priority note:** low — current text/photo/video coverage sufficient for MVP.
+
+**Refs:** BL-080 8d (caption budget — Option B dropped per CLAUDE.md P1+P3 from 8d scope due to data model absence).
+
+**Owner:** _unassigned_
+
+### BL-109 — `ad_text` >4096 chars edge case для text-only placements
+
+**Status:** OPEN — pre-existing edge case
+**Created:** 2026-05-13 (Phase 4 8d Phase A research)
+**Source:** PROMPT 8d Phase A finding: `Placement.ad_text` DB max=5000 chars, Telegram text message limit=4096 chars.
+
+**Statement:** Currently unknown behavior for text-only placement (`media_type=none`) с `ad_text` > 4096 chars. DB allows up to 5000, Telegram text message API rejects >4096. Probe required to determine actual current handling:
+
+- (a) Truncation? Где — admin write-side, bot send-side?
+- (b) Error? Какой? Где surfaced?
+- (c) Silent acceptance с failure at publication time?
+
+**Closure trigger:**
+- (a) Probe + reproduce: create text-only placement с 4500-char `ad_text`, attempt publish, observe behavior.
+- (b) Decision: либо reduce DB max=4096 to align с Telegram, либо add explicit pre-validation в campaign creation flow.
+- (c) UI: character counter с visual warning at 4096.
+- (d) Test: integration test с >4096 char text-only placement.
+
+**Effort:** small (probe + decision + tests).
+**Priority note:** medium — affects real users with long ad copy.
+
+**Refs:** None specific.
+
+**Owner:** _unassigned_
+
+### BL-110 — `CLAUDE.md` migration count claim outdated
+
+**Status:** OPEN — documentation drift
+**Created:** 2026-05-14 (Phase 4 PROMPT 26 verification)
+**Source:** PROMPT 26 Step 1 migration verification — `CLAUDE.md` claims "1 consolidated migration" but reality has 2 files: `0001_initial_schema.py` + `e6a88faa9fa0_add_placement_status_history_table_and_.py` (Phase 2).
+
+**Statement:** `CLAUDE.md` rules section mentions migration immutability per BL-061 с phrase suggesting single consolidated `0001_initial_schema.py`. Reality has 2 migration files. Documentation drift. Pre-prod exception (rewrite of `0001_initial_schema.py`) still valid но applies to specific file, не "the" migration.
+
+**Closure trigger:**
+- (a) Edit `CLAUDE.md` migration section: update wording from "1 consolidated migration" to "migrations" (plural), OR explicitly enumerate (`0001_initial_schema.py` pre-prod-mutable + `e6a88faa9fa0_*.py` immutable per BL-061).
+- (b) Sanity check: какие other immutable migrations expected? If yes, document expected file count и naming pattern.
+
+**Effort:** small (single doc edit).
+**Priority note:** low — documentation accuracy.
+
+**Refs:** BL-061 (migration immutability rule), Phase 2 migration `e6a88faa9fa0_*`.
+
+**Owner:** _unassigned_
+
+### BL-111 — `_partials/contract_signatures.html` dropped from Step 0a refactor
+
+**Status:** OPEN — optional cleanup
+**Created:** 2026-05-14 (Phase 4 PROMPT 27 Step 5 finding)
+**Source:** PROMPT 26 Step 0a planned 3 partials extraction (`contract_css`, `contract_header`, `contract_signatures`); only 2 extracted (CSS + header). Signature blocks inline в существующих 6 contract templates — agent identified не shared pattern. Phase 4 ДС templates also inline sigs.
+
+**Statement:** Originally Phase 4 Step 0a (template partials refactor per Q-M.1) intended 3 partials. Reality: existing 6 contract templates use distinct signature block layouts per legal_status (individual / IE / LE / etc.). Forced extraction to single partial would require parameterization that breaks DRY benefit. Agent skipped this partial; sigs remain inline.
+
+**Closure trigger (if desired):**
+- (a) Audit 6 contract template signature blocks: identify real shared core (e.g., `<table>` structure, "Подпись:" text, IP placeholder).
+- (b) Extract minimal shared signature partial с Jinja2 macros for per-legal_status fields.
+- (c) Refactor 6 contract templates + 5 ДС templates to use new partial.
+- (d) Verify rendering tests pass.
+
+**Effort:** small-medium (template refactor + visual regression check).
+**Priority note:** low — current inline sigs work, не violate principles given shared pattern absence.
+
+**Refs:** Phase 4 Step 0a (CSS + header partials extracted).
+
+**Owner:** _unassigned_
+
+### BL-112 — Playwright `sign-supplementary-agreement` seed fixture creation
+
+**Status:** OPEN — full E2E coverage gap
+**Created:** 2026-05-14 (Phase 4 PROMPT 28 Step 10 finding)
+**Source:** PROMPT 28 Step 10 Playwright spec scoped to smoke level — required seed fixture (placement в `pending_owner` с обоими signed framework contracts + ДС pair generated, both unsigned) не существует в `scripts/e2e/seed_e2e.py`.
+
+**Statement:** Phase 4 acceptance Playwright spec (`web_portal/tests/specs/sign-supplementary-agreement.spec.ts`) currently exercises smoke-level UI rendering only. Full interactive two-session flow (advertiser signs → owner signs → placement progresses) blocked by absence of e2e seed fixture for ДС state.
+
+**Closure trigger:**
+- (a) Add seed fixture к `scripts/e2e/seed_e2e.py`:
+  - User pair (advertiser + owner) с signed framework contracts (`advertiser_framework` per role — see BL-115);
+  - Channel owned by owner;
+  - Placement в `pending_owner` state;
+  - Two `supplementary_agreement` Contract rows (advertiser + owner) с `contract_status='draft'`;
+  - One placement per ДС sign scenario (single, paired, expired etc.).
+- (b) Update Playwright spec to use fixture-seeded test placement IDs.
+- (c) Add per-viewport assertions: section visibility, button state, post-sign UI updates, two-session sign flow.
+- (d) Run в CI (`make ci-local` includes Playwright? — verify).
+
+**Effort:** medium (seed fixture + spec extensions + verify).
+**Priority note:** medium — current unit + integration coverage adequate, Playwright closes UI gap.
+
+**Refs:** BL-001, BL-002 (similar Playwright spec deferrals for seed fixture absence).
+
+**Owner:** _unassigned_
+
+### BL-113 — Stop-hook BL-013 deferred bundle detection
+
+**Status:** OPEN — UX noise
+**Created:** 2026-05-14 (Phase 4 PROMPT 28 finding)
+**Source:** PROMPT 28 final STOP — same stop-hook BL-013 warning fired 12+ times when CHANGES legitimately deferred to PROMPT 29 (Phase closure batch).
+
+**Statement:** Stop-hook checks for CHANGES file presence в working tree fires repeatedly when CHANGES is legitimately deferred to next-prompt closure (per BL-013 default (b) bundle protocol). BL-016 silent-ignore handles agent side correctly (acks 2, silent-ignore identical). Marina sees 12+ fires в chat surface even though agent disciplined correctly.
+
+**Statement extends BL-090** (Stop-hook fires loop on Phase A research-only outputs) с pattern for multi-prompt sub-block work (PROMPT N implementation + PROMPT N+1 closure docs).
+
+**Closure trigger (variants — overlaps BL-090):**
+- (a) Hook reads transcript для "deferred to PROMPT X" pattern, suppresses fires.
+- (b) Hook checks current commit message для "deferred" / "closure pending" keywords.
+- (c) Accept as known (current state) — BL-016 silent-ignore protocol handles agent.
+
+**Effort:** small (hook config) / negligible (accept-known).
+**Priority note:** low — UX noise only, не affects correctness.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (acks bound at 2), BL-090 (Phase A loop variant).
+
+**Owner:** _unassigned_
+
+### BL-114 — RETIRED (NO BUG per probe)
+
+**Status:** RETIRED 2026-05-14
+**Created:** would have been 2026-05-14 (Phase 4 PROMPT 28 surface)
+**Source:** PROMPT 28 surprise log suggested possible bug в `ContractRepo.get_framework_contract` role filtering.
+
+**Resolution:** PROMPT 28b probe (`tmp/contract_repo_framework_audit_2026-05-14.md`) confirmed **NO BUG**. Method behaves correctly per umbrella naming convention; both read и write paths use `contract_type='advertiser_framework'` literal symmetric; `Contract.role` discriminator handles owner/advertiser distinction. Renaming for clarity captured separately as BL-115.
+
+**Refs:** BL-115 (umbrella rename clarity improvement).
+
+### BL-115 — `"advertiser_framework"` → `"framework"` umbrella `contract_type` rename
+
+**Status:** OPEN — naming cleanup
+**Created:** 2026-05-14 (Phase 4 PROMPT 28b probe verdict)
+**Source:** PROMPT 28b probe — `ContractRepo.get_framework_contract(user_id, role)` filters `contract_type='advertiser_framework'` for both advertiser AND owner roles; `Contract.role` discriminator distinguishes. Existing docstrings в G02/G05 gate bodies already labelled this as "deferred-cleanup L18 carve-out".
+
+**Statement:** Misleading umbrella name. Framework contracts for both roles use `contract_type='advertiser_framework'` literal — this works correctly (Contract.role discriminates) but the name `advertiser_framework` falsely suggests advertiser-specific. Owner framework contracts also stored as `advertiser_framework` rows. Renaming to `framework` (или similar role-neutral name) would clarify intent.
+
+**Closure trigger:**
+- (a) Rename literal `"advertiser_framework"` → `"framework"` across ~12 files:
+  - `src/db/repositories/contract_repo.py` (read path — `get_framework_contract`);
+  - `src/core/services/contract_service.py` (write path — `get_or_create_framework_contract`, `generate_contract` default mapping, `_CONTRACT_TEMPLATE_MAP`);
+  - `src/db/models/contract.py` (если contract_type есть в comment/docstring);
+  - `src/api/schemas/legal_profile.py` (`ContractType` enum value);
+  - `src/db/migrations/versions/0001_initial_schema.py` (CREATE TABLE default или check constraint);
+  - `tests/` fixtures (3+ files seed `advertiser_framework`);
+  - Templates (если filename references "advertiser_framework").
+- (b) Migration strategy: if pre-prod state preserved (no live customer data) — just update enum + literal. Otherwise data migration UPDATE.
+- (c) Update G02/G05 docstrings: remove L18 carve-out notes.
+- (d) Snapshot regen.
+- (e) Verify integration tests pass post-rename.
+
+**Effort:** medium (~12 files, snapshot regen, smoke verification).
+**Priority note:** low — current state functional; rename is documentation-clarity improvement.
+
+**Refs:** PROMPT 28b probe (verdict NO BUG, naming-only). L18 carve-out (G02/G05 docstrings).
+
+**Owner:** _unassigned_
 
 ## Closed items
 
