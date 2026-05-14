@@ -372,6 +372,36 @@ class Settings(BaseSettings):
     admin_telegram_id: int = Field(0, alias="ADMIN_TELEGRAM_ID")
     admin_telegram_bot_token: str = Field("", alias="ADMIN_TELEGRAM_BOT_TOKEN")
 
+    # RKN Blogger Registry (BL-107 / ФЗ-303)
+    rkn_trustchannelbot_username: str = Field(
+        "@Trustchannelbot",
+        alias="RKN_TRUSTCHANNELBOT_USERNAME",
+        description="Telegram username for Roskomnadzor blogger registry verifier bot",
+    )
+    rkn_trustchannelbot_id: int | None = Field(
+        None,
+        alias="RKN_TRUSTCHANNELBOT_ID",
+        description=(
+            "Telegram numeric ID of Trustchannelbot — optional override; "
+            "auto-resolved at first use если None"
+        ),
+    )
+    rkn_threshold_subscribers: int = Field(
+        10_000,
+        alias="RKN_THRESHOLD_SUBSCRIBERS",
+        description="ФЗ-303 порог подписчиков для обязательной регистрации в реестре блогеров",
+    )
+    rkn_periodic_check_enabled: bool = Field(
+        True,
+        alias="RKN_PERIODIC_CHECK_ENABLED",
+        description="Включить Celery periodic re-verification task (Phase B.6)",
+    )
+    rkn_block_unverified_placements: bool = Field(
+        False,
+        alias="RKN_BLOCK_UNVERIFIED_PLACEMENTS",
+        description=("Production guard — block placement creation если channel ≥10k и не verified"),
+    )
+
     @property
     def admin_ids(self) -> list[int]:
         """Парсит ADMIN_IDS из строки в список целых чисел."""

@@ -24,6 +24,7 @@ G19 ships two entry points sharing ``_check_g19_core``:
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import settings
 from src.constants import portal_routes
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
@@ -34,11 +35,6 @@ from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.payout_repo import PayoutRepository
 from src.db.repositories.user_repo import UserRepository
-
-# Phase B.2 temporary state — Phase B.3 заменит на settings.rkn_threshold_subscribers.
-# 10_000 = ФЗ-303 threshold (channels с monthly audience ≥10k must register
-# в Roskomnadzor blogger registry).
-_DEFAULT_RKN_THRESHOLD = 10_000
 
 
 async def _check_g04_for_user_id(session: AsyncSession, user_id: int) -> GateResult:
@@ -241,11 +237,12 @@ def _check_g19_core(
     4. ``application_number is not None`` — manual evidence pending review (block)
     5. otherwise — not verified (block, default fail)
 
-    Phase B.2 hardcodes threshold = ``_DEFAULT_RKN_THRESHOLD`` (10_000); Phase B.3
-    swaps к ``settings.rkn_threshold_subscribers``. ``remediation_url=None`` для
-    fail cases; Phase B.5 populates после admin review UI ships.
+    Phase B.3 reads threshold от ``settings.rkn_threshold_subscribers`` (default
+    10_000, env-overridable via ``RKN_THRESHOLD_SUBSCRIBERS``). ``remediation_url=
+    None`` для fail cases; Phase B.5 populates после admin review UI ships.
 
-    Pure function — no async, no session. Testable как pure-logic table.
+    Pure function — no async, no session. Testable как pure-logic table; tests
+    мочат ``settings.rkn_threshold_subscribers`` via ``monkeypatch.setattr``.
     """
     if is_test:
         return GateResult(
@@ -254,7 +251,7 @@ def _check_g19_core(
             blocker=False,
             reason_code=GateReason.OK.value,
         )
-    if member_count < _DEFAULT_RKN_THRESHOLD:
+    if member_count < settings.rkn_threshold_subscribers:
         return GateResult(
             gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
             passed=True,
