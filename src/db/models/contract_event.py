@@ -24,17 +24,16 @@ if TYPE_CHECKING:
 class ContractEvent(Base):
     """Per-contract lifecycle event row (append-only).
 
-    `event_type` is a closed discriminator. Phase 4 values:
-        - ds_generated_advertiser
-        - ds_generated_owner
-        - ds_notified_both
-        - ds_signed_advertiser
-        - ds_signed_owner
-        - ds_marked_active
+    `event_type` is a closed discriminator validated by the Pydantic schemas
+    in src/core/schemas/contract_event.py (ContractEventType Literal). Phase 4
+    values cover the ДС lifecycle:
+        - supplementary_generated  (role+parent_contract_id in metadata)
+        - supplementary_notified   (role+notification_channel in metadata)
+        - supplementary_signed     (role+signature_method in metadata)
+        - supplementary_activated  (both_sides_signed_at in metadata)
 
-    Future event_type values (KEP, revocation, expiry roll) extend the
-    Pydantic discriminator schema in src/core/schemas/contract_event.py
-    (added in PROMPT 27 Step 4).
+    Future event_type values (KEP request/delivery, revocation, expiry roll)
+    extend that schema alongside their own metadata classes.
     """
 
     __tablename__ = "contract_events"
