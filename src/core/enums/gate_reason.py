@@ -56,3 +56,12 @@ class GateReason(StrEnum):
     # so the periodic auto-approve task classifies ДС-not-signed as a
     # real-fail (user-actionable) rather than "not yet wired" placeholder.
     SUPPLEMENTARY_NOT_SIGNED = "supplementary_not_signed"
+
+    # BL-107 — G19 blogger registry verification (ФЗ-303). NOT_VERIFIED is the
+    # default fail (no manual evidence submitted); PENDING_REVIEW fires когда
+    # owner submitted application_number и admin review is pending.
+    # SUBSCRIBER_COUNT_UNKNOWN reserved для Phase B.3 (Telegram API failure
+    # case при getChatMemberCount) — unused в Phase B.2 gate body.
+    BLOGGER_REGISTRY_NOT_VERIFIED = "blogger_registry_not_verified"
+    BLOGGER_REGISTRY_PENDING_REVIEW = "blogger_registry_pending_review"
+    SUBSCRIBER_COUNT_UNKNOWN = "subscriber_count_unknown"
