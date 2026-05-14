@@ -997,6 +997,64 @@ def notify_referral_bonus(
         return False
 
 
+@celery_app.task(name="notifications:notify_supplementary_to_sign", queue="notifications")
+def notify_supplementary_to_sign(contract_id: int) -> bool:
+    """Уведомление стороне ДС с просьбой подписать.
+
+    Triggered by SupplementaryAgreementService.generate_for_placement after a
+    ДС row is created. Loads the Contract+User, renders a sign-prompt with a
+    deep-link to the contract detail screen, and delivers via notify_user
+    (which checks `notifications_enabled` by telegram_id).
+    """
+
+    async def _notify_async() -> bool:
+        from src.db.models.contract import Contract
+        from src.db.models.placement_request import PlacementRequest
+        from src.db.models.user import User
+
+        async with async_session_factory() as session:
+            contract = await session.get(Contract, contract_id)
+            if contract is None:
+                logger.warning("ДС contract %s not found for notification", contract_id)
+                return False
+
+            user = await session.get(User, contract.user_id)
+            if user is None:
+                logger.warning(
+                    "ДС user %s not found for contract %s", contract.user_id, contract_id
+                )
+                return False
+
+            placement = (
+                await session.get(PlacementRequest, contract.placement_id)
+                if contract.placement_id is not None
+                else None
+            )
+            placement_label = f"заявка №{placement.id}" if placement is not None else "ваша заявка"
+
+            role_label = "владельца канала" if contract.role == "owner" else "рекламодателя"
+            text = (
+                f"📄 <b>Подпишите дополнительное соглашение</b>\n\n"
+                f"Сформировано ДС № {contract.id} к рамочному договору для "
+                f"стороны {role_label} ({placement_label}).\n\n"
+                f"Подписать необходимо до перехода заявки к оплате."
+            )
+
+            return bool(
+                await _notify_user_checked(
+                    user_id=contract.user_id,
+                    message=text,
+                    parse_mode="HTML",
+                )
+            )
+
+    try:
+        return asyncio.run(_notify_async())
+    except Exception as e:
+        logger.error(f"Error notifying ДС sign for contract {contract_id}: {e}")
+        return False
+
+
 # ─────────────────────────────────────────────
 # TASK 6: Автоодобрение заявок и напоминания
 # ─────────────────────────────────────────────
