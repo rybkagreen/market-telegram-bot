@@ -31,3 +31,9 @@ export interface Contract {
   created_at: string
   updated_at: string
 }
+
+export interface SupplementaryAgreementResponse {
+  advertiser: Contract
+  owner: Contract
+  both_signed: boolean
+}
