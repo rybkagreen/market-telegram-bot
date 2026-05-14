@@ -31,6 +31,7 @@ from src.core.enums.placement_gate import PlacementGate
 from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.schemas.gate_result import GateResult
 from src.db.models.placement_request import PlacementRequest
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.payout_repo import PayoutRepository
@@ -287,16 +288,20 @@ async def check_g19(session: AsyncSession, placement: PlacementRequest) -> GateR
 
     Defense-in-depth для channels created до G19 enforcement existed
     или channels чей ``member_count`` пересёк ФЗ-303 threshold после
-    channel-add. Reads ``placement.channel`` TelegramChat state.
+    channel-add. Loads TelegramChat via ``session.get_one`` to avoid
+    relying on caller eager-loading ``placement.channel``: callers
+    using ``BaseRepository.get_by_id`` (which wraps ``session.get``)
+    return placement without channel populated, and lazy attribute
+    access would raise ``MissingGreenlet`` in async context.
 
     Phase B.2 wired в _TRANSITION_GATES at (pending_owner, pending_payment)
     + (counter_offer, pending_payment) — same transitions как G07 supplementary
     agreement gate. Fires BEFORE money moves to escrow.
 
-    Pattern 1 (S-48): receives session (unused в pure-logic body — kept для
-    signature parity с _GATE_CHECKERS contract), no commit/flush/rollback.
+    Pattern 1 (S-48): read-only ``session.get_one`` (identity-map aware —
+    free if channel already loaded by caller). No commit/flush/rollback.
     """
-    channel = placement.channel
+    channel = await session.get_one(TelegramChat, placement.channel_id)
     return _check_g19_core(
         member_count=channel.member_count,
         is_test=channel.is_test,
