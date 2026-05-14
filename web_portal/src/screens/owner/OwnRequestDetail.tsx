@@ -24,6 +24,7 @@ import {
 import { usePlacementRequest, useUpdatePlacement } from '@/hooks/useCampaignQueries'
 import { useMyDisputeByPlacement } from '@/hooks/useDisputeQueries'
 import { getRoleAwareStatusLabel } from '@/lib/disputeLabels'
+import { SupplementaryAgreementSection } from '@/components/contracts/SupplementaryAgreementSection'
 
 export default function OwnRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -301,6 +302,11 @@ export default function OwnRequestDetail() {
               </div>
             </>
           )}
+
+          {(request.status === 'pending_owner' || request.status === 'counter_offer') &&
+            !isExpired && (
+              <SupplementaryAgreementSection placementId={request.id} role="owner" />
+            )}
 
           {request.has_dispute && (
             <div className="bg-harbor-card border border-danger/25 rounded-xl p-5">

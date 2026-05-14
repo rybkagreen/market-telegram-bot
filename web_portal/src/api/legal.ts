@@ -1,6 +1,10 @@
 import { api } from '@shared/api/client'
 import type { LegalProfile, LegalProfileCreate, RequiredFields } from '@/lib/types/legal'
-import type { Contract, ContractType } from '@/lib/types/contracts'
+import type {
+  Contract,
+  ContractType,
+  SupplementaryAgreementResponse,
+} from '@/lib/types/contracts'
 
 // ═══ Legal Profile ═══
 // Backend prefix: /api/legal-profile (singular, no 's')
@@ -87,4 +91,12 @@ export async function requestKep(contractId: number, email: string) {
 
 export function getPdfUrl(id: number): string {
   return `contracts/${id}/pdf`
+}
+
+// ═══ Supplementary Agreements (ДС) — Phase 4 ═══
+
+export async function getSupplementaryForPlacement(placementId: number) {
+  return api
+    .get(`placements/${placementId}/supplementary-agreements`)
+    .json<SupplementaryAgreementResponse>()
 }
