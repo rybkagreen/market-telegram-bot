@@ -1106,8 +1106,40 @@ def auto_approve_placements() -> dict:
             result = await session.execute(stmt)
             placements = result.scalars().all()
 
+            # Phase 4: defer-imported to avoid circular-import (notification_tasks ←
+            # supplementary_agreement_service via tasks.notification_tasks).
+            from src.core.services.supplementary_agreement_service import (
+                SupplementaryAgreementService,
+            )
+
             transition_service = PlacementTransitionService(session)
+            sup_service = SupplementaryAgreementService(session)
             for placement in placements:
+                # Generate ДС before transition attempt. Idempotent — no-op if pair
+                # already exists. Per-placement try/except: a single placement's
+                # missing legal_profile / framework contract MUST NOT abort the
+                # whole batch. ДС inserts ride on the outer session.commit() at
+                # the end of this block.
+                try:
+                    await sup_service.generate_for_placement(placement)
+                except ValueError as ds_exc:
+                    logger.warning(
+                        "auto_approve_24h: ДС generation skipped for placement %s "
+                        "(will retry next cycle): %s",
+                        placement.id,
+                        ds_exc,
+                    )
+                    skipped_real_fail_count += 1
+                    continue
+                except Exception as ds_exc:
+                    logger.error(
+                        "auto_approve_24h: unexpected ДС generation failure for placement %s: %s",
+                        placement.id,
+                        ds_exc,
+                    )
+                    failed_count += 1
+                    continue
+
                 try:
                     await transition_service.transition(
                         placement=placement,
