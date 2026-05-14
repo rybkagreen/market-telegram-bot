@@ -214,6 +214,22 @@ class ContractListResponse(BaseModel):
     total: int
 
 
+class SupplementaryAgreementResponse(BaseModel):
+    """Paired ДС response for GET /api/placements/{id}/supplementary-agreements.
+
+    Returns both sides (advertiser + owner) as a named pair so callers do not
+    rely on list ordering. ``both_signed`` is a convenience flag derived from
+    ``contract_status == 'signed'`` on both sides — used by FE to stop polling
+    and proceed with the transition attempt.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    advertiser: ContractResponse
+    owner: ContractResponse
+    both_signed: bool
+
+
 class OrdRegistrationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,0 +1,201 @@
+{
+  "$defs": {
+    "ContractResponse": {
+      "properties": {
+        "contract_status": {
+          "$ref": "#/$defs/ContractStatus"
+        },
+        "contract_type": {
+          "$ref": "#/$defs/ContractType"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "kep_request_email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kep Request Email"
+        },
+        "kep_requested": {
+          "default": false,
+          "title": "Kep Requested",
+          "type": "boolean"
+        },
+        "parent_contract_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Contract Id"
+        },
+        "pdf_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pdf Url"
+        },
+        "placement_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placement Id"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "signature_method": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignatureMethod"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "signed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signed At"
+        },
+        "template_version": {
+          "title": "Template Version",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "user_id": {
+          "title": "User Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "contract_type",
+        "contract_status",
+        "template_version",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ContractResponse",
+      "type": "object"
+    },
+    "ContractStatus": {
+      "enum": [
+        "draft",
+        "pending",
+        "signed",
+        "expired",
+        "cancelled"
+      ],
+      "title": "ContractStatus",
+      "type": "string"
+    },
+    "ContractType": {
+      "enum": [
+        "owner_service",
+        "advertiser_campaign",
+        "advertiser_framework",
+        "platform_rules",
+        "privacy_policy",
+        "tax_agreement",
+        "supplementary_agreement"
+      ],
+      "title": "ContractType",
+      "type": "string"
+    },
+    "SignatureMethod": {
+      "enum": [
+        "button_accept",
+        "sms_code"
+      ],
+      "title": "SignatureMethod",
+      "type": "string"
+    }
+  },
+  "description": "Paired ДС response for GET /api/placements/{id}/supplementary-agreements.\n\nReturns both sides (advertiser + owner) as a named pair so callers do not\nrely on list ordering. ``both_signed`` is a convenience flag derived from\n``contract_status == 'signed'`` on both sides — used by FE to stop polling\nand proceed with the transition attempt.",
+  "properties": {
+    "advertiser": {
+      "$ref": "#/$defs/ContractResponse"
+    },
+    "both_signed": {
+      "title": "Both Signed",
+      "type": "boolean"
+    },
+    "owner": {
+      "$ref": "#/$defs/ContractResponse"
+    }
+  },
+  "required": [
+    "advertiser",
+    "owner",
+    "both_signed"
+  ],
+  "title": "SupplementaryAgreementResponse",
+  "type": "object"
+}
