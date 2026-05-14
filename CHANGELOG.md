@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.7 — BL-107 Bot is_test parity (closes O.7 5b.7a deferred carve-out)
+
+Closes the long-standing asymmetry where API channel creation supported
+`body.is_test + is_admin` gate (Phase B.4) but the bot path hardcoded
+`is_test=False` because the FSM had no step for capturing the admin's
+choice. Admins now get a dedicated FSM step `selecting_is_test` с inline
+keyboard. Non-admin UX preserved exactly.
+
+#### Added
+
+- **FSM state `selecting_is_test`** в `src/bot/states/channel_owner.py:
+  AddChannelStates` (between `selecting_category` и `confirming`).
+- **`_build_is_test_keyboard()`** module-level helper в
+  `src/bot/handlers/owner/channel_owner.py` — inline keyboard с buttons
+  «📢 Реальный канал» / «🧪 Тестовый канал» / «❌ Отмена».
+- **`_render_add_channel_confirmation(callback, data, category)`** helper
+  — extracted confirmation UI rendering; reused от 2 call sites
+  (non-admin direct path и admin is_test handler). Shows 🧪 Тестовый канал
+  (admin) marker if applicable.
+- **`add_channel_select_is_test` handler** matched по
+  `F.data.startswith("own:add_channel:is_test:")` + `AddChannelStates.
+  selecting_is_test`. Defense-in-depth `user.is_admin` check rejects
+  non-admin reaching this state (theoretically unreachable via FSM).
+- **Unit tests** (8 scenarios) —
+  `tests/unit/test_bl107_bot_is_test_flow.py`. Pure mocks. Verifies
+  admin/non-admin branching, is_test choice capture, defense-in-depth,
+  и add_channel_confirm FSM read behavior.
+
+#### Changed
+
+- **`add_channel_select_category`** — теперь branches на `user.is_admin`.
+  Admin → `selecting_is_test` state + keyboard. Non-admin → existing
+  flow (state=`confirming` с `is_test=False` default).
+- **`add_channel_confirm`** — reads `is_test` из FSM data (`data.get(
+  "is_test", False)`) instead of hardcoded `False`. Added defense-in-depth
+  guard: `is_test=True + not user.is_admin` → reject with alert and
+  state.clear. TelegramChat construction passes `is_test=is_test_flag`
+  explicitly (was relying on column default `False`).
+
+#### Behavior change
+
+- Admin owner adding channel via bot: новый FSM step «Тип канала» появляется
+  после выбора категории; choice persists через `is_test` field в DB.
+  Test channels не показываются в публичном каталоге (existing TelegramChat
+  filter behavior).
+- Non-admin owner adding channel: identical UX к pre-B.7 (no new step,
+  `is_test=False` default).
+- Bot и API channel-add paths теперь symmetric для administrators.
+
+#### Closed
+
+- **O.7 5b.7a deferred carve-out** — bot/API is_test symmetry achieved.
+
 ### Phase B.6 — BL-107 Periodic re-verification Celery task
 
 Background task `parser:check_channel_registry_status` runs daily at
