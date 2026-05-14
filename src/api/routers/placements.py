@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import CurrentUser, get_db_session
-from src.api.routers.contracts import _contract_to_response
+from src.api.helpers.contract_response import contract_to_response
 from src.api.schemas.legal_profile import SupplementaryAgreementResponse
 from src.core.services.placement_request_service import PlacementRequestService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
@@ -504,8 +504,8 @@ async def get_supplementary_agreements(
         )
 
     return SupplementaryAgreementResponse(
-        advertiser=_contract_to_response(advertiser_contract),
-        owner=_contract_to_response(owner_contract),
+        advertiser=contract_to_response(advertiser_contract),
+        owner=contract_to_response(owner_contract),
         both_signed=(
             advertiser_contract.contract_status == "signed"
             and owner_contract.contract_status == "signed"
