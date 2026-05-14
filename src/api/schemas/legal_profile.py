@@ -33,6 +33,7 @@ class ContractType(str, Enum):
     platform_rules = "platform_rules"
     privacy_policy = "privacy_policy"
     tax_agreement = "tax_agreement"
+    supplementary_agreement = "supplementary_agreement"
 
 
 class ContractStatus(str, Enum):
@@ -122,7 +123,7 @@ class AcceptRulesRequest(BaseModel):
 
 class GenerateContractRequest(BaseModel):
     contract_type: ContractType
-    placement_request_id: int | None = None
+    placement_id: int | None = None
 
 
 class ValidateInnRequest(BaseModel):
@@ -194,7 +195,8 @@ class ContractResponse(BaseModel):
     user_id: int
     contract_type: ContractType
     contract_status: ContractStatus
-    placement_request_id: int | None = None
+    placement_id: int | None = None
+    parent_contract_id: int | None = None
     template_version: str
     signature_method: SignatureMethod | None = None
     signed_at: datetime | None = None
@@ -210,6 +212,22 @@ class ContractResponse(BaseModel):
 class ContractListResponse(BaseModel):
     items: list[ContractResponse]
     total: int
+
+
+class SupplementaryAgreementResponse(BaseModel):
+    """Paired ДС response for GET /api/placements/{id}/supplementary-agreements.
+
+    Returns both sides (advertiser + owner) as a named pair so callers do not
+    rely on list ordering. ``both_signed`` is a convenience flag derived from
+    ``contract_status == 'signed'`` on both sides — used by FE to stop polling
+    and proceed with the transition attempt.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    advertiser: ContractResponse
+    owner: ContractResponse
+    both_signed: bool
 
 
 class OrdRegistrationResponse(BaseModel):

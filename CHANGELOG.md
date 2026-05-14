@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 4 — Supplementary Agreements (ДС)
+
+Phase 4 of legal compliance gate system. Auto-generated dual-side ДС contracts
+(advertiser + owner) become prerequisite для escrow transition. Per placement,
+two `Contract` rows с `contract_type='supplementary_agreement'` are generated
+on owner approval (BEFORE `→ pending_payment` transition); both parties sign
+via existing `/api/contracts/{id}/sign`; `G07_SUPPLEMENTARY_AGREEMENT_SIGNED`
+gate body wired to check both signatures. `ContractEvent` audit table records
+sub-stages (generated → notified → signed → activated). G15/G16 explicitly
+deferred to Phase 5 (payout-side coordinator).
+
+### Added
+
+- **New API endpoint:** `GET /api/placements/{id}/supplementary-agreements`
+  (web_portal JWT, participant permission). Returns
+  `SupplementaryAgreementResponse` с парой `{advertiser, owner, both_signed}`.
+- **`SupplementaryAgreementService`** — instance-shape service for ДС
+  generation; idempotent + race-safe (partial UNIQUE + IntegrityError catch);
+  S-48 Pattern 1.
+- **`ContractEvent` audit table** — sub-stage timeline (generated / notified /
+  signed / activated) per BL-037. Pydantic discriminator schemas (closed
+  Literal `event_type`).
+- **5 new ДС templates:** `supplementary_agreement_advertiser.html` (inline
+  legal_status conditionals) + `supplementary_agreement_owner_{individual,
+  self_employed,ie,le}.html` (4 per-legal_status owner-side files).
+- **`PublicationFormat.label()` + `.duration_hours()` classmethods** — single
+  source of truth for format display (used by ДС templates AND UI ДС sign screen).
+- **`GateReason.SUPPLEMENTARY_NOT_SIGNED`** — distinct gate-reason value from
+  `PHASE4_PENDING` marker; periodic task discriminator recognises ДС-not-signed
+  как real-fail.
+- **Frontend `useSupplementaryAgreement` hook** (React Query polling) +
+  CampaignWaiting + OwnRequestDetail UI sections (web_portal only).
+- **`src/api/helpers/contract_response.py`** — shared
+  `contract_to_response(Contract) → ContractResponse` helper (extracted
+  cross-router from `routers/contracts.py` per Phase 4 closure cleanup).
+- **Repo additions in `ContractRepo`:**
+  `list_supplementary_for_placement(placement_id)`,
+  `get_by_placement_and_role(placement_id, role)`,
+  `count_unsigned_supplementary_for_user(user_id)`,
+  `exists_signed_supplementary_both_sides(placement_id)` (G07 backing),
+  `record_event(...)` helper.
+- **Template partials** — `_partials/contract_css.html` +
+  `_partials/contract_header.html` extracted (refactored across 11 existing
+  contract/act templates); ДС-specific
+  `sup_agreement_financial_table.html` + `sup_agreement_placement_details.html`.
+- **Unit + integration + Playwright tests** for ДС flow (Playwright at smoke
+  level; full interactive deferred via BL-112).
+
+### Changed
+
+- **`Contract.placement_request_id` renamed to `placement_id`** (D2 — pre-prod
+  cleanup per BL-061 exception); relationship `placement_request` →
+  `placement`; index `ix_contracts_placement_request_id` →
+  `ix_contracts_placement_id`. Other models (`OrdRegistration`, `Transaction`,
+  `Act`, `Review`, `PlacementDispute`) untouched — separate FKs.
+- **`ContractType` enum** extended with `supplementary_agreement` value.
+- **`Contract` table:** new `parent_contract_id` SELF-FK (ON DELETE SET NULL);
+  new composite index `ix_contract_placement_type`; new partial UNIQUE
+  `uq_contracts_supplementary_placement_role` for ДС idempotency.
+- **G07 (`G07_SUPPLEMENTARY_AGREEMENT_SIGNED`)** real body wired — previously
+  `PHASE4_PENDING` blocker. Pure-read via
+  `repo.exists_signed_supplementary_both_sides(placement_id)`.
+- **`ContractService.sign_contract()`** emits `supplementary_signed` +
+  (auto on both-signed) `supplementary_activated` `ContractEvent` for
+  `supplementary_agreement` `contract_type`.
+- **4 caller sites integrate ДС generation BEFORE transition:**
+  `bot/handlers/owner/arbitration.py`, `bot/handlers/advertiser/campaigns.py`,
+  `api/routers/campaigns.py` (Pattern 2 self-contained), and
+  `tasks/notification_tasks.py` (periodic — per-placement transactional
+  isolation). Mirror `publication_service.py:494-505` act pattern.
+- **Snapshot regen** for `ContractResponse`, `ContractListResponse`, plus new
+  `SupplementaryAgreementResponse`.
+
+### Refactored
+
+- **11 contract/act templates** to use shared partials via `{% include %}` —
+  preventing 16-way CSS duplication once ДС templates land.
+- **`_contract_to_response`** extracted from `src/api/routers/contracts.py` to
+  shared `src/api/helpers/contract_response.py` as public `contract_to_response()`
+  — removed private cross-router import from `src/api/routers/placements.py`
+  (Phase 4 closure principle #4 cleanup).
+
+### Deferred
+
+- **G15 (`ACT_SIGNED_BOTH_SIDES`) and G16 (`TAX_RECEIPT_ISSUED`)** retain
+  `PHASE4_PENDING` markers — explicitly Phase 5 territory (payout-side
+  coordinator).
+- **BL-112** (Playwright full E2E с seed fixture для ДС sign flow), **BL-115**
+  (`advertiser_framework` umbrella `contract_type` rename) — see CHANGES log.
+
 ### BL-080 8d — Caption budget for media posts
 
 Closes BL-080 final sub-block. Caption budget enforced для photo / video placements:

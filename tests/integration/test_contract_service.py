@@ -150,10 +150,10 @@ async def test_generate_advertiser_campaign_creates_new_each_time(
     await db_session.flush()
 
     svc = ContractService(db_session)
-    # placement_request_id=None avoids FK constraints on placement_requests —
+    # placement_id=None avoids FK constraints on placement_requests —
     # we're only exercising the dedup branch in contract_service.py:123.
-    c1 = await svc.generate_contract(user.id, "advertiser_campaign", placement_request_id=None)
-    c2 = await svc.generate_contract(user.id, "advertiser_campaign", placement_request_id=None)
+    c1 = await svc.generate_contract(user.id, "advertiser_campaign", placement_id=None)
+    c2 = await svc.generate_contract(user.id, "advertiser_campaign", placement_id=None)
 
     # Per contract_service.py:123 dedup is only for type-level contracts, not
     # advertiser_campaign — each call must yield a distinct row.

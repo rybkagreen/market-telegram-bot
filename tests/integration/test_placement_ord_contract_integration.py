@@ -108,9 +108,9 @@ async def test_advertiser_campaign_contract_bound_to_placement(
     contract = await ContractService(db_session).generate_contract(
         user_id=advertiser.id,
         contract_type="advertiser_campaign",
-        placement_request_id=placement.id,
+        placement_id=placement.id,
     )
-    assert contract.placement_request_id == placement.id
+    assert contract.placement_id == placement.id
     assert contract.user_id == advertiser.id
     # Snapshot contains the LLC's business data (tests/integration/test_contract_service.py
     # covers the whitelist — here we just assert the placement link).
@@ -222,7 +222,7 @@ async def test_end_to_end_wiring_smoke(
     c = cresult.scalar_one()
     r = rresult.scalar_one()
 
-    assert c.placement_request_id == placement.id
+    assert c.placement_id == placement.id
     assert c.user_id == advertiser.id
     assert r.placement_request_id == placement.id
     assert r.erid == registration.erid

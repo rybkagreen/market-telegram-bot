@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Дополнительное соглашение №{{ contract_id }}/ЮЛ к Рамочному договору владельца №{{ parent_contract_number }}</title>
+<style>{% include "_partials/contract_css.html" %}</style>
+</head>
+<body>
+
+{% include "_partials/contract_header.html" %}
+
+<h1>Дополнительное соглашение №{{ contract_id }}<br>к Рамочному договору владельца канала №{{ parent_contract_number }}<br><span style="font-size:11pt;font-weight:normal;color:#555;">(юридическое лицо)</span></h1>
+<div class="edate" style="text-align:center;font-size:9.5pt;color:#666;margin-bottom:8px;">Редакция от {{ contract_edition_date }}, версия {{ contract_template_version }}</div>
+<div class="meta"><span>г. Москва</span><span>«{{ contract_date }}»</span></div>
+
+<div class="parties">
+  <p><strong>{{ platform_legal_name | default('ООО «РекХарбор»') }}</strong>, ИНН {{ platform_inn | default('XXXXXXXXXX') }}, именуемое далее <strong>«Платформа»</strong> (Заказчик), с одной стороны, и <strong>{{ legal_name }}</strong>{% if inn %}, ИНН {{ inn }}{% endif %}{% if kpp %}, КПП {{ kpp }}{% endif %}{% if ogrn %}, ОГРН {{ ogrn }}{% endif %}, именуемое далее <strong>«Владелец канала»</strong> (Исполнитель), с другой стороны, заключили настоящее Дополнительное соглашение (далее — «ДС») к {{ parent_contract_type_label }} №{{ parent_contract_number }} от {{ parent_contract_date }} (далее — «Рамочный договор») о нижеследующем.</p>
+</div>
+
+<div class="box-info">
+  ℹ️ <strong>Налоговый режим Владельца:</strong> юридическое лицо{% if tax_regime %} ({{ tax_regime }}){% endif %}. Расчёт НДС, налога на прибыль и иных обязательных платежей производится Владельцем самостоятельно. При применении ОСНО Владелец вправе выставлять счёт-фактуру с НДС.
+</div>
+
+<h2>1. Предмет ДС</h2>
+<p class="cl">1.1. В рамках Рамочного договора Стороны согласовали проведение одного автоматического размещения РИМ Рекламодателя посредством Бота Платформы (@{{ bot_username | default('RekHarborBot') }}) в Telegram-канале Владельца, указанном в разделе 2 настоящего ДС.</p>
+
+<h2>2. Условия размещения</h2>
+{% include "_partials/sup_agreement_placement_details.html" %}
+
+<h2>3. Стоимость и расчёты</h2>
+<p class="cl">3.1. Распределение средств между Сторонами по настоящему ДС:</p>
+{% include "_partials/sup_agreement_financial_table.html" %}
+<p class="cl">3.2. Вознаграждение брутто Владельцу — <strong>{{ owner_share_pct }}% стоимости задания = {{ owner_gross_amount }} ₽</strong>. После удержания сервисного сбора {{ service_fee_pct }}% Платформа перечисляет Владельцу <strong>{{ owner_net_amount }} ₽</strong>.</p>
+<p class="cl">3.3. При применении Владельцем ОСНО сумма к выплате включает НДС по ставке, действующей на дату публикации; счёт-фактуру выставляет Владелец. При применении УСН счёт-фактура не выставляется.</p>
+
+<h2>4. Связь с Рамочным договором</h2>
+<p class="cl">4.1. Все условия, не урегулированные настоящим ДС, применяются по тексту Рамочного договора №{{ parent_contract_number }} от {{ parent_contract_date }}.</p>
+<p class="cl">4.2. ДС считается заключённым с момента подписания обеими Сторонами через интерфейс Платформы (button-accept или КЭП согласно условиям Рамочного договора). Подписание ДС обеими Сторонами — обязательное условие перехода размещения в статус оплаты (эскроу).</p>
+
+<h2>5. Реквизиты и подписи Сторон</h2>
+<div class="sigs">
+  <div class="sb">
+    <h3>Платформа (Заказчик)</h3>
+    <div class="req"><strong>{{ platform_legal_name | default('ООО «РекХарбор»') }}</strong><br>ИНН: {{ platform_inn | default('__________') }}<br>КПП: {{ platform_kpp | default('__________') }}<br>ОГРН: {{ platform_ogrn | default('_____________') }}<br>Адрес: {{ platform_address | default('____________________') }}<br>Р/С: {{ platform_bank_account | default('____________________') }}<br>Банк: {{ platform_bank_name | default('____________________') }}<br>БИК: {{ platform_bank_bik | default('_________') }}</div>
+  </div>
+  <div class="sb">
+    <h3>Владелец канала — ЮЛ (Исполнитель)</h3>
+    <div class="req"><strong>{{ legal_name }}</strong><br>{% if inn %}ИНН: {{ inn }}<br>{% endif %}{% if kpp %}КПП: {{ kpp }}<br>{% endif %}{% if ogrn %}ОГРН: {{ ogrn }}<br>{% endif %}{% if address %}Адрес: {{ address }}<br>{% endif %}{% if bank_name %}Банк: {{ bank_name }}<br>{% endif %}{% if bank_bik %}БИК: {{ bank_bik }}<br>{% endif %}{% if tax_regime %}Режим: {{ tax_regime }}{% endif %}</div>
+  </div>
+</div>
+
+<div class="sigs" style="margin-top: 20px;">
+  <div class="sb"><div class="sline"></div><div class="slabel">Платформа / Подпись / Дата (МП)</div></div>
+  <div class="sb"><div class="sline"></div><div class="slabel">Владелец канала / Подпись / Дата (МП)</div></div>
+</div>
+
+</body>
+</html>

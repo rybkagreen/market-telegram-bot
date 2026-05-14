@@ -5,6 +5,7 @@ import {
   signContract,
   acceptRules,
   getPlatformRulesText,
+  getSupplementaryForPlacement,
 } from '@/api/legal'
 
 // ═══ My Contracts ═══
@@ -56,5 +57,22 @@ export function usePlatformRules() {
     queryKey: ['contracts', 'platform-rules', 'text'],
     queryFn: getPlatformRulesText,
     staleTime: 5 * 60_000,
+  })
+}
+
+// ═══ Supplementary Agreements (ДС) — Phase 4 ═══
+export function useSupplementaryAgreement(
+  placementId: number | null,
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: ['supplementary-agreement', placementId],
+    queryFn: () => getSupplementaryForPlacement(placementId!),
+    enabled: !!placementId && enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (data?.both_signed) return false
+      return 5_000
+    },
   })
 }

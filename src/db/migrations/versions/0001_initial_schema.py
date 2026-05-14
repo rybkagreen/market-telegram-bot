@@ -1238,7 +1238,8 @@ def upgrade() -> None:  # noqa: PLR0915
             server_default=sa.text("'draft'"),
             nullable=False,
         ),
-        sa.Column("placement_request_id", sa.Integer(), nullable=True),
+        sa.Column("placement_id", sa.Integer(), nullable=True),
+        sa.Column("parent_contract_id", sa.Integer(), nullable=True),
         sa.Column("legal_status_snapshot", postgresql.JSONB(), nullable=True),
         sa.Column(
             "template_version",
@@ -1273,17 +1274,40 @@ def upgrade() -> None:  # noqa: PLR0915
         sa.Column("kep_request_email", sa.String(254), nullable=True),
         sa.Column("role", sa.String(20), nullable=True),
         sa.ForeignKeyConstraint(
-            ["placement_request_id"],
+            ["placement_id"],
             ["placement_requests.id"],
-            name="contracts_placement_request_id_fkey",
+            name="contracts_placement_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_contract_id"],
+            ["contracts.id"],
+            name="contracts_parent_contract_id_fkey",
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="contracts_user_id_fkey"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
-        "ix_contracts_placement_request_id",
+        "ix_contracts_placement_id",
         "contracts",
-        ["placement_request_id"],
+        ["placement_id"],
+    )
+    op.create_index(
+        "ix_contracts_parent_contract_id",
+        "contracts",
+        ["parent_contract_id"],
+    )
+    op.create_index(
+        "ix_contract_placement_type",
+        "contracts",
+        ["placement_id", "contract_type"],
+    )
+    op.create_index(
+        "uq_contracts_supplementary_placement_role",
+        "contracts",
+        ["placement_id", "contract_type", "role"],
+        unique=True,
+        postgresql_where=sa.text("contract_type = 'supplementary_agreement'"),
     )
     op.create_index(
         "ix_contracts_type_status",
@@ -1291,6 +1315,50 @@ def upgrade() -> None:  # noqa: PLR0915
         ["contract_type", "contract_status"],
     )
     op.create_index("ix_contracts_user_id", "contracts", ["user_id"])
+
+    # ── Table 22a: contract_events ────────────────────────────────────────────
+    op.create_table(
+        "contract_events",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("contract_id", sa.Integer(), nullable=False),
+        sa.Column("event_type", sa.String(40), nullable=False),
+        sa.Column("event_metadata", postgresql.JSONB(), nullable=True),
+        sa.Column("actor_user_id", sa.Integer(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["contract_id"],
+            ["contracts.id"],
+            name="contract_events_contract_id_fkey",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["actor_user_id"],
+            ["users.id"],
+            name="contract_events_actor_user_id_fkey",
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "ix_contract_events_contract_id_created",
+        "contract_events",
+        ["contract_id", "created_at"],
+    )
+    op.create_index(
+        "ix_contract_events_event_type",
+        "contract_events",
+        ["event_type"],
+    )
+    op.create_index(
+        "ix_contract_events_actor_user_id",
+        "contract_events",
+        ["actor_user_id"],
+    )
 
     # ── Table 23: contract_signatures ─────────────────────────────────────────
     op.create_table(
@@ -2039,6 +2107,7 @@ def downgrade() -> None:
     op.drop_table("invoices")
     op.drop_table("acts")
     op.drop_table("contract_signatures")
+    op.drop_table("contract_events")
     op.drop_table("contracts")
     op.drop_table("placement_requests")
     op.drop_table("transactions")
