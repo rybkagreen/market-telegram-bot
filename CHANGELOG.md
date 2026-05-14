@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.5b — BL-107 Admin review frontend + owner submission UI
+
+Frontend half of BL-107 manual evidence path. Consumes Phase B.5a backend
+contracts to deliver end-to-end UI workflow для администраторов and channel
+owners. Manual evidence path теперь end-to-end live.
+
+#### Added
+
+- **Web portal admin screens** (2):
+  - `AdminChannelVerificationsList` — paginated queue с фильтрами
+    `pending_review` / `verified`, navigate to detail on row click.
+  - `AdminChannelVerificationDetail` — channel info + status meta + audit
+    history + inline verify form (optional notes) + inline reject form
+    (required reason + optional internal notes).
+- **Web portal API client** — `admin_channel_verifications.ts` (9 types + 4
+  functions matching Phase B.5a Pydantic schemas).
+- **Web portal hooks** — `useChannelVerificationQueries.ts` (4 react-query
+  hooks: list, detail, verify mutation, reject mutation; auto-invalidation
+  on success).
+- **Sidebar entry** "Проверка каналов" (adminOnly, icon=channels) + 2 routes
+  + 2 Topbar breadcrumb entries.
+- **Mini app submission screen** `OwnSubmitRegistryEvidence` (3-field form
+  + vanilla validation + haptic feedback + success/error toast).
+- **Mini app API integration** — `submitRegistryEvidence` function +
+  `useSubmitRegistryEvidence` mutation hook.
+- **Mini app entry button** в `OwnChannelDetail` (visible когда
+  `member_count >= 10000`) navigates к submission screen.
+
+#### Behavior change — manual evidence path UI live
+
+- Admins can now process registry evidence через web_portal UI (queue → review
+  → verify/reject).
+- Owners с каналами ≥10k subscribers могут submit evidence через mini_app form.
+- Owner notifications enqueued при admin decisions (via Phase B.5a Celery
+  integration — channel owner receives Telegram message с decision + reason).
+- Audit trail visible в admin detail view (3 action types translated).
+- Sidebar `Проверка каналов` доступен только admins (existing `adminOnly`
+  flag guarantees hiding для regular users).
+
+#### Untouched / deferred
+
+- **Component tests (vitest)** — neither frontend has vitest infrastructure
+  (only Playwright in web_portal/tests/). Deferred to Phase B.9.
+- **Backend `ChannelResponse` schema** — `is_blogger_registry_verified` field
+  not exposed via mini_app Channel type. Button visibility heuristic uses
+  `member_count >= 10000` only; backend 409 handled gracefully via toast.
+  Schema extension out-of-scope B.5b (backend change).
+
 ### Phase B.5a — BL-107 Admin review backend endpoints + notifications
 
 Backend half of BL-107 manual evidence path для ФЗ-303 compliance. 5 new

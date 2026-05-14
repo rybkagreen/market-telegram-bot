@@ -182,6 +182,15 @@ const BREADCRUMB_MAP: Record<string, Crumb[]> = {
     { label: 'Споры', path: '/admin/disputes' },
     { label: 'Детали' },
   ],
+  '/admin/channel-verifications': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Проверка каналов' },
+  ],
+  '/admin/channel-verifications/:id': [
+    { label: 'Админ', path: '/admin' },
+    { label: 'Проверка каналов', path: '/admin/channel-verifications' },
+    { label: 'Детали' },
+  ],
   '/admin/feedback': [
     { label: 'Админ', path: '/admin' },
     { label: 'Обращения' },

@@ -58,6 +58,7 @@ const OwnChannels        = lazy(() => import('@/screens/owner/OwnChannels'))
 const OwnAddChannel      = lazy(() => import('@/screens/owner/OwnAddChannel'))
 const OwnChannelDetail   = lazy(() => import('@/screens/owner/OwnChannelDetail'))
 const OwnChannelSettings = lazy(() => import('@/screens/owner/OwnChannelSettings'))
+const OwnSubmitRegistryEvidence = lazy(() => import('@/screens/owner/OwnSubmitRegistryEvidence'))
 const OwnRequests        = lazy(() => import('@/screens/owner/OwnRequests'))
 const OwnRequestDetail   = lazy(() => import('@/screens/owner/OwnRequestDetail'))
 const DisputeResponse    = lazy(() => import('@/screens/owner/DisputeResponse'))
@@ -146,6 +147,7 @@ const router = createBrowserRouter([
       { path: 'own/channels/add',                       element: <OwnAddChannel /> },
       { path: 'own/channels/:id',                       element: <OwnChannelDetail /> },
       { path: 'own/channels/:id/settings',              element: <OwnChannelSettings /> },
+      { path: 'own/channels/:id/submit-registry-evidence', element: <OwnSubmitRegistryEvidence /> },
       { path: 'own/requests',                           element: <OwnRequests /> },
       { path: 'own/requests/:id',                       element: <OwnRequestDetail /> },
       { path: 'own/disputes',                           element: <MyDisputes /> },
