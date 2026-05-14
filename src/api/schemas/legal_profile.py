@@ -33,6 +33,7 @@ class ContractType(str, Enum):
     platform_rules = "platform_rules"
     privacy_policy = "privacy_policy"
     tax_agreement = "tax_agreement"
+    supplementary_agreement = "supplementary_agreement"
 
 
 class ContractStatus(str, Enum):
@@ -122,7 +123,7 @@ class AcceptRulesRequest(BaseModel):
 
 class GenerateContractRequest(BaseModel):
     contract_type: ContractType
-    placement_request_id: int | None = None
+    placement_id: int | None = None
 
 
 class ValidateInnRequest(BaseModel):
@@ -194,7 +195,8 @@ class ContractResponse(BaseModel):
     user_id: int
     contract_type: ContractType
     contract_status: ContractStatus
-    placement_request_id: int | None = None
+    placement_id: int | None = None
+    parent_contract_id: int | None = None
     template_version: str
     signature_method: SignatureMethod | None = None
     signed_at: datetime | None = None

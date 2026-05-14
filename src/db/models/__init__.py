@@ -7,6 +7,7 @@ from src.db.models.channel_mediakit import ChannelMediakit
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.click_tracking import ClickTracking
 from src.db.models.contract import Contract
+from src.db.models.contract_event import ContractEvent
 from src.db.models.contract_signature import ContractSignature
 from src.db.models.dispute import DisputeReason, DisputeResolution, DisputeStatus, PlacementDispute
 from src.db.models.document_counter import DocumentCounter
@@ -36,6 +37,7 @@ __all__ = [
     "User",
     "LegalProfile",
     "Contract",
+    "ContractEvent",
     "ContractSignature",
     "DocumentCounter",
     "Invoice",
