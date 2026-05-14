@@ -206,3 +206,6 @@ src/api/middleware/__pycache__/
 src/core/security/__pycache__/
 src/db/seeds/__pycache__/
 ssl_certs/
+
+# Claude Code hook state (per-machine, do not commit)
+.claude/state/
