@@ -55,6 +55,7 @@ const KIND_META: Record<ContractType, ContractKindMeta> = {
   platform_rules: { label: 'Оферта платформы', icon: 'lock', tone: 'accent2' },
   privacy_policy: { label: 'Политика конфиденциальности', icon: 'lock', tone: 'accent2' },
   tax_agreement: { label: 'Налоговое соглашение', icon: 'receipt', tone: 'warning' },
+  supplementary_agreement: { label: 'Доп. соглашение', icon: 'docs', tone: 'accent2' },
 }
 
 const toneIconClass: Record<ContractKindMeta['tone'], string> = {

@@ -74,9 +74,10 @@ _USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
 #
 # G13-G18 are payout-side gates and intentionally absent — they belong to
 # PayoutRequest lifecycle, not placement transitions (Phase 5 territory).
-# G07 (Phase 4) IS included; its body returns a PHASE4_PENDING marker
-# until Phase 4 (МES Acts API) lands. G15/G16 are payout-side and
-# intentionally absent — payout-side coordinator is Phase 5 territory.
+# G07 (Phase 4) IS included with real body — blocks pre-escrow transitions
+# until both advertiser+owner supplementary_agreement Contract rows reach
+# contract_status='signed'. G15/G16 are payout-side and intentionally
+# absent — payout-side coordinator is Phase 5 territory.
 _TRANSITION_GATES: dict[tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]] = {
     (PlacementStatus.pending_owner, PlacementStatus.counter_offer): frozenset(),
     (PlacementStatus.pending_owner, PlacementStatus.pending_payment): frozenset({

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Notification, Timeline, Button, Skeleton, Icon, ScreenHeader } from '@shared/ui'
 import { PUBLICATION_FORMATS, formatCurrency, formatDateTimeMSK } from '@/lib/constants'
 import { usePlacement, useUpdatePlacement } from '@/hooks/useCampaignQueries'
+import { SupplementaryAgreementSection } from '@/components/contracts/SupplementaryAgreementSection'
 
 function getRedirectPath(id: number, status: string): string | null {
   if (status === 'pending_payment' || status === 'counter_offer') return `/adv/campaigns/${id}/payment`
@@ -161,14 +162,20 @@ export default function CampaignWaiting() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="bg-harbor-card border border-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display text-[15px] font-semibold text-text-primary">
-              Статус заявки
-            </h3>
-            <span className="text-[11px] text-text-tertiary">Обновляется автоматически</span>
+        <div className="space-y-4">
+          <div className="bg-harbor-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-[15px] font-semibold text-text-primary">
+                Статус заявки
+              </h3>
+              <span className="text-[11px] text-text-tertiary">Обновляется автоматически</span>
+            </div>
+            <Timeline events={timelineEvents} />
           </div>
-          <Timeline events={timelineEvents} />
+
+          {(p.status === 'pending_owner' || p.status === 'counter_offer') && !isTerminal && (
+            <SupplementaryAgreementSection placementId={p.id} role="advertiser" />
+          )}
         </div>
 
         <div className="bg-harbor-card border border-border rounded-xl p-5 h-fit">

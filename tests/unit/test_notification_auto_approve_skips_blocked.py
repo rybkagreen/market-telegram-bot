@@ -63,6 +63,15 @@ def _patch_session_factory(
     return session
 
 
+@pytest.fixture(autouse=True)
+def _patch_supplementary_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phase 4 hook: bypass ДС generation in auto_approve unit tests."""
+    monkeypatch.setattr(
+        "src.core.services.supplementary_agreement_service.SupplementaryAgreementService",
+        lambda s: MagicMock(generate_for_placement=AsyncMock()),
+    )
+
+
 def _make_transition_blocked(reason_code: str, gate: str = "G07_X") -> TransitionBlockedError:
     return TransitionBlockedError(
         "blocked",

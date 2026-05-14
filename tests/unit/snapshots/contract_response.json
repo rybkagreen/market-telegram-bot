@@ -18,7 +18,8 @@
         "advertiser_framework",
         "platform_rules",
         "privacy_policy",
-        "tax_agreement"
+        "tax_agreement",
+        "supplementary_agreement"
       ],
       "title": "ContractType",
       "type": "string"
@@ -78,6 +79,18 @@
       "title": "Kep Requested",
       "type": "boolean"
     },
+    "parent_contract_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Contract Id"
+    },
     "pdf_url": {
       "anyOf": [
         {
@@ -90,7 +103,7 @@
       "default": null,
       "title": "Pdf Url"
     },
-    "placement_request_id": {
+    "placement_id": {
       "anyOf": [
         {
           "type": "integer"
@@ -100,7 +113,7 @@
         }
       ],
       "default": null,
-      "title": "Placement Request Id"
+      "title": "Placement Id"
     },
     "role": {
       "anyOf": [
