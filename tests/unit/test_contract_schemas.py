@@ -54,6 +54,7 @@ from src.api.schemas.legal_profile import (
     ContractListResponse,
     ContractResponse,
     LegalProfileResponse,
+    SupplementaryAgreementResponse,
 )
 from src.api.schemas.payout import AdminPayoutListResponse, PayoutResponse
 from src.api.schemas.user import UserResponse
@@ -80,6 +81,7 @@ CONTRACT_SCHEMAS: list[tuple[str, type[BaseModel]]] = [
     ("placement_response", PlacementResponse),
     ("payout_response", PayoutResponse),
     ("contract_response", ContractResponse),
+    ("supplementary_agreement_response", SupplementaryAgreementResponse),
     ("dispute_response", DisputeResponse),
     ("legal_profile_response", LegalProfileResponse),
     ("channel_response", ChannelResponse),

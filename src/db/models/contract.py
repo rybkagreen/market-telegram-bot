@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,8 +25,14 @@ class Contract(Base, TimestampMixin):
     contract_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="draft", server_default="draft"
     )
-    placement_request_id: Mapped[int | None] = mapped_column(
+    placement_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("placement_requests.id"), nullable=True
+    )
+    parent_contract_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("contracts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     legal_status_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     template_version: Mapped[str] = mapped_column(
@@ -46,14 +52,26 @@ class Contract(Base, TimestampMixin):
 
     # Relationships
     user: Mapped[User] = relationship("User", foreign_keys=[user_id])
-    placement_request: Mapped[PlacementRequest | None] = relationship(
-        "PlacementRequest", foreign_keys=[placement_request_id]
+    placement: Mapped[PlacementRequest | None] = relationship(
+        "PlacementRequest", foreign_keys=[placement_id]
+    )
+    parent_contract: Mapped[Contract | None] = relationship(
+        "Contract", remote_side=[id], foreign_keys=[parent_contract_id]
     )
 
     __table_args__ = (
         Index("ix_contracts_user_id", "user_id"),
-        Index("ix_contracts_placement_request_id", "placement_request_id"),
+        Index("ix_contracts_placement_id", "placement_id"),
         Index("ix_contracts_type_status", "contract_type", "contract_status"),
+        Index("ix_contract_placement_type", "placement_id", "contract_type"),
+        Index(
+            "uq_contracts_supplementary_placement_role",
+            "placement_id",
+            "contract_type",
+            "role",
+            unique=True,
+            postgresql_where=text("contract_type = 'supplementary_agreement'"),
+        ),
     )
 
     def __repr__(self) -> str:

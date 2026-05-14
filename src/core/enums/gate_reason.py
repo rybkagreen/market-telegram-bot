@@ -14,7 +14,9 @@ class GateReason(StrEnum):
     OK = "ok"
 
     # Phase-N pending markers — gates whose real body ships in a later phase.
-    # G07/G15/G16 use PHASE4_PENDING; G17/G18 use PHASE5_PENDING.
+    # G15/G16 use PHASE4_PENDING; G17/G18 use PHASE5_PENDING. G07 retired
+    # PHASE4_PENDING once Phase 4 shipped its real body — see
+    # SUPPLEMENTARY_NOT_SIGNED below.
     PHASE4_PENDING = "phase4_pending"
     PHASE5_PENDING = "phase5_pending"
 
@@ -48,3 +50,9 @@ class GateReason(StrEnum):
 
     # 5b.7a additions — G06 real-now (channel-add precondition)
     PAYOUT_METHOD_INVALID = "payout_method_invalid"
+
+    # Phase 4 — G07 real body (supplementary agreement signed both sides).
+    # Distinct from PHASE4_PENDING (still used by G15/G16 deferred to Phase 5)
+    # so the periodic auto-approve task classifies ДС-not-signed as a
+    # real-fail (user-actionable) rather than "not yet wired" placeholder.
+    SUPPLEMENTARY_NOT_SIGNED = "supplementary_not_signed"

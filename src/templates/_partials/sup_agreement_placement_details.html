@@ -1,0 +1,13 @@
+{# Placement details block for supplementary agreements (ДС).
+   Identical structure across all 5 ДС templates — vars from _build_placement_ctx. #}
+<table>
+  <tr><th>Канал</th><td><strong>{{ placement_channel_title }}</strong> ({{ placement_channel_link }})</td></tr>
+  <tr><th>Формат публикации</th><td>{{ placement_format_human }}</td></tr>
+  <tr><th>Длительность размещения</th><td>{{ placement_duration_hours }} ч</td></tr>
+  <tr><th>Запланированная дата публикации</th><td>{{ placement_scheduled_at }}</td></tr>
+  <tr><th>Идентификатор кампании (placement_id)</th><td>{{ placement_id }}</td></tr>
+  <tr><th>Идентификатор рекламы (erid)</th><td><em>{{ erid_placeholder }}</em></td></tr>
+</table>
+
+<h2>Содержание рекламно-информационного материала (РИМ)</h2>
+<div class="box-info" style="white-space: pre-wrap;">{{ placement_ad_text }}</div>

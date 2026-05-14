@@ -201,6 +201,30 @@ async def camp_counter_accept(callback: CallbackQuery, session: AsyncSession) ->
     from src.bot.utils.gate_block_render import render_advertiser_message
     from src.core.exceptions import TransitionBlockedError
     from src.core.services.placement_transition_service import PlacementTransitionService
+    from src.core.services.supplementary_agreement_service import (
+        SupplementaryAgreementService,
+    )
+
+    # Phase 4: generate paired ДС before transition. Idempotent — returns existing
+    # pair if already created.
+    sup_service = SupplementaryAgreementService(session)
+    try:
+        await sup_service.generate_for_placement(req)
+    except ValueError as ds_exc:
+        logger.warning(
+            "ДС generation failed for placement %s (advertiser counter-accept): %s",
+            req.id,
+            ds_exc,
+        )
+        if not isinstance(callback.message, Message):
+            await callback.answer()
+            return
+        await callback.message.answer(
+            "❌ Невозможно подготовить дополнительное соглашение: "
+            f"{ds_exc}. Проверьте подписан ли рамочный договор."
+        )
+        await callback.answer()
+        return
 
     transition_service = PlacementTransitionService(session)
     try:

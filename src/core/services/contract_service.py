@@ -170,7 +170,7 @@ class ContractService:
         self,
         user_id: int,
         contract_type: str,
-        placement_request_id: int | None = None,
+        placement_id: int | None = None,
     ) -> Contract:
         """Сгенерировать договор и сохранить в БД."""
         # --- Deduplication check (S7 addition) ---
@@ -201,7 +201,7 @@ class ContractService:
                 user_id=user_id,
                 contract_type=contract_type,
                 contract_status="pending",
-                placement_request_id=placement_request_id,
+                placement_id=placement_id,
                 legal_status_snapshot=snapshot,
                 template_version=CONTRACT_TEMPLATE_VERSION,
             )
@@ -285,6 +285,48 @@ class ContractService:
             ip_address=ip_address,
         )
         # --- end signature evidence ---
+
+        # BL-037 sub-stage timeline for ДС lifecycle.
+        # When the signed contract is a supplementary_agreement, record the
+        # `supplementary_signed` event. If this signature completes the pair
+        # (both sides now `signed`), also record `supplementary_activated`.
+        if (
+            contract.contract_type == "supplementary_agreement"
+            and contract.role in ("advertiser", "owner")
+            and contract.placement_id is not None
+        ):
+            from src.core.schemas.contract_event import (
+                SupplementaryActivatedMetadata,
+                SupplementarySignedMetadata,
+            )
+
+            event_repo = ContractRepo(self.session)
+            signed_meta = SupplementarySignedMetadata(
+                placement_id=contract.placement_id,
+                role=contract.role,  # type: ignore[arg-type]
+                signature_method=method,  # type: ignore[arg-type]
+            )
+            await event_repo.record_event(
+                contract_id=contract_id,
+                event_type="supplementary_signed",
+                actor_user_id=user_id,
+                event_metadata=signed_meta.model_dump(),
+            )
+
+            both_signed = await event_repo.exists_signed_supplementary_both_sides(
+                contract.placement_id
+            )
+            if both_signed:
+                activated_meta = SupplementaryActivatedMetadata(
+                    placement_id=contract.placement_id,
+                    both_sides_signed_at=datetime.now(UTC),
+                )
+                await event_repo.record_event(
+                    contract_id=contract_id,
+                    event_type="supplementary_activated",
+                    actor_user_id=user_id,
+                    event_metadata=activated_meta.model_dump(mode="json"),
+                )
 
         return signed
 
@@ -388,7 +430,7 @@ class ContractService:
         return contract is not None and contract.contract_status == "signed"
 
     async def check_advertiser_can_pay(
-        self, user_id: int, placement_request_id: int
+        self, user_id: int, placement_id: int
     ) -> tuple[bool, Contract | None]:
         """
         Проверить, может ли рекламодатель оплатить размещение.
@@ -398,14 +440,12 @@ class ContractService:
             Если договора нет — создаёт новый.
         """
         repo = ContractRepo(self.session)
-        contract = await repo.get_by_user_and_placement(user_id, placement_request_id)
+        contract = await repo.get_by_user_and_placement(user_id, placement_id)
         if contract and contract.contract_status == "signed":
             return (True, contract)
         if contract:
             return (False, contract)
-        new_contract = await self.generate_contract(
-            user_id, "advertiser_campaign", placement_request_id
-        )
+        new_contract = await self.generate_contract(user_id, "advertiser_campaign", placement_id)
         return (False, new_contract)
 
     async def request_kep_version(self, contract_id: int, user_id: int, email: str) -> None:
@@ -473,7 +513,7 @@ class ContractService:
 
         if USE_JINJA2 and TEMPLATES_DIR.exists():
             env = Environment(
-                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                loader=FileSystemLoader([str(TEMPLATES_DIR), str(TEMPLATES_DIR.parent)]),
                 autoescape=select_autoescape(["html", "xml"]),
             )
             try:
@@ -548,7 +588,7 @@ class ContractService:
 
         if USE_JINJA2 and TEMPLATES_DIR.exists():
             env = Environment(
-                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                loader=FileSystemLoader([str(TEMPLATES_DIR), str(TEMPLATES_DIR.parent)]),
                 autoescape=select_autoescape(["html", "xml"]),
             )
             try:

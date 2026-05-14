@@ -143,6 +143,7 @@ export type ContractType =
   | 'privacy_policy'
   | 'tax_agreement'
   | 'advertiser_framework'
+  | 'supplementary_agreement'
 
 export interface Contract {
   id: number

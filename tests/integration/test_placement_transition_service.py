@@ -324,18 +324,21 @@ class TestMetadataValidation:
 # Phase 3c — Gate enforcement tests (TestGateEnforcement)
 #
 # Wires LegalComplianceService.check_gates_for_transition into transition()
-# body. G07 PHASE4_PENDING marker actively blocks pending_owner|counter_offer
-# → pending_payment until Phase 4 ships G07 real body.
+# body. Phase 4 shipped G07 real body — blocks pending_owner|counter_offer
+# → pending_payment until both advertiser+owner supplementary_agreement
+# Contract rows reach contract_status='signed'. Reason code:
+# SUPPLEMENTARY_NOT_SIGNED (distinct from PHASE4_PENDING markers still
+# used by G15/G16 deferred to Phase 5).
 # ============================================================================
 
 
 class TestGateEnforcement:
-    async def test_g07_marker_blocks_pending_payment_transition(
+    async def test_g07_blocks_pending_payment_without_signed_supplementary(
         self,
         service: PlacementTransitionService,
         db_session: AsyncSession,
     ) -> None:
-        """pending_owner → pending_payment fires G07 PHASE4_PENDING marker."""
+        """pending_owner → pending_payment fires G07 with SUPPLEMENTARY_NOT_SIGNED."""
         placement = await _seed_placement(db_session, telegram_id_offset=300)
 
         with pytest.raises(TransitionBlockedError) as exc_info:
@@ -350,7 +353,7 @@ class TestGateEnforcement:
         blockers = exc_info.value.extra["blockers"]
         assert len(blockers) == 1
         assert blockers[0]["gate"] == "G07_SUPPLEMENTARY_AGREEMENT_SIGNED"
-        assert blockers[0]["reason_code"] == "phase4_pending"
+        assert blockers[0]["reason_code"] == "supplementary_not_signed"
         assert exc_info.value.extra["from"] == "pending_owner"
         assert exc_info.value.extra["to"] == "pending_payment"
 
