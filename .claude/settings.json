@@ -17,9 +17,9 @@
         "matcher": ".*",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Before finishing: verify that CHANGES_<date>_<desc>.md was created in reports/docs-architect/discovery/ AND CHANGELOG.md [Unreleased] section was updated if a public contract changed. If either is missing, output a warning listing what is absent. Do not block — just warn.",
-            "timeout": 30
+            "type": "command",
+            "command": "bash .claude/hooks/stop_check_changes.sh",
+            "timeout": 10
           }
         ]
       }
