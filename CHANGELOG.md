@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.5a — BL-107 Admin review backend endpoints + notifications
+
+Backend half of BL-107 manual evidence path для ФЗ-303 compliance. 5 new
+endpoints + Pydantic schemas + notification helpers + 21 unit tests. Frontend UI
+(web_portal screens + mini_app screen) deferred to Phase B.5b.
+
+#### Added
+
+- **Owner endpoint** `POST /api/channels/{id}/submit-registry-evidence` —
+  owner submits Госуслуги application_number + optional registry_url + notes;
+  AuditLog `blogger_registry_evidence_submitted` written; admins notified via
+  Celery enqueue.
+- **Admin endpoints** (4) под `/api/admin/channel-verifications/`:
+  - `GET /` — paginated list (filter `status=pending_review|verified`,
+    `owner_id`, `limit`/`offset`)
+  - `GET /{id}` — detail view с full TelegramChat fields + owner snapshot +
+    audit history (3 action types)
+  - `POST /{id}/verify` — admin approves: all 6 audit fields populated
+    (`is_verified=True`, `verified_at`, `verification_method=MANUAL_EVIDENCE`,
+    `verified_by_admin_id`, `member_count_at_verification`, `last_check_at`);
+    AuditLog `blogger_registry_verified_by_admin`; owner notified.
+  - `POST /{id}/reject` — admin rejects: `application_number=None` (allows
+    re-submission), AuditLog `blogger_registry_rejected_by_admin` с
+    `reason`+`internal_notes`; owner notified с reason.
+- **Pydantic schemas** — `src/api/schemas/channel_verification.py` (9 request/
+  response models с strict `extra="forbid"` validation).
+- **Notification helpers** — `notify_admins_evidence_submitted` (fetches admins
+  via `UserRepository.get_all_admins()`, enqueues `mailing:notify_user` for each)
+  + `notify_owner_verification_decided` (formats by `Literal["verified"|"rejected"]`,
+  enqueues delivery via existing Celery pattern).
+- **Tests** — 21 unit tests:
+  - `tests/unit/test_bl107_submit_evidence.py` (7 — happy path, permissions, validation, conflict)
+  - `tests/unit/test_bl107_admin_channel_verifications.py` (14 — list, detail,
+    verify, reject, non-admin permission)
+
+#### Behavior change — manual evidence path live backend
+
+- Channel owners can now submit blogger registry evidence для admin review
+  через backend endpoint (frontend форма coming in B.5b).
+- Admins have backend endpoints для review queue management; frontend UI
+  follows in B.5b.
+- `BloggerRegistryVerificationMethod.MANUAL_EVIDENCE` (Phase B.1) becomes
+  reachable in production paths via admin verify endpoint.
+- `GateReason.BLOGGER_REGISTRY_PENDING_REVIEW` (Phase B.2) теперь triggerable.
+- AuditLog conventions extended с 3 new action strings (free-form, no enum —
+  established empirically).
+
 ### Phase B.4 — BL-107 Channel-add hookup (ФЗ-303 ENFORCEMENT LIVE)
 
 Critical integration phase для ФЗ-303 blogger registry verification. Wires Phase

@@ -28,6 +28,10 @@ from src.api.schemas.channel import (
     ChannelCreateRequest,
     ChannelResponse,
 )
+from src.api.schemas.channel_verification import (
+    ChannelVerificationSubmitRequest,
+    ChannelVerificationSubmitResponse,
+)
 from src.api.schemas.mediakit import MediakitAdvertiserResponse
 from src.config.settings import settings
 from src.constants.tariffs import (
@@ -1445,4 +1449,67 @@ async def get_mediakit_pdf(
         headers={
             "Content-Disposition": f'attachment; filename="mediakit_{channel_id}.pdf"',
         },
+    )
+
+
+@router.post(
+    "/{channel_id}/submit-registry-evidence",
+    response_model=ChannelVerificationSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        403: {"description": "Not channel owner"},
+        404: {"description": "Channel not found"},
+        409: {"description": "Channel already verified"},
+    },
+)
+async def submit_registry_evidence(
+    channel_id: int,
+    body: ChannelVerificationSubmitRequest,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelVerificationSubmitResponse:
+    """Submit blogger registry evidence for admin review (BL-107 Phase B.5a).
+
+    Manual evidence path — used when @Trustchannelbot admin verification
+    is not reachable (e.g. Госуслуги-link registration без Trustchannelbot).
+    """
+    from src.core.services.notification_service import notify_admins_evidence_submitted
+
+    channel = await session.get(TelegramChat, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+    if channel.is_blogger_registry_verified:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Channel already verified")
+
+    now = datetime.now(UTC)
+    channel.blogger_registry_application_number = body.application_number
+    channel.last_blogger_registry_check_at = now
+    await session.flush()
+
+    await AuditLogRepo(session).log(
+        action="blogger_registry_evidence_submitted",
+        resource_type="telegram_chat",
+        user_id=current_user.id,
+        resource_id=channel_id,
+        extra={
+            "application_number": body.application_number,
+            "registry_url": str(body.registry_url) if body.registry_url else None,
+            "notes": body.notes,
+        },
+    )
+
+    await notify_admins_evidence_submitted(
+        session=session,
+        channel_id=channel_id,
+        owner_user_id=current_user.id,
+        application_number=body.application_number,
+    )
+
+    return ChannelVerificationSubmitResponse(
+        status="pending_review",
+        channel_id=channel_id,
+        application_number=body.application_number,
+        submitted_at=now,
     )
