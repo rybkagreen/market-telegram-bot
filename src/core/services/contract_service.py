@@ -473,7 +473,7 @@ class ContractService:
 
         if USE_JINJA2 and TEMPLATES_DIR.exists():
             env = Environment(
-                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                loader=FileSystemLoader([str(TEMPLATES_DIR), str(TEMPLATES_DIR.parent)]),
                 autoescape=select_autoescape(["html", "xml"]),
             )
             try:
@@ -548,7 +548,7 @@ class ContractService:
 
         if USE_JINJA2 and TEMPLATES_DIR.exists():
             env = Environment(
-                loader=FileSystemLoader(str(TEMPLATES_DIR)),
+                loader=FileSystemLoader([str(TEMPLATES_DIR), str(TEMPLATES_DIR.parent)]),
                 autoescape=select_autoescape(["html", "xml"]),
             )
             try:
