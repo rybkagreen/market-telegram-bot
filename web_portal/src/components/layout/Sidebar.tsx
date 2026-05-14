@@ -101,6 +101,7 @@ export function Sidebar() {
         { id: 'admin', label: 'Админ-панель', path: '/admin', icon: 'admin', adminOnly: true },
         { id: 'admin-users', label: 'Пользователи', path: '/admin/users', icon: 'users', adminOnly: true },
         { id: 'admin-disputes', label: 'Споры', path: '/admin/disputes', icon: 'disputes', adminOnly: true },
+        { id: 'admin-channel-verifications', label: 'Проверка каналов', path: '/admin/channel-verifications', icon: 'channels', adminOnly: true },
         { id: 'admin-feedback', label: 'Обращения', path: '/admin/feedback', icon: 'requests', adminOnly: true },
         { id: 'admin-payouts', label: 'Выплаты', path: '/admin/payouts', icon: 'payouts', adminOnly: true },
         { id: 'admin-acc', label: 'Бухгалтерия', path: '/admin/accounting', icon: 'accounting', adminOnly: true },

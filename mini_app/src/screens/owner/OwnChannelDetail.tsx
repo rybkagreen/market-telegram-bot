@@ -95,6 +95,16 @@ export default function OwnChannelDetail() {
         onClick={() => navigate('/own/requests')}
       />
 
+      {channel.member_count >= 10000 && (
+        <MenuButton
+          icon="🪪"
+          iconBg="var(--rh-accent-muted)"
+          title="Реестр блогеров (ФЗ-303)"
+          subtitle="Подать заявление о регистрации"
+          onClick={() => navigate(`/own/channels/${channel.id}/submit-registry-evidence`)}
+        />
+      )}
+
       {settings && (
         <PriceRow
           label="💰 Базовая цена поста"
