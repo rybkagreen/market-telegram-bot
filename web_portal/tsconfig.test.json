@@ -7,6 +7,7 @@
     "noUnusedParameters": false
   },
   "include": [
+    "src/**/*.d.ts",
     "src/test/**/*",
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
