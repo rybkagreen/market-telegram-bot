@@ -15,6 +15,7 @@ Protocol) + § 4 (Lazy cache + env override strategy).
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from src.config.settings import settings
@@ -53,7 +54,7 @@ class TelegramAdminLister(Protocol):
     Duck-typing на returned objects — neither SDK forces concrete class hierarchy.
     """
 
-    async def get_chat_administrators(self, chat_id: int | str) -> list[Any]: ...
+    async def get_chat_administrators(self, chat_id: int | str) -> Sequence[Any]: ...
 
     async def get_chat(self, chat_id: int | str) -> Any: ...
 
