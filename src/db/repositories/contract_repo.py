@@ -2,11 +2,13 @@
 
 import logging
 from datetime import UTC, datetime
+from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
 
 from src.db.models.contract import Contract
+from src.db.models.contract_event import ContractEvent
 from src.db.models.contract_signature import ContractSignature
 from src.db.repositories.base import BaseRepository
 
@@ -47,17 +49,68 @@ class ContractRepo(BaseRepository[Contract]):
         )
         return result.scalar_one_or_none()
 
-    async def get_by_user_and_placement(
-        self, user_id: int, placement_request_id: int
-    ) -> Contract | None:
-        """Получить договор по user_id и placement_request_id."""
+    async def get_by_user_and_placement(self, user_id: int, placement_id: int) -> Contract | None:
+        """Получить договор по user_id и placement_id."""
         result = await self.session.execute(
             select(Contract).where(
                 Contract.user_id == user_id,
-                Contract.placement_request_id == placement_request_id,
+                Contract.placement_id == placement_id,
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_supplementary_for_placement(self, placement_id: int) -> list[Contract]:
+        """Все ДС-строки для placement (обе стороны: advertiser + owner, если существуют)."""
+        result = await self.session.execute(
+            select(Contract).where(
+                Contract.placement_id == placement_id,
+                Contract.contract_type == "supplementary_agreement",
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_by_placement_and_role(
+        self, placement_id: int, role: Literal["owner", "advertiser"]
+    ) -> Contract | None:
+        """Одна ДС для пары (placement, role). Используется для idempotency check."""
+        result = await self.session.execute(
+            select(Contract).where(
+                Contract.placement_id == placement_id,
+                Contract.contract_type == "supplementary_agreement",
+                Contract.role == role,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def count_unsigned_supplementary_for_user(self, user_id: int) -> int:
+        """Count ДС-строк пользователя, не дошедших до signed (для P6 badge)."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(Contract)
+            .where(
+                Contract.user_id == user_id,
+                Contract.contract_type == "supplementary_agreement",
+                Contract.contract_status != "signed",
+                Contract.contract_status != "cancelled",
+                Contract.contract_status != "expired",
+            )
+        )
+        return int(result.scalar_one())
+
+    async def exists_signed_supplementary_both_sides(self, placement_id: int) -> bool:
+        """True iff BOTH owner+advertiser ДС exist with contract_status='signed'.
+
+        Backs G07_SUPPLEMENTARY_AGREEMENT_SIGNED gate body (PROMPT 27 Step 7).
+        """
+        result = await self.session.execute(
+            select(Contract.role).where(
+                Contract.placement_id == placement_id,
+                Contract.contract_type == "supplementary_agreement",
+                Contract.contract_status == "signed",
+            )
+        )
+        signed_roles = {row[0] for row in result.all()}
+        return signed_roles == {"owner", "advertiser"}
 
     async def list_by_user(self, user_id: int, contract_type: str | None = None) -> list[Contract]:
         """Получить список договоров пользователя."""
@@ -115,6 +168,29 @@ class ContractRepo(BaseRepository[Contract]):
             logger.exception(
                 "Failed to record contract signature audit entry, contract_id=%s", contract_id
             )
+
+    async def record_event(
+        self,
+        contract_id: int,
+        event_type: str,
+        actor_user_id: int | None = None,
+        event_metadata: dict[str, Any] | None = None,
+    ) -> ContractEvent:
+        """Append ContractEvent row для аудита sub-stage progression (BL-037).
+
+        event_type validation defers to Pydantic discriminator schema added in
+        PROMPT 27 Step 4 (src/core/schemas/contract_event.py).
+        S-48 Pattern 1: flush only, caller owns transaction.
+        """
+        event = ContractEvent(
+            contract_id=contract_id,
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            event_metadata=event_metadata,
+        )
+        self.session.add(event)
+        await self.session.flush()
+        return event
 
     async def get_framework_contract(self, user_id: int, role: str) -> Contract | None:
         """Получить подписанный рамочный договор рекламодателя для данного пользователя и роли."""
