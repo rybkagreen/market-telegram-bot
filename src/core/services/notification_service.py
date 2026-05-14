@@ -342,3 +342,48 @@ async def notify_owner_verification_decided(
     except Exception as e:
         logger.error(f"Error notifying owner {owner_user_id} about verification decision: {e}")
         return False
+
+
+# ─── BL-107 Phase B.6 — periodic re-verification notifications ──────────────
+
+
+async def notify_owner_verification_lost(
+    session: AsyncSession,
+    owner_user_id: int,
+    channel_id: int,
+) -> bool:
+    """Notify channel owner что Trustchannelbot verification was automatically lost.
+
+    BL-107 Phase B.6 — background periodic check detected что @Trustchannelbot
+    больше не admin канала, и verification was reset. Owner может либо
+    re-add Trustchannelbot, либо submit manual evidence через mini_app.
+
+    Session is read-only — no commit done here (caller-owns per S-48).
+    """
+    user_repo = UserRepository(session)
+    owner = await user_repo.get_by_id(owner_user_id)
+    if owner is None:
+        logger.error(f"Owner user {owner_user_id} not found — cannot notify")
+        return False
+
+    message = (
+        f"⚠️ <b>Верификация канала сброшена</b>\n\n"
+        f"Канал ID: <code>{channel_id}</code>\n\n"
+        f"@Trustchannelbot больше не является администратором канала, "
+        f"поэтому автоматическая верификация в Реестре блогеров (ФЗ-303) "
+        f"была отозвана.\n\n"
+        f"Чтобы восстановить статус, добавьте @Trustchannelbot обратно "
+        f"в администраторы канала или подайте заявку вручную через "
+        f"раздел «Реестр блогеров» в mini app."
+    )
+
+    try:
+        notify_user.delay(
+            telegram_id=owner.telegram_id,
+            message=message,
+            parse_mode="HTML",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying owner {owner_user_id} about verification lost: {e}")
+        return False

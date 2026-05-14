@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.6 — BL-107 Periodic re-verification Celery task
+
+Background task `parser:check_channel_registry_status` runs daily at
+03:45 UTC and re-verifies every channel currently subject к ФЗ-303
+(member_count ≥ rkn_threshold_subscribers, не is_test, is_active).
+
+#### Added
+
+- **Celery periodic task** `parser:check_channel_registry_status` —
+  refreshes `member_count`, updates `last_blogger_registry_check_at`,
+  detects threshold crossings, re-runs Trustchannelbot admin check
+  для channels verified via `TRUSTCHANNELBOT_ADMIN` method.
+- **Trustchannelbot re-check loop** — when @Trustchannelbot больше не
+  admin: reset 5 verification fields
+  (`is_blogger_registry_verified`, `blogger_registry_verified_at`,
+  `blogger_registry_verification_method`,
+  `blogger_registry_verified_by_admin_id`,
+  `member_count_at_verification`) + audit log + owner notification.
+- **`notify_owner_verification_lost`** helper в
+  `src/core/services/notification_service.py` (module-level, matches
+  Phase B.5a precedent). Dispatches `mailing:notify_user` Celery task
+  with HTML message instructing owner re-add @Trustchannelbot или
+  submit manual evidence.
+- **Audit log action** `blogger_registry_auto_unverified` (free-form
+  string convention per Phase B.5a) with `extra.reason =
+  trustchannelbot_no_longer_admin` and `extra.previous_method`.
+- **Beat schedule entry** `bl107-check-channel-registry-status-daily`
+  в `src/tasks/celery_app.py:get_beat_schedule()` — `crontab(hour=3,
+  minute=45)` slot between 03:30 stats-collection и 03:00 Sunday cleanup.
+- **Unit tests** (11 scenarios) — `tests/unit/test_bl107_periodic_re_verification.py`.
+  Pure mocks, no DB, no live bot. 98% coverage on new module.
+
+#### Behavior change
+
+- Channels verified via `TRUSTCHANNELBOT_ADMIN` теперь автоматически
+  re-verified daily; loss of admin status triggers verification reset
+  + owner notification within 24h.
+- Channels verified via `MANUAL_EVIDENCE` are explicitly **NOT**
+  re-checked — admin decisions stand until owner submits new evidence
+  или admin revokes through a future flow (out of scope BL-107).
+- Threshold crossings (channel grew past 10k since verification)
+  surface as `threshold_crossed` counter in task return value;
+  admin escalation flow not part of this phase.
+
+#### Feature flag
+
+`RKN_PERIODIC_CHECK_ENABLED=true` (default) controls task execution.
+Set to `false` in test environments to disable background side
+effects; task short-circuits returning `{"skipped": "disabled"}`.
+
+#### Operational notes
+
+- Worker `worker_background` picks up `parser:` queue per existing
+  routing table; no infra change required.
+- Restart Beat after deploy so new schedule entry is registered.
+- Test infrastructure unaffected — task disabled by default in tests.
+
 ### Phase B.5b — BL-107 Admin review frontend + owner submission UI
 
 Frontend half of BL-107 manual evidence path. Consumes Phase B.5a backend
