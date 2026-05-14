@@ -97,6 +97,29 @@ deferred to Phase 5 (payout-side coordinator).
 - **BL-112** (Playwright full E2E с seed fixture для ДС sign flow), **BL-115**
   (`advertiser_framework` umbrella `contract_type` rename) — see CHANGES log.
 
+### Fixed (Phase 4 followup — ORM registration)
+
+- **`src/db/models/__init__.py`** — added `OrdAuditLog` + `OrdAuditEventType`
+  re-export. Pre-existing registration gap (introduced in BL-080 8c, `804fdf6`)
+  surfaced post-Phase-4 as a false-positive `alembic check` "remove table
+  `ord_audit_log`" warning. `env.py` loads `from src.db.models import *`,
+  so models missing from `__init__.py` are absent from `Base.metadata` at
+  autogenerate time. Model itself was always correct and used in production
+  paths (`OrdService`, `OrdAuditLogRepo`, `ord_tasks`, admin router).
+- **0001_initial_schema.py was NOT modified** — confirmed already canonical
+  for post-Phase-4 ORM state (Phase 4 commit `0e6ef5b` shipped the migration
+  edits alongside the ORM changes). Fresh `alembic upgrade head` apply на
+  пустую DB → "No new upgrade operations detected." ✅
+
+### Migration Notes
+
+- **No new migration revisions.** 0001 + e6a88faa9fa0 remain canonical.
+- **Pre-prod DB reset operational task (independent of this commit)** — live
+  pre-prod DB is stale (created from an earlier 0001 before commit `0e6ef5b`).
+  To pick up canonical schema: `DROP DATABASE market_bot_db; CREATE DATABASE
+  market_bot_db; alembic upgrade head`. Not done в этой сессии чтобы не
+  нарушать live containers (api/bot/celery Up 25h с активным connection).
+
 ### BL-080 8d — Caption budget for media posts
 
 Closes BL-080 final sub-block. Caption budget enforced для photo / video placements:
