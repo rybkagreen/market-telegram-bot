@@ -146,8 +146,8 @@ class TestCheckG19PlacementSide:
         channel.is_test = False
         channel.is_blogger_registry_verified = False
         channel.blogger_registry_application_number = None
+        session.get_one = AsyncMock(return_value=channel)
         placement = MagicMock()
-        placement.channel = channel
 
         result = await check_g19(session, placement)
 
@@ -162,8 +162,8 @@ class TestCheckG19PlacementSide:
         channel.is_test = False
         channel.is_blogger_registry_verified = True
         channel.blogger_registry_application_number = None
+        session.get_one = AsyncMock(return_value=channel)
         placement = MagicMock()
-        placement.channel = channel
 
         result = await check_g19(session, placement)
 
@@ -178,8 +178,8 @@ class TestCheckG19PlacementSide:
         channel.is_test = True
         channel.is_blogger_registry_verified = False
         channel.blogger_registry_application_number = None
+        session.get_one = AsyncMock(return_value=channel)
         placement = MagicMock()
-        placement.channel = channel
 
         result = await check_g19(session, placement)
 
