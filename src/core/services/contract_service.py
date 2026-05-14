@@ -170,7 +170,7 @@ class ContractService:
         self,
         user_id: int,
         contract_type: str,
-        placement_request_id: int | None = None,
+        placement_id: int | None = None,
     ) -> Contract:
         """Сгенерировать договор и сохранить в БД."""
         # --- Deduplication check (S7 addition) ---
@@ -201,7 +201,7 @@ class ContractService:
                 user_id=user_id,
                 contract_type=contract_type,
                 contract_status="pending",
-                placement_request_id=placement_request_id,
+                placement_id=placement_id,
                 legal_status_snapshot=snapshot,
                 template_version=CONTRACT_TEMPLATE_VERSION,
             )
@@ -388,7 +388,7 @@ class ContractService:
         return contract is not None and contract.contract_status == "signed"
 
     async def check_advertiser_can_pay(
-        self, user_id: int, placement_request_id: int
+        self, user_id: int, placement_id: int
     ) -> tuple[bool, Contract | None]:
         """
         Проверить, может ли рекламодатель оплатить размещение.
@@ -398,14 +398,12 @@ class ContractService:
             Если договора нет — создаёт новый.
         """
         repo = ContractRepo(self.session)
-        contract = await repo.get_by_user_and_placement(user_id, placement_request_id)
+        contract = await repo.get_by_user_and_placement(user_id, placement_id)
         if contract and contract.contract_status == "signed":
             return (True, contract)
         if contract:
             return (False, contract)
-        new_contract = await self.generate_contract(
-            user_id, "advertiser_campaign", placement_request_id
-        )
+        new_contract = await self.generate_contract(user_id, "advertiser_campaign", placement_id)
         return (False, new_contract)
 
     async def request_kep_version(self, contract_id: int, user_id: int, email: str) -> None:

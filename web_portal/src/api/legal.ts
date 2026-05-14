@@ -73,9 +73,9 @@ export async function getPlatformRulesText() {
   return api.get('contracts/platform-rules/text').json<{ html: string }>()
 }
 
-export async function generateContract(contractType: ContractType, placementRequestId?: number) {
+export async function generateContract(contractType: ContractType, placementId?: number) {
   return api
-    .post('contracts/generate', { json: { contract_type: contractType, placement_request_id: placementRequestId } })
+    .post('contracts/generate', { json: { contract_type: contractType, placement_id: placementId } })
     .json<Contract>()
 }
 

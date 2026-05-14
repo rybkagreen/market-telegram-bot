@@ -37,7 +37,8 @@ def _contract_to_response(contract: Contract) -> ContractResponse:
         user_id=contract.user_id,
         contract_type=ContractType(contract.contract_type),
         contract_status=ContractStatus(contract.contract_status),
-        placement_request_id=contract.placement_request_id,
+        placement_id=contract.placement_id,
+        parent_contract_id=contract.parent_contract_id,
         template_version=contract.template_version,
         signature_method=SignatureMethod(contract.signature_method)
         if contract.signature_method
@@ -62,7 +63,7 @@ async def generate_contract(
     """Generate a new contract."""
     svc = ContractService(session)
     contract = await svc.generate_contract(
-        current_user.id, data.contract_type.value, data.placement_request_id
+        current_user.id, data.contract_type.value, data.placement_id
     )
     return _contract_to_response(contract)
 
