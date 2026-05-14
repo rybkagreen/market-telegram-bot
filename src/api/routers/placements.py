@@ -15,9 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import CurrentUser, get_db_session
+from src.api.routers.contracts import _contract_to_response
+from src.api.schemas.legal_profile import SupplementaryAgreementResponse
 from src.core.services.placement_request_service import PlacementRequestService
 from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.repositories.channel_settings_repo import ChannelSettingsRepo
+from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.placement_request_repo import PlacementRequestRepository
 from src.db.repositories.reputation_repo import ReputationRepository
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
@@ -447,6 +450,67 @@ async def get_placement(
         raise HTTPException(status_code=403, detail="Access denied")
 
     return PlacementResponse.model_validate(placement)
+
+
+@router.get(
+    "/{placement_id}/supplementary-agreements",
+    responses={
+        403: {"description": "Forbidden"},
+        404: {"description": "Placement or ДС pair not found"},
+    },
+    summary="Получить пару ДС для placement (advertiser + owner)",
+)
+async def get_supplementary_agreements(
+    placement_id: int,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> SupplementaryAgreementResponse:
+    """Paired ДС lookup для placement — обе стороны (advertiser + owner).
+
+    Permission: requesting user MUST be placement participant
+    (advertiser OR channel owner). Non-participants receive 403.
+
+    Returns 404 if placement missing, or if ДС pair not yet generated
+    (transient state — caller may poll). `both_signed` is set when
+    both contract rows have `contract_status='signed'`.
+
+    web_portal-only (mini_app excluded per ФЗ-152 — ДС содержит реквизиты = ПД).
+    """
+    placement_result = await session.execute(
+        select(PlacementRequest)
+        .options(selectinload(PlacementRequest.channel))
+        .where(PlacementRequest.id == placement_id)
+    )
+    placement = placement_result.scalar_one_or_none()
+    if placement is None:
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
+
+    channel = placement.channel
+    is_owner = channel is not None and channel.owner_id == current_user.id
+    is_advertiser = placement.advertiser_id == current_user.id
+    if not (is_owner or is_advertiser):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    contract_repo = ContractRepo(session)
+    contracts = await contract_repo.list_supplementary_for_placement(placement_id)
+
+    advertiser_contract = next((c for c in contracts if c.role == "advertiser"), None)
+    owner_contract = next((c for c in contracts if c.role == "owner"), None)
+
+    if advertiser_contract is None or owner_contract is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Supplementary agreements not yet generated for this placement",
+        )
+
+    return SupplementaryAgreementResponse(
+        advertiser=_contract_to_response(advertiser_contract),
+        owner=_contract_to_response(owner_contract),
+        both_signed=(
+            advertiser_contract.contract_status == "signed"
+            and owner_contract.contract_status == "signed"
+        ),
+    )
 
 
 # =============================================================================

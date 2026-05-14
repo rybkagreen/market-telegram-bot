@@ -286,6 +286,48 @@ class ContractService:
         )
         # --- end signature evidence ---
 
+        # BL-037 sub-stage timeline for ДС lifecycle.
+        # When the signed contract is a supplementary_agreement, record the
+        # `supplementary_signed` event. If this signature completes the pair
+        # (both sides now `signed`), also record `supplementary_activated`.
+        if (
+            contract.contract_type == "supplementary_agreement"
+            and contract.role in ("advertiser", "owner")
+            and contract.placement_id is not None
+        ):
+            from src.core.schemas.contract_event import (
+                SupplementaryActivatedMetadata,
+                SupplementarySignedMetadata,
+            )
+
+            event_repo = ContractRepo(self.session)
+            signed_meta = SupplementarySignedMetadata(
+                placement_id=contract.placement_id,
+                role=contract.role,  # type: ignore[arg-type]
+                signature_method=method,  # type: ignore[arg-type]
+            )
+            await event_repo.record_event(
+                contract_id=contract_id,
+                event_type="supplementary_signed",
+                actor_user_id=user_id,
+                event_metadata=signed_meta.model_dump(),
+            )
+
+            both_signed = await event_repo.exists_signed_supplementary_both_sides(
+                contract.placement_id
+            )
+            if both_signed:
+                activated_meta = SupplementaryActivatedMetadata(
+                    placement_id=contract.placement_id,
+                    both_sides_signed_at=datetime.now(UTC),
+                )
+                await event_repo.record_event(
+                    contract_id=contract_id,
+                    event_type="supplementary_activated",
+                    actor_user_id=user_id,
+                    event_metadata=activated_meta.model_dump(mode="json"),
+                )
+
         return signed
 
     async def needs_accept_rules(self, user_id: int) -> bool:
