@@ -17,6 +17,7 @@ from src.db.models.invoice import Invoice
 from src.db.models.kudir_record import KudirRecord
 from src.db.models.legal_profile import LegalProfile
 from src.db.models.mailing_log import MailingLog, MailingStatus
+from src.db.models.ord_audit_log import OrdAuditEventType, OrdAuditLog
 from src.db.models.ord_registration import OrdRegistration
 from src.db.models.payout import PayoutRequest, PayoutStatus
 from src.db.models.placement_request import PlacementRequest, PlacementStatus, PublicationFormat
@@ -43,6 +44,8 @@ __all__ = [
     "Invoice",
     "KudirRecord",
     "PlatformQuarterlyRevenue",
+    "OrdAuditEventType",
+    "OrdAuditLog",
     "OrdRegistration",
     "TelegramChat",
     "ChannelSettings",
