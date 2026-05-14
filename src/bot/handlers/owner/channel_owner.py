@@ -1,7 +1,9 @@
 """Owner channel owner handler."""
 
 import logging
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -10,6 +12,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.channel_owner import AddChannelStates
+from src.core.enums.blogger_registry import BloggerRegistryVerificationMethod
+from src.core.enums.placement_gate import PlacementGate
+from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.services.legal_compliance_service import LegalComplianceService
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
@@ -20,6 +25,10 @@ from src.db.repositories.placement_request_repo import PlacementRequestRepositor
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
+from src.utils.telegram.verify_blogger_registry import (
+    TrustchannelbotResolutionError,
+    verify_trustchannelbot_admin,
+)
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -395,6 +404,96 @@ async def add_channel_confirm(
         await state.clear()
         return
 
+    # BL-107 / ФЗ-303 — Trustchannelbot admin check + G19 channel-context gate
+    # (Phase B.4 wiring). O.7 deferred: bot path passes is_test=False — admin
+    # parity FSM step lives в Phase B.7.
+    verification_audit: dict[str, Any] = {
+        "is_blogger_registry_verified": False,
+        "blogger_registry_verified_at": None,
+        "blogger_registry_verification_method": None,
+        "member_count_at_verification": None,
+        "last_blogger_registry_check_at": None,
+    }
+    bot = callback.message.bot
+    if bot is None:
+        await callback.answer("❌ Бот недоступен", show_alert=True)
+        await state.clear()
+        return
+
+    try:
+        is_verified = await verify_trustchannelbot_admin(bot, data["channel_telegram_id"])
+    except TrustchannelbotResolutionError as exc:
+        logger.warning(
+            "Trustchannelbot resolution failed for channel %s: %s",
+            data["channel_telegram_id"],
+            exc,
+        )
+        await AuditLogRepo(session).log(
+            action="channel_add_declined",
+            resource_type="channel",
+            user_id=user.id,
+            extra={"blockers": [PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED.value]},
+        )
+        await callback.answer(
+            "❌ Не удалось проверить статус регистрации канала. Попробуйте позже.",
+            show_alert=True,
+        )
+        await state.clear()
+        return
+
+    channel_data = ChannelAddContext(
+        telegram_id=data["channel_telegram_id"],
+        username=data["username"],
+        member_count=data["member_count"],
+        is_test=False,  # O.7 deferred to Phase B.7 (bot UX has no is_test parameter)
+        description=None,
+        is_blogger_registry_verified=is_verified,
+    )
+    channel_gate_results = await compliance.check_gates_for_channel_add(user, channel_data)
+    channel_blockers = [r for r in channel_gate_results if not r.passed]
+    if channel_blockers:
+        await AuditLogRepo(session).log(
+            action="channel_add_declined",
+            resource_type="channel",
+            user_id=user.id,
+            extra={"blockers": [r.gate.value for r in channel_blockers]},
+        )
+        await callback.answer("❌ Канал требует регистрации в реестре блогеров", show_alert=True)
+        lines = [
+            "❌ *Регистрация в реестре блогеров (ФЗ-303)*",
+            "",
+            "Канал с аудиторией ≥10 000 подписчиков обязан быть зарегистрирован в реестре"
+            " блогеров Роскомнадзора. Добавьте @Trustchannelbot администратором канала и"
+            " попробуйте снова.",
+            "",
+        ]
+        for r in channel_blockers:
+            line = f"• {r.gate.value}: {r.reason_code}"
+            if r.remediation_url:
+                line += f" → {r.remediation_url}"
+            lines.append(line)
+        builder = InlineKeyboardBuilder()
+        builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown",
+        )
+        await state.clear()
+        return
+
+    now_utc = datetime.now(UTC)
+    verification_audit["last_blogger_registry_check_at"] = now_utc
+    if is_verified:
+        verification_audit.update({
+            "is_blogger_registry_verified": True,
+            "blogger_registry_verified_at": now_utc,
+            "blogger_registry_verification_method": (
+                BloggerRegistryVerificationMethod.TRUSTCHANNELBOT_ADMIN
+            ),
+            "member_count_at_verification": data["member_count"],
+        })
+
     ch = TelegramChat(
         telegram_id=data["channel_telegram_id"],
         username=data["username"],
@@ -403,6 +502,7 @@ async def add_channel_confirm(
         member_count=data["member_count"],
         category=data.get("category"),
         is_active=True,
+        **verification_audit,
     )
     session.add(ch)
     await session.flush()

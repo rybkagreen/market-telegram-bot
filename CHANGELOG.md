@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.4 — BL-107 Channel-add hookup (ФЗ-303 ENFORCEMENT LIVE)
+
+Critical integration phase для ФЗ-303 blogger registry verification. Wires Phase
+B.1 (schema) + B.2 (gate framework) + B.3 (Telegram API helpers) foundation в
+production channel-add code paths. **After this commit BL-107 actually enforces
+ФЗ-303 на новых channel-add операциях.**
+
+Two parallel code paths integrated через single helper (Protocol abstraction):
+- API router `src/api/routers/channels.py:create_channel` (python-telegram-bot)
+- Bot handler `src/bot/handlers/owner/channel_owner.py:add_channel_confirm` (aiogram)
+
+#### Added
+
+- **API router channel-add wiring** — `verify_trustchannelbot_admin` invocation
+  + `check_gates_for_channel_add` orchestration call alongside existing
+  `check_gates_for_user_role`. Audit fields populated на TelegramChat creation
+  через `TelegramChatRepository.create({...})` dict spread.
+- **Bot handler channel-add wiring** — same logic с user-facing error messages
+  (no raise propagation). Both paths share helper через Protocol abstraction.
+- **Verification audit fields population**:
+  - `is_verified=True` path (≥10k + Trustchannelbot admin): all 5 fields populated
+    с `verification_method=TRUSTCHANNELBOT_ADMIN`, `verified_at`+`last_check_at`
+    set to `datetime.now(UTC)`, `member_count_at_verification` snapshot
+  - `is_verified=False` path (<10k или test channels): только `last_check_at`
+    populated (audit "checked, found not applicable")
+  - Admin test bypass path (admin + is_test=True): all audit fields None (no check)
+- **Wiring tests** — `tests/unit/test_bl107_channel_add_g19_integration.py`,
+  9 tests covering: API below threshold creates with minimum audit / API verified
+  creates with full audit / API ≥10k unverified blocked / API resolution error
+  blocked / API admin bypass skips G19 / bot below threshold creates / bot
+  verified large channel audit full / bot large unverified blocked / bot
+  resolution error user message.
+
+#### Changed
+
+- **`src/utils/telegram/verify_blogger_registry.py`** — Protocol return type
+  `list[Any]` → `Sequence[Any]` (forced fix surfaced by Phase B.4 integration).
+  Real `Bot.get_chat_administrators` returns `tuple[ChatMember, ...]` from
+  python-telegram-bot; aiogram returns `list[...]`. `Sequence[Any]` accepts both.
+- **`tests/unit/test_bot_channel_owner.py`** — happy-path test updated с
+  `verify_trustchannelbot_admin` mock (test FSM data member_count=1000 <10k
+  threshold so G19 passes naturally regardless of mocked verify result).
+
+#### Behavior change — ФЗ-303 enforcement LIVE
+
+- **New channels ≥10k subscribers без Trustchannelbot admin** auto-blocked at
+  add-time (primary path). Audit log written с `channel_add_declined` action.
+- **Verified channels** (Trustchannelbot in admins) auto-marked
+  `is_blogger_registry_verified=True` at creation, full audit trail
+  (verified_at + verification_method=TRUSTCHANNELBOT_ADMIN + member_count_at_verification).
+- **Sub-10k channels** + **admin test channels** pass-through unchanged
+  (regulation not applicable / admin carve-out).
+- **Trustchannelbot API resolution failures** блокируют channel-add с
+  `SUBSCRIBER_COUNT_UNKNOWN` reason code (recoverable via env override).
+- **Existing channels** (created до Phase B.4) protected by **placement-side
+  G19 gate** (Phase B.2) — fires alongside G07 at transitions to `pending_payment`.
+
+#### Phase B.5 dependencies surfaced
+
+- `ChannelAddContext.blogger_registry_application_number` field reserved для
+  manual evidence submission (Phase B.5).
+- `TelegramChat.blogger_registry_application_number` + `blogger_registry_verified_by_admin_id`
+  audit fields await Phase B.5 endpoints (admin review queue).
+- `GateReason.BLOGGER_REGISTRY_PENDING_REVIEW` reason code becomes reachable когда
+  manual evidence path ships (Phase B.5).
+
 ### Phase B.3 — BL-107 Telegram API + settings (Trustchannelbot verification)
 
 Telegram API integration layer для ФЗ-303 blogger registry verification. Adds
