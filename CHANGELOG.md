@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.8 — BL-107 / BL-002 mock infrastructure (Telegram Bot API stub + env routing)
+
+Closes BL-002 (`web_portal/tests/specs/deep-flows.spec.ts:289-296`
+`test.fixme` block) at the infrastructure level: a custom aiohttp Telegram
+Bot API stub now runs as a docker-compose.test.yml service, and both
+Telegram SDKs (aiogram + python-telegram-bot) honor a configurable
+`TELEGRAM_API_BASE_URL` so E2E flows can hit the stub instead of the real
+API. Phase B.9 will consume the infrastructure для BL-002 + BL-107 E2E.
+
+#### Added
+
+- **`tests/e2e/telegram_api_stub/` directory** — aiohttp Application с
+  9 method handlers (`getMe`, `getChat`, `getChatAdministrators`,
+  `getChatMember`, `sendMessage`, `sendChatAction`, `deleteWebhook`,
+  `setChatMenuButton`, `getUpdates`) + safe-noop catch-all. Test-only
+  introspection endpoints `/health`, `/__stub__/state`, `/__stub__/reset`.
+- **Stub `Dockerfile`** (python:3.12-slim + aiohttp `>=3.11,<3.13` matching
+  project lockfile 3.12.15). CMD `python -m tests.e2e.telegram_api_stub`.
+- **`docker-compose.test.yml` `telegram-stub` service** — joins existing
+  `e2e_network`, healthcheck on `/health` (urllib-based, no extra deps).
+  `api-test` теперь depends_on `telegram-stub: service_healthy`.
+- **`telegram_api_base_url` Setting** (alias `TELEGRAM_API_BASE_URL`,
+  default None) — base URL override read by both Telegram SDKs.
+- **`_validate_telegram_api_base_url` model validator** (R4 production
+  guard layer 1) — rejects the combination of
+  `sentry_environment == "production"` and `telegram_api_base_url != None`.
+  App refuses to start in production with stub URL active.
+- **aiogram routing** в `src/bot/session_factory.py:new_bot()` — uses
+  `AiohttpSession(api=TelegramAPIServer.from_base(<URL>))` when override set.
+- **python-telegram-bot routing** в `src/api/dependencies.py:get_bot()`
+  — uses `Bot(base_url=<URL>/bot, base_file_url=<URL>/file/bot, ...)` when
+  override set.
+- **R4 production guard layer 2** в `src/api/main.py` + `src/bot/main.py`
+  — `logger.warning(...)` + `sentry_sdk.add_breadcrumb(...)` when base_url
+  is set. Observability for ops audit trail.
+- **`.env.test`** — `TELEGRAM_API_BASE_URL=http://telegram-stub:8081` +
+  `SENTRY_ENVIRONMENT=test` (unlocks the override at validator level).
+- **Unit tests** (21 scenarios across 3 files) —
+  - `test_bl107_b8_stub_server.py` (10): all 9 stub methods + catch-all +
+    state introspection + fixture loading
+  - `test_bl107_b8_settings_validator.py` (5): production+url raises,
+    production+None accepted, test/dev + url accepted, defaults safe
+  - `test_bl107_b8_bot_factory_routing.py` (6): aiogram + ptb routing,
+    proxy + base_url composition, trailing-slash normalization
+- **3 sample fixture JSON files** — `verified_channel.json`,
+  `not_verified_channel.json`, `api_failure.json` — drop-in via
+  `STUB_FIXTURES_PATH` env var.
+
+#### Closed
+
+- **BL-002** — Telegram Bot API mock infrastructure ready. Phase B.9 будет
+  consume it в Playwright spec unblock + new E2E coverage.
+
+#### Infrastructure note
+
+`TELEGRAM_API_BASE_URL` — test/dev only. 3-layer defense prevents production
+misconfiguration:
+1. Settings model_validator (hard fail at startup)
+2. Sentry breadcrumb + logger warning (observability)
+3. Deployment script assertion (deferred operational — no accessible
+   production deploy script in repo; tracked в CHANGES doc as
+   `R4-L3-DEFERRED` follow-up)
+
 ### Phase B.7 — BL-107 Bot is_test parity (closes O.7 5b.7a deferred carve-out)
 
 Closes the long-standing asymmetry where API channel creation supported

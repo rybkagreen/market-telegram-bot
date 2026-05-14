@@ -6,7 +6,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, PostgresDsn, RedisDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,6 +51,19 @@ class Settings(BaseSettings):
         if not value.startswith(allowed):
             raise ValueError(f"TELEGRAM_PROXY must start with one of {allowed}, got {value!r}")
         return value
+
+    # BL-107 Phase B.8 / BL-002 — Telegram Bot API base URL override (test infrastructure only).
+    # If set, both aiogram and python-telegram-bot route through this URL instead of
+    # api.telegram.org. MUST stay None in production — `_validate_telegram_api_base_url`
+    # below enforces that invariant against `sentry_environment`.
+    telegram_api_base_url: str | None = Field(
+        None,
+        alias="TELEGRAM_API_BASE_URL",
+        description=(
+            "Telegram Bot API base URL override (test infrastructure only). "
+            "Production guard: forbidden when sentry_environment == 'production'."
+        ),
+    )
 
     # PostgreSQL
     postgres_user: str = Field("market_bot", alias="POSTGRES_USER")
@@ -401,6 +414,24 @@ class Settings(BaseSettings):
         alias="RKN_BLOCK_UNVERIFIED_PLACEMENTS",
         description=("Production guard — block placement creation если channel ≥10k и не verified"),
     )
+
+    @model_validator(mode="after")
+    def _validate_telegram_api_base_url(self) -> Settings:
+        """BL-107 Phase B.8 / BL-002 — R4 production guard layer 1.
+
+        Reject TELEGRAM_API_BASE_URL when sentry_environment == "production".
+        sentry_environment defaults to "production" so omitting both fields
+        keeps prod safe by default; tests opt in via `SENTRY_ENVIRONMENT=test`.
+        """
+        if self.sentry_environment == "production" and self.telegram_api_base_url is not None:
+            raise ValueError(
+                "TELEGRAM_API_BASE_URL must be None when SENTRY_ENVIRONMENT='production' "
+                f"(got base_url={self.telegram_api_base_url!r}). This safety guard prevents "
+                "production bots from being routed to the test stub server. Set "
+                "SENTRY_ENVIRONMENT to a non-production value (e.g. 'test', 'development') "
+                "to enable the override."
+            )
+        return self
 
     @property
     def admin_ids(self) -> list[int]:
