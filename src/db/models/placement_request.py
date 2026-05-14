@@ -60,6 +60,38 @@ class PublicationFormat(str, Enum):
     pin_24h = "pin_24h"
     pin_48h = "pin_48h"
 
+    @classmethod
+    def label(cls, fmt: PublicationFormat) -> str:
+        """Human-readable label for UI and contract templates (Russian).
+
+        Single source of truth for surfacing PublicationFormat to humans —
+        templates and UI MUST call this rather than constructing strings inline.
+        """
+        labels = {
+            cls.post_24h: "обычный пост, 24 часа в ленте",
+            cls.post_48h: "обычный пост, 48 часов в ленте",
+            cls.post_7d: "обычный пост, 7 дней в ленте",
+            cls.pin_24h: "закреплённый пост, 24 часа",
+            cls.pin_48h: "закреплённый пост, 48 часов",
+        }
+        if fmt not in labels:
+            raise ValueError(f"No label defined for PublicationFormat.{fmt.name}")
+        return labels[fmt]
+
+    @classmethod
+    def duration_hours(cls, fmt: PublicationFormat) -> int:
+        """Total visible duration in hours (используется в шаблонах ДС + UI sign-screen)."""
+        hours = {
+            cls.post_24h: 24,
+            cls.post_48h: 48,
+            cls.post_7d: 168,
+            cls.pin_24h: 24,
+            cls.pin_48h: 48,
+        }
+        if fmt not in hours:
+            raise ValueError(f"No duration defined for PublicationFormat.{fmt.name}")
+        return hours[fmt]
+
 
 class PlacementRequest(Base, TimestampMixin):
     """Модель заявки на размещение рекламы."""

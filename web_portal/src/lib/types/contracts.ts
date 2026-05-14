@@ -5,6 +5,7 @@ export type ContractType =
   | 'platform_rules'
   | 'privacy_policy'
   | 'tax_agreement'
+  | 'supplementary_agreement'
 
 export type ContractRole = 'owner' | 'advertiser'
 
@@ -17,7 +18,8 @@ export interface Contract {
   user_id: number
   contract_type: ContractType
   contract_status: ContractStatus
-  placement_request_id: number | null
+  placement_id: number | null
+  parent_contract_id: number | null
   template_version: string
   signature_method: SignatureMethod | null
   signed_at: string | null
@@ -28,4 +30,10 @@ export interface Contract {
   role: ContractRole | null
   created_at: string
   updated_at: string
+}
+
+export interface SupplementaryAgreementResponse {
+  advertiser: Contract
+  owner: Contract
+  both_signed: boolean
 }
