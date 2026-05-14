@@ -286,13 +286,40 @@ test.describe('[flow] dispute open → owner reply → admin resolve', () => {
 })
 
 test.describe('[flow] owner adds channel via bot verification', () => {
-  test.fixme(
-    'channel add — BL-002 (reports/docs-architect/BACKLOG.md)',
-    async () => {
-      // Re-activation criteria: BL-002 — needs Telegram Bot API mock
-      // wired into docker-compose.test.yml.
-    },
-  )
+  test.use({ storageState: owner.storageFile })
+
+  test('POST /api/channels/check routes through telegram-stub and returns ChannelCheckResponse', async ({
+    request,
+  }) => {
+    // Unblocked by BL-107 Phase B.8 telegram-stub (tests/e2e/telegram_api_stub/)
+    // wired into docker-compose.test.yml. Bot SDK base URL is rewritten to
+    // http://telegram-stub:8081 via TELEGRAM_API_BASE_URL → bot.get_chat() and
+    // bot.get_chat_member() hit the stub instead of api.telegram.org. Stub
+    // returns the @verified_channel fixture (15k members, Trustchannelbot +
+    // rekharbor_test_bot listed as administrators).
+    //
+    // Phase C (BL-002 closure) verifies the wiring at the /check endpoint
+    // level — the contract surface that the owner-adds-channel UI calls
+    // during the precheck step. Full add-flow positive/negative cases live
+    // in bl-107-channel-registration.spec.ts (Phase D).
+
+    const resp = await request.post('/api/channels/check', {
+      data: { username: 'verified_channel' },
+    })
+    expect(
+      resp.ok(),
+      `precheck failed: ${resp.status()} ${await resp.text()}`,
+    ).toBe(true)
+
+    const body = await resp.json()
+    expect(body, 'channel info returned by stub').toMatchObject({
+      channel: {
+        username: 'verified_channel',
+        title: 'Verified 15k Channel',
+      },
+      bot_permissions: expect.objectContaining({ is_admin: expect.any(Boolean) }),
+    })
+  })
 })
 
 test.describe('[flow] KEP signature on framework contract', () => {
