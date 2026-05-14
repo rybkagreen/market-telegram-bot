@@ -1,0 +1,11 @@
+{# Financial summary table for supplementary agreements (ДС).
+   Driven entirely by _build_placement_ctx + _build_fee_context output:
+   placement_gross_amount, owner_gross_amount, owner_net_amount,
+   platform_commission_amount, service_fee_amount + *_pct vars. #}
+<table>
+  <tr><th>Стоимость размещения (брутто)</th><td>{{ placement_gross_amount }} ₽</td></tr>
+  <tr><th>Доля Владельца канала (брутто, {{ owner_share_pct }}% от стоимости)</th><td>{{ owner_gross_amount }} ₽</td></tr>
+  <tr><th>Сервисный сбор Платформы ({{ service_fee_pct }}% от доли Владельца)</th><td>{{ service_fee_amount }} ₽</td></tr>
+  <tr><th>К выплате Владельцу (нетто, {{ owner_net_pct }}% от стоимости — до удержаний по налоговому режиму Владельца)</th><td>{{ owner_net_amount }} ₽</td></tr>
+  <tr><th>Комиссия Платформы ({{ platform_commission_pct }}% от стоимости)</th><td>{{ platform_commission_amount }} ₽</td></tr>
+</table>
