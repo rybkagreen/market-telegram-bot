@@ -9,49 +9,22 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user_from_web_portal, get_db_session
+from src.api.helpers.contract_response import contract_to_response
 from src.api.schemas.legal_profile import (
     ContractListResponse,
     ContractResponse,
     ContractSignRequest,
-    ContractStatus,
     ContractType,
     GenerateContractRequest,
     KepRequestBody,
-    SignatureMethod,
 )
 from src.core.services.contract_service import ContractService
-from src.db.models.contract import Contract
 from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
-
-
-def _contract_to_response(contract: Contract) -> ContractResponse:
-    """Build ContractResponse from ORM object."""
-    pdf_url = f"/api/contracts/{contract.id}/pdf" if contract.pdf_file_path else None
-    return ContractResponse(
-        id=contract.id,
-        user_id=contract.user_id,
-        contract_type=ContractType(contract.contract_type),
-        contract_status=ContractStatus(contract.contract_status),
-        placement_id=contract.placement_id,
-        parent_contract_id=contract.parent_contract_id,
-        template_version=contract.template_version,
-        signature_method=SignatureMethod(contract.signature_method)
-        if contract.signature_method
-        else None,
-        signed_at=contract.signed_at,
-        expires_at=contract.expires_at,
-        pdf_url=pdf_url,
-        kep_requested=contract.kep_requested,
-        kep_request_email=contract.kep_request_email,
-        role=contract.role,
-        created_at=contract.created_at,
-        updated_at=contract.updated_at,
-    )
 
 
 @router.post("/generate", status_code=201, responses={400: {"description": "Bad Request"}})
@@ -65,7 +38,7 @@ async def generate_contract(
     contract = await svc.generate_contract(
         current_user.id, data.contract_type.value, data.placement_id
     )
-    return _contract_to_response(contract)
+    return contract_to_response(contract)
 
 
 # NOTE (Phase 1 §1.B.2 scope policy): /accept-rules moved to
@@ -86,7 +59,7 @@ async def list_contracts(
     contracts = await svc.get_user_contracts(current_user.id, type.value if type else None)
     if status:
         contracts = [c for c in contracts if c.contract_status == status]
-    items = [_contract_to_response(c) for c in contracts]
+    items = [contract_to_response(c) for c in contracts]
     return ContractListResponse(items=items, total=len(items))
 
 
@@ -106,7 +79,7 @@ async def get_contract(
         raise HTTPException(status_code=404, detail="Contract not found")
     if contract.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
-    return _contract_to_response(contract)
+    return contract_to_response(contract)
 
 
 @router.post(
@@ -131,7 +104,7 @@ async def sign_contract(
             sms_code=data.sms_code,
             ip_address=ip,
         )
-        return _contract_to_response(contract)
+        return contract_to_response(contract)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
     except ValueError as e:
