@@ -217,6 +217,25 @@ async def accept_request(callback: CallbackQuery, session: AsyncSession) -> None
     # value on transition to pending_payment, so this is a no-op at runtime.
     req.expires_at = datetime.now(UTC) + timedelta(hours=24)
 
+    # Phase 4: generate paired ДС before attempting transition. Idempotent —
+    # returns existing pair if already created. Failure here surfaces to user
+    # via the same render_owner_message path that handles gate blocks.
+    from src.core.services.supplementary_agreement_service import (
+        SupplementaryAgreementService,
+    )
+
+    sup_service = SupplementaryAgreementService(session)
+    try:
+        await sup_service.generate_for_placement(req)
+    except ValueError as ds_exc:
+        logger.warning("ДС generation failed for placement %s (owner accept): %s", req.id, ds_exc)
+        await callback.message.answer(
+            "❌ Невозможно подготовить дополнительное соглашение: "
+            f"{ds_exc}. Проверьте подписан ли рамочный договор."
+        )
+        await callback.answer()
+        return
+
     transition_service = PlacementTransitionService(session)
     try:
         await transition_service.transition(

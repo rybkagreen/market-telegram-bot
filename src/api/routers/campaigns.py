@@ -326,6 +326,22 @@ async def start_placement_request(
                 detail=ACCESS_DENIED,
             )
 
+        # Phase 4: generate paired ДС before attempting transition. Idempotent —
+        # returns existing pair if already created. Existing session.commit()
+        # at end of this self-contained block covers ДС inserts atomically.
+        from src.core.services.supplementary_agreement_service import (
+            SupplementaryAgreementService,
+        )
+
+        sup_service = SupplementaryAgreementService(session)
+        try:
+            await sup_service.generate_for_placement(placement_request)
+        except ValueError as ds_exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Supplementary agreement cannot be prepared: {ds_exc}",
+            ) from ds_exc
+
         transition_service = PlacementTransitionService(session)
         try:
             await transition_service.transition(

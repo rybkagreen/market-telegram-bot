@@ -84,6 +84,15 @@ def _patch_notify_advertiser_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mod, "notify_advertiser_accepted", AsyncMock())
 
 
+@pytest.fixture(autouse=True)
+def _patch_supplementary_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phase 4 hook: bypass ДС generation in unit tests (deferred-import bind)."""
+    monkeypatch.setattr(
+        "src.core.services.supplementary_agreement_service.SupplementaryAgreementService",
+        lambda s: MagicMock(generate_for_placement=AsyncMock()),
+    )
+
+
 async def test_owner_accept_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """Transition succeeds → confirmation message rendered, no answer with error."""
     placement = _make_placement()
