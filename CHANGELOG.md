@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.3 — BL-107 Telegram API + settings (Trustchannelbot verification)
+
+Telegram API integration layer для ФЗ-303 blogger registry verification. Adds
+cross-SDK Protocol abstraction для `get_chat_administrators` + `get_chat`,
+lazy cache для @Trustchannelbot ID resolution с asyncio.Lock, helper
+`verify_trustchannelbot_admin` для admin check, `TrustchannelbotResolutionError`
+exception, 5 new RKN settings fields, `.env.example` update.
+
+Replaces Phase B.2 temporary `_DEFAULT_RKN_THRESHOLD = 10_000` constant с
+`settings.rkn_threshold_subscribers` reference (single source of truth).
+
+Pure helpers + settings — NO API/router/bot/channel-add hookup (Phase B.4).
+
+#### Added
+
+- **`src/utils/telegram/verify_blogger_registry.py`** — new module:
+  - `TelegramAdminLister(Protocol)` — cross-SDK abstraction (python-telegram-bot + aiogram compatible)
+  - `TrustchannelbotResolutionError(Exception)` — raised на API failure + no env override + cache empty
+  - `resolve_trustchannelbot_id(bot) -> int` — lazy cache + env override + asyncio.Lock
+  - `verify_trustchannelbot_admin(bot, chat_id) -> bool` — primary helper для Phase B.4
+  - `_reset_cache_for_testing()` — test-only cache reset
+- **RKN settings (5 fields)** в `src/config/settings.py`:
+  - `rkn_trustchannelbot_username: str` (default `@Trustchannelbot`)
+  - `rkn_trustchannelbot_id: int | None` (optional env override; auto-resolved if None)
+  - `rkn_threshold_subscribers: int` (default 10_000, ФЗ-303 порог)
+  - `rkn_periodic_check_enabled: bool` (default True, Phase B.6 feature flag)
+  - `rkn_block_unverified_placements: bool` (default False; production guard)
+- **`.env.example`** — RKN BLOGGER REGISTRY section с 5 keys + comments
+- **Unit tests** — `tests/unit/test_bl107_trustchannelbot_helper.py`, 11 tests
+  pure unit с `AsyncMock(spec=TelegramAdminLister)` (env override, cache miss,
+  API failure, concurrent dedupe, admin found/not found, empty admins,
+  malformed admin, exception propagation, cache reset).
+
+#### Changed
+
+- **`src/core/services/gates/owner_gates.py`** — `_check_g19_core` threshold
+  reads `settings.rkn_threshold_subscribers` (was Phase B.2 module constant
+  `_DEFAULT_RKN_THRESHOLD = 10_000`). Single source of truth. `_DEFAULT_RKN_THRESHOLD`
+  constant removed.
+
 ### Phase B.2 — BL-107 Gate Framework (G19 + parallel registry)
 
 Gate framework extension layer для ФЗ-303 blogger registry verification.
