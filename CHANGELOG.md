@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase B.1 — BL-107 Schema (Blogger Registry Verification — ФЗ-303)
+
+Foundation schema layer for blogger registry verification feature. Adds 7
+new fields to `TelegramChat` для tracking ФЗ-303 compliance state plus new
+`BloggerRegistryVerificationMethod` enum (`trustchannelbot_admin` |
+`manual_evidence`). Migration edited per pre-prod policy (BL-061 exception
+для `0001_initial_schema.py`). Gate framework integration, Telegram API,
+admin UI, periodic Celery task — deferred к subsequent Phase B.2-B.9.
+
+#### Added
+
+- **`TelegramChat` schema** — 7 new fields: `is_blogger_registry_verified`,
+  `blogger_registry_verified_at`, `blogger_registry_application_number`,
+  `blogger_registry_verified_by_admin_id` (FK users.id, ondelete SET NULL),
+  `blogger_registry_verification_method`, `member_count_at_verification`,
+  `last_blogger_registry_check_at`.
+- **`BloggerRegistryVerificationMethod` enum**
+  (`src/core/enums/blogger_registry.py`) — values `trustchannelbot_admin` |
+  `manual_evidence`.
+- **Schema regression tests** — `tests/unit/test_bl107_schema_regression.py`
+  (15 tests, pure introspection, no DB).
+
+#### Database
+
+- **`0001_initial_schema.py`** — added `bloggerregistryverificationmethod`
+  enum type + 7 new columns on `telegram_chats` table + FK constraint
+  (`telegram_chats_blogger_registry_verified_by_admin_id_fkey`, ondelete SET NULL).
+
+#### Changed
+
+- Bidirectional relationship disambiguation `TelegramChat ↔ User` (forced
+  by 2nd FK addition к `users.id`): explicit `foreign_keys=` argument added
+  to `TelegramChat.owner` и `User.telegram_chats` relationships. Required
+  by SQLAlchemy mapper init when ≥2 FK paths link same tables.
+
+#### Migration Notes
+
+- Pre-production DB reset required: `DROP DATABASE / CREATE DATABASE /
+  alembic upgrade head`. Performed during this Phase B.1 ship.
+
 ### Phase 4 — Supplementary Agreements (ДС)
 
 Phase 4 of legal compliance gate system. Auto-generated dual-side ДС contracts

@@ -110,7 +110,10 @@ class User(Base, TimestampMixin):
     # Relationships
     referred_by: Mapped[User | None] = relationship("User", remote_side=[id], backref="referrals")
     telegram_chats: Mapped[list[TelegramChat]] = relationship(
-        "TelegramChat", back_populates="owner", cascade=CASCADE_ALL
+        "TelegramChat",
+        back_populates="owner",
+        cascade=CASCADE_ALL,
+        foreign_keys="TelegramChat.owner_id",
     )
     placement_requests_advertiser: Mapped[list[PlacementRequest]] = relationship(
         "PlacementRequest",
