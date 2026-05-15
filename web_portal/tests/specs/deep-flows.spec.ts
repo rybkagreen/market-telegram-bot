@@ -117,13 +117,17 @@ test.describe('[flow] owner updates channel settings', () => {
 
 test.describe('[flow] placement lifecycle (PATCH actions)', () => {
   test('advertiser lists pending, owner accepts, advertiser pays', async ({
-    browser,
+    apiRequestFor,
   }) => {
-    // (a) seed has one pending_owner placement from advertiser → owner's channel
-    const advCtx = await browser.newContext({ storageState: advertiser.storageFile })
-    const ownCtx = await browser.newContext({ storageState: owner.storageFile })
+    // Multi-role test: needs two authed APIRequestContext instances (advertiser
+    // + owner). The default `request` fixture only resolves a single storage
+    // state — use the `apiRequestFor(storageFile)` factory which auto-injects
+    // Authorization from rh_token and auto-disposes at teardown.
+    const advReq = await apiRequestFor(advertiser.storageFile)
+    const ownReq = await apiRequestFor(owner.storageFile)
 
-    const list = await advCtx.request.get('/api/placements/?view=advertiser')
+    // (a) seed has one pending_owner placement from advertiser → owner's channel
+    const list = await advReq.get('/api/placements/?view=advertiser')
     expect(list.ok()).toBe(true)
     const mine = await list.json()
     const pending = (mine as Array<{ id: number; status: string }>).find(
@@ -136,24 +140,22 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
     // 409 — повторный прогон suite по тому же seed (placement уже переведён
     //       в pending_payment/escrow), тоже засчитывается как контрактно
     //       корректный ответ.
-    const accepted = await ownCtx.request.patch(
-      `/api/placements/${pending!.id}`,
-      { data: { action: 'accept' } },
-    )
+    const accepted = await ownReq.patch(`/api/placements/${pending!.id}`, {
+      data: { action: 'accept' },
+    })
     expect(
       accepted.ok() || accepted.status() === 409,
       `owner PATCH accept: ${accepted.status()} — ${await accepted.text()}`,
     ).toBe(true)
 
     // (c) advertiser pays если статус pending_payment.
-    const current = await advCtx.request.get(`/api/placements/${pending!.id}`)
+    const current = await advReq.get(`/api/placements/${pending!.id}`)
     if (current.ok()) {
       const body = (await current.json()) as { status: string }
       if (body.status === 'pending_payment') {
-        const paid = await advCtx.request.patch(
-          `/api/placements/${pending!.id}`,
-          { data: { action: 'pay' } },
-        )
+        const paid = await advReq.patch(`/api/placements/${pending!.id}`, {
+          data: { action: 'pay' },
+        })
         // 200 — успешная оплата; 409 — повторный прогон после уже оплаченного
         // placement (status != pending_payment) роутер мапит в 409.
         expect(
@@ -162,37 +164,34 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
         ).toBe(true)
       }
     }
-
-    await advCtx.close()
-    await ownCtx.close()
   })
 })
 
 // ─── 5. Payouts — list render + admin sees list ──────────────────────
 
 test.describe('[flow] payouts list', () => {
-  test('owner reads /api/payouts/ without error', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: owner.storageFile })
-    const resp = await ctx.request.get('/api/payouts/')
+  // Each test in this describe uses a different role (owner, admin,
+  // advertiser). Rather than splitting into per-role describes, use the
+  // `apiRequestFor` factory — single test argument, auto-disposed.
+  test('owner reads /api/payouts/ without error', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(owner.storageFile)
+    const resp = await req.get('/api/payouts/')
     expect(resp.ok(), await resp.text()).toBe(true)
-    await ctx.close()
   })
 
-  test('admin reads /api/admin/payouts without error', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: admin.storageFile })
-    const resp = await ctx.request.get('/api/admin/payouts')
+  test('admin reads /api/admin/payouts without error', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(admin.storageFile)
+    const resp = await req.get('/api/admin/payouts')
     expect(resp.ok(), await resp.text()).toBe(true)
     const body = (await resp.json()) as { items: unknown[]; total: number }
     expect(Array.isArray(body.items)).toBe(true)
     expect(typeof body.total).toBe('number')
-    await ctx.close()
   })
 
-  test('non-admin hitting /api/admin/payouts gets 403', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: advertiser.storageFile })
-    const resp = await ctx.request.get('/api/admin/payouts')
+  test('non-admin hitting /api/admin/payouts gets 403', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(advertiser.storageFile)
+    const resp = await req.get('/api/admin/payouts')
     expect(resp.status()).toBe(403)
-    await ctx.close()
   })
 })
 
