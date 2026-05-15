@@ -32,6 +32,8 @@ sys.path.insert(0, "/app")
 
 from sqlalchemy import select
 
+from src.constants.legal import CONTRACT_TEMPLATE_VERSION
+from src.db.models.contract import Contract
 from src.db.models.placement_request import (
     PlacementRequest,
     PlacementStatus,
@@ -87,6 +89,43 @@ async def _upsert_user(
     await session.flush()
     log.info("created user telegram_id=%s id=%s", telegram_id, user.id)
     return user
+
+
+async def _upsert_platform_rules_acceptance(session, user: User) -> None:
+    """Ensure authoritative Contract row exists for platform_rules acceptance.
+
+    `User.platform_rules_accepted_at` is a denormalized cache; the authoritative
+    source consulted by `contract_service.needs_accept_rules` is a signed
+    Contract row with `contract_type='platform_rules'` and matching
+    `template_version`. Without this row, `RulesGuard` redirects every protected
+    route to `/accept-rules` (BL-107 R8).
+    """
+    q = await session.execute(
+        select(Contract).where(
+            Contract.user_id == user.id,
+            Contract.contract_type == "platform_rules",
+        )
+    )
+    contract = q.scalar_one_or_none()
+    now = datetime.now(UTC)
+    if contract:
+        contract.contract_status = "signed"
+        contract.template_version = CONTRACT_TEMPLATE_VERSION
+        contract.signed_at = now
+        contract.signature_method = "button_accept"
+        log.info("updated platform_rules contract user_id=%s", user.id)
+        return
+    contract = Contract(
+        user_id=user.id,
+        contract_type="platform_rules",
+        contract_status="signed",
+        template_version=CONTRACT_TEMPLATE_VERSION,
+        signed_at=now,
+        signature_method="button_accept",
+    )
+    session.add(contract)
+    await session.flush()
+    log.info("created platform_rules contract user_id=%s id=%s", user.id, contract.id)
 
 
 async def _upsert_channel(session, owner: User) -> TelegramChat:
@@ -170,13 +209,15 @@ async def main() -> None:
             first_name="E2E Owner",
             username="e2e_owner",
         )
-        await _upsert_user(
+        admin = await _upsert_user(
             session,
             telegram_id=ADMIN_TG,
             first_name="E2E Admin",
             username="e2e_admin",
             is_admin=True,
         )
+        for user in (advertiser, owner, admin):
+            await _upsert_platform_rules_acceptance(session, user)
         channel = await _upsert_channel(session, owner)
         await _upsert_placement(
             session,

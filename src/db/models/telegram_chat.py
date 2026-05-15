@@ -5,11 +5,22 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 _fake_telegram_id_counter = itertools.count(start=-(2**32))
 
+from src.core.enums.blogger_registry import BloggerRegistryVerificationMethod  # noqa: E402
 from src.db.base import Base, TimestampMixin  # noqa: E402
 
 CASCADE_ALL = "all, delete-orphan"
@@ -65,12 +76,53 @@ class TelegramChat(Base, TimestampMixin):
     )
     last_parsed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
+    # ─── Blogger registry verification (ФЗ-303 / BL-107) ──────────────────────
+    is_blogger_registry_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+    blogger_registry_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    blogger_registry_application_number: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+    blogger_registry_verified_by_admin_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    blogger_registry_verification_method: Mapped[BloggerRegistryVerificationMethod | None] = (
+        mapped_column(
+            SAEnum(
+                BloggerRegistryVerificationMethod,
+                name="bloggerregistryverificationmethod",
+                values_callable=lambda x: [m.value for m in x],
+            ),
+            nullable=True,
+        )
+    )
+    member_count_at_verification: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    last_blogger_registry_check_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Aliases for compatibility
     owner_user_id = synonym("owner_id")
     topic = synonym("category")
 
     # Relationships
-    owner: Mapped[User] = relationship("User", back_populates="telegram_chats")
+    owner: Mapped[User] = relationship(
+        "User", back_populates="telegram_chats", foreign_keys=[owner_id]
+    )
     channel_settings: Mapped[ChannelSettings | None] = relationship(
         "ChannelSettings", back_populates="channel", uselist=False, cascade=CASCADE_ALL
     )

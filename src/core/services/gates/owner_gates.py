@@ -1,10 +1,11 @@
-"""Owner-side gate checkers (G04-G06).
+"""Owner-side gate checkers (G04-G06, G19).
 
 G04: Owner legal profile complete
 G05: Owner framework contract signed
 G06: Owner payout method valid (real-now lookup; Phase 5 swaps for provider-validated body)
+G19: Channel ФЗ-303 blogger registry verification (BL-107)
 
-Each gate ships two entry points sharing a common body via ``_check_gXX_for_user_id``:
+G04-G06 ship two entry points sharing a common body via ``_check_gXX_for_user_id``:
 
 * ``check_gXX(session, placement)`` — placement-side variant (used by
   ``LegalComplianceService.check_gates_for_transition``); resolves owner_id
@@ -12,15 +13,25 @@ Each gate ships two entry points sharing a common body via ``_check_gXX_for_user
 * ``check_gXX_user(session, user)`` — user-side variant (used by
   ``LegalComplianceService.check_gates_for_user_role``, called from
   channel-add hook); accepts the user directly. Added in 5b.7a.
+
+G19 ships two entry points sharing ``_check_g19_core``:
+
+* ``check_g19(session, placement)`` — placement-side variant (defense-in-
+  depth для channels created до G19 enforcement или threshold-crossed).
+* ``check_g19_channel_add(session, user, channel_data)`` — channel-context
+  variant invoked from channel-add hook (Phase B.4 wires).
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import settings
 from src.constants import portal_routes
 from src.core.enums.gate_reason import GateReason
 from src.core.enums.placement_gate import PlacementGate
+from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.schemas.gate_result import GateResult
 from src.db.models.placement_request import PlacementRequest
+from src.db.models.telegram_chat import TelegramChat
 from src.db.models.user import User
 from src.db.repositories.contract_repo import ContractRepo
 from src.db.repositories.payout_repo import PayoutRepository
@@ -207,3 +218,122 @@ async def check_g06_user(session: AsyncSession, user: User) -> GateResult:
     Same semantics as ``check_g06`` but takes the User directly.
     """
     return await _check_g06_for_user_id(session, user.id)
+
+
+def _check_g19_core(
+    member_count: int,
+    is_test: bool,
+    is_blogger_registry_verified: bool,
+    blogger_registry_application_number: str | None,
+) -> GateResult:
+    """Pure G19 evaluation logic — no I/O, no DB lookup (BL-107).
+
+    ФЗ-303 requires Telegram channels с monthly audience ≥10k to register
+    в Roskomnadzor blogger registry. Gate body reads pre-populated channel
+    state и applies short-circuit precedence:
+
+    1. ``is_test=True`` — exempt (admin test-mode carve-out, parity с G02 test bypass)
+    2. ``member_count < threshold`` — regulation not applicable
+    3. ``is_blogger_registry_verified=True`` — verified, pass
+    4. ``application_number is not None`` — manual evidence pending review (block)
+    5. otherwise — not verified (block, default fail)
+
+    Phase B.3 reads threshold от ``settings.rkn_threshold_subscribers`` (default
+    10_000, env-overridable via ``RKN_THRESHOLD_SUBSCRIBERS``). ``remediation_url=
+    None`` для fail cases; Phase B.5 populates после admin review UI ships.
+
+    Pure function — no async, no session. Testable как pure-logic table; tests
+    мочат ``settings.rkn_threshold_subscribers`` via ``monkeypatch.setattr``.
+    """
+    if is_test:
+        return GateResult(
+            gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            passed=True,
+            blocker=False,
+            reason_code=GateReason.OK.value,
+        )
+    if member_count < settings.rkn_threshold_subscribers:
+        return GateResult(
+            gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            passed=True,
+            blocker=False,
+            reason_code=GateReason.OK.value,
+        )
+    if is_blogger_registry_verified:
+        return GateResult(
+            gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            passed=True,
+            blocker=False,
+            reason_code=GateReason.OK.value,
+        )
+    if blogger_registry_application_number is not None:
+        return GateResult(
+            gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            passed=False,
+            blocker=True,
+            reason_code=GateReason.BLOGGER_REGISTRY_PENDING_REVIEW.value,
+            remediation_url=None,
+        )
+    return GateResult(
+        gate=PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+        passed=False,
+        blocker=True,
+        reason_code=GateReason.BLOGGER_REGISTRY_NOT_VERIFIED.value,
+        remediation_url=None,
+    )
+
+
+async def check_g19(session: AsyncSession, placement: PlacementRequest) -> GateResult:
+    """G19_BLOGGER_REGISTRY_VERIFIED — placement-side variant (BL-107).
+
+    Defense-in-depth для channels created до G19 enforcement existed
+    или channels чей ``member_count`` пересёк ФЗ-303 threshold после
+    channel-add. Loads TelegramChat via ``session.get_one`` to avoid
+    relying on caller eager-loading ``placement.channel``: callers
+    using ``BaseRepository.get_by_id`` (which wraps ``session.get``)
+    return placement without channel populated, and lazy attribute
+    access would raise ``MissingGreenlet`` in async context.
+
+    Phase B.2 wired в _TRANSITION_GATES at (pending_owner, pending_payment)
+    + (counter_offer, pending_payment) — same transitions как G07 supplementary
+    agreement gate. Fires BEFORE money moves to escrow.
+
+    Pattern 1 (S-48): read-only ``session.get_one`` (identity-map aware —
+    free if channel already loaded by caller). No commit/flush/rollback.
+    """
+    channel = await session.get_one(TelegramChat, placement.channel_id)
+    return _check_g19_core(
+        member_count=channel.member_count,
+        is_test=channel.is_test,
+        is_blogger_registry_verified=channel.is_blogger_registry_verified,
+        blogger_registry_application_number=channel.blogger_registry_application_number,
+    )
+
+
+async def check_g19_channel_add(
+    session: AsyncSession,
+    user: User,
+    channel_data: ChannelAddContext,
+) -> GateResult:
+    """G19_BLOGGER_REGISTRY_VERIFIED — channel-context variant (BL-107).
+
+    Primary G19 gate, fires at channel-add time из API router + bot
+    handler (Phase B.4 wires invocations). Reads pre-populated
+    ``ChannelAddContext`` snapshot — Phase B.4 channel-add helper sets
+    ``is_blogger_registry_verified`` based on Trustchannelbot admin check
+    + DB lookup для re-adds.
+
+    Pattern 1 (S-48): receives session (unused в pure-logic body — kept
+    для _CHANNEL_CONTEXT_GATE_CHECKERS signature parity), no transaction
+    management.
+
+    The ``user`` parameter is unused в G19 body (gate evaluates channel
+    state, not owner state) — kept для registry signature uniformity
+    с future per-channel gates that may consult owner attributes.
+    """
+    return _check_g19_core(
+        member_count=channel_data.member_count,
+        is_test=channel_data.is_test,
+        is_blogger_registry_verified=channel_data.is_blogger_registry_verified,
+        blogger_registry_application_number=channel_data.blogger_registry_application_number,
+    )

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../fixtures/test'
 import { TEST_USERS } from '../fixtures/roles'
 
 /**
@@ -11,7 +11,7 @@ import { TEST_USERS } from '../fixtures/roles'
  * rendered elements.
  *
  * Flows covered:
- *    1. accept rules — POST /api/legal-profile/rules → no-op if already
+ *    1. accept rules — POST /api/contracts/accept-rules → no-op if already
  *       accepted (seed auto-accepts), verify contract shape.
  *    2. campaign wizard — UI navigation through /adv/campaigns/new/*
  *       steps (category → channels → format → text → terms).
@@ -42,10 +42,10 @@ const admin = TEST_USERS.admin
 test.describe('[flow] accept rules', () => {
   test.use({ storageState: advertiser.storageFile })
 
-  test('POST /api/legal-profile/rules returns 200 (idempotent)', async ({
+  test('POST /api/contracts/accept-rules returns 200 (idempotent)', async ({
     request,
   }) => {
-    const resp = await request.post('/api/legal-profile/rules', {
+    const resp = await request.post('/api/contracts/accept-rules', {
       data: { accept_platform_rules: true, accept_privacy_policy: true },
     })
     expect(resp.ok(), await resp.text()).toBe(true)
@@ -117,13 +117,17 @@ test.describe('[flow] owner updates channel settings', () => {
 
 test.describe('[flow] placement lifecycle (PATCH actions)', () => {
   test('advertiser lists pending, owner accepts, advertiser pays', async ({
-    browser,
+    apiRequestFor,
   }) => {
-    // (a) seed has one pending_owner placement from advertiser → owner's channel
-    const advCtx = await browser.newContext({ storageState: advertiser.storageFile })
-    const ownCtx = await browser.newContext({ storageState: owner.storageFile })
+    // Multi-role test: needs two authed APIRequestContext instances (advertiser
+    // + owner). The default `request` fixture only resolves a single storage
+    // state — use the `apiRequestFor(storageFile)` factory which auto-injects
+    // Authorization from rh_token and auto-disposes at teardown.
+    const advReq = await apiRequestFor(advertiser.storageFile)
+    const ownReq = await apiRequestFor(owner.storageFile)
 
-    const list = await advCtx.request.get('/api/placements/?view=advertiser')
+    // (a) seed has one pending_owner placement from advertiser → owner's channel
+    const list = await advReq.get('/api/placements/?view=advertiser')
     expect(list.ok()).toBe(true)
     const mine = await list.json()
     const pending = (mine as Array<{ id: number; status: string }>).find(
@@ -136,24 +140,22 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
     // 409 — повторный прогон suite по тому же seed (placement уже переведён
     //       в pending_payment/escrow), тоже засчитывается как контрактно
     //       корректный ответ.
-    const accepted = await ownCtx.request.patch(
-      `/api/placements/${pending!.id}`,
-      { data: { action: 'accept' } },
-    )
+    const accepted = await ownReq.patch(`/api/placements/${pending!.id}`, {
+      data: { action: 'accept' },
+    })
     expect(
       accepted.ok() || accepted.status() === 409,
       `owner PATCH accept: ${accepted.status()} — ${await accepted.text()}`,
     ).toBe(true)
 
     // (c) advertiser pays если статус pending_payment.
-    const current = await advCtx.request.get(`/api/placements/${pending!.id}`)
+    const current = await advReq.get(`/api/placements/${pending!.id}`)
     if (current.ok()) {
       const body = (await current.json()) as { status: string }
       if (body.status === 'pending_payment') {
-        const paid = await advCtx.request.patch(
-          `/api/placements/${pending!.id}`,
-          { data: { action: 'pay' } },
-        )
+        const paid = await advReq.patch(`/api/placements/${pending!.id}`, {
+          data: { action: 'pay' },
+        })
         // 200 — успешная оплата; 409 — повторный прогон после уже оплаченного
         // placement (status != pending_payment) роутер мапит в 409.
         expect(
@@ -162,37 +164,34 @@ test.describe('[flow] placement lifecycle (PATCH actions)', () => {
         ).toBe(true)
       }
     }
-
-    await advCtx.close()
-    await ownCtx.close()
   })
 })
 
 // ─── 5. Payouts — list render + admin sees list ──────────────────────
 
 test.describe('[flow] payouts list', () => {
-  test('owner reads /api/payouts/ without error', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: owner.storageFile })
-    const resp = await ctx.request.get('/api/payouts/')
+  // Each test in this describe uses a different role (owner, admin,
+  // advertiser). Rather than splitting into per-role describes, use the
+  // `apiRequestFor` factory — single test argument, auto-disposed.
+  test('owner reads /api/payouts/ without error', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(owner.storageFile)
+    const resp = await req.get('/api/payouts/')
     expect(resp.ok(), await resp.text()).toBe(true)
-    await ctx.close()
   })
 
-  test('admin reads /api/admin/payouts without error', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: admin.storageFile })
-    const resp = await ctx.request.get('/api/admin/payouts')
+  test('admin reads /api/admin/payouts without error', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(admin.storageFile)
+    const resp = await req.get('/api/admin/payouts')
     expect(resp.ok(), await resp.text()).toBe(true)
     const body = (await resp.json()) as { items: unknown[]; total: number }
     expect(Array.isArray(body.items)).toBe(true)
     expect(typeof body.total).toBe('number')
-    await ctx.close()
   })
 
-  test('non-admin hitting /api/admin/payouts gets 403', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: advertiser.storageFile })
-    const resp = await ctx.request.get('/api/admin/payouts')
+  test('non-admin hitting /api/admin/payouts gets 403', async ({ apiRequestFor }) => {
+    const req = await apiRequestFor(advertiser.storageFile)
+    const resp = await req.get('/api/admin/payouts')
     expect(resp.status()).toBe(403)
-    await ctx.close()
   })
 })
 
@@ -286,13 +285,40 @@ test.describe('[flow] dispute open → owner reply → admin resolve', () => {
 })
 
 test.describe('[flow] owner adds channel via bot verification', () => {
-  test.fixme(
-    'channel add — BL-002 (reports/docs-architect/BACKLOG.md)',
-    async () => {
-      // Re-activation criteria: BL-002 — needs Telegram Bot API mock
-      // wired into docker-compose.test.yml.
-    },
-  )
+  test.use({ storageState: owner.storageFile })
+
+  test('POST /api/channels/check routes through telegram-stub and returns ChannelCheckResponse', async ({
+    request,
+  }) => {
+    // Unblocked by BL-107 Phase B.8 telegram-stub (tests/e2e/telegram_api_stub/)
+    // wired into docker-compose.test.yml. Bot SDK base URL is rewritten to
+    // http://telegram-stub:8081 via TELEGRAM_API_BASE_URL → bot.get_chat() and
+    // bot.get_chat_member() hit the stub instead of api.telegram.org. Stub
+    // returns the @verified_channel fixture (15k members, Trustchannelbot +
+    // rekharbor_test_bot listed as administrators).
+    //
+    // Phase C (BL-002 closure) verifies the wiring at the /check endpoint
+    // level — the contract surface that the owner-adds-channel UI calls
+    // during the precheck step. Full add-flow positive/negative cases live
+    // in bl-107-channel-registration.spec.ts (Phase D).
+
+    const resp = await request.post('/api/channels/check', {
+      data: { username: 'verified_channel' },
+    })
+    expect(
+      resp.ok(),
+      `precheck failed: ${resp.status()} ${await resp.text()}`,
+    ).toBe(true)
+
+    const body = await resp.json()
+    expect(body, 'channel info returned by stub').toMatchObject({
+      channel: {
+        username: 'verified_channel',
+        title: 'Verified 15k Channel',
+      },
+      bot_permissions: expect.objectContaining({ is_admin: expect.any(Boolean) }),
+    })
+  })
 })
 
 test.describe('[flow] KEP signature on framework contract', () => {

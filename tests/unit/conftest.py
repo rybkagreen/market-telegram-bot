@@ -5,25 +5,32 @@ Apply mocks before any test modules are imported.
 """
 
 import asyncio
+import contextlib
 
 # Import aiogram eagerly so its uvloop.EventLoopPolicy() install happens NOW,
 # before we override with DefaultEventLoopPolicy. Without this, aiogram would
 # install uvloop policy inside the first fixture call, wiping the active loop.
-try:
+with contextlib.suppress(Exception):
     import aiogram as _aiogram  # noqa: F401
-except Exception:
-    pass
 
 # Restore standard asyncio policy so pytest-asyncio can manage event loops correctly.
 asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
-from collections.abc import AsyncGenerator
-from typing import Any
-from unittest.mock import patch
+# E402 suppressed: imports below MUST follow set_event_loop_policy() above
+# to override aiogram's uvloop install before asyncio/sqlalchemy event-loop
+# registration. Reordering breaks fixture event loops. See lines 9-11 above
+# for context.
+from collections.abc import AsyncGenerator  # noqa: E402
+from typing import Any  # noqa: E402
+from unittest.mock import patch  # noqa: E402
 
-import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 
 class MockAsyncSessionContextManager:

@@ -19,7 +19,12 @@ export default async function globalSetup() {
 
   for (const [role, cfg] of Object.entries(TEST_USERS)) {
     const resp = await apiContext.post('/api/auth/e2e-login', {
-      data: { telegram_id: cfg.telegramId },
+      // source=web_portal: storageState tokens used by request fixture must
+      // satisfy the strictest audience dep (`get_current_user_from_web_portal`).
+      // Generic `get_current_user` also accepts web_portal — no regression on
+      // mini_app-style endpoints. Specs needing mini_app aud (ticket-login,
+      // legal-profile-requires-web-portal) mint their own tokens explicitly.
+      data: { telegram_id: cfg.telegramId, source: 'web_portal' },
     })
     if (!resp.ok()) {
       const body = await resp.text()

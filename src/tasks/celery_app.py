@@ -44,6 +44,7 @@ def create_celery_app() -> Celery:
         include=[
             "src.tasks.badge_tasks",
             "src.tasks.billing_tasks",
+            "src.tasks.channel_registry_tasks",
             "src.tasks.cleanup_tasks",
             "src.tasks.document_ocr_tasks",
             "src.tasks.gamification_tasks",
@@ -201,6 +202,15 @@ def get_beat_schedule() -> dict[str, Any]:
             "task": "parser:collect_all_chats_stats",
             "schedule": crontab(hour=3, minute=30),
             "options": {"queue": "parser"},
+        },
+        # ========== BLOGGER REGISTRY RE-VERIFICATION (06:45 MSK = 03:45 UTC) ==========
+        # BL-107 Phase B.6 — periodic re-check of ФЗ-303 verification status.
+        # Detects Trustchannelbot admin removal + threshold crossings + refreshes
+        # member_count for channels under regulation.
+        "bl107-check-channel-registry-status-daily": {
+            "task": "parser:check_channel_registry_status",
+            "schedule": crontab(hour=3, minute=45),
+            "options": {"queue": QUEUE_PARSER},
         },
         # ========== CLEANUP (воскресенье 03:00 UTC) ==========
         "delete-old-logs": {

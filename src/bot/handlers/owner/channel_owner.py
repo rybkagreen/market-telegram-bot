@@ -1,16 +1,28 @@
 """Owner channel owner handler."""
 
 import logging
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ChatMemberAdministrator, InlineKeyboardButton, Message
+from aiogram.types import (
+    CallbackQuery,
+    ChatMemberAdministrator,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.channel_owner import AddChannelStates
+from src.core.enums.blogger_registry import BloggerRegistryVerificationMethod
+from src.core.enums.placement_gate import PlacementGate
+from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.services.legal_compliance_service import LegalComplianceService
+from src.db.models.category import Category
 from src.db.models.channel_settings import ChannelSettings
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.transaction import TransactionType
@@ -20,6 +32,10 @@ from src.db.repositories.placement_request_repo import PlacementRequestRepositor
 from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 from src.db.repositories.transaction_repo import TransactionRepository
 from src.db.repositories.user_repo import UserRepository
+from src.utils.telegram.verify_blogger_registry import (
+    TrustchannelbotResolutionError,
+    verify_trustchannelbot_admin,
+)
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -27,6 +43,64 @@ router = Router()
 MY_CHANNELS_SCENE = "main:my_channels"
 CANCEL_BTN = "❌ Отмена"
 MY_CHANNELS_BTN = "📺 Мои каналы"
+
+
+def _build_is_test_keyboard() -> InlineKeyboardMarkup:
+    """BL-107 Phase B.7 — inline keyboard для admin is_test choice."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📢 Реальный канал", callback_data="own:add_channel:is_test:0")
+    builder.button(text="🧪 Тестовый канал", callback_data="own:add_channel:is_test:1")
+    builder.button(text=CANCEL_BTN, callback_data=MY_CHANNELS_SCENE)
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+async def _render_add_channel_confirmation(
+    callback: CallbackQuery,
+    data: dict[str, Any],
+    category: Category,
+) -> None:
+    """BL-107 Phase B.7 — confirmation UI render extracted из add_channel_select_category.
+
+    Caller has already updated FSM data and set state=confirming. Helper just renders.
+    """
+    if not isinstance(callback.message, Message):
+        return
+
+    def right_icon(v: bool) -> str:
+        return "✅" if v else "❌"
+
+    warnings = []
+    if not data.get("can_delete"):
+        warnings.append("⚠️ Без права удалять — форматы с авто-удалением недоступны.")
+    if not data.get("can_pin"):
+        warnings.append("⚠️ Без права закреплять — форматы «Закреп» недоступны.")
+    rights_warning = "\n".join(warnings) if warnings else "✅ Все права выданы"
+
+    is_test = data.get("is_test", False)
+    is_test_line = "🧪 *Тестовый канал* (admin)\n" if is_test else ""
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="➕ Добавить канал", callback_data="own:add_channel:confirm")
+    builder.button(text="🔙 Назад", callback_data="own:add_channel:back_to_cat")
+    builder.button(text=CANCEL_BTN, callback_data=MY_CHANNELS_SCENE)
+    builder.adjust(1)
+
+    await callback.message.edit_text(
+        f"📺 *Подтверждение добавления*\n\n"
+        f"*{data['title']}* (@{data['username']})\n"
+        f"👥 Подписчиков: *{data['member_count']:,}*\n"
+        f"📂 Категория: *{category.emoji} {category.name_ru}*\n"
+        f"{is_test_line}\n"
+        f"─── Права бота ───\n"
+        f"Публиковать: {right_icon(data.get('can_post', False))} | "
+        f"Удалять: {right_icon(data.get('can_delete', False))} | "
+        f"Закреплять: {right_icon(data.get('can_pin', False))}\n\n"
+        f"{rights_warning}",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == MY_CHANNELS_SCENE)
@@ -248,7 +322,11 @@ async def add_channel_username(message: Message, state: FSMContext, session: Asy
 async def add_channel_select_category(
     callback: CallbackQuery, state: FSMContext, session: AsyncSession
 ) -> None:
-    """Выбрать категорию канала и перейти к подтверждению."""
+    """Выбрать категорию канала и перейти к подтверждению.
+
+    BL-107 Phase B.7 (O.7 carve-out): для admin предлагает is_test choice,
+    для non-admin — прямо к confirming с is_test=False default.
+    """
     if not isinstance(callback.message, Message):
         return
     slug = (callback.data or "").split(":")[-1]
@@ -258,40 +336,67 @@ async def add_channel_select_category(
         return
 
     await state.update_data(category=slug)
+
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if user is not None and user.is_admin:
+        # BL-107 Phase B.7 — admin gets is_test choice before confirmation
+        await state.set_state(AddChannelStates.selecting_is_test)
+        await callback.message.edit_text(
+            f"🧪 *Тип канала*\n\n"
+            f"*{category.emoji} {category.name_ru}* — выбрано.\n\n"
+            f"Канал будет тестовым (для администратора) или реальным?\n\n"
+            f"⚠️ Тестовые каналы не публикуются в каталоге и не учитываются "
+            f"в статистике платформы.",
+            reply_markup=_build_is_test_keyboard(),
+            parse_mode="Markdown",
+        )
+        await callback.answer()
+        return
+
+    # Non-admin path — preserve existing UX, is_test=False default
+    await state.update_data(is_test=False)
+    await state.set_state(AddChannelStates.confirming)
+    data = await state.get_data()
+    await _render_add_channel_confirmation(callback, data, category)
+
+
+@router.callback_query(
+    F.data.startswith("own:add_channel:is_test:"), AddChannelStates.selecting_is_test
+)
+async def add_channel_select_is_test(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
+    """BL-107 Phase B.7 — capture admin is_test choice + переход к confirming.
+
+    Defense-in-depth: even though FSM only reaches selecting_is_test для admin,
+    re-check is_admin here in case of stale state или manual callback injection.
+    """
+    if not isinstance(callback.message, Message):
+        return
+
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if user is None or not user.is_admin:
+        await callback.answer(
+            "❌ Только администраторы могут создавать тестовые каналы",
+            show_alert=True,
+        )
+        await state.clear()
+        return
+
+    raw = (callback.data or "").split(":")[-1]
+    is_test = raw == "1"
+
+    await state.update_data(is_test=is_test)
     await state.set_state(AddChannelStates.confirming)
 
     data = await state.get_data()
+    category = await CategoryRepo(session).get_by_slug(data.get("category", ""))
+    if category is None:
+        await callback.answer("❌ Категория недоступна", show_alert=True)
+        await state.clear()
+        return
 
-    def right_icon(v: bool) -> str:
-        return "✅" if v else "❌"
-
-    warnings = []
-    if not data.get("can_delete"):
-        warnings.append("⚠️ Без права удалять — форматы с авто-удалением недоступны.")
-    if not data.get("can_pin"):
-        warnings.append("⚠️ Без права закреплять — форматы «Закреп» недоступны.")
-    rights_warning = "\n".join(warnings) if warnings else "✅ Все права выданы"
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="➕ Добавить канал", callback_data="own:add_channel:confirm")
-    builder.button(text="🔙 Назад", callback_data="own:add_channel:back_to_cat")
-    builder.button(text=CANCEL_BTN, callback_data=MY_CHANNELS_SCENE)
-    builder.adjust(1)
-
-    await callback.message.edit_text(
-        f"📺 *Подтверждение добавления*\n\n"
-        f"*{data['title']}* (@{data['username']})\n"
-        f"👥 Подписчиков: *{data['member_count']:,}*\n"
-        f"📂 Категория: *{category.emoji} {category.name_ru}*\n\n"
-        f"─── Права бота ───\n"
-        f"Публиковать: {right_icon(data.get('can_post', False))} | "
-        f"Удалять: {right_icon(data.get('can_delete', False))} | "
-        f"Закреплять: {right_icon(data.get('can_pin', False))}\n\n"
-        f"{rights_warning}",
-        reply_markup=builder.as_markup(),
-        parse_mode="Markdown",
-    )
-    await callback.answer()
+    await _render_add_channel_confirmation(callback, data, category)
 
 
 @router.callback_query(F.data == "own:add_channel:back_to_cat", AddChannelStates.confirming)
@@ -360,10 +465,21 @@ async def add_channel_confirm(
         await callback.answer("❌ Пользователь не найден", show_alert=True)
         return
 
+    # BL-107 Phase B.7 — defense-in-depth: is_test=True requires admin.
+    # FSM gates это (selecting_is_test handler also checks is_admin), но
+    # guard here covers stale-state / direct callback injection scenarios.
+    is_test_flag = bool(data.get("is_test", False))
+    if is_test_flag and not user.is_admin:
+        await callback.answer(
+            "❌ Только администраторы могут создавать тестовые каналы",
+            show_alert=True,
+        )
+        await state.clear()
+        return
+
     # Phase 3b §3.B.6 — owner role compliance precondition (5b.7a).
-    # No admin test-mode carve-out for bot path: API has body.is_test +
-    # is_admin gate, but bot UX hardcodes is_active=True and lacks the
-    # parameter (pre-existing — flagged in 5b.7a closure as O.7 deferred).
+    # BL-107 Phase B.7 closes O.7 deferred: is_test choice теперь FSM-driven
+    # для admin (selecting_is_test state), default False для non-admin.
     compliance = LegalComplianceService(session)
     gate_results = await compliance.check_gates_for_user_role(user, role="owner")
     blockers = [r for r in gate_results if not r.passed]
@@ -395,6 +511,96 @@ async def add_channel_confirm(
         await state.clear()
         return
 
+    # BL-107 / ФЗ-303 — Trustchannelbot admin check + G19 channel-context gate
+    # (Phase B.4 wiring). O.7 deferred: bot path passes is_test=False — admin
+    # parity FSM step lives в Phase B.7.
+    verification_audit: dict[str, Any] = {
+        "is_blogger_registry_verified": False,
+        "blogger_registry_verified_at": None,
+        "blogger_registry_verification_method": None,
+        "member_count_at_verification": None,
+        "last_blogger_registry_check_at": None,
+    }
+    bot = callback.message.bot
+    if bot is None:
+        await callback.answer("❌ Бот недоступен", show_alert=True)
+        await state.clear()
+        return
+
+    try:
+        is_verified = await verify_trustchannelbot_admin(bot, data["channel_telegram_id"])
+    except TrustchannelbotResolutionError as exc:
+        logger.warning(
+            "Trustchannelbot resolution failed for channel %s: %s",
+            data["channel_telegram_id"],
+            exc,
+        )
+        await AuditLogRepo(session).log(
+            action="channel_add_declined",
+            resource_type="channel",
+            user_id=user.id,
+            extra={"blockers": [PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED.value]},
+        )
+        await callback.answer(
+            "❌ Не удалось проверить статус регистрации канала. Попробуйте позже.",
+            show_alert=True,
+        )
+        await state.clear()
+        return
+
+    channel_data = ChannelAddContext(
+        telegram_id=data["channel_telegram_id"],
+        username=data["username"],
+        member_count=data["member_count"],
+        is_test=is_test_flag,  # BL-107 Phase B.7 — FSM-driven для admin, default False
+        description=None,
+        is_blogger_registry_verified=is_verified,
+    )
+    channel_gate_results = await compliance.check_gates_for_channel_add(user, channel_data)
+    channel_blockers = [r for r in channel_gate_results if not r.passed]
+    if channel_blockers:
+        await AuditLogRepo(session).log(
+            action="channel_add_declined",
+            resource_type="channel",
+            user_id=user.id,
+            extra={"blockers": [r.gate.value for r in channel_blockers]},
+        )
+        await callback.answer("❌ Канал требует регистрации в реестре блогеров", show_alert=True)
+        lines = [
+            "❌ *Регистрация в реестре блогеров (ФЗ-303)*",
+            "",
+            "Канал с аудиторией ≥10 000 подписчиков обязан быть зарегистрирован в реестре"
+            " блогеров Роскомнадзора. Добавьте @Trustchannelbot администратором канала и"
+            " попробуйте снова.",
+            "",
+        ]
+        for r in channel_blockers:
+            line = f"• {r.gate.value}: {r.reason_code}"
+            if r.remediation_url:
+                line += f" → {r.remediation_url}"
+            lines.append(line)
+        builder = InlineKeyboardBuilder()
+        builder.button(text=MY_CHANNELS_BTN, callback_data=MY_CHANNELS_SCENE)
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown",
+        )
+        await state.clear()
+        return
+
+    now_utc = datetime.now(UTC)
+    verification_audit["last_blogger_registry_check_at"] = now_utc
+    if is_verified:
+        verification_audit.update({
+            "is_blogger_registry_verified": True,
+            "blogger_registry_verified_at": now_utc,
+            "blogger_registry_verification_method": (
+                BloggerRegistryVerificationMethod.TRUSTCHANNELBOT_ADMIN
+            ),
+            "member_count_at_verification": data["member_count"],
+        })
+
     ch = TelegramChat(
         telegram_id=data["channel_telegram_id"],
         username=data["username"],
@@ -403,6 +609,8 @@ async def add_channel_confirm(
         member_count=data["member_count"],
         category=data.get("category"),
         is_active=True,
+        is_test=is_test_flag,  # BL-107 Phase B.7 — admin-driven choice (default False)
+        **verification_audit,
     )
     session.add(ch)
     await session.flush()

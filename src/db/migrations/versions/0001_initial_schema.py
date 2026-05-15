@@ -498,7 +498,54 @@ def upgrade() -> None:  # noqa: PLR0915
             nullable=False,
         ),
         sa.Column("is_test", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        # ── Blogger registry verification (ФЗ-303 / BL-107) ───────────────────
+        sa.Column(
+            "is_blogger_registry_verified",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "blogger_registry_verified_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "blogger_registry_application_number",
+            sa.String(64),
+            nullable=True,
+        ),
+        sa.Column(
+            "blogger_registry_verified_by_admin_id",
+            sa.Integer(),
+            nullable=True,
+        ),
+        sa.Column(
+            "blogger_registry_verification_method",
+            sa.Enum(
+                "trustchannelbot_admin",
+                "manual_evidence",
+                name="bloggerregistryverificationmethod",
+            ),
+            nullable=True,
+        ),
+        sa.Column(
+            "member_count_at_verification",
+            sa.Integer(),
+            nullable=True,
+        ),
+        sa.Column(
+            "last_blogger_registry_check_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], name="telegram_chats_owner_id_fkey"),
+        sa.ForeignKeyConstraint(
+            ["blogger_registry_verified_by_admin_id"],
+            ["users.id"],
+            name="telegram_chats_blogger_registry_verified_by_admin_id_fkey",
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("username", name="telegram_chats_username_key"),
     )
