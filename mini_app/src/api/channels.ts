@@ -148,3 +148,32 @@ export function updateChannelSettings(
 ): Promise<ChannelSettings> {
   return api.patch('channel-settings/', { searchParams: { channel_id: id }, json: data }).json<ChannelSettings>()
 }
+
+// ─── BL-107 Phase B.5b — Registry evidence submission (manual evidence path) ──
+
+export interface RegistryEvidenceSubmitRequest {
+  application_number: string
+  registry_url?: string | null
+  notes?: string | null
+}
+
+export interface RegistryEvidenceSubmitResponse {
+  status: 'pending_review'
+  channel_id: number
+  application_number: string
+  submitted_at: string
+}
+
+/**
+ * Подать заявление о регистрации канала в реестре блогеров (ручная проверка).
+ * Используется когда @Trustchannelbot верификация недоступна (например,
+ * регистрация через Госуслуги без бота).
+ */
+export function submitRegistryEvidence(
+  channelId: number,
+  data: RegistryEvidenceSubmitRequest,
+): Promise<RegistryEvidenceSubmitResponse> {
+  return api
+    .post(`channels/${channelId}/submit-registry-evidence`, { json: data })
+    .json<RegistryEvidenceSubmitResponse>()
+}

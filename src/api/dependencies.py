@@ -279,16 +279,26 @@ async def get_bot() -> Bot:
     Получить shared экземпляр Telegram Bot (singleton).
     Создаётся и инициализируется один раз, переиспользуется далее.
     Если задан TELEGRAM_PROXY, все запросы идут через него (SOCKS5/HTTP).
+
+    BL-107 Phase B.8 / BL-002 — when `settings.telegram_api_base_url` is set,
+    Bot.base_url is rewritten to point at the stub server. Production guard
+    against this is enforced at Settings construction.
     """
     global _bot_instance
     if _bot_instance is None:
+        bot_kwargs: dict = {"token": settings.bot_token}
+
         if settings.telegram_proxy:
             from telegram.request import HTTPXRequest
 
-            request = HTTPXRequest(proxy=settings.telegram_proxy)
-            _bot_instance = Bot(token=settings.bot_token, request=request)
-        else:
-            _bot_instance = Bot(token=settings.bot_token)
+            bot_kwargs["request"] = HTTPXRequest(proxy=settings.telegram_proxy)
+
+        if settings.telegram_api_base_url:
+            base = settings.telegram_api_base_url.rstrip("/")
+            bot_kwargs["base_url"] = f"{base}/bot"
+            bot_kwargs["base_file_url"] = f"{base}/file/bot"
+
+        _bot_instance = Bot(**bot_kwargs)
         await _bot_instance.initialize()
     return _bot_instance
 

@@ -11,7 +11,7 @@ code. Items here are linked from the relevant test/spec/source
 location so a contributor seeing the deferral can immediately follow
 it back to the criterion.
 
-_Last updated: 2026-05-08 (T1.2 series closure — BL-072 T1.2 closed; BL-076 new — T1.2 series deferred items; BL-077 new — middleware registration lesson, post-T1.2.5f)_
+_Last updated: 2026-05-14 (post-v0.8.0 Phase 4 closure batch — 11 new BL candidates: BL-104 strategic Telegram→MAX migration, BL-105/107 launch-blocking (ККТУ codes + channel registration), BL-106 post-launch caption overlay, BL-108/109 feature gaps (video note + ad_text edge case), BL-110/111/112/113/115 Phase 4 surfaced; BL-114 retired NO BUG per PROMPT 28b probe)_
 
 ## Active items
 
@@ -73,6 +73,14 @@ Remaining 17.x scope:
 
 ### BL-002 — Channel add via Telegram bot verification
 
+- **Status:** CLOSED 2026-05-15 (v0.9.0 — BL-107 Phase B.8 + B.9.C + Pattern 2c auth).
+  Mock infrastructure shipped as `tests/e2e/telegram_api_stub/` (aiohttp Telegram
+  Bot API stub) + `telegram-stub` service in `docker-compose.test.yml` +
+  `TELEGRAM_API_BASE_URL` routing in both Telegram SDKs +
+  3-layer R4 production guard. Playwright spec at
+  `web_portal/tests/specs/deep-flows.spec.ts:288-322` unwrapped from `test.fixme`
+  to a real `POST /api/channels/check` against `@verified_channel` stub fixture.
+  Cross-context auth carriage (Pattern 2c) closed at `5676192`.
 - **Surfaced in:** `web_portal/tests/specs/deep-flows.spec.ts`
   → `test.fixme('[flow] owner adds channel via bot verification')`.
 - **Why deferred:** the flow calls real Telegram Bot API
@@ -3262,6 +3270,478 @@ autonomous capitulation.
 be required if pathology resolves at normal merge boundaries; option (c)
 accept-as-known-harmless validated through full release cycle
 (PROMPT_28..PROMPT_31).
+
+### BL-104 — Telegram→MAX migration strategy + transitional monitoring
+
+**Status:** OPEN — strategic
+**Created:** 2026-05-12 (BL-080 8a research surface)
+**Source:** ФЗ-72 ч. 10.7 ст. 5 ФЗ-38 — ФАС объявила запрет рекламы в Telegram с 01.01.2027.
+
+**Statement:** Платформа базируется на Telegram. ФЗ-72 запрещает рекламу в Telegram с 01.01.2027. Переходный период до 31.12.2026 — штрафы НЕ применяются. После 01.01.2027 — possible existential risk для платформы. Migration в MAX (МАХ — российский мессенджер) potential mitigation.
+
+**Marina plan (2026-05-13):** Launch в Telegram, миграция в МАХ к концу 2026 в параллель.
+
+**Closure trigger:**
+- (a) Provider-pattern abstraction for bot transport (Phase 5 territory) облегчит миграцию — `BotProvider` interface, Telegram = default impl, MAX = alternate impl.
+- (b) Strategic monitoring: transitional period штрафы tracking, MAX feature parity audit, business decision на ratio Telegram/MAX к Q4 2026.
+- (c) Acceptance: bot transport provider-pattern abstracted + MAX provider stub ready + business strategic decision documented.
+
+**Effort:** large (bot transport abstraction + new MAX integration + parallel ops).
+**Priority note:** high (strategic, existential timeline).
+
+**Refs:** Phase 5 (provider pattern), BL-105 (Yandex ORD которая работает в обоих), BL-107.
+
+**Owner:** _unassigned_
+
+### BL-105 — ККТУ codes UI integration (Yandex ORD v7)
+
+**Status:** OPEN — required for production ORD launch
+**Created:** 2026-05-12 (BL-080 8a research surface)
+**Source:** Yandex ORD API v7 (с 07.11.2025) обязательно требует `kktuCodes` для creative registration.
+
+**Statement:** Yandex ORD v7 requires `kktuCodes` (Классификатор Категорий Товаров и Услуг) for creative registration. Currently platform omits this field — works in stub mode (Phase 5 deferred) but fails real production ORD calls.
+
+**Closure trigger:**
+- (a) Add `kktu_codes` column to Campaign model (array of strings or JSONB).
+- (b) UI integration в campaign creation flow: ККТУ code picker (dropdown / search) с validation против reference list.
+- (c) ORD provider integration: pass `kktuCodes` field в creative registration payload.
+- (d) Migration of existing campaigns: default value strategy (NULL? "needs assignment" flag?).
+
+**Effort:** medium (DB schema add + UI integration + ORD payload extension).
+**Priority note:** medium-high — launch-blocking for real ORD registration.
+
+**Refs:** BL-080 (ORD hardening, real provider integration in Phase 5+).
+
+**Owner:** _unassigned_
+
+### BL-106 — Overlay variant (D) для caption budget
+
+**Status:** OPEN — post-launch enhancement
+**Created:** 2026-05-13 (BL-080 8d closure)
+**Source:** BL-080 8d caption budget Option A (truncate) was implemented; Option D (overlay erid on image) deferred.
+
+**Statement:** Best practice per АРИР — render erid поверх image (Pillow pipeline) AND duplicate в caption для ЕРИР робота. Currently we truncate caption (Option A) when erid + ad_text exceeds Telegram limit. Overlay variant ensures erid always visible на изображении plus separately в caption.
+
+**Closure trigger:**
+- (a) Pillow image processing pipeline integration (post-launch image processing service).
+- (b) Erid text overlay rendering: position, font, opacity, contrast against image background.
+- (c) Caption retains duplicated erid for ЕРИР robot indexing (truncate ad_text не erid).
+- (d) Tests: visual regression + caption parsing correctness.
+
+**Effort:** medium (image processing infra + rendering + tests).
+**Priority note:** low — Option A truncate works correctly per current scope.
+
+**Refs:** BL-080 (ERID marking flow), Q-M.4 carve-out (Phase 4 erid placeholder pattern в ДС).
+
+**Owner:** _unassigned_
+
+### BL-107 — Channel registration verification для каналов ≥10k подписчиков (метка А+)
+
+**Status:** CLOSED 2026-05-15 (v0.9.0 — Phase B.1–B.9 closure)
+**Created:** 2026-05-13 (BL-080 8a research surface)
+**Closure summary:** Shipped via 21 commits across 9 feature phases + 3 CI gate rounds (PROMPT 44 / 45 / 45-ext / 45-ext-of-ext). Add-time enforcement via G19 + Trustchannelbot auto-verification; manual evidence escape hatch via owner submission + admin review; daily drift detection via periodic Celery task. Three latent production defects caught and fixed (G19 eager-load `ef26f68`; SQLAlchemy `Mapped[StrEnum]` case mismatch `24cf68a`; `/api/analytics/summary` validation `9506583`). Final state: ci-local 1204 passed (0 failed); BL-107 own 12/12 E2E PASS across 3 browser projects. See `reports/docs-architect/discovery/CHANGES_BL107_consolidated_2026-05-15.md`.
+
+**Source:** ФЗ-303 от 08.08.2024 → ч. 10.6 ст. 5 ФЗ-38 + ст. 10.6 ФЗ-149. Реестр блогеров действует с 01.11.2024.
+
+**Statement:** Каналы ≥10000 подписчиков обязаны регистрироваться в реестре Роскомнадзора (Реестр блогеров) и иметь метку А+ (зарегистрирован) в публикациях. Штрафы за размещение рекламы у незарегистрированного блогера ≥10k подписчиков:
+
+- до 100k рублей для граждан;
+- до 200k рублей для должностных лиц;
+- **до 500k рублей для юридических лиц.**
+
+**Это независимая статья.** Штрафы действуют ВСЕГДА (не в переходном периоде, не ждут 01.01.2027). Платформа подвергается штрафу как facilitator если допускает placement у unregistered channel с ≥10k подписчиков.
+
+**Closure trigger:**
+- (a) Bot должен fetch subscriber count при `/add_channel` flow (Telegram Bot API `get_chat`).
+- (b) Если subscriber_count ≥10000: required verification — has метка А+ (зарегистрирован); channel owner может представить evidence (link на реестр, screenshot, etc.).
+- (c) DECLINE (hard, не warning) если ≥10k без верифицированной регистрации.
+- (d) DB schema: `Channel.is_blogger_registry_verified: bool` + `Channel.blogger_registry_verified_at: datetime | None`.
+- (e) UI flow: owner submits registry evidence → admin reviews → marks verified, OR bot auto-verifies via Роскомнадзор API (if available).
+- (f) Periodic re-check: subscriber growth past threshold without registration → block new placements (decision на existing placements TBD).
+
+**Effort:** medium (bot flow + DB schema + admin verification UI + Roskomnadzor reference if API available).
+**Priority note:** **HIGH — LAUNCH-BLOCKING**. Real legal liability ≥500k руб per violation для платформы.
+
+**Refs:** ФЗ-38, ФЗ-149, ФЗ-303. Phase 5 (channel gating territory).
+
+**Owner:** _unassigned_
+
+### BL-108 — Video note (кружок) placement type addition
+
+**Status:** OPEN — feature gap
+**Created:** 2026-05-13 (Phase 4 8d Phase A research)
+**Source:** PROMPT 8d Phase A finding: `media_type` enum supports `none/photo/video` only, video note (Telegram круглое видео) path не существует в data model.
+
+**Statement:** Telegram supports video notes (короткие круглые видео-сообщения) as a distinct media kind. Current `Placement.media_type` enum has `photo/video/none` but no `video_note`. Implication: cannot offer video note format ad placements. АРИР recommendations suggest video note formats grow in popularity для рекламы.
+
+**Closure trigger:**
+- (a) Data model: extend `media_type` enum — add `video_note` value.
+- (b) Bot UI flow: support video_note upload + preview.
+- (c) Dispatcher branch: route video_note placements to `send_video_note` Telegram API (cannot have caption — separate-message marker via `reply_parameters` only legal path per АРИР).
+- (d) Option B (separate-message marker via reply_parameters) — единственный legal путь для video notes.
+- (e) Smoke tests + integration test.
+
+**Effort:** medium (data model + bot UI + dispatcher + tests).
+**Priority note:** low — current text/photo/video coverage sufficient for MVP.
+
+**Refs:** BL-080 8d (caption budget — Option B dropped per CLAUDE.md P1+P3 from 8d scope due to data model absence).
+
+**Owner:** _unassigned_
+
+### BL-109 — `ad_text` >4096 chars edge case для text-only placements
+
+**Status:** OPEN — pre-existing edge case
+**Created:** 2026-05-13 (Phase 4 8d Phase A research)
+**Source:** PROMPT 8d Phase A finding: `Placement.ad_text` DB max=5000 chars, Telegram text message limit=4096 chars.
+
+**Statement:** Currently unknown behavior for text-only placement (`media_type=none`) с `ad_text` > 4096 chars. DB allows up to 5000, Telegram text message API rejects >4096. Probe required to determine actual current handling:
+
+- (a) Truncation? Где — admin write-side, bot send-side?
+- (b) Error? Какой? Где surfaced?
+- (c) Silent acceptance с failure at publication time?
+
+**Closure trigger:**
+- (a) Probe + reproduce: create text-only placement с 4500-char `ad_text`, attempt publish, observe behavior.
+- (b) Decision: либо reduce DB max=4096 to align с Telegram, либо add explicit pre-validation в campaign creation flow.
+- (c) UI: character counter с visual warning at 4096.
+- (d) Test: integration test с >4096 char text-only placement.
+
+**Effort:** small (probe + decision + tests).
+**Priority note:** medium — affects real users with long ad copy.
+
+**Refs:** None specific.
+
+**Owner:** _unassigned_
+
+### BL-110 — `CLAUDE.md` migration count claim outdated
+
+**Status:** OPEN — documentation drift
+**Created:** 2026-05-14 (Phase 4 PROMPT 26 verification)
+**Source:** PROMPT 26 Step 1 migration verification — `CLAUDE.md` claims "1 consolidated migration" but reality has 2 files: `0001_initial_schema.py` + `e6a88faa9fa0_add_placement_status_history_table_and_.py` (Phase 2).
+
+**Statement:** `CLAUDE.md` rules section mentions migration immutability per BL-061 с phrase suggesting single consolidated `0001_initial_schema.py`. Reality has 2 migration files. Documentation drift. Pre-prod exception (rewrite of `0001_initial_schema.py`) still valid но applies to specific file, не "the" migration.
+
+**Closure trigger:**
+- (a) Edit `CLAUDE.md` migration section: update wording from "1 consolidated migration" to "migrations" (plural), OR explicitly enumerate (`0001_initial_schema.py` pre-prod-mutable + `e6a88faa9fa0_*.py` immutable per BL-061).
+- (b) Sanity check: какие other immutable migrations expected? If yes, document expected file count и naming pattern.
+
+**Effort:** small (single doc edit).
+**Priority note:** low — documentation accuracy.
+
+**Refs:** BL-061 (migration immutability rule), Phase 2 migration `e6a88faa9fa0_*`.
+
+**Owner:** _unassigned_
+
+### BL-111 — `_partials/contract_signatures.html` dropped from Step 0a refactor
+
+**Status:** OPEN — optional cleanup
+**Created:** 2026-05-14 (Phase 4 PROMPT 27 Step 5 finding)
+**Source:** PROMPT 26 Step 0a planned 3 partials extraction (`contract_css`, `contract_header`, `contract_signatures`); only 2 extracted (CSS + header). Signature blocks inline в существующих 6 contract templates — agent identified не shared pattern. Phase 4 ДС templates also inline sigs.
+
+**Statement:** Originally Phase 4 Step 0a (template partials refactor per Q-M.1) intended 3 partials. Reality: existing 6 contract templates use distinct signature block layouts per legal_status (individual / IE / LE / etc.). Forced extraction to single partial would require parameterization that breaks DRY benefit. Agent skipped this partial; sigs remain inline.
+
+**Closure trigger (if desired):**
+- (a) Audit 6 contract template signature blocks: identify real shared core (e.g., `<table>` structure, "Подпись:" text, IP placeholder).
+- (b) Extract minimal shared signature partial с Jinja2 macros for per-legal_status fields.
+- (c) Refactor 6 contract templates + 5 ДС templates to use new partial.
+- (d) Verify rendering tests pass.
+
+**Effort:** small-medium (template refactor + visual regression check).
+**Priority note:** low — current inline sigs work, не violate principles given shared pattern absence.
+
+**Refs:** Phase 4 Step 0a (CSS + header partials extracted).
+
+**Owner:** _unassigned_
+
+### BL-112 — Playwright `sign-supplementary-agreement` seed fixture creation
+
+**Status:** OPEN — full E2E coverage gap
+**Created:** 2026-05-14 (Phase 4 PROMPT 28 Step 10 finding)
+**Source:** PROMPT 28 Step 10 Playwright spec scoped to smoke level — required seed fixture (placement в `pending_owner` с обоими signed framework contracts + ДС pair generated, both unsigned) не существует в `scripts/e2e/seed_e2e.py`.
+
+**Statement:** Phase 4 acceptance Playwright spec (`web_portal/tests/specs/sign-supplementary-agreement.spec.ts`) currently exercises smoke-level UI rendering only. Full interactive two-session flow (advertiser signs → owner signs → placement progresses) blocked by absence of e2e seed fixture for ДС state.
+
+**Closure trigger:**
+- (a) Add seed fixture к `scripts/e2e/seed_e2e.py`:
+  - User pair (advertiser + owner) с signed framework contracts (`advertiser_framework` per role — see BL-115);
+  - Channel owned by owner;
+  - Placement в `pending_owner` state;
+  - Two `supplementary_agreement` Contract rows (advertiser + owner) с `contract_status='draft'`;
+  - One placement per ДС sign scenario (single, paired, expired etc.).
+- (b) Update Playwright spec to use fixture-seeded test placement IDs.
+- (c) Add per-viewport assertions: section visibility, button state, post-sign UI updates, two-session sign flow.
+- (d) Run в CI (`make ci-local` includes Playwright? — verify).
+
+**Effort:** medium (seed fixture + spec extensions + verify).
+**Priority note:** medium — current unit + integration coverage adequate, Playwright closes UI gap.
+
+**Refs:** BL-001, BL-002 (similar Playwright spec deferrals for seed fixture absence).
+
+**Owner:** _unassigned_
+
+### BL-113 — Stop-hook BL-013 deferred bundle detection
+
+**Status:** OPEN — UX noise
+**Created:** 2026-05-14 (Phase 4 PROMPT 28 finding)
+**Source:** PROMPT 28 final STOP — same stop-hook BL-013 warning fired 12+ times when CHANGES legitimately deferred to PROMPT 29 (Phase closure batch).
+
+**Statement:** Stop-hook checks for CHANGES file presence в working tree fires repeatedly when CHANGES is legitimately deferred to next-prompt closure (per BL-013 default (b) bundle protocol). BL-016 silent-ignore handles agent side correctly (acks 2, silent-ignore identical). Marina sees 12+ fires в chat surface even though agent disciplined correctly.
+
+**Statement extends BL-090** (Stop-hook fires loop on Phase A research-only outputs) с pattern for multi-prompt sub-block work (PROMPT N implementation + PROMPT N+1 closure docs).
+
+**Closure trigger (variants — overlaps BL-090):**
+- (a) Hook reads transcript для "deferred to PROMPT X" pattern, suppresses fires.
+- (b) Hook checks current commit message для "deferred" / "closure pending" keywords.
+- (c) Accept as known (current state) — BL-016 silent-ignore protocol handles agent.
+
+**Effort:** small (hook config) / negligible (accept-known).
+**Priority note:** low — UX noise only, не affects correctness.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (acks bound at 2), BL-090 (Phase A loop variant).
+
+**Owner:** _unassigned_
+
+### BL-114 — RETIRED (NO BUG per probe)
+
+**Status:** RETIRED 2026-05-14
+**Created:** would have been 2026-05-14 (Phase 4 PROMPT 28 surface)
+**Source:** PROMPT 28 surprise log suggested possible bug в `ContractRepo.get_framework_contract` role filtering.
+
+**Resolution:** PROMPT 28b probe (`tmp/contract_repo_framework_audit_2026-05-14.md`) confirmed **NO BUG**. Method behaves correctly per umbrella naming convention; both read и write paths use `contract_type='advertiser_framework'` literal symmetric; `Contract.role` discriminator handles owner/advertiser distinction. Renaming for clarity captured separately as BL-115.
+
+**Refs:** BL-115 (umbrella rename clarity improvement).
+
+### BL-115 — `"advertiser_framework"` → `"framework"` umbrella `contract_type` rename
+
+**Status:** OPEN — naming cleanup
+**Created:** 2026-05-14 (Phase 4 PROMPT 28b probe verdict)
+**Source:** PROMPT 28b probe — `ContractRepo.get_framework_contract(user_id, role)` filters `contract_type='advertiser_framework'` for both advertiser AND owner roles; `Contract.role` discriminator distinguishes. Existing docstrings в G02/G05 gate bodies already labelled this as "deferred-cleanup L18 carve-out".
+
+**Statement:** Misleading umbrella name. Framework contracts for both roles use `contract_type='advertiser_framework'` literal — this works correctly (Contract.role discriminates) but the name `advertiser_framework` falsely suggests advertiser-specific. Owner framework contracts also stored as `advertiser_framework` rows. Renaming to `framework` (или similar role-neutral name) would clarify intent.
+
+**Closure trigger:**
+- (a) Rename literal `"advertiser_framework"` → `"framework"` across ~12 files:
+  - `src/db/repositories/contract_repo.py` (read path — `get_framework_contract`);
+  - `src/core/services/contract_service.py` (write path — `get_or_create_framework_contract`, `generate_contract` default mapping, `_CONTRACT_TEMPLATE_MAP`);
+  - `src/db/models/contract.py` (если contract_type есть в comment/docstring);
+  - `src/api/schemas/legal_profile.py` (`ContractType` enum value);
+  - `src/db/migrations/versions/0001_initial_schema.py` (CREATE TABLE default или check constraint);
+  - `tests/` fixtures (3+ files seed `advertiser_framework`);
+  - Templates (если filename references "advertiser_framework").
+- (b) Migration strategy: if pre-prod state preserved (no live customer data) — just update enum + literal. Otherwise data migration UPDATE.
+- (c) Update G02/G05 docstrings: remove L18 carve-out notes.
+- (d) Snapshot regen.
+- (e) Verify integration tests pass post-rename.
+
+**Effort:** medium (~12 files, snapshot regen, smoke verification).
+**Priority note:** low — current state functional; rename is documentation-clarity improvement.
+
+**Refs:** PROMPT 28b probe (verdict NO BUG, naming-only). L18 carve-out (G02/G05 docstrings).
+
+**Owner:** _unassigned_
+
+### BL-116 — TypeScript 7.0 full migration sprint
+
+**Status:** OPEN — tech debt
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** BL-107 Phase B.9.A pinning surfaced ongoing TS 6.x → 7.0 alignment work.
+
+**Statement:** Both web_portal and mini_app are on TS 6.0.2 (CLAUDE.md landing-specific rules call out the version explicitly). TS 7.0 introduces deferred-evaluation type checks, conditional-type performance improvements, and tightens `verbatimModuleSyntax` ergonomics. Full migration requires coordinated upgrade of @types packages, jsdom (per vitest), and downstream lint rule compatibility.
+
+**Closure trigger:**
+- (a) Upgrade typescript to 7.0.x in all 3 frontends (mini_app, web_portal, landing).
+- (b) Re-pin @testing-library/* + jsdom to versions compatible with TS 7.0.
+- (c) Re-run lint/type-check across all frontends, capture diff to baseline.
+- (d) Update CLAUDE.md landing-specific rules version reference.
+
+**Effort:** medium-high — touches all frontends, may surface latent type-narrowing changes.
+**Priority note:** low-medium — current TS 6.x is stable; migration is forward-looking hygiene.
+
+**Refs:** BL-107 Phase B.9.A (`6356f4c`), CLAUDE.md "Landing-specific rules".
+
+**Owner:** _unassigned_
+
+### BL-117 — `landing/package.json` `"latest"` deps pinning
+
+**Status:** OPEN — supply-chain hygiene
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** Repeat surface during BL-107 Phase B.9.A pinning — landing/ uses `"latest"` for several deps which violates reproducible-build guarantees and exposes the landing to upstream supply-chain risk.
+
+**Statement:** `landing/package.json` declares several dependencies as `"latest"` instead of pinned semver ranges or exact versions. Reproducible builds are compromised; any malicious upstream version published can land in production at the next `npm install`.
+
+**Closure trigger:**
+- (a) Audit current `landing/package-lock.json` for actual installed versions, pin those in `package.json`.
+- (b) Re-run landing build to confirm no regression.
+- (c) Add CI check that fails on `"latest"` in any package.json under the repo.
+
+**Effort:** small.
+**Priority note:** low — landing is static and surface area limited, but supply-chain hygiene is a baseline expectation.
+
+**Refs:** BL-107 Phase B.9.A pinning discipline.
+
+**Owner:** _unassigned_
+
+### BL-118 — `mini_app/vite.config.ts` `resolve.tsconfigPaths` invalid option
+
+**Status:** OPEN — config drift (silent no-op)
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** Phase B.9.A vitest infrastructure work surfaced an invalid Vite resolve option in mini_app config.
+
+**Statement:** `mini_app/vite.config.ts` includes `resolve.tsconfigPaths` as a config option, but Vite does not recognize this key (the canonical pattern is the `vite-tsconfig-paths` plugin or explicit alias mapping). Vite silently ignores unknown `resolve.*` keys. Currently mini_app builds correctly because aliases are mirrored explicitly in `vitest.config.ts` (Phase B.9.A), but the dead config invites future drift.
+
+**Closure trigger:**
+- (a) Either install `vite-tsconfig-paths` plugin and use it, or delete the dead config key.
+- (b) Mirror the chosen approach to web_portal if inconsistency exists.
+
+**Effort:** trivial (~5 min).
+**Priority note:** low — silent no-op, no functional impact.
+
+**Refs:** BL-107 Phase B.9.A (`6356f4c`).
+
+**Owner:** _unassigned_
+
+### BL-119 — `.claude/` hook persistence between fresh sessions
+
+**Status:** OPEN — infrastructure UX gap
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** BL-107 multi-prompt workstream surfaced repeated re-discovery of `.claude/` state across fresh `claude` invocations (PROMPT 42 → 43 → 44 → 45 → 46 chain). Complements BL-113 (stop-hook BL-013 deferred bundle detection).
+
+**Statement:** Fresh `claude` sessions do not inherit `.claude/` hook state or scheduled-task locks consistently. The `.claude/scheduled_tasks.lock` file lingers untracked and was visible in `git status` on every session start. Existing BL-016 silent-ignore + BL-113 deferred-bundle protocols partially mitigate but don't address state hand-off.
+
+**Closure trigger:**
+- (a) Standardize a session-start clean-up routine for `.claude/` ephemeral files.
+- (b) Distinguish ephemeral lock files from durable hook config (gitignore patterns).
+- (c) Document the hand-off expectations in CLAUDE.md "Process discipline" section.
+
+**Effort:** small.
+**Priority note:** low — UX cleanliness, no correctness impact.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (acks bound at 2), BL-090, BL-113.
+
+**Owner:** _unassigned_
+
+### BL-120 — Gate framework — integration test pattern requirement (caller-chain E2E)
+
+**Status:** OPEN — process improvement
+**Created:** 2026-05-15 (L-next from BL-107 v0.9.0 closure)
+**Source:** PROMPT 44 caught G19 production regression (`ef26f68`) only at ci-local gate, not at sub-block unit tests. AsyncMock-shaped `session.get()` returns coincidentally satisfied production async eager-load expectations.
+
+**Statement:** Adding a new gate to `_TRANSITION_GATES` or `_CHANNEL_CONTEXT_GATE_CHECKERS` requires verifying the gate fires correctly at the full caller-chain (transition path or channel-add path), not just at unit-test scope with mocked sessions. Unit-test coverage with `AsyncMock(spec=AsyncSession)` does not exercise the actual eager-load (`selectinload`) requirements that production paths impose.
+
+**Closure trigger:**
+- (a) Document the expectation in `CLAUDE.md` "Engineering Principles" or a new section about gate additions.
+- (b) Optionally: add a CI lint rule that flags new entries in `_TRANSITION_GATES` / `_CHANNEL_CONTEXT_GATE_CHECKERS` without a matching integration test.
+- (c) Backfill caller-chain integration tests for existing gates where missing.
+
+**Effort:** small (doc) → medium (lint + backfill).
+**Priority note:** medium — preventive process improvement; pays off on every future gate addition.
+
+**Refs:** BL-107 Phase B.2 → ef26f68 regression caught at PROMPT 44 ci-local.
+
+**Owner:** _unassigned_
+
+### BL-121 — SQLAlchemy `Mapped[StrEnum]` without `values_callable` — audit pattern
+
+**Status:** OPEN — latent bug audit
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure — R7 production fix)
+**Source:** R7 production fix (`24cf68a`) — `BloggerRegistryVerificationMethod` column declared as `Mapped[T] = mapped_column(nullable=True)` without explicit `Enum(...)` spec. SQLAlchemy inferred the column and serialized via member NAME (uppercase) while Postgres enum holds member VALUES (lowercase). Produced `InvalidTextRepresentationError` only at the D.3 end-to-end manual-evidence flow; unit tests passed because they did not hit the actual DB write path.
+
+**Statement:** Any column declared as `Mapped[T] | None` where `T` is a `StrEnum` and the column-type is inferred (no explicit `Enum(T, ...)` in `mapped_column(...)`) is suspect. Audit pattern: `grep -rn "Mapped\[.*Method\]\|Mapped\[.*Status\]" src/db/models/`. Each match needs a check whether the underlying Postgres enum type's members are the StrEnum's names (uppercase) or values (lowercase). When values, explicit `Enum(T, name=..., values_callable=lambda x: [m.value for m in x])` is required.
+
+**Closure trigger:**
+- (a) Run the audit grep, enumerate all `Mapped[StrEnum]` declarations.
+- (b) For each, verify the Postgres enum type definition (Alembic migration) matches the ORM serialization choice.
+- (c) Fix any mismatches with explicit `Enum(..., values_callable=...)` ORM declaration. No migration change needed when the pg enum already holds correct values.
+- (d) Add a regression test for at least one fixed column verifying round-trip insert/select.
+
+**Effort:** small (audit + fixes, ~30-60 min depending on count).
+**Priority note:** medium — silent latent bugs that only manifest in production paths.
+
+**Refs:** R7 fix `24cf68a`, memory entry `project_sqlalchemy_strenum_pitfall.md`.
+
+**Owner:** _unassigned_
+
+### BL-122 — ticket-login `rh_token` not persisted to localStorage (R4)
+
+**Status:** OPEN — auth UX bug (Phase 1 §1.B.3 bridge regression)
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R4)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/ticket-login.spec.ts:43` × 3 browsers).
+
+**Statement:** Ticket-login spec asserts `localStorage.getItem('rh_token')` is non-empty after consuming a ticket and navigating to `/cabinet`; assertion fails because the token is either not written by `TicketLogin.tsx` or is cleared/overwritten by a competing auth-store reset on the `/cabinet` mount. Spec reaches the assertion (auth chain Pattern 1 + 2 + P2c unblocked it), so the bug is real, not a test-side issue.
+
+**Closure trigger:**
+- (a) Probe `web_portal/src/screens/auth/TicketLogin.tsx` consume flow — does it write `rh_token` to localStorage before redirect?
+- (b) Probe `useAuth*` hooks for a competing reset on `/cabinet` mount.
+- (c) Identify root cause (hypothesis a or b), fix, add regression test.
+
+**Effort:** 30–60 min (depends on hypothesis).
+**Priority note:** medium — auth UX bug; ticket-login is a Phase 1 §1.B.3 bridge flow.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R4.
+
+**Owner:** _unassigned_
+
+### BL-123 — Campaign wizard step indicator missing on `/adv/campaigns/new/category` (R5)
+
+**Status:** OPEN — frontend regression (likely S-47 phase 5)
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R5)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/deep-flows.spec.ts:60` × 3 browsers).
+
+**Statement:** Spec asserts `[data-testid="step-indicator"], nav ol, nav ul` has count > 0 on `/adv/campaigns/new/category`; gets 0. The wizard step indicator component appears to have been removed or unmounted on the category step. Other wizard steps may share the same gap.
+
+**Closure trigger:**
+- (a) Inspect `web_portal/src/screens/advertiser/campaigns/wizard/CampaignCategory.tsx` and the wizard layout — is the step indicator imported/rendered?
+- (b) Check git history for S-47 phase 5 refactor that may have dropped the wrapping.
+- (c) Restore the step indicator; verify all wizard steps render it consistently.
+
+**Effort:** 15–30 min.
+**Priority note:** low-medium — UX regression in wizard.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R5.
+
+**Owner:** _unassigned_
+
+### BL-124 — Channel-settings price serialized as string after PATCH round-trip (R6)
+
+**Status:** OPEN — API contract / serialization bug
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R6)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/deep-flows.spec.ts:89` × 3 browsers).
+
+**Statement:** PATCH `/api/channel-settings/?channel_id=:id` with `{ price_per_post: 1234 }` succeeds; subsequent GET returns `price_per_post: "1234"` (string). Test asserts strict `toBe(1234)` (number) and fails. Likely Decimal-vs-int serialization in `ChannelSettingsResponse` Pydantic model — `Numeric`-typed column serialized as string per Pydantic default for `Decimal`, missing `field_serializer` or `json_schema_extra`.
+
+**Closure trigger:**
+- (a) Inspect `src/api/schemas/channel_settings.py` or equivalent — Decimal serialization.
+- (b) Inspect `src/api/routers/channel_settings.py:187` PATCH handler return type.
+- (c) Inspect `src/db/models/channel_settings.py` column type.
+- (d) Add `field_serializer` returning numeric or change column type if appropriate.
+- (e) Regenerate contract snapshot if Pydantic schema changes.
+
+**Effort:** 30–60 min.
+**Priority note:** medium — API contract bug; downstream frontend may also be coerce-string-to-number client-side, masking the issue.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R6.
+
+**Owner:** _unassigned_
+
+### BL-125 — Visual baseline flake on 4 routes after R8 regen (R10)
+
+**Status:** OPEN — test-infra (visual flake)
+**Created:** 2026-05-15 (BL-107 v0.9.0 ext-of-ext residual R10)
+**Source:** PROMPT 45 Extension-of-Extension surfaced — 4 cases (`web_portal/tests/specs/visual.spec.ts`): `/analytics` mobile-webkit, `/adv/campaigns/new/channels` mobile-webkit + mobile-chromium, `/admin/users` mobile-webkit.
+
+**Statement:** After R8 fix (`3615f71`) regenerated 99 visual baselines against real per-route content (no longer gate page), 4 baselines flake at `make test-e2e` time. Likely seed-time-dependent content drift: `/analytics` renders "обновлено N мин. назад" relative to `placement.published_at`; `/adv/campaigns/new/channels` and `/admin/users` render dynamic lists whose row order may shift. mobile-webkit historically more visual-diff sensitive than chromium engines.
+
+**Closure trigger:**
+- (a) Per-route triage: compare regen-time PNG vs test-e2e-time PNG, identify differing pixel regions.
+- (b) Mitigations available: tighten `mask:` regions on dynamic text; freeze `Date.now()` at a fixed timestamp in global setup; sort lists by stable key.
+- (c) Re-regenerate baselines after mitigations, verify stable across multiple stack-up cycles.
+
+**Effort:** 1–2 hours (per-route triage).
+**Priority note:** low — test-infra flake; not a production regression.
+
+**Refs:** BL-107 PROMPT 45 Extension-of-Extension residual R10, `3615f71` (R8 regen baseline).
+
+**Owner:** _unassigned_
 
 ## Closed items
 

@@ -27,6 +27,16 @@ from src.api.schemas.admin import (
     UserAdminResponse,
     UserListAdminResponse,
 )
+from src.api.schemas.channel_verification import (
+    ChannelVerificationDetailResponse,
+    ChannelVerificationHistoryEntry,
+    ChannelVerificationListItem,
+    ChannelVerificationListResponse,
+    ChannelVerificationRejectRequest,
+    ChannelVerificationRejectResponse,
+    ChannelVerificationVerifyRequest,
+    ChannelVerificationVerifyResponse,
+)
 from src.api.schemas.payout import (
     AdminPayoutListResponse,
     AdminPayoutRejectRequest,
@@ -35,6 +45,7 @@ from src.api.schemas.payout import (
 from src.api.schemas.payout import (
     PayoutStatus as PayoutStatusSchema,
 )
+from src.core.services.notification_service import notify_owner_verification_decided
 from src.db.models.contract import Contract
 from src.db.models.dispute import PlacementDispute
 from src.db.models.feedback import UserFeedback
@@ -45,6 +56,7 @@ from src.db.models.placement_request import PlacementRequest, PlacementStatus
 from src.db.models.telegram_chat import TelegramChat
 from src.db.models.transaction import Transaction, TransactionType
 from src.db.models.user import User
+from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.ord_audit_log_repo import OrdAuditLogRepo
 from src.db.repositories.ord_registration_repo import OrdRegistrationRepo
 from src.db.repositories.user_repo import UserRepository
@@ -1347,4 +1359,266 @@ async def admin_override_ord_registration(
         erid=reg.erid,
         correlation_id=reg.correlation_id,
         error_message=reg.error_message,
+    )
+
+
+# ─── BL-107 Phase B.5a — Admin Channel Verification Review ─────────────────
+
+
+@router.get(
+    "/channel-verifications",
+    response_model=ChannelVerificationListResponse,
+)
+async def list_channel_verifications(
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    status_filter: Annotated[
+        str, Query(alias="status", pattern="^(pending_review|verified)$")
+    ] = "pending_review",
+    owner_id: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> ChannelVerificationListResponse:
+    """List channels awaiting или completed blogger registry verification (admin only).
+
+    BL-107 Phase B.5a — admin review queue.
+
+    Filters:
+    - status=pending_review: application_number IS NOT NULL AND is_verified=False
+    - status=verified: is_verified=True AND verification_method=MANUAL_EVIDENCE
+    """
+    if limit < 1:
+        limit = 1
+    elif limit > 200:
+        limit = 200
+    if offset < 0:
+        offset = 0
+    _ = admin_user
+
+    query = select(TelegramChat).join(User, TelegramChat.owner_id == User.id)
+    if status_filter == "pending_review":
+        query = query.where(
+            TelegramChat.blogger_registry_application_number.is_not(None),
+            TelegramChat.is_blogger_registry_verified.is_(False),
+        )
+    else:  # verified
+        query = query.where(
+            TelegramChat.is_blogger_registry_verified.is_(True),
+            TelegramChat.blogger_registry_verification_method == "manual_evidence",
+        )
+
+    if owner_id is not None:
+        query = query.where(TelegramChat.owner_id == owner_id)
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await session.execute(count_query)).scalar() or 0
+
+    query = (
+        query.order_by(TelegramChat.last_blogger_registry_check_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = (await session.execute(query)).scalars().all()
+
+    items: list[ChannelVerificationListItem] = []
+    for ch in rows:
+        owner = await session.get(User, ch.owner_id)
+        items.append(
+            ChannelVerificationListItem(
+                channel_id=ch.id,
+                channel_username=ch.username,
+                channel_title=ch.title,
+                member_count=ch.member_count or 0,
+                owner_id=ch.owner_id,
+                owner_username=owner.username if owner else None,
+                application_number=ch.blogger_registry_application_number or "",
+                submitted_at=(
+                    ch.last_blogger_registry_check_at
+                    if ch.last_blogger_registry_check_at
+                    else datetime.now(UTC)
+                ),
+                status="verified" if ch.is_blogger_registry_verified else "pending_review",
+            )
+        )
+
+    return ChannelVerificationListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get(
+    "/channel-verifications/{channel_id}",
+    response_model=ChannelVerificationDetailResponse,
+    responses={404: {"description": "Channel not found"}},
+)
+async def get_channel_verification_detail(
+    channel_id: int,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelVerificationDetailResponse:
+    """Detail view с audit history (admin only). BL-107 Phase B.5a."""
+    _ = admin_user
+    channel = await session.get(TelegramChat, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    owner = await session.get(User, channel.owner_id)
+
+    audit_repo = AuditLogRepo(session)
+    relevant_actions = (
+        "blogger_registry_evidence_submitted",
+        "blogger_registry_verified_by_admin",
+        "blogger_registry_rejected_by_admin",
+    )
+    history_entries: list[ChannelVerificationHistoryEntry] = []
+    for act in relevant_actions:
+        logs = await audit_repo.query_logs(
+            resource_type="telegram_chat", action=act, limit=100, offset=0
+        )
+        for log in logs:
+            if log.resource_id == channel_id:
+                history_entries.append(
+                    ChannelVerificationHistoryEntry(
+                        action=log.action,
+                        actor_user_id=log.user_id,
+                        created_at=log.created_at,
+                        extra=log.extra,
+                    )
+                )
+    history_entries.sort(key=lambda e: e.created_at, reverse=True)
+
+    return ChannelVerificationDetailResponse(
+        channel_id=channel.id,
+        channel_username=channel.username,
+        channel_title=channel.title,
+        member_count=channel.member_count or 0,
+        owner_id=channel.owner_id,
+        owner_username=owner.username if owner else None,
+        is_blogger_registry_verified=channel.is_blogger_registry_verified,
+        blogger_registry_verified_at=channel.blogger_registry_verified_at,
+        blogger_registry_verification_method=channel.blogger_registry_verification_method,
+        blogger_registry_verified_by_admin_id=channel.blogger_registry_verified_by_admin_id,
+        application_number=channel.blogger_registry_application_number,
+        member_count_at_verification=channel.member_count_at_verification,
+        last_blogger_registry_check_at=channel.last_blogger_registry_check_at,
+        history=history_entries,
+    )
+
+
+@router.post(
+    "/channel-verifications/{channel_id}/verify",
+    response_model=ChannelVerificationVerifyResponse,
+    responses={
+        404: {"description": "Channel not found"},
+        409: {"description": "Already verified or no submission to verify"},
+    },
+)
+async def verify_channel_registration(
+    channel_id: int,
+    body: ChannelVerificationVerifyRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelVerificationVerifyResponse:
+    """Admin approves channel blogger registry submission. BL-107 Phase B.5a."""
+    channel = await session.get(TelegramChat, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.blogger_registry_application_number is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No evidence submission to verify",
+        )
+    if channel.is_blogger_registry_verified:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Channel already verified")
+
+    now = datetime.now(UTC)
+    channel.is_blogger_registry_verified = True
+    channel.blogger_registry_verified_at = now
+    channel.blogger_registry_verification_method = "manual_evidence"
+    channel.blogger_registry_verified_by_admin_id = admin_user.id
+    channel.member_count_at_verification = channel.member_count
+    channel.last_blogger_registry_check_at = now
+    await session.flush()
+
+    await AuditLogRepo(session).log(
+        action="blogger_registry_verified_by_admin",
+        resource_type="telegram_chat",
+        user_id=admin_user.id,
+        resource_id=channel_id,
+        target_user_id=channel.owner_id,
+        extra={
+            "notes": body.notes,
+            "application_number": channel.blogger_registry_application_number,
+        },
+    )
+
+    await notify_owner_verification_decided(
+        session=session,
+        owner_user_id=channel.owner_id,
+        channel_id=channel_id,
+        decision="verified",
+    )
+
+    return ChannelVerificationVerifyResponse(
+        channel_id=channel_id,
+        is_blogger_registry_verified=True,
+        blogger_registry_verified_at=now,
+        blogger_registry_verification_method="manual_evidence",
+        blogger_registry_verified_by_admin_id=admin_user.id,
+    )
+
+
+@router.post(
+    "/channel-verifications/{channel_id}/reject",
+    response_model=ChannelVerificationRejectResponse,
+    responses={
+        404: {"description": "Channel not found"},
+        409: {"description": "No submission to reject"},
+    },
+)
+async def reject_channel_registration(
+    channel_id: int,
+    body: ChannelVerificationRejectRequest,
+    admin_user: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelVerificationRejectResponse:
+    """Admin rejects channel blogger registry submission. BL-107 Phase B.5a.
+
+    Resets application_number to allow re-submission по owner.
+    """
+    channel = await session.get(TelegramChat, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    if channel.blogger_registry_application_number is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No evidence submission to reject",
+        )
+
+    now = datetime.now(UTC)
+    channel.blogger_registry_application_number = None
+    channel.last_blogger_registry_check_at = now
+    await session.flush()
+
+    await AuditLogRepo(session).log(
+        action="blogger_registry_rejected_by_admin",
+        resource_type="telegram_chat",
+        user_id=admin_user.id,
+        resource_id=channel_id,
+        target_user_id=channel.owner_id,
+        extra={"reason": body.reason, "internal_notes": body.internal_notes},
+    )
+
+    await notify_owner_verification_decided(
+        session=session,
+        owner_user_id=channel.owner_id,
+        channel_id=channel_id,
+        decision="rejected",
+        reason=body.reason,
+    )
+
+    return ChannelVerificationRejectResponse(
+        channel_id=channel_id,
+        rejected_at=now,
+        reason=body.reason,
     )

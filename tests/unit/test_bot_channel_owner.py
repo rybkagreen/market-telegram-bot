@@ -87,7 +87,12 @@ def _patch_message_isinstance(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_add_channel_confirm_happy_path_creates_channel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """All gates pass → session.add called for TelegramChat + ChannelSettings."""
+    """All gates pass → session.add called for TelegramChat + ChannelSettings.
+
+    Phase B.4: mocks `verify_trustchannelbot_admin` (helper hits Telegram API);
+    G19 channel-add gate runs real on FSM data member_count=1000 (<10k threshold),
+    so G19 returns passed=True naturally regardless of is_verified value.
+    """
     session = _make_session()
     callback = _make_callback()
     state = _make_state()
@@ -106,6 +111,10 @@ async def test_add_channel_confirm_happy_path_creates_channel(
                 _ok(PlacementGate.G06_OWNER_PAYOUT_METHOD_VALID),
             ]
         ),
+    )
+    monkeypatch.setattr(
+        "src.bot.handlers.owner.channel_owner.verify_trustchannelbot_admin",
+        AsyncMock(return_value=False),
     )
 
     await add_channel_confirm(callback, state, session)

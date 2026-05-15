@@ -138,10 +138,18 @@ def _plan_label(plan) -> str:
 
 
 @router.get("/summary")
-async def get_summary(current_user: CurrentUser) -> SummaryResponse:
+async def get_summary(
+    current_user: CurrentUser,
+    days: Annotated[int, Query(ge=1, le=90)] = 30,  # noqa: ARG001
+) -> SummaryResponse:
     """
     Сводная статистика пользователя.
     Используется Dashboard для первого экрана.
+
+    `days` принимается как валидируемый client hint в диапазоне 1..90.
+    Текущий ответ агрегирует all-time stats; параметр не влияет на
+    вычисление, но FastAPI отклоняет невалидные значения с 422 (контракт
+    дашборда уже опирается на этот диапазон).
     """
     plan_str = _plan_label(current_user.plan)
 

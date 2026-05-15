@@ -50,29 +50,50 @@ def test_celery_config_deleted():
 # ─── P1: Beat schedule completeness ────────────────────────────────────────────
 
 
-REQUIRED_BEAT_ENTRIES = [
+REQUIRED_BEAT_ENTRIES: frozenset[str] = frozenset({
+    # Parser slots (00:15-03:30 UTC = 03:15-06:30 MSK)
+    "parser-slot-1-business",
+    "parser-slot-2-marketing",
+    "parser-slot-3-it",
+    "parser-slot-4-lifestyle",
+    "parser-slot-5-health",
+    "parser-slot-6-education",
+    "parser-slot-7-news",
+    # Аналитика (после парсинга)
+    "collect-all-chats-stats-daily",
+    # BL-107 Phase B.6 — periodic re-check of ФЗ-303 verification status
+    "bl107-check-channel-registry-status-daily",
+    # Cleanup
+    "delete-old-logs",
+    # Plan renewals
+    "check-plan-renewals",
+    # Placement SLA checks (каждые 5 минут)
     "placement-check-owner-sla",
     "placement-check-payment-sla",
     "placement-check-counter-sla",
     "placement-check-escrow-sla",
     "placement-check-escrow-stuck",
+    # Published posts health (каждые 6 часов)
     "check-published-posts-health",
+    # Data integrity (каждые 6 часов)
     "data-integrity-check",
+    # Scheduled deletions (каждые 5 минут)
     "placement-check-scheduled-deletions",
-    "check-plan-renewals",
-    "delete-old-logs",
-]
+})
 
 
-def test_beat_schedule_contains_required_entries():
-    schedule = celery_app.conf.beat_schedule
-    for entry in REQUIRED_BEAT_ENTRIES:
-        assert entry in schedule, f"Missing Beat entry: {entry}"
+def test_beat_schedule_matches_required_entries():
+    """Verify beat schedule contains exactly the required entries.
 
-
-def test_beat_schedule_has_18_entries():
-    schedule = celery_app.conf.beat_schedule
-    assert len(schedule) == 18, f"Expected 18 Beat entries, got {len(schedule)}: {list(schedule)}"
+    Set-based comparison eliminates count-drift fragility: adding a new
+    beat entry requires updating REQUIRED_BEAT_ENTRIES only — no
+    separate count assertion to bump.
+    """
+    actual = set(celery_app.conf.beat_schedule.keys())
+    missing = REQUIRED_BEAT_ENTRIES - actual
+    unexpected = actual - REQUIRED_BEAT_ENTRIES
+    assert not missing, f"Missing beat entries: {sorted(missing)}"
+    assert not unexpected, f"Unexpected beat entries: {sorted(unexpected)}"
 
 
 def test_beat_task_names_valid():

@@ -1,0 +1,10 @@
+{
+  "bot": {
+    "id": 7000000001,
+    "is_bot": true,
+    "first_name": "RekHarborTestBot",
+    "username": "rekharbor_test_bot"
+  },
+  "chats": {},
+  "members": {}
+}

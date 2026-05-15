@@ -70,6 +70,8 @@ const AdminDisputesList = lazy(() => import('@/screens/admin/AdminDisputesList')
 const AdminFeedbackList = lazy(() => import('@/screens/admin/AdminFeedbackList'))
 const AdminFeedbackDetail = lazy(() => import('@/screens/admin/AdminFeedbackDetail'))
 const AdminDisputeDetail = lazy(() => import('@/screens/admin/AdminDisputeDetail'))
+const AdminChannelVerificationsList = lazy(() => import('@/screens/admin/AdminChannelVerificationsList'))
+const AdminChannelVerificationDetail = lazy(() => import('@/screens/admin/AdminChannelVerificationDetail'))
 const AdminUserDetail = lazy(() => import('@/screens/admin/AdminUserDetail'))
 const AdminAccounting = lazy(() => import('@/screens/admin/AdminAccounting'))
 const AdminTaxSummary = lazy(() => import('@/screens/admin/AdminTaxSummary'))
@@ -193,6 +195,8 @@ const router = createBrowserRouter([
               { path: 'admin/feedback/:id', element: <AdminFeedbackDetail /> },
               { path: 'admin/disputes', element: <AdminDisputesList /> },
               { path: 'admin/disputes/:id', element: <AdminDisputeDetail /> },
+              { path: 'admin/channel-verifications', element: <AdminChannelVerificationsList /> },
+              { path: 'admin/channel-verifications/:id', element: <AdminChannelVerificationDetail /> },
               { path: 'admin/payouts', element: <AdminPayouts /> },
               { path: 'admin/accounting', element: <AdminAccounting /> },
               { path: 'admin/tax-summary', element: <AdminTaxSummary /> },

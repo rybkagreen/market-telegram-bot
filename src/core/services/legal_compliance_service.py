@@ -13,6 +13,7 @@ from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.enums.placement_gate import PlacementGate
+from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.schemas.gate_result import GateResult
 from src.core.services.gates import (
     advertiser_gates,
@@ -27,6 +28,9 @@ from src.db.models.user import User
 
 GateCheckerFn = Callable[[AsyncSession, PlacementRequest], Awaitable[GateResult]]
 UserGateCheckerFn = Callable[[AsyncSession, User], Awaitable[GateResult]]
+ChannelContextGateCheckerFn = Callable[
+    [AsyncSession, User, ChannelAddContext], Awaitable[GateResult]
+]
 
 
 _GATE_CHECKERS: dict[PlacementGate, GateCheckerFn] = {
@@ -48,7 +52,33 @@ _GATE_CHECKERS: dict[PlacementGate, GateCheckerFn] = {
     PlacementGate.G16_TAX_RECEIPT_ISSUED: payout_gates.check_g16,
     PlacementGate.G17_VAT_OBLIGATION_HANDLED: payout_gates.check_g17,
     PlacementGate.G18_PAYOUT_REPORTED_TO_ORD: payout_gates.check_g18,
+    # BL-107: placement-side defense-in-depth для channels created до G19
+    # enforcement или threshold-crossed. Primary G19 fires at channel-add
+    # context (см. _CHANNEL_CONTEXT_GATE_CHECKERS below).
+    PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED: owner_gates.check_g19,
 }
+
+
+# BL-107: channel-context gate-checker registry — parallel to _GATE_CHECKERS
+# и _USER_GATE_CHECKERS but takes (session, user, channel_data) signature.
+# Used by ``check_gates_for_channel_add`` для evaluating per-channel gates
+# (e.g. G19 ФЗ-303 blogger registry) at channel-add time, when gate body
+# depends on per-channel state not derivable от User alone.
+#
+# Distinct from _USER_GATE_CHECKERS (which serves G01-G06 user-level gates
+# evaluating legal profile / framework contract / payout method) — G19 reads
+# member_count + verification flags carried by ChannelAddContext, not the
+# owner's attributes.
+_CHANNEL_CONTEXT_GATE_CHECKERS: dict[PlacementGate, ChannelContextGateCheckerFn] = {
+    PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED: owner_gates.check_g19_channel_add,
+}
+
+
+# BL-107: which gates fire at channel-add time. Initially {G19}; future
+# per-channel-context gates extend this set.
+_CHANNEL_ADD_GATES: frozenset[PlacementGate] = frozenset({
+    PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+})
 
 
 # 5b.7a: user-side gate-checker registry — parallel to _GATE_CHECKERS but
@@ -81,12 +111,16 @@ _USER_GATE_CHECKERS: dict[PlacementGate, UserGateCheckerFn] = {
 _TRANSITION_GATES: dict[tuple[PlacementStatus, PlacementStatus], frozenset[PlacementGate]] = {
     (PlacementStatus.pending_owner, PlacementStatus.counter_offer): frozenset(),
     (PlacementStatus.pending_owner, PlacementStatus.pending_payment): frozenset({
-        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED
+        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED,
+        # BL-107: defense-in-depth — block pre-payment if channel ≥10k unverified
+        PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
     }),
     (PlacementStatus.pending_owner, PlacementStatus.cancelled): frozenset(),
     (PlacementStatus.counter_offer, PlacementStatus.pending_owner): frozenset(),
     (PlacementStatus.counter_offer, PlacementStatus.pending_payment): frozenset({
-        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED
+        PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED,
+        # BL-107: defense-in-depth — block pre-payment if channel ≥10k unverified
+        PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
     }),
     (PlacementStatus.counter_offer, PlacementStatus.cancelled): frozenset(),
     (PlacementStatus.pending_payment, PlacementStatus.escrow): frozenset(),
@@ -271,4 +305,36 @@ class LegalComplianceService:
         results: list[GateResult] = []
         for gate in required:
             results.append(await self.check_gate_for_user(gate, user))
+        return results
+
+    async def check_gates_for_channel_add(
+        self,
+        user: User,
+        channel_data: ChannelAddContext,
+    ) -> list[GateResult]:
+        """Evaluate channel-context gates за channel-add (BL-107, Phase B.2).
+
+        Parallel к ``check_gates_for_user_role`` but для per-channel gates
+        whose evaluation depends on channel state (member_count, verification
+        flags), not derivable от User alone. Currently {G19} ФЗ-303 blogger
+        registry verification.
+
+        Returns gates в _CHANNEL_ADD_GATES iteration order. Caller (API router
+        в Phase B.4, bot handler в Phase B.4/B.7) filters results by
+        ``passed=False, blocker=True`` и raises ChannelAddDeclinedError
+        accordingly — same pattern как check_gates_for_user_role.
+
+        Phase B.2 ships gate framework only — invocation sites wired в Phase B.4.
+
+        Pattern 1 (S-48): receives session via __init__, no transaction
+        management. Dispatched gate bodies are pure logic (no DB writes).
+        """
+        results: list[GateResult] = []
+        for gate in _CHANNEL_ADD_GATES:
+            checker = _CHANNEL_CONTEXT_GATE_CHECKERS.get(gate)
+            if checker is None:
+                raise NotImplementedError(
+                    f"No channel-context gate-checker registered for {gate.name}"
+                )
+            results.append(await checker(self._session, user, channel_data))
         return results
