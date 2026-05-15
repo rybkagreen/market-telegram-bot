@@ -87,7 +87,20 @@ test.describe('[bl-107] manual evidence submission flow', () => {
   test('owner submits evidence → admin lists pending → admin verifies → admin lists verified', async ({
     baseURL,
   }) => {
-    // ─── Step 1: Owner submits evidence for the seeded channel ───────
+    // R9 isolation note (cross-project): the seeded @e2e_test_channel is
+    // a singleton in the shared Postgres volume and survives across
+    // Playwright projects within one `make test-e2e` invocation. No backend
+    // endpoint exists to unverify a channel, so this spec cannot reset DB
+    // state between projects without a coordinated FE/BE change.
+    //
+    // Strategy: branch on the channel's current verification state.
+    //   - Unverified (first project to run the spec): full happy-path —
+    //     submit evidence → admin pending list → admin verify → verified
+    //     list. Validates the R7 enum-case production fix end-to-end.
+    //   - Already verified (subsequent projects in same session): idempotent
+    //     re-assertion — submit must reject with 409, channel must remain
+    //     in the verified list. Validates production idempotency contract
+    //     and the read-path of the manual-evidence outcome.
     const ownerCtx = await apiRequest.newContext({
       baseURL,
       storageState: owner.storageFile,
@@ -102,56 +115,90 @@ test.describe('[bl-107] manual evidence submission flow', () => {
     expect(seededChannel, 'seed_e2e.py must create @e2e_test_channel').toBeDefined()
     const channelId = seededChannel.id
 
-    const applicationNumber = `E2E-${Date.now()}`
-    const submitResp = await ownerCtx.post(
-      `/api/channels/${channelId}/submit-registry-evidence`,
-      { data: { application_number: applicationNumber } },
-    )
-    expect(
-      submitResp.ok(),
-      `evidence submit failed: ${submitResp.status()} ${await submitResp.text()}`,
-    ).toBe(true)
-    const submitBody = await submitResp.json()
-    expect(submitBody).toMatchObject({
-      status: 'pending_review',
-      channel_id: channelId,
-      application_number: applicationNumber,
-    })
-
-    // ─── Step 2: Admin sees the channel in pending_review list ───────
     const adminCtx = await apiRequest.newContext({
       baseURL,
       storageState: admin.storageFile,
     })
-    const listResp = await adminCtx.get(
-      '/api/admin/channel-verifications?status=pending_review',
+
+    // Detect prior-project verification via authoritative admin list —
+    // ChannelResponse from /api/channels/ does not expose
+    // is_blogger_registry_verified, but the admin verified list does.
+    const priorVerifiedListResp = await adminCtx.get(
+      '/api/admin/channel-verifications?status=verified',
     )
-    expect(listResp.ok()).toBe(true)
-    const listBody = await listResp.json()
-    const pendingItem = listBody.items.find(
+    expect(priorVerifiedListResp.ok()).toBe(true)
+    const priorVerifiedBody = await priorVerifiedListResp.json()
+    const alreadyVerified = priorVerifiedBody.items.some(
       (it: { channel_id: number }) => it.channel_id === channelId,
     )
-    expect(pendingItem, 'channel must appear in pending_review after evidence submit').toBeDefined()
-    expect(pendingItem.application_number).toBe(applicationNumber)
-    expect(pendingItem.status).toBe('pending_review')
 
-    // ─── Step 3: Admin verifies the channel ──────────────────────────
-    const verifyResp = await adminCtx.post(
-      `/api/admin/channel-verifications/${channelId}/verify`,
-      { data: { notes: 'E2E verification' } },
-    )
-    expect(
-      verifyResp.ok(),
-      `verify failed: ${verifyResp.status()} ${await verifyResp.text()}`,
-    ).toBe(true)
-    const verifyBody = await verifyResp.json()
-    expect(verifyBody).toMatchObject({
-      channel_id: channelId,
-      is_blogger_registry_verified: true,
-      blogger_registry_verification_method: 'manual_evidence',
-    })
+    if (!alreadyVerified) {
+      // ─── Full happy-path (write + read) ────────────────────────────
+      // Step 1: owner submits evidence
+      const applicationNumber = `E2E-${Date.now()}`
+      const submitResp = await ownerCtx.post(
+        `/api/channels/${channelId}/submit-registry-evidence`,
+        { data: { application_number: applicationNumber } },
+      )
+      expect(
+        submitResp.ok(),
+        `evidence submit failed: ${submitResp.status()} ${await submitResp.text()}`,
+      ).toBe(true)
+      const submitBody = await submitResp.json()
+      expect(submitBody).toMatchObject({
+        status: 'pending_review',
+        channel_id: channelId,
+        application_number: applicationNumber,
+      })
 
-    // ─── Step 4: Channel now appears in verified list ────────────────
+      // Step 2: admin sees channel in pending_review list
+      const listResp = await adminCtx.get(
+        '/api/admin/channel-verifications?status=pending_review',
+      )
+      expect(listResp.ok()).toBe(true)
+      const listBody = await listResp.json()
+      const pendingItem = listBody.items.find(
+        (it: { channel_id: number }) => it.channel_id === channelId,
+      )
+      expect(
+        pendingItem,
+        'channel must appear in pending_review after evidence submit',
+      ).toBeDefined()
+      expect(pendingItem.application_number).toBe(applicationNumber)
+      expect(pendingItem.status).toBe('pending_review')
+
+      // Step 3: admin verifies the channel
+      const verifyResp = await adminCtx.post(
+        `/api/admin/channel-verifications/${channelId}/verify`,
+        { data: { notes: 'E2E verification' } },
+      )
+      expect(
+        verifyResp.ok(),
+        `verify failed: ${verifyResp.status()} ${await verifyResp.text()}`,
+      ).toBe(true)
+      const verifyBody = await verifyResp.json()
+      expect(verifyBody).toMatchObject({
+        channel_id: channelId,
+        is_blogger_registry_verified: true,
+        blogger_registry_verification_method: 'manual_evidence',
+      })
+    } else {
+      // ─── Idempotent re-assertion (already verified by prior project) ─
+      // submit-registry-evidence must reject already-verified channels with
+      // 409 (matches src/api/routers/channels.py:1483-1484 production
+      // contract). This validates the production idempotency guarantee in
+      // addition to the read-path below.
+      const submitResp = await ownerCtx.post(
+        `/api/channels/${channelId}/submit-registry-evidence`,
+        { data: { application_number: `E2E-${Date.now()}` } },
+      )
+      expect(
+        submitResp.status(),
+        'submit-registry-evidence on already-verified channel must return 409',
+      ).toBe(409)
+    }
+
+    // Common assertion (always runs): channel appears in admin verified list
     const verifiedListResp = await adminCtx.get(
       '/api/admin/channel-verifications?status=verified',
     )
@@ -160,7 +207,10 @@ test.describe('[bl-107] manual evidence submission flow', () => {
     const verifiedItem = verifiedBody.items.find(
       (it: { channel_id: number }) => it.channel_id === channelId,
     )
-    expect(verifiedItem, 'channel must move to verified list after admin verify').toBeDefined()
+    expect(
+      verifiedItem,
+      'channel must appear in admin verified list',
+    ).toBeDefined()
     expect(verifiedItem.status).toBe('verified')
 
     await ownerCtx.dispose()
