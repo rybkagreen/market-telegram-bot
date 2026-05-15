@@ -5,7 +5,17 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 _fake_telegram_id_counter = itertools.count(start=-(2**32))
@@ -87,7 +97,14 @@ class TelegramChat(Base, TimestampMixin):
         nullable=True,
     )
     blogger_registry_verification_method: Mapped[BloggerRegistryVerificationMethod | None] = (
-        mapped_column(nullable=True)
+        mapped_column(
+            SAEnum(
+                BloggerRegistryVerificationMethod,
+                name="bloggerregistryverificationmethod",
+                values_callable=lambda x: [m.value for m in x],
+            ),
+            nullable=True,
+        )
     )
     member_count_at_verification: Mapped[int | None] = mapped_column(
         Integer,
