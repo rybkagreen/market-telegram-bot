@@ -1,4 +1,4 @@
-import { test as base, expect, request } from '@playwright/test'
+import { test as base, expect, request, type APIRequestContext } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
 /**
@@ -26,6 +26,12 @@ import { readFileSync } from 'node:fs'
  * Specs that mint their own tokens via `apiRequest.newContext(...)`
  * (e.g. legal-profile-requires-web-portal.spec.ts, ticket-login.spec.ts)
  * bypass this fixture entirely; they continue to work unchanged.
+ *
+ * For specs that need to call the API as multiple roles in a single
+ * test (deep-flows.spec.ts placement lifecycle, payouts visibility):
+ * use `apiRequestFor(storageStateFile)` — returns an `APIRequestContext`
+ * authed against the JWT in the given storageState. Contexts are
+ * auto-disposed at test teardown.
  */
 
 function bearerFromStorageState(state: unknown): string | undefined {
@@ -42,7 +48,9 @@ function bearerFromStorageState(state: unknown): string | undefined {
   }
 }
 
-export const test = base.extend({
+type ApiRequestForRole = (storageStateFile: string) => Promise<APIRequestContext>
+
+export const test = base.extend<{ apiRequestFor: ApiRequestForRole }>({
   request: async ({ playwright, baseURL, storageState }, use) => {
     const auth = bearerFromStorageState(storageState)
     const ctx = await playwright.request.newContext({
@@ -51,6 +59,20 @@ export const test = base.extend({
     })
     await use(ctx)
     await ctx.dispose()
+  },
+  apiRequestFor: async ({ playwright, baseURL }, use) => {
+    const created: APIRequestContext[] = []
+    const factory: ApiRequestForRole = async (storageStateFile) => {
+      const auth = bearerFromStorageState(storageStateFile)
+      const ctx = await playwright.request.newContext({
+        baseURL,
+        extraHTTPHeaders: auth ? { Authorization: auth } : undefined,
+      })
+      created.push(ctx)
+      return ctx
+    }
+    await use(factory)
+    for (const ctx of created) await ctx.dispose()
   },
 })
 
