@@ -31,6 +31,54 @@ def err(code: int, description: str) -> web.Response:
     )
 
 
+# Fields required by python-telegram-bot 21.x ChatFullInfo.__init__ that the
+# fixture JSON does not need to spell out per chat. Stub fills them with
+# sensible defaults so getChat-derived objects deserialize cleanly on the
+# client side. User-provided values in the fixture take precedence.
+_CHAT_DEFAULTS: dict[str, Any] = {
+    "accent_color_id": 0,
+    "max_reaction_count": 11,
+}
+
+# Fields required by ChatMemberAdministrator.__init__ — booleans describing
+# the admin's capabilities. Defaults emulate a typical channel administrator
+# bot with publish + edit rights (no promote_members, no stories).
+_ADMIN_DEFAULTS: dict[str, Any] = {
+    "can_be_edited": False,
+    "is_anonymous": False,
+    "can_manage_chat": True,
+    "can_delete_messages": True,
+    "can_manage_video_chats": True,
+    "can_restrict_members": True,
+    "can_promote_members": False,
+    "can_change_info": True,
+    "can_invite_users": True,
+    "can_post_stories": False,
+    "can_edit_stories": False,
+    "can_delete_stories": False,
+}
+
+# Fields required by ChatMemberOwner.__init__.
+_OWNER_DEFAULTS: dict[str, Any] = {
+    "is_anonymous": False,
+}
+
+
+def _fill_chat_defaults(chat: dict[str, Any]) -> dict[str, Any]:
+    """Return chat dict with pTB ChatFullInfo required fields filled in."""
+    return {**_CHAT_DEFAULTS, **chat}
+
+
+def _fill_member_defaults(member: dict[str, Any]) -> dict[str, Any]:
+    """Return ChatMember dict with status-specific required fields filled in."""
+    status = member.get("status")
+    if status == "administrator":
+        return {**_ADMIN_DEFAULTS, **member}
+    if status == "creator":
+        return {**_OWNER_DEFAULTS, **member}
+    return member
+
+
 async def _params(request: web.Request) -> dict[str, Any]:
     """Merge query string and JSON body into a single dict.
 
@@ -71,7 +119,8 @@ async def handle_get_chat(
     chat = fixtures.resolve_chat(chat_ref)
     if chat is None:
         return err(400, f"Bad Request: chat not found ({chat_ref})")
-    return ok({k: v for k, v in chat.items() if not k.startswith("_")})
+    visible = {k: v for k, v in chat.items() if not k.startswith("_")}
+    return ok(_fill_chat_defaults(visible))
 
 
 async def handle_get_chat_administrators(
@@ -80,7 +129,7 @@ async def handle_get_chat_administrators(
     chat = fixtures.resolve_chat(params.get("chat_id"))
     if chat is None:
         return err(400, "Bad Request: chat not found")
-    return ok(fixtures.get_admins(chat))
+    return ok([_fill_member_defaults(a) for a in fixtures.get_admins(chat)])
 
 
 async def handle_get_chat_member(
@@ -96,7 +145,7 @@ async def handle_get_chat_member(
         return err(400, "Bad Request: user_id is not a valid integer")
     member = fixtures.get_member(chat, user_id)
     if member is not None:
-        return ok(member)
+        return ok(_fill_member_defaults(member))
     return ok({
         "status": "left",
         "user": {
@@ -105,6 +154,18 @@ async def handle_get_chat_member(
             "first_name": "Unknown",
         },
     })
+
+
+async def handle_get_chat_member_count(
+    request: web.Request, fixtures: Fixtures, state: StubState, params: dict[str, Any]
+) -> web.Response:
+    chat = fixtures.resolve_chat(params.get("chat_id"))
+    if chat is None:
+        return err(400, "Bad Request: chat not found")
+    # Bot API returns the count as a bare integer in `result`. If the fixture
+    # omits `member_count`, return 0 — matches Telegram behavior for an empty
+    # channel and the calling code's `chat.member_count or 0` fallback.
+    return ok(int(chat.get("member_count", 0)))
 
 
 async def handle_send_message(
@@ -155,6 +216,7 @@ METHOD_HANDLERS: dict[str, HandlerFn] = {
     "getChat": handle_get_chat,
     "getChatAdministrators": handle_get_chat_administrators,
     "getChatMember": handle_get_chat_member,
+    "getChatMemberCount": handle_get_chat_member_count,
     "sendMessage": handle_send_message,
     "sendChatAction": handle_send_chat_action,
     "deleteWebhook": handle_delete_webhook,
