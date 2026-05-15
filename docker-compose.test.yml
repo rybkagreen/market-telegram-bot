@@ -43,6 +43,25 @@ services:
     networks:
       - e2e_network
 
+  # BL-107 Phase B.8 / BL-002 — Telegram Bot API stub for E2E flows.
+  # Bots inside this network route through TELEGRAM_API_BASE_URL (set in .env.test)
+  # instead of api.telegram.org. Production settings validator forbids non-null
+  # base_url when sentry_environment == "production".
+  telegram-stub:
+    build:
+      context: .
+      dockerfile: tests/e2e/telegram_api_stub/Dockerfile
+    container_name: e2e_telegram_stub
+    environment:
+      STUB_PORT: "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8081/health\")'"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    networks:
+      - e2e_network
+
   # One-shot: apply migrations + seed deterministic fixtures
   seed-test:
     build:
@@ -82,6 +101,8 @@ services:
     depends_on:
       seed-test:
         condition: service_completed_successfully
+      telegram-stub:
+        condition: service_healthy
     networks:
       - e2e_network
     command: poetry run uvicorn src.api.main:app --host 0.0.0.0 --port 8001

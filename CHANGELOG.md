@@ -7,6 +7,577 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.0] - 2026-05-15
+
+### Added — BL-107 Channel Registration Verification (ФЗ-303)
+
+- **Schema:** `TelegramChat` extended with 7 fields for ФЗ-303 compliance
+  tracking (`is_blogger_registry_verified`, `blogger_registry_verified_at`,
+  `blogger_registry_application_number`, `blogger_registry_verified_by_admin_id`,
+  `blogger_registry_verification_method`, `member_count_at_verification`,
+  `last_blogger_registry_check_at`) + `BloggerRegistryVerificationMethod`
+  StrEnum (`trustchannelbot_admin`, `manual_evidence`).
+- **Gate framework:** `PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED` +
+  `ChannelAddContext` channel-context dataclass + `_CHANNEL_CONTEXT_GATE_CHECKERS`
+  parallel registry + `check_gates_for_channel_add` orchestration. G19 fires
+  both at channel-add and at transition to `pending_payment` (defence-in-depth
+  for channels added before the gate landed).
+- **Trustchannelbot integration:** `verify_trustchannelbot_admin` cross-SDK
+  helper (aiogram + python-telegram-bot), lazy in-memory cache with
+  `asyncio.Lock`, 5 new `rkn_*` Settings fields covering threshold,
+  Trustchannelbot ID override, periodic-check feature flag, and production
+  guard.
+- **Manual evidence flow:** owner submission endpoint
+  (`POST /api/channels/{id}/submit-registry-evidence`) + 4 admin review
+  endpoints (list, detail with audit history, verify, reject) + 2 web_portal
+  screens (queue + detail with inline verify/reject forms) + 1 mini_app
+  submission screen (`OwnSubmitRegistryEvidence`) with entry button on
+  `OwnChannelDetail` for channels ≥10k.
+- **Periodic re-verification:** daily Celery task
+  `parser:check_channel_registry_status` at 03:45 UTC; refreshes
+  `member_count`, re-verifies `TRUSTCHANNELBOT_ADMIN` channels, resets +
+  notifies owner when Trustchannelbot drops admin status; tracks
+  threshold-crossings; `MANUAL_EVIDENCE` channels excluded by design.
+- **Bot UX parity (closes O.7):** admin-only `selecting_is_test` FSM step
+  brings bot path to feature parity with API `is_test` capability;
+  defense-in-depth `is_admin` checks at FSM gate and `add_channel_confirm`.
+- **Mock infrastructure (closes BL-002):** custom aiohttp Telegram Bot API
+  stub at `tests/e2e/telegram_api_stub/` with 9 method handlers +
+  introspection endpoints; new `telegram-stub` service in
+  `docker-compose.test.yml`; `TELEGRAM_API_BASE_URL` Setting routes both
+  Telegram SDKs through the stub; 3-layer R4 production guard
+  (Pydantic model_validator hard-fail + startup logger.warning +
+  Sentry breadcrumb).
+- **Test infrastructure:** vitest@4.1.6 + @testing-library/react + jsdom
+  pinned in both web_portal and mini_app with per-frontend `vitest.config.ts`
+  + `tsconfig.test.json` + setup/utils; 9 new component tests across 3
+  BL-107 screens (≥3 per screen).
+- **E2E coverage:** 5 new Playwright specs total — 4 BL-107 specs
+  (`bl-107-channel-registration.spec.ts` D.1 verified precheck, D.2
+  not-verified precheck, D.3 manual-evidence full flow, D.4 periodic
+  re-verification proxy) + 1 BL-002 unblock in `deep-flows.spec.ts`.
+
+### Fixed
+
+- **G19 gate eager-load** — `session.get(TelegramChat, ...)` did not
+  eagerload `placement.channel`, causing `MissingGreenlet` under async
+  context when the gate fired at transition. Regression from Phase B.2
+  caught at PROMPT 44 ci-local gate before any ramp (`ef26f68`).
+- **`BloggerRegistryVerificationMethod` enum case mismatch** — implicit
+  `Mapped[StrEnum]` column declaration serialized via member **NAME**
+  (uppercase) but Postgres enum holds member **VALUES** (lowercase),
+  producing `InvalidTextRepresentationError` on D.3 manual-evidence
+  verify. Fix: explicit `SAEnum(..., values_callable=lambda x: [m.value
+  for m in x])` — no migration needed (`24cf68a`).
+- **`/api/analytics/summary` `days` query validation** — endpoint
+  accepted any value (no type coercion). Added
+  `days: Annotated[int, Query(ge=1, le=90)] = 30`; FastAPI now rejects
+  invalid input with 422 (`9506583`).
+- **Test e2e auth carriage** — three Playwright `APIRequestContext`
+  surfaces required separate auth-header injection: test-fixture
+  `request` (Pattern 2), `browser.newContext({storageState}).request`
+  (Pattern 2b via `apiRequestFor` factory), and bare `apiRequest`
+  re-export (Pattern 2c via `newContext` wrap). All three now inject
+  `Authorization: Bearer …` from `rh_token` in storageState's
+  localStorage.
+- **Telegram-stub pTB 21.x schema compatibility** — stub now fills
+  required `ChatFullInfo` (`accent_color_id`, `max_reaction_count`)
+  and `ChatMemberAdministrator` permission defaults; dedicated
+  `getChatMemberCount` handler returns the bare integer pTB expects.
+- **Seed authoritative Contract row** — `scripts/e2e/seed_e2e.py` now
+  creates a signed `Contract` row with `contract_type='platform_rules'`
+  matching `CONTRACT_TEMPLATE_VERSION` for each E2E user, restoring
+  visual baselines to per-route content (previously captured the
+  rules-acceptance gate page).
+- **BL-107 D.3 cross-project isolation** — spec now detects prior
+  verification via the admin verified-list and branches: full happy-path
+  on first browser project, idempotent re-assertion (submit → 409 +
+  verified-list contains channel) on subsequent projects.
+
+### Closed BLs
+
+- BL-107 (this workstream)
+- BL-002 (mock infrastructure + Playwright unblock + auth carriage
+  Pattern 2c)
+- O.7 (bot is_test parity)
+
+### New BLs filed
+
+10 entries — see `reports/docs-architect/BACKLOG.md` § BL-116 through
+BL-125. Highlights: TS 7.0 full migration sprint (BL-116), landing
+`"latest"` deps pinning (BL-117), gate framework integration-test
+pattern requirement (BL-120), SQLAlchemy `Mapped[StrEnum]` audit
+pattern (BL-121), residuals R4/R5/R6 (frontend/backend bugs filed
+to BACKLOG) and R10 (visual baseline flake).
+
+### Migration Notes
+
+No schema migrations required — `0001_initial_schema.py` edited in place
+per BL-061 pre-prod exception (terminates after first production user).
+The R7 fix is ORM-side serialization config only; pg enum type
+`bloggerregistryverificationmethod` already holds correct lowercase
+values.
+
+---
+
+### Phase B.8 — BL-107 / BL-002 mock infrastructure (Telegram Bot API stub + env routing)
+
+Closes BL-002 (`web_portal/tests/specs/deep-flows.spec.ts:289-296`
+`test.fixme` block) at the infrastructure level: a custom aiohttp Telegram
+Bot API stub now runs as a docker-compose.test.yml service, and both
+Telegram SDKs (aiogram + python-telegram-bot) honor a configurable
+`TELEGRAM_API_BASE_URL` so E2E flows can hit the stub instead of the real
+API. Phase B.9 will consume the infrastructure для BL-002 + BL-107 E2E.
+
+#### Added
+
+- **`tests/e2e/telegram_api_stub/` directory** — aiohttp Application с
+  9 method handlers (`getMe`, `getChat`, `getChatAdministrators`,
+  `getChatMember`, `sendMessage`, `sendChatAction`, `deleteWebhook`,
+  `setChatMenuButton`, `getUpdates`) + safe-noop catch-all. Test-only
+  introspection endpoints `/health`, `/__stub__/state`, `/__stub__/reset`.
+- **Stub `Dockerfile`** (python:3.12-slim + aiohttp `>=3.11,<3.13` matching
+  project lockfile 3.12.15). CMD `python -m tests.e2e.telegram_api_stub`.
+- **`docker-compose.test.yml` `telegram-stub` service** — joins existing
+  `e2e_network`, healthcheck on `/health` (urllib-based, no extra deps).
+  `api-test` теперь depends_on `telegram-stub: service_healthy`.
+- **`telegram_api_base_url` Setting** (alias `TELEGRAM_API_BASE_URL`,
+  default None) — base URL override read by both Telegram SDKs.
+- **`_validate_telegram_api_base_url` model validator** (R4 production
+  guard layer 1) — rejects the combination of
+  `sentry_environment == "production"` and `telegram_api_base_url != None`.
+  App refuses to start in production with stub URL active.
+- **aiogram routing** в `src/bot/session_factory.py:new_bot()` — uses
+  `AiohttpSession(api=TelegramAPIServer.from_base(<URL>))` when override set.
+- **python-telegram-bot routing** в `src/api/dependencies.py:get_bot()`
+  — uses `Bot(base_url=<URL>/bot, base_file_url=<URL>/file/bot, ...)` when
+  override set.
+- **R4 production guard layer 2** в `src/api/main.py` + `src/bot/main.py`
+  — `logger.warning(...)` + `sentry_sdk.add_breadcrumb(...)` when base_url
+  is set. Observability for ops audit trail.
+- **`.env.test`** — `TELEGRAM_API_BASE_URL=http://telegram-stub:8081` +
+  `SENTRY_ENVIRONMENT=test` (unlocks the override at validator level).
+- **Unit tests** (21 scenarios across 3 files) —
+  - `test_bl107_b8_stub_server.py` (10): all 9 stub methods + catch-all +
+    state introspection + fixture loading
+  - `test_bl107_b8_settings_validator.py` (5): production+url raises,
+    production+None accepted, test/dev + url accepted, defaults safe
+  - `test_bl107_b8_bot_factory_routing.py` (6): aiogram + ptb routing,
+    proxy + base_url composition, trailing-slash normalization
+- **3 sample fixture JSON files** — `verified_channel.json`,
+  `not_verified_channel.json`, `api_failure.json` — drop-in via
+  `STUB_FIXTURES_PATH` env var.
+
+#### Closed
+
+- **BL-002** — Telegram Bot API mock infrastructure ready. Phase B.9 будет
+  consume it в Playwright spec unblock + new E2E coverage.
+
+#### Infrastructure note
+
+`TELEGRAM_API_BASE_URL` — test/dev only. 3-layer defense prevents production
+misconfiguration:
+1. Settings model_validator (hard fail at startup)
+2. Sentry breadcrumb + logger warning (observability)
+3. Deployment script assertion (deferred operational — no accessible
+   production deploy script in repo; tracked в CHANGES doc as
+   `R4-L3-DEFERRED` follow-up)
+
+### Phase B.7 — BL-107 Bot is_test parity (closes O.7 5b.7a deferred carve-out)
+
+Closes the long-standing asymmetry where API channel creation supported
+`body.is_test + is_admin` gate (Phase B.4) but the bot path hardcoded
+`is_test=False` because the FSM had no step for capturing the admin's
+choice. Admins now get a dedicated FSM step `selecting_is_test` с inline
+keyboard. Non-admin UX preserved exactly.
+
+#### Added
+
+- **FSM state `selecting_is_test`** в `src/bot/states/channel_owner.py:
+  AddChannelStates` (between `selecting_category` и `confirming`).
+- **`_build_is_test_keyboard()`** module-level helper в
+  `src/bot/handlers/owner/channel_owner.py` — inline keyboard с buttons
+  «📢 Реальный канал» / «🧪 Тестовый канал» / «❌ Отмена».
+- **`_render_add_channel_confirmation(callback, data, category)`** helper
+  — extracted confirmation UI rendering; reused от 2 call sites
+  (non-admin direct path и admin is_test handler). Shows 🧪 Тестовый канал
+  (admin) marker if applicable.
+- **`add_channel_select_is_test` handler** matched по
+  `F.data.startswith("own:add_channel:is_test:")` + `AddChannelStates.
+  selecting_is_test`. Defense-in-depth `user.is_admin` check rejects
+  non-admin reaching this state (theoretically unreachable via FSM).
+- **Unit tests** (8 scenarios) —
+  `tests/unit/test_bl107_bot_is_test_flow.py`. Pure mocks. Verifies
+  admin/non-admin branching, is_test choice capture, defense-in-depth,
+  и add_channel_confirm FSM read behavior.
+
+#### Changed
+
+- **`add_channel_select_category`** — теперь branches на `user.is_admin`.
+  Admin → `selecting_is_test` state + keyboard. Non-admin → existing
+  flow (state=`confirming` с `is_test=False` default).
+- **`add_channel_confirm`** — reads `is_test` из FSM data (`data.get(
+  "is_test", False)`) instead of hardcoded `False`. Added defense-in-depth
+  guard: `is_test=True + not user.is_admin` → reject with alert and
+  state.clear. TelegramChat construction passes `is_test=is_test_flag`
+  explicitly (was relying on column default `False`).
+
+#### Behavior change
+
+- Admin owner adding channel via bot: новый FSM step «Тип канала» появляется
+  после выбора категории; choice persists через `is_test` field в DB.
+  Test channels не показываются в публичном каталоге (existing TelegramChat
+  filter behavior).
+- Non-admin owner adding channel: identical UX к pre-B.7 (no new step,
+  `is_test=False` default).
+- Bot и API channel-add paths теперь symmetric для administrators.
+
+#### Closed
+
+- **O.7 5b.7a deferred carve-out** — bot/API is_test symmetry achieved.
+
+### Phase B.6 — BL-107 Periodic re-verification Celery task
+
+Background task `parser:check_channel_registry_status` runs daily at
+03:45 UTC and re-verifies every channel currently subject к ФЗ-303
+(member_count ≥ rkn_threshold_subscribers, не is_test, is_active).
+
+#### Added
+
+- **Celery periodic task** `parser:check_channel_registry_status` —
+  refreshes `member_count`, updates `last_blogger_registry_check_at`,
+  detects threshold crossings, re-runs Trustchannelbot admin check
+  для channels verified via `TRUSTCHANNELBOT_ADMIN` method.
+- **Trustchannelbot re-check loop** — when @Trustchannelbot больше не
+  admin: reset 5 verification fields
+  (`is_blogger_registry_verified`, `blogger_registry_verified_at`,
+  `blogger_registry_verification_method`,
+  `blogger_registry_verified_by_admin_id`,
+  `member_count_at_verification`) + audit log + owner notification.
+- **`notify_owner_verification_lost`** helper в
+  `src/core/services/notification_service.py` (module-level, matches
+  Phase B.5a precedent). Dispatches `mailing:notify_user` Celery task
+  with HTML message instructing owner re-add @Trustchannelbot или
+  submit manual evidence.
+- **Audit log action** `blogger_registry_auto_unverified` (free-form
+  string convention per Phase B.5a) with `extra.reason =
+  trustchannelbot_no_longer_admin` and `extra.previous_method`.
+- **Beat schedule entry** `bl107-check-channel-registry-status-daily`
+  в `src/tasks/celery_app.py:get_beat_schedule()` — `crontab(hour=3,
+  minute=45)` slot between 03:30 stats-collection и 03:00 Sunday cleanup.
+- **Unit tests** (11 scenarios) — `tests/unit/test_bl107_periodic_re_verification.py`.
+  Pure mocks, no DB, no live bot. 98% coverage on new module.
+
+#### Behavior change
+
+- Channels verified via `TRUSTCHANNELBOT_ADMIN` теперь автоматически
+  re-verified daily; loss of admin status triggers verification reset
+  + owner notification within 24h.
+- Channels verified via `MANUAL_EVIDENCE` are explicitly **NOT**
+  re-checked — admin decisions stand until owner submits new evidence
+  или admin revokes through a future flow (out of scope BL-107).
+- Threshold crossings (channel grew past 10k since verification)
+  surface as `threshold_crossed` counter in task return value;
+  admin escalation flow not part of this phase.
+
+#### Feature flag
+
+`RKN_PERIODIC_CHECK_ENABLED=true` (default) controls task execution.
+Set to `false` in test environments to disable background side
+effects; task short-circuits returning `{"skipped": "disabled"}`.
+
+#### Operational notes
+
+- Worker `worker_background` picks up `parser:` queue per existing
+  routing table; no infra change required.
+- Restart Beat after deploy so new schedule entry is registered.
+- Test infrastructure unaffected — task disabled by default in tests.
+
+### Phase B.5b — BL-107 Admin review frontend + owner submission UI
+
+Frontend half of BL-107 manual evidence path. Consumes Phase B.5a backend
+contracts to deliver end-to-end UI workflow для администраторов and channel
+owners. Manual evidence path теперь end-to-end live.
+
+#### Added
+
+- **Web portal admin screens** (2):
+  - `AdminChannelVerificationsList` — paginated queue с фильтрами
+    `pending_review` / `verified`, navigate to detail on row click.
+  - `AdminChannelVerificationDetail` — channel info + status meta + audit
+    history + inline verify form (optional notes) + inline reject form
+    (required reason + optional internal notes).
+- **Web portal API client** — `admin_channel_verifications.ts` (9 types + 4
+  functions matching Phase B.5a Pydantic schemas).
+- **Web portal hooks** — `useChannelVerificationQueries.ts` (4 react-query
+  hooks: list, detail, verify mutation, reject mutation; auto-invalidation
+  on success).
+- **Sidebar entry** "Проверка каналов" (adminOnly, icon=channels) + 2 routes
+  + 2 Topbar breadcrumb entries.
+- **Mini app submission screen** `OwnSubmitRegistryEvidence` (3-field form
+  + vanilla validation + haptic feedback + success/error toast).
+- **Mini app API integration** — `submitRegistryEvidence` function +
+  `useSubmitRegistryEvidence` mutation hook.
+- **Mini app entry button** в `OwnChannelDetail` (visible когда
+  `member_count >= 10000`) navigates к submission screen.
+
+#### Behavior change — manual evidence path UI live
+
+- Admins can now process registry evidence через web_portal UI (queue → review
+  → verify/reject).
+- Owners с каналами ≥10k subscribers могут submit evidence через mini_app form.
+- Owner notifications enqueued при admin decisions (via Phase B.5a Celery
+  integration — channel owner receives Telegram message с decision + reason).
+- Audit trail visible в admin detail view (3 action types translated).
+- Sidebar `Проверка каналов` доступен только admins (existing `adminOnly`
+  flag guarantees hiding для regular users).
+
+#### Untouched / deferred
+
+- **Component tests (vitest)** — neither frontend has vitest infrastructure
+  (only Playwright in web_portal/tests/). Deferred to Phase B.9.
+- **Backend `ChannelResponse` schema** — `is_blogger_registry_verified` field
+  not exposed via mini_app Channel type. Button visibility heuristic uses
+  `member_count >= 10000` only; backend 409 handled gracefully via toast.
+  Schema extension out-of-scope B.5b (backend change).
+
+### Phase B.5a — BL-107 Admin review backend endpoints + notifications
+
+Backend half of BL-107 manual evidence path для ФЗ-303 compliance. 5 new
+endpoints + Pydantic schemas + notification helpers + 21 unit tests. Frontend UI
+(web_portal screens + mini_app screen) deferred to Phase B.5b.
+
+#### Added
+
+- **Owner endpoint** `POST /api/channels/{id}/submit-registry-evidence` —
+  owner submits Госуслуги application_number + optional registry_url + notes;
+  AuditLog `blogger_registry_evidence_submitted` written; admins notified via
+  Celery enqueue.
+- **Admin endpoints** (4) под `/api/admin/channel-verifications/`:
+  - `GET /` — paginated list (filter `status=pending_review|verified`,
+    `owner_id`, `limit`/`offset`)
+  - `GET /{id}` — detail view с full TelegramChat fields + owner snapshot +
+    audit history (3 action types)
+  - `POST /{id}/verify` — admin approves: all 6 audit fields populated
+    (`is_verified=True`, `verified_at`, `verification_method=MANUAL_EVIDENCE`,
+    `verified_by_admin_id`, `member_count_at_verification`, `last_check_at`);
+    AuditLog `blogger_registry_verified_by_admin`; owner notified.
+  - `POST /{id}/reject` — admin rejects: `application_number=None` (allows
+    re-submission), AuditLog `blogger_registry_rejected_by_admin` с
+    `reason`+`internal_notes`; owner notified с reason.
+- **Pydantic schemas** — `src/api/schemas/channel_verification.py` (9 request/
+  response models с strict `extra="forbid"` validation).
+- **Notification helpers** — `notify_admins_evidence_submitted` (fetches admins
+  via `UserRepository.get_all_admins()`, enqueues `mailing:notify_user` for each)
+  + `notify_owner_verification_decided` (formats by `Literal["verified"|"rejected"]`,
+  enqueues delivery via existing Celery pattern).
+- **Tests** — 21 unit tests:
+  - `tests/unit/test_bl107_submit_evidence.py` (7 — happy path, permissions, validation, conflict)
+  - `tests/unit/test_bl107_admin_channel_verifications.py` (14 — list, detail,
+    verify, reject, non-admin permission)
+
+#### Behavior change — manual evidence path live backend
+
+- Channel owners can now submit blogger registry evidence для admin review
+  через backend endpoint (frontend форма coming in B.5b).
+- Admins have backend endpoints для review queue management; frontend UI
+  follows in B.5b.
+- `BloggerRegistryVerificationMethod.MANUAL_EVIDENCE` (Phase B.1) becomes
+  reachable in production paths via admin verify endpoint.
+- `GateReason.BLOGGER_REGISTRY_PENDING_REVIEW` (Phase B.2) теперь triggerable.
+- AuditLog conventions extended с 3 new action strings (free-form, no enum —
+  established empirically).
+
+### Phase B.4 — BL-107 Channel-add hookup (ФЗ-303 ENFORCEMENT LIVE)
+
+Critical integration phase для ФЗ-303 blogger registry verification. Wires Phase
+B.1 (schema) + B.2 (gate framework) + B.3 (Telegram API helpers) foundation в
+production channel-add code paths. **After this commit BL-107 actually enforces
+ФЗ-303 на новых channel-add операциях.**
+
+Two parallel code paths integrated через single helper (Protocol abstraction):
+- API router `src/api/routers/channels.py:create_channel` (python-telegram-bot)
+- Bot handler `src/bot/handlers/owner/channel_owner.py:add_channel_confirm` (aiogram)
+
+#### Added
+
+- **API router channel-add wiring** — `verify_trustchannelbot_admin` invocation
+  + `check_gates_for_channel_add` orchestration call alongside existing
+  `check_gates_for_user_role`. Audit fields populated на TelegramChat creation
+  через `TelegramChatRepository.create({...})` dict spread.
+- **Bot handler channel-add wiring** — same logic с user-facing error messages
+  (no raise propagation). Both paths share helper через Protocol abstraction.
+- **Verification audit fields population**:
+  - `is_verified=True` path (≥10k + Trustchannelbot admin): all 5 fields populated
+    с `verification_method=TRUSTCHANNELBOT_ADMIN`, `verified_at`+`last_check_at`
+    set to `datetime.now(UTC)`, `member_count_at_verification` snapshot
+  - `is_verified=False` path (<10k или test channels): только `last_check_at`
+    populated (audit "checked, found not applicable")
+  - Admin test bypass path (admin + is_test=True): all audit fields None (no check)
+- **Wiring tests** — `tests/unit/test_bl107_channel_add_g19_integration.py`,
+  9 tests covering: API below threshold creates with minimum audit / API verified
+  creates with full audit / API ≥10k unverified blocked / API resolution error
+  blocked / API admin bypass skips G19 / bot below threshold creates / bot
+  verified large channel audit full / bot large unverified blocked / bot
+  resolution error user message.
+
+#### Changed
+
+- **`src/utils/telegram/verify_blogger_registry.py`** — Protocol return type
+  `list[Any]` → `Sequence[Any]` (forced fix surfaced by Phase B.4 integration).
+  Real `Bot.get_chat_administrators` returns `tuple[ChatMember, ...]` from
+  python-telegram-bot; aiogram returns `list[...]`. `Sequence[Any]` accepts both.
+- **`tests/unit/test_bot_channel_owner.py`** — happy-path test updated с
+  `verify_trustchannelbot_admin` mock (test FSM data member_count=1000 <10k
+  threshold so G19 passes naturally regardless of mocked verify result).
+
+#### Behavior change — ФЗ-303 enforcement LIVE
+
+- **New channels ≥10k subscribers без Trustchannelbot admin** auto-blocked at
+  add-time (primary path). Audit log written с `channel_add_declined` action.
+- **Verified channels** (Trustchannelbot in admins) auto-marked
+  `is_blogger_registry_verified=True` at creation, full audit trail
+  (verified_at + verification_method=TRUSTCHANNELBOT_ADMIN + member_count_at_verification).
+- **Sub-10k channels** + **admin test channels** pass-through unchanged
+  (regulation not applicable / admin carve-out).
+- **Trustchannelbot API resolution failures** блокируют channel-add с
+  `SUBSCRIBER_COUNT_UNKNOWN` reason code (recoverable via env override).
+- **Existing channels** (created до Phase B.4) protected by **placement-side
+  G19 gate** (Phase B.2) — fires alongside G07 at transitions to `pending_payment`.
+
+#### Phase B.5 dependencies surfaced
+
+- `ChannelAddContext.blogger_registry_application_number` field reserved для
+  manual evidence submission (Phase B.5).
+- `TelegramChat.blogger_registry_application_number` + `blogger_registry_verified_by_admin_id`
+  audit fields await Phase B.5 endpoints (admin review queue).
+- `GateReason.BLOGGER_REGISTRY_PENDING_REVIEW` reason code becomes reachable когда
+  manual evidence path ships (Phase B.5).
+
+### Phase B.3 — BL-107 Telegram API + settings (Trustchannelbot verification)
+
+Telegram API integration layer для ФЗ-303 blogger registry verification. Adds
+cross-SDK Protocol abstraction для `get_chat_administrators` + `get_chat`,
+lazy cache для @Trustchannelbot ID resolution с asyncio.Lock, helper
+`verify_trustchannelbot_admin` для admin check, `TrustchannelbotResolutionError`
+exception, 5 new RKN settings fields, `.env.example` update.
+
+Replaces Phase B.2 temporary `_DEFAULT_RKN_THRESHOLD = 10_000` constant с
+`settings.rkn_threshold_subscribers` reference (single source of truth).
+
+Pure helpers + settings — NO API/router/bot/channel-add hookup (Phase B.4).
+
+#### Added
+
+- **`src/utils/telegram/verify_blogger_registry.py`** — new module:
+  - `TelegramAdminLister(Protocol)` — cross-SDK abstraction (python-telegram-bot + aiogram compatible)
+  - `TrustchannelbotResolutionError(Exception)` — raised на API failure + no env override + cache empty
+  - `resolve_trustchannelbot_id(bot) -> int` — lazy cache + env override + asyncio.Lock
+  - `verify_trustchannelbot_admin(bot, chat_id) -> bool` — primary helper для Phase B.4
+  - `_reset_cache_for_testing()` — test-only cache reset
+- **RKN settings (5 fields)** в `src/config/settings.py`:
+  - `rkn_trustchannelbot_username: str` (default `@Trustchannelbot`)
+  - `rkn_trustchannelbot_id: int | None` (optional env override; auto-resolved if None)
+  - `rkn_threshold_subscribers: int` (default 10_000, ФЗ-303 порог)
+  - `rkn_periodic_check_enabled: bool` (default True, Phase B.6 feature flag)
+  - `rkn_block_unverified_placements: bool` (default False; production guard)
+- **`.env.example`** — RKN BLOGGER REGISTRY section с 5 keys + comments
+- **Unit tests** — `tests/unit/test_bl107_trustchannelbot_helper.py`, 11 tests
+  pure unit с `AsyncMock(spec=TelegramAdminLister)` (env override, cache miss,
+  API failure, concurrent dedupe, admin found/not found, empty admins,
+  malformed admin, exception propagation, cache reset).
+
+#### Changed
+
+- **`src/core/services/gates/owner_gates.py`** — `_check_g19_core` threshold
+  reads `settings.rkn_threshold_subscribers` (was Phase B.2 module constant
+  `_DEFAULT_RKN_THRESHOLD = 10_000`). Single source of truth. `_DEFAULT_RKN_THRESHOLD`
+  constant removed.
+
+### Phase B.2 — BL-107 Gate Framework (G19 + parallel registry)
+
+Gate framework extension layer для ФЗ-303 blogger registry verification.
+Adds **G19_BLOGGER_REGISTRY_VERIFIED** gate с dual implementation (placement-
+side defense-in-depth + channel-context primary), new parallel registry
+`_CHANNEL_CONTEXT_GATE_CHECKERS` для per-channel gates whose evaluation
+depends on channel state, orchestration method `check_gates_for_channel_add`.
+
+Pure framework expansion — NO API/bot/Telegram/settings touches (Phase B.3+).
+
+#### Added
+
+- **`PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED`** — new gate enum value.
+- **`GateReason` codes** (3 new):
+  - `BLOGGER_REGISTRY_NOT_VERIFIED` — default fail (≥10k, no verification).
+  - `BLOGGER_REGISTRY_PENDING_REVIEW` — manual evidence submitted, admin review pending.
+  - `SUBSCRIBER_COUNT_UNKNOWN` — reserved для Phase B.3 (Telegram API failure case).
+- **`ChannelAddContext` dataclass** — `src/core/schemas/channel_add_context.py`
+  carrying per-channel data (telegram_id, username, member_count, is_test,
+  description, verification flags) для channel-context gate framework.
+- **G19 dual implementation** в `src/core/services/gates/owner_gates.py`:
+  - `_check_g19_core(...)` — pure logic, short-circuit precedence.
+  - `check_g19(session, placement)` — placement-side defense-in-depth.
+  - `check_g19_channel_add(session, user, channel_data)` — channel-context primary.
+- **`_CHANNEL_CONTEXT_GATE_CHECKERS` parallel registry** + **`check_gates_for_channel_add`
+  orchestration method** в `LegalComplianceService` (signature `(user, channel_data)
+  → list[GateResult]`).
+- **G19 wired to `_TRANSITION_GATES`** at `(pending_owner, pending_payment)` и
+  `(counter_offer, pending_payment)` — alongside G07 supplementary agreement.
+- **Unit tests** — `tests/unit/test_bl107_g19_gate.py` (22 tests, pure unit, no DB).
+
+#### Changed
+
+- **Snapshot** — `tests/unit/snapshots/gate_result_response.json` regenerated
+  для add G19 в PlacementGate enum literals (per FIX_PLAN_06 §6.1 contract drift
+  guard).
+
+#### Phase B.2 temporary state (Phase B.3 replaces)
+
+- `_DEFAULT_RKN_THRESHOLD = 10_000` hardcoded constant в `owner_gates.py` —
+  Phase B.3 replaces с `settings.rkn_threshold_subscribers`.
+- `remediation_url = None` в G19 fail GateResults — Phase B.5 populates после
+  admin review UI ships.
+
+### Phase B.1 — BL-107 Schema (Blogger Registry Verification — ФЗ-303)
+
+Foundation schema layer for blogger registry verification feature. Adds 7
+new fields to `TelegramChat` для tracking ФЗ-303 compliance state plus new
+`BloggerRegistryVerificationMethod` enum (`trustchannelbot_admin` |
+`manual_evidence`). Migration edited per pre-prod policy (BL-061 exception
+для `0001_initial_schema.py`). Gate framework integration, Telegram API,
+admin UI, periodic Celery task — deferred к subsequent Phase B.2-B.9.
+
+#### Added
+
+- **`TelegramChat` schema** — 7 new fields: `is_blogger_registry_verified`,
+  `blogger_registry_verified_at`, `blogger_registry_application_number`,
+  `blogger_registry_verified_by_admin_id` (FK users.id, ondelete SET NULL),
+  `blogger_registry_verification_method`, `member_count_at_verification`,
+  `last_blogger_registry_check_at`.
+- **`BloggerRegistryVerificationMethod` enum**
+  (`src/core/enums/blogger_registry.py`) — values `trustchannelbot_admin` |
+  `manual_evidence`.
+- **Schema regression tests** — `tests/unit/test_bl107_schema_regression.py`
+  (15 tests, pure introspection, no DB).
+
+#### Database
+
+- **`0001_initial_schema.py`** — added `bloggerregistryverificationmethod`
+  enum type + 7 new columns on `telegram_chats` table + FK constraint
+  (`telegram_chats_blogger_registry_verified_by_admin_id_fkey`, ondelete SET NULL).
+
+#### Changed
+
+- Bidirectional relationship disambiguation `TelegramChat ↔ User` (forced
+  by 2nd FK addition к `users.id`): explicit `foreign_keys=` argument added
+  to `TelegramChat.owner` и `User.telegram_chats` relationships. Required
+  by SQLAlchemy mapper init when ≥2 FK paths link same tables.
+
+#### Migration Notes
+
+- Pre-production DB reset required: `DROP DATABASE / CREATE DATABASE /
+  alembic upgrade head`. Performed during this Phase B.1 ship.
+
 ### Phase 4 — Supplementary Agreements (ДС)
 
 Phase 4 of legal compliance gate system. Auto-generated dual-side ДС contracts
@@ -96,6 +667,29 @@ deferred to Phase 5 (payout-side coordinator).
   coordinator).
 - **BL-112** (Playwright full E2E с seed fixture для ДС sign flow), **BL-115**
   (`advertiser_framework` umbrella `contract_type` rename) — see CHANGES log.
+
+### Fixed (Phase 4 followup — ORM registration)
+
+- **`src/db/models/__init__.py`** — added `OrdAuditLog` + `OrdAuditEventType`
+  re-export. Pre-existing registration gap (introduced in BL-080 8c, `804fdf6`)
+  surfaced post-Phase-4 as a false-positive `alembic check` "remove table
+  `ord_audit_log`" warning. `env.py` loads `from src.db.models import *`,
+  so models missing from `__init__.py` are absent from `Base.metadata` at
+  autogenerate time. Model itself was always correct and used in production
+  paths (`OrdService`, `OrdAuditLogRepo`, `ord_tasks`, admin router).
+- **0001_initial_schema.py was NOT modified** — confirmed already canonical
+  for post-Phase-4 ORM state (Phase 4 commit `0e6ef5b` shipped the migration
+  edits alongside the ORM changes). Fresh `alembic upgrade head` apply на
+  пустую DB → "No new upgrade operations detected." ✅
+
+### Migration Notes
+
+- **No new migration revisions.** 0001 + e6a88faa9fa0 remain canonical.
+- **Pre-prod DB reset operational task (independent of this commit)** — live
+  pre-prod DB is stale (created from an earlier 0001 before commit `0e6ef5b`).
+  To pick up canonical schema: `DROP DATABASE market_bot_db; CREATE DATABASE
+  market_bot_db; alembic upgrade head`. Not done в этой сессии чтобы не
+  нарушать live containers (api/bot/celery Up 25h с активным connection).
 
 ### BL-080 8d — Caption budget for media posts
 

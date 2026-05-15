@@ -1,0 +1,38 @@
+{
+  "bot": {
+    "id": 7000000001,
+    "is_bot": true,
+    "first_name": "RekHarborTestBot",
+    "username": "rekharbor_test_bot"
+  },
+  "chats": {
+    "@not_verified_channel": {
+      "id": -1002222222222,
+      "title": "Not Verified 5k Channel",
+      "type": "channel",
+      "username": "not_verified_channel",
+      "member_count": 5000,
+      "_admins": [
+        {
+          "status": "creator",
+          "user": {
+            "id": 5000000001,
+            "is_bot": false,
+            "username": "channel_owner",
+            "first_name": "Owner"
+          }
+        },
+        {
+          "status": "administrator",
+          "user": {
+            "id": 7000000001,
+            "is_bot": true,
+            "username": "rekharbor_test_bot",
+            "first_name": "RekHarborTestBot"
+          }
+        }
+      ]
+    }
+  },
+  "members": {}
+}

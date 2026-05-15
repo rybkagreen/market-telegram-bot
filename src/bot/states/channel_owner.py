@@ -8,4 +8,5 @@ class AddChannelStates(StatesGroup):
 
     entering_username = State()
     selecting_category = State()
+    selecting_is_test = State()
     confirming = State()

@@ -1,4 +1,4 @@
-import { test, expect, request as apiRequest } from '@playwright/test'
+import { test, expect, request as apiRequest } from '../fixtures/test'
 import { TEST_USERS } from '../fixtures/roles'
 
 /**

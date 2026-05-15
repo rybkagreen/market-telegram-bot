@@ -10,6 +10,11 @@ import {
   updateChannelCategory,
   deleteChannel,
   activateChannel,
+  submitRegistryEvidence,
+} from '@/api/channels'
+import type {
+  RegistryEvidenceSubmitRequest,
+  RegistryEvidenceSubmitResponse,
 } from '@/api/channels'
 import type { ChannelSettings } from '@/lib/types'
 import { useUiStore } from '@/stores/uiStore'
@@ -155,6 +160,28 @@ export const useActivateChannel = () => {
     },
     onError: () => {
       addToast('error', 'Ошибка при восстановлении канала')
+    },
+  })
+}
+
+export const useSubmitRegistryEvidence = () => {
+  const queryClient = useQueryClient()
+  const addToast = useUiStore((s) => s.addToast)
+
+  return useMutation<
+    RegistryEvidenceSubmitResponse,
+    Error,
+    { channelId: number; data: RegistryEvidenceSubmitRequest }
+  >({
+    mutationFn: ({ channelId, data }) => submitRegistryEvidence(channelId, data),
+    onSuccess: (_data, { channelId }) => {
+      queryClient.invalidateQueries({ queryKey: ['channels', 'my'] })
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'settings'] })
+      addToast('success', 'Заявка отправлена на проверку')
+    },
+    onError: (err) => {
+      Sentry.captureException(err)
+      addToast('error', 'Ошибка при отправке заявки')
     },
   })
 }
