@@ -77,6 +77,24 @@ if settings.sentry_dsn:
         send_default_pii=False,
     )
 
+# BL-107 Phase B.8 / BL-002 — R4 production guard layer 2.
+# Observability hook fires whenever the Telegram API base URL is overridden.
+# Layer 1 (Settings validator) prevents the production+override combination at
+# startup; this layer surfaces test-mode runs to operators so a stray override
+# in staging never escapes notice.
+if settings.telegram_api_base_url:
+    logger.warning(
+        "Telegram Bot API routed via override URL: %s (test mode only — "
+        "production validator would reject)",
+        settings.telegram_api_base_url,
+    )
+    if settings.sentry_dsn:
+        sentry_sdk.add_breadcrumb(
+            category="config",
+            level="warning",
+            message=f"TELEGRAM_API_BASE_URL active: {settings.telegram_api_base_url}",
+        )
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

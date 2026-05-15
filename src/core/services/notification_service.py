@@ -6,6 +6,9 @@ Notification Service для уведомлений пользователей.
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Literal
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.repositories.user_repo import UserRepository
 from src.db.session import async_session_factory
@@ -250,3 +253,137 @@ class NotificationService:
 
 # Глобальный экземпляр
 notification_service = NotificationService()
+
+
+# ─── BL-107 Phase B.5a — admin review notifications ────────────────────────
+
+
+async def notify_admins_evidence_submitted(
+    session: AsyncSession,
+    channel_id: int,
+    owner_user_id: int,
+    application_number: str,
+) -> int:
+    """Notify all admins что owner submitted blogger registry evidence.
+
+    BL-107 Phase B.5a — manual evidence path. Fires when owner posts
+    к POST /api/channels/{id}/submit-registry-evidence.
+
+    Returns count of admins notified (для logging / tests).
+    Session is read-only — no commit done here (caller-owns per S-48).
+    """
+    user_repo = UserRepository(session)
+    admins = await user_repo.get_all_admins()
+
+    message = (
+        f"📋 <b>Новая заявка на верификацию канала</b>\n\n"
+        f"Канал ID: <code>{channel_id}</code>\n"
+        f"Владелец ID: <code>{owner_user_id}</code>\n"
+        f"Номер заявления: <code>{application_number}</code>\n\n"
+        f"Откройте админ-панель для рассмотрения."
+    )
+
+    notified = 0
+    for admin in admins:
+        try:
+            notify_user.delay(
+                telegram_id=admin.telegram_id,
+                message=message,
+                parse_mode="HTML",
+            )
+            notified += 1
+        except Exception as e:
+            logger.error(f"Error notifying admin {admin.id} about evidence submitted: {e}")
+
+    return notified
+
+
+async def notify_owner_verification_decided(
+    session: AsyncSession,
+    owner_user_id: int,
+    channel_id: int,
+    decision: Literal["verified", "rejected"],
+    reason: str | None = None,
+) -> bool:
+    """Notify channel owner о admin's verify/reject decision.
+
+    BL-107 Phase B.5a — manual evidence path outcome notification.
+    Session is read-only — no commit done here (caller-owns per S-48).
+    """
+    user_repo = UserRepository(session)
+    owner = await user_repo.get_by_id(owner_user_id)
+    if owner is None:
+        logger.error(f"Owner user {owner_user_id} not found — cannot notify")
+        return False
+
+    if decision == "verified":
+        message = (
+            f"✅ <b>Канал верифицирован!</b>\n\n"
+            f"Канал ID: <code>{channel_id}</code>\n\n"
+            f"Ваш канал зарегистрирован в Реестре блогеров. "
+            f"Теперь вы можете принимать заявки на размещение."
+        )
+    else:
+        reason_block = f"\n\n<b>Причина:</b> {reason}" if reason else ""
+        message = (
+            f"❌ <b>Заявка на верификацию отклонена</b>\n\n"
+            f"Канал ID: <code>{channel_id}</code>"
+            f"{reason_block}\n\n"
+            f"Вы можете подать заявку повторно с обновлёнными данными."
+        )
+
+    try:
+        notify_user.delay(
+            telegram_id=owner.telegram_id,
+            message=message,
+            parse_mode="HTML",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying owner {owner_user_id} about verification decision: {e}")
+        return False
+
+
+# ─── BL-107 Phase B.6 — periodic re-verification notifications ──────────────
+
+
+async def notify_owner_verification_lost(
+    session: AsyncSession,
+    owner_user_id: int,
+    channel_id: int,
+) -> bool:
+    """Notify channel owner что Trustchannelbot verification was automatically lost.
+
+    BL-107 Phase B.6 — background periodic check detected что @Trustchannelbot
+    больше не admin канала, и verification was reset. Owner может либо
+    re-add Trustchannelbot, либо submit manual evidence через mini_app.
+
+    Session is read-only — no commit done here (caller-owns per S-48).
+    """
+    user_repo = UserRepository(session)
+    owner = await user_repo.get_by_id(owner_user_id)
+    if owner is None:
+        logger.error(f"Owner user {owner_user_id} not found — cannot notify")
+        return False
+
+    message = (
+        f"⚠️ <b>Верификация канала сброшена</b>\n\n"
+        f"Канал ID: <code>{channel_id}</code>\n\n"
+        f"@Trustchannelbot больше не является администратором канала, "
+        f"поэтому автоматическая верификация в Реестре блогеров (ФЗ-303) "
+        f"была отозвана.\n\n"
+        f"Чтобы восстановить статус, добавьте @Trustchannelbot обратно "
+        f"в администраторы канала или подайте заявку вручную через "
+        f"раздел «Реестр блогеров» в mini app."
+    )
+
+    try:
+        notify_user.delay(
+            telegram_id=owner.telegram_id,
+            message=message,
+            parse_mode="HTML",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying owner {owner_user_id} about verification lost: {e}")
+        return False

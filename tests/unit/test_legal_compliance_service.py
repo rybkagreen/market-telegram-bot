@@ -53,16 +53,23 @@ def service() -> LegalComplianceService:
         (PlacementStatus.published, PlacementStatus.cancelled, set()),
         (PlacementStatus.failed, PlacementStatus.refunded, set()),
         (PlacementStatus.failed_permissions, PlacementStatus.refunded, set()),
-        # Pre-escrow (G07 = Phase 4 stub but in resolution table)
+        # Pre-escrow (G07 = Phase 4 stub but in resolution table;
+        # G19 = BL-107 ФЗ-303 blogger registry defense-in-depth)
         (
             PlacementStatus.pending_owner,
             PlacementStatus.pending_payment,
-            {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED},
+            {
+                PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED,
+                PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            },
         ),
         (
             PlacementStatus.counter_offer,
             PlacementStatus.pending_payment,
-            {PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED},
+            {
+                PlacementGate.G07_SUPPLEMENTARY_AGREEMENT_SIGNED,
+                PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED,
+            },
         ),
         # Pre-publication
         (

@@ -28,6 +28,10 @@ from src.api.schemas.channel import (
     ChannelCreateRequest,
     ChannelResponse,
 )
+from src.api.schemas.channel_verification import (
+    ChannelVerificationSubmitRequest,
+    ChannelVerificationSubmitResponse,
+)
 from src.api.schemas.mediakit import MediakitAdvertiserResponse
 from src.config.settings import settings
 from src.constants.tariffs import (
@@ -37,7 +41,11 @@ from src.constants.tariffs import (
     TARIFF_SUBSCRIBER_LIMITS,
     TARIFF_TOPICS,
 )
+from src.core.enums.blogger_registry import BloggerRegistryVerificationMethod
+from src.core.enums.gate_reason import GateReason
+from src.core.enums.placement_gate import PlacementGate
 from src.core.exceptions import ChannelAddDeclinedError
+from src.core.schemas.channel_add_context import ChannelAddContext
 from src.core.services.legal_compliance_service import LegalComplianceService
 from src.core.services.mediakit_service import mediakit_service
 from src.db.models.channel_settings import ChannelSettings
@@ -46,6 +54,10 @@ from src.db.repositories.audit_log_repo import AuditLogRepo
 from src.db.repositories.category_repo import CategoryRepo
 from src.db.session import async_session_factory
 from src.utils.mediakit_pdf import generate_mediakit_pdf
+from src.utils.telegram.verify_blogger_registry import (
+    TrustchannelbotResolutionError,
+    verify_trustchannelbot_admin,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["channels"])
@@ -344,8 +356,8 @@ async def create_channel(
     # Admin test-mode carve-out per Marina Q3=(а): bypass when admin is
     # explicitly creating a test channel. Mirrors §3.B.4 admin spirit.
     admin_test_bypass = current_user.is_admin and body.is_test
+    compliance = LegalComplianceService(session)
     if not admin_test_bypass:
-        compliance = LegalComplianceService(session)
         gate_results = await compliance.check_gates_for_user_role(current_user, role="owner")
         blockers = [r for r in gate_results if not r.passed]
         if blockers:
@@ -402,8 +414,93 @@ async def create_channel(
             detail="Бот не является администратором канала",
         )
 
-    # 4. Проверка на дубликат
+    # 4. Получаем member_count (нужен для G19 ФЗ-303 check + create flow)
     username_clean = body.username.lstrip("@")
+    member_count = 0
+    try:
+        member_count = await chat.get_member_count() if hasattr(chat, "get_member_count") else 0
+    except Exception:
+        logger.warning(f"Cannot get member count for @{body.username}")
+
+    # 5. BL-107 / ФЗ-303 — Trustchannelbot admin check + G19 channel-context gate
+    # Phase B.4 wiring (admin_test_bypass skips per Marina Q3=(а) carve-out parity)
+    verification_audit: dict[str, Any] = {
+        "is_blogger_registry_verified": False,
+        "blogger_registry_verified_at": None,
+        "blogger_registry_verification_method": None,
+        "member_count_at_verification": None,
+        "last_blogger_registry_check_at": None,
+    }
+    if not admin_test_bypass:
+        try:
+            is_verified = await verify_trustchannelbot_admin(bot, chat.id)
+        except TrustchannelbotResolutionError as exc:
+            logger.warning("Trustchannelbot resolution failed for channel %s: %s", chat.id, exc)
+            await AuditLogRepo(session).log(
+                action="channel_add_declined",
+                resource_type="channel",
+                user_id=current_user.id,
+                extra={"blockers": [PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED.value]},
+            )
+            raise ChannelAddDeclinedError(
+                "Channel verification temporarily unavailable — try again later",
+                extra={
+                    "blockers": [
+                        {
+                            "gate": PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED.value,
+                            "reason_code": GateReason.SUBSCRIBER_COUNT_UNKNOWN.value,
+                            "remediation_url": None,
+                        }
+                    ],
+                },
+            ) from exc
+
+        channel_data = ChannelAddContext(
+            telegram_id=chat.id,
+            username=username_clean,
+            member_count=member_count,
+            is_test=body.is_test and current_user.is_admin,
+            description=getattr(chat, "description", None),
+            is_blogger_registry_verified=is_verified,
+        )
+        channel_gate_results = await compliance.check_gates_for_channel_add(
+            current_user, channel_data
+        )
+        channel_blockers = [r for r in channel_gate_results if not r.passed]
+        if channel_blockers:
+            await AuditLogRepo(session).log(
+                action="channel_add_declined",
+                resource_type="channel",
+                user_id=current_user.id,
+                extra={"blockers": [r.gate.value for r in channel_blockers]},
+            )
+            raise ChannelAddDeclinedError(
+                "Channel-add declined: ФЗ-303 blogger registry verification required",
+                extra={
+                    "blockers": [
+                        {
+                            "gate": r.gate.value,
+                            "reason_code": r.reason_code,
+                            "remediation_url": r.remediation_url,
+                        }
+                        for r in channel_blockers
+                    ],
+                },
+            )
+
+        now_utc = datetime.now(UTC)
+        verification_audit["last_blogger_registry_check_at"] = now_utc
+        if is_verified:
+            verification_audit.update({
+                "is_blogger_registry_verified": True,
+                "blogger_registry_verified_at": now_utc,
+                "blogger_registry_verification_method": (
+                    BloggerRegistryVerificationMethod.TRUSTCHANNELBOT_ADMIN
+                ),
+                "member_count_at_verification": member_count,
+            })
+
+    # 6. Проверка на дубликат
     result = await session.execute(
         select(TelegramChat).where(
             TelegramChat.owner_id == current_user.id,
@@ -418,17 +515,10 @@ async def create_channel(
             detail="Этот канал уже добавлен",
         )
 
-    # 5. Создаём канал в БД
+    # 7. Создаём канал в БД
     from src.db.repositories.telegram_chat_repo import TelegramChatRepository
 
     repo = TelegramChatRepository(session)
-
-    # Получаем member_count
-    member_count = 0
-    try:
-        member_count = await chat.get_member_count() if hasattr(chat, "get_member_count") else 0
-    except Exception:
-        logger.warning(f"Cannot get member count for @{body.username}")
 
     # Валидация category если передана
     channel_category: str | None = None
@@ -452,6 +542,7 @@ async def create_channel(
         "member_count": member_count,
         "is_test": is_test,
         "category": channel_category,
+        **verification_audit,
     })
     await session.flush()
     session.add(ChannelSettings(channel_id=new_channel.id))
@@ -1358,4 +1449,67 @@ async def get_mediakit_pdf(
         headers={
             "Content-Disposition": f'attachment; filename="mediakit_{channel_id}.pdf"',
         },
+    )
+
+
+@router.post(
+    "/{channel_id}/submit-registry-evidence",
+    response_model=ChannelVerificationSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        403: {"description": "Not channel owner"},
+        404: {"description": "Channel not found"},
+        409: {"description": "Channel already verified"},
+    },
+)
+async def submit_registry_evidence(
+    channel_id: int,
+    body: ChannelVerificationSubmitRequest,
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ChannelVerificationSubmitResponse:
+    """Submit blogger registry evidence for admin review (BL-107 Phase B.5a).
+
+    Manual evidence path — used when @Trustchannelbot admin verification
+    is not reachable (e.g. Госуслуги-link registration без Trustchannelbot).
+    """
+    from src.core.services.notification_service import notify_admins_evidence_submitted
+
+    channel = await session.get(TelegramChat, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    if channel.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not channel owner")
+    if channel.is_blogger_registry_verified:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Channel already verified")
+
+    now = datetime.now(UTC)
+    channel.blogger_registry_application_number = body.application_number
+    channel.last_blogger_registry_check_at = now
+    await session.flush()
+
+    await AuditLogRepo(session).log(
+        action="blogger_registry_evidence_submitted",
+        resource_type="telegram_chat",
+        user_id=current_user.id,
+        resource_id=channel_id,
+        extra={
+            "application_number": body.application_number,
+            "registry_url": str(body.registry_url) if body.registry_url else None,
+            "notes": body.notes,
+        },
+    )
+
+    await notify_admins_evidence_submitted(
+        session=session,
+        channel_id=channel_id,
+        owner_user_id=current_user.id,
+        application_number=body.application_number,
+    )
+
+    return ChannelVerificationSubmitResponse(
+        status="pending_review",
+        channel_id=channel_id,
+        application_number=body.application_number,
+        submitted_at=now,
     )
