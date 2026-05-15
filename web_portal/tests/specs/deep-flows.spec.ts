@@ -11,7 +11,7 @@ import { TEST_USERS } from '../fixtures/roles'
  * rendered elements.
  *
  * Flows covered:
- *    1. accept rules — POST /api/legal-profile/rules → no-op if already
+ *    1. accept rules — POST /api/contracts/accept-rules → no-op if already
  *       accepted (seed auto-accepts), verify contract shape.
  *    2. campaign wizard — UI navigation through /adv/campaigns/new/*
  *       steps (category → channels → format → text → terms).
@@ -42,10 +42,10 @@ const admin = TEST_USERS.admin
 test.describe('[flow] accept rules', () => {
   test.use({ storageState: advertiser.storageFile })
 
-  test('POST /api/legal-profile/rules returns 200 (idempotent)', async ({
+  test('POST /api/contracts/accept-rules returns 200 (idempotent)', async ({
     request,
   }) => {
-    const resp = await request.post('/api/legal-profile/rules', {
+    const resp = await request.post('/api/contracts/accept-rules', {
       data: { accept_platform_rules: true, accept_privacy_policy: true },
     })
     expect(resp.ok(), await resp.text()).toBe(true)
