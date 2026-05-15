@@ -7,6 +7,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.0] - 2026-05-15
+
+### Added — BL-107 Channel Registration Verification (ФЗ-303)
+
+- **Schema:** `TelegramChat` extended with 7 fields for ФЗ-303 compliance
+  tracking (`is_blogger_registry_verified`, `blogger_registry_verified_at`,
+  `blogger_registry_application_number`, `blogger_registry_verified_by_admin_id`,
+  `blogger_registry_verification_method`, `member_count_at_verification`,
+  `last_blogger_registry_check_at`) + `BloggerRegistryVerificationMethod`
+  StrEnum (`trustchannelbot_admin`, `manual_evidence`).
+- **Gate framework:** `PlacementGate.G19_BLOGGER_REGISTRY_VERIFIED` +
+  `ChannelAddContext` channel-context dataclass + `_CHANNEL_CONTEXT_GATE_CHECKERS`
+  parallel registry + `check_gates_for_channel_add` orchestration. G19 fires
+  both at channel-add and at transition to `pending_payment` (defence-in-depth
+  for channels added before the gate landed).
+- **Trustchannelbot integration:** `verify_trustchannelbot_admin` cross-SDK
+  helper (aiogram + python-telegram-bot), lazy in-memory cache with
+  `asyncio.Lock`, 5 new `rkn_*` Settings fields covering threshold,
+  Trustchannelbot ID override, periodic-check feature flag, and production
+  guard.
+- **Manual evidence flow:** owner submission endpoint
+  (`POST /api/channels/{id}/submit-registry-evidence`) + 4 admin review
+  endpoints (list, detail with audit history, verify, reject) + 2 web_portal
+  screens (queue + detail with inline verify/reject forms) + 1 mini_app
+  submission screen (`OwnSubmitRegistryEvidence`) with entry button on
+  `OwnChannelDetail` for channels ≥10k.
+- **Periodic re-verification:** daily Celery task
+  `parser:check_channel_registry_status` at 03:45 UTC; refreshes
+  `member_count`, re-verifies `TRUSTCHANNELBOT_ADMIN` channels, resets +
+  notifies owner when Trustchannelbot drops admin status; tracks
+  threshold-crossings; `MANUAL_EVIDENCE` channels excluded by design.
+- **Bot UX parity (closes O.7):** admin-only `selecting_is_test` FSM step
+  brings bot path to feature parity with API `is_test` capability;
+  defense-in-depth `is_admin` checks at FSM gate and `add_channel_confirm`.
+- **Mock infrastructure (closes BL-002):** custom aiohttp Telegram Bot API
+  stub at `tests/e2e/telegram_api_stub/` with 9 method handlers +
+  introspection endpoints; new `telegram-stub` service in
+  `docker-compose.test.yml`; `TELEGRAM_API_BASE_URL` Setting routes both
+  Telegram SDKs through the stub; 3-layer R4 production guard
+  (Pydantic model_validator hard-fail + startup logger.warning +
+  Sentry breadcrumb).
+- **Test infrastructure:** vitest@4.1.6 + @testing-library/react + jsdom
+  pinned in both web_portal and mini_app with per-frontend `vitest.config.ts`
+  + `tsconfig.test.json` + setup/utils; 9 new component tests across 3
+  BL-107 screens (≥3 per screen).
+- **E2E coverage:** 5 new Playwright specs total — 4 BL-107 specs
+  (`bl-107-channel-registration.spec.ts` D.1 verified precheck, D.2
+  not-verified precheck, D.3 manual-evidence full flow, D.4 periodic
+  re-verification proxy) + 1 BL-002 unblock in `deep-flows.spec.ts`.
+
+### Fixed
+
+- **G19 gate eager-load** — `session.get(TelegramChat, ...)` did not
+  eagerload `placement.channel`, causing `MissingGreenlet` under async
+  context when the gate fired at transition. Regression from Phase B.2
+  caught at PROMPT 44 ci-local gate before any ramp (`ef26f68`).
+- **`BloggerRegistryVerificationMethod` enum case mismatch** — implicit
+  `Mapped[StrEnum]` column declaration serialized via member **NAME**
+  (uppercase) but Postgres enum holds member **VALUES** (lowercase),
+  producing `InvalidTextRepresentationError` on D.3 manual-evidence
+  verify. Fix: explicit `SAEnum(..., values_callable=lambda x: [m.value
+  for m in x])` — no migration needed (`24cf68a`).
+- **`/api/analytics/summary` `days` query validation** — endpoint
+  accepted any value (no type coercion). Added
+  `days: Annotated[int, Query(ge=1, le=90)] = 30`; FastAPI now rejects
+  invalid input with 422 (`9506583`).
+- **Test e2e auth carriage** — three Playwright `APIRequestContext`
+  surfaces required separate auth-header injection: test-fixture
+  `request` (Pattern 2), `browser.newContext({storageState}).request`
+  (Pattern 2b via `apiRequestFor` factory), and bare `apiRequest`
+  re-export (Pattern 2c via `newContext` wrap). All three now inject
+  `Authorization: Bearer …` from `rh_token` in storageState's
+  localStorage.
+- **Telegram-stub pTB 21.x schema compatibility** — stub now fills
+  required `ChatFullInfo` (`accent_color_id`, `max_reaction_count`)
+  and `ChatMemberAdministrator` permission defaults; dedicated
+  `getChatMemberCount` handler returns the bare integer pTB expects.
+- **Seed authoritative Contract row** — `scripts/e2e/seed_e2e.py` now
+  creates a signed `Contract` row with `contract_type='platform_rules'`
+  matching `CONTRACT_TEMPLATE_VERSION` for each E2E user, restoring
+  visual baselines to per-route content (previously captured the
+  rules-acceptance gate page).
+- **BL-107 D.3 cross-project isolation** — spec now detects prior
+  verification via the admin verified-list and branches: full happy-path
+  on first browser project, idempotent re-assertion (submit → 409 +
+  verified-list contains channel) on subsequent projects.
+
+### Closed BLs
+
+- BL-107 (this workstream)
+- BL-002 (mock infrastructure + Playwright unblock + auth carriage
+  Pattern 2c)
+- O.7 (bot is_test parity)
+
+### New BLs filed
+
+10 entries — see `reports/docs-architect/BACKLOG.md` § BL-116 through
+BL-125. Highlights: TS 7.0 full migration sprint (BL-116), landing
+`"latest"` deps pinning (BL-117), gate framework integration-test
+pattern requirement (BL-120), SQLAlchemy `Mapped[StrEnum]` audit
+pattern (BL-121), residuals R4/R5/R6 (frontend/backend bugs filed
+to BACKLOG) and R10 (visual baseline flake).
+
+### Migration Notes
+
+No schema migrations required — `0001_initial_schema.py` edited in place
+per BL-061 pre-prod exception (terminates after first production user).
+The R7 fix is ORM-side serialization config only; pg enum type
+`bloggerregistryverificationmethod` already holds correct lowercase
+values.
+
+---
+
 ### Phase B.8 — BL-107 / BL-002 mock infrastructure (Telegram Bot API stub + env routing)
 
 Closes BL-002 (`web_portal/tests/specs/deep-flows.spec.ts:289-296`

@@ -73,6 +73,14 @@ Remaining 17.x scope:
 
 ### BL-002 — Channel add via Telegram bot verification
 
+- **Status:** CLOSED 2026-05-15 (v0.9.0 — BL-107 Phase B.8 + B.9.C + Pattern 2c auth).
+  Mock infrastructure shipped as `tests/e2e/telegram_api_stub/` (aiohttp Telegram
+  Bot API stub) + `telegram-stub` service in `docker-compose.test.yml` +
+  `TELEGRAM_API_BASE_URL` routing in both Telegram SDKs +
+  3-layer R4 production guard. Playwright spec at
+  `web_portal/tests/specs/deep-flows.spec.ts:288-322` unwrapped from `test.fixme`
+  to a real `POST /api/channels/check` against `@verified_channel` stub fixture.
+  Cross-context auth carriage (Pattern 2c) closed at `5676192`.
 - **Surfaced in:** `web_portal/tests/specs/deep-flows.spec.ts`
   → `test.fixme('[flow] owner adds channel via bot verification')`.
 - **Why deferred:** the flow calls real Telegram Bot API
@@ -3329,8 +3337,10 @@ accept-as-known-harmless validated through full release cycle
 
 ### BL-107 — Channel registration verification для каналов ≥10k подписчиков (метка А+)
 
-**Status:** OPEN — **LAUNCH-BLOCKING**
+**Status:** CLOSED 2026-05-15 (v0.9.0 — Phase B.1–B.9 closure)
 **Created:** 2026-05-13 (BL-080 8a research surface)
+**Closure summary:** Shipped via 21 commits across 9 feature phases + 3 CI gate rounds (PROMPT 44 / 45 / 45-ext / 45-ext-of-ext). Add-time enforcement via G19 + Trustchannelbot auto-verification; manual evidence escape hatch via owner submission + admin review; daily drift detection via periodic Celery task. Three latent production defects caught and fixed (G19 eager-load `ef26f68`; SQLAlchemy `Mapped[StrEnum]` case mismatch `24cf68a`; `/api/analytics/summary` validation `9506583`). Final state: ci-local 1204 passed (0 failed); BL-107 own 12/12 E2E PASS across 3 browser projects. See `reports/docs-architect/discovery/CHANGES_BL107_consolidated_2026-05-15.md`.
+
 **Source:** ФЗ-303 от 08.08.2024 → ч. 10.6 ст. 5 ФЗ-38 + ст. 10.6 ФЗ-149. Реестр блогеров действует с 01.11.2024.
 
 **Statement:** Каналы ≥10000 подписчиков обязаны регистрироваться в реестре Роскомнадзора (Реестр блогеров) и иметь метку А+ (зарегистрирован) в публикациях. Штрафы за размещение рекламы у незарегистрированного блогера ≥10k подписчиков:
@@ -3527,6 +3537,209 @@ accept-as-known-harmless validated through full release cycle
 **Priority note:** low — current state functional; rename is documentation-clarity improvement.
 
 **Refs:** PROMPT 28b probe (verdict NO BUG, naming-only). L18 carve-out (G02/G05 docstrings).
+
+**Owner:** _unassigned_
+
+### BL-116 — TypeScript 7.0 full migration sprint
+
+**Status:** OPEN — tech debt
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** BL-107 Phase B.9.A pinning surfaced ongoing TS 6.x → 7.0 alignment work.
+
+**Statement:** Both web_portal and mini_app are on TS 6.0.2 (CLAUDE.md landing-specific rules call out the version explicitly). TS 7.0 introduces deferred-evaluation type checks, conditional-type performance improvements, and tightens `verbatimModuleSyntax` ergonomics. Full migration requires coordinated upgrade of @types packages, jsdom (per vitest), and downstream lint rule compatibility.
+
+**Closure trigger:**
+- (a) Upgrade typescript to 7.0.x in all 3 frontends (mini_app, web_portal, landing).
+- (b) Re-pin @testing-library/* + jsdom to versions compatible with TS 7.0.
+- (c) Re-run lint/type-check across all frontends, capture diff to baseline.
+- (d) Update CLAUDE.md landing-specific rules version reference.
+
+**Effort:** medium-high — touches all frontends, may surface latent type-narrowing changes.
+**Priority note:** low-medium — current TS 6.x is stable; migration is forward-looking hygiene.
+
+**Refs:** BL-107 Phase B.9.A (`6356f4c`), CLAUDE.md "Landing-specific rules".
+
+**Owner:** _unassigned_
+
+### BL-117 — `landing/package.json` `"latest"` deps pinning
+
+**Status:** OPEN — supply-chain hygiene
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** Repeat surface during BL-107 Phase B.9.A pinning — landing/ uses `"latest"` for several deps which violates reproducible-build guarantees and exposes the landing to upstream supply-chain risk.
+
+**Statement:** `landing/package.json` declares several dependencies as `"latest"` instead of pinned semver ranges or exact versions. Reproducible builds are compromised; any malicious upstream version published can land in production at the next `npm install`.
+
+**Closure trigger:**
+- (a) Audit current `landing/package-lock.json` for actual installed versions, pin those in `package.json`.
+- (b) Re-run landing build to confirm no regression.
+- (c) Add CI check that fails on `"latest"` in any package.json under the repo.
+
+**Effort:** small.
+**Priority note:** low — landing is static and surface area limited, but supply-chain hygiene is a baseline expectation.
+
+**Refs:** BL-107 Phase B.9.A pinning discipline.
+
+**Owner:** _unassigned_
+
+### BL-118 — `mini_app/vite.config.ts` `resolve.tsconfigPaths` invalid option
+
+**Status:** OPEN — config drift (silent no-op)
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** Phase B.9.A vitest infrastructure work surfaced an invalid Vite resolve option in mini_app config.
+
+**Statement:** `mini_app/vite.config.ts` includes `resolve.tsconfigPaths` as a config option, but Vite does not recognize this key (the canonical pattern is the `vite-tsconfig-paths` plugin or explicit alias mapping). Vite silently ignores unknown `resolve.*` keys. Currently mini_app builds correctly because aliases are mirrored explicitly in `vitest.config.ts` (Phase B.9.A), but the dead config invites future drift.
+
+**Closure trigger:**
+- (a) Either install `vite-tsconfig-paths` plugin and use it, or delete the dead config key.
+- (b) Mirror the chosen approach to web_portal if inconsistency exists.
+
+**Effort:** trivial (~5 min).
+**Priority note:** low — silent no-op, no functional impact.
+
+**Refs:** BL-107 Phase B.9.A (`6356f4c`).
+
+**Owner:** _unassigned_
+
+### BL-119 — `.claude/` hook persistence between fresh sessions
+
+**Status:** OPEN — infrastructure UX gap
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure surface)
+**Source:** BL-107 multi-prompt workstream surfaced repeated re-discovery of `.claude/` state across fresh `claude` invocations (PROMPT 42 → 43 → 44 → 45 → 46 chain). Complements BL-113 (stop-hook BL-013 deferred bundle detection).
+
+**Statement:** Fresh `claude` sessions do not inherit `.claude/` hook state or scheduled-task locks consistently. The `.claude/scheduled_tasks.lock` file lingers untracked and was visible in `git status` on every session start. Existing BL-016 silent-ignore + BL-113 deferred-bundle protocols partially mitigate but don't address state hand-off.
+
+**Closure trigger:**
+- (a) Standardize a session-start clean-up routine for `.claude/` ephemeral files.
+- (b) Distinguish ephemeral lock files from durable hook config (gitignore patterns).
+- (c) Document the hand-off expectations in CLAUDE.md "Process discipline" section.
+
+**Effort:** small.
+**Priority note:** low — UX cleanliness, no correctness impact.
+
+**Refs:** BL-013 (stop-hook relay protocol), BL-016 (acks bound at 2), BL-090, BL-113.
+
+**Owner:** _unassigned_
+
+### BL-120 — Gate framework — integration test pattern requirement (caller-chain E2E)
+
+**Status:** OPEN — process improvement
+**Created:** 2026-05-15 (L-next from BL-107 v0.9.0 closure)
+**Source:** PROMPT 44 caught G19 production regression (`ef26f68`) only at ci-local gate, not at sub-block unit tests. AsyncMock-shaped `session.get()` returns coincidentally satisfied production async eager-load expectations.
+
+**Statement:** Adding a new gate to `_TRANSITION_GATES` or `_CHANNEL_CONTEXT_GATE_CHECKERS` requires verifying the gate fires correctly at the full caller-chain (transition path or channel-add path), not just at unit-test scope with mocked sessions. Unit-test coverage with `AsyncMock(spec=AsyncSession)` does not exercise the actual eager-load (`selectinload`) requirements that production paths impose.
+
+**Closure trigger:**
+- (a) Document the expectation in `CLAUDE.md` "Engineering Principles" or a new section about gate additions.
+- (b) Optionally: add a CI lint rule that flags new entries in `_TRANSITION_GATES` / `_CHANNEL_CONTEXT_GATE_CHECKERS` without a matching integration test.
+- (c) Backfill caller-chain integration tests for existing gates where missing.
+
+**Effort:** small (doc) → medium (lint + backfill).
+**Priority note:** medium — preventive process improvement; pays off on every future gate addition.
+
+**Refs:** BL-107 Phase B.2 → ef26f68 regression caught at PROMPT 44 ci-local.
+
+**Owner:** _unassigned_
+
+### BL-121 — SQLAlchemy `Mapped[StrEnum]` without `values_callable` — audit pattern
+
+**Status:** OPEN — latent bug audit
+**Created:** 2026-05-15 (BL-107 v0.9.0 closure — R7 production fix)
+**Source:** R7 production fix (`24cf68a`) — `BloggerRegistryVerificationMethod` column declared as `Mapped[T] = mapped_column(nullable=True)` without explicit `Enum(...)` spec. SQLAlchemy inferred the column and serialized via member NAME (uppercase) while Postgres enum holds member VALUES (lowercase). Produced `InvalidTextRepresentationError` only at the D.3 end-to-end manual-evidence flow; unit tests passed because they did not hit the actual DB write path.
+
+**Statement:** Any column declared as `Mapped[T] | None` where `T` is a `StrEnum` and the column-type is inferred (no explicit `Enum(T, ...)` in `mapped_column(...)`) is suspect. Audit pattern: `grep -rn "Mapped\[.*Method\]\|Mapped\[.*Status\]" src/db/models/`. Each match needs a check whether the underlying Postgres enum type's members are the StrEnum's names (uppercase) or values (lowercase). When values, explicit `Enum(T, name=..., values_callable=lambda x: [m.value for m in x])` is required.
+
+**Closure trigger:**
+- (a) Run the audit grep, enumerate all `Mapped[StrEnum]` declarations.
+- (b) For each, verify the Postgres enum type definition (Alembic migration) matches the ORM serialization choice.
+- (c) Fix any mismatches with explicit `Enum(..., values_callable=...)` ORM declaration. No migration change needed when the pg enum already holds correct values.
+- (d) Add a regression test for at least one fixed column verifying round-trip insert/select.
+
+**Effort:** small (audit + fixes, ~30-60 min depending on count).
+**Priority note:** medium — silent latent bugs that only manifest in production paths.
+
+**Refs:** R7 fix `24cf68a`, memory entry `project_sqlalchemy_strenum_pitfall.md`.
+
+**Owner:** _unassigned_
+
+### BL-122 — ticket-login `rh_token` not persisted to localStorage (R4)
+
+**Status:** OPEN — auth UX bug (Phase 1 §1.B.3 bridge regression)
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R4)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/ticket-login.spec.ts:43` × 3 browsers).
+
+**Statement:** Ticket-login spec asserts `localStorage.getItem('rh_token')` is non-empty after consuming a ticket and navigating to `/cabinet`; assertion fails because the token is either not written by `TicketLogin.tsx` or is cleared/overwritten by a competing auth-store reset on the `/cabinet` mount. Spec reaches the assertion (auth chain Pattern 1 + 2 + P2c unblocked it), so the bug is real, not a test-side issue.
+
+**Closure trigger:**
+- (a) Probe `web_portal/src/screens/auth/TicketLogin.tsx` consume flow — does it write `rh_token` to localStorage before redirect?
+- (b) Probe `useAuth*` hooks for a competing reset on `/cabinet` mount.
+- (c) Identify root cause (hypothesis a or b), fix, add regression test.
+
+**Effort:** 30–60 min (depends on hypothesis).
+**Priority note:** medium — auth UX bug; ticket-login is a Phase 1 §1.B.3 bridge flow.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R4.
+
+**Owner:** _unassigned_
+
+### BL-123 — Campaign wizard step indicator missing on `/adv/campaigns/new/category` (R5)
+
+**Status:** OPEN — frontend regression (likely S-47 phase 5)
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R5)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/deep-flows.spec.ts:60` × 3 browsers).
+
+**Statement:** Spec asserts `[data-testid="step-indicator"], nav ol, nav ul` has count > 0 on `/adv/campaigns/new/category`; gets 0. The wizard step indicator component appears to have been removed or unmounted on the category step. Other wizard steps may share the same gap.
+
+**Closure trigger:**
+- (a) Inspect `web_portal/src/screens/advertiser/campaigns/wizard/CampaignCategory.tsx` and the wizard layout — is the step indicator imported/rendered?
+- (b) Check git history for S-47 phase 5 refactor that may have dropped the wrapping.
+- (c) Restore the step indicator; verify all wizard steps render it consistently.
+
+**Effort:** 15–30 min.
+**Priority note:** low-medium — UX regression in wizard.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R5.
+
+**Owner:** _unassigned_
+
+### BL-124 — Channel-settings price serialized as string after PATCH round-trip (R6)
+
+**Status:** OPEN — API contract / serialization bug
+**Created:** 2026-05-15 (BL-107 v0.9.0 test-e2e residual R6)
+**Source:** PROMPT 45 Extension surfaced — 3 cases (`web_portal/tests/specs/deep-flows.spec.ts:89` × 3 browsers).
+
+**Statement:** PATCH `/api/channel-settings/?channel_id=:id` with `{ price_per_post: 1234 }` succeeds; subsequent GET returns `price_per_post: "1234"` (string). Test asserts strict `toBe(1234)` (number) and fails. Likely Decimal-vs-int serialization in `ChannelSettingsResponse` Pydantic model — `Numeric`-typed column serialized as string per Pydantic default for `Decimal`, missing `field_serializer` or `json_schema_extra`.
+
+**Closure trigger:**
+- (a) Inspect `src/api/schemas/channel_settings.py` or equivalent — Decimal serialization.
+- (b) Inspect `src/api/routers/channel_settings.py:187` PATCH handler return type.
+- (c) Inspect `src/db/models/channel_settings.py` column type.
+- (d) Add `field_serializer` returning numeric or change column type if appropriate.
+- (e) Regenerate contract snapshot if Pydantic schema changes.
+
+**Effort:** 30–60 min.
+**Priority note:** medium — API contract bug; downstream frontend may also be coerce-string-to-number client-side, masking the issue.
+
+**Refs:** BL-107 PROMPT 45 Extension residual R6.
+
+**Owner:** _unassigned_
+
+### BL-125 — Visual baseline flake on 4 routes after R8 regen (R10)
+
+**Status:** OPEN — test-infra (visual flake)
+**Created:** 2026-05-15 (BL-107 v0.9.0 ext-of-ext residual R10)
+**Source:** PROMPT 45 Extension-of-Extension surfaced — 4 cases (`web_portal/tests/specs/visual.spec.ts`): `/analytics` mobile-webkit, `/adv/campaigns/new/channels` mobile-webkit + mobile-chromium, `/admin/users` mobile-webkit.
+
+**Statement:** After R8 fix (`3615f71`) regenerated 99 visual baselines against real per-route content (no longer gate page), 4 baselines flake at `make test-e2e` time. Likely seed-time-dependent content drift: `/analytics` renders "обновлено N мин. назад" relative to `placement.published_at`; `/adv/campaigns/new/channels` and `/admin/users` render dynamic lists whose row order may shift. mobile-webkit historically more visual-diff sensitive than chromium engines.
+
+**Closure trigger:**
+- (a) Per-route triage: compare regen-time PNG vs test-e2e-time PNG, identify differing pixel regions.
+- (b) Mitigations available: tighten `mask:` regions on dynamic text; freeze `Date.now()` at a fixed timestamp in global setup; sort lists by stable key.
+- (c) Re-regenerate baselines after mitigations, verify stable across multiple stack-up cycles.
+
+**Effort:** 1–2 hours (per-route triage).
+**Priority note:** low — test-infra flake; not a production regression.
+
+**Refs:** BL-107 PROMPT 45 Extension-of-Extension residual R10, `3615f71` (R8 regen baseline).
 
 **Owner:** _unassigned_
 
