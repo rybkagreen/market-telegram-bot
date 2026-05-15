@@ -76,4 +76,28 @@ export const test = base.extend<{ apiRequestFor: ApiRequestForRole }>({
   },
 })
 
-export { expect, request }
+// Wrap the bare `request` re-export so `newContext({storageState})` also
+// injects Authorization from the storageState's localStorage. Used by specs
+// that mint contexts outside the test-fixture lifecycle (e.g. bl-107
+// manual-evidence flow at bl-107-channel-registration.spec.ts:91+:122).
+//
+// Specs that call `apiRequest.newContext({baseURL})` without storageState
+// see no behavior change — `bearerFromStorageState` returns undefined and
+// `extraHTTPHeaders` stays empty (or whatever the caller supplied).
+const wrappedApiRequest = {
+  newContext: async (options: Parameters<typeof request.newContext>[0] = {}) => {
+    const { storageState, extraHTTPHeaders, ...rest } = options ?? {}
+    const auth =
+      typeof storageState === 'string' ? bearerFromStorageState(storageState) : undefined
+    return request.newContext({
+      ...rest,
+      storageState,
+      extraHTTPHeaders: {
+        ...(auth ? { Authorization: auth } : {}),
+        ...(extraHTTPHeaders ?? {}),
+      },
+    })
+  },
+} as typeof request
+
+export { expect, wrappedApiRequest as request }
