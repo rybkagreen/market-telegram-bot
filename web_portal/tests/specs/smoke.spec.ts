@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../fixtures/test'
 import AxeBuilder from '@axe-core/playwright'
 import { ROUTES } from '../fixtures/routes'
 import { TEST_USERS } from '../fixtures/roles'
