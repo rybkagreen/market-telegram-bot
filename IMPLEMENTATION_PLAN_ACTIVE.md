@@ -1,6 +1,6 @@
 # IMPLEMENTATION_PLAN_ACTIVE.md — Consolidated session plan (rev 4)
 
-_Last updated: 2026-05-12 (post v0.6.0 release — Mediakit Phase B; main @ f866b2f v0.6.0, develop @ 2ad0759 post-release merge)_
+_Last updated: 2026-05-15 (post-v0.9.0 — BL-107 Phase B channel registration ФЗ-303; main @ 5ab8e78 v0.9.0, develop @ 47b7b7d BL-107 merge)_
 
 > **Одноразовый рабочий план.** После завершения ВСЕХ фаз (0 → 8) + серий 15.x / 16.x исполнитель удаляет этот файл (`git rm IMPLEMENTATION_PLAN_ACTIVE.md`) в финальном коммите в `main`. Файл НЕ попадает в релизный `main`.
 >
@@ -52,15 +52,17 @@ _Last updated: 2026-05-12 (post v0.6.0 release — Mediakit Phase B; main @ f866
 | **BL-073/074/080/081 dispositions** | ✅ DOCS | 2026-05-08 → 2026-05-09 | merged develop | BL-078/079/080 entries landed → BL-073/074/080 dispositions (T2.5/T3.1/T3.2/T3.3/T3.7/T3.17/T3.18/T3.19/T3.20/T3.21 absorbed) → BL-081 launch hardening bundle surfaced. BL-074 T3.17/T3.18/T3.19 closed via absorption into BL-080 scope. Docs-only commits + ruff exclude `src/db/migrations/versions/` |
 | Plan restructure | ✅ DOCS | 2026-05-10 | merged develop `213aef2` | Phase 8 placeholder added + 6.B.3 BL-080 reference + section renumber. Reflects 2026-05-08 priority shift "architectural cleanliness + полная готовность including emergent BL-078/079" — launch prerequisites, not post-launch |
 | **BL-078 Phase B (mediakit)** | ✅ DONE | 2026-05-11 | 8 feature merges into develop (`428bd05` precleanup, `a584351` B.1, `0308072` B.2, `49813f0` B.3, `b47d5e2` B.4, `6961994` B.5.1, `72ec2a1` B.5, `2b0d0ab` B.6.1; B.6.2 = this docs closure merge) | Precleanup: drop dead `ChannelService.get_or_create_mediakit` / `update_mediakit` duplicates. B.1: `MediakitService` rewrite Pattern 1 strict + drop `_session_ctx`. B.2: owner-only PDF endpoint + counter increments. B.3: tests sweep + counter refactor + `theme_color=None` graceful handling hotfix. B.4: web_portal owner "Скачать медиакит" PDF download button. B.5.1: advertiser-readable mediakit endpoint (`GET /api/channels/{id}/mediakit` + privacy 404 для unpublished). B.5: mini_app advertiser preview screen + ⓘ icon on ChannelCard. B.6.1: CHANGELOG `[Unreleased]` consolidation. B.6.2: BACKLOG closeouts (BL-076 T1.2-D1, BL-078 IN-PHASE-CLOSED) + 5 new entries (BL-086 logo resolver, BL-087 theme_color tinting, BL-088 landing probe, BL-089 unused dep, BL-090 stop-hook fires loop) + PLAN overlay refresh. Closes BL-076 T1.2-D1 + BL-078 in-phase. Polish tracked under BL-086 / BL-087 |
-| Phase 4 | ⏸ Pending | — | — | Supplementary Agreements (ДС) — G07/G15/G16 PHASE4_PENDING markers awaiting real bodies |
-| Phase 5 | ⏸ Pending | — | — | Test-mode runtime + admin UI + provider pattern + PayoutCompliance wiring + G17/G18 PHASE5_PENDING markers |
+| **BL-080 closure (v0.7.0 release)** | ✅ DONE | 2026-05-13 | 4 sub-block merges into develop → tag `v0.7.0` (`23d44d8`) | BL-080 ORD provider hardening + ERID lifecycle. 8a Provider unification + DI + Celery worker_process_init. 8b Status enum 8-value + deterministic `_build_marked_text` + G08. 8c Idempotency UNIQUE + correlation_id UUIDv7 + audit SAVEPOINT + retry + admin override. 8d Caption budget Option A truncate (photo/video paths). Infrastructure: Fix A migration drift cleanup, Fix B mistralai vendor wheel. L71 softer gate clean |
+| Phase 4 Supplementary Agreements | ✅ DONE | 2026-05-14 | `feature/phase-4-supplementary-agreements` → develop --no-ff (`15bbb1e`) → main --no-ff + tag `v0.8.0` (`390aaa5`) | ДС flow shipped — auto-generated dual-side ДС contracts (advertiser + owner) prerequisite для escrow transition. G07 PHASE4_PENDING placeholder replaced with real body wiring; ContractEvent audit table; partial UNIQUE idempotency. G15/G16 deferred to Phase 5 (PHASE4_PENDING → PHASE5_PENDING reclassification per D1) |
+| **BL-107 Phase B (channel registration ФЗ-303)** | ✅ DONE | 2026-05-15 | `feature/bl-107-channel-registration-verification` → develop --no-ff (`47b7b7d`) → main --no-ff (`5ab8e78`) + tag `v0.9.0` | Channel registration verification (ФЗ-303 compliance) shipped. TelegramChat schema +7 fields + `BloggerRegistryVerificationMethod` enum. G19 placement gate + ChannelAddContext channel-add enforcement. D.3 manual evidence flow + e2e coverage (BL-002 unblocked). Visual baselines regenerated. Phase B.1-B.9 sub-blocks — explicit "channel registration" qualifier disambiguates from BL-078 Phase B (mediakit) closed 2026-05-11 |
+| Phase 5 | ⏸ **NEXT** | — | — | Test-mode runtime + admin UI + provider pattern + PayoutCompliance wiring + G17/G18 PHASE5_PENDING markers. Next active workstream post-v0.9.0 |
 | Phase 6 | ⏸ Pending | — | — | Contracts/Acts UX + ORD production hardening (BL-080 absorb) |
 | Phase 7 | ⏸ Pending | — | — | UI Timeline + sub-stage events + educational overlay (BL-037 visualization) |
 | Phase 8 (placeholder) | ⏸ Pending | — | — | BL-079 (campaign media upload) + future creative content lifecycle work. BL-078 mediakit closed in-phase 2026-05-11 (polish under BL-086 / BL-087) — launch prerequisites per Marina 2026-05-08 priority shift |
 
 **Branch HEADs (на момент обновления):**
-- `main` = `f866b2f` (v0.6.0 — Mediakit Phase B closure)
-- `develop` = `2ad0759` (post-v0.6.0 release merge — release/0.6.0 absorbed)
+- `main` = `5ab8e78` (post-v0.9.0 production deploy merge — develop absorbed)
+- `develop` = `47b7b7d` (v0.9.0 — BL-107 Phase B channel registration ФЗ-303 closure merge)
 
 ---
 
